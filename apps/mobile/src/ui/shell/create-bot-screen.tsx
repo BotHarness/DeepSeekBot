@@ -64,6 +64,10 @@ export const CreationContext = createContext<ReturnType<typeof useCreationModel>
   undefined,
 );
 
+export const CreationLeaveContext = createContext<(action: () => void) => void>((action) =>
+  action(),
+);
+
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
   const shared = useContext(CreationContext);
   return shared ? <CreationStepContent index={0} /> : <LegacyCreateBotScreen {...props} />;
@@ -485,6 +489,7 @@ function CreationStep(props: Parameters<typeof useCreationModel>[0]) {
 
 function CreationStepContent({ index }: { index: number }) {
   const focused = useIsFocused();
+  const leave = useContext(CreationLeaveContext);
   const model = useContext(CreationContext);
   if (!model) throw new Error('Creation step requires its flow owner');
   const {
@@ -633,9 +638,12 @@ function CreationStepContent({ index }: { index: number }) {
                   testID="import-bot-refresh-listing"
                   disabled={state.busy}
                   onPress={() =>
-                    router.push({
-                      pathname: '/marketplace-bot',
-                      params: { id: gitSource.listingId!, entry: 'refresh' },
+                    leave(() => {
+                      model.exit();
+                      router.push({
+                        pathname: '/marketplace-bot',
+                        params: { id: gitSource.listingId!, entry: 'refresh' },
+                      });
                     })
                   }
                 />

@@ -153,7 +153,12 @@ function RootNavigator() {
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen
                     name="(bot-creation)"
-                    options={{ headerShown: false, freezeOnBlur: true }}
+                    options={{ ...sheetScreenOptions(design), freezeOnBlur: true }}
+                  />
+                  <Stack.Screen name="create-channel" options={sheetScreenOptions(design)} />
+                  <Stack.Screen
+                    name="create-bot-avatar"
+                    options={Platform.OS === 'ios' ? { presentation: 'modal' } : {}}
                   />
                   <Stack.Screen
                     name="dm/[slug]"

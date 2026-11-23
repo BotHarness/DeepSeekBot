@@ -2,38 +2,64 @@ import { Stack, router, useLocalSearchParams, useFocusEffect } from 'expo-router
 import { useCallback, useRef, useState } from 'react';
 import { AppState, Keyboard, View } from 'react-native';
 import { channelCreation, useChannelCreation } from '../../host/native-channel-creation';
-import { hostSession, useHostSession } from '../../host/host-session';
+import { hostSession, useHostAvailability, useHostSession } from '../../host/host-session';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { botCreationTargets } from '../../host/bot-creation-targets';
+import type { HostStatus } from '../../host/host-glance';
+import { channelDraftStarted } from '../../host/creation-drafts';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useMounted } from '../mounted';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { EnvironmentPicker } from '../primitives/environment-picker';
-import { CreationField as TextField } from '../primitives/creation-field';
+import { EnvironmentList } from '../primitives/environment-list';
+import { TextField } from '../primitives/text-field';
+import { labelInField } from '../primitives/field-label';
 import { Text } from '../primitives/text';
-import { Button } from '../primitives/creation-button';
-import { useDesignTheme } from '../design/theme';
-import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
-import { BotPickerSheet } from '../chat/bot-picker-sheet';
-import { CreationConfirm } from '../primitives/creation-confirm';
-import { radius, space } from '../design/tokens';
-import { BotPortrait } from '../bot-avatar';
+import { Chip } from '../primitives/chip';
+import { SheetSaveButton } from '../primitives/sheet-save-button';
+import { SheetStack } from '../primitives/sheet-stack';
+import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { SHEET_GROUP } from '../chat/sheet';
+import { space } from '../design/tokens';
 import { creationError } from './bot-creation-copy';
+import { useCreationDraftGuard } from './creation-draft-guard';
 import { useStrings } from '../strings';
+
+export function CreateChannelLayout() {
+  const t = useStrings();
+  const state = useChannelCreation();
+  useCreationDraftGuard(state.loaded && !state.busy && channelDraftStarted(state.record), () =>
+    channelCreation.reset(),
+  );
+  return (
+    <SheetStack>
+      <Stack.Screen name="index" options={{ title: t.chatsCreate.group }} />
+      <Stack.Screen name="members" options={{ title: t.channelCreation.members }} />
+    </SheetStack>
+  );
+}
+
+function hostStatusLabel(t: ReturnType<typeof useStrings>, status: HostStatus | undefined) {
+  return status === 'online'
+    ? t.hostOnline
+    : status === 'offline'
+      ? t.hostOffline
+      : status === 'refused'
+        ? t.hostRefused
+        : t.hostChecking;
+}
 
 export function CreateChannelScreen() {
   const t = useStrings();
-  const theme = useDesignTheme();
   const { entry, hostId } = useLocalSearchParams<{ entry?: string; hostId?: string }>();
   const { hosts } = useHostSession();
+  const availability = useHostAvailability();
   const state = useChannelCreation();
   const record = state.record;
   const focus = useRef(false);
   const opening = useRef(false);
   const [openError, setOpenError] = useState(false);
-  const [picker, setPicker] = useState<{ hostId: string; selected: Set<string> }>();
   useFocusEffect(
     useCallback(() => {
       focus.current = true;
@@ -90,6 +116,7 @@ export function CreateChannelScreen() {
     }
   };
   const submit = async () => {
+    Keyboard.dismiss();
     await channelCreation.submit();
     if (focus.current && AppState.currentState === 'active') await open();
   };
@@ -100,162 +127,206 @@ export function CreateChannelScreen() {
     (record.kind === 'draft' && !!state.error) ||
     !record.name.trim() ||
     !hosts.some((host) => host.hostId === record.hostId);
-  const action = {
-    label: state.busy
-      ? t.botCreation.working
-      : record.kind === 'submitted'
-        ? t.botCreation.retry
-        : t.newChannel,
-    disabled,
-    testID: 'create-channel-submit',
-    onPress: () => {
-      void submit();
-    },
+  const hostName = (id: string) => {
+    const host = hosts.find((candidate) => candidate.hostId === id);
+    return host
+      ? shownHostName(hostLooks.look(host.hostId), host.hostName)
+      : t.botCreation.targetUnavailable;
   };
+  const selected = state.candidates.filter((bot) => record.members.includes(bot.slug));
+  const error = state.error
+    ? ['unknown-bot', 'archived-bot', 'protected-bot'].includes(state.error)
+      ? record.kind === 'draft'
+        ? t.channelCreation.membersChanged
+        : t.channelCreation.retained
+      : state.error === 'invalid-input'
+        ? t.channelCreation.invalid
+        : creationError(state.error)
+    : undefined;
   return (
     <View ref={mount} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: t.newChannel,
-          headerShown: true,
-          presentation: 'card',
-          contentStyle: { backgroundColor: theme.overlay.fill },
           headerRight: () => (
-            <CreationConfirm
-              label={state.result ? t.channelCreation.open : action.label}
-              disabled={!state.result && disabled}
-              busy={state.busy}
+            <SheetSaveButton
+              label={
+                state.result
+                  ? t.channelCreation.open
+                  : record.kind === 'submitted'
+                    ? t.botCreation.retry
+                    : t.channelCreation.create
+              }
               testID="create-channel-submit"
-              onPress={state.result ? () => void open() : action.onPress}
+              busy={state.busy}
+              disabled={!state.result && disabled}
+              onPress={() => void (state.result ? open() : submit())}
             />
           ),
         }}
       />
-      <View style={{ flex: 1 }}>
-        <KeyboardFormScroll contentContainerStyle={{ padding: space.x5, gap: space.x5 }}>
-          {openError ? (
-            <Text accessibilityRole="alert">{t.botCreation.targetUnavailable}</Text>
-          ) : null}
-          {state.error ? (
-            <Text accessibilityRole="alert">
-              {['unknown-bot', 'archived-bot', 'protected-bot'].includes(state.error)
-                ? record.kind === 'draft'
-                  ? t.channelCreation.membersChanged
-                  : t.channelCreation.retained
-                : state.error === 'invalid-input'
-                  ? t.channelCreation.invalid
-                  : creationError(state.error)}
-            </Text>
-          ) : null}
-          {!state.loaded ? (
-            <Text>{t.botCreation.working}</Text>
-          ) : record.kind === 'draft' ? (
-            <>
-              <Text strong>{t.botCreation.destination}</Text>
-              <EnvironmentPicker
-                label={t.botCreation.destination}
-                placeholder={t.botCreation.choose}
+      <KeyboardFormScroll
+        testID="create-channel-form"
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        pointerEvents={state.busy ? 'none' : 'auto'}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: space.x5, gap: space.x6 }}
+      >
+        {openError ? (
+          <Text accessibilityRole="alert" tone="danger">
+            {t.botCreation.targetUnavailable}
+          </Text>
+        ) : null}
+        {error ? (
+          <Text accessibilityRole="alert" tone="danger">
+            {error}
+          </Text>
+        ) : null}
+        {!state.loaded ? (
+          <Text tone="muted">{t.botCreation.working}</Text>
+        ) : record.kind === 'draft' ? (
+          <>
+            {hosts.length === 0 ? (
+              <SettingsSection title={t.botCreation.destination} on={SHEET_GROUP}>
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  testID="create-channel-pair"
+                  title={t.botCreation.addEnvironment}
+                  icon="add"
+                  onPress={() => router.push('/pair')}
+                />
+              </SettingsSection>
+            ) : (
+              <EnvironmentList
+                title={t.botCreation.destination}
                 value={record.hostId}
+                disabled={state.busy}
                 options={botCreationTargets(
-                  hosts.map((host) => ({
-                    hostId: host.hostId,
-                    name: shownHostName(hostLooks.look(host.hostId), host.hostName),
-                  })),
-                )}
-                onChange={(id) => {
-                  setPicker(undefined);
-                  void channelCreation.selectHost(id);
-                }}
+                  hosts.map((host) => ({ hostId: host.hostId, name: hostName(host.hostId) })),
+                ).map((option) => ({
+                  ...option,
+                  detail: hostStatusLabel(
+                    t,
+                    availability.find((choice) => choice.hostId === option.value)?.status,
+                  ),
+                  disabled: false,
+                }))}
+                onChange={(id) => void channelCreation.selectHost(id)}
               />
-              {hosts.length === 0 ? (
-                <Button label={t.botCreation.pair} onPress={() => router.push('/pair')} />
-              ) : null}
+            )}
+            <View style={{ gap: space.x2 }}>
+              {labelInField ? null : <SettingsHeading>{t.channelCreation.name}</SettingsHeading>}
               <TextField
                 testID="create-channel-name"
-                accessibilityLabel={t.groupName}
+                accessibilityLabel={t.channelCreation.name}
+                placeholder={t.channelCreation.namePlaceholder}
                 value={record.name}
                 maxLength={120}
                 editable={!state.busy}
+                returnKeyType="done"
                 onChangeText={channelCreation.rename}
               />
-              <Text strong>{t.groupMembersSection}</Text>
-              {state.selectionReset ? (
-                <Text accessibilityLiveRegion="polite">{t.channelCreation.reset}</Text>
-              ) : null}
+            </View>
+            <SettingsSection
+              title={t.channelCreation.members}
+              footer={t.channelCreation.membersFooter}
+              on={SHEET_GROUP}
+            >
               {!record.hostId ? (
-                <Text>{t.channelCreation.chooseHost}</Text>
+                <SettingsRow on={SHEET_GROUP} title={t.channelCreation.chooseHost} tone="muted" />
               ) : state.loading ? (
-                <Text>{t.botCreation.working}</Text>
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  title={t.channelCreation.chooseBots}
+                  control={{ kind: 'busy' }}
+                />
               ) : state.error ? (
-                <Button
-                  label={t.botCreation.retry}
-                  onPress={() => {
-                    void channelCreation.refresh();
-                  }}
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  testID="create-channel-retry"
+                  title={t.botCreation.retry}
+                  onPress={() => void channelCreation.refresh()}
                 />
               ) : state.candidates.length === 0 ? (
-                <Text>{t.channelCreation.empty}</Text>
+                <SettingsRow on={SHEET_GROUP} title={t.channelCreation.empty} tone="muted" />
               ) : (
-                <SettingsGroupItem first last on="raised">
-                  <SettingsRow
-                    title={t.channelCreation.chooseBots}
-                    detail={t.channelCreation.selected(record.members.length)}
-                    testID="create-channel-choose-bots"
-                    on="raised"
-                    disclosure
-                    onPress={
-                      state.busy
-                        ? undefined
-                        : () => {
-                            Keyboard.dismiss();
-                            setPicker({
-                              hostId: record.hostId,
-                              selected: new Set(record.members),
-                            });
-                          }
-                    }
-                  />
-                </SettingsGroupItem>
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  testID="create-channel-choose-bots"
+                  title={t.channelCreation.chooseBots}
+                  control={{
+                    kind: 'value',
+                    text: t.channelCreation.selected(record.members.length),
+                    chevron: true,
+                  }}
+                  disclosure
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    router.push('/create-channel/members');
+                  }}
+                />
               )}
-            </>
-          ) : (
-            <>
-              <Text strong>{record.name}</Text>
-              <Text>{`${t.botCreation.destination}: ${hosts.find((host) => host.hostId === record.hostId)?.hostName ?? t.botCreation.targetUnavailable}`}</Text>
-              <Text>{state.result ? t.botCreation.completed : t.botCreation.uncertain}</Text>
-              <Text tone="muted">{t.botCreation.targetFixed}</Text>
-            </>
-          )}
-        </KeyboardFormScroll>
-        {picker && picker.hostId === record.hostId && record.kind === 'draft' && !state.busy ? (
-          <BotPickerSheet
-            key={picker.hostId}
-            title={t.channelCreation.chooseBots}
-            candidates={state.candidates}
-            renderLeading={(bot) => <BotPortrait bot={bot} size={theme.touch} corner={radius.sm} />}
-            selected={picker.selected}
-            busy={state.loading}
-            canConfirm={!state.loading && !state.error}
-            onClose={() => setPicker(undefined)}
-            onToggle={(slug) =>
-              setPicker((current) => {
-                if (!current) return current;
-                const selected = new Set(current.selected);
-                if (selected.has(slug)) selected.delete(slug);
-                else selected.add(slug);
-                return { ...current, selected };
-              })
-            }
-            onConfirm={() => {
-              for (const bot of state.candidates) {
-                if (record.members.includes(bot.slug) !== picker.selected.has(bot.slug))
-                  channelCreation.toggle(bot.slug);
-              }
-              setPicker(undefined);
-            }}
-          />
-        ) : null}
-      </View>
+              {selected.length > 0 ? (
+                <View
+                  testID="create-channel-selected"
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: space.x2,
+                    padding: space.x4,
+                  }}
+                >
+                  {selected.map((bot) => (
+                    <Chip
+                      key={bot.slug}
+                      testID={`create-channel-chip-${bot.slug}`}
+                      label={bot.displayName}
+                      selected
+                      disabled={state.busy}
+                      onPress={() => channelCreation.toggle(bot.slug)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </SettingsSection>
+            {state.selectionReset ? (
+              <Text accessibilityLiveRegion="polite" tone="muted">
+                {t.channelCreation.reset}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <SettingsSection
+            title={t.chatsCreate.group}
+            footer={t.botCreation.targetFixed}
+            on={SHEET_GROUP}
+          >
+            <SettingsRow on={SHEET_GROUP} title={t.channelCreation.name} detail={record.name} />
+            <SettingsRow
+              on={SHEET_GROUP}
+              title={t.botCreation.destination}
+              detail={hostName(record.hostId)}
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              title={t.channelCreation.members}
+              detail={t.channelCreation.selected(record.members.length)}
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              title={state.result ? t.botCreation.completed : t.botCreation.uncertain}
+              {...(state.busy ? { control: { kind: 'busy' as const } } : {})}
+              {...(state.result
+                ? {
+                    testID: 'create-channel-open',
+                    detail: t.channelCreation.open,
+                    onPress: () => void open(),
+                  }
+                : {})}
+            />
+          </SettingsSection>
+        )}
+      </KeyboardFormScroll>
     </View>
   );
 }

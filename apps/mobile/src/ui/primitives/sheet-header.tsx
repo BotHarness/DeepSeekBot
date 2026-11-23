@@ -26,9 +26,11 @@ export function SheetHeader(props: DrawerHeaderProps) {
 export function sheetStackHeader(close: () => void) {
   return function SheetStackHeader({ navigation, options, route }: NativeStackHeaderProps) {
     const root = navigation.getState().routes[0]?.key === route.key;
+    const trailing = options.headerRight?.({ canGoBack: !root });
     return (
       <SheetHeader
         title={typeof options.title === 'string' ? options.title : route.name}
+        {...(trailing === undefined || trailing === null ? {} : { trailing })}
         {...(!root
           ? { onBack: () => navigation.goBack() }
           : Platform.OS === 'ios'

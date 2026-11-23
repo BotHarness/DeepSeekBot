@@ -19,7 +19,7 @@ export function ChannelCreationNotice() {
   if (
     !state.loaded ||
     state.record.kind !== 'submitted' ||
-    path === '/create-channel' ||
+    path.startsWith('/create-channel') ||
     keyboardOpen
   )
     return null;

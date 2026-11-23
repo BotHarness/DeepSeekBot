@@ -25,6 +25,9 @@ const fixture = vi.hoisted(() => ({
   push: vi.fn(),
   dismiss: vi.fn(),
   close: vi.fn(),
+  prevented: [] as boolean[],
+  onPrevented: undefined as undefined | ((event: { repeat(): void }) => void),
+  dialogs: [] as { title: string; actions: { text: string; onPress?: () => unknown }[] }[],
   body: undefined as ReactNode,
   feeds: new Array<{
     saved: { hostId: string };
@@ -75,6 +78,11 @@ vi.mock('expo-router', () => ({
     },
   ),
   useNavigation: () => ({ goBack: fixture.close }),
+  usePreventRemove: (prevent: boolean, callback: (event: { repeat(): void }) => void) => {
+    fixture.prevented.push(prevent);
+    fixture.onPrevented = callback;
+    return () => {};
+  },
   useIsFocused: () => true,
   useGlobalSearchParams: () => fixture.params,
   usePathname: () => '/create-bot',
@@ -261,6 +269,37 @@ vi.mock('../src/ui/shell/creation-header', () => ({
       createElement('progress', { 'data-testid': 'create-bot-progress', value: progress, max: 1 }),
     ),
 }));
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showAppDialog: (
+    title: string,
+    _message: string | undefined,
+    actions: { text: string; onPress?: () => unknown }[],
+  ) => fixture.dialogs.push({ title, actions }),
+}));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
+  SafeAreaInsetsContext: ({ children }: { children?: ReactNode }) => children,
+}));
+vi.mock('../src/ui/primitives/sheet-screen', () => ({
+  SheetScreen: ({ children, onClose }: { children?: ReactNode; onClose(): void }) =>
+    createElement(
+      'div',
+      null,
+      createElement('button', { 'data-testid': 'sheet-screen-handle', onClick: onClose }, 'Close'),
+      children,
+    ),
+}));
+vi.mock('../src/ui/primitives/sheet-header', () => ({
+  SheetHeader: ({ title, onClose }: { title: string; onClose?: () => void }) =>
+    createElement(
+      'header',
+      { 'data-testid': 'sheet-header' },
+      title,
+      onClose
+        ? createElement('button', { 'data-testid': 'sheet-close', onClick: onClose }, 'Close')
+        : null,
+    ),
+}));
 vi.mock('../src/ui/primitives/keyboard-form-frame', () => ({
   KeyboardFormFrame: ({ children, footer }: { children: ReactNode; footer: ReactNode }) =>
     createElement(
@@ -316,7 +355,7 @@ vi.mock('../src/ui/chat/conversation-screen', () => ({
 }));
 
 import { CreateBotScreen, CreateBotStepScreen } from '../src/ui/shell/create-bot-screen';
-import { CreationFlowLayout } from '../src/ui/shell/creation-flow.android';
+import { CreationFlowLayout } from '../src/ui/shell/creation-flow';
 import DmScreen from '../app/dm/[slug]';
 import { t } from '../src/ui/strings';
 
@@ -332,6 +371,9 @@ beforeEach(() => {
   fixture.dismiss.mockClear();
   fixture.close.mockClear();
   fixture.body = undefined;
+  fixture.prevented = [];
+  fixture.onPrevented = undefined;
+  fixture.dialogs = [];
   hosts.splice(0, hosts.length, ...paired);
   disk = undefined;
   operation = undefined;
@@ -880,45 +922,77 @@ it('applies the exact initial avatar so creating the Bot does not replace its pr
   expect(applied).toEqual([{ channelId: 'dm-new-bot', avatar: before.draft.avatar }]);
 });
 
-it('keeps the Android identity header and footer mounted while only step content changes', async () => {
+it('keeps the sheet header and footer mounted while only step content changes', async () => {
   fixture.body = <CreateBotScreen />;
   await act(async () => root.render(<CreationFlowLayout />));
-  const header = container.querySelector('[data-testid="create-bot-header"]');
+  const header = container.querySelector('[data-testid="sheet-header"]');
   const footer = container.querySelector('[data-testid="creation-footer"]');
-  const progress = container.querySelector<HTMLProgressElement>(
-    '[data-testid="create-bot-progress"]',
-  )!;
-  expect(header).not.toBeNull();
-  expect(progress.value).toBe(0);
+  expect(header?.textContent).toContain(t.botCreation.title);
   await press('create-bot-next');
   fixture.params = { flow: 'blank', step: '1' };
   fixture.body = <CreateBotStepScreen />;
   await act(async () => root.render(<CreationFlowLayout />));
   await type(t.botCreation.name, 'Mira');
-  expect(header?.getAttribute('data-name')).toBe('Mira');
-  expect(progress.value).toBeCloseTo(1 / 4);
-  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
+  expect(container.querySelector('[data-testid="sheet-header"]')).toBe(header);
   expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   await press('create-bot-next');
   fixture.params = { flow: 'blank', step: '2' };
   fixture.body = <CreateBotStepScreen key="persona" />;
   await act(async () => root.render(<CreationFlowLayout />));
-  expect(progress.value).toBeCloseTo(2 / 4);
-  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
+  expect(container.querySelector('[data-testid="sheet-header"]')).toBe(header);
   expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   expect(controller.getSnapshot().record).toMatchObject({
     kind: 'draft',
     draft: { hostId: 'A', displayName: 'Mira' },
   });
-  await press('create-bot-next');
-  fixture.params = { flow: 'blank', step: '3' };
-  fixture.body = <CreateBotStepScreen key="details" />;
-  await act(async () => root.render(<CreationFlowLayout />));
-  expect(progress.value).toBeCloseTo(3 / 4);
-  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
-  expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   await press('create-bot-back');
   expect(fixture.back).toHaveBeenCalledTimes(1);
-  await press('create-bot-close');
+  await press('sheet-screen-handle');
   expect(fixture.close).toHaveBeenCalledTimes(1);
+});
+
+it('asks before a started Bot draft leaves the sheet and discards or keeps it', async () => {
+  fixture.body = <CreateBotScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  expect(fixture.prevented.at(-1)).toBe(false);
+  await press('create-bot-next');
+  fixture.params = { flow: 'blank', step: '1' };
+  fixture.body = <CreateBotStepScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  await type(t.botCreation.name, 'Mira');
+  expect(fixture.prevented.at(-1)).toBe(true);
+  const repeat = vi.fn();
+  await act(async () => fixture.onPrevented?.({ repeat }));
+  expect(fixture.dialogs.at(-1)?.title).toBe(t.creationDraft.title);
+  expect(fixture.dialogs.at(-1)?.actions.map((action) => action.text)).toEqual([
+    t.creationDraft.discard,
+    t.creationDraft.keep,
+    t.creationDraft.edit,
+  ]);
+  await act(async () =>
+    fixture.dialogs
+      .at(-1)
+      ?.actions.find((action) => action.text === t.creationDraft.keep)
+      ?.onPress?.(),
+  );
+  expect(repeat).toHaveBeenCalledTimes(1);
+  expect(fixture.prevented.at(-1)).toBe(false);
+  expect(controller.getSnapshot().record).toMatchObject({ draft: { displayName: 'Mira' } });
+  await act(async () => root.render(<></>));
+  fixture.prevented = [];
+  await act(async () => root.render(<CreationFlowLayout key="again" />));
+  expect(fixture.prevented.at(-1)).toBe(true);
+  const discarded = vi.fn();
+  await act(async () => fixture.onPrevented?.({ repeat: discarded }));
+  await act(async () =>
+    fixture.dialogs
+      .at(-1)
+      ?.actions.find((action) => action.text === t.creationDraft.discard)
+      ?.onPress?.(),
+  );
+  expect(discarded).toHaveBeenCalledTimes(1);
+  expect(controller.getSnapshot().record).toMatchObject({
+    kind: 'draft',
+    draft: { hostId: 'A', displayName: '', persona: '' },
+  });
 });
