@@ -6,18 +6,18 @@ import { Text } from '../primitives/text';
 
 export function CreationRow({
   label,
-  description,
   icon,
   testID,
   onPress,
+  onBack,
   focusRef,
   disabled,
 }: {
   label: string;
-  description?: string;
   icon: ReactNode;
   testID: string;
   onPress(): void;
+  onBack?: (() => void) | undefined;
   focusRef?: React.Ref<React.ComponentRef<typeof Pressable>> | undefined;
   disabled?: boolean;
 }) {
@@ -27,7 +27,8 @@ export function CreationRow({
       ref={focusRef}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={description ? `${label}, ${description}` : label}
+      accessibilityLabel={label}
+      onAccessibilityEscape={onBack}
       accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
@@ -43,13 +44,8 @@ export function CreationRow({
       })}
     >
       {icon}
-      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text strong>{label}</Text>
-        {description ? (
-          <Text variant="meta" tone="muted">
-            {description}
-          </Text>
-        ) : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text>{label}</Text>
       </View>
     </Pressable>
   );

@@ -5,15 +5,24 @@ import { cloudError } from '../../cloud/client';
 import { cloudAvailable } from '../../cloud/available';
 import { targetsFor, type CreationTarget } from '../../host/creation-targets';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { fab, radius, space } from '../design/tokens';
+import { fab, radius } from '../design/tokens';
 import { haptic } from '../haptics';
 import { showAppDialog } from '../primitives/app-dialog';
-import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { chatsCreationActions } from './creation-menu-items';
+import { botSourceHref, chatsCreationActions } from './creation-menu-items';
 import { CreationPanel } from './creation-panel';
 import { CreationRow } from './creation-row';
-import { ChatsIcon, PersonIcon, PlusIcon, ShareIcon } from './icons';
+import {
+  ArrowBackIcon,
+  BrowserIcon,
+  ChatsIcon,
+  FileIcon,
+  GitCommitIcon,
+  MembersIcon,
+  PersonIcon,
+  PlusIcon,
+  ShareIcon,
+} from './icons';
 import { NavigationMaterial } from './navigation-material';
 import { openCloudCreation } from './open-cloud-creation';
 import { useCreationTargets } from './use-creation-targets';
@@ -69,47 +78,16 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
   };
   if (!actions.bot && !actions.group && !actions.invite && !actions.join) return null;
   const android = Platform.OS === 'android';
-  const iconSize = theme.type.title.line;
-  const rows = [
-    ...(actions.bot
-      ? ([
-          {
-            id: 'bot',
-            label: t.botCreation.title,
-            icon: PersonIcon,
-            select: () => {
-              const host = scope === 'all' ? undefined : targetsFor('bot', scope, targets)[0];
-              router.push({
-                pathname: '/bot-source',
-                params: host?.kind === 'computer' ? { hostId: host.hostId } : {},
-              });
-            },
-          },
-        ] as const)
-      : []),
-    ...(actions.join
-      ? ([
-          {
-            id: 'join',
-            label: t.chatsCreate.join,
-            icon: ChatsIcon,
-            select: () => router.push('/cloud-join'),
-          },
-        ] as const)
-      : []),
-    ...(actions.invite?.kind === 'cloud'
-      ? ([
-          {
-            id: 'invite',
-            label: t.invitePeople,
-            icon: ShareIcon,
-            select: () => {
-              if (actions.invite?.kind === 'cloud') void cloud(actions.invite, 'invite');
-            },
-          },
-        ] as const)
-      : []),
-  ];
+  const iconSize = theme.type.title.line * theme.fontScale;
+  const botTarget = scope === 'all' ? undefined : targetsFor('bot', scope, targets)[0];
+  const botHostId = botTarget?.kind === 'computer' ? botTarget.hostId : undefined;
+  const invite = actions.invite?.kind === 'cloud' ? actions.invite : undefined;
+  const sources = [
+    ['blank', PlusIcon],
+    ['marketplace', BrowserIcon],
+    ['zip', FileIcon],
+    ['git', GitCommitIcon],
+  ] as const;
   return (
     <>
       <Pressable
@@ -154,47 +132,75 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
               });
           }}
         >
-          {({ dismiss, firstAction }) => (
-            <>
-              {rows.map(({ id, label, icon: Icon, select }, index) => (
-                <CreationRow
-                  key={id}
-                  focusRef={index === 0 ? firstAction : undefined}
-                  testID={`chats-create-${id}`}
-                  label={label}
-                  description={t.chatsCreate.description[id]}
-                  icon={<Icon color={theme.color.fg} size={iconSize} />}
-                  onPress={() => dismiss(select)}
-                />
-              ))}
-              {actions.group ? (
-                <Pressable
-                  ref={rows.length === 0 ? firstAction : undefined}
-                  testID="chats-create-group"
-                  accessibilityLabel={t.chatsCreate.group}
-                  accessibilityRole="button"
-                  onPress={() => dismiss(newGroup)}
-                  android_ripple={{ color: pressTint(theme.color.onAccent) }}
-                  style={({ pressed }) => ({
-                    minHeight: theme.touch,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'row',
-                    gap: space.x2,
-                    padding: space.x3,
-                    backgroundColor: theme.color.accent,
-                    borderRadius: radius.lg,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <PlusIcon color={theme.color.onAccent} size={iconSize} />
-                  <Text strong style={{ color: theme.color.onAccent, flexShrink: 1 }}>
-                    {t.chatsCreate.group}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </>
-          )}
+          {({ dismiss, firstAction, level, showSources, back }) => {
+            const rows =
+              level === 'sources'
+                ? [
+                    { id: 'back', label: t.back, icon: ArrowBackIcon, onPress: back },
+                    ...(actions.bot
+                      ? sources.map(([source, icon]) => ({
+                          id: source,
+                          label: t.chatsCreate[source],
+                          icon,
+                          onPress: () =>
+                            dismiss(() => router.push(botSourceHref(source, botHostId))),
+                        }))
+                      : []),
+                  ]
+                : [
+                    ...(actions.bot
+                      ? [
+                          {
+                            id: 'bot',
+                            label: t.botCreation.title,
+                            icon: PersonIcon,
+                            onPress: showSources,
+                          },
+                        ]
+                      : []),
+                    ...(actions.group
+                      ? [
+                          {
+                            id: 'group',
+                            label: t.chatsCreate.group,
+                            icon: MembersIcon,
+                            onPress: () => dismiss(newGroup),
+                          },
+                        ]
+                      : []),
+                    ...(actions.join
+                      ? [
+                          {
+                            id: 'join',
+                            label: t.chatsCreate.join,
+                            icon: ChatsIcon,
+                            onPress: () => dismiss(() => router.push('/cloud-join')),
+                          },
+                        ]
+                      : []),
+                    ...(invite
+                      ? [
+                          {
+                            id: 'invite',
+                            label: t.chatsCreate.invite,
+                            icon: ShareIcon,
+                            onPress: () => dismiss(() => void cloud(invite, 'invite')),
+                          },
+                        ]
+                      : []),
+                  ];
+            return rows.map(({ id, label, icon: Icon, onPress }, index) => (
+              <CreationRow
+                key={id}
+                focusRef={index === 0 ? firstAction : undefined}
+                testID={`chats-create-${id}`}
+                label={label}
+                icon={<Icon color={theme.color.fg} size={iconSize} />}
+                onPress={onPress}
+                onBack={back}
+              />
+            ));
+          }}
         </CreationPanel>
       ) : null}
     </>

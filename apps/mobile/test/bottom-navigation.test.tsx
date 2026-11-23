@@ -68,11 +68,20 @@ vi.mock('../src/ui/shell/creation-panel', () => ({
     children(controls: {
       dismiss(action?: () => void): void;
       firstAction: { current: null };
+      level: 'actions';
+      showSources(): void;
+      back(): void;
     }): ReactNode;
     onDismiss(action?: () => void): void;
   }) => (
     <section role="dialog">
-      {children({ dismiss: onDismiss, firstAction: { current: null } })}
+      {children({
+        dismiss: onDismiss,
+        firstAction: { current: null },
+        level: 'actions',
+        showSources: () => {},
+        back: () => {},
+      })}
     </section>
   ),
 }));
