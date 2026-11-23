@@ -16,6 +16,7 @@ on:
       - 'packages/core/src/plugin.ts'
       - 'packages/deepseekbot/**'
       - 'scripts/e2e-llm-scenarios.mjs'
+      - 'scripts/llm-scenario-catalog.mjs'
       - 'patches/**'
       - 'pnpm-lock.yaml'
   pull_request:
