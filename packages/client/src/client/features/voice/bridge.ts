@@ -59,7 +59,18 @@ export function createVoiceBridge(
       (importFrom !== undefined && typeof importFrom !== 'string')
     )
       throw new Error(`invalid ${method} response`);
-    return { id, name, ...(importFrom === undefined ? {} : { importFrom }) };
+    const previewUrl = httpsLink(item['previewUrl']);
+    return {
+      id,
+      name,
+      ...(importFrom === undefined ? {} : { importFrom }),
+      ...(previewUrl === undefined ? {} : { previewUrl }),
+    };
+  }
+
+  function httpsLink(raw: unknown): string | undefined {
+    if (typeof raw !== 'string' || !URL.canParse(raw)) return undefined;
+    return new URL(raw).protocol === 'https:' ? raw : undefined;
   }
 
   async function browseVoiceCatalog(
