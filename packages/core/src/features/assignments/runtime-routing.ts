@@ -301,7 +301,16 @@ export function createAssignmentRouting(ports: AssignmentRoutingPorts) {
         reason =
           next.switchReason ?? rest?.reason ?? (error === undefined ? undefined : 'credential');
         const serialized = saveAssignmentTarget(target);
-        if (serialized === row.model_route_json) return target;
+        if (serialized === row.model_route_json) {
+          const latest = ports.assignmentRow(botSlug, sessionId);
+          return latest?.stop_state === 'running' &&
+            latest.model_group_id === groupId &&
+            latest.model_route_json === row.model_route_json &&
+            !isArchivedRow(latest) &&
+            !ports.closed()
+            ? target
+            : undefined;
+        }
         const written = ports.database.transaction(
           (db) =>
             db
@@ -389,14 +398,34 @@ export function createAssignmentRouting(ports: AssignmentRoutingPorts) {
       ports.setActivity(sessionId, 'error');
       const channel = ports.assignmentDmChannel(row);
       if (channel === undefined) return;
-      void ports.publishSessionFailure({
-        channelId: channel.id,
-        botSlug,
-        sessionId,
-        role: 'assignment',
-        error,
-        context: row.title,
-      });
+      void ports
+        .publishSessionFailure({
+          channelId: channel.id,
+          botSlug,
+          sessionId,
+          role: 'assignment',
+          error,
+          context: row.title,
+        })
+        .catch((publicationError: unknown) => {
+          const code =
+            publicationError instanceof Error &&
+            'code' in publicationError &&
+            typeof publicationError.code === 'string' &&
+            /^(?:ERR_|SQLITE_|E[A-Z])[A-Z0-9_]{1,40}$/u.test(publicationError.code)
+              ? publicationError.code
+              : 'unknown';
+          ports.warn?.(
+            JSON.stringify({
+              component: 'bot-runtime',
+              event: 'assignment-failure-publication',
+              phase: 'failed',
+              botSlug,
+              session: sessionId,
+              code,
+            }),
+          );
+        });
     };
     try {
       await Promise.resolve();
