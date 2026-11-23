@@ -49,7 +49,7 @@ it('can call the Host after the client misses an idle socket close', async () =>
 
 it('does not repeat a mutation when the response is lost after commit', async () => {
   await withHost(async (instance) => {
-    await expect(rpc(instance, 'test/lost')).rejects.toThrow('fetch failed');
+    await expect(rpc(instance, 'test/lost')).rejects.toThrow('socket hang up');
     expect(await rpc(instance, 'test/read')).toEqual({ requests: 2, commits: 1 });
   });
 });
