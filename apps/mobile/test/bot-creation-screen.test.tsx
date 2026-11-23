@@ -325,10 +325,10 @@ vi.mock('../src/ui/shell/creation-avatar', () => ({
       createElement(
         'button',
         {
-          'data-testid': 'create-bot-avatar-shuffle',
+          'data-testid': 'create-bot-avatar-pixel',
           onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
         },
-        'shuffle',
+        'pixel',
       ),
       createElement(
         'button',
@@ -867,7 +867,7 @@ it('restores a missing archive through the existing owner and retries the pinned
 });
 
 it.each([
-  ['create-bot-avatar-shuffle', { kind: 'generated', seed: 'seed-1' }],
+  ['create-bot-avatar-pixel', { kind: 'generated', seed: 'seed-1' }],
   ['create-bot-avatar-photo', { kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }],
 ] as const)(
   'keeps the %s avatar in the draft and applies it after creation',
@@ -898,7 +898,7 @@ it('keeps the created Bot and raises a notice when its avatar cannot be applied'
   avatarFailure = true;
   await mount();
   await next('blank', 1);
-  await press('create-bot-avatar-shuffle');
+  await press('create-bot-avatar-pixel');
   await type(t.botCreation.name, 'Avatar Bot');
   await next('blank', 2);
   await next('blank', 3);
