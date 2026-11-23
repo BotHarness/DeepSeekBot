@@ -186,7 +186,7 @@ export const zh: typeof en = {
     all: '全部',
     nativeSource: '原生',
     sort: {
-      'last-human-turn': '最近的 Human 消息',
+      'last-human-turn': '最近一次用户发言',
       created: '创建时间',
       'last-activity': '最近活动',
     },
