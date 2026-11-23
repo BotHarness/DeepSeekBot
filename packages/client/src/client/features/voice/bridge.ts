@@ -1,4 +1,15 @@
-import { BridgeCallError, type BridgeCall } from '../../bridge-transport.js';
+import {
+  addVoiceProvider as addVoiceProviderAnswer,
+  browseVoiceCatalog as browseVoiceCatalogAnswer,
+  importSharedVoice as importSharedVoiceAnswer,
+  readVoiceProviders,
+  removeVoiceService,
+  setVoiceDefaultAnswer,
+  testVoiceProvider as testVoiceProviderAnswer,
+  voiceServiceRecord,
+} from '@botharness/host-client/voice-providers';
+
+import { BridgeCallError, bridgeHost, type BridgeCall } from '../../bridge-transport.js';
 import type {
   AsrPresetView as AsrPreset,
   AsrProviderView,
@@ -11,7 +22,15 @@ import type {
   VoiceProviderView as TtsProviderView,
   VoiceProvidersView,
   VoiceSynthesisView,
+  VoiceCatalogImportInput,
+  VoiceCatalogInput,
+  VoiceCatalogItem,
+  VoiceCatalogPage,
 } from '../../voice-bridge.js';
+import type {
+  VoiceRequestTemplate,
+  VoiceTemplateValidation,
+} from '@botharness/host-protocol/voice-request-template';
 
 export interface VoiceProviderAddInput {
   kind?: 'tts' | 'asr';
@@ -22,6 +41,7 @@ export interface VoiceProviderAddInput {
   model?: string;
   defaultVoice?: string;
   key?: string;
+  template?: VoiceRequestTemplate;
 }
 
 export function createVoiceBridge(
@@ -38,23 +58,31 @@ export function createVoiceBridge(
     call: BridgeCall,
     method: string,
     payload: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
-    const result = await call(method, payload);
+    const result = await call(method, payload, signal);
     if (!result.ok)
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return record(result.value, method);
   }
 
+  async function browseVoiceCatalog(
+    call: BridgeCall,
+    input: VoiceCatalogInput,
+    signal?: AbortSignal,
+  ): Promise<VoiceCatalogPage> {
+    return browseVoiceCatalogAnswer(bridgeHost(call, signal), input);
+  }
+
+  async function importSharedVoice(
+    call: BridgeCall,
+    input: VoiceCatalogImportInput,
+  ): Promise<VoiceCatalogItem> {
+    return importSharedVoiceAnswer(bridgeHost(call), input);
+  }
+
   function provider(value: unknown, method: string): TtsProviderView {
-    const view = record(value, method);
-    if (
-      typeof view['id'] !== 'string' ||
-      typeof view['name'] !== 'string' ||
-      typeof view['baseUrl'] !== 'string' ||
-      typeof view['keySet'] !== 'boolean'
-    )
-      throw new Error(`invalid ${method} response`);
-    return view as unknown as TtsProviderView;
+    return voiceServiceRecord(value, method) as unknown as TtsProviderView;
   }
 
   function voice(value: unknown, method: string): PersonaBotVoice | null {
@@ -104,13 +132,11 @@ export function createVoiceBridge(
   }
 
   async function loadVoiceProviders(call: BridgeCall, slug?: string): Promise<VoiceProvidersView> {
-    const view = await unwrap(call, 'voiceProviders', slug === undefined ? {} : { slug });
-    if (!Array.isArray(view['presets']) || !Array.isArray(view['providers']))
-      throw new Error('invalid voiceProviders response');
+    const view = await readVoiceProviders(bridgeHost(call), slug);
     const bot = view['bot'] === undefined ? undefined : record(view['bot'], 'voiceProviders');
     return {
       presets: view['presets'] as TtsPreset[],
-      providers: view['providers'].map((entry) => provider(entry, 'voiceProviders')),
+      providers: (view['providers'] as unknown[]).map((entry) => provider(entry, 'voiceProviders')),
       asrPresets: Array.isArray(view['asrPresets']) ? (view['asrPresets'] as AsrPreset[]) : [],
       asrProviders: Array.isArray(view['asrProviders'])
         ? view['asrProviders'].map(
@@ -135,15 +161,123 @@ export function createVoiceBridge(
     call: BridgeCall,
     input: VoiceProviderAddInput,
   ): Promise<TtsProviderView> {
-    const view = await unwrap(call, 'voiceProviderAdd', { ...input });
-    return provider(view['provider'], 'voiceProviderAdd');
+    return provider(
+      await addVoiceProviderAnswer(bridgeHost(call), { ...input }),
+      'voiceProviderAdd',
+    );
+  }
+
+  function fields(value: unknown): Record<string, unknown> | undefined {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  }
+
+  function stringMap(value: unknown): boolean {
+    const map = fields(value);
+    return map !== undefined && Object.values(map).every((entry) => typeof entry === 'string');
+  }
+
+  function authOk(value: unknown): boolean {
+    const auth = fields(value);
+    if (auth?.['kind'] === 'none' || auth?.['kind'] === 'bearer') return true;
+    if (auth?.['kind'] === 'query') return typeof auth['name'] === 'string';
+    return (
+      auth?.['kind'] === 'header' &&
+      typeof auth['name'] === 'string' &&
+      typeof auth['prefix'] === 'string'
+    );
+  }
+
+  function ssmlOk(value: unknown, depth = 0): boolean {
+    const node = fields(value);
+    return (
+      depth < 32 &&
+      node !== undefined &&
+      typeof node['tag'] === 'string' &&
+      stringMap(node['attributes']) &&
+      Array.isArray(node['children']) &&
+      node['children'].every((child) => typeof child === 'string' || ssmlOk(child, depth + 1))
+    );
+  }
+
+  function bodyOk(value: unknown): boolean {
+    const body = fields(value);
+    if (body?.['kind'] === 'none') return true;
+    if (body?.['kind'] === 'json') return 'value' in body;
+    if (body?.['kind'] === 'ssml') return ssmlOk(body['root']);
+    return body?.['kind'] === 'multipart' && stringMap(body['fields']);
+  }
+
+  function resultOk(value: unknown): boolean {
+    const result = fields(value);
+    if (result?.['kind'] === 'audio') return true;
+    return (
+      ['base64', 'hex', 'url', 'text'].includes(result?.['kind'] as string) &&
+      typeof result?.['path'] === 'string'
+    );
+  }
+
+  function templateOf(value: unknown, method: string): VoiceRequestTemplate {
+    const template = record(value, method);
+    const headers = template['headers'];
+    if (
+      template['version'] !== 1 ||
+      typeof template['url'] !== 'string' ||
+      (template['method'] !== 'POST' && template['method'] !== 'GET') ||
+      !stringMap(headers) ||
+      !authOk(template['auth']) ||
+      !bodyOk(template['body']) ||
+      !resultOk(template['result'])
+    )
+      throw new Error(`invalid ${method} response`);
+    return template as unknown as VoiceRequestTemplate;
+  }
+
+  async function validateVoiceTemplate(
+    call: BridgeCall,
+    kind: 'tts' | 'asr',
+    template: unknown,
+  ): Promise<VoiceTemplateValidation> {
+    const method = 'voiceTemplateValidate';
+    const view = await unwrap(call, method, { kind, template });
+    if (view['valid'] === true)
+      return { valid: true, template: templateOf(view['template'], method) };
+    if (view['valid'] !== false || !Array.isArray(view['errors']))
+      throw new Error(`invalid ${method} response`);
+    return {
+      valid: false,
+      errors: view['errors'].map((entry) => {
+        const error = record(entry, method);
+        return {
+          path: typeof error['path'] === 'string' ? error['path'] : '',
+          message: typeof error['message'] === 'string' ? error['message'] : '',
+        };
+      }),
+    };
+  }
+
+  async function voiceProviderTemplate(
+    call: BridgeCall,
+    id: string,
+  ): Promise<VoiceRequestTemplate> {
+    const method = 'voiceProviderTemplate';
+    const view = await unwrap(call, method, { id });
+    return templateOf(view['template'], method);
+  }
+
+  async function setVoiceProviderTemplate(
+    call: BridgeCall,
+    id: string,
+    template: VoiceRequestTemplate,
+  ): Promise<TtsProviderView> {
+    const method = 'voiceProviderTemplateSet';
+    const view = await unwrap(call, method, { id, template });
+    return provider(view['provider'], method);
   }
 
   async function removeVoiceProvider(call: BridgeCall, id: string): Promise<string[]> {
-    const view = await unwrap(call, 'voiceProviderRemove', { id });
-    return Array.isArray(view['clearedBots'])
-      ? view['clearedBots'].filter((slug): slug is string => typeof slug === 'string')
-      : [];
+    return removeVoiceService(bridgeHost(call), id);
   }
 
   async function testVoiceProvider(
@@ -151,13 +285,11 @@ export function createVoiceBridge(
     id: string,
     voiceId?: string,
   ): Promise<ProviderHealth> {
-    const view = await unwrap(
-      call,
-      'voiceProviderTest',
-      voiceId === undefined ? { id } : { id, voiceId },
-    );
-    if (typeof view['ok'] !== 'boolean') throw new Error('invalid voiceProviderTest response');
-    return view as unknown as ProviderHealth;
+    return (await testVoiceProviderAnswer(
+      bridgeHost(call),
+      id,
+      voiceId,
+    )) as unknown as ProviderHealth;
   }
 
   async function synthesizeVoice(
@@ -202,12 +334,7 @@ export function createVoiceBridge(
     providerId: string | null,
     voiceId?: string,
   ): Promise<VoiceDefaults> {
-    const view = await unwrap(call, 'voiceDefaultSet', {
-      kind,
-      providerId,
-      ...(voiceId === undefined ? {} : { voiceId }),
-    });
-    return defaultsOf(view['defaults']);
+    return defaultsOf(await setVoiceDefaultAnswer(bridgeHost(call), kind, providerId, voiceId));
   }
 
   async function setSpeechThreshold(
@@ -219,7 +346,12 @@ export function createVoiceBridge(
   }
   return {
     loadVoiceProviders,
+    browseVoiceCatalog,
+    importSharedVoice,
     addVoiceProvider,
+    validateVoiceTemplate,
+    voiceProviderTemplate,
+    setVoiceProviderTemplate,
     removeVoiceProvider,
     testVoiceProvider,
     synthesizeVoice,

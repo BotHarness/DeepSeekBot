@@ -44,6 +44,11 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       'privateMcpServerRemove',
       'privateMcpServerEnable',
       'voiceProviderAdd',
+      'voiceProviderTemplate',
+      'voiceTemplateValidate',
+      'voiceProviderTemplateSet',
+      'voiceCatalog',
+      'voiceCatalogImport',
       'voiceProviderRemove',
       'voiceProviderTest',
     ];

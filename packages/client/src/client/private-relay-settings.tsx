@@ -30,16 +30,19 @@ export function PrivateRelaySettings({
   status,
   refresh,
   pair,
+  locked = false,
 }: PropsLocale<'botharness'> & {
   status?: { state: string; origin?: string; issue?: string };
   refresh(): Promise<unknown>;
   pair(): void;
+  locked?: boolean;
 }): ReactElement {
   const [origin, setOrigin] = useState('');
   const [bootstrap, setBootstrap] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   async function claim() {
+    if (locked) return;
     setBusy(true);
     setFailed(false);
     try {
@@ -86,6 +89,7 @@ export function PrivateRelaySettings({
     return (
       <StatusStack title={t('privateRelay.title')}>
         <ConnectionGuide t={t} method="relay" />
+        {steps(state === 'connected' ? 2 : 1)}
         {state === 'connected' ? (
           <StatusBlock
             icon="check"
@@ -119,7 +123,6 @@ export function PrivateRelaySettings({
             body={t('privateRelay.requirement')}
             data={{ 'data-private-relay': state }}
           >
-            {steps(1)}
             {address}
           </StatusBlock>
         )}
@@ -139,31 +142,33 @@ export function PrivateRelaySettings({
       >
         {steps(0)}
         <p {...stylex.props(styles.meta)}>{t('privateRelay.requirement')}</p>
-        <div {...stylex.props(styles.form)}>
-          <FieldStack>
-            <TextField
-              label={t('privateRelay.address')}
-              value={origin}
-              onChange={setOrigin}
-              autoComplete="off"
-            />
-            <TextField
-              label={t('privateRelay.secret')}
-              value={bootstrap}
-              onChange={setBootstrap}
-              type="password"
-              autoComplete="off"
-            />
-          </FieldStack>
-          <Button
-            variant="primary"
-            disabled={busy || !origin.trim() || !bootstrap.trim()}
-            onClick={() => void claim()}
-            {...stylex.props(styles.submit)}
-          >
-            {t(busy ? 'privateRelay.connecting' : 'privateRelay.claim')}
-          </Button>
-        </div>
+        {locked ? null : (
+          <div {...stylex.props(styles.form)}>
+            <FieldStack>
+              <TextField
+                label={t('privateRelay.address')}
+                value={origin}
+                onChange={setOrigin}
+                autoComplete="off"
+              />
+              <TextField
+                label={t('privateRelay.secret')}
+                value={bootstrap}
+                onChange={setBootstrap}
+                type="password"
+                autoComplete="off"
+              />
+            </FieldStack>
+            <Button
+              variant="primary"
+              disabled={busy || !origin.trim() || !bootstrap.trim()}
+              onClick={() => void claim()}
+              {...stylex.props(styles.submit)}
+            >
+              {t(busy ? 'privateRelay.connecting' : 'privateRelay.claim')}
+            </Button>
+          </div>
+        )}
       </StatusBlock>
       {failed ? (
         <StatusBlock

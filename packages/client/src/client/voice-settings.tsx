@@ -1,17 +1,14 @@
-import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { useState, type ReactElement, type RefCallback } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
-import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { errorMessage } from './bridge.js';
-import { Field, FieldStack, TextAreaField, TextField } from './ds/field.js';
+import { Field, FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import {
   CopyChip,
   StatusFact,
@@ -24,10 +21,25 @@ import {
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
-import { MessageAudio } from './message-audio.js';
+import { providerBrand, type ModelBrand } from './model-brand.js';
+import { VoiceCatalogPicker, type VoicePickerCatalog } from './voice-catalog-picker.js';
 import { VoiceMicTest } from './voice-mic-test.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { VoiceProviderHealthView, VoiceProvidersView } from './voice-bridge.js';
+import type {
+  VoiceCatalogCollection,
+  VoiceProviderHealthView,
+  VoiceProvidersView,
+} from './voice-bridge.js';
+import { TemplateEditDialog } from './features/voice/template-edit-dialog.js';
+import {
+  blankDraft,
+  draftFromTemplate,
+  type TemplateDraft,
+  type TemplateErrors,
+} from './features/voice/template-draft.js';
+import { examplesFor } from './features/voice/template-examples.js';
+import { BLANK_EXAMPLE, checkTemplate, TemplateFields } from './features/voice/template-form.js';
+import { useTeamMember } from './team-state.js';
 import {
   choiceValues,
   chosenValue,
@@ -52,10 +64,15 @@ const styles = stylex.create({
   },
 });
 
-type VoiceActions = Pick<
+export type VoiceActions = Pick<
   BridgeActions,
   | 'voiceProviders'
   | 'addVoiceProvider'
+  | 'validateVoiceTemplate'
+  | 'voiceProviderTemplate'
+  | 'setVoiceProviderTemplate'
+  | 'browseVoiceCatalog'
+  | 'importSharedVoice'
   | 'removeVoiceProvider'
   | 'testVoiceProvider'
   | 'synthesizeVoice'
@@ -68,7 +85,7 @@ type VoiceActions = Pick<
 type Kind = 'tts' | 'asr';
 
 const NONE = 'none';
-const FOLLOW = 'follow';
+const TEMPLATE_PRESET = '\u0000template';
 const PROVIDER_VOICE = '\u0000provider';
 
 interface ProviderRow {
@@ -78,6 +95,7 @@ interface ProviderRow {
   readonly baseUrl: string;
   readonly keySet: boolean;
   readonly defaultVoice?: string;
+  readonly hasTemplate?: boolean;
 }
 
 interface PresetRow {
@@ -89,6 +107,7 @@ interface PresetRow {
   readonly models?: readonly string[];
   readonly defaultVoice?: string;
   readonly voices?: readonly { readonly id: string; readonly name: string }[];
+  readonly catalogs?: readonly VoiceCatalogCollection[];
 }
 
 interface Draft {
@@ -99,6 +118,8 @@ interface Draft {
   model: Choice;
   voice: Choice;
   key: string;
+  template?: TemplateDraft;
+  example?: string;
 }
 
 function presetsOf(view: VoiceProvidersView, kind: Kind): readonly PresetRow[] {
@@ -107,6 +128,21 @@ function presetsOf(view: VoiceProvidersView, kind: Kind): readonly PresetRow[] {
 
 function providersOf(view: VoiceProvidersView, kind: Kind): readonly ProviderRow[] {
   return kind === 'tts' ? view.providers : view.asrProviders;
+}
+
+function templateDraft(kind: Kind, example: string): Draft {
+  const found = examplesFor(kind).find((entry) => entry.id === example);
+  return {
+    kind,
+    preset: TEMPLATE_PRESET,
+    name: '',
+    baseUrl: '',
+    model: { choice: CUSTOM_CHOICE, custom: found?.model ?? '' },
+    voice: { choice: CUSTOM_CHOICE, custom: found?.voice ?? '' },
+    key: '',
+    template: found === undefined ? blankDraft(kind) : draftFromTemplate(found.template),
+    example: found?.id ?? BLANK_EXAMPLE,
+  };
 }
 
 function emptyDraft(kind: Kind, preset: PresetRow | undefined): Draft {
@@ -137,6 +173,8 @@ function ChoiceField({
   names,
   state,
   placeholder,
+  brand,
+  catalog,
   t,
   onChange,
 }: {
@@ -146,6 +184,8 @@ function ChoiceField({
   names?: Readonly<Record<string, string>>;
   state: Choice;
   placeholder?: string | undefined;
+  brand: ModelBrand | undefined;
+  catalog?: VoicePickerCatalog | undefined;
   t: BotHarnessTranslate;
   onChange: (next: Choice) => void;
 }): ReactElement {
@@ -160,51 +200,39 @@ function ChoiceField({
       onChange={(text) => onChange({ choice: CUSTOM_CHOICE, custom: text })}
     />
   );
-  if (values.length === 0) return custom;
+  if (values.length === 0 && catalog === undefined) return custom;
   return (
     <>
       <Field label={label} group>
         {() => (
-          <Select
+          <VoiceCatalogPicker
             label={label}
             value={state.choice}
-            align="start"
+            valueLabel={state.catalogName}
+            brand={brand}
+            catalog={catalog}
             options={[
               ...values.map((value) => ({
-                value,
-                label: names?.[value] ?? value,
+                id: value,
+                name: names?.[value] ?? value,
+                brand,
               })),
-              { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
+              { id: CUSTOM_CHOICE, name: t('voice.choice.custom'), brand: undefined },
             ]}
-            onChange={(choice) => onChange({ ...state, choice })}
+            t={t}
+            onChange={(item, fromCatalog) =>
+              onChange({
+                choice: item.id,
+                custom: state.custom,
+                ...(fromCatalog ? { catalogName: item.name } : {}),
+              })
+            }
           />
         )}
       </Field>
       {state.choice === CUSTOM_CHOICE ? custom : null}
     </>
   );
-}
-
-function usePreviewUrl(): [
-  string | undefined,
-  (audio: string, mime: string) => void,
-  RefCallback<HTMLDivElement>,
-] {
-  const [url, setUrl] = useState<string>();
-  const release = useMountedResource<HTMLDivElement>(
-    () => () => {
-      if (url !== undefined) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
-  return [
-    url,
-    (audio, mime) => {
-      const bytes = Uint8Array.from(atob(audio), (char) => char.charCodeAt(0));
-      setUrl(URL.createObjectURL(new Blob([bytes], { type: mime })));
-    },
-    release,
-  ];
 }
 
 function defaultVoiceChoice(
@@ -234,6 +262,9 @@ export function VoiceProviderSettings({
   const [voiceEdit, setVoiceEdit] = useState<Choice>();
   const [expanded, setExpanded] = useState<string>();
   const [health, setHealth] = useState<Record<string, VoiceProviderHealthView | 'testing'>>({});
+  const [templateErrors, setTemplateErrors] = useState<TemplateErrors>({});
+  const [editing, setEditing] = useState<{ provider: ProviderRow; kind: Kind }>();
+  const member = useTeamMember();
   const load = (): void => {
     void actions
       .voiceProviders?.()
@@ -246,6 +277,17 @@ export function VoiceProviderSettings({
   const mount = useMountedResource<HTMLDivElement>(() => load(), [actions]);
   if (actions.voiceProviders === undefined || actions.addVoiceProvider === undefined) return null;
   const add = actions.addVoiceProvider;
+  const templates =
+    member ||
+    actions.validateVoiceTemplate === undefined ||
+    actions.voiceProviderTemplate === undefined ||
+    actions.setVoiceProviderTemplate === undefined
+      ? undefined
+      : {
+          validateVoiceTemplate: actions.validateVoiceTemplate,
+          voiceProviderTemplate: actions.voiceProviderTemplate,
+          setVoiceProviderTemplate: actions.setVoiceProviderTemplate,
+        };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
   const preset =
     draft === undefined || view === undefined
@@ -273,18 +315,36 @@ export function VoiceProviderSettings({
     if (draft === undefined || busy) return;
     const model = chosenValue(draft.model);
     const voice = draft.kind === 'tts' ? chosenValue(draft.voice) : undefined;
-    setBusy(true);
-    setError(undefined);
-    void add({
+    const fields = {
       ...(draft.kind === 'asr' ? { kind: 'asr' as const } : {}),
-      preset: draft.preset,
       ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
-      ...(draft.baseUrl.trim() ? { baseUrl: draft.baseUrl.trim() } : {}),
       ...(model === undefined ? {} : { model }),
       ...(voice === undefined ? {} : { defaultVoice: voice }),
       ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
-    })
+    };
+    setBusy(true);
+    setError(undefined);
+    const request =
+      draft.template === undefined
+        ? add({
+            ...fields,
+            preset: draft.preset,
+            ...(draft.baseUrl.trim() ? { baseUrl: draft.baseUrl.trim() } : {}),
+          })
+        : templates === undefined
+          ? Promise.resolve(undefined)
+          : checkTemplate(templates.validateVoiceTemplate, draft.kind, draft.template, t).then(
+              (checked) => {
+                setTemplateErrors(checked.ok ? {} : checked.errors);
+                if (checked.ok)
+                  return add({ ...fields, preset: 'custom', template: checked.template });
+                setError(checked.errors.form);
+                return undefined;
+              },
+            );
+    void request
       .then((provider) => {
+        if (provider === undefined) return;
         setDraft(undefined);
         load();
         test(provider);
@@ -425,6 +485,7 @@ export function VoiceProviderSettings({
   };
   const openDraft = (current: VoiceProvidersView, kind: Kind): void => {
     setError(undefined);
+    setTemplateErrors({});
     setDraft(emptyDraft(kind, presetsOf(current, kind)[0]));
   };
   const providerRow = (
@@ -434,7 +495,10 @@ export function VoiceProviderSettings({
   ): ReactElement => {
     const state = health[provider.id];
     const presetRow = presetsOf(current, kind).find((entry) => entry.id === provider.preset);
-    const presetName = presetRow?.name ?? provider.preset;
+    const presetName =
+      provider.hasTemplate !== true
+        ? (presetRow?.name ?? provider.preset)
+        : t('voice.template.service');
     const missingKey = presetRow?.keyRequired === true && !provider.keySet;
     const failed = state !== undefined && state !== 'testing' && !state.ok;
     const ready = state !== undefined && state !== 'testing' && state.ok;
@@ -483,17 +547,30 @@ export function VoiceProviderSettings({
           label={provider.keySet ? t('voice.provider.keySet') : t('voice.provider.noKey')}
           data={{ 'data-voice-provider-manage': provider.id }}
           control={
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                setError(undefined);
-                setRemoving(provider);
-              }}
-            >
-              {t('voice.provider.remove')}
-            </Button>
+            <>
+              {provider.hasTemplate !== true || templates === undefined ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  data-voice-template-edit-open={provider.id}
+                  onClick={() => setEditing({ provider, kind })}
+                >
+                  {t('voice.template.edit')}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setError(undefined);
+                  setRemoving(provider);
+                }}
+              >
+                {t('voice.provider.remove')}
+              </Button>
+            </>
           }
         >
           {provider.baseUrl === '' ? null : (
@@ -543,15 +620,55 @@ export function VoiceProviderSettings({
       </StatusGroup>
     );
   };
-  const needsUrl = draft !== undefined && preset?.baseUrl === undefined;
+  const custom = draft?.template;
+  const needsUrl = draft !== undefined && custom === undefined && preset?.baseUrl === undefined;
   const needsKey = preset?.keyRequired === true;
+  const catalogFor = (collection: 'models' | 'account'): VoicePickerCatalog | undefined => {
+    if (
+      draft === undefined ||
+      preset?.catalogs === undefined ||
+      !preset.catalogs.includes(collection)
+    )
+      return undefined;
+    return {
+      preset: draft.preset,
+      key: draft.key,
+      kind: draft.kind,
+      collection,
+      collections: preset.catalogs,
+      browse: actions.browseVoiceCatalog,
+      importVoice: actions.importSharedVoice,
+    };
+  };
+  const brand = providerBrand(draft?.preset);
+  const keyField =
+    draft === undefined ? null : (
+      <TextField
+        label={needsKey ? t('voice.provider.key') : t('voice.provider.keyOptional')}
+        hint={custom === undefined ? t('voice.provider.keyHint') : t('voice.template.keyHint')}
+        value={draft.key}
+        type="password"
+        monospace
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(key) => {
+          const defaults = emptyDraft(draft.kind, preset);
+          setDraft({
+            ...draft,
+            key,
+            model: draft.model.catalogName === undefined ? draft.model : defaults.model,
+            voice: draft.voice.catalogName === undefined ? draft.voice : defaults.voice,
+          });
+        }}
+      />
+    );
   const suggestedName =
     draft === undefined || view === undefined
       ? undefined
-      : defaultProviderName(preset?.name ?? draft.preset, [
-          ...view.providers,
-          ...view.asrProviders,
-        ]);
+      : defaultProviderName(
+          preset?.name ?? (custom === undefined ? draft.preset : t('voice.template.service')),
+          [...view.providers, ...view.asrProviders],
+        );
   return (
     <div ref={mount} data-voice-providers="" {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.sections)}>
@@ -592,21 +709,31 @@ export function VoiceProviderSettings({
           onSubmit={submit}
         >
           <FieldStack>
-            <Select
+            <VoiceCatalogPicker
               label={t('voice.provider.preset')}
               value={draft.preset}
-              options={presetsOf(view, draft.kind).map((entry) => ({
-                value: entry.id,
-                label: entry.name,
-              }))}
-              onChange={(next) =>
+              options={[
+                ...presetsOf(view, draft.kind).map((entry) => ({
+                  id: entry.id,
+                  name: entry.name,
+                  brand: providerBrand(entry.id),
+                })),
+                ...(templates === undefined
+                  ? []
+                  : [{ id: TEMPLATE_PRESET, name: t('voice.template.service'), brand: undefined }]),
+              ]}
+              t={t}
+              onChange={(next) => {
+                setTemplateErrors({});
                 setDraft(
-                  emptyDraft(
-                    draft.kind,
-                    presetsOf(view, draft.kind).find((entry) => entry.id === next),
-                  ),
-                )
-              }
+                  next.id === TEMPLATE_PRESET
+                    ? templateDraft(draft.kind, BLANK_EXAMPLE)
+                    : emptyDraft(
+                        draft.kind,
+                        presetsOf(view, draft.kind).find((entry) => entry.id === next.id),
+                      ),
+                );
+              }}
             />
             <TextField
               label={t('voice.provider.name')}
@@ -638,6 +765,27 @@ export function VoiceProviderSettings({
                 onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
               />
             ) : null}
+            {custom === undefined ? (
+              keyField
+            ) : (
+              <TemplateFields
+                kind={draft.kind}
+                draft={custom}
+                errors={templateErrors}
+                example={{
+                  value: draft.example ?? BLANK_EXAMPLE,
+                  onChange: (example) =>
+                    setDraft({
+                      ...templateDraft(draft.kind, example),
+                      name: draft.name,
+                      key: draft.key,
+                    }),
+                }}
+                keyField={keyField}
+                t={t}
+                onChange={(template) => setDraft({ ...draft, template })}
+              />
+            )}
             <ChoiceField
               label={t('voice.provider.model')}
               customLabel={
@@ -648,8 +796,16 @@ export function VoiceProviderSettings({
               values={choiceValues(preset?.models ?? [], preset?.defaultModel)}
               state={draft.model}
               placeholder={preset?.defaultModel}
+              brand={brand}
+              catalog={catalogFor('models')}
               t={t}
-              onChange={(model) => setDraft({ ...draft, model })}
+              onChange={(model) =>
+                setDraft((current) =>
+                  current?.preset === draft.preset && current.key === draft.key
+                    ? { ...current, model }
+                    : current,
+                )
+              }
             />
             {draft.kind === 'tts' ? (
               <ChoiceField
@@ -668,22 +824,35 @@ export function VoiceProviderSettings({
                 )}
                 state={draft.voice}
                 placeholder={preset?.defaultVoice}
+                brand={brand}
+                catalog={catalogFor('account')}
                 t={t}
-                onChange={(voice) => setDraft({ ...draft, voice })}
+                onChange={(voice) =>
+                  setDraft((current) =>
+                    current?.preset === draft.preset && current.key === draft.key
+                      ? { ...current, voice }
+                      : current,
+                  )
+                }
               />
             ) : null}
-            <TextField
-              label={needsKey ? t('voice.provider.key') : t('voice.provider.keyOptional')}
-              hint={t('voice.provider.keyHint')}
-              value={draft.key}
-              type="password"
-              monospace
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(key) => setDraft({ ...draft, key })}
-            />
           </FieldStack>
         </FormDialog>
+      )}
+      {editing === undefined || templates === undefined ? null : (
+        <TemplateEditDialog
+          provider={editing.provider}
+          kind={editing.kind}
+          actions={templates}
+          t={t}
+          onCancel={() => setEditing(undefined)}
+          onSaved={() => {
+            const { provider } = editing;
+            setEditing(undefined);
+            load();
+            test(provider);
+          }}
+        />
       )}
       {removing === undefined ? null : (
         <ConfirmDialog
@@ -699,230 +868,4 @@ export function VoiceProviderSettings({
       )}
     </div>
   );
-}
-
-export function BotVoiceSettings({
-  actions,
-  slug,
-  t,
-}: {
-  actions: VoiceActions;
-  slug: string;
-  t: BotHarnessTranslate;
-}): ReactElement | null {
-  const [view, setView] = useState<VoiceProvidersView>();
-  const [loadError, setLoadError] = useState<string>();
-  const [voiceId, setVoiceId] = useState('');
-  const [sample, setSample] = useState(() => t('voice.bot.sampleText'));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [saved, setSaved] = useState(false);
-  const [previewUrl, setPreview, previewMount] = usePreviewUrl();
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    void actions
-      .voiceProviders?.(slug)
-      .then((next) => {
-        setView(next);
-        setVoiceId(next.bot?.selected?.voiceId ?? '');
-      })
-      .catch((cause: unknown) => setLoadError(errorMessage(cause)));
-  }, [actions, slug]);
-  if (actions.voiceProviders === undefined || actions.setBotVoice === undefined) return null;
-  const setBotVoice = actions.setBotVoice;
-  const selected = view?.bot?.selected ?? null;
-  const asr = view?.bot?.asr ?? null;
-  const provider = view?.providers.find((entry) => entry.id === selected?.providerId);
-  const defaultTts = view?.providers.find((entry) => entry.id === view.defaults.tts?.providerId);
-  const defaultAsr = view?.asrProviders.find((entry) => entry.id === view.defaults.asr?.providerId);
-  const follow = (name: string | undefined) =>
-    name === undefined ? t('voice.bot.followNone') : t('voice.bot.follow', { name });
-  const bindAsr = (providerId: string | null): void => {
-    if (actions.setBotAsr === undefined || busy) return;
-    setBusy(true);
-    setError(undefined);
-    setSaved(false);
-    void actions
-      .setBotAsr(slug, providerId)
-      .then((next) => {
-        setView((current) =>
-          current === undefined
-            ? current
-            : {
-                ...current,
-                bot: {
-                  slug,
-                  selected: current.bot?.selected ?? null,
-                  asr: next,
-                },
-              },
-        );
-        setSaved(true);
-      })
-      .catch((cause: unknown) => setError(errorMessage(cause)))
-      .finally(() => setBusy(false));
-  };
-  const bind = (providerId: string | null, voice: string): void => {
-    if (busy) return;
-    setBusy(true);
-    setError(undefined);
-    setSaved(false);
-    void setBotVoice(slug, providerId, voice.trim() || undefined)
-      .then((next) => {
-        setView((current) =>
-          current === undefined
-            ? current
-            : {
-                ...current,
-                bot: { slug, selected: next, asr: current.bot?.asr ?? null },
-              },
-        );
-        setVoiceId(next?.voiceId ?? '');
-        setSaved(true);
-      })
-      .catch((cause: unknown) => setError(errorMessage(cause)))
-      .finally(() => setBusy(false));
-  };
-  const preview = (): void => {
-    if (actions.synthesizeVoice === undefined || busy || !sample.trim()) return;
-    setBusy(true);
-    setError(undefined);
-    void actions
-      .synthesizeVoice({
-        text: sample,
-        slug,
-        ...(voiceId.trim() ? { voiceId: voiceId.trim() } : {}),
-      })
-      .then((result) => setPreview(result.audio, result.mime))
-      .catch((cause: unknown) => setError(errorMessage(cause)))
-      .finally(() => setBusy(false));
-  };
-  if (view === undefined)
-    return (
-      <div ref={mount}>
-        {loadError === undefined ? (
-          <LoadingSkeleton kind="sidebar" label={t('voice.bot.title')} />
-        ) : (
-          <Note tone="danger">{loadError}</Note>
-        )}
-      </div>
-    );
-  return (
-    <div ref={mount} data-bot-voice={slug}>
-      <SettingsSection title={t('voice.bot.title')} description={t('voice.bot.description')}>
-        <SettingsRow
-          title={t('voice.bot.provider')}
-          data={{ 'data-bot-voice-provider': '' }}
-          description={
-            view.providers.length === 0 ? t('voice.bot.noProviders') : t('voice.bot.providerHint')
-          }
-          control={
-            <Select
-              label={t('voice.bot.provider')}
-              value={selected?.providerId ?? FOLLOW}
-              disabled={busy}
-              options={[
-                { value: FOLLOW, label: follow(defaultTts?.name) },
-                ...view.providers.map((entry) => ({
-                  value: entry.id,
-                  label: entry.name,
-                })),
-              ]}
-              onChange={(next) => bind(next === FOLLOW ? null : next, '')}
-            />
-          }
-        />
-        <SettingsRow
-          title={t('voice.bot.asr')}
-          data={{ 'data-bot-voice-asr': '' }}
-          description={
-            view.asrProviders.length === 0 ? t('voice.bot.noProviders') : t('voice.bot.asrHint')
-          }
-          control={
-            <Select
-              label={t('voice.bot.asr')}
-              value={asr?.providerId ?? FOLLOW}
-              disabled={busy || actions.setBotAsr === undefined}
-              options={[
-                { value: FOLLOW, label: follow(defaultAsr?.name) },
-                ...view.asrProviders.map((entry) => ({
-                  value: entry.id,
-                  label: entry.name,
-                })),
-              ]}
-              onChange={(next) => bindAsr(next === FOLLOW ? null : next)}
-            />
-          }
-        />
-        {selected === null ? null : (
-          <SettingsRow
-            title={t('voice.bot.voiceId')}
-            data={{ 'data-bot-voice-id': '' }}
-            description={t('voice.bot.voiceIdHint', {
-              fallback: provider?.defaultVoice ?? t('voice.bot.providerDefault'),
-            })}
-          >
-            <TextField
-              label={t('voice.bot.voiceIdField')}
-              value={voiceId}
-              monospace
-              spellCheck={false}
-              autoComplete="off"
-              placeholder={provider?.defaultVoice}
-              onChange={setVoiceId}
-            />
-            <span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || voiceId.trim() === (selected.voiceId ?? '')}
-                onClick={() => bind(selected.providerId, voiceId)}
-              >
-                {t('voice.bot.save')}
-              </Button>
-            </span>
-          </SettingsRow>
-        )}
-        {selected === null && defaultTts === undefined ? null : (
-          <SettingsRow
-            title={t('voice.bot.preview')}
-            data={{ 'data-bot-voice-preview': '' }}
-            description={t('voice.bot.previewHint')}
-          >
-            <TextAreaField
-              label={t('voice.bot.sample')}
-              value={sample}
-              rows={2}
-              onChange={setSample}
-            />
-            <span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || !sample.trim()}
-                onClick={preview}
-              >
-                {t('voice.bot.previewAction')}
-              </Button>
-            </span>
-            {previewUrl === undefined ? null : (
-              <div className="bh-message-voice" ref={previewMount}>
-                <MessageAudio name={t('message.voice.label')} url={previewUrl} t={t} />
-              </div>
-            )}
-          </SettingsRow>
-        )}
-        {saved && error === undefined ? <Tag tone="neutral">{t('voice.bot.saved')}</Tag> : null}
-        {error === undefined ? null : <Note tone="danger">{error}</Note>}
-      </SettingsSection>
-    </div>
-  );
-}
-
-export function BotVoiceSettingsEntry({
-  botSlug,
-  actions,
-  t,
-}: ChannelSidebarEntryProps): ReactElement | null {
-  if (botSlug === undefined) return null;
-  return <BotVoiceSettings actions={actions} slug={botSlug} t={t} />;
 }

@@ -161,7 +161,11 @@ export interface BotRuntime {
   activeSessionModel?(sessionId: string): SessionModelChoice | null | undefined;
   sessionTurnTarget?(sessionId: string): TurnTarget | undefined;
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
-  replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
+  replaceOrchestrator?<T>(
+    botSlug: string,
+    body: () => T,
+    nextCwd?: () => string | undefined,
+  ): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
   hasPendingInbox?(botSlug: string): boolean;

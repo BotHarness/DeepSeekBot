@@ -42,6 +42,7 @@ const ICONS = {
   lan: 'wifi',
   encrypted: 'vpn_lock',
   add: 'add',
+  voice: 'graphic_eq',
   check: 'check',
   chevron: 'chevron_right',
   expand: 'expand_more',

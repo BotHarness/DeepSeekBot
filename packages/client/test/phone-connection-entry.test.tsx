@@ -4,7 +4,10 @@ import { type ClientRelationship } from '../../core/src/devices/relationship-con
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { ConnectionsDialog } from '../src/client/connections-dialog.js';
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
+import type { BridgeCall } from '../src/client/bridge-transport.js';
+import { ConnectionsDialog, ConnectionsPage } from '../src/client/connections-dialog.js';
+import { EnvironmentAddAction } from '../src/client/environment-panel.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
@@ -76,11 +79,28 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith('/relationships')) return Response.json({ relationships });
+      if (url.endsWith('/account-hosts'))
+        return Response.json({
+          hosts: [
+            {
+              id: 'account-h',
+              name: 'Account computer',
+              hostname: 'account.example.test',
+              createdAt: '2026-11-23T00:00:00Z',
+              current: false,
+              sessionKnown: true,
+            },
+          ],
+        });
       if (init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         posts.push({ url, body });
         if (url.endsWith('/offer-status'))
           return Response.json({ state: offerState, deviceId: 'intended' });
+        if (url.endsWith('/private-tunnel')) {
+          privateTunnel = { state: 'starting', mode: 'quick' };
+          return Response.json({ ok: true });
+        }
         if (url.endsWith('/lan')) {
           if (failEnable) return Response.json({ code: 'lan-listen-failed' }, { status: 409 });
           lanState = body.action === 'enable' ? 'listening' : 'off';
@@ -131,10 +151,7 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   await render(false);
   expect(button(t('devices.lan.enable'))).toBeUndefined();
   await click('添加连接');
-  await click(t('connections.invite'));
-  await click(t('connections.phoneApp.ready'));
-  await click(t('connections.advancedMethods'));
-  await click('局域网');
+  await click(t('connections.lan'));
   expect(posts).toEqual([]);
   await click('开启并继续');
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
@@ -158,7 +175,6 @@ it('prepares an approved relationship return route without phone onboarding or a
   ];
   await render(false);
   await click(t('relationships.prepareRoute'));
-  await click(t('connections.advancedMethods'));
   await click(t('connections.lan'));
   await click(t('connections.enableContinue'));
   expect(posts.map((item) => item.url)).toEqual(['./api/botharness/devices/lan']);
@@ -169,8 +185,6 @@ it('prepares an approved relationship return route without phone onboarding or a
   expect(posts.map((item) => item.url)).toEqual(['./api/botharness/devices/lan']);
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   await click(t('connections.add'));
-  await click(t('connections.invite'));
-  await click(t('connections.phoneApp.ready'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((item) => item.url)).toEqual([
     './api/botharness/devices/lan',
@@ -314,11 +328,68 @@ it('opens one standalone dialog and reuses an existing route without publishing 
   expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
   await click(t('connections.back'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
-  expect(button(t('connections.add'))).toBeDefined();
+  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   await click(t('common.close'));
   expect(onClose).toHaveBeenCalledOnce();
   expect(posts.some((post) => post.url.endsWith('/lan'))).toBe(false);
 });
+
+it.each(['off', 'on', 'no-address'])(
+  'opens the QR directly during onboarding and shows the eligible address and Owner status (%s)',
+  async (state) => {
+    routes = [tail, loopback];
+    const call = vi.fn<BridgeCall>(async (method) => ({
+      ok: true,
+      value:
+        method === 'teamMode'
+          ? {
+              ...fakeTeamMode(),
+              enabled: false,
+              ownerPasswordSet: false,
+              memberUrls: [
+                'https://127.0.0.1',
+                lan.url,
+                ...(state === 'no-address'
+                  ? []
+                  : [tail.url + '/botharness-device/team/', tail.url]),
+              ],
+            }
+          : state === 'on'
+            ? { enabled: true, username: 'owner' }
+            : { enabled: false },
+    }));
+    await act(async () =>
+      root.render(<ConnectionsDialog t={t} pairPhone call={call} onClose={() => {}} />),
+    );
+    await click(t('connections.phoneApp.ready'));
+    const qr = host.querySelector('[data-pair-qr]');
+    expect(qr).not.toBeNull();
+    expect(button(t('connections.join'))).toBeUndefined();
+    expect(posts.map(({ url }) => url)).toEqual(['./api/botharness/devices/offer']);
+    const section = host.querySelector('[data-phone-address]');
+    if (state === 'no-address') {
+      expect(section).toBeNull();
+      expect(call.mock.calls.some(([method]) => method === 'ownerPasswordSignIn')).toBe(false);
+      return;
+    }
+    expect(qr?.compareDocumentPosition(section!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(section?.textContent).toContain(t('connections.phone.address'));
+    expect(section?.textContent).toContain(tail.url);
+    expect(section?.querySelectorAll('[data-copy-chip]')).toHaveLength(1);
+    expect(button(t('connections.phone.copyAddress'))).toBeDefined();
+    expect(section?.textContent).toContain(
+      t(state === 'on' ? 'connections.phone.ownerOn' : 'connections.phone.ownerOff'),
+    );
+    if (state === 'off') {
+      await click(t('connections.phone.enableOwner'));
+      expect(document.body.textContent).toContain(t('connections.ownerSignIn.setupTitle'));
+      expect(host.querySelector('[data-pair-qr]')).toBe(qr);
+    } else {
+      expect(button(t('connections.phone.enableOwner'))).toBeUndefined();
+      expect(section?.querySelector('[role="switch"]')).toBeNull();
+    }
+  },
+);
 
 it('shows preparation without publishing or creating an offer when no phone route exists', async () => {
   await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
@@ -326,8 +397,7 @@ it('shows preparation without publishing or creating an offer when no phone rout
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   expect(posts).toEqual([]);
   await click(t('connections.phoneApp.ready'));
-  await click(t('connections.advancedMethods'));
-  await click('局域网');
+  await click(t('connections.lan'));
   await click('开启并继续');
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
@@ -362,6 +432,7 @@ it('finishes onboarding only after the intended paired device reads Feed, not af
   );
   expect(onFeedRead).not.toHaveBeenCalled();
   await click(t('connections.phoneApp.ready'));
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   pairedDevices = [{ id: 'other', name: 'Other', pairedAt: expiresAt, feedReadAt: expiresAt }];
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(onFeedRead).not.toHaveBeenCalled();
@@ -409,9 +480,9 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
   async (entry) => {
     if (entry === 'existing-route') routes = [tail];
     if (entry === 'settings') {
-      await render(false);
-      await click(t('connections.add'));
-      await click(t('connections.invite'));
+      await act(async () =>
+        root.render(<ConnectionsPage t={t} call={vi.fn<BridgeCall>()} pairPhone />),
+      );
     } else
       await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
     expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
@@ -425,61 +496,173 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
     expect(posts).toEqual([]);
     await click(t('connections.phoneApp.ready'));
     expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
-    if (entry === 'existing-route')
-      expect(posts.filter((post) => post.url.endsWith('/offer'))).toHaveLength(1);
-    else {
+    if (entry === 'existing-route') {
+      expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+      expect(posts.map(({ url }) => url)).toEqual(['./api/botharness/devices/offer']);
+    } else {
       expect(posts).toEqual([]);
       expect(button('Tobs Connect')).toBeDefined();
-      expect(button('局域网')).toBeUndefined();
+      expect(button(t('connections.lan'))).toBeDefined();
     }
   },
 );
 
-it('cannot bypass installation confirmation by going Back from the phone guide', async () => {
-  await act(async () => root.render(<ConnectionsDialog t={t} pairPhone onClose={() => {}} />));
-  await click(t('connections.back'));
-  expect(button('局域网')).toBeUndefined();
-  await click(t('connections.invite'));
+it('can return from the installation guide without creating an offer', async () => {
+  await act(async () =>
+    root.render(<ConnectionsPage t={t} call={vi.fn<BridgeCall>()} pairPhone />),
+  );
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  await click(t('connections.back'));
+  expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
+  expect(button(t('connections.quick'))).toBeDefined();
   expect(posts).toEqual([]);
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
 });
 
-it('keeps computer link entry inside the shared dialog and returns to both intents without publishing', async () => {
-  await act(async () => root.render(<ConnectionsDialog t={t} onClose={() => undefined} />));
-  await click(t('connections.add'));
-  expect(button(t('connections.invite')).querySelector('svg')).not.toBeNull();
-  expect(button(t('connections.join')).querySelector('svg')).not.toBeNull();
-  await click(t('connections.join'));
-  expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-  expect(host.textContent).toContain(t('connections.joinHint'));
-  expect(button(t('remoteHosts.add.image'))).toBeDefined();
-  expect(host.querySelector('footer [data-remote-host-add-submit]')).not.toBeNull();
-  expect(host.querySelector('input')).not.toBeNull();
-  expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
-  expect(host.querySelector('[data-remote-host-add-submit]')?.hasAttribute('disabled')).toBe(true);
+it('opens the shared join field from the environment panel plus', async () => {
+  await act(async () => root.render(<EnvironmentAddAction t={t} />));
+  await click(t('remoteHosts.add'));
+  const dialog = document.querySelector('[role="dialog"]');
+  expect(dialog?.textContent).toContain(t('connections.joinHint'));
+  expect(
+    [...(dialog?.querySelectorAll('button') ?? [])].some(
+      (control) =>
+        control.textContent === t('remoteHosts.add.image') ||
+        control.getAttribute('aria-label') === t('remoteHosts.add.image'),
+    ),
+  ).toBe(true);
+  expect(dialog?.querySelector('input')).not.toBeNull();
+  expect(dialog?.querySelector('[data-remote-host-add-submit]')?.hasAttribute('disabled')).toBe(
+    true,
+  );
   expect(posts).toEqual([]);
-  await click(t('connections.back'));
-  expect(button(t('connections.join'))).toBeDefined();
-  await click(t('connections.invite'));
-  expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
+  await act(async () => {
+    [...(dialog?.querySelectorAll('button') ?? [])]
+      .find((control) => control.textContent === t('common.cancel'))
+      ?.click();
+  });
+  expect(document.querySelector('[data-remote-host-add-submit]')).toBeNull();
+});
+
+it('shows the seven methods in two visible ListCards without a separate add action', async () => {
+  const call = vi.fn<BridgeCall>();
+  await act(async () => root.render(<ConnectionsPage t={t} call={call} />));
+  const card = (key: 'recommended' | 'advanced') =>
+    host.querySelector(`[data-list-card][aria-label="${t(`connections.tier.${key}`)}"]`);
+  expect(card('recommended')?.textContent).toContain(t('connections.quick'));
+  expect(card('recommended')?.textContent).toContain(t('connections.attribute.changes'));
+  expect(card('recommended')?.textContent).toContain(t('connections.attribute.signIn'));
+  expect(card('recommended')?.textContent).toContain(t('connections.attribute.sameWifi'));
+  expect(card('recommended')?.querySelectorAll('li')).toHaveLength(3);
+  expect(card('advanced')?.querySelectorAll('li')).toHaveLength(4);
+  expect(card('advanced')?.textContent).toContain(t('connections.attribute.cloudflare'));
+  expect(card('advanced')?.textContent).toContain(t('connections.attribute.publicHttps'));
+  expect(card('advanced')?.textContent).toContain(t('connections.attribute.server'));
+  expect(button(t('connections.join'))).toBeUndefined();
+  expect(button(t('connections.add'))).toBeUndefined();
+  expect(button(t('connections.quick'))).toBeDefined();
+  expect(host.querySelector('[data-phone-app-guide], [data-remote-host-add-submit]')).toBeNull();
   expect(posts).toEqual([]);
+});
+
+it('puts a ready route above the tiers and opens Owner setup from its switch', async () => {
+  routes = [tail];
+  const call: BridgeCall = async (method) =>
+    method === 'ownerPasswordSignIn'
+      ? { ok: true, value: { enabled: false } }
+      : { ok: true, value: { ...fakeTeamMode(), memberUrls: [tail.url] } };
+  await act(async () => root.render(<ConnectionsPage t={t} call={call} />));
+  const ready = host.querySelector('[data-pair-dialog]');
+  const qr = ready?.querySelector('[data-pair-qr]');
+  expect(qr).not.toBeNull();
+  expect(ready?.textContent).toContain(tail.url);
+  expect(button(t('connections.phone.copyAddress'))).toBeDefined();
+  expect(
+    (ready?.compareDocumentPosition(host.querySelector('[data-connection-methods]')!) ?? 0) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(button('Tailscale')).toBeDefined();
+  expect(host.textContent).toContain(t('connections.methodStatus.ready'));
+  const control = button(t('connections.phone.ownerSignIn'));
+  expect(control.getAttribute('role')).toBe('switch');
+  expect(control.getAttribute('aria-checked')).toBe('false');
+  await click(t('connections.phone.ownerSignIn'));
+  expect(document.querySelector('input[type="password"]')).not.toBeNull();
+  expect(ready?.querySelector('[data-pair-qr]')).toBe(qr);
+});
+
+it('opens the Quick connect steps before starting a route from Settings', async () => {
+  await act(async () => root.render(<ConnectionsPage t={t} call={vi.fn<BridgeCall>()} />));
+  await click(t('connections.quick'));
+  const step = () => host.querySelector('ol [aria-current="step"]')?.textContent;
+  expect(step()).toContain(t('privateTunnel.panel.stepStart'));
+  expect(host.textContent).toContain(t('connections.quickRequirements'));
+  expect(posts).toEqual([]);
+  await click(t('privateTunnel.panel.quickAction'));
+  expect(step()).toContain(t('privateTunnel.panel.stepCheck'));
+  expect(posts).toEqual([
+    {
+      url: './api/botharness/devices/private-tunnel',
+      body: { action: 'add', routeId: 'quick', mode: 'quick', confirm: true },
+    },
+  ]);
+});
+
+it('keeps route, device and account management below the method list', async () => {
+  routes = [lan, loopback];
+  lanState = 'listening';
+  connect = { state: 'off', account: { state: 'signed-in', hostId: 'h' } };
+  pairedDevices = [{ id: 'phone', name: 'Paired phone', pairedAt: new Date().toISOString() }];
+  await act(async () => root.render(<ConnectionsPage t={t} call={vi.fn<BridgeCall>()} />));
+  const methods = host.querySelector('[data-connection-methods]')!;
+  const management = host.querySelector('[data-connections-management]')!;
+  const list = (label: string) =>
+    management.querySelector(`[data-list-card][aria-label="${label}"]`);
+  expect(
+    methods.compareDocumentPosition(management) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(list(t('connections.activeRoutes'))?.textContent).toContain(t('connections.lan'));
+  expect(list(t('devices.list.title'))?.textContent).toContain('Paired phone');
+  expect(list(t('devices.connect.computers'))?.textContent).toContain('Account computer');
+  await click(t('connections.manageMethod', { name: t('connections.lan') }));
+  expect(button(t('devices.lan.disable'))).toBeDefined();
+  expect(posts.filter(({ url }) => url.endsWith('/lan'))).toEqual([]);
+});
+
+it('starts Quick connect and shows a QR when the route is ready', async () => {
+  vi.useFakeTimers();
+  await act(async () => root.render(<ConnectionsDialog t={t} quickConnect onClose={() => {}} />));
+  expect(posts).toEqual([
+    {
+      url: './api/botharness/devices/private-tunnel',
+      body: { action: 'add', routeId: 'quick', mode: 'quick', confirm: true },
+    },
+  ]);
+  expect(
+    host.querySelector('[data-phone-app-guide], [data-connection-methods], [data-pair-qr]'),
+  ).toBeNull();
+  privateTunnel = { state: 'connected', mode: 'quick', origin: 'https://qa.example.com' };
+  routes = [{ kind: 'private', url: 'https://qa.example.com', ready: true }, loopback];
+  await act(async () => vi.advanceTimersByTimeAsync(3100));
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(posts.map(({ url }) => url)).toEqual([
+    './api/botharness/devices/private-tunnel',
+    './api/botharness/devices/offer',
+  ]);
 });
 
 const openMethods = async () => {
   await render(false);
   await click('添加连接');
-  await click(t('connections.invite'));
-  await click(t('connections.phoneApp.ready'));
 };
 
 it('offers Quick Tunnel and Connect first and requires an explicit sign-in-and-connect action', async () => {
   connect = { state: 'off', account: { state: 'signed-out' } };
   await openMethods();
-  expect(button(t('privateTunnel.quickEntry'))).toBeDefined();
+  expect(button(t('connections.quick'))).toBeDefined();
   expect(button('Tobs Connect')).toBeDefined();
-  expect(button('Tailscale')).toBeUndefined();
-  expect(button('局域网')).toBeUndefined();
+  expect(button('Tailscale')).toBeDefined();
+  expect(button(t('connections.lan'))).toBeDefined();
   await click('Tobs Connect');
   expect(posts).toEqual([]);
   expect(button(t('connections.continue')).disabled).toBe(true);
@@ -515,15 +698,13 @@ it('opens Named and ingress preparation directly from Advanced without publishin
   );
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   await click(t('connections.phoneApp.ready'));
-  expect(button(t('privateTunnel.namedTitle'))).toBeUndefined();
-  await click(t('connections.advancedMethods'));
-  await click(t('privateTunnel.namedTitle'));
+  expect(button(t('connections.method.domain'))).toBeDefined();
+  await click(t('connections.method.domain'));
   expect(host.querySelector('[data-private-tunnel-setup="named"]')).not.toBeNull();
   expect(host.querySelector('input[type="password"]')).not.toBeNull();
   expect(button(t('connections.deploymentGuide'))).toBeDefined();
   await click(t('connections.back'));
-  await click(t('connections.back'));
-  await click(t('privateTunnel.ingressTitle'));
+  await click(t('connections.method.proxy'));
   expect(host.querySelector('[data-private-tunnel-setup="ingress"]')).not.toBeNull();
   expect(host.textContent).toContain(t('connections.ingressRequirements'));
   expect(posts).toEqual([]);
@@ -535,10 +716,9 @@ it('preserves an existing private route instead of silently adding a Docker rela
     root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
   );
   await click(t('connections.phoneApp.ready'));
-  await click(t('connections.advancedMethods'));
-  await click(t('privateRelay.title'));
+  await click(t('connections.method.relay'));
   expect(host.textContent).toContain(t('connections.privateReplacement'));
-  expect(host.querySelector('[data-private-tunnel="connected"]')).not.toBeNull();
+  expect(host.textContent).toContain(t('privateRelay.requirement'));
   expect(button(t('privateRelay.claim'))).toBeUndefined();
   expect(posts).toEqual([]);
 });
@@ -548,7 +728,6 @@ it('explains the mobile VPN limit before Tailscale setup without publishing', as
     root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
   );
   await click(t('connections.phoneApp.ready'));
-  await click(t('connections.advancedMethods'));
   await click('Tailscale');
   expect(host.textContent).toContain(t('connections.tailscaleVpn'));
   expect(button(t('connections.vpnGuide'))).toBeDefined();
@@ -564,7 +743,6 @@ it('lets an existing ready route return to advanced methods without replacing it
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   await click(t('connections.methods'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
-  await click(t('connections.advancedMethods'));
   await click('Tailscale');
   expect(host.textContent).toContain(t('connections.tailscaleVpn'));
   expect(button(t('connections.continue'))).toBeDefined();

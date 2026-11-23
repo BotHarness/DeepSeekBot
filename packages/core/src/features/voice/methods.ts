@@ -1,7 +1,19 @@
+import {
+  parseVoiceTemplate,
+  validateVoiceTemplate,
+  type VoiceRequestTemplate,
+  type VoiceTemplateValidation,
+} from '../../voice/request-template.js';
 import type { BridgeResult } from '../../bridge/methods.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
 import type { AsrPreset, TtsPreset } from '../../voice/presets.js';
+import {
+  voiceCatalogImportInput,
+  voiceCatalogInput,
+  type VoiceCatalogItem,
+  type VoiceCatalogPage,
+} from '../../voice/catalog.js';
 import {
   MAX_ASR_AUDIO_BYTES,
   MAX_TTS_INPUT_CHARS,
@@ -59,6 +71,13 @@ export interface VoiceBridgeDeps {
 
 export interface VoiceBridgeMethods {
   voiceProviders(payload?: unknown): BridgeResult<VoiceProvidersView>;
+  voiceCatalog(payload: unknown): Promise<BridgeResult<VoiceCatalogPage>>;
+  voiceCatalogImport(payload: unknown): Promise<BridgeResult<{ voice: VoiceCatalogItem }>>;
+  voiceProviderTemplate(payload: unknown): BridgeResult<{ template: VoiceRequestTemplate }>;
+  voiceTemplateValidate(payload: unknown): BridgeResult<VoiceTemplateValidation>;
+  voiceProviderTemplateSet(
+    payload: unknown,
+  ): Promise<BridgeResult<{ provider: VoiceProviderView }>>;
   voiceProviderAdd(payload: unknown): Promise<BridgeResult<{ provider: VoiceProviderView }>>;
   voiceProviderRemove(
     payload: unknown,
@@ -155,6 +174,57 @@ export function createVoiceBridgeMethods(deps: {
         },
       };
     },
+    async voiceCatalog(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = voiceCatalogInput.safeParse(payload);
+      if (!input.success) return invalid('A service, collection and API key are required.');
+      try {
+        return { ok: true, value: await deps.providers.catalog(input.data) };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async voiceCatalogImport(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = voiceCatalogImportInput.safeParse(payload);
+      if (!input.success)
+        return invalid('Confirm adding the shared voice to the provider account.');
+      try {
+        return { ok: true, value: { voice: await deps.providers.importVoice(input.data) } };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    voiceTemplateValidate(payload) {
+      const input = record(payload);
+      const kind = input['kind'];
+      if (kind !== 'tts' && kind !== 'asr') return invalid('kind must be tts or asr');
+      return { ok: true, value: validateVoiceTemplate(input['template'], kind) };
+    },
+    voiceProviderTemplate(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const id = optionalText(record(payload)['id']);
+      if (id === undefined) return invalid('id is required');
+      try {
+        return { ok: true, value: { template: deps.providers.template(id) } };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async voiceProviderTemplateSet(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = record(payload);
+      const id = optionalText(input['id']);
+      if (id === undefined) return invalid('id is required');
+      try {
+        return {
+          ok: true,
+          value: { provider: await deps.providers.setTemplate(id, input['template']) },
+        };
+      } catch (error) {
+        return failure(error);
+      }
+    },
     async voiceProviderAdd(payload) {
       if (deps.providers === undefined) return unavailable();
       const input = record(payload);
@@ -168,6 +238,14 @@ export function createVoiceBridgeMethods(deps: {
         const provider = await deps.providers.add({
           ...(input['kind'] === 'asr' ? { kind: 'asr' as const } : {}),
           preset: input['preset'],
+          ...(input['template'] === undefined
+            ? {}
+            : {
+                template: parseVoiceTemplate(
+                  input['template'],
+                  input['kind'] === 'asr' ? 'asr' : 'tts',
+                ),
+              }),
           ...(typeof input['name'] === 'string' ? { name: input['name'] } : {}),
           ...(typeof input['baseUrl'] === 'string' ? { baseUrl: input['baseUrl'] } : {}),
           ...(typeof input['model'] === 'string' ? { model: input['model'] } : {}),

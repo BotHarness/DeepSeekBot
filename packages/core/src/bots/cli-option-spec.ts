@@ -302,6 +302,7 @@ export const TODO_OPTIONS = {
 } as const;
 
 export const VOICE_OPTIONS = {
+  'template-file': { type: 'string' },
   'base-url': { type: 'string' },
   'key-stdin': { type: 'boolean' },
   voice: { type: 'string' },

@@ -97,7 +97,7 @@ export interface ConnectedHost {
   attention: InboxSnapshot;
 }
 
-const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
+const sessions = new Map<string, { host: ConnectedHost; revoked(): boolean; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
 const callRetains = new Map<HostClient, number>();
 export function retainHostActivity(client: HostClient): () => void {
@@ -450,6 +450,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
   return {
     host: { saved, client, inbox, snapshot: client.getSnapshot(), attention: inbox.getSnapshot() },
+    revoked: () => revoked,
     dispose() {
       disposed = true;
       offInbox();
@@ -468,6 +469,10 @@ function syncPreferenceHosts(): void {
     (host) => sessions.get(host.hostId)?.host.client.getSnapshot().connection.status !== 'refused',
   );
   void notificationPreferences.sync(hosts).catch(() => undefined);
+}
+
+function revokedHost(saved: SavedHost): boolean {
+  return sessions.get(saved.hostId)?.revoked() === true;
 }
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
@@ -666,7 +671,7 @@ export const hostSession = {
       previous: (id, route) =>
         previous.find((host) => host.routes.includes(route)) ??
         previous.find((host) => host.hostId === id),
-      allowExisting: (saved) => saved.member !== undefined,
+      allowExisting: (saved) => saved.member !== undefined || revokedHost(saved),
     });
     if (!signed.ok || signed.value.role === 'member') return signed;
 
@@ -676,8 +681,10 @@ export const hostSession = {
       return await serialize(async () => {
         if (input.signal.aborted) return { ok: false, code: 'request-cancelled' };
         if (
-          stored.hosts.some(
-            (item) => item.hostId === host.hostId || item.routes.includes(input.route),
+          stored.hosts.some((item) =>
+            item.hostId === host.hostId
+              ? !revokedHost(item) || identitySwitchRequired(item, host)
+              : item.routes.includes(input.route),
           )
         )
           return { ok: false, code: 'already-paired' };

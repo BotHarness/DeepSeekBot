@@ -10,6 +10,7 @@ import { externalMemberWake } from '../../messaging/defaults.js';
 import type { ExternalContextQuery } from '../../messaging/inbound.js';
 import type { OutboundMessaging } from '../../messaging/outbound.js';
 import { requireSourceEffects } from '../../purge/fence.js';
+import { BotMessageError } from '../../runtime/bot-message-tool.js';
 import type {
   OrchestratorAssignmentAccess,
   OrchestratorAgentRun,
@@ -280,11 +281,13 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
                     ? ports.externalMessaging!.prepareAudio
                     : ports.externalMessaging!.acquireFile
                 )(bot.slug, input.sourceEventId, input.attachmentId);
+                turn.markSideEffect();
                 return saveAttachmentFile(input, {
                   botSlug: bot.slug,
                   grants: ports.grants,
                   attachments: ports.attachments,
                   source: () => {
+                    turn.requireSideEffectAccess();
                     if (!ports.externalMessaging!.inbound.available(bot.slug, input.sourceEventId))
                       throw new Error('Bridge file source is unavailable');
                     return ports.attachments!.current(ref);
@@ -329,9 +332,14 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             .get(id);
         });
         if (source?.source_kind === 'bridge-message') {
+          if (ports.externalMessaging === undefined)
+            throw new BotMessageError(
+              'unavailable-destination',
+              'External messaging is unavailable.',
+            );
           return {
             kind: 'external',
-            source: ports.externalMessaging!.inbound.readShared(bot.slug, id),
+            source: ports.externalMessaging.inbound.readShared(bot.slug, id),
           };
         }
         const reply = channels.replySource!(id);
@@ -395,6 +403,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             memory: {
               continueFromCommit: (sha, branch) => {
                 if (ports.memory === undefined) throw new Error('Memory is unavailable');
+                turn.requireSideEffectAccess();
                 const result = ports.memory.continueFromCommit({
                   botSlug: bot.slug,
                   sessionId: turn.sessionId,
@@ -406,6 +415,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
               },
               switchBranch: (branch) => {
                 if (ports.memory === undefined) throw new Error('Memory is unavailable');
+                turn.requireSideEffectAccess();
                 const result = ports.memory.switchBranch({
                   botSlug: bot.slug,
                   sessionId: turn.sessionId,
@@ -458,8 +468,8 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
       const header = `Source Event ID: ${id}`;
       const anchor = text.includes(header) ? header : `[Source Event ${id}]`;
       if (text.includes(anchor))
-        text = text.replace(anchor, `${anchor} ${envelope.text.trimEnd()}`);
-      else text = text.replace(id, `${id} ${envelope.text.trimEnd()}`);
+        text = text.replace(anchor, () => `${anchor} ${envelope.text.trimEnd()}`);
+      else text = text.replace(id, () => `${id} ${envelope.text.trimEnd()}`);
     }
     return envelopes.length
       ? {

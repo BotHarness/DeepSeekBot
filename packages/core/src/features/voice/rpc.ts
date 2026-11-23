@@ -1,3 +1,7 @@
+import type {
+  VoiceRequestTemplate,
+  VoiceTemplateValidation,
+} from '../../voice/request-template.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
@@ -15,6 +19,32 @@ import type {
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
 import type { VoiceBridgeMethods } from './methods.js';
 
+export function voiceCatalog(
+  methods: VoiceBridgeMethods,
+  kind: string,
+  preset: string,
+  collection: string,
+  key: string,
+  query?: string,
+  cursor?: string,
+) {
+  return unwrapAsync(methods.voiceCatalog({ kind, preset, collection, key, query, cursor }));
+}
+
+export function voiceCatalogImport(
+  methods: VoiceBridgeMethods,
+  preset: string,
+  ownerId: string,
+  voiceId: string,
+  name: string,
+  key: string,
+  confirmed: boolean,
+) {
+  return unwrapAsync(
+    methods.voiceCatalogImport({ preset, ownerId, voiceId, name, key, confirmed }),
+  );
+}
+
 export function voiceProviders(methods: VoiceBridgeMethods, slug?: string): VoiceProvidersView {
   return unwrap(methods.voiceProviders(slug === undefined ? {} : { slug }));
 }
@@ -29,6 +59,7 @@ export function voiceProviderAdd(
   key?: string,
   kind?: string,
   language?: string,
+  template?: VoiceRequestTemplate,
 ): Promise<{ provider: VoiceProviderView }> {
   return unwrapAsync(
     methods.voiceProviderAdd({
@@ -40,6 +71,7 @@ export function voiceProviderAdd(
       key,
       kind,
       language,
+      template,
     }),
   );
 }
@@ -128,8 +160,42 @@ export function voiceDictation(
 }
 
 export const voiceProviderRpc = {
+  voiceProviderTemplate(id: string): { template: VoiceRequestTemplate } {
+    return unwrap(this.methods.voiceProviderTemplate({ id }));
+  },
+  voiceTemplateValidate(kind: string, template: unknown): VoiceTemplateValidation {
+    return unwrap(this.methods.voiceTemplateValidate({ kind, template }));
+  },
+  voiceProviderTemplateSet(
+    id: string,
+    template: unknown,
+  ): Promise<{ provider: VoiceProviderView }> {
+    return unwrapAsync(this.methods.voiceProviderTemplateSet({ id, template }));
+  },
   voiceProviders(slug?: string): VoiceProvidersView {
     return voiceProviders(this.methods, slug);
+  },
+
+  voiceCatalog(
+    kind: string,
+    preset: string,
+    collection: string,
+    key: string,
+    query?: string,
+    cursor?: string,
+  ) {
+    return voiceCatalog(this.methods, kind, preset, collection, key, query, cursor);
+  },
+
+  voiceCatalogImport(
+    preset: string,
+    ownerId: string,
+    voiceId: string,
+    name: string,
+    key: string,
+    confirmed: boolean,
+  ) {
+    return voiceCatalogImport(this.methods, preset, ownerId, voiceId, name, key, confirmed);
   },
 
   voiceProviderAdd(
@@ -141,6 +207,7 @@ export const voiceProviderRpc = {
     key?: string,
     kind?: string,
     language?: string,
+    template?: VoiceRequestTemplate,
   ): Promise<{ provider: VoiceProviderView }> {
     return voiceProviderAdd(
       this.methods,
@@ -152,6 +219,7 @@ export const voiceProviderRpc = {
       key,
       kind,
       language,
+      template,
     );
   },
 

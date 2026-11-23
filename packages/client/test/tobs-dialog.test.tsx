@@ -16,7 +16,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 import { Button } from '../src/client/ds/button.js';
 import { Dialog } from '../src/client/ds/dialog.js';
 import { trackDialogInput } from '../src/client/ds/dialog-input.js';
-import { FormDialog } from '../src/client/ds/form-dialog.js';
+import { ConfirmDialog, FormDialog } from '../src/client/ds/form-dialog.js';
 import { PanelDialog } from '../src/client/ds/panel-dialog.js';
 
 let host: HTMLDivElement;
@@ -81,6 +81,38 @@ it('renders nothing while closed', () => {
   render(false);
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   expect(layer.calls.every((call) => !call.open)).toBe(true);
+});
+
+it('confirms a nested account action without submitting the settings form', () => {
+  const save = vi.fn();
+  const addToAccount = vi.fn();
+  const labels = { close: 'Close', cancel: 'Cancel' };
+  act(() =>
+    root.render(
+      <FormDialog
+        title="Service settings"
+        labels={labels}
+        submitLabel="Save"
+        onCancel={() => undefined}
+        onSubmit={save}
+      >
+        <ConfirmDialog
+          title="Add shared voice"
+          labels={labels}
+          confirmLabel="Add to account"
+          onCancel={() => undefined}
+          onConfirm={addToAccount}
+        />
+      </FormDialog>,
+    ),
+  );
+  const confirm = [...document.querySelectorAll<HTMLButtonElement>('button[type="submit"]')].find(
+    (button) => button.textContent === 'Add to account',
+  );
+  expect(confirm).toBeDefined();
+  act(() => confirm?.click());
+  expect(addToAccount).toHaveBeenCalledTimes(1);
+  expect(save).not.toHaveBeenCalled();
 });
 
 it('opens the PanelDialog without the pointer fade after keyboard input', () => {

@@ -117,6 +117,8 @@ export function ListCardItem({
   detail,
   detailId,
   toggle,
+  action,
+  data,
 }: {
   leading?: ReactNode;
   title: ReactNode;
@@ -124,19 +126,24 @@ export function ListCardItem({
   trailing?: ReactNode;
   detail?: ReactNode;
   detailId?: string | undefined;
-  toggle?: ListCardToggle | undefined;
-}): ReactElement {
+  data?: Record<`data-${string}`, string | undefined>;
+} & (
+  | { toggle?: ListCardToggle | undefined; action?: never }
+  | { toggle?: never; action: { label: string; disabled?: boolean; onClick(): void } }
+)): ReactElement {
+  const trigger = toggle ?? action;
   return (
-    <li {...stylex.props(styles.item, toggle !== undefined && styles.interactive)}>
+    <li {...data} {...stylex.props(styles.item, trigger !== undefined && styles.interactive)}>
       <div {...stylex.props(styles.line)}>
-        {toggle === undefined ? null : (
+        {trigger === undefined ? null : (
           <Button
             type="button"
             variant="overlay"
-            aria-label={toggle.label}
-            aria-expanded={toggle.expanded}
-            aria-controls={toggle.controls}
-            onClick={toggle.onToggle}
+            aria-label={trigger.label}
+            aria-expanded={toggle?.expanded}
+            aria-controls={toggle?.controls}
+            disabled={action?.disabled}
+            onClick={toggle?.onToggle ?? action?.onClick}
           />
         )}
         {leading === undefined ? null : <span {...stylex.props(styles.leading)}>{leading}</span>}

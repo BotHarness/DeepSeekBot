@@ -177,6 +177,16 @@ describe('bot_create Bot tool', () => {
     );
   });
 
+  it('refuses a non-regular Avatar path before reading it', async () => {
+    const { work, create } = setup();
+    const directory = join(work, 'avatar.png');
+    mkdirSync(directory);
+    await expect(create({ display_name: 'Tim', avatar_path: directory })).rejects.toMatchObject({
+      code: 'invalid-avatar',
+      message: expect.stringContaining('must be a regular file'),
+    });
+  });
+
   it('refuses a bad Avatar or input and creates nothing', async () => {
     const { home, work, registry, refusal } = setup();
     const outside = join(home, 'outside.png');

@@ -406,11 +406,16 @@ class BotRuntimeImplementation implements BotRuntime {
   async replaceOrchestrator<T>(
     botSlug: string,
     body: () => T,
+    nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     if (this.#features.tails.has(botSlug)) return BOT_BUSY;
     let result: OrchestratorReplacement<T> | undefined;
     await this.#features.scheduling.enqueue(botSlug, async () => {
-      result = await this.#features.orchestratorSessions.replaceOrchestrator(botSlug, body);
+      result = await this.#features.orchestratorSessions.replaceOrchestrator(
+        botSlug,
+        body,
+        nextCwd,
+      );
     });
     if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
     return result;

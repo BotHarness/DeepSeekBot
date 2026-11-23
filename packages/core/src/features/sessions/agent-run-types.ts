@@ -200,6 +200,7 @@ export interface OrchestratorServiceTurn {
   sessionId: string;
   channelId: string | undefined;
   sourceEventId: string | undefined;
+  requireSideEffectAccess: () => void;
   markSideEffect: (database?: DatabaseSync) => void;
   readAdmissions: Set<string>;
   importedFiles: Map<string, ChannelAttachmentRef>;

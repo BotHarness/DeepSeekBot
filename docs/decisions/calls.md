@@ -12,11 +12,13 @@ Two rules run through every section:
 <a id="adr-0280"></a>
 _Formerly ADR-0280 (Providers) and ADR-0281 (ASR Providers)._
 
-`VoiceProviders` (`voice/providers.ts`) is the one owner of speech services, in two kinds. A **TTS** provider comes from a preset (`custom`, `fish-audio`, `elevenlabs`, `openai`, `local`) that fixes its wire protocol, base URL and defaults. An **ASR** provider comes from `custom`, `openai`, `groq` or `local` over the OpenAI-compatible `/audio/transcriptions` API. Non-secret settings live in the `voice_providers` table, and the key lives only in the DSH credential store under `botharness-core`. No view, bridge response, CLI output or log carries the key, and provider error text is redacted of it. `synthesize` takes at most 4,000 characters and returns at most 10 MB of sniffed audio. `transcribe` takes a 16 kHz WAV and returns cleaned text of at most 4,000 characters. Both have a 30 s timeout, no redirects and coded errors (`provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected`, `provider-bad-response`). A PersonaBot has optional `voice` and `asr` bindings; removing a provider clears every binding that uses it.
+`VoiceProviders` (`voice/providers.ts`) is the one owner of speech services, in two kinds. A **TTS** provider comes from a preset (`custom`, `fish-audio`, `elevenlabs`, `openai`, `local`) that fixes its wire protocol, base URL and defaults. An **ASR** provider comes from `custom`, `openai`, `groq` or `local` over the OpenAI-compatible `/audio/transcriptions` API. Non-secret settings live in the `voice_providers` table, and the key lives only in the DSH credential store under `botharness-core`. No view, bridge response, CLI output or log carries the key, and upstream error bodies are never echoed. `synthesize` takes at most 4,000 characters and returns at most 10 MB of sniffed audio. `transcribe` takes a 16 kHz WAV and returns cleaned text of at most 4,000 characters. Both have a 30 s timeout, no redirects and coded errors (`provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected`, `provider-bad-response`). A PersonaBot has optional `voice` and `asr` bindings; removing a provider clears every binding that uses it.
 
 Why: later slices added providers and streaming on the same interface, so the boundary had to stay small, and keys must stay where the other credentials are.
 
 Enforced by: `voice-providers.test.ts`, `voice-defaults.test.ts`, `voice-soniox-close.test.ts`.
+
+HTTP request and result shapes use the common declarative engine in [ADR-0363](../adr/0363-voice-http-request-templates.md). The Host Owner can supply a template for a `custom` Provider; old `custom` records keep the OpenAI-compatible request. Streaming protocols and catalog/account operations remain vendor adapters.
 
 ## 2. A Bot speaks by marking a message `voice: true`
 
