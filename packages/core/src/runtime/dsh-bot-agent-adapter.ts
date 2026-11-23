@@ -130,6 +130,13 @@ export interface DshBotAgentAdapterOptions {
 
   onOrchestratorFileSetup?: (agentCtx: Context, agent: Agent) => Promise<() => Promise<void>>;
 
+  assignmentReportFooter?: (sessionId: string) => string | undefined;
+
+  onAssignmentShellSetup?: (
+    agentCtx: Context,
+    agent: Agent,
+  ) => Promise<(() => Promise<void>) | undefined>;
+
   onAgentSetup?: (agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void;
 
   observeTurnFailure?: (provider: string, code: string) => void;

@@ -1837,6 +1837,23 @@ These reuse the same telemetry, Git and release owners as Settings. Environment-
 
 Scoped `release-install` and `release-restart` require explicit `--confirm` and a fresh Human decision for every invocation. Full access, remembered allow rules and automatic approval cannot replace that decision; the flag itself is not approval. `git-install` does not use `--confirm` and retains its existing review policy. Restart can interrupt running turns and disconnect the requesting CLI; do not automatically repeat an install or restart after an uncertain result. Reconnect and inspect release status before deciding another action. Test these operations only in an owned isolated Profile, preserving the Human's active Desktop.
 
+### Tob Assignment Memory leases
+
+```bash
+# Tob's Orchestrator, in its Human DM turn
+deepseekbot assignment-memory-lease <assignment-session-id> <bot-slug> <bot-slug> --operation-key <key>
+deepseekbot assignment-memory-leases [<assignment-session-id>]
+deepseekbot assignment-memory-revoke <lease-id> [--reason <text>]
+# Inside that Tob Assignment's Shell
+deepseekbot memory-snapshot <bot-slug>
+deepseekbot memory-file <bot-slug> --path <file>
+deepseekbot memory-history <bot-slug> [--limit <1-50>]
+deepseekbot memory-diff <bot-slug> --sha <commit>
+deepseekbot assignment-memory-leases
+```
+
+A lease lets one Tob-owned Assignment read up to eight Bots the Human owns, read-only, for the current Human request. It ends when the Assignment is archived, the request's DM message is purged or ended, or Tob revokes it. Each read returns `provenance` (`revision`, `path`, `bytes`, `sha256`, `truncated`); bodies and diffs over 64 KiB are cut. `assignment-memory-leases` shows `state` (`active`, `revoked`, `expired`), `status` (`complete` or `partial`) and each Bot's `read`, `unread` or `refused`; the Assignment Report carries the same summary. Memory writes and `--out` refuse with `lease-read-only`, other commands with `tob-authority-required`; an unlisted Bot with `lease-target-denied`, an archived or replaced one with `lease-target-unavailable`. Reuse the same `--operation-key` to get the same lease back. The Human runs the Tob commands model-free through `deepseekbot tob-cli start --args-stdin` with `{"argv":["assignment-memory-lease",…]}` ([Model-free Tob CLI requests](#model-free-tob-cli-requests)). See [Tob decisions §7](decisions/tob.md#tob-memory-lease).
+
 ### Recover an exhausted Group draft
 
 After restarting the Host, inspect the draft, read the current Group, and pass both

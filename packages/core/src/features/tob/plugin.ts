@@ -12,6 +12,14 @@ import { TobError } from '../../tob/service.js';
 import { TOB_MODEL_CAPABILITIES } from '../../tob/cli-model-operations.js';
 import { TOB_MAINTENANCE_CAPABILITIES } from '../../tob/cli-maintenance-operations.js';
 import { installTobCliShell } from '../../tob/cli-shell.js';
+import { createTobMemoryLeases } from '../../tob/memory-lease.js';
+import {
+  createTobAssignmentLeaseOperations,
+  createTobMemoryLeaseOperations,
+  TOB_ASSIGNMENT_LEASE_CAPABILITIES,
+  TOB_MEMORY_LEASE_CAPABILITIES,
+} from '../../tob/cli-memory-lease-operations.js';
+import { installAssignmentShell } from '../../workspaces/assignment-shell.js';
 import { TOB_VOICE_CAPABILITIES } from '../../tob/cli-voice-operations.js';
 import { approveTobCliOperation } from '../../tob/cli-approval.js';
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -126,7 +134,15 @@ export function mountOperations(
   ctx: Context,
   core: Pick<
     BotHarnessCore,
-    'registry' | 'creations' | 'team' | 'tob' | 'channels' | 'channelManagement'
+    | 'registry'
+    | 'creations'
+    | 'team'
+    | 'tob'
+    | 'channels'
+    | 'channelManagement'
+    | 'operationalDatabase'
+    | 'ownership'
+    | 'memory'
   >,
   {
     bridgeMethods,
@@ -199,7 +215,15 @@ export function mountOperations(
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  const tobMemoryLeases = createTobMemoryLeases({
+    database: attachOperationalModule(core.operationalDatabase, 'tob'),
+    registry: core.registry,
+    ownership: core.ownership,
+    memory: () => core.memory,
+    isTob: (slug) => core.tob.isTob(slug),
+  });
   return {
+    tobMemoryLeases,
     tobBotCreationOperations,
     tobBotProfileOperations,
     tobShareDraftOperations,
@@ -281,12 +305,16 @@ export function createOrchestratorFileSetup(
               try {
                 const authority = deps.core.runtime.captureTobCliAuthority?.(actor.session.id);
                 if (!authority) throw new TobError('tob-authority-required');
-                return { authorize: authority, beginWrite: authority.beginWrite };
+                return {
+                  authorize: authority,
+                  beginWrite: authority.beginWrite,
+                  sources: (): readonly string[] => authority.sources,
+                };
               } catch (error) {
                 const refuse = () => {
                   throw error;
                 };
-                return { authorize: refuse, beginWrite: refuse };
+                return { authorize: refuse, beginWrite: refuse, sources: refuse };
               }
             })();
             const requireAuthority = (requireOrigin: () => void) => {
@@ -322,6 +350,15 @@ export function createOrchestratorFileSetup(
                     human,
                   });
                 checkTargets();
+                const lease = createTobMemoryLeaseOperations({
+                  leases: () => deps.tobOperations.tobMemoryLeases,
+                  tobSlug: () => steward.slug,
+                  sources: () => {
+                    requireAuthority(source.authorize);
+                    return source.sources();
+                  },
+                })(command, args, signal);
+                if (lease) return lease;
                 if (memberOperations) return memberOperations(command, args, signal);
                 const prepared =
                   (await deps.tobSettingsOperations.tobModelOperations(command, args)) ??
@@ -361,6 +398,7 @@ export function createOrchestratorFileSetup(
                 ? [
                     ...TOB_BOT_CREATE_CAPABILITIES,
                     ...TOB_BOT_PROFILE_CAPABILITIES,
+                    ...TOB_MEMORY_LEASE_CAPABILITIES,
                     TOB_HOST_CLI_CAPABILITY,
                   ]
                 : [
@@ -372,6 +410,7 @@ export function createOrchestratorFileSetup(
                     ...TOB_DIAGNOSTIC_CAPABILITIES,
                     ...TOB_CHANNEL_CAPABILITIES,
                     ...TOB_VOICE_CAPABILITIES,
+                    ...TOB_MEMORY_LEASE_CAPABILITIES,
                     TOB_HOST_CLI_CAPABILITY,
                   ],
               readSetting: () => {
@@ -405,4 +444,59 @@ export function createOrchestratorFileSetup(
           },
         }),
     );
+}
+
+export function createAssignmentShellSetup(
+  ctx: Context,
+  deps: TobShellDependencies,
+): NonNullable<Parameters<typeof createDshBotAgentAdapter>[0]['onAssignmentShellSetup']> {
+  return async (agentCtx, agent) => {
+    const owner = deps.core.ownership.resolve(agent.session.id);
+    if (owner?.rootRole !== 'assignment' || !deps.core.tob.isTob(owner.botSlug)) return undefined;
+    const assignmentSessionId = agent.session.id;
+    const leases = () => deps.tobOperations.tobMemoryLeases;
+    return installAssignmentShell(
+      agentCtx,
+      agent,
+      ctx.get('agentPresets') as DshAgentPresetHost | undefined,
+      (shellCtx, shell) =>
+        installTobCliShell(shellCtx, shell, {
+          capture: (execution) => {
+            if (execution.agent !== agent) return undefined;
+            const started = Date.now();
+            const authorize = () => {
+              if (execution.signal.aborted) throw new TobError('agent-context-expired');
+              const current = deps.core.ownership.resolve(assignmentSessionId);
+              if (current?.rootRole !== 'assignment' || !deps.core.tob.isTob(current.botSlug))
+                throw new TobError('tob-authority-required');
+              if (!leases().active(assignmentSessionId)) throw new TobError('lease-unavailable');
+            };
+            const readOnly = (): never => {
+              throw new TobError('lease-read-only');
+            };
+            return {
+              signal: execution.signal,
+              authorize,
+              readSetting: readOnly,
+              writeSetting: readOnly,
+              approve: async () => readOnly(),
+              prepareOperation: createTobAssignmentLeaseOperations({
+                leases,
+                assignmentSessionId,
+              }),
+              capabilities: TOB_ASSIGNMENT_LEASE_CAPABILITIES,
+              log: (phase, details) =>
+                ctx.logger.info('tob-cli %j', {
+                  phase,
+                  sessionId: assignmentSessionId,
+                  callId: execution.callId,
+                  initiator: 'tob-assignment-lease',
+                  durationMs: Date.now() - started,
+                  ...details,
+                }),
+            };
+          },
+        }),
+    );
+  };
 }

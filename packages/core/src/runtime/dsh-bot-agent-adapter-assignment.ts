@@ -22,6 +22,7 @@ import type {
 import { SessionId, type SessionLogOffset } from '@deepseek-ai/dsh-session';
 import { routingTargetRestKey } from '../models/group-fallback.js';
 import type { AssignmentAgentRun, AssignmentRequestDelivery } from './bot-runtime.js';
+import { withReportFooter } from './assignment-report.js';
 import { EngineLimitError } from '../engines/engine-session.js';
 import {
   ROLE_PROMPT_ORDER,
@@ -94,6 +95,8 @@ type AssignmentHandleContext = Pick<
   | 'hasSession'
   | 'liveHandle'
   | 'onAgentSetup'
+  | 'onAssignmentShellSetup'
+  | 'assignmentReportFooter'
   | 'orchestratorCwd'
   | 'promptText'
   | 'resolveModelPlan'
@@ -434,6 +437,8 @@ async function assignmentHandle(
       if (!borrowed) {
         await adapter.composePreset(agentCtx, agent, run);
       }
+      const disposeShell = await adapter.onAssignmentShellSetup?.(agentCtx, agent);
+      if (borrowed && disposeShell !== undefined) borrowedDisposers.push(disposeShell);
       const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
@@ -460,10 +465,14 @@ async function assignmentHandle(
       );
       if (borrowed) borrowedDisposers.push(disposeMemorySkills);
       registerTool(
-        createAssignmentReportTool(() => {
-          const active = adapter.runs.get(run.sessionId);
-          return active?.role === 'assignment' ? active : undefined;
-        }, agent),
+        createAssignmentReportTool(
+          () => {
+            const active = adapter.runs.get(run.sessionId);
+            return active?.role === 'assignment' ? active : undefined;
+          },
+          agent,
+          (summary) => withReportFooter(summary, adapter.assignmentReportFooter?.(run.sessionId)),
+        ),
       );
     },
   };

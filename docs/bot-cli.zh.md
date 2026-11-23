@@ -1776,6 +1776,23 @@ deepseekbot release-restart --confirm
 
 受限 `release-install` 和 `release-restart` 必须带显式 `--confirm`，而且每次调用都需要新的 Human 决定。Full access、记住的允许规则和自动审批都不能替代这次决定；该参数本身不等于审批。`git-install` 不使用 `--confirm`，继续沿用其既有审核策略。重启可能中断运行中的轮次并断开请求 CLI；结果不确定时不得自动重复安装或重启，应重新连接并读取发布状态后再决定下一步。仅在自己拥有的隔离 Profile 中验证这些操作，保留 Human 当前 Desktop。
 
+### Tob Assignment 的 Memory 租约
+
+```bash
+# Tob 的 Orchestrator，在它的 Human DM 回合里
+deepseekbot assignment-memory-lease <assignment-session-id> <bot-slug> <bot-slug> --operation-key <key>
+deepseekbot assignment-memory-leases [<assignment-session-id>]
+deepseekbot assignment-memory-revoke <lease-id> [--reason <说明>]
+# 在这个 Tob Assignment 的 Shell 里
+deepseekbot memory-snapshot <bot-slug>
+deepseekbot memory-file <bot-slug> --path <文件>
+deepseekbot memory-history <bot-slug> [--limit <1-50>]
+deepseekbot memory-diff <bot-slug> --sha <commit>
+deepseekbot assignment-memory-leases
+```
+
+租约让一个 Tob 自己的 Assignment 只读访问 Human 拥有的最多八个 Bot 的 Memory，只为当前这次 Human 请求。Assignment 被归档、这次请求的 DM 消息被清除或结束、或 Tob 撤销租约时，租约结束。每次读取返回 `provenance`（`revision`、`path`、`bytes`、`sha256`、`truncated`）；超过 64 KiB 的正文和 diff 会被截断。`assignment-memory-leases` 显示 `state`（`active`、`revoked`、`expired`）、`status`（`complete` 或 `partial`）和每个 Bot 的 `read`、`unread` 或 `refused`；Assignment Report 末尾带同样的摘要。Memory 写入和 `--out` 返回 `lease-read-only`，其他命令返回 `tob-authority-required`；不在租约里的 Bot 返回 `lease-target-denied`，已归档或被替换的 Bot 返回 `lease-target-unavailable`。用同一个 `--operation-key` 会拿回同一个租约。Human 可以用 `deepseekbot tob-cli start --args-stdin` 和 `{"argv":["assignment-memory-lease",…]}` 无模型地运行这些 Tob 命令（[无模型的 Tob CLI 请求](#无模型的-tob-cli-请求)）。见 [Tob 决策 §7](decisions/tob.md#tob-memory-lease)。
+
 ### 恢复已耗尽复核额度的群聊草稿
 
 Host 重启后先检查草稿、重新读取群聊，再通过同一个

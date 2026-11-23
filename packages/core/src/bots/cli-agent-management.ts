@@ -12,6 +12,7 @@ import { assignmentModelsMode } from './cli-models-usage.js';
 import { parseAgentDiagnostics, TOB_DIAGNOSTIC_COMMAND_USAGE } from './cli-diagnostic-logs.js';
 import { parseAgentShareDraft, TOB_SHARE_DRAFT_COMMAND_USAGE } from './cli-share-draft.js';
 import { parseAgentVoice, TOB_AGENT_VOICE_COMMAND_USAGE } from './cli-agent-voice.js';
+import { parseAgentMemoryLease, TOB_MEMORY_LEASE_COMMAND_USAGE } from './cli-agent-memory-lease.js';
 
 export interface AgentManagementInvocation {
   command: string;
@@ -25,6 +26,7 @@ export const TOB_AGENT_COMMAND_USAGE: Readonly<Record<string, string>> = {
   ...TOB_SHARE_DRAFT_COMMAND_USAGE,
   ...TOB_DIAGNOSTIC_COMMAND_USAGE,
   ...TOB_AGENT_VOICE_COMMAND_USAGE,
+  ...TOB_MEMORY_LEASE_COMMAND_USAGE,
   list: 'deepseekbot list',
   'model-catalog': 'deepseekbot model-catalog',
   'model-plan': 'deepseekbot model-plan <bot-slug>',
@@ -228,6 +230,8 @@ export async function parseAgentManagement(
   if (voice) return voice;
   const diagnostics = parseAgentDiagnostics(command, rest, values);
   if (diagnostics) return diagnostics;
+  const lease = parseAgentMemoryLease(command, rest, values);
+  if (lease) return lease;
   if (!Object.hasOwn(OPTIONS, command)) return undefined;
   const allowed = new Set(['compact', 'help', 'timeout', ...OPTIONS[command]!]);
   if (Object.entries(values).some(([key, value]) => value !== undefined && !allowed.has(key)))

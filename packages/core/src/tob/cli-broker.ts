@@ -7,6 +7,7 @@ import { DIAGNOSTIC_ERROR_CODES } from './cli-diagnostic-operations.js';
 import { TobCliCommandError, TOB_HOST_CLI_ERROR_CODES } from './cli-host-commands.js';
 import { SHARE_DRAFT_ERROR_CODES } from './cli-share-draft-operations.js';
 import { TOB_VOICE_ERROR_CODES } from './cli-voice-operations.js';
+import { TOB_MEMORY_LEASE_ERROR_CODES } from './memory-lease.js';
 import type {
   PrepareTobOperation,
   TobCliCapability,
@@ -34,6 +35,7 @@ const CODES = new Set([
   ...TOB_HOST_CLI_ERROR_CODES,
   ...SHARE_DRAFT_ERROR_CODES,
   ...TOB_VOICE_ERROR_CODES,
+  ...TOB_MEMORY_LEASE_ERROR_CODES,
   'tob-authority-required',
   'human-dm-required',
   'stale-setting',

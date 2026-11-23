@@ -85,3 +85,18 @@ One request runs at a time, and a busy Orchestrator refuses a new one; ordinary 
 Why: the temporary direct Session behind the Human CLI has no accepted Tob DM, so it could not pass the source check. Running inside a real turn lets agents test the production path, approval card included, without a model.
 
 Enforced by: `tob-cli-invocation.test.ts`, `tob-cli-approval.test.ts`.
+
+## 7. A Tob Assignment reads selected Bots' Memory through a read-only lease
+
+<a id="tob-memory-lease"></a>
+_New in #4827 (carries forward #2091)._
+
+When the Human asks Tob to compare Bots, Tob's root Orchestrator issues a **Memory lease** with `assignment-memory-lease <assignment> <bot>… --operation-key <key>`. The Tob owner stores it in `tob_memory_leases`, bound to the accepted Human DM Source Events of that request, to one Tob-owned Assignment Session and to each target's incarnation (slug and creation time). Inside that Assignment, and only there, the native Shell runs `deepseekbot` through a lease broker that answers `memory-snapshot`, `memory-file`, `memory-history` and `memory-diff` for the leased targets and refuses everything else: Memory writes and file output as `lease-read-only`, other commands as `tob-authority-required`. The Assignment never sees management credentials or the Orchestrator's broker, and there is no approval path to escalate to.
+
+Every read rechecks the lease, the Assignment (owned by Tob, not archived), the source request (still a Human message in Tob's DM, not purged and not ended) and the target (same incarnation, active, still owned by the Human). A failure refuses with `lease-unavailable`, `lease-expired`, `lease-source-revoked`, `lease-target-denied` or `lease-target-unavailable`; a refused target read is recorded. Each read records bounded provenance: Bot, kind, path, revision, size, SHA-256, truncation (bodies and diffs over 64 KiB are cut and marked), at most 200 reads per lease. `assignment-memory-leases` shows the lease state, per-Bot status (`read`, `unread`, `refused`) and an overall `complete` or `partial`; the same summary, at most 1,200 characters, is appended to every Assignment Report while the lease is active. The lease is durable, so a resumed Assignment keeps reading and reporting; `assignment-memory-revoke` or archiving the Assignment ends it, and a same key with the same Assignment and Bots returns the existing lease (`lease-key-conflict` otherwise; one active lease per Assignment, `lease-exists`).
+
+Issuing and revoking run without an approval card: the lease delegates only reads that Tob's Orchestrator already runs at once (§4), for its current request, so a card would add a click without protecting anything.
+
+Why: the Assignment is where long comparisons belong, but giving it the Orchestrator's broker would hand an Assignment management authority, and copying Memory into its prompt would lose revision provenance. Binding the lease to the request, the Assignment and each target incarnation keeps the delegation as narrow as the Human's ask.
+
+Enforced by: `tob-memory-lease.test.ts` (two-Bot comparison with provenance, write and out-of-lease refusal, archived and replaced targets, revoked lease, purged source, archived Assignment, resumed lease, idempotent key, the scoped CLI path through both brokers).
