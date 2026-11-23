@@ -402,6 +402,7 @@ export const LIVE_OPTIONS = {
   refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
+  human: { type: 'string', multiple: true },
   attach: { type: 'string', multiple: true },
   app: { type: 'string' },
   bot: { type: 'string' },
