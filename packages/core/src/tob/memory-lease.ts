@@ -231,14 +231,9 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
   const targetDenial = (row: LeaseRow, target: LeaseTarget): string | undefined => {
     const bot = deps.registry.get(target.slug);
     const tob = deps.registry.get(row.tob_slug);
-    if (
-      !bot ||
-      !tob ||
-      bot.createdAt !== target.createdAt ||
-      bot.paused === true ||
-      botOwner(bot) !== botOwner(tob)
-    )
+    if (!bot || !tob || bot.createdAt !== target.createdAt || bot.paused === true)
       return 'lease-target-unavailable';
+    if (botOwner(bot) !== botOwner(tob)) return 'lease-target-denied';
     return undefined;
   };
 
@@ -306,6 +301,18 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
             `SELECT * FROM tob_memory_leases
              WHERE assignment_session_id = ? AND revoked_at IS NULL
              ORDER BY created_at DESC LIMIT 1`,
+          )
+          .get(assignmentSessionId) as LeaseRow | undefined,
+    );
+
+  const latestRow = (assignmentSessionId: string): LeaseRow | undefined =>
+    deps.database.read(
+      (db) =>
+        db
+          .prepare(
+            `SELECT * FROM tob_memory_leases
+             WHERE assignment_session_id = ?
+             ORDER BY created_at DESC, rowid DESC LIMIT 1`,
           )
           .get(assignmentSessionId) as LeaseRow | undefined,
     );
@@ -612,15 +619,22 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
       };
     },
     reportFooter(assignmentSessionId) {
-      const row = activeRow(assignmentSessionId);
+      const row = latestRow(assignmentSessionId);
       if (!row) return undefined;
       const lease = view(row);
+      const paths = (slug: string) => [
+        ...new Set(
+          readsFor(row.lease_id)
+            .filter((read) => read.bot_slug === slug && read.outcome === 'ok' && read.path)
+            .map((read) => read.path!),
+        ),
+      ];
       const lines = [
         `Memory lease ${lease.leaseId} (${lease.state}, ${lease.status}, read-only):`,
-        ...lease.bots.map(
-          (bot) =>
-            `- ${bot.slug}: ${bot.status}${bot.revision === null ? '' : ` at ${bot.revision}`} (${bot.reads} reads)`,
-        ),
+        ...lease.bots.map((bot) => {
+          const files = paths(bot.slug);
+          return `- ${bot.slug}: ${bot.status}${bot.revision === null ? '' : ` at ${bot.revision}`} (${bot.reads} reads${files.length === 0 ? '' : `; ${files.join(', ')}`})`;
+        }),
         ...(lease.reads.some((read) => read.truncated) ? ['- some reads were truncated'] : []),
       ];
       const text = lines.join('\n');

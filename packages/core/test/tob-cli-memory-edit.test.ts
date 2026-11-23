@@ -346,6 +346,7 @@ describe('Tob reviewed Memory edits through the Memory owner', () => {
     expect(await retry!.run(() => {})).toMatchObject({
       replayed: true,
       commit: { sha: result.commit.sha },
+      takesEffect: expect.not.stringMatching(/next compaction/u),
     });
     expect(f.restoreCommitHuman).toHaveBeenCalledOnce();
   });

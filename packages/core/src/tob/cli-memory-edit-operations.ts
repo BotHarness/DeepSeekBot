@@ -226,6 +226,7 @@ export function createTobMemoryEditOperations(deps: {
     const initial = review();
     if (initial.accepted) {
       const accepted = initial.accepted;
+      const replayedPaths = initial.paths;
       return {
         completed: true,
         run(guard) {
@@ -236,7 +237,7 @@ export function createTobMemoryEditOperations(deps: {
             bot: slug,
             commit: commitView(accepted),
             restoredFrom: sha,
-            takesEffect: memoryEditTakesEffect(STANDING_FILES),
+            takesEffect: memoryEditTakesEffect(replayedPaths),
             replayed: true,
           };
         },

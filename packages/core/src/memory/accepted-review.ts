@@ -92,7 +92,18 @@ export function createAcceptedReviews({
         return {
           head: current,
           dirty: false,
-          paths: [],
+          paths: run(root, [
+            'diff-tree',
+            '--no-commit-id',
+            '--no-renames',
+            '--name-only',
+            '-r',
+            '-z',
+            restore.sha,
+          ])
+            .toString('utf8')
+            .split('\0')
+            .filter(Boolean),
           diff: '',
           accepted: rowToCommit(restore),
         };

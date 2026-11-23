@@ -181,7 +181,7 @@ describe('Tob Assignment read-only Memory lease', () => {
       readCount: 2,
     });
     const footer = f.leases.reportFooter('asg-1')!;
-    expect(footer).toContain(`ada: read at ${HEAD_ADA}`);
+    expect(footer).toContain(`ada: read at ${HEAD_ADA} (1 reads; SOUL.md)`);
     expect(footer).toContain(`bob: read at ${HEAD_BOB}`);
     expect(footer.length).toBeLessThanOrEqual(1200);
   });
@@ -275,6 +275,14 @@ describe('Tob Assignment read-only Memory lease', () => {
       { slug: 'bob', status: 'refused', reads: 0 },
     ]);
     expect(f.leases.reportFooter('asg-1')).toContain('bob: refused');
+    f.bots.set('bob', { slug: 'bob', createdAt: AT, ownerHumanId: 'someone-else' });
+    expect(
+      code(() => f.leases.read({ assignmentSessionId: 'asg-1', bot: 'bob', kind: 'snapshot' })),
+    ).toBe('lease-target-denied');
+    f.leases.revoke({ tobSlug: 'tob', leaseId: view.leaseId });
+    expect(f.leases.reportFooter('asg-1')).toMatch(
+      /\(revoked, partial, read-only\)[\s\S]*bob: refused/u,
+    );
   });
 
   it('ends with revocation, a purged source request or an archived Assignment', () => {

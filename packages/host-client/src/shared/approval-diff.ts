@@ -73,7 +73,6 @@ export function unifiedDiffLines(diff: string): ApprovalDiffLine[] {
     const model = parseMemoryDiff(section);
     return [
       ...(header === '' ? [] : [{ kind: 'context' as const, text: header }]),
-      ...(model.binary ? [{ kind: 'context' as const, text: 'Binary file changed' }] : []),
       ...model.lines.map((line) =>
         line.kind === 'add' || line.kind === 'remove'
           ? { kind: line.kind, text: line.text }
