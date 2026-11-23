@@ -2424,3 +2424,42 @@ deepseekbot --as bob channels add-member <channel-id> alice
 ```
 
 候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。
+
+### 自定义 HTTP 语音请求模板
+
+Host Owner 可给 `custom` Provider 提供不含密钥的 JSON 模板。未提供模板的既有 `custom` 配置保持 OpenAI 兼容行为。第一版只支持同步 HTTP；实时协议、签名认证和轮询任务仍需厂商适配。
+
+```bash
+deepseekbot voice-template-validate --template-file /absolute/template.json
+deepseekbot voice-provider-add custom --template-file /absolute/template.json --key-stdin
+deepseekbot voice-provider-template <provider-id>
+deepseekbot voice-provider-template-set <provider-id> --template-file /absolute/template.json
+deepseekbot voice-provider-test <provider-id>
+```
+
+ASR 的验证和创建加上 `--kind asr`，测试用 `voice-transcribe --provider <id> --file /absolute/speech.wav`。编辑只替换模板，保留密钥、模型、音色和语言。创建时密钥仅通过 `--key-stdin` 写入凭据存储，不能放进模板常量。认证使用 `auth: {kind: "bearer"}`、`{kind: "header", name: "X-API-Key", prefix: "Token "}`、`{kind: "query", name: "key"}` 或 `{kind: "none"}`。
+
+```json
+{
+  "version": 1,
+  "url": "https://texttospeech.googleapis.com/v1/text:synthesize",
+  "method": "POST",
+  "auth": { "kind": "query", "name": "key" },
+  "headers": {},
+  "body": {
+    "kind": "json",
+    "value": {
+      "input": { "text": "{text}" },
+      "voice": { "languageCode": "en-US", "name": "{voice}" },
+      "audioConfig": { "audioEncoding": "MP3" }
+    }
+  },
+  "result": { "kind": "base64", "path": "audioContent" }
+}
+```
+
+占位符包括 `{text}`、`{voice}`、`{model}`、`{format}`、`{language}`；ASR 还支持 `{audio}`（multipart 文件或 JSON base64）、`{audioBase64}`、`{audioDataUrl}`。URL 中的占位符仅允许出现在路径或查询中，替换值会编码。独立占位符缺失时省略对应对象或 multipart 字段。请求体可以是带结构化 `value` 的 `json`、带字符串 `fields` 的 `multipart`、带 `root: {tag, attributes, children}` 元素树的 `ssml`，或 `none`（GET 必须使用）。JSON 构造对象后序列化；SSML 对文本和属性转义。`headers` 可放 Azure 输出格式等非秘密常量。
+
+结果为原始音频 `{kind: "audio"}`，或 `{kind: "base64"|"hex"|"url"|"text", path: "choices.0.message.audio.data"}`。路径只支持点分隔字段和数字数组下标，不支持 `$`、通配符或表达式。ASR 必须提取 `text`，TTS 必须提取音频。URL 只下载一次，不转发凭据、不跟随重定向，复用原请求截止时间和 10 MB 音频上限。模板最多 64 KB、16 层。验证返回 `{valid: true, template}` 或 `{valid: false, errors: [{path, message}]}`，不发起厂商请求。上游失败只显示错误代码和可读提示，不直接展示上游原文。
+
+Bridge 对象参数接口为带可选 `template` 的 `voiceProviderAdd`、`voiceProviderTemplate({id})`、`voiceTemplateValidate({kind, template})`、`voiceProviderTemplateSet({id, template})`。位置参数 RPC 为 `voiceProviderTemplate(id)`、`voiceTemplateValidate(kind, template)`、`voiceProviderTemplateSet(id, template)`，以及 `voiceProviderAdd` 的第九个参数。共享类型 `VoiceRequestTemplate`、`VoiceTemplateValidation` 位于 `@botharness/host-protocol/voice-request-template`，由 core schema 验证。设置中的模板表单由 #5012 后续切片实现。

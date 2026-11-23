@@ -1,3 +1,4 @@
+import type { VoiceRequestTemplate } from './request-template.js';
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { AsrPreset, AsrWire, TtsPreset, TtsWire } from './presets.js';
@@ -55,6 +56,7 @@ export interface TtsProviderView {
   baseUrl: string;
   model?: string;
   defaultVoice?: string;
+  template?: VoiceRequestTemplate;
   keySet: boolean;
   createdAt: string;
 }
@@ -69,6 +71,7 @@ export interface AsrProviderView {
   baseUrl: string;
   model?: string;
   language?: string;
+  template?: VoiceRequestTemplate;
   keySet: boolean;
   createdAt: string;
 }
@@ -84,6 +87,7 @@ export interface TtsProviderInput {
   defaultVoice?: string;
   language?: string;
   key?: string;
+  template?: VoiceRequestTemplate;
 }
 
 export interface TranscriptionResult {
@@ -116,6 +120,7 @@ export interface StoredProvider {
   model?: string;
   defaultVoice?: string;
   language?: string;
+  template?: VoiceRequestTemplate;
   credentialRevision?: string;
   createdAt: string;
 }

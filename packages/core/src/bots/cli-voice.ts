@@ -18,6 +18,7 @@ export interface VoiceValues {
   out?: string;
   'text-stdin'?: boolean;
   'base-url'?: string;
+  'template-file'?: string;
   'key-stdin'?: boolean;
   voice?: string;
   name?: string;
@@ -32,6 +33,20 @@ export interface VoiceValues {
 }
 
 export const VOICE_COMMANDS = [
+  {
+    command: 'voice-provider-template',
+    description: 'read the effective HTTP request template: <provider-id>; Host Owner only',
+  },
+  {
+    command: 'voice-template-validate',
+    description:
+      'validate a template: --template-file <absolute JSON file> [--kind asr]; Host Owner only',
+  },
+  {
+    command: 'voice-provider-template-set',
+    description:
+      'replace a custom Provider template: <provider-id> --template-file <absolute JSON file>; Host Owner only',
+  },
   {
     command: 'voice-providers',
     description:
@@ -50,7 +65,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, xiaomi-mimo, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, xiaomi-mimo, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, xiaomi-mimo, openai; custom accepts --template-file), or with --kind asr a speech recognition Provider (custom, local, openai, groq, xiaomi-mimo, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',
@@ -152,6 +167,21 @@ export async function runVoiceCommand(
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
   if (command === 'voice-local-kit') return runVoiceLocalKit(rest, values);
+  if (command === 'voice-provider-template') {
+    const [id] = positionals(command, rest, 1, 'one Provider id');
+    return (await connect())('voiceProviderTemplate', { id });
+  }
+  if (command === 'voice-template-validate') {
+    positionals(command, rest, 0, 'no positional arguments');
+    return (await connect())('voiceTemplateValidate', {
+      kind: values.kind ?? 'tts',
+      template: readTemplate(values),
+    });
+  }
+  if (command === 'voice-provider-template-set') {
+    const [id] = positionals(command, rest, 1, 'one custom Provider id');
+    return (await connect())('voiceProviderTemplateSet', { id, template: readTemplate(values) });
+  }
   if (command === 'voice-providers') {
     positionals(command, rest, 0, 'no positional arguments');
     const rpc = await connect();
@@ -210,6 +240,7 @@ export async function runVoiceCommand(
       ...(values.kind === 'asr' ? { kind: 'asr' } : {}),
       ...(values.language === undefined ? {} : { language: values.language }),
       preset,
+      ...(values['template-file'] === undefined ? {} : { template: readTemplate(values) }),
       ...(values.name === undefined ? {} : { name: values.name }),
       ...(values['base-url'] === undefined ? {} : { baseUrl: values['base-url'] }),
       ...(values.model === undefined ? {} : { model: values.model }),
@@ -438,4 +469,17 @@ async function runVoiceDictate(
   if (typeof final?.text === 'string' && final.text !== '' && heard.at(-1) !== final.text)
     heard.push(final.text);
   return { ...final, heard };
+}
+
+function readTemplate(values: VoiceValues): unknown {
+  const file = values['template-file'];
+  if (file === undefined || !isAbsolute(file)) usage('Use --template-file <absolute JSON file>.');
+  try {
+    const bytes = readFileSync(file);
+    if (bytes.byteLength > 65_536) usage('The template exceeds 64 KB.');
+    return JSON.parse(bytes.toString('utf8'));
+  } catch (error) {
+    if (error instanceof CliLiveError) throw error;
+    throw new CliLiveError('invalid-input', 'Cannot read the template JSON file.');
+  }
 }

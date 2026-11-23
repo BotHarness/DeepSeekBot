@@ -1,3 +1,4 @@
+import { parseVoiceTemplate } from './request-template.js';
 import {
   ASR_PRESETS,
   asrPreset,
@@ -87,6 +88,10 @@ export function parseStored(body: string): StoredProvider | undefined {
         undefined
     )
       return undefined;
+    if (value.template !== undefined) {
+      if (value.preset !== 'custom') return undefined;
+      value.template = parseVoiceTemplate(value.template, value.kind === 'asr' ? 'asr' : 'tts');
+    }
     return value as StoredProvider;
   } catch {
     return undefined;
@@ -105,6 +110,7 @@ export function asrView(stored: StoredProvider): AsrProviderView {
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.language === undefined ? {} : { language: stored.language }),
+    ...(stored.template === undefined ? {} : { template: stored.template }),
     keySet: stored.credentialRevision !== undefined,
     createdAt: stored.createdAt,
   };
@@ -125,6 +131,7 @@ export function view(stored: StoredProvider): TtsProviderView {
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.defaultVoice === undefined ? {} : { defaultVoice: stored.defaultVoice }),
+    ...(stored.template === undefined ? {} : { template: stored.template }),
     keySet: stored.credentialRevision !== undefined,
     createdAt: stored.createdAt,
   };

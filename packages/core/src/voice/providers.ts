@@ -11,7 +11,11 @@ import type {
 } from './catalog.js';
 import { asrHttpRequest } from './provider-asr-request.js';
 import { fetchVoiceCatalog, importCatalogVoice } from './provider-catalog.js';
-import { mimoTranscript, mimoTtsRequest, mimoTtsResponse } from './mimo.js';
+import { MIMO_TTS_VOICE } from './mimo.js';
+import { ttsTemplate, asrTemplate } from './builtin-templates.js';
+import { parseVoiceTemplate, type VoiceRequestTemplate } from './request-template.js';
+import { templateRequest } from './template-request.js';
+import { templateAudio, templateResult } from './template-response.js';
 import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.js';
 import {
   warmSoniox,
@@ -28,7 +32,6 @@ import {
   uniqueProviderName,
   type AsrPreset,
   type TtsPreset,
-  type TtsWire,
 } from './presets.js';
 import { audioExtension, chineseScript, silenceWav, sniffAudio } from './provider-audio.js';
 import {
@@ -79,6 +82,12 @@ import {
 } from './provider-types.js';
 
 export { audioExtension, chineseScript, wavFromPcm16 } from './provider-audio.js';
+export {
+  voiceRequestTemplateSchema,
+  validateVoiceTemplate,
+  type VoiceRequestTemplate,
+  type VoiceTemplateValidation,
+} from './request-template.js';
 export { normalizeBaseUrl } from './provider-config.js';
 export { unreachableMessage } from './provider-http.js';
 export {
@@ -237,13 +246,25 @@ export class VoiceProviders {
   async add(input: TtsProviderInput): Promise<VoiceProviderView> {
     if (input.kind !== undefined && input.kind !== 'tts' && input.kind !== 'asr')
       throw new VoiceError('invalid-input', 'kind must be tts or asr.');
+    if (input.template !== undefined && input.preset !== 'custom')
+      throw new VoiceError('invalid-input', 'Only custom Providers accept a request template.');
     if (input.kind === 'asr') return this.#addAsr(input);
     const preset = presetOf(String(input.preset ?? ''));
     const name = cleanText(input.name, 'Name', 80) ?? this.#defaultName(preset.name);
-    const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
+    const template =
+      input.template === undefined ? undefined : parseVoiceTemplate(input.template, 'tts');
+    const rawBase =
+      cleanText(input.baseUrl, 'Base URL', 500) ??
+      (template === undefined
+        ? undefined
+        : new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value')).origin);
     if (preset.baseUrl === undefined && rawBase === undefined)
       throw new VoiceError('invalid-input', 'A custom TTS Provider needs a base URL.');
-    const baseUrl = normalizeBaseUrl(rawBase ?? preset.baseUrl!);
+    const baseUrl = normalizeBaseUrl(
+      template === undefined
+        ? (rawBase ?? preset.baseUrl!)
+        : new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value')).origin,
+    );
     const model = cleanText(input.model, 'Model', 120) ?? preset.defaultModel;
     const defaultVoice = cleanText(input.defaultVoice, 'Voice', 200) ?? preset.defaultVoice;
     const key = input.key === undefined ? undefined : cleanText(input.key, 'Key', 4_096);
@@ -257,10 +278,12 @@ export class VoiceProviders {
       name,
       preset: preset.id,
       baseUrl,
+      ...(template === undefined ? {} : { template }),
       ...(model === undefined ? {} : { model }),
       ...(defaultVoice === undefined ? {} : { defaultVoice }),
       createdAt: this.#now().toISOString(),
     };
+    this.#templateKey(stored.template, key);
     await this.#insert(stored, key);
     this.#log('provider-added', { provider: id, preset: preset.id });
     if (this.defaults().tts === null) this.setDefault('tts', { providerId: id });
@@ -272,10 +295,20 @@ export class VoiceProviders {
     if (input.defaultVoice !== undefined)
       throw new VoiceError('invalid-input', 'A speech recognition Provider has no voice.');
     const name = cleanText(input.name, 'Name', 80) ?? this.#defaultName(preset.name);
-    const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
+    const template =
+      input.template === undefined ? undefined : parseVoiceTemplate(input.template, 'asr');
+    const rawBase =
+      cleanText(input.baseUrl, 'Base URL', 500) ??
+      (template === undefined
+        ? undefined
+        : new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value')).origin);
     if (preset.baseUrl === undefined && rawBase === undefined)
       throw new VoiceError('invalid-input', 'A custom ASR Provider needs a base URL.');
-    const baseUrl = normalizeBaseUrl(rawBase ?? preset.baseUrl!);
+    const baseUrl = normalizeBaseUrl(
+      template === undefined
+        ? (rawBase ?? preset.baseUrl!)
+        : new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value')).origin,
+    );
     const model = cleanText(input.model, 'Model', 120) ?? preset.defaultModel;
     const language = cleanText(input.language, 'Language', 16);
     if (language !== undefined && !LANGUAGE.test(language))
@@ -292,10 +325,12 @@ export class VoiceProviders {
       name,
       preset: preset.id,
       baseUrl,
+      ...(template === undefined ? {} : { template }),
       ...(model === undefined ? {} : { model }),
       ...(language === undefined ? {} : { language }),
       createdAt: this.#now().toISOString(),
     };
+    this.#templateKey(stored.template, key);
     await this.#insert(stored, key);
     this.#log('provider-added', { provider: id, preset: preset.id, kind: 'asr' });
     if (this.defaults().asr === null) this.setDefault('asr', { providerId: id });
@@ -485,63 +520,43 @@ export class VoiceProviders {
     return payload['key'];
   }
 
-  #request(
-    wire: TtsWire,
-    stored: StoredProvider,
-    key: string | undefined,
-    text: string,
-    voice: string | undefined,
-  ): { url: string; init: RequestInit } {
-    if (wire === 'mimo')
-      return mimoTtsRequest({ baseUrl: stored.baseUrl, model: stored.model, voice, key, text });
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (wire === 'elevenlabs') {
-      if (voice === undefined) throw new VoiceError('voice-required', 'Choose a voice id.');
-      if (key !== undefined) headers['xi-api-key'] = key;
-      return {
-        url: `${stored.baseUrl}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`,
-        init: {
-          method: 'POST',
-          headers: { ...headers, Accept: 'audio/mpeg' },
-          body: JSON.stringify({
-            text,
-            ...(stored.model === undefined ? {} : { model_id: stored.model }),
-          }),
-        },
-      };
-    }
-    if (key !== undefined) headers['Authorization'] = `Bearer ${key}`;
-    if (wire === 'fish') {
-      if (stored.model !== undefined) headers['model'] = stored.model;
-      return {
-        url: `${stored.baseUrl}/v1/tts`,
-        init: {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            text,
-            format: 'mp3',
-            ...(voice === undefined ? {} : { reference_id: voice }),
-          }),
-        },
-      };
-    }
-    if (voice === undefined) throw new VoiceError('voice-required', 'Choose a voice id.');
-    return {
-      url: `${stored.baseUrl}/audio/speech`,
-      init: {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: stored.model ?? 'tts-1',
-          input: text,
-          voice,
-          response_format: 'mp3',
-        }),
-      },
-    };
+  #templateKey(template: VoiceRequestTemplate | undefined, key: string | undefined): void {
+    if (
+      template !== undefined &&
+      key !== undefined &&
+      JSON.stringify(template).includes(JSON.stringify(key).slice(1, -1))
+    )
+      throw new VoiceError(
+        'invalid-input',
+        'Keep the API key in the credential store; use template auth to send it.',
+      );
+  }
+
+  async setTemplate(id: string, input: unknown): Promise<VoiceProviderView> {
+    const stored = this.#stored(id);
+    if (stored.preset !== 'custom')
+      throw new VoiceError('invalid-input', 'Only custom Providers accept a request template.');
+    const template = parseVoiceTemplate(input, kindOf(stored));
+    this.#templateKey(template, await this.#key(stored));
+    stored.template = template;
+    stored.baseUrl = new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value')).origin;
+    this.#db.transaction(
+      (db) =>
+        db
+          .prepare('UPDATE voice_providers SET body = ? WHERE id = ?')
+          .run(JSON.stringify(stored), id),
+      ['voice'],
+    );
+    return anyView(stored);
+  }
+
+  template(id: string): VoiceRequestTemplate {
+    const stored = this.#stored(id);
+    if (kindOf(stored) === 'tts') return ttsTemplate(presetOf(stored.preset).wire, stored);
+    const wire = asrPresetOf(stored.preset).wire;
+    if (wire === 'soniox')
+      throw new VoiceError('invalid-input', 'Streaming Providers do not use HTTP templates.');
+    return asrTemplate(wire, stored, stored.language);
   }
 
   async synthesize(input: {
@@ -557,8 +572,24 @@ export class VoiceProviders {
     const voice = input.voiceId?.trim() || stored.defaultVoice;
     const key = await this.#key(stored);
     const wire = presetOf(stored.preset).wire;
-    const { url, init } = this.#request(wire, stored, key, text, voice);
-    const decoder = wire === 'mimo' ? mimoTtsResponse : undefined;
+    if (
+      stored.template === undefined &&
+      (wire === 'openai' || wire === 'elevenlabs') &&
+      voice === undefined
+    )
+      throw new VoiceError('voice-required', 'Choose a voice id.');
+    const template = ttsTemplate(wire, stored);
+    const { url, init } = templateRequest(
+      template,
+      {
+        text,
+        voice: voice ?? (wire === 'mimo' ? MIMO_TTS_VOICE : undefined),
+        model: stored.model,
+        format: 'mp3',
+        language: stored.language,
+      },
+      key,
+    );
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
@@ -585,12 +616,14 @@ export class VoiceProviders {
       });
       throw failure;
     }
-    let body: Uint8Array;
+    let decoded: { audio: Uint8Array; contentType: string | null };
     try {
-      body = await readBounded(
+      decoded = await templateAudio({
         response,
-        decoder?.maxBodyBytes(MAX_TTS_AUDIO_BYTES) ?? MAX_TTS_AUDIO_BYTES,
-      );
+        result: template.result,
+        fetch: this.#fetch,
+        signal,
+      });
     } catch (error) {
       if (error instanceof VoiceError) throw error;
       input.signal?.throwIfAborted();
@@ -599,15 +632,8 @@ export class VoiceProviders {
         'The provider stopped while sending audio.',
       );
     }
-    const audio = decoder === undefined ? body : decoder.decode(body);
-    if (audio === undefined)
-      throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
-    if (audio.byteLength > MAX_TTS_AUDIO_BYTES)
-      throw new VoiceError('audio-too-large', 'The provider returned too much audio.');
-    const mime = sniffAudio(
-      audio,
-      decoder === undefined ? response.headers.get('content-type') : null,
-    );
+    const { audio } = decoded;
+    const mime = sniffAudio(audio, decoded.contentType);
     if (mime === undefined)
       throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
     const latencyMs = Math.round(performance.now() - started);
@@ -678,14 +704,13 @@ export class VoiceProviders {
     } catch (error) {
       if (error instanceof VoiceError) throw error;
       input.signal?.throwIfAborted();
-      throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
+      throw new VoiceError(
+        timeout.aborted ? 'provider-timeout' : 'provider-bad-response',
+        'The provider did not return a transcript.',
+      );
     }
-    const raw =
-      wire === 'mimo'
-        ? mimoTranscript(body)
-        : typeof body === 'object' && body !== null && 'text' in body
-          ? body.text
-          : undefined;
+    const result = asrTemplate(wire, stored, language).result;
+    const raw = result.kind === 'text' ? templateResult(body, result.path) : undefined;
     if (typeof raw !== 'string')
       throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
     const text = raw
