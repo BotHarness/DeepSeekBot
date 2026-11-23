@@ -19,6 +19,8 @@ import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
 import { mountAppearance } from './appearance-scope.js';
 import { mountAppearanceControl } from './appearance-control.js';
+import { clientSettings } from './client-settings-control.js';
+import { preferenceSettingsDomain } from './preference-settings-control.js';
 import { recordRemoteHosts, remoteHosts } from './remote-hosts.js';
 import { bindBotAppearance } from './bot-color-scheme.js';
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client';
@@ -714,6 +716,16 @@ export function apply(ctx: ClientContext): void {
     if (typeof document === 'undefined') return () => {};
     return mountTabTitle(store, document);
   }, 'botharness: tab title attention count');
+  ctx.effect(
+    () =>
+      member
+        ? () => {}
+        : clientSettings.register(
+            'preferences',
+            preferenceSettingsDomain(appearance, ctx.locale, desktopNotifications),
+          ),
+    'botharness: selected-Client preference control',
+  );
   ctx.effect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
     return mountDesktopNotifications({
