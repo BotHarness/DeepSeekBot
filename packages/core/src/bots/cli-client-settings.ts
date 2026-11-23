@@ -11,7 +11,7 @@ const PATCHES: Record<Domain, string> = {
   preferences:
     'any of {"locale":"<locale.available id>","notifications":{"enabled":true|false}}; theme is written by appearance-set {"preference":"system|light|dark"}',
   layout:
-    'any of {"global":{...},"rail":{...}} with keys from client-layout-get (global.column.heights maps panel ids to 120-4000 px), {"gap":0-16}, {"members":{"open":true|false,"ratio":0.2-0.6}}, plus {"channel":{"id":"<channel id>","open":true|false,"direction":"left|right|above|below","ratio":0.2-0.8}}; a Channel with splitSaved takes one of "move":{"panel","target","direction"}, "resize":{"path":"<0/1 steps>","ratio":0.2-0.8}, "split":<tree> or "split":null instead of direction/ratio',
+    'any of {"global":{...},"rail":{...}} with keys from client-layout-get (global.column.heights sets panel ids to 120-4000 px or null), {"gap":0-16}, {"members":{"open":true|false,"ratio":0.2-0.6}}, plus {"channel":{"id":"<channel id>","open":true|false,"direction":"left|right|above|below","ratio":0.2-0.8}}; a Channel with splitSaved takes one of "move":{"panel","target","direction"}, "resize":{"path":"<0/1 steps>","ratio":0.2-0.8}, "split":<tree> or "split":null instead of direction/ratio',
   shortcuts:
     'one action: {"action":"<id>","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}, {"action":"<id>","binding":null} or {"action":"<id>","reset":true}',
 };

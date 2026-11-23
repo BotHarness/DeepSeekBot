@@ -275,6 +275,7 @@ describe('Client layout settings', () => {
     [{ members: { ratio: 0.7 } }],
     [{ members: { open: 1 } }],
     [{ channel: { id: 'dm-ada', split: { panel: 'messages' } } }],
+    [{ channel: { id: 'dm-ada', split: { panel: 'bad id' } } }],
     [
       {
         channel: {
@@ -482,6 +483,14 @@ describe('Client layout settings', () => {
     expect(change.gap).toBe(10);
     expect(change.members).toEqual({ open: true, ratio: 0.45 });
     expect(change.global?.column.heights).toEqual({ sessions: 240, schedules: 400 });
+    const merged = applyLayoutSettings(current, change);
+    expect(
+      planLayoutSettings(
+        merged,
+        { global: { column: { heights: { sessions: null, members: 300 } } } },
+        readLayoutSettings(merged).revision,
+      ).global?.column.heights,
+    ).toEqual({ schedules: 400, members: 300 });
     const view = readLayoutSettings(applyLayoutSettings(current, change));
     expect(view).toMatchObject({
       gap: 10,

@@ -210,27 +210,31 @@ function planGlobal(current: SimpleLayout, raw: unknown): SimpleLayout {
         ...(column.order === undefined
           ? {}
           : { order: idList(column.order, 'global.column.order') }),
-        ...(column.heights === undefined ? {} : { heights: heights(column.heights) }),
+        ...(column.heights === undefined
+          ? {}
+          : { heights: heights(next.column.heights, column.heights) }),
       },
     };
   }
   return next;
 }
 
-function heights(raw: unknown): Readonly<Record<string, number>> {
+function heights(
+  current: Readonly<Record<string, number>>,
+  raw: unknown,
+): Readonly<Record<string, number>> {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
-    throw invalid('global.column.heights must map panel ids to pixel heights.');
-  return Object.fromEntries(
-    Object.entries(raw).map(([id, value]) => {
-      if (id === '') throw invalid('global.column.heights needs panel ids.');
-      return [
-        id,
-        Math.round(
-          between(value, `global.column.heights.${id}`, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT),
-        ),
-      ];
-    }),
-  );
+    throw invalid('global.column.heights must map panel ids to pixel heights or null.');
+  const next: Record<string, number> = { ...current };
+  for (const [id, value] of Object.entries(raw)) {
+    if (id === '') throw invalid('global.column.heights needs panel ids.');
+    if (value === null) delete next[id];
+    else
+      next[id] = Math.round(
+        between(value, `global.column.heights.${id}`, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT),
+      );
+  }
+  return next;
 }
 
 function planMembers(current: LayoutMembers, raw: unknown): LayoutMembers {
@@ -255,7 +259,7 @@ function splitTree(raw: unknown, path: string, depth: number): ChannelSplit {
   if (depth > MAX_SPLIT_DEPTH) throw invalid('channel.split is nested too deeply.');
   if (typeof raw === 'object' && raw !== null && 'panel' in raw) {
     const leaf = record(raw, path, ['panel']);
-    if (typeof leaf.panel !== 'string' || leaf.panel === '')
+    if (typeof leaf.panel !== 'string' || !/^[a-zA-Z0-9:@._-]{1,160}$/.test(leaf.panel))
       throw invalid(`${path}.panel must be a panel id.`);
     return { panel: leaf.panel };
   }

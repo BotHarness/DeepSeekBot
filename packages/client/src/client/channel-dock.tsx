@@ -2607,7 +2607,11 @@ export function ChannelDock({
             ),
             sessions: channelWorkspacesRef.current[id] ?? seed.current,
           });
-        for (const panel of channelPanelIds)
+        const showing =
+          id === channel?.id && session !== undefined
+            ? [...channelPanelIds, SESSION_DETAIL]
+            : channelPanelIds;
+        for (const panel of showing)
           if (!splitPanels(tree).includes(panel))
             tree = { axis: 'horizontal', ratio: 0.7, first: tree, second: { panel } };
         return tree;
@@ -2630,7 +2634,7 @@ export function ChannelDock({
         updateGap(nextGap);
       }
       if (nextMembers) {
-        if (nextMembers.open && !membersRef.current.open) {
+        if (nextMembers.open && channelRef.current?.type === 'group') {
           files?.setOpen(false);
           inbox?.setOpen(false);
         }
