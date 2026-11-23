@@ -36,6 +36,7 @@ import { renderPairedDeviceSetup, ConnectionPanel } from './paired-device-setup.
 import { renderPairedDeviceNetworkStatus } from './paired-device-network-status.js';
 import { json, PATH, usePairedDevices } from './use-paired-devices.js';
 import { PhonePairingAddress } from './phone-pairing-address.js';
+import { OwnerPasswordSignInSettings } from './owner-password-sign-in-settings.js';
 import type { BridgeCall } from './bridge-transport.js';
 
 export type { ConnectedHost };
@@ -731,6 +732,9 @@ export function PairedDevicesSettings({
           )}
           {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
         </SettingsSection>
+      ) : null}
+      {page && overview && !ready && ownerPasswordSignInCall ? (
+        <OwnerPasswordSignInSettings call={ownerPasswordSignInCall} t={t} />
       ) : null}
       {!page && pairing ? pairingPanel : null}
     </div>
