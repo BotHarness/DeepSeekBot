@@ -23,7 +23,6 @@ export const DEFAULT_SETTINGS_PINS: readonly string[] = [
   'models',
   'appearance',
   'pair-phone',
-  'join-computer',
   'auto-approval',
   'notifications',
   'im-apps',

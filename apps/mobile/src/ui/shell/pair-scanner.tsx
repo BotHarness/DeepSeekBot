@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
-import { connectInput } from '../../host/connect-input';
+import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { HOST_NAME_MAX } from '@botharness/host-client/ui/design/host-look';

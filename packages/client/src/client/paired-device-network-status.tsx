@@ -1,9 +1,9 @@
 import type { ComponentProps, ReactElement } from 'react';
 import type { PairedDevicesSettingsProps } from './paired-devices.js';
 import { Button } from './ds/button.js';
-import { CopyChip, StatusBlock, StatusStack } from './ds/status-block.js';
+import { StatusBlock, StatusStack } from './ds/status-block.js';
 import { Note } from './ds/note.js';
-import { PhoneRouteSteps } from './phone-route-steps.js';
+import { PhoneRouteSteps, TailscaleStaleRoutes } from './phone-route-steps.js';
 import { portOf } from './paired-device-setup.js';
 import type { usePairedDevices } from './use-paired-devices.js';
 
@@ -114,25 +114,7 @@ export function renderPairedDeviceNetworkStatus({
           </Button>
         }
       >
-        {freshSnapshot && routes?.staleRoutes?.length ? (
-          <div data-tailscale-stale="" {...staleProps}>
-            <p {...metaProps}>{t('devices.tailscale.stale')}</p>
-            {routes.staleRoutes.map((route) => (
-              <div key={route.url} {...staleProps}>
-                <CopyChip
-                  value={route.url}
-                  copyLabel={t('devices.route.copy')}
-                  copiedLabel={t('devices.pair.copied')}
-                />
-                <p {...metaProps}>
-                  {t('devices.tailscale.localPort', {
-                    port: route.targetPort,
-                  })}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        {freshSnapshot ? <TailscaleStaleRoutes t={t} routes={routes?.staleRoutes} /> : null}
       </StatusBlock>
       {showTailscale && routes && freshSnapshot ? (
         <div {...staleProps}>
