@@ -1491,7 +1491,6 @@
     "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
   },
   "pressableLabel": {
-    "apps/mobile/app/pair/tailscale.tsx": ["Pressable"],
     "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
     "apps/mobile/src/ui/shell/activity-feed.tsx": ["Pressable"]
   },

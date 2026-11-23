@@ -241,6 +241,9 @@ it('asks how to connect, then signs in with one username and password form for a
     expect(element.querySelector('[data-testid="team-choose-approve"]')).not.toBeNull();
     await press('team-choose-password');
     expect(element.querySelector('[data-testid="team-fingerprint-rows"]')).toBeNull();
+    const signIn = element.querySelector('[data-testid="team-sign-in"]')!;
+    const toggle = element.querySelector('[data-testid="team-fingerprint-toggle"]')!;
+    expect(signIn.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await press('team-fingerprint-toggle');
     const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
     expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
