@@ -97,7 +97,6 @@ export function botSettingsSectionIcon(id: string): string {
 
 const CONNECT_ACTIONS = [
   { id: 'pair-phone', label: 'settings.home.pairPhone', icon: 'smartphone' },
-  { id: 'join-computer', label: 'connections.join', icon: 'laptop' },
 ] as const;
 
 function rowIcon(id: string): string {
@@ -143,7 +142,6 @@ export interface BotSettingsSnapshot {
   readonly open: boolean;
   readonly sectionId: string | undefined;
   readonly pairPhone?: boolean;
-  readonly joinComputer?: boolean;
   readonly target?: BotSettingsTarget | undefined;
   readonly clientOnly?: boolean;
   readonly compactList?: boolean;
@@ -164,6 +162,8 @@ export class BotSettings {
   #snapshot: BotSettingsSnapshot = { open: false, sectionId: undefined };
   readonly #listeners = new Set<() => void>();
 
+  constructor(private readonly openEnvironmentJoin?: () => void) {}
+
   readonly getSnapshot = (): BotSettingsSnapshot => this.#snapshot;
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -174,15 +174,19 @@ export class BotSettings {
   };
 
   readonly open = (sectionId?: string, target?: string): void => {
+    if (sectionId === 'join-computer') {
+      this.close();
+      this.openEnvironmentJoin?.();
+      return;
+    }
     this.#set({
       open: true,
       sectionId:
-        sectionId === 'connect' || sectionId === 'pair-phone' || sectionId === 'join-computer'
+        sectionId === 'connect' || sectionId === 'pair-phone'
           ? BOT_SETTINGS_SECTIONS.devices
           : (sectionId ?? this.#snapshot.sectionId),
       compactList: sectionId === undefined,
       pairPhone: sectionId === 'pair-phone',
-      joinComputer: sectionId === 'join-computer',
       target: this.#target(target),
     });
   };
@@ -194,7 +198,6 @@ export class BotSettings {
       sectionId,
       compactList,
       pairPhone: false,
-      joinComputer: false,
       target: this.#target(target),
     });
   };
@@ -204,7 +207,6 @@ export class BotSettings {
       ...this.#snapshot,
       compactList: true,
       pairPhone: false,
-      joinComputer: false,
       target: undefined,
     });
   };
@@ -246,7 +248,6 @@ export class BotSettings {
       next.open === this.#snapshot.open &&
       next.sectionId === this.#snapshot.sectionId &&
       next.pairPhone === this.#snapshot.pairPhone &&
-      next.joinComputer === this.#snapshot.joinComputer &&
       next.target === this.#snapshot.target &&
       next.clientOnly === this.#snapshot.clientOnly &&
       next.compactList === this.#snapshot.compactList &&
@@ -630,7 +631,6 @@ export function BotSettingsView({
               close,
               clientOnly: state.clientOnly === true,
               pairPhone: state.pairPhone,
-              joinComputer: state.joinComputer,
             },
             { only: active.id },
           ) as unknown as ReactNode)

@@ -60,13 +60,13 @@ vi.mock('../src/client/bot-icon.js', () => ({ BotIcon: () => null }));
 vi.mock('../src/client/connections-dialog.js', () => ({
   ConnectionsDialog: ({
     call,
-    pairPhone,
+    quickConnect,
     onClose,
     onDevicePaired,
     onFeedRead,
   }: {
     call?: BridgeCall;
-    pairPhone?: boolean;
+    quickConnect?: boolean;
     onClose(): void;
     onDevicePaired?(id: string): void;
     onFeedRead?(id: string): void;
@@ -76,7 +76,7 @@ vi.mock('../src/client/connections-dialog.js', () => ({
       {
         role: 'dialog',
         'data-phone-connection': '',
-        'data-pair-phone': pairPhone,
+        'data-quick-connect': quickConnect,
         'data-address-setup': call !== undefined,
       },
       createElement('button', { onClick: onClose }, 'Close connection'),
@@ -692,16 +692,16 @@ describe('intro modal', () => {
       );
       expect(fetcher).not.toHaveBeenCalled();
       expect(container.querySelector('[data-phone-connection]')).toBeNull();
-      await click('连接手机');
+      await click(zhTranslate('connections.quick'));
       expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
       expect(
         container.querySelector(
-          '[data-phone-connection][data-pair-phone="true"][data-address-setup="true"]',
+          '[data-phone-connection][data-quick-connect="true"][data-address-setup="true"]',
         ),
       ).not.toBeNull();
       await click('Close connection');
       expect(container.querySelector('[data-intro-step="phone"]')).not.toBeNull();
-      await click('连接手机');
+      await click(zhTranslate('connections.quick'));
       await click('Approve phone');
       expect(container.textContent).not.toContain('手机已读到这台电脑的内容。');
       await click('Read Feed');

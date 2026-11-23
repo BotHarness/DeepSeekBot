@@ -1,6 +1,6 @@
 import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -24,7 +24,7 @@ import { Menu } from './appearance-primitives.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { useClientStore } from './use-client-store.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { DockPanel } from './dock-panels.js';
+import type { DockPanel, DockPanelHost } from './dock-panels.js';
 import { environmentUnread } from './environment-activity.js';
 import { WORKSPACE_CHANNELS } from './workspace-context.js';
 import { memberPage } from './member-page.js';
@@ -342,17 +342,64 @@ export function EnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElemen
   return memberPage() ? null : <OwnerEnvironmentPanel t={t} />;
 }
 
+let environmentJoinOpen = false;
+const environmentJoinListeners = new Set<() => void>();
+
+export function openEnvironmentJoin(
+  panels: Pick<DockPanelHost, 'available' | 'open' | 'subscribe'>,
+  activate: () => void,
+): void {
+  if (memberPage()) return;
+  const open = (): void => {
+    panels.open(ENVIRONMENT_PANEL);
+    setEnvironmentJoinOpen(true);
+  };
+  if (panels.available()) {
+    open();
+    return;
+  }
+  const unsubscribe = panels.subscribe(() => {
+    if (!panels.available()) return;
+    clearTimeout(timeout);
+    unsubscribe();
+    open();
+  });
+  const timeout = setTimeout(unsubscribe, 10_000);
+  activate();
+}
+
+function setEnvironmentJoinOpen(open: boolean): void {
+  if (environmentJoinOpen === open) return;
+  environmentJoinOpen = open;
+  for (const listener of environmentJoinListeners) listener();
+}
+
+function subscribeEnvironmentJoin(listener: () => void): () => void {
+  environmentJoinListeners.add(listener);
+  return () => environmentJoinListeners.delete(listener);
+}
+
+function getEnvironmentJoinOpen(): boolean {
+  return environmentJoinOpen;
+}
+
 export function EnvironmentAddAction({ t }: { t: BotHarnessTranslate }): ReactElement | null {
-  const [adding, setAdding] = useState(false);
+  const adding = useSyncExternalStore(
+    subscribeEnvironmentJoin,
+    getEnvironmentJoinOpen,
+    getEnvironmentJoinOpen,
+  );
   if (memberPage()) return null;
   return (
     <>
       <Tooltip label={t('remoteHosts.add')} side="bottom">
-        <IconButton aria-label={t('remoteHosts.add')} onClick={() => setAdding(true)}>
+        <IconButton aria-label={t('remoteHosts.add')} onClick={() => setEnvironmentJoinOpen(true)}>
           <ChannelSidebarIcon name="plus" />
         </IconButton>
       </Tooltip>
-      {adding ? <ConnectionsDialog joinComputer t={t} onClose={() => setAdding(false)} /> : null}
+      {adding ? (
+        <ConnectionsDialog joinComputer t={t} onClose={() => setEnvironmentJoinOpen(false)} />
+      ) : null}
     </>
   );
 }

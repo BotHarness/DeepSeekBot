@@ -4,7 +4,7 @@ Human 在 2026-11-13 完成 Q1–Q28 并整体确认的目标设计，不代表�
 
 ## 面板与环境筛选
 
-Environment 是 Control Rail 正式面板。Simple 模式替换当前面板，Advanced 模式新增独立列；布局保存在当前 Client。面板包含 All、本机与远程 Host，展示名称、图标、连接状态和未读数，提供每台 Host 的管理入口及常驻添加入口。首版不含 Cloud 工作区。邀请、配对与线路配置继续使用共享 Connections Modal，保留手机安装引导。
+Environment 是 Control Rail 正式面板。Simple 模式替换当前面板，Advanced 模式新增独立列；布局保存在当前 Client。面板包含 All、本机与远程 Host，展示名称、图标、连接状态和未读数，提供每台 Host 的管理入口及常驻添加入口。首版不含 Cloud 工作区。面板的加号打开桌面连接对话框，可以输入配对链接、团队邀请链接或 Host 地址。旧连接链接也打开同一个对话框。本机设置的「连接」页显示配对码、可用地址、Owner 账密登录开关和入站线路。新手引导的手机步骤可以直接启动快速连接。
 
 Channels 顶部筛选器与环境面板操作同一份 Client 本地持久化 Environment Scope，Chats 与 Activity 共用。首次默认 All，之后恢复上次选择；选中环境被移除时回到 All。筛选保留当前聊天，不改变已读状态或通知偏好；可见计数跟随筛选，面板每行保留对应 Host 的未读数。
 

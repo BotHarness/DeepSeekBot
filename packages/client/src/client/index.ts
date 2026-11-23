@@ -100,7 +100,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
-import { createEnvironmentPanel } from './environment-panel.js';
+import { createEnvironmentPanel, openEnvironmentJoin } from './environment-panel.js';
 import { mountHostSettingsOpener } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
@@ -344,7 +344,9 @@ export function apply(ctx: ClientContext): void {
       HumanProfileSetup,
     ),
   );
-  const botSettings = new BotSettings();
+  const botSettings = new BotSettings(() =>
+    openEnvironmentJoin(dockPanels, () => ctx.layout.selectPanel(PANEL_ID)),
+  );
   ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);

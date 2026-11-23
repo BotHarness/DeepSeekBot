@@ -17,9 +17,11 @@ const styles = stylex.create({
 export function PhonePairingAddress({
   call,
   t,
+  switchControl = false,
 }: {
   call: BridgeCall;
   t: BotHarnessTranslate;
+  switchControl?: boolean;
 }): ReactElement {
   const [urls, setUrls] = useState<string[]>([]);
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -38,10 +40,10 @@ export function PhonePairingAddress({
     return () => controller.abort();
   }, [call]);
   return (
-    <div ref={mount} hidden={urls.length === 0} {...stylex.props(styles.section)}>
+    <div ref={mount} hidden={urls.length === 0 && !switchControl} {...stylex.props(styles.section)}>
       {urls.length > 0 ? (
         <StatusStack title={t('connections.phone.address')} data={{ 'data-phone-address': '' }}>
-          <Note>{t('connections.phone.addressHint')}</Note>
+          {switchControl ? null : <Note>{t('connections.phone.addressHint')}</Note>}
           {urls.map((url) => (
             <CopyChip
               key={url}
@@ -50,8 +52,16 @@ export function PhonePairingAddress({
               copiedLabel={t('devices.pair.copied')}
             />
           ))}
-          <OwnerPasswordSignInSettings call={call} t={t} showStatus />
+          {switchControl ? null : <OwnerPasswordSignInSettings call={call} t={t} showStatus />}
         </StatusStack>
+      ) : null}
+      {switchControl ? (
+        <OwnerPasswordSignInSettings
+          call={call}
+          t={t}
+          phoneSwitch
+          addressAvailable={urls.length > 0}
+        />
       ) : null}
     </div>
   );

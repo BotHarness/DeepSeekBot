@@ -413,7 +413,7 @@ export function BotIntro({
       <ConnectionsDialog
         call={call}
         t={t}
-        pairPhone={!phoneRead}
+        quickConnect={!phoneRead}
         pairedDeviceId={phoneDevice}
         onDevicePaired={setPhoneDevice}
         onClose={() => setPhoneOpen(false)}
@@ -429,7 +429,7 @@ export function BotIntro({
     );
   return (
     <Modal
-      open={!intro.hidden && !(step === 'model' && providersOpen)}
+      open={!intro.hidden && !((step === 'model' || step === 'phone') && providersOpen)}
       headless
       title={t('intro.title')}
       onClose={() => void close({ via: 'close' })}
@@ -526,8 +526,16 @@ export function BotIntro({
                 data-modal-autofocus
                 onClick={() => setPhoneOpen(true)}
               >
-                {t('intro.phone.connect')}
+                {t(phoneRead ? 'intro.phone.connect' : 'connections.quick')}
               </Button>
+              {!phoneRead && botSettings ? (
+                <Button
+                  variant="outline"
+                  onClick={() => botSettings.open(BOT_SETTINGS_SECTIONS.devices)}
+                >
+                  {t('intro.phone.otherMethods')}
+                </Button>
+              ) : null}
             </div>
           </div>
         ) : null}

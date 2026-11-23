@@ -1,12 +1,10 @@
 import { useRef, useState } from 'react';
-import { checkRoute, isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
 import type {
   PairedDevice,
   DevicesSnapshot,
   RouteStatus,
   PairingOffer,
   PairingView,
-  ConnectedHost,
   PairedDevicesSettingsProps,
 } from './paired-devices.js';
 import type { PrivateTunnelStep } from './private-tunnel-settings.js';
@@ -46,6 +44,23 @@ export function hasPhoneRoute(routes: RouteStatus): boolean {
   return routes.routes.some((route) => route.kind !== 'loopback' && route.ready);
 }
 
+export function quickRoute(snapshot: DevicesSnapshot | undefined) {
+  return (
+    snapshot?.privateRoutes?.find((route) => route.id === 'quick') ??
+    (snapshot?.privateTunnel?.mode === 'quick' ? snapshot.privateTunnel : undefined)
+  );
+}
+
+function quickReady(snapshot: DevicesSnapshot): boolean {
+  const quick = quickRoute(snapshot);
+  return (
+    quick?.state === 'connected' &&
+    snapshot.routes.routes.some(
+      (route) => route.kind === 'private' && route.ready && route.url === quick.origin,
+    )
+  );
+}
+
 export function onTailnet(): boolean {
   return location.protocol === 'https:' && location.hostname.endsWith('.ts.net');
 }
@@ -53,7 +68,8 @@ export function onTailnet(): boolean {
 export function usePairedDevices({
   section,
   initialPairing,
-  initialRemote,
+  initialQuick,
+  page,
   pairedDeviceId,
   onDevicePaired,
   onFeedRead,
@@ -61,7 +77,8 @@ export function usePairedDevices({
   PairedDevicesSettingsProps,
   | 'section'
   | 'initialPairing'
-  | 'initialRemote'
+  | 'initialQuick'
+  | 'page'
   | 'pairedDeviceId'
   | 'onDevicePaired'
   | 'onFeedRead'
@@ -88,32 +105,33 @@ export function usePairedDevices({
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showTailscale, setShowTailscale] = useState(false);
-  const [advancedMethods, setAdvancedMethods] = useState(false);
   const [manage, setManage] = useState(false);
+  const [advancedDisclosure, setAdvancedDisclosure] = useState<{
+    active: boolean;
+    open: boolean;
+  }>();
   const [lanDetails, setLanDetails] = useState(false);
-  const [accountHosts, setAccountHosts] = useState<ConnectedHost[]>([]);
   type Setup =
     | 'app'
     | 'private'
     | 'privateRelay'
     | 'closed'
-    | 'direction'
+    | 'quick'
     | 'method'
     | 'lan'
     | 'tailscale'
-    | 'connect'
-    | 'remote';
+    | 'connect';
   const [setup, setSetupState] = useState<Setup>(
-    initialRemote ? 'remote' : initialPairing ? 'app' : 'closed',
+    initialQuick && !pairedDeviceId ? 'quick' : initialPairing ? 'app' : 'closed',
   );
-  const [remoteFooter, setRemoteFooter] = useState<HTMLDivElement | null>(null);
   const [tunnelStep, setTunnelStep] = useState<PrivateTunnelStep>('choose');
-  const phoneAppReady = useRef(false);
+  const phoneAppReady = useRef(initialQuick || (page && !initialPairing));
+  const quickRequest = useRef<number>();
   const preparingRelationshipRoute = useRef(false);
   const setupVersion = useRef(0);
   const setSetup = (next: Setup) => {
-    if (next === 'direction' || next === 'app' || next === 'remote')
-      preparingRelationshipRoute.current = false;
+    if (next === 'app') preparingRelationshipRoute.current = false;
+    quickRequest.current = undefined;
     setupVersion.current += 1;
     setSetupState(next);
   };
@@ -147,6 +165,15 @@ export function usePairedDevices({
           if (previous) {
             updatePairing({ state: 'paired', device: previous });
             setSetup('closed');
+          }
+        }
+        if (quickRequest.current === setupVersion.current) {
+          const quick = quickRoute(value);
+          if (quickReady(value)) {
+            open();
+          } else if (quick?.state === 'error' || quick?.state === 'off') {
+            quickRequest.current = undefined;
+            setError(true);
           }
         }
         const view = pairViewRef.current;
@@ -199,7 +226,10 @@ export function usePairedDevices({
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void load(controller.signal);
+    void load(controller.signal).then((value) => {
+      if (initialQuick && !pairedDeviceId && value && !controller.signal.aborted)
+        void startQuick(value);
+    });
     let queued = false;
     const refresh = (): void => {
       setNow(Date.now());
@@ -259,6 +289,13 @@ export function usePairedDevices({
     }
   };
 
+  const begin = (): void => {
+    preparingRelationshipRoute.current = false;
+    phoneAppReady.current = true;
+    if (ready) void createOffer();
+    else setSetup('method');
+  };
+
   const open = (): void => {
     if (preparingRelationshipRoute.current) {
       preparingRelationshipRoute.current = false;
@@ -305,6 +342,45 @@ export function usePairedDevices({
         updatePairing({ state: 'failed' });
     } finally {
       if (mounted.current && request === offerRequest.current) setBusy(undefined);
+    }
+  };
+
+  const startQuick = async (current: DevicesSnapshot): Promise<void> => {
+    phoneAppReady.current = true;
+    setSetup('quick');
+    const version = setupVersion.current;
+    const quick = quickRoute(current);
+    if (quickReady(current)) {
+      open();
+      return;
+    }
+    setError(false);
+    if (quick?.state === 'starting' || quick?.state === 'verifying') {
+      quickRequest.current = version;
+      return;
+    }
+    setBusy('quick');
+    try {
+      await json(
+        await fetch(`${PATH}/private-tunnel`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            ...(quick && 'id' in quick ? { action: 'start' } : { action: 'add', mode: 'quick' }),
+            routeId: 'quick',
+            confirm: true,
+          }),
+        }),
+      );
+      if (mounted.current && setupVersion.current === version) {
+        quickRequest.current = version;
+        await reading.current;
+        await load();
+      }
+    } catch {
+      if (mounted.current && setupVersion.current === version) setError(true);
+    } finally {
+      if (mounted.current) setBusy((current) => (current === 'quick' ? undefined : current));
     }
   };
 
@@ -399,22 +475,6 @@ export function usePairedDevices({
     routes !== undefined &&
     (onTailnet() || routes.routes.some((route) => route.kind === 'tailscale' && route.ready));
   const lanReady = routes?.routes.some((route) => route.kind === 'lan' && route.ready) === true;
-  const offerKinds = new Set(
-    offer?.routes.map((route) => {
-      if (!checkRoute(route).ok) return undefined;
-      if (isLanRoute(route)) return 'lan';
-      if (isConnectRoute(route)) return 'connect';
-      const url = new URL(route);
-      if (
-        url.hostname === 'localhost' ||
-        url.hostname.startsWith('127.') ||
-        url.hostname === '[::1]'
-      )
-        return 'loopback';
-      return 'tailscale';
-    }),
-  );
-
   const expired = offer !== undefined && Date.parse(offer.expiresAt) <= now;
   const secondsLeft =
     offer === undefined ? 0 : Math.max(0, Math.ceil((Date.parse(offer.expiresAt) - now) / 1000));
@@ -434,18 +494,14 @@ export function usePairedDevices({
     copied,
     showTailscale,
     setShowTailscale,
-    advancedMethods,
-    setAdvancedMethods,
     manage,
     setManage,
+    advancedDisclosure,
+    setAdvancedDisclosure,
     lanDetails,
     setLanDetails,
-    accountHosts,
-    setAccountHosts,
     setup,
     setSetup,
-    remoteFooter,
-    setRemoteFooter,
     tunnelStep,
     setTunnelStep,
     phoneAppReady,
@@ -461,6 +517,9 @@ export function usePairedDevices({
     createOffer,
     open,
     setLan,
+    page,
+    startQuick,
+    begin,
     close,
     account,
     revoke,
@@ -470,7 +529,6 @@ export function usePairedDevices({
     ready,
     tailscaleReady,
     lanReady,
-    offerKinds,
     expired,
     secondsLeft,
     devices,

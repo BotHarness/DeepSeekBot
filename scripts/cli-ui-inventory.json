@@ -106,8 +106,7 @@
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
       ],
       "commands": [
         "devices",

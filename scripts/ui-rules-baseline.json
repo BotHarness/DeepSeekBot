@@ -945,11 +945,7 @@
       "width: 10px"
     ],
     "packages/client/src/client/model-brand.tsx": ["bottom: -3px", "insetInlineEnd: -4px"],
-    "packages/client/src/client/paired-devices.tsx": [
-      "backgroundColor: white",
-      "height: 220px",
-      "width: 220px"
-    ],
+    "packages/client/src/client/paired-devices.tsx": ["backgroundColor: white", "width: 220px"],
     "packages/client/src/client/phone-route-steps.tsx": ["height: 6px", "width: 6px"],
     "packages/client/src/client/pinned-panel-cards.tsx": [
       "bottom: -5px",
@@ -1489,7 +1485,7 @@
       "Mention a PersonaBot",
       "Reference a Group Channel"
     ],
-    "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
+    "packages/client/src/client/paired-devices.tsx": ["Tobs Connect"]
   },
   "pressableLabel": {
     "apps/mobile/app/pair/tailscale.tsx": ["Pressable"],
