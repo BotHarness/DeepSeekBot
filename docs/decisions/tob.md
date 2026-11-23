@@ -85,3 +85,16 @@ One request runs at a time, and a busy Orchestrator refuses a new one; ordinary 
 Why: the temporary direct Session behind the Human CLI has no accepted Tob DM, so it could not pass the source check. Running inside a real turn lets agents test the production path, approval card included, without a model.
 
 Enforced by: `tob-cli-invocation.test.ts`, `tob-cli-approval.test.ts`.
+
+## 7. Tob cannot widen its own authority
+
+<a id="tob-self-escalation"></a>
+_Added for [#4830](https://github.com/BotHarness/DeepSeekBot/issues/4830) and the authorization report in [#4291](https://github.com/BotHarness/DeepSeekBot/issues/4291)._
+
+The Host refuses, before any approval card, a Tob `cli` request that names Tob itself and whose parsed effects carry management authority or cannot be classified. That covers Tob's own Workspace Grants, Browser and Computer access, Approval Template, Bot mode, approval route and pending approvals, in any position or `--option=value` form. The refusal is `self-escalation-refused` with a sentence that sends the Human to Bot settings. The same command for another Bot the Human owns still goes to the ordinary card (§4). Reads of Tob and ordinary profile or Memory writes are unchanged.
+
+`browser-profile-pair` and `browser-borrow-pair` print a one-time pairing code, and `browser-daily-grant` hands the page the Human selected in the Playwright extension to a Bot. Tob refuses all three as `cli-command-refused`: a pairing code is a credential, and the Daily Browser grant is the Human's consent in the extension. The Human CLI writes pairing codes only to a new private `--out` file. `browser-profile-forget`, `browser-daily-connect`, `browser-daily-return` and `browser-borrow-return` are ordinary writes behind the card.
+
+Why: the card is the Human's decision on one exact command, but a Human approving "give Tob Full Access" in Tob's own DM is Tob building its own authorization out of conversation, which #4291 reports. Authority over Tob stays in Bot settings and the Human's own CLI. Narrowing commands such as `grant-revoke` or `tool-approval-rule-revoke` carry management authority too and are refused for Tob, which costs the Human one trip to settings.
+
+Enforced by: `tob-cli-self-escalation.property.test.ts` (any management or unclassified command that names Tob anywhere is refused; the same command for another Bot never is), `tob-cli-self-escalation.test.ts` (refusal before any card or run; another Bot's approval-template edit shows one card; Human-only Browser commands refused), `cli-browser-pairing.test.ts`.

@@ -15,7 +15,16 @@ import type { PrepareTobOperation, TobCliCapability } from './cli-operations.js'
 import { TobError } from './service.js';
 
 const REFUSED_OPTIONS = ['--host', '--token-file', '--home', '--as', '--administration'];
-const REFUSED_COMMANDS = new Set(['ssh-tunnel', 'voice-local-kit', 'audit', 'private', 'tob-cli']);
+const REFUSED_COMMANDS = new Set([
+  'ssh-tunnel',
+  'voice-local-kit',
+  'audit',
+  'private',
+  'tob-cli',
+  'browser-profile-pair',
+  'browser-borrow-pair',
+  'browser-daily-grant',
+]);
 const MAX_ARGS = 256;
 const MAX_ARG_BYTES = 64 * 1024;
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -28,7 +37,11 @@ export const TOB_HOST_CLI_CAPABILITY: TobCliCapability = {
   write: true,
 };
 
-export const TOB_HOST_CLI_ERROR_CODES = ['cli-command-failed', 'cli-command-refused'] as const;
+export const TOB_HOST_CLI_ERROR_CODES = [
+  'cli-command-failed',
+  'cli-command-refused',
+  'self-escalation-refused',
+] as const;
 
 export class TobCliCommandError extends TobError {
   constructor(
@@ -98,12 +111,18 @@ export function authorizeTobBotTargets(
   }
 }
 
+function widensAuthority(argv: readonly string[]): boolean {
+  const effects = cliEffects(argv);
+  return effects === undefined || effects.authority === 'management';
+}
+
 export function authorizeTobHostCli(
   argv: readonly string[],
   deps: {
     registry: Pick<PersonaBotRegistry, 'getHistorical'>;
     channels: Pick<ChannelStore, 'get'>;
     human: HumanContext;
+    isTob?: (slug: string) => boolean;
   },
 ): void {
   if (argv[0] === 'members') {
@@ -115,10 +134,15 @@ export function authorizeTobHostCli(
     }
     if (action === 'transfer' || action === 'purge') throw new TobError('permission-required');
   }
-  for (const token of argv.slice(1)) {
-    const value = token.includes('=') ? token.slice(token.indexOf('=') + 1) : token;
-    authorizeTobBotTargets({ slug: value }, deps);
-  }
+  const values = argv
+    .slice(1)
+    .map((token) => (token.includes('=') ? token.slice(token.indexOf('=') + 1) : token).trim());
+  if (deps.isTob !== undefined && values.some(deps.isTob) && widensAuthority(argv))
+    throw new TobCliCommandError(
+      'self-escalation-refused',
+      'Tob cannot change its own grants, access, approval policy or pending approvals. Ask the Human to make this change in Bot settings or run the command themselves.',
+    );
+  for (const value of values) authorizeTobBotTargets({ slug: value }, deps);
 }
 
 export function classifyTobHostCli(argv: readonly string[]): { command: string; write: boolean } {

@@ -177,14 +177,22 @@
     },
     {
       "id": "browser-pairing",
-      "description": "Browser profile pair/forget, daily connect/grant/return and borrowed-browser pair/return routes lack matching Human CLI commands.",
+      "description": "Browser profile pair/forget, Daily Browser connect/grant/return and borrowed-Browser pair/return routes; pairing codes go only to a private --out file.",
       "scope": "Host / Bot",
       "surfaces": [
         "route:packages/browser/src/index.ts:`/api/browser/borrow/${action}` in ['pair', 'return'] as const",
         "route:packages/browser/src/index.ts:`/api/browser/daily/${action}` in ['connect', 'grant', 'return'] as const",
         "route:packages/browser/src/index.ts:`/api/browser/profile/${action}` in ['pair', 'forget'] as const"
       ],
-      "issue": "#2094"
+      "commands": [
+        "browser-profile-pair",
+        "browser-profile-forget",
+        "browser-daily-connect",
+        "browser-daily-grant",
+        "browser-daily-return",
+        "browser-borrow-pair",
+        "browser-borrow-return"
+      ]
     },
     {
       "id": "companion-preferences",

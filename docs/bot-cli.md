@@ -748,6 +748,13 @@ deepseekbot browser-observation <bot-id> [--tab <tab-id>] [--out /tmp/frame.png]
 deepseekbot browser-takeover-audit <bot-id>
 printf '%s' "<takeover-token>" | deepseekbot browser-takeover-recording --token-stdin
 deepseekbot browser-profile-set <bot-id> --profile work
+deepseekbot browser-profile-pair --out /private/absolute/profile-code
+deepseekbot browser-profile-forget
+deepseekbot browser-daily-connect <bot-id>
+deepseekbot browser-daily-grant <bot-id>
+deepseekbot browser-daily-return <bot-id>
+deepseekbot browser-borrow-pair <bot-id> --out /private/absolute/borrow-code
+deepseekbot browser-borrow-return <bot-id>
 deepseekbot browser-packages
 deepseekbot browser-install-packages --package libnss3 --package libgbm1 --confirm --wait
 deepseekbot computer-install-packages --confirm --wait
@@ -766,6 +773,8 @@ deepseekbot browser-webrtc --viewer <id> [--probe]
 `browser-observation` with a running local process but no owned current tab returns `viewerUrl: null`; process readiness alone is not viewer readiness. `browser-frame` preserves a stopped/no-tab refusal (404) and reports an unavailable first frame after the bounded wait as `host-refused` (503).
 
 `browser-observation` returns the same state the Browser panel polls: whether the Browser runs, its tabs and focused tab, takeover state, stored profiles and target. The current picture is never printed as base64; it is summarized as `{mimeType, bytes}` and saved to `--out` when given. `browser-takeover-audit` lists a Bot's takeover events in time order. `browser-takeover-recording` reads one takeover and its recorded input; the token is the `takeover=` value from the takeover link and arrives on stdin. `browser-profile-set` picks the Bot's Browser profile (`default` resets it) with the same name rules as the panel.
+
+`browser-profile-pair --out <file>` starts Chrome Profile pairing and `browser-borrow-pair <bot-id> --out <file>` pairs a Bot with the Human's own Browser through the extension. Both write the one-time code only to a new absolute file with owner-only permissions and print its expiry and `codeFile`, never the code; an existing file refuses with `pairing-file-failed`. `browser-profile-forget` forgets the paired Chrome Profile. `browser-daily-connect <bot-id>` starts the Playwright extension connection for the Daily Browser, `browser-daily-grant <bot-id>` hands over the page the Human selected in the extension (it refuses with the Host's message until a page is selected), and `browser-daily-return` and `browser-borrow-return` take the Browser back. They call the same routes as the Browser panel buttons. Tob refuses the two pairing commands and `browser-daily-grant`, and refuses any command that would change its own grants, access, approval policy or pending approvals with `self-escalation-refused` ([Tob decisions](decisions/tob.md#tob-self-escalation)).
 
 `browser-open` refuses a machine without Chrome's system libraries with `provision-missing-libs` and lists the packages in its message. `browser-packages` reports whether the Host can install them (`access`) and the last install's progress; `browser-install-packages` installs the named packages and `computer-install-packages` installs what Local Computer reports missing. Both need `--confirm`, like the panel's install button, and `--wait` polls until the install settles. A Host without administrator rights refuses with `needs-administrator`.
 
