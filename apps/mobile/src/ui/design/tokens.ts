@@ -126,7 +126,11 @@ export const fab = {
   menuWidth: 320,
   menuSettle: 350,
 } as const;
-export const creationCard = { fadeDuration: 150, levelDuration: 180 } as const;
+export const creationCard = {
+  fadeDuration: 150,
+  levelDuration: 180,
+  contentReveal: 0.95,
+} as const;
 export const materialDrawer = {
   width: 360,
   scrimGutter: 56,
@@ -303,6 +307,11 @@ export const springs: Record<
     spatial: { fast: material(0.6, 800), default: material(0.8, 380), slow: material(0.8, 200) },
     effects: { fast: material(1, 3800), default: material(1, 1600), slow: material(1, 800) },
   },
+};
+
+export const morphSprings: Record<PlatformOS, SpringPhysics> = {
+  ios: swiftUI(0.28, 0),
+  android: material(1, 380),
 };
 
 export const decelerate: Record<PlatformOS, readonly [number, number, number, number]> = {

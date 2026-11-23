@@ -90,6 +90,7 @@ Motion follows each platform ([ADR-0264](../../docs/decisions/mobile-ui.md#adr-0
 | `spatial.slow`    | large surfaces travelling far                                                         | `.smooth` (0.7 s)                       | spatial slow                       |
 | `effects.*`       | opacity and colour; never overshoots                                                  | `.smooth` (0.2 / 0.3 / 0.5 s)           | effects fast / default / slow      |
 | `release`         | a dragged surface let go: drawer, swipe row, image or browser snap-back               | spatial default, critically damped      | spatial default, critically damped |
+| `morph`           | a control transforming into the surface it opens: the + button into the creation card | 0.28 s, bounce 0 (done within 300 ms)   | spatial default, critically damped |
 
 Time-driven animations (stream reveal, click ripple, long-press lift, fling-away) keep fixed durations with `decelerateCurve`. Screen pushes, sheets and menus use the system's own transitions.
 
