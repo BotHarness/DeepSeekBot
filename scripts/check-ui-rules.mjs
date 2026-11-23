@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compareBaselineCounts } from './baseline-counts.mjs';
 import { catalogueExports, desktopComposition, renderCatalogue } from './ui-rule-composition.mjs';
 import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
+import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
@@ -105,6 +106,10 @@ export const RULES = {
   },
   fixedIconScale: {
     help: 'let the box grow with the glyph (min width/height), or, if the box is truly fixed, fit the glyph with clampScaledIconSize or a SwiftUI dynamicTypeSize ceiling',
+    section: 'apps/mobile/DESIGN.md § Code rules 2',
+  },
+  wrappingCapsule: {
+    help: 'shape a SwiftUI capsule button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };
@@ -255,6 +260,7 @@ export function scan(fix = false) {
             ? [...jsxCopy(source, file, ast), ...pressables(source, file, ast)]
             : []),
           ...(/fontScale|getFontScale|systemName/u.test(source) ? mobileIconScale(file, ast) : []),
+          ...(/buttonBorderShape/u.test(source) ? mobileWrappingCapsule(file, ast) : []),
         ];
       let styles = desktopStyles(source, file, ast, walk);
       if (fix) {
