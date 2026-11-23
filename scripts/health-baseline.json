@@ -15,11 +15,7 @@
     "packages/core/src/runtime/bot-runtime.ts",
     "packages/core/test/bot-runtime.test.ts",
     "prototype/avatar-hair/app.js",
-    "prototype/dot-matrix/dotmatrix.js",
-    "scripts/call-keyframe-eval.mjs",
-    "scripts/e2e-llm-scenarios.mjs",
-    "scripts/e2e-tob-group-decisions.mjs",
-    "scripts/sync-docs.mjs"
+    "prototype/dot-matrix/dotmatrix.js"
   ],
   "tsc-exclude": [],
   "agent-prose-bytes": 20303
