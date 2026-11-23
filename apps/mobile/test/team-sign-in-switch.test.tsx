@@ -288,6 +288,15 @@ it('continues a member to the password change after address sign-in', async () =
     await type('team-password', 'one-time-password');
     await press('team-sign-in');
     expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
+    await type('team-new-password', 'a-new-password');
+    await type('team-confirm-password', 'a-new-password');
+    const labels = [...element.querySelectorAll('*')]
+      .filter((node) => node.children.length === 0)
+      .map((node) => node.textContent);
+    expect(labels).toContain(t.teamSignIn.newPassword);
+    expect(labels).toContain(t.teamSignIn.confirmPassword);
+    for (const input of element.querySelectorAll('input'))
+      expect(input.getAttribute('placeholder')).toBeNull();
   } finally {
     close();
   }
