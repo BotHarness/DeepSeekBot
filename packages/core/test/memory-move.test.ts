@@ -101,6 +101,27 @@ async function fixture(options: { refuseArchive?: boolean; unsaved?: boolean } =
 }
 
 describe('Memory move', () => {
+  it('resumes a committed Orchestrator with a different cwd when no replacement is pending', async () => {
+    const f = await fixture();
+    try {
+      const memoryDir = f.core.registry.memoryDirFor('ada')!;
+      const sessionId = 'existing-orchestrator';
+      f.core.ownership.claim({
+        sessionId,
+        botSlug: 'ada',
+        rootRole: 'orchestrator',
+        cwdReference: `${memoryDir}/`,
+        at: new Date().toISOString(),
+      });
+
+      expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).toBe(sessionId);
+      await f.send();
+      expect(f.runs).toMatchObject([{ sessionId, resume: true }]);
+    } finally {
+      await f.close();
+    }
+  });
+
   it('moves Memory to a chosen folder, archives the main session and starts a new one there', async () => {
     const f = await fixture();
     try {

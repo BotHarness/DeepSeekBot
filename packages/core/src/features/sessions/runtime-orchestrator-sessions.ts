@@ -67,7 +67,6 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     const cwd = bot === undefined ? undefined : orchestratorCwdReference(bot);
     if (cwd === undefined || root.cwdReference === cwd) return root.sessionId;
     if (
-      root.cwdReference !== undefined ||
       ports.ownership
         .pendingOrchestratorReplacements(botSlug)
         .some((replacement) => replacement.cwdReference === cwd)
