@@ -2,8 +2,9 @@ import { Pressable, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import type { SocialProvider } from '@botharness/host-client/connect-account';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, signInBrand, space } from '../design/tokens';
+import { edge, signInBrand, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 
 const APPLE_MARK =
@@ -73,7 +74,7 @@ export function SignInBrandButton({
         gap: space.x4,
         paddingHorizontal: space.x5,
         paddingVertical: space.x3,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         borderWidth: edge.hairline,
         borderColor: colors.edge,
         backgroundColor: colors.fill,
