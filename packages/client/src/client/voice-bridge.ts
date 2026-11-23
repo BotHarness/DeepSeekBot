@@ -11,6 +11,13 @@ import type {
 import { DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from '../../../core/src/voice/vad.js';
 import { createVoiceBridge } from './features/voice/bridge.js';
 export type { VoiceProviderAddInput } from './features/voice/bridge.js';
+export type {
+  VoiceCatalogCollection,
+  VoiceCatalogImportInput,
+  VoiceCatalogInput,
+  VoiceCatalogItem,
+  VoiceCatalogPage,
+} from '@botharness/host-protocol/voice-catalog';
 
 export type {
   AsrPreset as AsrPresetView,
@@ -28,6 +35,8 @@ export type {
 
 export const {
   loadVoiceProviders,
+  browseVoiceCatalog,
+  importSharedVoice,
   addVoiceProvider,
   removeVoiceProvider,
   testVoiceProvider,

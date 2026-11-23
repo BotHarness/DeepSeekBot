@@ -8,6 +8,7 @@ import { border, color, radius } from './ds/tokens.stylex.js';
 export {
   modelBrand,
   modelShortName,
+  providerBrand,
   type ModelBrand,
   type ModelIdentity,
 } from '@botharness/host-client/shared/model-brand';

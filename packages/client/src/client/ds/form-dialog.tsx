@@ -103,6 +103,7 @@ export function FormDialog({
   const formId = useId();
   const blocked = submitDisabled || busy;
   const submit = (event: FormEvent<HTMLFormElement>) => {
+    if (event.target !== event.currentTarget) return;
     event.preventDefault();
     if (!blocked) onSubmit?.();
   };

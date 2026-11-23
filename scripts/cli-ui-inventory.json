@@ -378,6 +378,8 @@
       ],
       "commands": [
         "voice-providers",
+        "voice-catalog",
+        "voice-catalog-import",
         "voice-provider-add",
         "voice-provider-remove",
         "voice-provider-test",

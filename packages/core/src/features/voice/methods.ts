@@ -3,6 +3,12 @@ import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
 import type { AsrPreset, TtsPreset } from '../../voice/presets.js';
 import {
+  voiceCatalogImportInput,
+  voiceCatalogInput,
+  type VoiceCatalogItem,
+  type VoiceCatalogPage,
+} from '../../voice/catalog.js';
+import {
   MAX_ASR_AUDIO_BYTES,
   MAX_TTS_INPUT_CHARS,
   VoiceError,
@@ -59,6 +65,8 @@ export interface VoiceBridgeDeps {
 
 export interface VoiceBridgeMethods {
   voiceProviders(payload?: unknown): BridgeResult<VoiceProvidersView>;
+  voiceCatalog(payload: unknown): Promise<BridgeResult<VoiceCatalogPage>>;
+  voiceCatalogImport(payload: unknown): Promise<BridgeResult<{ voice: VoiceCatalogItem }>>;
   voiceProviderAdd(payload: unknown): Promise<BridgeResult<{ provider: VoiceProviderView }>>;
   voiceProviderRemove(
     payload: unknown,
@@ -154,6 +162,27 @@ export function createVoiceBridgeMethods(deps: {
             : { bot: { slug: bot.slug, selected: bot.voice ?? null, asr: bot.asr ?? null } }),
         },
       };
+    },
+    async voiceCatalog(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = voiceCatalogInput.safeParse(payload);
+      if (!input.success) return invalid('A service, collection and API key are required.');
+      try {
+        return { ok: true, value: await deps.providers.catalog(input.data) };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async voiceCatalogImport(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = voiceCatalogImportInput.safeParse(payload);
+      if (!input.success)
+        return invalid('Confirm adding the shared voice to the provider account.');
+      try {
+        return { ok: true, value: { voice: await deps.providers.importVoice(input.data) } };
+      } catch (error) {
+        return failure(error);
+      }
     },
     async voiceProviderAdd(payload) {
       if (deps.providers === undefined) return unavailable();

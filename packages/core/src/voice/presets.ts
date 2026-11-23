@@ -1,8 +1,22 @@
+import {
+  ELEVENLABS_BASE_URL,
+  FISH_BASE_URL,
+  MIMO_BASE_URL,
+  voiceCatalogCollections,
+  type VoiceCatalogCollection,
+} from './catalog.js';
 import { LOCAL_VOICE_BASE_URL } from './local-kit.js';
+import { MIMO_ASR_MODEL, MIMO_TTS_MODEL, MIMO_TTS_VOICE } from './mimo.js';
 
-export type TtsWire = 'openai' | 'fish' | 'elevenlabs';
+export type TtsWire = 'openai' | 'fish' | 'elevenlabs' | 'mimo';
 
-export type TtsPresetId = 'custom' | 'local' | 'openai' | 'fish-audio' | 'elevenlabs';
+export type TtsPresetId =
+  | 'custom'
+  | 'local'
+  | 'openai'
+  | 'fish-audio'
+  | 'elevenlabs'
+  | 'xiaomi-mimo';
 
 export interface TtsVoiceOption {
   id: string;
@@ -17,6 +31,7 @@ export interface TtsPreset {
   keyRequired: boolean;
   defaultModel?: string;
   models: readonly string[];
+  catalogs?: readonly VoiceCatalogCollection[];
   defaultVoice?: string;
   voices: TtsVoiceOption[];
   capabilities: {
@@ -61,9 +76,10 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     id: 'fish-audio',
     name: 'Fish Audio',
     wire: 'fish',
-    baseUrl: 'https://api.fish.audio',
+    baseUrl: FISH_BASE_URL,
     keyRequired: true,
     models: ['s2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'drama-3'],
+    catalogs: voiceCatalogCollections('tts', 'fish-audio'),
     voices: [],
     capabilities: { streaming: true, billing: 'per-character' },
     docsUrl: 'https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech',
@@ -72,9 +88,10 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     id: 'elevenlabs',
     name: 'ElevenLabs',
     wire: 'elevenlabs',
-    baseUrl: 'https://api.elevenlabs.io',
+    baseUrl: ELEVENLABS_BASE_URL,
     keyRequired: true,
     defaultModel: 'eleven_multilingual_v2',
+    catalogs: voiceCatalogCollections('tts', 'elevenlabs'),
     models: [
       'eleven_v4',
       'eleven_v4_turbo',
@@ -91,6 +108,26 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     ],
     capabilities: { streaming: true, billing: 'per-character' },
     docsUrl: 'https://elevenlabs.io/docs/api-reference/text-to-speech/convert',
+  },
+  {
+    id: 'xiaomi-mimo',
+    name: 'Xiaomi MiMo',
+    wire: 'mimo',
+    baseUrl: MIMO_BASE_URL,
+    keyRequired: true,
+    defaultModel: MIMO_TTS_MODEL,
+    models: [MIMO_TTS_MODEL],
+    catalogs: voiceCatalogCollections('tts', 'xiaomi-mimo'),
+    defaultVoice: MIMO_TTS_VOICE,
+    voices: [
+      { id: MIMO_TTS_VOICE, name: 'MiMo Default' },
+      ...['冰糖', '茉莉', '苏打', '白桦', 'Mia', 'Chloe', 'Milo', 'Dean'].map((id) => ({
+        id,
+        name: id,
+      })),
+    ],
+    capabilities: { streaming: false, billing: 'per-character' },
+    docsUrl: 'https://mimo.mi.com/docs/en-US/api/audio/tts-post',
   },
   {
     id: 'openai',
@@ -114,9 +151,9 @@ export function ttsPreset(id: string): TtsPreset | undefined {
   return TTS_PRESETS.find((preset) => preset.id === id);
 }
 
-export type AsrPresetId = 'custom' | 'local' | 'openai' | 'groq' | 'soniox';
+export type AsrPresetId = 'custom' | 'local' | 'openai' | 'groq' | 'soniox' | 'xiaomi-mimo';
 
-export type AsrWire = 'openai' | 'soniox';
+export type AsrWire = 'openai' | 'soniox' | 'mimo';
 
 export interface AsrPreset {
   id: AsrPresetId;
@@ -126,6 +163,7 @@ export interface AsrPreset {
   keyRequired: boolean;
   defaultModel?: string;
   models: readonly string[];
+  catalogs?: readonly VoiceCatalogCollection[];
   capabilities: {
     streaming: boolean;
     billing: 'per-minute' | 'self-hosted';
@@ -176,6 +214,18 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     docsUrl: 'https://console.groq.com/docs/speech-to-text',
   },
   {
+    id: 'xiaomi-mimo',
+    name: 'Xiaomi MiMo',
+    baseUrl: MIMO_BASE_URL,
+    keyRequired: true,
+    wire: 'mimo',
+    defaultModel: MIMO_ASR_MODEL,
+    models: [MIMO_ASR_MODEL],
+    catalogs: voiceCatalogCollections('asr', 'xiaomi-mimo'),
+    capabilities: { streaming: false, billing: 'per-minute' },
+    docsUrl: 'https://mimo.mi.com/docs/en-US/api/audio/Speech-Recognition',
+  },
+  {
     id: 'soniox',
     name: 'Soniox (streaming)',
     wire: 'soniox',
@@ -192,11 +242,4 @@ export function asrPreset(id: string): AsrPreset | undefined {
   return ASR_PRESETS.find((preset) => preset.id === id);
 }
 
-export function uniqueProviderName(base: string, taken: readonly string[]): string {
-  const names = new Set(taken.map((name) => name.trim().toLowerCase()));
-  if (!names.has(base.trim().toLowerCase())) return base;
-  for (let index = 2; ; index += 1) {
-    const candidate = `${base} ${index}`;
-    if (!names.has(candidate.toLowerCase())) return candidate;
-  }
-}
+export { uniqueProviderName } from '@botharness/host-protocol/voice-catalog';

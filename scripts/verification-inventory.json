@@ -457,6 +457,14 @@
       "gap": null
     },
     {
+      "id": "desktop.voice.provider-mimo",
+      "label": "Choose Xiaomi MiMo TTS or ASR and browse speech models and account or public voices before saving",
+      "source": "packages/client/src/client/voice-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/voice-provider-mimo.md",
+      "task": 4729,
+      "gap": "Live speech and catalog checks require provider keys. A fixture can validate Host, Web and CLI integration without external account changes."
+    },
+    {
       "id": "desktop.release.identity",
       "label": "About and CLI show the actual source-build identity",
       "source": "packages/client/src/client/bot-settings.tsx",

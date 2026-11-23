@@ -24,6 +24,20 @@ _Avoid_: desktop-only version, npm-only version, unqualified Version
 The identity and source state of an unreleased DeepSeekBot build. It is not a Product Release Version or proof that a release artifact has been qualified.
 _Avoid_: installed release, latest version, 0.0.0 release
 
+### Speech
+
+**Voice Provider**:
+A configured speech service a Host uses for text-to-speech (TTS) or speech recognition (ASR). Each Voice Provider selects a speech model and can supply a default TTS voice.
+
+**Speech Model**:
+A provider's engine for synthesizing speech or turning audio into text.
+
+**TTS Voice**:
+A voice identity that a compatible speech model can use to speak. It can be built in, available to the provider account, or shared in a public library.
+
+**Speech Catalog**:
+The speech models and voices a provider offers for selection. A shared voice may need to be added to the provider account before it becomes usable.
+
 ### PersonaBots
 
 **Steward Bot**:

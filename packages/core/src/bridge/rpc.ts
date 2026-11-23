@@ -593,6 +593,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'approvalReviewerModel',
   'approvalReviewerModelSet',
   'voiceProviders',
+  'voiceCatalog',
+  'voiceCatalogImport',
   'voiceProviderAdd',
   'voiceProviderRemove',
   'voiceProviderTest',
