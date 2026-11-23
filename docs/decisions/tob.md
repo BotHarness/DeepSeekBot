@@ -57,7 +57,7 @@ A command runs at once only when the Host's read list (`brokerRead` in `bots/cli
 
 Why: a growing allowlist meant Tob kept refusing what the Human could do on the same Host, and CLI parity now gives Tob every new feature. The read list errs toward a card: a read it misses costs one click, while a write it wrongly admitted would run without one. The child reads named files with the Host's permissions, so a command with file input or output is never a read.
 
-Enforced by: `tob-cli-authority.property.test.ts` (for any argv, a command runs at once only when the list names it, it changes nothing and it has no `--out`; an unknown command is a write; adding `--out` anywhere turns a read into a write; the refused options are refused anywhere, bare or with `=`), `tob-cli-host-commands.test.ts`, `tob-cli-approval.test.ts`, `tob-cli-profile-backup.test.ts` (a Profile Backup through Tob, from preview to activation in the restored Profile, never shows the export confirmation).
+Enforced by: `tob-cli-authority.property.test.ts` (for any argv, a command runs at once only when the list names it, it changes nothing and it has no `--out`; an unknown command is a write; adding `--out` anywhere turns a read into a write; the refused options are refused anywhere, bare or with `=`), `tob-cli-host-commands.test.ts`, `tob-cli-approval.test.ts`, `tob-cli-profile-backup.test.ts` (a Profile Backup through Tob, from preview to activation in the restored Profile, never shows the export confirmation), `tob-cli-device-pairing.test.ts` (a device paired from Tob's offer file and revoked after review loses its requests and streams; no link, offer or credential reaches Tob or the pairing log).
 
 ## 5. Typed operations review the exact change and survive a lost response
 

@@ -1,18 +1,14 @@
-import { createServer, type Server } from 'node:http';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { createProfileBackupHttp } from '../src/portability/http.js';
 import type { ProfileBackupSource } from '../src/portability/package.js';
-import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
-import { createTobHostCliOperations, type TobHostCliRunner } from '../src/tob/cli-host-commands.js';
-import { requestListener } from './async-listener.js';
+import { LAUNCH_TOKEN, serveHost, tobCli as tob } from './tob-cli-live-host.js';
 
-const LAUNCH = 'synthetic-launch-token';
+const LAUNCH = LAUNCH_TOKEN;
 const route = { provider: 'deepseek', model: 'deepseek-chat' };
 const catalog: ModelCatalog = {
   list: async () => [],
@@ -20,15 +16,8 @@ const catalog: ModelCatalog = {
 };
 const roots: string[] = [];
 const cores: BotHarnessCore[] = [];
-const servers: Server[] = [];
-const brokers: TobCliBroker[] = [];
 
 afterEach(async () => {
-  await Promise.all(brokers.splice(0).map((broker) => broker.close()));
-  for (const server of servers.splice(0)) {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
   for (const core of cores.splice(0)) {
     await core.runtime.close();
     core.schedules.close();
@@ -50,7 +39,7 @@ function mount(home = root()) {
   return core;
 }
 
-async function serve(core: BotHarnessCore, log: string[]) {
+function serve(core: BotHarnessCore, log: string[]) {
   const source: ProfileBackupSource = {
     database: core.operationalDatabase,
     registry: core.registry,
@@ -62,80 +51,7 @@ async function serve(core: BotHarnessCore, log: string[]) {
     sessionCount: () => core.ownership.list().length,
     log: (line: string) => log.push(line),
   };
-  const handler = createProfileBackupHttp(source, root(), core.profileRecovery, catalog);
-  const server = createServer(
-    requestListener(async (request, response) => {
-      const url = new URL(request.url ?? '/', 'http://localhost');
-      if (url.pathname === '/') {
-        if (url.searchParams.get('token') !== LAUNCH) return void response.writeHead(401).end();
-        response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
-        return void response.writeHead(302, { location: '/' }).end();
-      }
-      if (request.headers.cookie !== 'authority=synthetic')
-        return void response.writeHead(401).end();
-      const chunks: Buffer[] = [];
-      for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      const reply = await handler(
-        new Request(url, {
-          method: request.method ?? 'GET',
-          ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
-        }),
-      );
-      response.writeHead(reply.status, Object.fromEntries(reply.headers));
-      response.end(Buffer.from(await reply.arrayBuffer()));
-    }),
-  );
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Missing test listener');
-  return `http://127.0.0.1:${address.port}`;
-}
-
-async function tob(origin: string) {
-  const run: TobHostCliRunner = async ({ argv, stdin }) => {
-    const stdout: string[] = [];
-    const exitCode = await runBotCreateCli([...argv], {
-      env: { DEEPSEEKBOT_HOST: origin, DEEPSEEKBOT_HOST_TOKEN: LAUNCH },
-      stdout: (value) => stdout.push(value),
-      stderr: () => {},
-      readStdin: async () => stdin,
-    });
-    return {
-      exitCode,
-      stdout: stdout.join('\n').replaceAll(LAUNCH, '[redacted]'),
-    };
-  };
-  const approve = vi.fn(async (_proposal: unknown) => {});
-  const broker = await startTobCliBroker({
-    signal: new AbortController().signal,
-    authorize: () => {},
-    approve,
-    readSetting: () => ({ scope: 'global', value: 1, revision: 1 }),
-    writeSetting: async () => ({ scope: 'global', value: 1, revision: 1 }),
-    prepareOperation: createTobHostCliOperations({ run }),
-    capabilities: [],
-  });
-  brokers.push(broker);
-  const transcript: unknown[] = [];
-  const invoke = async (argv: string[]) => {
-    const response = await fetch(broker.endpoint + '/invoke', {
-      method: 'POST',
-      headers: {
-        authorization: 'Bearer ' + broker.token,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ command: 'cli', args: { argv } }),
-    });
-    const result = (await response.json()) as {
-      ok: boolean;
-      value?: Record<string, unknown>;
-      error?: { code: string };
-    };
-    transcript.push(result);
-    return result;
-  };
-  return { invoke, approve, transcript };
+  return serveHost(createProfileBackupHttp(source, root(), core.profileRecovery, catalog));
 }
 
 it('keeps the export confirmation out of Tob results, approval cards and Host logs through backup, restore and activation', async () => {
