@@ -3,7 +3,9 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createUsageProjection } from '../src/usage/usage.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import { startTokenUsage } from '../src/telemetry/token-usage.js';
+import { startModelUsage, startTokenUsage } from '../src/telemetry/token-usage.js';
+import { telemetryEventProperties } from '../src/telemetry/events.js';
+import { telemetryModelRoute } from '../src/telemetry/model-route.js';
 import { createTelemetryService, type TelemetryBatch } from '../src/telemetry/service.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -259,6 +261,122 @@ describe('anonymous token snapshots', () => {
       'app:token_usage_report',
       expect.objectContaining({ total_token_count: 310 }),
     );
+    stop();
+    await f.telemetry.close();
+  });
+});
+
+describe('anonymous model usage snapshots', () => {
+  const routed = (
+    seq: number,
+    provider: string,
+    model: string,
+    usageData: Record<string, number> = counts,
+  ) => ({
+    type: 'assistant/message',
+    seq,
+    time: now.getTime(),
+    data: { message: { source: { provider, model } }, usage: usageData, stream: [] },
+  });
+
+  it('names built-in providers and models and hides custom and unrecognized ones', () => {
+    expect(telemetryModelRoute('deepseek-official', 'deepseek-flash')).toEqual({
+      provider_kind: 'deepseek_official',
+      model_id: 'deepseek-flash',
+    });
+    expect(telemetryModelRoute('opencode-go-2', 'DeepSeek-V4.1-Flash')).toEqual({
+      provider_kind: 'opencode_go',
+      model_id: 'deepseek-v4.1-flash',
+    });
+    expect(telemetryModelRoute('deepseek-3', 'deepseek-v4-pro').provider_kind).toBe('deepseek_api');
+    expect(telemetryModelRoute('deepseek-account', 'x').provider_kind).toBe('deepseek_account');
+    expect(telemetryModelRoute('custom-2', 'my secret model')).toEqual({
+      provider_kind: 'custom',
+      model_id: 'custom',
+    });
+    expect(telemetryModelRoute('my-proxy', 'gpt-9')).toEqual({
+      provider_kind: 'other',
+      model_id: 'other',
+    });
+    expect(telemetryModelRoute('unknown', 'unknown').model_id).toBe('unknown');
+    expect(telemetryModelRoute('opencode-go', 'has space').model_id).toBe('other');
+    expect(telemetryModelRoute('deepseekx', 'deepseek-flash').provider_kind).toBe('other');
+  });
+
+  it('reports one snapshot per day, provider kind and model, merging provider instances', async () => {
+    const f = fixture();
+    f.usage.handleSessionEvent('root', routed(1, 'opencode-go', 'deepseek-v4.1-flash'));
+    f.usage.handleSessionEvent('root', routed(2, 'opencode-go-2', 'deepseek-v4.1-flash'));
+    f.usage.handleSessionEvent('root', routed(3, 'deepseek-official', 'deepseek-flash'));
+    f.usage.handleSessionEvent(
+      'assignment',
+      routed(1, 'custom', 'private-model', { inputTokens: 20, outputTokens: 10 }),
+    );
+    await f.usage.rebuild([], async () => undefined);
+    const stop = startModelUsage({
+      telemetry: f.telemetry,
+      snapshot: () => f.usage.telemetrySnapshot(),
+    });
+    stop();
+    await f.telemetry.close();
+    const events = f.batches.flatMap((batch) => batch.batch);
+    expect(events.map((event) => event.event)).toEqual(Array(3).fill('app:model_usage_report'));
+    expect(events.map((event) => event.properties)).toEqual([
+      expect.objectContaining({
+        provider_kind: 'custom',
+        model_id: 'custom',
+        reported_total_token_count: 30,
+        unknown_total_count: 1,
+        is_partial: true,
+      }),
+      expect.objectContaining({
+        provider_kind: 'deepseek_official',
+        model_id: 'deepseek-flash',
+        total_token_count: 155,
+      }),
+      expect.objectContaining({
+        provider_kind: 'opencode_go',
+        model_id: 'deepseek-v4.1-flash',
+        input_token_count: 200,
+        total_token_count: 310,
+        is_reconciled: true,
+      }),
+    ]);
+    for (const event of events)
+      expect(telemetryEventProperties('app:model_usage_report', event.properties)).toBeDefined();
+    const wire = JSON.stringify(events);
+    for (const secret of ['private-bot', 'private-model', 'opencode-go-2'])
+      expect(wire).not.toContain(secret);
+  });
+
+  it('replaces a model snapshot that disappears with zero and resends only changes', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.usage.handleSessionEvent('root', routed(1, 'deepseek-official', 'deepseek-flash'));
+    await f.usage.rebuild([], async () => undefined);
+    const capture = vi.fn();
+    const stop = startModelUsage({
+      telemetry: { enabled: true, capture },
+      snapshot: () => f.usage.telemetrySnapshot(),
+      intervalMs: 1000,
+    });
+    expect(capture).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(capture).toHaveBeenCalledTimes(1);
+    f.usage.purgeBot('private-bot');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(capture).toHaveBeenLastCalledWith(
+      'app:model_usage_report',
+      expect.objectContaining({
+        provider_kind: 'deepseek_official',
+        model_id: 'deepseek-flash',
+        total_token_count: 0,
+        reported_total_token_count: 0,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(capture).toHaveBeenCalledTimes(2);
     stop();
     await f.telemetry.close();
   });

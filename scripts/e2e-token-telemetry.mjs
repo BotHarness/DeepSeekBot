@@ -26,7 +26,9 @@ mkdirSync(paths.evidence, { recursive: true });
 const bundle = join(paths.dir, 'token-telemetry-source.mjs');
 const imported = [
   ['queryTokenUsageDays', 'usage/telemetry.ts'],
-  ['startTokenUsage', 'telemetry/token-usage.ts'],
+  ['queryModelUsageDays', 'usage/telemetry.ts'],
+  ['telemetryModelRoute', 'telemetry/model-route.ts'],
+  ['startTokenUsage, startModelUsage', 'telemetry/token-usage.ts'],
   ['createTelemetryService, fetchTelemetrySender', 'telemetry/service.ts'],
 ];
 await build({
@@ -46,8 +48,15 @@ await build({
   target: 'node22',
   outfile: bundle,
 });
-const { queryTokenUsageDays, startTokenUsage, createTelemetryService, fetchTelemetrySender } =
-  await import(pathToFileURL(bundle).href);
+const {
+  queryTokenUsageDays,
+  queryModelUsageDays,
+  telemetryModelRoute,
+  startTokenUsage,
+  startModelUsage,
+  createTelemetryService,
+  fetchTelemetrySender,
+} = await import(pathToFileURL(bundle).href);
 const local = await rpc(instance, 'botharness/overviewUsage', { period: 'week' });
 assert.equal(local.freshness, 'ready', 'Finish reconciliation before comparing wire values');
 assert.ok(local.totals.totalTokens > 0, 'First obtain a real model reply in this isolated Profile');
@@ -56,6 +65,16 @@ const database = new DatabaseSync(join(instance.home, 'botharness', 'botharness.
 });
 try {
   const days = queryTokenUsageDays(database, new Date());
+  const models = queryModelUsageDays(database, new Date());
+  const routes = database.prepare('SELECT DISTINCT provider, model FROM usage_daily').all();
+  const SENTINELS = new Set(['custom', 'other', 'unknown']);
+  const localOnly = routes.flatMap(({ provider, model }) => [
+    ...(/-\d+$/u.test(provider) ? [provider] : []),
+    ...(telemetryModelRoute(provider, model).model_id !== model.toLowerCase() &&
+    !SENTINELS.has(model)
+      ? [model]
+      : []),
+  ]);
   const batches = [];
   let delivered = 0;
   const sender = flag('--send') ? fetchTelemetrySender() : undefined;
@@ -72,13 +91,40 @@ try {
       }
     },
   });
-  const stop = startTokenUsage({ telemetry, snapshot: () => ({ days, isReconciled: true }) });
-  stop();
+  const snapshot = () => ({ days, models, isReconciled: true });
+  startTokenUsage({ telemetry, snapshot })();
+  startModelUsage({ telemetry, snapshot })();
   await telemetry.close();
   if (sender)
     assert.equal(delivered, batches.length, 'Telemetry transport must acknowledge every QA batch');
-  const events = batches.flatMap((batch) => batch.batch);
+  const all = batches.flatMap((batch) => batch.batch);
+  const events = all.filter((event) => event.event === 'app:token_usage_report');
+  const modelEvents = all.filter((event) => event.event === 'app:model_usage_report');
   assert.equal(events.length, days.length);
+  assert.equal(modelEvents.length, models.length);
+  assert.ok(modelEvents.length > 0, 'The real reply must produce a per-model snapshot');
+  for (const event of events) {
+    const perModel = modelEvents.filter(
+      (model) => model.properties.day_timestamp === event.properties.day_timestamp,
+    );
+    assert.equal(
+      perModel.reduce((sum, model) => sum + model.properties.reported_total_token_count, 0),
+      event.properties.reported_total_token_count,
+      'Per-model snapshots must add up to the day snapshot',
+    );
+  }
+  for (const event of modelEvents) {
+    assert.match(event.properties.provider_kind, /^[a-z_]+$/);
+    assert.match(event.properties.model_id, /^[a-z0-9][a-z0-9._:/-]*$/);
+    for (const key of Object.keys(event.properties))
+      assert.ok(!/bot_slug|session_id|human_id|content|prompt/.test(key));
+  }
+  const modelWire = JSON.stringify(modelEvents);
+  for (const value of localOnly)
+    assert.ok(
+      !modelWire.includes(`"${value}"`),
+      'Provider instance IDs and typed models stay local',
+    );
   for (const event of events) {
     const properties = event.properties;
     const day = new Date(properties.day_timestamp).toISOString().slice(0, 10);
@@ -91,7 +137,7 @@ try {
     for (const key of Object.keys(properties))
       assert.ok(!/bot_slug|session_id|human_id|provider|model|content|prompt/.test(key));
   }
-  assert.ok(events.every((event) => event.event === 'app:token_usage_report'));
+
   const report = {
     result: 'pass',
     sentToPostHog: Boolean(sender),
@@ -99,9 +145,10 @@ try {
     checks: [
       'live Host overview equals production token snapshot wire',
       'owned usage only',
-      'no Bot, Session, provider, model, Human or content identifiers',
+      'no Bot, Session, provider, model, Human or content identifiers in the day snapshot',
+      'per-model snapshots add up to the day snapshot and name only provider kind and built-in model',
     ],
-    snapshots: events.map((event) => ({
+    snapshots: all.map((event) => ({
       event: event.event,
       timestamp: event.timestamp,
       properties: event.properties,
