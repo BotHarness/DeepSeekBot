@@ -91,10 +91,43 @@ index df9e242..fae4f42 100644
              ScreenAppearEvent.EVENT_NAME to hashMapOf("registrationName" to "onAppear"),
              ScreenWillDisappearEvent.EVENT_NAME to hashMapOf("registrationName" to "onWillDisappear"),
 diff --git a/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt b/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
-index 8004079..45a14bf 100644
+index 8004079..bd6b976 100644
 --- a/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
 +++ b/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
-@@ -103,6 +103,12 @@ class SheetDelegate(
+@@ -8,6 +8,7 @@ import android.view.WindowManager
+ import android.view.inputmethod.InputMethodManager
+ import androidx.coordinatorlayout.widget.CoordinatorLayout
+ import androidx.core.view.OnApplyWindowInsetsListener
++import androidx.core.view.ViewCompat
+ import androidx.core.view.WindowInsetsCompat
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.LifecycleEventObserver
+@@ -29,7 +30,24 @@ class SheetDelegate(
+     private var isKeyboardVisible: Boolean = false
+     private var keyboardState: KeyboardState = KeyboardNotVisible
+ 
++    private var hasObservedInsets = false
++
++    // A sheet created after the decor view last dispatched insets would otherwise size itself
++    // with a zero top inset and push its bottom edge below the screen.
+     private var lastTopInset: Int = 0
++        get() = if (hasObservedInsets) field else currentRootTopInset() ?: field
++
++    private fun currentRootTopInset(): Int? =
++        screen.reactContext.currentActivity
++            ?.window
++            ?.decorView
++            ?.let { ViewCompat.getRootWindowInsets(it) }
++            ?.let {
++                maxOf(
++                    it.getInsets(WindowInsetsCompat.Type.systemBars()).top,
++                    it.getInsets(WindowInsetsCompat.Type.displayCutout()).top,
++                )
++            }
+ 
+     var lastStableDetentIndex: Int = screen.sheetInitialDetentIndex
+         private set
+@@ -103,6 +121,12 @@ class SheetDelegate(
      }
  
      private fun onSheetStateChanged(newState: Int) {
@@ -107,6 +140,14 @@ index 8004079..45a14bf 100644
          val isStable = SheetUtils.isStateStable(newState)
  
          if (isStable) {
+@@ -352,6 +376,7 @@ class SheetDelegate(
+         // subtract it from the window height during sheet size calculations.
+         // This ensures the sheet respects the safe area.
+         lastTopInset = maxOf(systemBarsInsets.top, displayCutoutInsets.top)
++        hasObservedInsets = true
+ 
+         if (isImeVisible) {
+             isKeyboardVisible = true
 diff --git a/android/src/main/java/com/swmansion/rnscreens/events/ScreenNativeDismissCancelledEvent.kt b/android/src/main/java/com/swmansion/rnscreens/events/ScreenNativeDismissCancelledEvent.kt
 new file mode 100644
 index 0000000..6f48a28

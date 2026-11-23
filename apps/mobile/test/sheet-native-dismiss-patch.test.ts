@@ -25,3 +25,14 @@ it('lets a prevented Android form sheet cancel a swipe or outside tap instead of
     '"topNativeDismissCancelled"',
   );
 });
+
+it('sizes every new Android form sheet with the current top inset, not zero', () => {
+  const delegate = added(
+    'android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt',
+  );
+  expect(delegate).toContain(
+    'get() = if (hasObservedInsets) field else currentRootTopInset() ?: field',
+  );
+  expect(delegate).toContain('ViewCompat.getRootWindowInsets(it)');
+  expect(delegate).toContain('hasObservedInsets = true');
+});
