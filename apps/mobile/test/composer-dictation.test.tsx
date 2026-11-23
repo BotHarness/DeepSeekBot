@@ -322,7 +322,8 @@ describe('empty composer', () => {
       await act(async () => root!.render(<Harness />));
       const input = field();
       input.focus();
-      const height = () => (speech.input!['style'] as { minHeight: number }).minHeight;
+      const style = () => speech.input!['style'] as { height?: number; minHeight?: number };
+      const height = () => style().height ?? style().minHeight;
       const contentSize = async (height: number) => {
         await act(async () =>
           (speech.input!['onContentSizeChange'] as (event: unknown) => void)({
@@ -360,6 +361,8 @@ describe('empty composer', () => {
       expect(input.value).toBe(draft);
       await edit('');
       expect(height()).toBe(minimum);
+      expect(style().height).toBe(minimum);
+      expect(style().minHeight).toBeUndefined();
       expect(sent).not.toHaveBeenCalled();
     },
   );
