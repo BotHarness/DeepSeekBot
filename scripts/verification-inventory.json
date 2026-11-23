@@ -2806,9 +2806,9 @@
       "path": "scripts/e2e-token-telemetry.mjs",
       "category": "mapped",
       "behaviors": ["telemetry.bot-tokens"],
-      "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
-      "task": 4255,
-      "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
+      "reason": "Compares live Host Overview with production day and per-model token snapshot readers and serializers; optional separately marked QA wire send.",
+      "task": 5083,
+      "sha256": "4137d1e1af9b176f3c598062922de260aa945889ba3caf0c56d10eb4d905838c"
     },
     {
       "path": "scripts/e2e-avatar-scroll.mjs",
