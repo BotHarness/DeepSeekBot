@@ -78,7 +78,7 @@ it('pairs a device from Tob through a private file and revokes exactly that devi
     ok: true,
     value: { receipt: expect.any(String), link: { path: out } },
   });
-  expect(statSync(out).mode & 0o777).toBe(0o600);
+  if (process.platform !== 'win32') expect(statSync(out).mode & 0o777).toBe(0o600);
   const { link, offer } = f.offerIn(out);
   const receipt = opened.value!['receipt'] as string;
   expect(await f.tob.invoke(['device-offer-status', receipt])).toMatchObject({

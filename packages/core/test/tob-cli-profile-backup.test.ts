@@ -100,7 +100,7 @@ it('keeps the export confirmation out of Tob results, approval cards and Host lo
   });
   expect(saved.value).not.toHaveProperty('token');
   expect(f.approve).toHaveBeenCalledTimes(1);
-  expect(statSync(confirmation).mode & 0o777).toBe(0o600);
+  if (process.platform !== 'win32') expect(statSync(confirmation).mode & 0o777).toBe(0o600);
   const token = (JSON.parse(readFileSync(confirmation, 'utf8')) as { token: string }).token;
   expect(token).toMatch(/\S{8,}/u);
   expect(await f.invoke(['profile-backup-preview', '--out', confirmation])).toMatchObject({
