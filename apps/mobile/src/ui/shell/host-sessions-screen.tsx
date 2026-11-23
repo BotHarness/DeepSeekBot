@@ -228,6 +228,7 @@ function HostSessionsList({
                 ? {
                     placeholder: t.search,
                     label: t.search,
+                    value: draft,
                     onChange: (text) => changeSearch(text.slice(0, HOST_SESSION_SEARCH_MAX)),
                     onCancel: () => changeSearch(''),
                     onSubmit: (text) => {
