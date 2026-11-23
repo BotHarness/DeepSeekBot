@@ -8,6 +8,7 @@ import { requireNonBlank } from '../runtime/require-non-blank.js';
 import { hasChannelCallWindow } from './call-window.js';
 import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from './channel.js';
 import { MAX_MESSAGE_PAGE, type ChannelStore } from './store.js';
+import { encodeChannelMessageCursor, prepareChannelMessageQuery } from './store-query.js';
 import type { GroupSendReview } from './send-review.js';
 import type {
   ChannelListEntry,
@@ -29,6 +30,8 @@ interface ChannelReadPorts {
     readAdmissions: Set<string>,
   ) => void;
 }
+
+type QueryPage = ChannelQueryPage & { cursorAfter(count: number): string | undefined };
 
 export function createChannelReads(
   ports: ChannelReadPorts,
@@ -76,31 +79,31 @@ export function createChannelReads(
     },
   });
   const contentProgress = new Map<string, number>();
-  const queryPage = (input: ChannelQueryInput = {}): ChannelQueryPage => {
+  const queryPage = (input: ChannelQueryInput = {}): QueryPage => {
     if (input.scope !== undefined && input.scope !== 'channel' && input.scope !== 'joined') {
       throw new Error('channel_read: invalid scope');
     }
-    if (hasChannelCallWindow(input)) {
-      const { channel, window, page } = queryCallWindow({
-        channels: ports.channels,
-        resolve,
-        input,
-      });
-      const humans = humanNames(channel);
-      return {
-        messages: page.messages.map((message) => viewOf(channel, message, humans)),
-        ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-        call: window,
-      };
-    }
-    if (input.scope !== 'joined') {
-      const channel = resolve(input.channelId);
-      const page = ports.channels.queryMessages(channel.id, input);
+    const call = hasChannelCallWindow(input)
+      ? queryCallWindow({ channels: ports.channels, resolve, input })
+      : undefined;
+    if (call !== undefined || input.scope !== 'joined') {
+      const channel = call?.channel ?? resolve(input.channelId);
+      const queryOptions = call?.queryOptions ?? input;
+      const page = call?.page ?? ports.channels.queryMessages(channel.id, queryOptions);
       const humans = humanNames(channel);
       const messages = page.messages.map((message) => viewOf(channel, message, humans));
+      let filter: string | undefined;
       return {
         messages,
         ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+        ...(call === undefined ? {} : { call: call.window }),
+        cursorAfter(count) {
+          if (count >= messages.length) return page.nextCursor;
+          const anchor = messages[count - 1]?.message.id;
+          if (anchor === undefined) return undefined;
+          filter ??= prepareChannelMessageQuery(channel.id, queryOptions).filter;
+          return encodeChannelMessageCursor(filter, anchor);
+        },
       };
     }
     if (input.channelId !== undefined) {
@@ -174,7 +177,7 @@ export function createChannelReads(
       filters.from !== undefined &&
       Date.parse(filters.from) > Date.parse(afterTo)
     )
-      return { messages: [] };
+      return { messages: [], cursorAfter: () => undefined };
     const found: ChannelMessageView[] = [];
     for (const channel of channels) {
       const humans = humanNames(channel);
@@ -185,6 +188,7 @@ export function createChannelReads(
           text,
           ...(afterTo !== undefined && filters.to === undefined ? { to: afterTo } : {}),
           orderBy: 'time',
+          ascending: false,
           ...(cursor === undefined ? {} : { cursor }),
           limit: MAX_MESSAGE_PAGE,
         });
@@ -231,23 +235,23 @@ export function createChannelReads(
           break;
       } while (cursor !== undefined);
     }
-    const page = found;
-    const messages = page.slice(0, limit);
-    const last = messages.at(-1);
+    const cursorAfter = (count: number): string | undefined => {
+      const last = found[count - 1];
+      if (found.length <= count || last === undefined) return undefined;
+      return Buffer.from(
+        JSON.stringify({
+          at: last.message.at,
+          channelId: last.channelId,
+          messageId: last.message.id,
+          filter,
+        }),
+      ).toString('base64url');
+    };
+    const nextCursor = cursorAfter(limit);
     return {
-      messages,
-      ...(page.length <= limit || last === undefined
-        ? {}
-        : {
-            nextCursor: Buffer.from(
-              JSON.stringify({
-                at: last.message.at,
-                channelId: last.channelId,
-                messageId: last.message.id,
-                filter,
-              }),
-            ).toString('base64url'),
-          }),
+      messages: found.slice(0, limit),
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+      cursorAfter,
     };
   };
   return {
@@ -353,7 +357,7 @@ export function createChannelReads(
       return messages;
     },
     query: (input = {}) => {
-      const page = queryPage(input);
+      const { cursorAfter: _cursorAfter, ...page } = queryPage(input);
       if (observeReads) ports.observeReadMessages(botSlug, page.messages, readAdmissions);
       return page;
     },
@@ -386,22 +390,17 @@ export function createChannelReads(
         throw new Error('channel_read: content_cursor requires message_id');
       const page = queryPage(input);
       const callMeta = page.call === undefined ? 0 : JSON.stringify({ call: page.call }).length + 1;
-      const bounded = boundModelPage(
-        page,
-        (count) => queryPage({ ...input, limit: count }).nextCursor,
-        (included) => {
-          const ids = [...new Set(included.map((view) => view.channelId))].filter((id) =>
-            ports.groupSendReview.enabled(id),
-          );
-          return (
-            callMeta +
-            (ids.length === 0
-              ? 0
-              : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length +
-                24)
-          );
-        },
-      );
+      const bounded = boundModelPage(page, page.cursorAfter, (included) => {
+        const ids = [...new Set(included.map((view) => view.channelId))].filter((id) =>
+          ports.groupSendReview.enabled(id),
+        );
+        return (
+          callMeta +
+          (ids.length === 0
+            ? 0
+            : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length + 24)
+        );
+      });
       if (observeReads) ports.observeReadMessages(botSlug, bounded.included, readAdmissions);
       recordObservation(bounded.included);
       const observationIds = Object.fromEntries(

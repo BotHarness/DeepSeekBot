@@ -1,0 +1,102 @@
+export interface NoteQueue {
+  commit(text: string, saved: string): boolean;
+  pending(): string | undefined;
+  settled(): Promise<void>;
+}
+
+export function noteQueue(
+  write: (text: string) => Promise<void>,
+  onSaved: (text: string) => void,
+  onError: (cause: unknown, text: string) => void,
+): NoteQueue {
+  let chain = Promise.resolve();
+  let latest = 0;
+  let pending: { id: number; text: string } | undefined;
+  return {
+    commit(text, saved) {
+      if (text === (pending?.text ?? saved)) return false;
+      const id = ++latest;
+      pending = { id, text };
+      chain = chain.then(() =>
+        write(text).then(
+          () => {
+            if (pending?.id === id) pending = undefined;
+            onSaved(text);
+          },
+          (cause: unknown) => {
+            if (pending?.id !== id) return;
+            pending = undefined;
+            onError(cause, text);
+          },
+        ),
+      );
+      return true;
+    },
+    pending: () => pending?.text,
+    settled: () => chain,
+  };
+}
+
+export interface FailedNote {
+  text: string;
+  error: string;
+}
+
+const failedNotes = new Map<string, FailedNote>();
+
+export function failedNote(key: string): FailedNote | undefined {
+  return failedNotes.get(key);
+}
+
+export function rememberFailedNote(key: string, note: FailedNote): void {
+  failedNotes.set(key, note);
+}
+
+export function forgetFailedNote(key: string): void {
+  failedNotes.delete(key);
+}
+
+export interface NoteHandlers {
+  write(text: string): Promise<void>;
+  onSaved(text: string): void;
+  onError(cause: unknown, text: string): void;
+}
+
+const sharedQueues = new Map<string, { queue: NoteQueue; handlers: NoteHandlers }>();
+
+export function pendingNote(key: string): string | undefined {
+  return sharedQueues.get(key)?.queue.pending();
+}
+
+export function sharedNoteQueue(key: string, handlers: NoteHandlers): NoteQueue {
+  const entry = sharedQueues.get(key);
+  if (entry !== undefined) {
+    Object.assign(entry.handlers, handlers);
+    return entry.queue;
+  }
+  const current = { ...handlers };
+  const queue = noteQueue(
+    (text) => current.write(text),
+    (text) => current.onSaved(text),
+    (cause, text) => current.onError(cause, text),
+  );
+  sharedQueues.set(key, { queue, handlers: current });
+  return queue;
+}
+
+export function commitNoteDraft(
+  queue: NoteQueue,
+  key: string,
+  note: string,
+  saved: string,
+): 'queued' | 'restored' | 'unchanged' {
+  if (queue.commit(note, saved)) {
+    forgetFailedNote(key);
+    return 'queued';
+  }
+  if (note === saved && queue.pending() === undefined) {
+    forgetFailedNote(key);
+    return 'restored';
+  }
+  return 'unchanged';
+}

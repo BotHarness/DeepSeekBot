@@ -156,7 +156,7 @@ export function createEncryptedGateway(options: {
       closed = false,
       admitted = false;
     let channelHeaders: Record<string, string> = {};
-    let ownerSignInAttempted = false;
+    let signInAttempt: 'none' | 'team-sign-in' | 'owner-sign-in' | 'password-sign-in' = 'none';
     let enrollmentOffer: { body: string; offer: string } | undefined;
     let detach: (() => void) | undefined;
     let unwatchKey: (() => void) | undefined;
@@ -653,17 +653,39 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
-        if ((type === 'team-sign-in' || type === 'owner-sign-in') && options.memberDevices) {
+        if (
+          type === 'password-sign-in' ||
+          ((type === 'team-sign-in' || type === 'owner-sign-in') && options.memberDevices)
+        ) {
+          const passwordSignIn = type === 'password-sign-in';
           const ownerSignIn = type === 'owner-sign-in';
-          const reply = ownerSignIn ? 'owner-signed-in' : 'team-signed-in';
-          if (ownerSignIn && ownerSignInAttempted) return refuse('invalid-input');
-          if (ownerSignIn) ownerSignInAttempted = true;
+          const reply = passwordSignIn
+            ? 'password-signed-in'
+            : ownerSignIn
+              ? 'owner-signed-in'
+              : 'team-signed-in';
+          if (
+            signInAttempt === 'password-sign-in' ||
+            (passwordSignIn && signInAttempt !== 'none') ||
+            (ownerSignIn && signInAttempt === 'owner-sign-in')
+          )
+            return refuse('invalid-input');
+          if (type !== 'team-sign-in' || signInAttempt === 'none') signInAttempt = type;
           try {
-            const result = ownerSignIn
-              ? await options.memberDevices.signInOwner(input['input'], remoteAddress, publicKey)
-              : await options.memberDevices.signIn(input['input'], remoteAddress, publicKey);
+            const devices = options.memberDevices;
+            if (!devices) throw new TeamError('password-sign-in-unavailable');
+            const signIn = passwordSignIn
+              ? devices.signInPassword
+              : ownerSignIn
+                ? devices.signInOwner
+                : devices.signIn;
+            const result = await signIn(input['input'], remoteAddress, publicKey);
             const sent = send({ type: reply, result: { ok: true, value: result } });
-            if (!sent && ownerSignIn) options.pairing.revoke(result.deviceId);
+            if (!sent) {
+              if (ownerSignIn || ('role' in result && result.role === 'owner'))
+                options.pairing.revoke(result.deviceId);
+              else if (passwordSignIn) await devices.revokeMemberSignIn(result.deviceId);
+            }
           } catch (error) {
             if (!closed)
               send({

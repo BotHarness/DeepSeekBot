@@ -3,6 +3,11 @@ import type { PairingFailure } from '@botharness/host-client/pairing';
 
 export const en = {
   pairTitle: 'Pair with your computer',
+  ownerSignIn: {
+    disabled: 'Password sign-in is turned off on this Host.',
+    alreadyPaired: 'This Host is already on this phone.',
+    credentialsInvalid: 'Check your username and password, then try again.',
+  },
   allowCamera: 'Allow the camera to scan',
   pairImage: {
     choose: 'Choose QR image',
@@ -17,8 +22,9 @@ export const en = {
     url: 'https://tobs.app/en/docs/mobile-pairing/',
     linkError: 'Could not open the guide. Try again.',
   },
-  pasteLink: 'Or paste the pairing link',
-  pasteLinkHint: 'In the code window on your computer, choose Copy pairing link.',
+  pasteLink: 'Or paste a link or Host address',
+  pasteLinkPlaceholder: 'Pairing link, invitation or https://…',
+  pairContinue: 'Connect',
   pair: 'Pair',
   pairAccount: {
     title: `${productName.en} account`,
@@ -71,7 +77,6 @@ export const en = {
   },
   pairChoice: {
     private: 'Private connection',
-    privateDetail: 'Recommended. No account or Docker needed.',
     privateHint:
       'Turn on Private connection on your computer first. It publishes only the encrypted phone channel, and you approve this phone there.',
     privatePath: [
@@ -85,12 +90,9 @@ export const en = {
     account: `Sign in with a ${productName.en} account`,
     accountDetail: 'Pick a computer on your account.',
     lan: 'Use the same Wi-Fi',
-    lanDetail: 'Scan a code. No account needed.',
-    team: 'Join as a member',
-    teamDetail: "Sign in to someone else's Host with an invitation or your username.",
     tailscale: 'Use Tailscale',
-    tailscaleDetail: 'Connect across networks.',
     tailscaleHint: 'Sign in to the same Tailscale account on both devices.',
+    connectPath: ['Settings', 'Connections', 'Add connection', 'Connect a device to this Host'],
     onComputer: 'On your computer',
     lanPath: [
       'Settings',
@@ -189,6 +191,11 @@ export const en = {
 
 export const zh: typeof en = {
   pairTitle: '与电脑配对',
+  ownerSignIn: {
+    disabled: '此 Host 已关闭账密登录。',
+    alreadyPaired: '这台手机已添加此 Host。',
+    credentialsInvalid: '检查用户名和密码后重试。',
+  },
   allowCamera: '允许使用相机扫码',
   pairImage: {
     choose: '从相册选择二维码',
@@ -202,8 +209,9 @@ export const zh: typeof en = {
     url: 'https://tobs.app/docs/mobile-pairing/',
     linkError: '打开教程失败，再试一次。',
   },
-  pasteLink: '或粘贴配对链接',
-  pasteLinkHint: '在电脑的二维码窗口点「复制配对链接」。',
+  pasteLink: '或粘贴链接、输入 Host 地址',
+  pasteLinkPlaceholder: '配对链接、邀请链接或 https://…',
+  pairContinue: '连接',
   pair: '配对',
   pairAccount: {
     computers: '环境',
@@ -256,19 +264,15 @@ export const zh: typeof en = {
   },
   pairChoice: {
     private: '私有连接',
-    privateDetail: '推荐。不需要账号或 Docker。',
     privateHint: '先在电脑上开启私有连接。它只公开加密的手机通道，并需要你在电脑上批准这台手机。',
     privatePath: ['设置', '连接', '添加连接', '让设备连接本机', '私有连接（推荐）'],
     needs: `电脑上需要安装 DSH（DeepSeek Harness）和 ${productName.zh} 插件。`,
     account: `登录 ${productName.zh} 账号`,
     accountDetail: '选择账号下的电脑。',
     lan: '使用同一 Wi-Fi',
-    lanDetail: '扫码即连，不需要账号。',
-    team: '以成员身份加入',
-    teamDetail: '用邀请或你的用户名登录他人的 Host。',
     tailscale: '使用 Tailscale',
-    tailscaleDetail: '跨网络连接。',
     tailscaleHint: '两台设备登录同一个 Tailscale 账号。',
+    connectPath: ['设置', '连接', '添加连接', '让设备连接本机'],
     onComputer: '在电脑上',
     lanPath: ['设置', '连接', '添加连接', '让设备连接本机', '局域网'],
     tailscalePath: ['设置', '连接', '添加连接', '让设备连接本机', 'Tailscale'],

@@ -51,7 +51,6 @@ describe('Remote Host settings ownership', () => {
       b.client,
       { kind: 'global' },
       await modelSettingsResource(b.client, { kind: 'global' }).refresh(),
-      'orchestrator',
       b.route,
     );
     expect(b.host.calls.at(-1)).toMatchObject({

@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
+import { ownerSignInOrigin } from '@botharness/host-client/owner-sign-in';
 
 import { TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -7,21 +8,6 @@ import { useMountedResource } from './mounted-resource.js';
 import { remoteHosts, type RemoteOwnerSignInError } from './remote-hosts.js';
 import { teamSignInErrorText } from './team-sign-in-dialog.js';
 import { getThisHost } from './this-host.js';
-
-function httpsOrigin(input: string): string | undefined {
-  try {
-    const url = new URL(input.includes('://') ? input : 'https://' + input);
-    if (
-      url.protocol === 'https:' &&
-      !url.username &&
-      !url.password &&
-      !url.hash &&
-      !url.search &&
-      url.pathname === '/'
-    )
-      return url.origin;
-  } catch {}
-}
 
 function signInError(
   t: BotHarnessTranslate,
@@ -55,7 +41,7 @@ export function OwnerSignInDialog({
   const mount = useMountedResource<HTMLSpanElement>(() => () => pending.current?.abort(), []);
   const submit = () => {
     if (pending.current) return;
-    const route = httpsOrigin(address.trim());
+    const route = ownerSignInOrigin(address);
     if (!route) {
       setError(t('teamSignIn.error.insecure-transport'));
       return;

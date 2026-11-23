@@ -759,41 +759,55 @@ describe('Connect relay phone offers', () => {
     return relay;
   }
 
-  it('returns signed enrollment metadata without asking the Host for an outer bearer offer', async () => {
-    const seen: { url: string; method: string; body: unknown }[] = [];
-    const encryption = { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) };
-    const { call, at } = await linked(async (input, init) => {
-      seen.push({ url: String(input), method: init?.method ?? 'GET', body: init?.body });
-      return Response.json({ host: { id: 'pairing-host-1', name: 'Studio Mac' }, encryption });
-    });
-    const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
-      as: 'user_alice',
-      body: { originPort: 41001 },
-    });
-    const result = await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
-      as: 'user_alice',
-      body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
-    });
-    expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({ host: { id: 'pairing-host-1' }, encryption });
-    expect(result.body['offer']).toBeUndefined();
-    expect(seen).toEqual([
-      {
-        url: 'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/channel',
-        method: 'GET',
-        body: undefined,
-      },
-    ]);
-    const enrollment = result.body['enrollment'] as { body: string; signature: string };
-    expect(JSON.parse(enrollment.body)).toEqual({
-      hostId: 'haaaaaaaaaaab',
-      account: 'user_alice',
-      verifierHash: VERIFIER_HASH,
-      name: 'iPhone',
-      issuedAt: at(),
-    });
-    expect(enrollment.signature).toBe(await hmac(tunnel.body['relayKey'], enrollment.body));
-  });
+  it.each([true, false, undefined])(
+    'returns signed enrollment metadata and forwards password availability %s',
+    async (password) => {
+      const seen: { url: string; method: string; body: unknown; redirect: unknown }[] = [];
+      const encryption = { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) };
+      const { call, at } = await linked(async (input, init) => {
+        seen.push({
+          url: String(input),
+          method: init?.method ?? 'GET',
+          body: init?.body,
+          redirect: init?.redirect,
+        });
+        return Response.json({
+          host: { id: 'pairing-host-1', name: 'Studio Mac' },
+          encryption,
+          ...(password === undefined ? {} : { signIn: { password, ignored: 'extra' } }),
+        });
+      });
+      const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+        as: 'user_alice',
+        body: { originPort: 41001 },
+      });
+      const result = await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+        as: 'user_alice',
+        body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ host: { id: 'pairing-host-1' }, encryption });
+      expect(result.body['signIn']).toEqual(password === undefined ? undefined : { password });
+      expect(result.body['offer']).toBeUndefined();
+      expect(seen).toEqual([
+        {
+          url: 'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/channel',
+          method: 'GET',
+          body: undefined,
+          redirect: 'error',
+        },
+      ]);
+      const enrollment = result.body['enrollment'] as { body: string; signature: string };
+      expect(JSON.parse(enrollment.body)).toEqual({
+        hostId: 'haaaaaaaaaaab',
+        account: 'user_alice',
+        verifierHash: VERIFIER_HASH,
+        name: 'iPhone',
+        issuedAt: at(),
+      });
+      expect(enrollment.signature).toBe(await hmac(tunnel.body['relayKey'], enrollment.body));
+    },
+  );
 
   it('authorizes a client-side attempt without probing an offline connector, scoped to the account', async () => {
     const probe = vi.fn(async () => {

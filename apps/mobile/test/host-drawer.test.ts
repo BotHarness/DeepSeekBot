@@ -123,6 +123,20 @@ describe('Host drawer', () => {
     expect(drawer.getSnapshot()).toEqual({ open: true, shown: true });
   });
 
+  it('closes and opens the shared Pair menu from Add computer', () => {
+    const pair = vi.fn();
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo: vi.fn(async () => true),
+      pair,
+      notifications: vi.fn(),
+    });
+    drawer.open();
+    drawer.pairNew();
+    expect(drawer.getSnapshot().open).toBe(false);
+    expect(pair).toHaveBeenCalledTimes(1);
+  });
+
   it('switches to the chosen Host and closes', async () => {
     const switchTo = vi.fn(async () => true);
     const drawer = createHostDrawer({

@@ -89,6 +89,15 @@ interface DirectToolPorts {
   warn: BotRuntimeOptions['warn'];
 }
 
+function formatHistoryResult(result: unknown): string {
+  if (typeof result === 'string') return result;
+  try {
+    return JSON.stringify(result) ?? String(result);
+  } catch {
+    return '[unserializable result]';
+  }
+}
+
 export function createDirectTools(ports: DirectToolPorts) {
   function directBotTools(): DirectBotToolSpec[] {
     return ports.agents.directTools?.() ?? [];
@@ -256,7 +265,7 @@ export function createDirectTools(ports: DirectToolPorts) {
     });
     try {
       const result = await runDirect(run, tool, args, signal, executionParentSessionId);
-      record('ok', typeof result === 'string' ? result : JSON.stringify(result));
+      record('ok', formatHistoryResult(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
           ports.noticeDirectAssignmentCall(bot.slug, tool, args, result);

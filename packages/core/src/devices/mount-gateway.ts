@@ -15,6 +15,7 @@ import type { createConnectBotBridge } from './bot-connect-bridge.js';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import type { ConnectAccount } from './connect-account.js';
 import type { createDevicesHttp } from './http.js';
+import { createChannelDiscovery } from './channel-discovery.js';
 import type { createDevicePairing } from './pairing.js';
 import type { ConnectionLike, WebServerLike } from './mount-types.js';
 import {
@@ -123,6 +124,11 @@ export function mountDeviceGateway(
       }
     : undefined;
   const { push, activity } = delivery();
+  const discover = createChannelDiscovery({
+    host: () => pairing.host(),
+    encryption,
+    passwordSignInAvailable: () => memberDevices?.passwordSignInAvailable() ?? false,
+  });
   const gateway = createDeviceGateway({
     ...(team ? { team } : {}),
     pairing,
@@ -151,29 +157,7 @@ export function mountDeviceGateway(
             await connectBots.handle(request, response);
             return;
           }
-          if (request.url === CONNECT_CHANNEL_PATH) {
-            if (request.method !== 'GET') {
-              response.writeHead(405);
-              response.end();
-              return;
-            }
-            try {
-              const identity = await encryption();
-              response.writeHead(200, {
-                'content-type': 'application/json',
-                'cache-control': 'no-store',
-                'access-control-allow-origin': '*',
-              });
-              response.end(JSON.stringify({ host: pairing.host(), encryption: identity }));
-            } catch {
-              response.writeHead(503, {
-                'content-type': 'application/json',
-                'cache-control': 'no-store',
-              });
-              response.end(JSON.stringify({ code: 'host-key-unavailable' }));
-            }
-            return;
-          }
+          if (request.url === CONNECT_CHANNEL_PATH) return discover(request, response);
           await gateway.handle(request, response);
         },
       }),

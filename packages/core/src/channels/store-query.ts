@@ -25,6 +25,10 @@ export interface ChannelMessageQueryPage {
   nextCursor?: string;
 }
 
+export function encodeChannelMessageCursor(filter: string, beforeId: string): string {
+  return Buffer.from(JSON.stringify({ beforeId, filter })).toString('base64url');
+}
+
 export interface PreparedChannelMessageQuery {
   text?: string;
   authorBotId?: string;
@@ -228,10 +232,6 @@ export function queryChannelMessages(
     messages: selected,
     ...(page.length <= query.limit || last === undefined
       ? {}
-      : {
-          nextCursor: Buffer.from(
-            JSON.stringify({ beforeId: last.id, filter: query.filter }),
-          ).toString('base64url'),
-        }),
+      : { nextCursor: encodeChannelMessageCursor(query.filter, last.id) }),
   };
 }

@@ -2,6 +2,38 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInterfacePreferences, preferredLanguage } from '../src/ui/interface-preferences';
 
 describe('phone interface preferences', () => {
+  it('remembers Session sort across device preference restores', async () => {
+    let stored: unknown = { sessionsTab: true };
+    const storage = {
+      read: async () => stored,
+      write: (value: unknown) => {
+        stored = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().sessionSort).toBe('last-human-turn');
+    preferences.setSessionSort('created');
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot().sessionSort).toBe('created');
+    expect(restarted.getSnapshot().sessionsTab).toBe(true);
+  });
+
+  it('restores the saved Session sort when appearance changes during the read', async () => {
+    const preferences = createInterfacePreferences();
+    const write = vi.fn();
+    const restore = preferences.restore({
+      read: async () => ({ appearance: 'light', sessionSort: 'last-activity', sessionsTab: true }),
+      write,
+    });
+    preferences.setAppearance('dark');
+    await restore;
+    const expected = { appearance: 'dark', sessionSort: 'last-activity', sessionsTab: true };
+    expect(preferences.getSnapshot()).toMatchObject(expected);
+    expect(write).toHaveBeenCalledWith(expect.objectContaining(expected));
+  });
+
   it('defaults to system and chooses the first supported preferred language', () => {
     const preferences = createInterfacePreferences();
     expect(preferences.getSnapshot()).toMatchObject({ language: 'system', appearance: 'system' });
@@ -82,6 +114,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      sessionSort: 'last-human-turn',
     });
   });
 
@@ -146,6 +179,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      sessionSort: 'last-human-turn',
     });
   });
 

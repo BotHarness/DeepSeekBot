@@ -64,6 +64,55 @@ describe('M7 Bot principal and participant authority', () => {
       ),
     ).toEqual([{ human_id: owner.humanId }]);
   });
+  it('leaves Team adder provenance unchanged when the inviting Bot does not own the Group', async () => {
+    let groupId = '';
+    const refusals: unknown[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('refused-bot-group-invite-'),
+      agents: {
+        async runOrchestrator(run) {
+          try {
+            run.channels.inviteGroup({ channelId: groupId, targetBotSlug: 'invitee' });
+          } catch (error) {
+            refusals.push(error);
+          }
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected assignment');
+        },
+        async close() {},
+      },
+    });
+    closes.push(async () => {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    });
+    const database = attachOperationalModule(core.operationalDatabase, 'team');
+    database.transaction((db) => db.prepare('UPDATE team_settings SET enabled=1').run());
+    core.registry.create({ slug: 'inviter', displayName: 'Inviter' });
+    core.registry.create({ slug: 'invitee', displayName: 'Invitee' });
+    const group = core.channels.createGroup(owner, { name: 'Human Group', members: ['inviter'] });
+    groupId = group.id;
+    expect(() => core.team.bots.requireAdd(owner, 'invitee', groupId)).not.toThrow();
+    const dm = core.channels.getOrCreateDm(owner, 'inviter')!;
+    const message = post('invite-trigger');
+    await core.channels.appendMessage(owner, dm.id, message);
+    const admission = core.runtime.admitDmMessage(owner, {
+      channelId: dm.id,
+      messageId: message.id,
+      body: message.body,
+    });
+    if (!admission.admitted) throw new Error(admission.reason);
+    await admission.settled;
+    expect(refusals).toEqual([new Error('Only the Bot Group owner may invite')]);
+    expect(core.channels.get(groupId)?.invitations ?? []).toEqual([]);
+    expect(
+      database.read((db) =>
+        db.prepare('SELECT * FROM bot_channel_adders WHERE channel_id=?').all(groupId),
+      ),
+    ).toEqual([]);
+  });
   it.each(['role', 'deactivate', 'remove'] as const)(
     'rechecks group read/write immediately after principal %s',
     async (kind) => {

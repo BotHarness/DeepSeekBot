@@ -1,5 +1,5 @@
-import { ModelSettingsScreen } from '../../src/ui/chat/model-settings-route';
+import { ModelConfigurationScreen } from '../../src/ui/chat/model-configuration-screen';
 
-export default function GlobalModelsScreen() {
-  return <ModelSettingsScreen kind="global" />;
+export default function ModelConfigurationRoute() {
+  return <ModelConfigurationScreen />;
 }

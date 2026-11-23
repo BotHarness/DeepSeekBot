@@ -692,9 +692,9 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
 
-DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
+DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 
-Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。
 
 [Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
 
@@ -1598,6 +1598,8 @@ Managed Tailscale publishing belongs to the same device-access Plugin lifecycle.
 [ADR-0253](../decisions/connections.md#adr-0253) makes onboarding a Client-owned flow. Add connection distinguishes invitation to This Host from joining a Remote Host; LAN is enabled only in its preparation step. The existing ephemeral Client control relay targets CLI enrollment to one registered browser. Its RemoteHosts owner performs pairing and origin-local persistence; completion requires an actual Host Feed. Exact-key approval and receipt status remain owned by Device Pairing. The restricted LAN channel permits supported browser origins while refusing ambient credentials; origin never replaces pinned Noise authentication. No Host federation or remote credential store is introduced.
 
 The cloudflared-only origin accepts `/botharness-device/channel` and refuses legacy application HTTP, stream tickets and WebView paths. The shared phone/browser Host client carries unary RPCs, logical `remote.mux`, uploads, downloads, avatars, private input and push registration inside ciphertext. The encrypted adapter forwards to the existing Device Gateway on loopback; native DSH Typert/API Gateway remains the sole dispatcher. Loopback/Tailscale retain their contract. Legacy Connect pairings without pins fail closed and must be paired again; no failure clears a pin or retries plaintext through Connect.
+
+HTTPS device discovery publishes one password sign-in capability bit from Team settings and active member credentials. After the Client verifies the Host key, the Noise gateway hands the unified password attempt to Team authentication, which applies its shared limiter and issues the existing Owner device credential or member device grant. The Client uses the role in the encrypted reply to save the grant and preserve the member's first-password change requirement. [Connection decision](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route)
 
 Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser and Computer viewers are available through direct Host access and QR-paired Tailscale. Connect and password-enrolled Tailscale use the encrypted device channel, where viewers require separate media and signaling qualification. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
 

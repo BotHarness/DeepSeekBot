@@ -320,8 +320,8 @@ export const sessionDetailsRpc = {
 export const sessionListRpc = {
   sessions: SessionListRpc.prototype.sessions,
 
-  sessionList() {
-    return unwrapAsync(this.methods.sessionList({}));
+  sessionList(search?: string, sort?: string, source?: string, queryVersion?: number) {
+    return unwrapAsync(this.methods.sessionList({ search, sort, source, queryVersion }));
   },
 
   botToolTrace(

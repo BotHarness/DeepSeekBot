@@ -57,7 +57,7 @@ export function SettingsView({
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>
-      <SettingsSection title={t.modelSettings.title} on={SHEET_GROUP}>
+      <SettingsSection title={t.modelConfig.section} on={SHEET_GROUP}>
         <SettingsRow
           on={SHEET_GROUP}
           title={t.modelProviders.title}
@@ -69,9 +69,9 @@ export function SettingsView({
         />
         <SettingsRow
           on={SHEET_GROUP}
-          title={t.modelSettings.title}
+          title={t.modelConfig.title}
           icon="model"
-          detail={t.modelSettings.global}
+          detail={t.modelConfig.rowHint}
           disclosure
           onPress={actions.onModels}
         />

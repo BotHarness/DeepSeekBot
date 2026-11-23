@@ -13,6 +13,7 @@ import { SendReviewRequired, type GroupSendReview } from './send-review.js';
 import { TobError, type TobService } from '../tob/service.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import { createHash } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import { isValidSlug } from '../bots/slug.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import {
@@ -78,8 +79,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
     replySourceEventId?: string;
     readSourceEventIds?: ReadonlySet<string>;
     sessionId: string;
-    beforeSend: () => void;
-    afterSend?: () => void;
+    beforeSend: (database?: DatabaseSync) => void;
     body: string;
     turnTargets?: TurnTarget[];
     turnModelSwitch?: SessionTurnModelSwitch;
@@ -187,7 +187,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
       ...perf(input.sessionId, body),
     };
     if (mentions.length > 0) requireBotHop(message.botCausation!);
-    input.beforeSend();
+    if (input.deliveryKey === undefined) input.beforeSend();
     if (ports.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
       requireSendReviewOwner(botSlug, input.sessionId);
     if (input.sourceEventId !== undefined)
@@ -205,14 +205,14 @@ export function createCausalSending(ports: CausalSendingPorts) {
       if (replayId !== undefined) {
         const committed = ports.channels.message(channel.id, replayId);
         if (!committed) throw new Error('Committed Group message is unavailable');
-        input.afterSend?.();
         return committed;
       }
     }
     assertQuoteTargets(channel.id, messageId, input.quotes);
     let reviewOutcome: import('./send-review.js').SendReviewOutcome | undefined;
+    let authorizationFailure: { cause: unknown } | undefined;
     const originId = input.sourceEventId ?? message.botCausation!.parentSourceEventId;
-    const result = await ports.channels.appendMessageOnce(
+    const appending = ports.channels.appendMessageOnce(
       OWNER_HUMAN_CONTEXT,
       channel.id,
       message,
@@ -250,9 +250,21 @@ export function createCausalSending(ports: CausalSendingPorts) {
           });
           if (reviewOutcome) return false;
         }
+        if (input.deliveryKey !== undefined) {
+          try {
+            input.beforeSend(db);
+          } catch (cause) {
+            authorizationFailure = { cause };
+            throw cause;
+          }
+        }
         return true;
       },
     );
+    const result = await appending.catch((error: unknown) => {
+      if (authorizationFailure !== undefined) throw authorizationFailure.cause;
+      throw error;
+    });
     if (reviewOutcome) {
       ports.warn?.(
         `group-send-review phase=${reviewOutcome.status} channel=${channel.id} draft=${reviewOutcome.draftId} reason=${reviewOutcome.reason}`,
@@ -261,7 +273,6 @@ export function createCausalSending(ports: CausalSendingPorts) {
     }
     if (result.status === 'missing') throw new Error(`Group Channel disappeared: ${channel.id}`);
     if (result.status === 'conflict') throw new Error('Group delivery key has different content');
-    input.afterSend?.();
     ports.admitGroupMessage(channel.id, result.message.id);
     return result.message;
   }

@@ -89,7 +89,7 @@ describe('Settings sheet', () => {
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelProviders.title}, ${t.modelProviders.hint}`, 'onModelProviders'],
-      [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
+      [`${t.modelConfig.title}, ${t.modelConfig.rowHint}`, 'onModels'],
     ];
     for (const [label, action] of rows) {
       await act(async () => button(view, label)!.click());

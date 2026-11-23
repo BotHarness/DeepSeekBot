@@ -1,7 +1,4 @@
-import type {
-  ChannelMessageView,
-  OrchestratorChannelAccess,
-} from '../channels/runtime-access-types.js';
+import type { OrchestratorChannelAccess } from '../channels/runtime-access-types.js';
 export type {
   BotReactionInput,
   BotReactionResult,
@@ -17,7 +14,6 @@ import { createChannelAccess } from '../channels/runtime-access.js';
 import { createRuntimeInputs } from '../features/approvals/runtime-inputs.js';
 import {
   createDirectTools,
-  DirectBotToolError,
   type ActiveDirectTool,
   type DirectBotToolCall,
   type DirectBotToolSpec,
@@ -31,21 +27,17 @@ export { DirectBotToolError } from '../features/sessions/direct-tools.js';
 export type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
 export type { TobCliAuthority, TobCliRequestLease } from '../features/tob/cli-runtime.js';
 export { markSkillTokens, skillInvocationPrompt } from './channel-prompts.js';
-import { createGroupDigest, type GroupContext } from './group-digest.js';
+import { createGroupDigest } from './group-digest.js';
 export type { GroupContext } from './group-digest.js';
 import { createChannelAdmission } from '../channels/runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
-import { directSessionTarget, sessionModelChoices } from './session-model-choices.js';
+import { sessionModelChoices } from './session-model-choices.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import { createOrchestratorCancellation } from './orchestrator-cancellation.js';
 import {
   createOrchestratorContinuation,
   type PendingAutoContinue,
-  type DmContinuation,
-  continuationNote,
-  RouteRestingError,
-  RoutingGroupUnavailableError,
 } from './orchestrator-continuation.js';
 import type { AssignmentRow } from '../features/assignments/events-types.js';
 import { createMessagingEvents } from '../features/messaging/events.js';
@@ -54,17 +46,11 @@ import { createAssignmentDelivery } from '../features/assignments/delivery.js';
 import { createAssignmentReporting } from '../features/assignments/reporting.js';
 import { createAssignmentEvents } from '../features/assignments/events.js';
 import type { TurnTarget, TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
-import {
-  lastTurnTarget,
-  readTurnTargets,
-  recordTurnTarget,
-  type TurnTargetSegment,
-} from './turn-targets.js';
+import { lastTurnTarget, readTurnTargets, type TurnTargetSegment } from './turn-targets.js';
 import type {
   AssignmentActivity,
   AssignmentReport,
   AssignmentReportInput,
-  AssignmentReportState,
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
 
@@ -73,7 +59,6 @@ import { quotePromptBlock } from '../channels/quotes.js';
 import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team/bot-access.js';
-import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { SessionRecoveryAction } from './session-recovery.js';
 import type { AssignmentReportContent } from './assignment-report.js';
@@ -82,8 +67,7 @@ import type {
   AcceptedAssignmentReportPage,
 } from './assignment-report-reader.js';
 import { GroupSendReview } from '../channels/send-review.js';
-import { TobError, type TobService } from '../tob/service.js';
-import { OrchestratorWorkingDirectoryError } from './orchestrator-working-directory.js';
+import { type TobService } from '../tob/service.js';
 import {
   AssignmentApprovalCapacity,
   type AssignmentApprovalWaitLease,
@@ -99,21 +83,11 @@ import type {
   ThreadReceptionView,
 } from '../messaging/thread-policy.js';
 import type { GroupReceptionInput, GroupReceptionPolicy } from '../messaging/group-policy.js';
-import { requireSourceContent, requireSourceEffects } from '../purge/fence.js';
+import { requireSourceEffects } from '../purge/fence.js';
 import { saveAttachmentFile } from '../attachments/file-operations.js';
 import { OriginalAttachmentAccess } from '../attachments/original-access.js';
 import { createMemoryEvents } from '../features/memory/events.js';
-import {
-  bindScheduleCommands,
-  linkScheduleFiringsToSession,
-} from '../features/schedules/events.js';
-import {
-  callTimelineNote,
-  callVisualNote,
-  type CallFrameAccess,
-} from '../features/voice/events.js';
-import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
-import { renderInbox, type InboxUnit } from './inbox-render.js';
+import { type CallFrameAccess } from '../features/voice/events.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
 import { type PrivateInputOrigin } from '../credentials/im-origin.js';
 import type { MessagingProcessing } from '../messaging/typing.js';
@@ -134,15 +108,8 @@ import {
   type InboxTriage,
   type OrchestratorInboxTriage,
 } from './inbox-triage.js';
-import { isAbsolute, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-
-import {
-  MAX_PERSONA_BOT_AVATAR_BYTES,
-  personaBotAvatarFromBytes,
-  type PersonaBotRecord,
-} from '../bots/persona-bot.js';
-import { readFileSync, statSync } from 'node:fs';
+import { type PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotModelPlan, ModelRoute } from '../models/presets.js';
 import type { PresetSubEngineSelection } from '../models/preset-sub.js';
 import type { RouteRests } from '../models/route-rest.js';
@@ -159,16 +126,13 @@ import type {
 import { type MemoryChangeDelta } from '../memory/accepted.js';
 import type { MemoryService } from '../memory/service.js';
 import {
-  isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
-  dmChannelId,
   type ChannelMessage,
   type ChannelRecord,
-  type ChannelTurnStop,
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
-import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
+import { type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelStore } from '../channels/store.js';
 import {
   discoverBotContacts,
@@ -184,7 +148,6 @@ import {
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
-import { sessionDirectSpeaker } from './session-direct-message.js';
 import {
   createBotSourcePolicyStore,
   type BotSourcePolicy,
@@ -217,6 +180,19 @@ import { createAssignmentExecution } from '../features/assignments/runtime-execu
 import { createAssignmentIntake } from '../features/assignments/runtime-intake.js';
 import { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
 import { createAssignmentRouting } from '../features/assignments/runtime-routing.js';
+import { createRuntimeAdmissions } from '../features/activity/runtime-admissions.js';
+import { createRuntimeAdmissionRecovery } from '../features/activity/runtime-admission-recovery.js';
+import {
+  createOrchestratorTurns,
+  SESSION_STOPPED_REFUSAL,
+} from '../features/sessions/runtime-orchestrator-turns.js';
+import {
+  createOrchestratorSessions,
+  BOT_BUSY,
+} from '../features/sessions/runtime-orchestrator-sessions.js';
+import { createOrchestratorServices } from '../features/sessions/runtime-orchestrator-services.js';
+import { createTurnFailures } from '../features/sessions/runtime-turn-failures.js';
+import { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 export { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
 
 export type AssignmentRequestMode = 'next-step' | 'next-turn';
@@ -271,12 +247,6 @@ export type AssignmentArchiveOutcome =
 export type OrchestratorReplacement<T> =
   | { outcome: 'replaced'; value: T }
   | { outcome: 'refused'; code: 'bot-busy'; message: string };
-
-const BOT_BUSY = {
-  outcome: 'refused',
-  code: 'bot-busy',
-  message: 'This Bot is working right now; wait for it to finish, then try again.',
-} as const;
 
 export interface NativeSessionArchive {
   archiveSession(sessionId: string): Promise<void>;
@@ -571,29 +541,19 @@ export type AssignmentRequestDelivery =
   | { delivery: 'steer' }
   | { delivery: 'followup'; accepted: Promise<void>; done: Promise<void> };
 
-export interface BotCreateInput {
-  displayName: string;
-  description?: string;
-  tags?: string[];
-  avatarPath?: string;
-  soul?: string;
-  coreMemory?: string;
-  memoryLocation?: string;
-}
+export type { BotCreateInput } from '../features/personabots/runtime-creation.js';
 
-export interface BotCreateOutcome {
-  botId: string;
-  displayName: string;
-  dmChannelId: string;
-  memoryDir: string;
-  model: 'host-default' | 'set';
-}
+export type { BotCreateOutcome } from '../features/personabots/runtime-creation.js';
 
-export const NEW_BOT_ID_PLACEHOLDER = '<new-bot-id>';
-export const MAX_CREATED_BOT_NAME_LENGTH = 60;
-export const MAX_CREATED_BOT_TAGS = 8;
-export const MAX_CREATED_BOT_TAG_LENGTH = 32;
-export const MAX_CREATED_BOT_BIO_LENGTH = 160;
+export { NEW_BOT_ID_PLACEHOLDER } from '../features/personabots/runtime-creation.js';
+
+export { MAX_CREATED_BOT_NAME_LENGTH } from '../features/personabots/runtime-creation.js';
+
+export { MAX_CREATED_BOT_TAGS } from '../features/personabots/runtime-creation.js';
+
+export { MAX_CREATED_BOT_TAG_LENGTH } from '../features/personabots/runtime-creation.js';
+
+export { MAX_CREATED_BOT_BIO_LENGTH } from '../features/personabots/runtime-creation.js';
 
 export interface OrchestratorServiceTurn {
   replyTargets?: () => readonly TurnTargetSegment[];
@@ -601,7 +561,7 @@ export interface OrchestratorServiceTurn {
   sessionId: string;
   channelId: string | undefined;
   sourceEventId: string | undefined;
-  markSideEffect: () => void;
+  markSideEffect: (database?: DatabaseSync) => void;
   readAdmissions: Set<string>;
   importedFiles: Map<string, ChannelAttachmentRef>;
   turnSources: ReadonlySet<string>;
@@ -941,14 +901,6 @@ export type SourceEventAttemptState =
   | 'needs-repair'
   | 'handled';
 
-interface SourceEventRow {
-  source_event_id: string;
-  bot_slug: string;
-  body: string;
-  handled_at: string | null;
-  attempt_state: SourceEventAttemptState;
-}
-
 export interface SourceEventClaim {
   sourceEventId: string;
   shouldRun: boolean;
@@ -956,59 +908,7 @@ export interface SourceEventClaim {
 }
 
 export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;
-
-function sessionFailureDetails(error: unknown): {
-  code?: string;
-  status?: number;
-  detail: string;
-} {
-  const raw = error instanceof Error ? error.message : String(error);
-  const clean = Array.from(raw, (character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return code < 32 || code === 127 ? ' ' : character;
-  })
-    .join('')
-    .replace(/\s+/gu, ' ')
-    .trim()
-    .slice(0, 600);
-  const match = /^([A-Z][A-Z0-9_-]{1,31}):\s*(.+)$/u.exec(clean);
-  const detail = (match?.[2] ?? clean) || 'Unknown session error';
-  const status =
-    typeof error === 'object' && error !== null && 'status' in error
-      ? (error as { status?: unknown }).status
-      : undefined;
-  return {
-    ...(typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string'
-      ? { code: error.code }
-      : match === null
-        ? {}
-        : { code: match[1] }),
-    ...(typeof status === 'number' ? { status } : {}),
-    detail,
-  };
-}
-
-const CONTEXT_WINDOW_EXCEEDED_NOTICE =
-  "This conversation's context is full and automatic compaction could not recover it. Retry with a smaller request, for example ask for one part of a large file or command output instead of all of it.";
-
-function sessionFailureBody(details: { code?: string; detail: string }): string {
-  if (details.code === 'CONTEXT_WINDOW_EXCEEDED')
-    return `Session failed: CONTEXT_WINDOW_EXCEEDED: ${CONTEXT_WINDOW_EXCEEDED_NOTICE}`;
-  return `Session failed: ${details.code === undefined ? '' : details.code + ': '}${details.detail}`;
-}
-
-const TRANSIENT_FAILURE_CODES = new Set([
-  'TRANSPORT',
-  'TIMEOUT',
-  'SERVER',
-  'RATE_LIMIT',
-  'EMPTY_RESPONSE',
-]);
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
-const FAILURE_HOLD_THRESHOLD = 3;
 
 export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
 
@@ -1028,9 +928,6 @@ export type SessionStopOutcome =
   | { outcome: 'refused'; code: 'unknown-session'; message: string };
 
 const STOP_SETTLE_TIMEOUT_MS = 30_000;
-
-const SESSION_STOPPED_REFUSAL =
-  'The Human stopped this Session. This action was not performed; wait for the Human before doing more.';
 
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment; it is now a Stopped Session with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
@@ -1182,6 +1079,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentExecution: ReturnType<typeof createAssignmentExecution>;
   readonly #assignmentRouting: ReturnType<typeof createAssignmentRouting>;
   readonly #inboxHarvest: ReturnType<typeof createInboxHarvest>;
+  readonly #admissions: ReturnType<typeof createRuntimeAdmissions>;
+  readonly #admissionRecovery: ReturnType<typeof createRuntimeAdmissionRecovery>;
+  readonly #orchestratorTurns: ReturnType<typeof createOrchestratorTurns>;
+  readonly #orchestratorSessions: ReturnType<typeof createOrchestratorSessions>;
+  readonly #orchestratorServices: ReturnType<typeof createOrchestratorServices>;
+  readonly #turnFailures: ReturnType<typeof createTurnFailures>;
+  readonly #botCreation: ReturnType<typeof createRuntimeBotCreation>;
 
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
@@ -1267,7 +1171,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#insertMemoryChange(db, eventId, botSlug, change),
       coalesceInbox,
       promptText: (botSlug) => this.#promptText(botSlug),
-      setObserved: (eventIds, at) => this.#setObserved(eventIds, at),
+      setObserved: (eventIds, at) => this.#admissions.setObserved(eventIds, at),
       trackSteer: (settlement) => this.#channelAdmission.trackSteer(settlement),
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
@@ -1301,8 +1205,8 @@ class BotRuntimeImplementation implements BotRuntime {
       waitOptions: this.#waitOptions,
       waitLifetime: this.#waitLifetime,
       now: (...args) => this.#now(...args),
-      setObserved: (...args) => this.#setObserved(...args),
-      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      setObserved: (...args) => this.#admissions.setObserved(...args),
+      markReportsHandled: (...args) => this.#admissions.markReportsHandled(...args),
     });
     this.#assignmentReporting = createAssignmentReporting({
       createEventId: (...args) => this.#createEventId(...args),
@@ -1352,10 +1256,10 @@ class BotRuntimeImplementation implements BotRuntime {
       dmChannel: (...args) => this.#dmChannel(...args),
       promptText: (...args) => this.#promptText(...args),
       triageRunning: this.#triageRunning,
-      ensureOrchestrator: (...args) => this.#ensureOrchestrator(...args),
-      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      ensureOrchestrator: (...args) => this.#orchestratorSessions.ensureOrchestrator(...args),
+      runOrchestratorTurn: (...args) => this.#orchestratorTurns.runOrchestratorTurn(...args),
       failureStreaks: this.#failureStreaks,
-      noteAutomaticFailure: (...args) => this.#noteAutomaticFailure(...args),
+      noteAutomaticFailure: (...args) => this.#turnFailures.noteAutomaticFailure(...args),
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
     this.#scheduling = createOrchestratorScheduling({
@@ -1376,10 +1280,10 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#continuation = createOrchestratorContinuation({
       admitDmMessage: (...args) => this.admitDmMessage(...args),
       agents: this.#agents,
-      appendModelSwitch: (...args) => this.#appendModelSwitch(...args),
+      appendModelSwitch: (...args) => this.#turnFailures.appendModelSwitch(...args),
       autoContinues: this.#autoContinues,
       channels: this.#channels,
-      claimDmContinuation: (...args) => this.#claimDmContinuation(...args),
+      claimDmContinuation: (...args) => this.#admissions.claimDmContinuation(...args),
       closed: () => this.#closed,
       currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
       database: this.#database,
@@ -1392,16 +1296,16 @@ class BotRuntimeImplementation implements BotRuntime {
       groupFallback: this.#groupFallback,
       memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
       now: () => this.#now(),
-      orchestratorServices: (...args) => this.#orchestratorServices(...args),
+      orchestratorServices: (...args) => this.#orchestratorServices.orchestratorServices(...args),
       registry: this.#registry,
-      release: (...args) => this.#release(...args),
-      replaceOrchestrator: (...args) => this.#replaceOrchestrator(...args),
+      release: (...args) => this.#turnFailures.release(...args),
+      replaceOrchestrator: (...args) => this.#orchestratorSessions.replaceOrchestrator(...args),
       requireExecution:
         this.#requireExecution === undefined
           ? undefined
           : (...args) => this.#requireExecution?.(...args),
       routeRests: this.#routeRests,
-      runHumanDmTurn: (...args) => this.#runHumanDmTurn(...args),
+      runHumanDmTurn: (...args) => this.#orchestratorTurns.runHumanDmTurn(...args),
       sessionRoute:
         this.#sessionRoute === undefined ? undefined : (...args) => this.#sessionRoute?.(...args),
       stoppedTurns: this.#stoppedTurns,
@@ -1414,7 +1318,7 @@ class BotRuntimeImplementation implements BotRuntime {
       closed: () => this.#closed,
       externalMessaging: this.#externalMessaging,
       database: this.#database,
-      release: (...args) => this.#release(...args),
+      release: (...args) => this.#turnFailures.release(...args),
       checkHarvestReadiness: (...args) => this.#groupDigest.checkHarvestReadiness(...args),
       admitChannelMessage: (...args) => this.#channelAdmission.admitChannelMessage(...args),
       activeTurns: this.#activeTurns,
@@ -1427,20 +1331,20 @@ class BotRuntimeImplementation implements BotRuntime {
       promptText: (...args) => this.#promptText(...args),
       promptLimits: (...args) => this.#promptLimits(...args),
       claimGroupContext: (...args) => this.#inboxHarvest.claimGroupContext(...args),
-      setObserved: (...args) => this.#setObserved(...args),
+      setObserved: (...args) => this.#admissions.setObserved(...args),
       now: (...args) => this.#now(...args),
       markAdmissionsSideEffect: (botSlug, sourceIds) =>
-        this.#markAdmissionsSideEffect(botSlug, sourceIds, false),
+        this.#admissions.markAdmissionsSideEffect(botSlug, sourceIds, false),
       requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
       turnSessionId: (botSlug) => this.#turnSources.get(botSlug)?.sessionId,
       routingGroupReplyState: (...args) => this.#continuation.routingGroupReplyState(...args),
-      noteSteeredChannel: (...args) => this.#noteSteeredChannel(...args),
+      noteSteeredChannel: (...args) => this.#admissions.noteSteeredChannel(...args),
       groupContextSection: (...args) => this.#groupDigest.groupContextSection(...args),
       settleHarvestFailure: (...args) => this.#inboxHarvest.settleHarvestFailure(...args),
-      acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
+      acceptTurnSources: (...args) => this.#admissions.acceptTurnSources(...args),
       typingTurns: this.#typingTurns,
-      observeAdmission: (...args) => this.#observeAdmission(...args),
-      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      observeAdmission: (...args) => this.#admissions.observeAdmission(...args),
+      markReportsHandled: (...args) => this.#admissions.markReportsHandled(...args),
       settleHarvestHandled: (...args) => this.#inboxHarvest.settleHarvestHandled(...args),
       trackSteer: (settlement) => this.#channelAdmission.trackSteer(settlement),
       held: this.#held,
@@ -1497,16 +1401,16 @@ class BotRuntimeImplementation implements BotRuntime {
       scheduling: this.#scheduling,
     });
     this.#channelAdmission = createChannelAdmission({
-      acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
+      acceptTurnSources: (...args) => this.#admissions.acceptTurnSources(...args),
       activeMemoryEvents: this.#activeMemoryEvents,
       activeTurns: this.#activeTurns,
       admitGroupMessage: (...args) => this.admitGroupMessage(...args),
       agents: this.#agents,
       autoContinues: this.#autoContinues,
       channels: this.#channels,
-      claimSourceEvent: (...args) => this.#claimSourceEvent(...args),
-      claimSteeredDm: (...args) => this.#claimSteeredDm(...args),
-      claimSteeredGroupMention: (...args) => this.#claimSteeredGroupMention(...args),
+      claimSourceEvent: (...args) => this.#admissions.claimSourceEvent(...args),
+      claimSteeredDm: (...args) => this.#admissions.claimSteeredDm(...args),
+      claimSteeredGroupMention: (...args) => this.#admissions.claimSteeredGroupMention(...args),
       closed: () => this.#closed,
       continuation: this.#continuation,
       currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
@@ -1514,27 +1418,27 @@ class BotRuntimeImplementation implements BotRuntime {
       dmContextSection: (...args) => this.#groupDigest.dmContextSection(...args),
       groupAdmissionRetries: this.#groupAdmissionRetries,
       groupContextSection: (...args) => this.#groupDigest.groupContextSection(...args),
-      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
+      markAdmissionsSideEffect: (...args) => this.#admissions.markAdmissionsSideEffect(...args),
       memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
       memory: this.#memory,
       memoryEvents: this.#memoryEvents,
       memoryTurnOperations: this.#memoryTurnOperations,
-      noteSteeredChannel: (...args) => this.#noteSteeredChannel(...args),
+      noteSteeredChannel: (...args) => this.#admissions.noteSteeredChannel(...args),
       now: () => this.#now(),
-      observeAdmission: (...args) => this.#observeAdmission(...args),
+      observeAdmission: (...args) => this.#admissions.observeAdmission(...args),
       promptText: (botSlug) => this.#promptText(botSlug),
       quotePrompt: (...args) => this.#quotePrompt(...args),
       registry: this.#registry,
-      release: (...args) => this.#release(...args),
+      release: (...args) => this.#turnFailures.release(...args),
       requireMembership: (...args) => this.#requireMembership(...args),
       requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
-      restoreSteeredAdmissions: (...args) => this.#restoreSteeredAdmissions(...args),
-      runHumanDmTurn: (...args) => this.#runHumanDmTurn(...args),
+      restoreSteeredAdmissions: (...args) => this.#admissions.restoreSteeredAdmissions(...args),
+      runHumanDmTurn: (...args) => this.#orchestratorTurns.runHumanDmTurn(...args),
       scheduleDigest: (...args) => this.#groupDigest.scheduleDigest(...args),
       scheduling: this.#scheduling,
-      settleSteeredAdmission: (...args) => this.#settleSteeredAdmission(...args),
+      settleSteeredAdmission: (...args) => this.#admissions.settleSteeredAdmission(...args),
       sourcePolicy: this.#sourcePolicy,
-      speakerInput: (...args) => this.#speakerInput(...args),
+      speakerInput: (...args) => this.#orchestratorServices.speakerInput(...args),
       steerSettlements: this.#steerSettlements,
       team: this.#team,
       tob: this.#tob,
@@ -1575,15 +1479,15 @@ class BotRuntimeImplementation implements BotRuntime {
       causalSending: this.#causalSending,
       channels: this.#channels,
       closed: () => this.#closed,
-      createBot: (...args) => this.#createBot(...args),
+      createBot: (...args) => this.#botCreation.createBot(...args),
       createMessageId: () => this.#createMessageId(),
       database: this.#database,
       grants: this.#grants,
       groupSendReview: this.groupSendReview,
-      ignoreAdmission: (...args) => this.#ignoreAdmission(...args),
+      ignoreAdmission: (...args) => this.#admissions.ignoreAdmission(...args),
       isMember: (...args) => this.#isMember(...args),
       now: () => this.#now(),
-      observeReadMessages: (...args) => this.#observeReadMessages(...args),
+      observeReadMessages: (...args) => this.#admissions.observeReadMessages(...args),
       originalAttachments: this.#originalAttachments,
       ownership: this.#ownership,
       refreshBotContacts: () => this.refreshBotContacts(),
@@ -1603,12 +1507,12 @@ class BotRuntimeImplementation implements BotRuntime {
       database: this.#database,
       enqueue: (...args) => this.#scheduling.enqueue(...args),
       externalMessaging: this.#externalMessaging,
-      markSideEffectStarted: (...args) => this.#markSideEffectStarted(...args),
+      markSideEffectStarted: (...args) => this.#admissions.markSideEffectStarted(...args),
       nativeQuestionAvailable: (...args) => this.nativeQuestionAvailable(...args),
       ownership: this.#ownership,
       recoverNativeQuestionInput: (...args) => this.recoverNativeQuestionInput(...args),
       registry: this.#registry,
-      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      runOrchestratorTurn: (...args) => this.#orchestratorTurns.runOrchestratorTurn(...args),
       sessionArchived: (...args) => this.#sessionArchived?.(...args),
       turnSources: this.#turnSources,
       warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
@@ -1625,7 +1529,7 @@ class BotRuntimeImplementation implements BotRuntime {
       noticeDirectAssignmentCall: (...args) =>
         this.#assignmentReporting.noticeDirectAssignmentCall(...args),
       now: () => this.#now(),
-      orchestratorServices: (...args) => this.#orchestratorServices(...args),
+      orchestratorServices: (...args) => this.#orchestratorServices.orchestratorServices(...args),
       ownership: this.#ownership,
       recordDirectToolSource: (...args) => this.#recordDirectToolSource(...args),
       registry: this.#registry,
@@ -1644,7 +1548,7 @@ class BotRuntimeImplementation implements BotRuntime {
       channels: this.#channels,
       closed: () => this.#closed,
       database: this.#database,
-      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
+      markAdmissionsSideEffect: (...args) => this.#admissions.markAdmissionsSideEffect(...args),
       memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
       now: () => this.#now(),
       ownership: this.#ownership,
@@ -1729,7 +1633,7 @@ class BotRuntimeImplementation implements BotRuntime {
       now: (...args) => this.#now(...args),
       ownership: this.#ownership,
       preparedAssignments: this.#preparedAssignments,
-      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      publishSessionFailure: (...args) => this.#turnFailures.publishSessionFailure(...args),
       refreshAssignmentRoute: (...args) => this.refreshAssignmentRoute(...args),
       registry: this.#registry,
       requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
@@ -1746,7 +1650,7 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     this.#assignmentRouting = createAssignmentRouting({
       activeSessionModels: this.#activeSessionModels,
-      appendModelSwitch: (...args) => this.#appendModelSwitch(...args),
+      appendModelSwitch: (...args) => this.#turnFailures.appendModelSwitch(...args),
       assignmentDmChannel: (...args) => this.#assignmentExecution.assignmentDmChannel(...args),
       assignmentReporting: this.#assignmentReporting,
       assignmentRow: (...args) => this.#assignmentExecution.assignmentRow(...args),
@@ -1762,7 +1666,7 @@ class BotRuntimeImplementation implements BotRuntime {
           : (...args) => this.#inheritedModelPlan?.(...args),
       now: (...args) => this.#now(...args),
       pickSessionGroup: (...args) => this.#pickSessionGroup(...args),
-      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      publishSessionFailure: (...args) => this.#turnFailures.publishSessionFailure(...args),
       refreshAssignmentRoute: (...args) => this.refreshAssignmentRoute(...args),
       registry: this.#registry,
       requestAssignment: (...args) => this.#assignmentIntake.requestAssignment(...args),
@@ -1788,34 +1692,207 @@ class BotRuntimeImplementation implements BotRuntime {
       digestFailureCount: this.#digestFailureCount,
       digestRetryAt: this.#digestRetryAt,
       dmChannel: (...args) => this.#dmChannel(...args),
-      ensureOrchestrator: (...args) => this.#ensureOrchestrator(...args),
+      ensureOrchestrator: (...args) => this.#orchestratorSessions.ensureOrchestrator(...args),
       failureStreaks: this.#failureStreaks,
       groupDigest: this.#groupDigest,
       held: this.#held,
       inboxFactoryRetries: this.#inboxFactoryRetries,
-      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
-      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      markAdmissionsSideEffect: (...args) => this.#admissions.markAdmissionsSideEffect(...args),
+      markReportsHandled: (...args) => this.#admissions.markReportsHandled(...args),
       messagingEvents: this.#messagingEvents,
-      noteAutomaticFailure: (...args) => this.#noteAutomaticFailure(...args),
+      noteAutomaticFailure: (...args) => this.#turnFailures.noteAutomaticFailure(...args),
       now: (...args) => this.#now(...args),
-      observeAdmission: (...args) => this.#observeAdmission(...args),
+      observeAdmission: (...args) => this.#admissions.observeAdmission(...args),
       promptLimits: (...args) => this.#promptLimits(...args),
       promptText: (...args) => this.#promptText(...args),
-      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      publishSessionFailure: (...args) => this.#turnFailures.publishSessionFailure(...args),
       registry: this.#registry,
       retireWithdrawnNetworkAdmissions: (...args) =>
-        this.#retireWithdrawnNetworkAdmissions(...args),
+        this.#admissionRecovery.retireWithdrawnNetworkAdmissions(...args),
       rowQuotes: (...args) => this.#rowQuotes(...args),
-      runOnLiveOrchestrator: (...args) => this.#runOnLiveOrchestrator(...args),
-      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      runOnLiveOrchestrator: (...args) => this.#orchestratorTurns.runOnLiveOrchestrator(...args),
+      runOrchestratorTurn: (...args) => this.#orchestratorTurns.runOrchestratorTurn(...args),
       scheduling: this.#scheduling,
-      setObserved: (...args) => this.#setObserved(...args),
+      setObserved: (...args) => this.#admissions.setObserved(...args),
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+
+    this.#admissions = createRuntimeAdmissions({
+      channels: this.#channels,
+      closed: () => this.#closed,
+      continuation: this.#continuation,
+      createEventId: (...args) => this.#createEventId(...args),
+      database: this.#database,
+      groupDigest: this.#groupDigest,
+      inboxHarvest: this.#inboxHarvest,
+      now: (...args) => this.#now(...args),
+      promptLimits: (...args) => this.#promptLimits(...args),
+      sourcePolicy: this.#sourcePolicy,
+      tails: this.#tails,
+      turnSources: this.#turnSources,
+    });
+    this.#admissionRecovery = createRuntimeAdmissionRecovery({
+      botNetwork: this.#botNetwork,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      createEventId: (...args) => this.#createEventId(...args),
+      database: this.#database,
+      isMember: (...args) => this.#isMember(...args),
+      now: (...args) => this.#now(...args),
+      sourcePolicy: this.#sourcePolicy,
+    });
+    this.#orchestratorTurns = createOrchestratorTurns({
+      activeMemoryEvents: this.#activeMemoryEvents,
+      activeSessionModels: this.#activeSessionModels,
+      activityEvents: this.#activityEvents,
+      admissionHandled: (...args) => this.#admissions.admissionHandled(...args),
+      agents: this.#agents,
+      assignmentExecution: this.#assignmentExecution,
+      autoContinueDelaysMs: this.#autoContinueDelaysMs,
+      autoContinues: this.#autoContinues,
+      cancellation: this.#cancellation,
+      causalSending: this.#causalSending,
+      channelAdmission: this.#channelAdmission,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      continuation: this.#continuation,
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      database: this.#database,
+      ensureOrchestrator: (...args) => this.#orchestratorSessions.ensureOrchestrator(...args),
+      externalMessaging: this.#externalMessaging,
+      failureStreaks: this.#failureStreaks,
+      groupFallback: this.#groupFallback,
+      held: this.#held,
+      holdForRestingRoute: (...args) => this.#turnFailures.holdForRestingRoute(...args),
+      inboxHarvest: this.#inboxHarvest,
+      inboxTriage: this.#inboxTriage,
+      interruptedDmNotice: (...args) => this.#interruptedDmNotice(...args),
+      isMember: (...args) => this.#isMember(...args),
+      markReportsHandled: (...args) => this.#admissions.markReportsHandled(...args),
+      markReportSideEffects: (...args) => this.#admissions.markReportSideEffects(...args),
+      markSideEffectStarted: (...args) => this.#admissions.markSideEffectStarted(...args),
+      markSourceEventFailed: (...args) => this.#admissions.markSourceEventFailed(...args),
+      memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
+      memory: this.#memory,
+      memoryEvents: this.#memoryEvents,
+      memoryTurnOperations: this.#memoryTurnOperations,
+      nativeStepReady: this.#nativeStepReady,
+      notifyReadAdmissions: (...args) => this.#admissions.notifyReadAdmissions(...args),
+      now: (...args) => this.#now(...args),
+      observeAdmission: (...args) => this.#admissions.observeAdmission(...args),
+      orchestratorServices: (...args) => this.#orchestratorServices.orchestratorServices(...args),
+      originalAttachments: this.#originalAttachments,
+      pickSessionGroup: (...args) => this.#pickSessionGroup(...args),
+      preparedOrchestrators: this.#preparedOrchestrators,
+      promptText: (...args) => this.#promptText(...args),
+      publishSessionFailure: (...args) => this.#turnFailures.publishSessionFailure(...args),
+      readTurnProgress:
+        this.#readTurnProgress === undefined
+          ? undefined
+          : (...args) => this.#readTurnProgress!(...args),
+      recordTurnCommits: (...args) => this.#recordTurnCommits(...args),
+      refreshQuoteBlocks: (...args) => this.#refreshQuoteBlocks(...args),
+      replaceOrchestrator: (...args) => this.#orchestratorSessions.replaceOrchestrator(...args),
+      requireExecution:
+        this.#requireExecution === undefined
+          ? undefined
+          : (...args) => this.#requireExecution?.(...args),
+      requireModelRoute:
+        this.#requireModelRoute === undefined
+          ? undefined
+          : (...args) => this.#requireModelRoute?.(...args),
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      sessionArchived:
+        this.#sessionArchived === undefined
+          ? undefined
+          : (...args) => this.#sessionArchived!(...args),
+      sessionModels: this.#sessionModels,
+      setObserved: (...args) => this.#admissions.setObserved(...args),
+      speakerInput: (...args) => this.#orchestratorServices.speakerInput(...args),
+      stopNotices: this.#stopNotices,
+      stoppedTurns: this.#stoppedTurns,
+      triageBaseline: this.#triageBaseline,
+      triageRunning: this.#triageRunning,
+      turnQuoteBlocks: (...args) => this.#turnQuoteBlocks(...args),
+      turnSideEffectStarted: (...args) => this.#admissions.turnSideEffectStarted(...args),
+      turnSources: this.#turnSources,
+      typingTurns: this.#typingTurns,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#orchestratorSessions = createOrchestratorSessions({
+      agents: this.#agents,
+      closed: () => this.#closed,
+      createSessionId: (...args) => this.#createSessionId(...args),
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      now: (...args) => this.#now(...args),
+      orchestratorCwd:
+        this.#orchestratorCwd === undefined
+          ? undefined
+          : (...args) => this.#orchestratorCwd?.(...args),
+      ownership: this.#ownership,
+      preparedOrchestrators: this.#preparedOrchestrators,
+      registry: this.#registry,
+      sessionArchive:
+        this.#sessionArchive === undefined
+          ? undefined
+          : (...args) => this.#sessionArchive?.(...args),
+      sessionArchived:
+        this.#sessionArchived === undefined
+          ? undefined
+          : (...args) => this.#sessionArchived!(...args),
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+      workspaceRoot: this.#workspaceRoot,
+    });
+    this.#orchestratorServices = createOrchestratorServices({
+      activityEvents: this.#activityEvents,
+      assignmentAccess: (...args) => this.#assignmentAccess(...args),
+      attachments: this.#attachments,
+      channelAccess: this.#channelAccess,
+      channels: this.#channels,
+      database: this.#database,
+      externalMessaging: this.#externalMessaging,
+      grants: this.#grants,
+      inboxHistory: this.#inboxHistory,
+      inboxTriage: this.#inboxTriage,
+      memory: this.#memory,
+      messagingEvents: this.#messagingEvents,
+      registry: this.#registry,
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      schedules: this.#schedules,
+      sourcePolicy: this.#sourcePolicy,
+      team: this.#team,
+      tob: this.#tob,
+    });
+    this.#turnFailures = createTurnFailures({
+      channels: this.#channels,
+      continuation: this.#continuation,
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      digestFailureCount: this.#digestFailureCount,
+      digestRetryAt: this.#digestRetryAt,
+      digestTimers: this.#digestTimers,
+      failureStreaks: this.#failureStreaks,
+      held: this.#held,
+      inboxFactoryRetries: this.#inboxFactoryRetries,
+      now: (...args) => this.#now(...args),
+      registry: this.#registry,
+      scheduling: this.#scheduling,
+      snoozeTimers: this.#snoozeTimers,
+      triageQueued: this.#triageQueued,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#botCreation = createRuntimeBotCreation({
+      channels: this.#channels,
+      closed: () => this.#closed,
+      createBotId: (...args) => this.#createBotId(...args),
+      grants: this.#grants,
+      registry: this.#registry,
+      team: this.#team,
       warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
     });
 
     if (options.database.mode === 'ready') {
-      const interruptedDms = this.#recoverInterruptedAttempts();
-      this.#retireRevokedGroupRetries();
+      const interruptedDms = this.#admissionRecovery.recoverInterruptedAttempts();
+      this.#admissionRecovery.retireRevokedGroupRetries();
       this.#channelAdmission.recoverPendingChannelAdmissions();
       for (const row of interruptedDms) {
         const channel = this.#channels.get(row.channel_id);
@@ -1845,29 +1922,6 @@ class BotRuntimeImplementation implements BotRuntime {
     human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<void> {
     return this.#continuation.retryDmMessage(channelId, messageId, human);
-  }
-
-  #claimDmContinuation(botSlug: string, sourceEventId: string): boolean {
-    return this.#database.transaction(
-      (database) => {
-        const events = database
-          .prepare(
-            `UPDATE source_events SET attempt_state = 'running'
-              WHERE source_event_id = ? AND attempt_state IN ('retryable', 'needs-repair')`,
-          )
-          .run(sourceEventId).changes;
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('retryable', 'needs-repair')
-        `,
-          )
-          .run(sourceEventId, botSlug);
-        return events > 0;
-      },
-      ['source-event', 'bot-inbox'],
-    );
   }
 
   recoverDmMessage(
@@ -1923,7 +1977,7 @@ class BotRuntimeImplementation implements BotRuntime {
 
   async withdrawNetworkMembership(hostId: string): Promise<void> {
     for (const bot of this.#registry.list())
-      await this.#retireWithdrawnNetworkAdmissions(bot.slug, hostId);
+      await this.#admissionRecovery.retireWithdrawnNetworkAdmissions(bot.slug, hostId);
   }
 
   admitGroupInvitation(targetDmChannelId: string, invitationId: string): void {
@@ -1947,184 +2001,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#messagingEvents.admitExternalSource(botSlug, sourceEventId);
   }
 
-  #claimSteeredDm(
-    botSlug: string,
-    channelId: string,
-    reason: 'human-dm' | 'bot-dm',
-    sourceEventId: string,
-  ): GroupContext | undefined {
-    return this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `
-        UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-         WHERE source_event_id = ? AND bot_slug = ?
-           AND attempt_state IN ('pending', 'retryable')
-      `,
-          )
-          .run(sourceEventId, botSlug);
-        return this.#inboxHarvest.claimDmContext(
-          database,
-          botSlug,
-          channelId,
-          reason,
-          sourceEventId,
-        );
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #claimSteeredGroupMention(
-    sourceEventId: string,
-    botSlug: string,
-    channelId: string,
-    mentionPrompt: string,
-  ): GroupContext | false | undefined {
-    return this.#database.transaction(
-      (database) => {
-        const mention =
-          database
-            .prepare(
-              `
-        UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-         WHERE source_event_id = ? AND bot_slug = ?
-           AND attempt_state IN ('pending', 'retryable')
-      `,
-            )
-            .run(sourceEventId, botSlug).changes > 0;
-        return mention
-          ? this.#inboxHarvest.claimGroupContext(database, botSlug, channelId, {
-              remainingCharacters: Math.max(
-                0,
-                this.#promptLimits(botSlug)['group-context-chars'] - mentionPrompt.length,
-              ),
-              includedByChannel: new Map(),
-            })
-          : false;
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #restoreSteeredAdmissions(
-    admissions: Array<{ sourceEventId: string; messageId: string }>,
-    botSlug: string,
-    turn: { sessionId: string } | undefined,
-    now: string,
-    error?: { cause: unknown },
-  ): void {
-    this.#database.transaction(
-      (db) => {
-        for (const { sourceEventId } of admissions) {
-          const reply =
-            turn &&
-            this.#continuation.routingGroupReplyState(botSlug, turn.sessionId, sourceEventId);
-          const state =
-            reply === 'delivered'
-              ? 'handled'
-              : error || reply === 'uncertain'
-                ? 'needs-repair'
-                : 'pending';
-          db.prepare(`UPDATE inbox_admissions SET attempt_state = ?,
-            side_effect_started_at = CASE WHEN ? = 'pending' THEN NULL ELSE side_effect_started_at END,
-            handled_at = CASE WHEN ? = 'handled' THEN ? ELSE handled_at END,
-            last_error = ?
-            WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'`).run(
-            state,
-            state,
-            state,
-            now,
-            error ? String(error.cause).slice(0, 500) : null,
-            sourceEventId,
-            botSlug,
-          );
-        }
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #settleSteeredAdmission(
-    admissions: Array<{ sourceEventId: string; messageId: string }>,
-    botSlug: string,
-    channelId: string,
-    succeeded: boolean,
-  ): void {
-    this.#database.transaction(
-      (database) => {
-        for (const admission of admissions)
-          database
-            .prepare(
-              `
-        UPDATE inbox_admissions
-           SET attempt_state = ?,
-               handled_at = CASE WHEN ? THEN ? ELSE handled_at END,
-               opened_at = CASE WHEN ? THEN COALESCE(opened_at, ?) ELSE opened_at END,
-               last_error = CASE WHEN ? THEN NULL ELSE 'Steered Orchestrator turn failed' END
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-      `,
-            )
-            .run(
-              succeeded ? 'handled' : 'needs-repair',
-              succeeded ? 1 : 0,
-              this.#now().toISOString(),
-              succeeded ? 1 : 0,
-              this.#now().toISOString(),
-              succeeded ? 1 : 0,
-              admission.sourceEventId,
-              botSlug,
-            );
-      },
-      ['bot-inbox'],
-    );
-    for (const admission of admissions)
-      this.#channels.admissionChanged?.(channelId, admission.messageId);
-  }
-
   resumePendingDigests(botSlug: string): void {
     this.#groupDigest.recoverPendingDigests(botSlug);
-  }
-
-  #noteSteeredChannel(botSlug: string, channelId: string): void {
-    const turn = this.#turnSources.get(botSlug);
-    if (turn !== undefined && turn.inboundChannelId !== channelId)
-      turn.steeredChannelIds.add(channelId);
-  }
-
-  #acceptTurnSources(botSlug: string, sourceEventIds: readonly string[]): void {
-    const turn = this.#turnSources.get(botSlug);
-    if (turn === undefined) return;
-    for (const id of sourceEventIds) {
-      turn.eventIds.add(id);
-      turn.acceptedEventIds.add(id);
-    }
-  }
-
-  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[], recordInTurn = true): void {
-    if (sourceEventIds.length === 0) return;
-    if (recordInTurn) {
-      const turn = this.#turnSources.get(botSlug);
-      if (turn !== undefined) for (const id of sourceEventIds) turn.eventIds.add(id);
-    }
-    this.#database.transaction(
-      (database) => {
-        for (const id of sourceEventIds) {
-          requireSourceEffects(database, id, botSlug);
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions
-             SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-            )
-            .run(this.#now().toISOString(), id, botSlug);
-        }
-      },
-      ['bot-inbox'],
-    );
   }
 
   #interruptedDmNotice(botSlug: string, channelId: string | undefined): string {
@@ -2206,31 +2084,6 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
-  #observeAdmission(
-    sourceEventId: string,
-    botSlug: string,
-    channelId: string,
-    messageId: string,
-    claimPending = false,
-  ): void {
-    const changed = this.#database.transaction(
-      (database) =>
-        database
-          .prepare(
-            `
-        UPDATE inbox_admissions
-           SET observed_at = COALESCE(observed_at, ?), attempt_state = 'running',
-               last_error = CASE WHEN attempt_state = 'running' THEN last_error ELSE NULL END
-         WHERE source_event_id = ? AND bot_slug = ?
-           AND (attempt_state = 'running' OR (? AND attempt_state IN ('pending', 'retryable')))
-      `,
-          )
-          .run(this.#now().toISOString(), sourceEventId, botSlug, Number(claimPending)).changes > 0,
-      ['bot-inbox'],
-    );
-    if (changed) this.#channels.admissionChanged?.(channelId, messageId);
-  }
-
   askChannel(sessionId: string): string | undefined {
     return this.#runtimeInputs.askOrigin({ sessionId })?.channelId;
   }
@@ -2244,27 +2097,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
-    if (typeof args !== 'object' || args === null) return undefined;
-    const input = args as Record<string, unknown>;
-    const location =
-      typeof input['memory_location'] === 'string' ? input['memory_location'].trim() : '';
-    let avatar: string | undefined;
-    let avatarError: string | undefined;
-    if (typeof input['avatar_path'] === 'string')
-      try {
-        avatar = this.#readCreatedAvatar(botSlug, input['avatar_path']);
-      } catch (error) {
-        avatarError = error instanceof Error ? error.message : 'invalid-avatar';
-      }
-    return {
-      memoryFolder:
-        location.length > 0
-          ? join(location, NEW_BOT_ID_PLACEHOLDER)
-          : join(this.#registry.rootDir, NEW_BOT_ID_PLACEHOLDER, 'memory'),
-      defaultLocation: location.length === 0,
-      ...(avatar === undefined ? {} : { avatar }),
-      ...(avatarError === undefined ? {} : { avatarError }),
-    };
+    return this.#botCreation.botCreatePreview(botSlug, args);
   }
 
   captureTobCliAuthority(sessionId: string): TobCliAuthority {
@@ -2300,17 +2133,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   captureNativeOrchestratorModel(sessionId: string): void {
-    if (this.#closed || this.#preparedOrchestrators.has(sessionId)) return;
-    const owner = this.#ownership.resolve(sessionId);
-    if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return;
-    const bot = this.#registry.get(owner.botSlug);
-    if (
-      bot === undefined ||
-      bot.paused ||
-      this.currentOrchestratorSessionId(bot.slug) !== sessionId
-    )
-      return;
-    this.#agents.captureNativeOrchestratorModel?.(sessionId, bot);
+    return this.#orchestratorSessions.captureNativeOrchestratorModel(sessionId);
   }
 
   async prepareNativeOrchestratorStep(
@@ -2409,7 +2232,7 @@ class BotRuntimeImplementation implements BotRuntime {
         .enqueue(owner.botSlug, async () => {
           if (settled || !available()) return;
           const bot = this.#registry.get(owner.botSlug)!;
-          await this.#runOrchestratorTurn(
+          await this.#orchestratorTurns.runOrchestratorTurn(
             bot,
             { sessionId, resume: true },
             undefined,
@@ -2506,13 +2329,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   currentOrchestratorSessionId(botSlug: string): string | undefined {
-    return this.#ownership
-      .rootsFor(botSlug, 'orchestrator')
-      .find(
-        (root) =>
-          this.#ownership.contentAvailable(root.sessionId) &&
-          this.#sessionArchived?.(root.sessionId) !== true,
-      )?.sessionId;
+    return this.#orchestratorSessions.currentOrchestratorSessionId(botSlug);
   }
 
   latestAssignmentActivity(): ReadonlyMap<string, number> {
@@ -2582,7 +2399,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#tails.has(botSlug)) return BOT_BUSY;
     let result: OrchestratorReplacement<T> | undefined;
     await this.#scheduling.enqueue(botSlug, async () => {
-      result = await this.#replaceOrchestrator(botSlug, body);
+      result = await this.#orchestratorSessions.replaceOrchestrator(botSlug, body);
     });
     if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
     return result;
@@ -2602,66 +2419,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   hasPendingInbox(botSlug: string): boolean {
-    if (this.#closed || this.#tails.has(botSlug)) return true;
-    return this.#database.read(
-      (database) =>
-        database
-          .prepare(
-            `SELECT 1 FROM inbox_admissions
-              WHERE bot_slug = ? AND attempt_state IN ('pending', 'running', 'retryable')
-              LIMIT 1`,
-          )
-          .get(botSlug) !== undefined,
-    );
-  }
-
-  async #replaceOrchestrator<T>(
-    botSlug: string,
-    body: () => T,
-  ): Promise<OrchestratorReplacement<T>> {
-    const current = this.currentOrchestratorSessionId(botSlug);
-    if (current === undefined) return { outcome: 'replaced', value: body() };
-    const archive = this.#sessionArchive?.();
-    if (archive === undefined) throw new Error('DSH Session archive is unavailable');
-    try {
-      await archive.archiveSession(current);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'WorkspaceActiveSessionError') return BOT_BUSY;
-      if (!(error instanceof Error && error.name === 'WorkspaceUnknownSessionError')) throw error;
-      return {
-        outcome: 'replaced',
-        value: this.#supersedeUnsavedOrchestrator(current, body),
-      };
-    }
-    await this.#agents.releaseSession?.(current).catch(() =>
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'orchestrator-release-failed',
-          botSlug,
-          sessionId: current,
-        }),
-      ),
-    );
-    try {
-      return { outcome: 'replaced', value: body() };
-    } catch (error) {
-      await archive.unarchiveSession(current);
-      throw error;
-    }
-  }
-
-  #supersedeUnsavedOrchestrator<T>(unsaved: string, body: () => T): T {
-    const owner = this.#ownership.resolve(unsaved);
-    const bot = owner === undefined ? undefined : this.#registry.get(owner.botSlug);
-    if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
-    const value = body();
-    const at = Math.max(this.#now().getTime(), Date.parse(owner.createdAt) + 1);
-    this.#releaseReplacedOrchestrators(
-      bot.slug,
-      this.#claimOrchestrator(bot, new Date(at).toISOString()),
-    );
-    return value;
+    return this.#admissions.hasPendingInbox(botSlug);
   }
 
   triageOpenCount(botSlug: string): number | undefined {
@@ -2738,223 +2496,11 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   heldCause(botSlug: string): BotHoldCause | undefined {
-    return this.#held.get(botSlug);
+    return this.#turnFailures.heldCause(botSlug);
   }
 
   releaseQuotaHold(botSlug: string): boolean {
-    if (this.#held.get(botSlug) !== 'quota') return false;
-    this.#release(botSlug);
-    return true;
-  }
-
-  #hold(botSlug: string, cause: BotHoldCause): void {
-    this.#held.set(botSlug, cause);
-    this.#triageQueued.delete(botSlug);
-    for (const [key, timer] of this.#digestTimers)
-      if (key.startsWith(`${botSlug}:`) || key === `external:${botSlug}`) {
-        clearTimeout(timer);
-        this.#digestTimers.delete(key);
-      }
-    const snooze = this.#snoozeTimers.get(botSlug);
-    if (snooze !== undefined) clearTimeout(snooze);
-    this.#snoozeTimers.delete(botSlug);
-    const retry = this.#inboxFactoryRetries.get(botSlug);
-    if (retry?.timer !== undefined) clearTimeout(retry.timer);
-    this.#inboxFactoryRetries.delete(botSlug);
-  }
-
-  #release(botSlug: string): void {
-    this.#failureStreaks.delete(botSlug);
-    if (!this.#held.delete(botSlug)) return;
-    for (const key of this.#digestRetryAt.keys())
-      if (key.startsWith(`${botSlug}:`)) {
-        this.#digestRetryAt.delete(key);
-        this.#digestFailureCount.delete(key);
-      }
-    this.#scheduling.resumeAutomaticWakes(botSlug);
-  }
-
-  async #appendModelSwitch(
-    botSlug: string,
-    sessionId: string,
-    channelId: string | undefined,
-    choice: ModelSwitch,
-  ): Promise<void> {
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined) return;
-    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
-    const channel =
-      original !== undefined &&
-      !isBotDmChannel(original) &&
-      (original.type !== 'group' || original.members.includes(botSlug))
-        ? original.id
-        : this.#channels.getOrCreateDm(humanContext(botOwner(bot)), botSlug, bot.displayName)?.id;
-    if (channel === undefined) return;
-    await this.#channels
-      .appendMessage(OWNER_HUMAN_CONTEXT, channel, {
-        id: `model-switch-${randomUUID()}`,
-        at: this.#now().toISOString(),
-        author: { kind: 'system' },
-        body: '',
-        modelSwitch: {
-          botSlug,
-          botName: bot.displayName,
-          sessionId,
-          from: { provider: choice.from.provider, model: choice.from.model },
-          to: { provider: choice.to.provider, model: choice.to.model },
-          reason: choice.reason,
-          ...(choice.until === undefined ? {} : { until: choice.until }),
-        },
-      })
-      .catch(() => undefined);
-  }
-
-  async #holdForRestingRoute(
-    botSlug: string,
-    channelId: string | undefined,
-    error: unknown,
-  ): Promise<boolean> {
-    const rests = this.#continuation.restsOf(botSlug, error);
-    if (rests === undefined || rests.length === 0) return false;
-    const sessionId = this.currentOrchestratorSessionId(botSlug);
-    if (!(error instanceof RouteRestingError) && sessionId !== undefined) {
-      const fallback = await this.#continuation.fallBack(botSlug, sessionId, channelId, error);
-      if (fallback !== undefined && 'kind' in fallback) {
-        this.#failureStreaks.delete(botSlug);
-        return true;
-      }
-    }
-    const rest = rests[0]!;
-    if (this.#held.has(botSlug)) return true;
-    this.#failureStreaks.delete(botSlug);
-    this.#hold(botSlug, 'quota');
-    if (error instanceof RouteRestingError && error.subscription !== undefined) {
-      await this.#appendHoldNotice(
-        botSlug,
-        channelId,
-        `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: all Routing Group targets are resting. Try again after ${rest.until}.`,
-        {
-          cause: 'quota',
-          rests: rests.slice(0, 32),
-          engine: error.subscription,
-          routingGroup: true,
-        },
-      );
-      return true;
-    }
-    if (error instanceof EngineLimitError) {
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'engine-limit-hold',
-          botSlug,
-          engine: error.engine,
-          until: error.until,
-        }),
-      );
-      const name = this.#registry.get(botSlug)?.displayName ?? botSlug;
-      await this.#appendHoldNotice(
-        botSlug,
-        channelId,
-        `${name} paused: the ${error.engine} subscription (${error.account}) is used up until ${error.until}. Switch it to an API model, or message it after the reset.`,
-        {
-          cause: 'quota',
-          rests: error.rests.map(({ provider, model, until }) => ({ provider, model, until })),
-          engine: { engine: error.engine, account: error.account, until: error.until },
-        },
-      );
-      return true;
-    }
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'quota-hold',
-        botSlug,
-        provider: rest.provider,
-        model: rest.model,
-        until: rest.until,
-      }),
-    );
-    await this.#appendHoldNotice(
-      botSlug,
-      channelId,
-      `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: ${rests.map((item) => `${item.provider}/${item.model} rests until ${item.until}`).join('; ')}. Send it a message to try again.`,
-      {
-        cause: 'quota',
-        rests: rests.map(({ provider, model, until }) => ({ provider, model, until })),
-      },
-    );
-    return true;
-  }
-
-  async #appendHoldNotice(
-    botSlug: string,
-    channelId: string | undefined,
-    body: string,
-    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests' | 'engine' | 'routingGroup'>,
-  ): Promise<void> {
-    const bot = this.#registry.get(botSlug);
-    const sessionId = this.currentOrchestratorSessionId(botSlug);
-    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
-    const channel =
-      original === undefined ||
-      isBotDmChannel(original) ||
-      (original.type === 'group' && !original.members.includes(botSlug))
-        ? bot === undefined
-          ? undefined
-          : this.#channels.getOrCreateDm(
-              humanContext(botOwner(this.#registry.get(botSlug)!)),
-              botSlug,
-              bot.displayName,
-            )?.id
-        : original.id;
-    if (bot === undefined || sessionId === undefined || channel === undefined) return;
-    await this.#channels
-      .appendMessage(OWNER_HUMAN_CONTEXT, channel, {
-        id: `turn-stopped-${randomUUID()}`,
-        at: this.#now().toISOString(),
-        author: { kind: 'system' },
-        body,
-        turnStop: {
-          botSlug,
-          botName: bot.displayName,
-          humanName:
-            this.#channels.listHumanMembers(OWNER_HUMAN_CONTEXT, channel)[0]?.displayName ??
-            'Human',
-          sessionId,
-          held: true,
-          ...stop,
-        },
-      })
-      .catch(() => undefined);
-  }
-
-  async #noteAutomaticFailure(
-    botSlug: string,
-    channelId: string | undefined,
-    error: unknown,
-  ): Promise<void> {
-    const code = sessionFailureDetails(error).code;
-    if (this.#held.has(botSlug)) return;
-    if (await this.#holdForRestingRoute(botSlug, channelId, error)) return;
-    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
-      this.#failureStreaks.delete(botSlug);
-      return;
-    }
-    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
-    this.#failureStreaks.set(botSlug, streak);
-    if (streak < FAILURE_HOLD_THRESHOLD) return;
-    this.#failureStreaks.delete(botSlug);
-    this.#hold(botSlug, 'failures');
-    this.#warn?.(
-      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
-    );
-    await this.#appendHoldNotice(
-      botSlug,
-      channelId,
-      `${this.#registry.get(botSlug)?.displayName ?? botSlug} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
-      { cause: 'failures', failures: streak },
-    );
+    return this.#turnFailures.releaseQuotaHold(botSlug);
   }
 
   async endGroup(channelId: string): Promise<void> {
@@ -3022,992 +2568,11 @@ class BotRuntimeImplementation implements BotRuntime {
     await this.#agents.close();
   }
 
-  #admissionHandled(sourceEventId: string, botSlug: string): boolean {
-    const row = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT attempt_state FROM inbox_admissions WHERE source_event_id = ? AND bot_slug = ?`,
-        )
-        .get(sourceEventId, botSlug),
-    ) as { attempt_state: string } | undefined;
-    return row?.attempt_state === 'handled';
-  }
-
-  async #runHumanDmTurn(
-    bot: PersonaBotRecord,
-    channelId: string,
-    body: string,
-    claim: SourceEventClaim,
-    messageId: string,
-    continuation?: DmContinuation,
-    tobCliTurn?: TobCliTurn,
-  ): Promise<void> {
-    if (claim.reconciliationRequired === true) {
-      throw new Error(`Source Event ${claim.sourceEventId} requires reconciliation before replay`);
-    }
-    if (!claim.shouldRun) return;
-    if (this.#admissionHandled(claim.sourceEventId, bot.slug)) return;
-    if (continuation === undefined && this.#autoContinues.get(bot.slug)?.messageId !== messageId)
-      this.#continuation.cancelAutoContinue(bot.slug);
-
-    const timestamp = this.#now().toISOString();
-    let orchestrator = this.#ensureOrchestrator(bot, timestamp);
-
-    const collected =
-      tobCliTurn === undefined
-        ? this.#inboxHarvest.collectInbox(bot.slug)
-        : { units: [], eventIds: [] };
-    this.#setObserved(collected.eventIds, timestamp, bot.slug);
-    try {
-      tobCliTurn?.signal.throwIfAborted();
-      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId, true);
-      await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
-        orchestrator = session;
-        return this.#runOrchestratorTurn(
-          bot,
-          session,
-          claim.sourceEventId,
-          channelId,
-          (continuation === undefined ? '' : continuationNote(continuation)) +
-            this.#channelAdmission.inboundChannelMessage(
-              bot.slug,
-              channelId,
-              messageId,
-              body,
-              claim.sourceEventId,
-            ),
-          collected.units,
-          this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
-          undefined,
-          collected.eventIds,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          tobCliTurn,
-        );
-      });
-    } catch (error) {
-      this.#setObserved(collected.eventIds, null, bot.slug);
-      this.#markSourceEventFailed(claim.sourceEventId);
-      const code = sessionFailureDetails(error).code;
-      const autoAttempts = continuation?.autoAttempts ?? 0;
-      const delayMs = this.#autoContinueDelaysMs[autoAttempts];
-      const resting = this.#continuation.restsOf(bot.slug, error) !== undefined;
-      if (
-        resting &&
-        !(error instanceof RouteRestingError) &&
-        tobCliTurn === undefined &&
-        !this.#stoppedTurns.has(bot.slug) &&
-        !this.#held.has(bot.slug) &&
-        channelId === dmChannelId(bot.slug)
-      ) {
-        const fallback = await this.#continuation.fallBack(
-          bot.slug,
-          orchestrator.sessionId,
-          channelId,
-          error,
-        );
-        if (fallback !== undefined && 'kind' in fallback) {
-          this.#failureStreaks.delete(bot.slug);
-          this.#continuation.armAutoContinue(
-            bot.slug,
-            { channelId, messageId, sessionId: orchestrator.sessionId, attempt: autoAttempts },
-            0,
-            code ?? 'ROUTE_FALLBACK',
-          );
-          throw error;
-        }
-      }
-      const autoContinue =
-        tobCliTurn === undefined &&
-        !resting &&
-        code !== undefined &&
-        TRANSIENT_FAILURE_CODES.has(code) &&
-        delayMs !== undefined &&
-        !this.#stoppedTurns.has(bot.slug) &&
-        !this.#held.has(bot.slug) &&
-        channelId === dmChannelId(bot.slug)
-          ? {
-              attempt: autoAttempts + 1,
-              maxAttempts: this.#autoContinueDelaysMs.length,
-              at: new Date(this.#now().getTime() + delayMs).toISOString(),
-            }
-          : undefined;
-      const sessionId = orchestrator.sessionId;
-      await this.#publishSessionFailure({
-        channelId,
-        requestMessageId: messageId,
-        botSlug: bot.slug,
-        sessionId,
-        role: 'orchestrator',
-        error,
-        progress: await this.#readTurnProgress?.(sessionId).catch(() => undefined),
-        ...(autoContinue === undefined ? {} : { autoContinue }),
-      });
-      if (resting) await this.#holdForRestingRoute(bot.slug, channelId, error);
-      if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
-        this.#continuation.armAutoContinue(
-          bot.slug,
-          { channelId, messageId, sessionId, attempt: autoContinue.attempt },
-          delayMs,
-          code,
-        );
-      throw error;
-    }
-    this.#markReportsHandled(collected.eventIds, bot.slug, orchestrator.sessionId);
-    const handledAt = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `UPDATE source_events
-                SET handled_at = ?, attempt_state = 'handled'
-              WHERE source_event_id = ?`,
-          )
-          .run(handledAt, claim.sourceEventId);
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions
-             SET handled_at = ?, attempt_state = 'handled', opened_at = COALESCE(opened_at, ?)
-           WHERE source_event_id = ? AND bot_slug = ?
-        `,
-          )
-          .run(handledAt, handledAt, claim.sourceEventId, bot.slug);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    this.#channels.admissionChanged?.(
-      channelId,
-      this.#database.read((database) => {
-        const row = database
-          .prepare('SELECT message_id FROM source_events WHERE source_event_id = ?')
-          .get(claim.sourceEventId) as { message_id: string | null } | undefined;
-        return row?.message_id ?? '';
-      }),
-    );
-  }
-
-  async #runOrchestratorTurn(
-    bot: PersonaBotRecord,
-    orchestrator: { sessionId: string; resume: boolean },
-    sourceEventId: string | undefined,
-    channelId: string | undefined,
-    body: string,
-    inboxUnits: InboxUnit[],
-    coordinateBranchSwitch = false,
-    markAttemptSideEffect: () => void = () => {
-      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId);
-    },
-    reportEventIds: readonly string[] = [],
-    wakeEventIds: readonly string[] = sourceEventId === undefined ? [] : [sourceEventId],
-    acceptNativeInput?: () => boolean,
-    nativeSourceIds: readonly string[] = [],
-    memoryObservation: 'source-event' | 'recovered-question' = 'source-event',
-    tobCliTurn?: TobCliTurn,
-  ): Promise<void> {
-    if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
-    const readAdmissions = new Set<string>();
-    this.#requireExecution?.(bot.slug);
-    const choice =
-      tobCliTurn === undefined ? this.#sessionModels.get(orchestrator.sessionId) : null;
-    const explicitEngine =
-      tobCliTurn === undefined && choice === null && this.#agents.runsOnEngine?.(bot.slug) === true;
-    const selectGroup = async (attempted?: ReadonlySet<string>) =>
-      choice?.kind === 'group'
-        ? this.#pickSessionGroup(bot.slug, choice, attempted)
-        : this.#groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
-    const group =
-      tobCliTurn === undefined && (choice?.kind === 'group' || (choice === null && !explicitEngine))
-        ? await selectGroup()
-        : undefined;
-    if (group?.kind === 'exhausted') throw new RouteRestingError(group.rests, group.subscription);
-    if (group?.kind === 'unavailable') throw new RoutingGroupUnavailableError();
-    const routingTarget =
-      choice !== null && choice.kind !== 'group' ? directSessionTarget(choice) : group?.target;
-    if (routingTarget?.kind === 'route') this.#requireModelRoute?.(bot.slug, routingTarget.route);
-    let switchReason = group?.switchReason;
-    if (routingTarget === undefined && !explicitEngine) {
-      if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
-      const fallback = await this.#continuation.fallBack(
-        bot.slug,
-        orchestrator.sessionId,
-        channelId,
-      );
-      if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
-      if (fallback?.kind === 'switch') switchReason = fallback.reason;
-    }
-    const turnSources = new Set([
-      ...(sourceEventId === undefined ? [] : [sourceEventId]),
-      ...wakeEventIds,
-      ...reportEventIds,
-      ...nativeSourceIds,
-    ]);
-    this.#activeSessionModels.set(orchestrator.sessionId, choice);
-    this.#turnSources.set(bot.slug, {
-      sessionId: orchestrator.sessionId,
-      eventIds: turnSources,
-      acceptedEventIds: new Set(turnSources),
-      inboundChannelId: channelId,
-      steeredChannelIds: new Set(),
-      memoryObservation,
-    });
-    const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
-    for (const unit of inboxUnits) {
-      if (!unit.assignmentSessionId) continue;
-      const origin = this.#assignmentExecution.assignmentRow(
-        bot.slug,
-        unit.assignmentSessionId,
-      )?.source_event_id;
-      if (origin) typingSources.push(origin);
-    }
-    let processing: MessagingProcessing | undefined;
-    const memorySource = this.#database.read((db) =>
-      db
-        .prepare(
-          `
-          SELECT e.source_kind, EXISTS (
-            SELECT 1 FROM inbox_admissions a
-             WHERE a.source_event_id = e.source_event_id AND a.bot_slug = ?
-               AND a.reason = 'group-ordinary'
-          ) AS ordinary
-            FROM source_events e WHERE e.source_event_id = ?
-        `,
-        )
-        .get(bot.slug, sourceEventId ?? null),
-    );
-    const observeMemory =
-      tobCliTurn === undefined &&
-      memoryObservation === 'source-event' &&
-      sourceEventId !== undefined &&
-      memorySource?.source_kind !== 'bridge-message' &&
-      !(memorySource?.source_kind === 'bot-message' && memorySource.ordinary === 1);
-    let memoryEventIds: string[] = [];
-    let preserveObservation = false;
-    const importedFiles = new Map<string, ChannelAttachmentRef>();
-    const markSideEffect = (): void => {
-      this.#requireTurnAccess(bot.slug, new Set([...turnSources, ...readAdmissions]));
-      if (this.#stoppedTurns.has(bot.slug)) throw new Error(SESSION_STOPPED_REFUSAL);
-      this.#database.read((db) => {
-        for (const id of new Set([...turnSources, ...readAdmissions]))
-          requireSourceEffects(db, id, bot.slug);
-      });
-      this.#markReportSideEffects([...reportEventIds, ...memoryEventIds], bot.slug);
-      markAttemptSideEffect();
-    };
-    try {
-      const ids = [...new Set(wakeEventIds)];
-      if (ids.length > 0)
-        this.#database.transaction(
-          (database) => {
-            const rows = database
-              .prepare(
-                `
-          SELECT DISTINCT reason FROM inbox_admissions
-           WHERE bot_slug = ? AND source_event_id IN (${ids.map(() => '?').join(', ')})
-        `,
-              )
-              .all(bot.slug, ...ids) as { reason: string }[];
-            const startedAt = this.#now().toISOString();
-            for (const row of rows)
-              database
-                .prepare(
-                  `
-          INSERT INTO bot_source_wake_attempts
-            (wake_id, bot_slug, source_class, session_id, started_at)
-          VALUES (?, ?, ?, ?, ?)
-        `,
-                )
-                .run(randomUUID(), bot.slug, row.reason, orchestrator.sessionId, startedAt);
-          },
-          ['bot-inbox'],
-        );
-      if (observeMemory) this.#memoryTurnOperations.add(bot.slug);
-      const quoteSources = this.#turnQuoteBlocks(body);
-      const change = observeMemory
-        ? await (this.#memory?.prepareTurnAsync ?? this.#memory?.prepareTurn)?.(
-            bot.slug,
-            orchestrator.sessionId,
-            {
-              coordinateBranchSwitch,
-            },
-          )
-        : undefined;
-      if (this.#closed || this.#stoppedTurns.has(bot.slug))
-        throw new Error(SESSION_STOPPED_REFUSAL);
-      body = this.#refreshQuoteBlocks(body, quoteSources);
-      const observation = observeMemory
-        ? this.#memory?.preparedObservation?.(bot.slug, orchestrator.sessionId)
-        : undefined;
-      if (observation !== undefined) {
-        preserveObservation = true;
-        this.#memoryEvents.recordMemoryObservation(bot.slug, observation);
-        preserveObservation = false;
-      } else if (change !== undefined) {
-        preserveObservation = true;
-        this.#memoryEvents.admitMemoryChange(bot.slug, change);
-        preserveObservation = false;
-      }
-      const memoryInbox = observeMemory
-        ? this.#memoryEvents.collectMemoryInbox(bot.slug)
-        : { units: [], eventIds: [] };
-      memoryEventIds = memoryInbox.eventIds;
-      const units = [...inboxUnits, ...memoryInbox.units];
-      const inbox = [
-        units.length === 0 ? '' : renderInbox(units, this.#promptText(bot.slug)),
-        this.#inboxTriage.openSummary(bot.slug),
-      ]
-        .filter((part) => part.length > 0)
-        .join('\n\n');
-      this.#setObserved(memoryEventIds, this.#now().toISOString());
-      if (observeMemory)
-        this.#activeMemoryEvents.set(bot.slug, {
-          eventIds: memoryEventIds,
-          preserveObservation: false,
-        });
-      this.#memoryTurnOperations.delete(bot.slug);
-      processing = this.#externalMessaging?.beginProcessing(bot.slug, typingSources);
-      if (processing) this.#typingTurns.set(bot.slug, processing);
-      this.#database.transaction(
-        (db) => {
-          const source = db
-            .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
-            .get(sourceEventId ?? null);
-          const humanId = typeof source?.['human_id'] === 'string' ? source['human_id'] : undefined;
-          if (humanId)
-            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
-              orchestrator.sessionId,
-              humanId,
-              this.#now().getTime(),
-            );
-          else
-            db.prepare('DELETE FROM usage_turn_humans WHERE session_id = ? AND turn = -1').run(
-              orchestrator.sessionId,
-            );
-        },
-        ['usage'],
-      );
-      const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
-      const request = randomUUID();
-      const segments: TurnTargetSegment[] = [];
-      const observeTurnTarget: NonNullable<OrchestratorAgentRun['observeTurnTarget']> = (
-        turn,
-        step,
-        target,
-        reason,
-      ) => {
-        const previous = segments.at(-1);
-        if (previous?.turn === turn && JSON.stringify(previous.target) === JSON.stringify(target))
-          return;
-        const segment = {
-          turn,
-          step,
-          request,
-          target,
-          ...(reason === undefined ? {} : { switchReason: reason }),
-        };
-        recordTurnTarget(this.#database, orchestrator.sessionId, segment);
-        if (previous?.turn === turn && previous.step === step) segments.pop();
-        segments.push(segment);
-      };
-      const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
-        observeTurnTarget,
-        ...(switchReason === undefined ? {} : { switchReason }),
-        ...(choice === null ? {} : { groupEffort: choice.effort ?? null }),
-        ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
-        setExecutionReady: (ready) => {
-          if (ready) {
-            this.#preparedOrchestrators.add(orchestrator.sessionId);
-            this.#nativeStepReady.get(orchestrator.sessionId)?.(true);
-          } else this.#preparedOrchestrators.delete(orchestrator.sessionId);
-        },
-        canUseEngineChannel: (id) => {
-          const turn = this.#turnSources.get(bot.slug);
-          if (turn?.sessionId !== orchestrator.sessionId) return false;
-          const channel = this.#channels.get(id);
-          if (channel === undefined || !this.#isMember(bot.slug, channel)) return false;
-          return (
-            turn.steeredChannelIds.has(id) ||
-            this.#causalSending.turnSourceIn(
-              bot.slug,
-              id,
-              readAdmissions,
-              turn.acceptedEventIds,
-            ) !== undefined
-          );
-        },
-        priorEngineReplies: () => {
-          const turn = this.#turnSources.get(bot.slug);
-          if (turn?.sessionId !== orchestrator.sessionId) return new Set();
-          return new Set(
-            [...turn.acceptedEventIds].filter(
-              (id) =>
-                this.#continuation.routingGroupReplyState(bot.slug, orchestrator.sessionId, id) !==
-                undefined,
-            ),
-          );
-        },
-        inputAccepted: () => envelope?.commit(),
-        ...(acceptNativeInput === undefined ? {} : { acceptNativeInput }),
-        requireContent: () => {
-          this.#requireTurnAccess(bot.slug, new Set([...turnSources, ...readAdmissions]));
-          this.#database.read((db) => {
-            for (const id of new Set([...turnSources, ...readAdmissions]))
-              requireSourceEffects(db, id, bot.slug);
-          });
-        },
-        sessionId: orchestrator.sessionId,
-        resume: orchestrator.resume,
-        bot,
-        toolsInterrupted: (calls) =>
-          this.#cancellation.recordInterruptedTools(bot.slug, orchestrator.sessionId, calls),
-        message: (() => {
-          const human =
-            channelId === undefined
-              ? undefined
-              : this.#channels
-                  .listHumanMembers(humanContext(botOwner(bot)), channelId)
-                  .find((member) => member.humanId === botOwner(bot));
-          const stopped = this.#stopNotices.get(bot.slug) ?? '';
-          this.#stopNotices.delete(bot.slug);
-          return (
-            stopped +
-            this.#cancellation.takeInterruptedToolsNote(orchestrator.sessionId) +
-            this.#interruptedDmNotice(bot.slug, channelId) +
-            (envelope
-              ? envelope.text
-              : human === undefined || human.displayName === 'Human'
-                ? body
-                : 'Current Channel Human: ' +
-                  JSON.stringify({
-                    humanId: human.humanId,
-                    displayName: human.displayName,
-                  }) +
-                  '\n' +
-                  body)
-          );
-        })(),
-        inbox,
-        inboundChannelId: channelId,
-        ...this.#orchestratorServices(bot, {
-          sessionId: orchestrator.sessionId,
-          channelId,
-          sourceEventId,
-          markSideEffect,
-          readAdmissions,
-          importedFiles,
-          turnSources,
-          observeMemory,
-          observeReads: true,
-          modelContent: body + '\n' + inbox,
-          replyTargets: () => segments,
-        }),
-      };
-      if (group?.kind === 'target') {
-        await this.#continuation.runMixedGroupTurn(run, group.target, sourceEventId, selectGroup);
-      } else {
-        try {
-          await this.#agents.runOrchestrator({
-            ...run,
-            ...(routingTarget === undefined ? {} : { routingTarget }),
-          });
-        } catch (error) {
-          const rest =
-            routingTarget === undefined
-              ? undefined
-              : this.#continuation.routingTargetFailure(routingTarget, error);
-          if (rest !== undefined) throw new RouteRestingError([rest]);
-          throw error;
-        }
-      }
-      this.#requireTurnAccess(bot.slug, turnSources);
-      if (acceptNativeInput === undefined) envelope?.commit();
-      if (tobCliTurn !== undefined && sourceEventId !== undefined)
-        run.triage.resolve({ ids: [sourceEventId], outcome: 'done' });
-      if (observeMemory) {
-        await this.#memoryEvents.settleSteerMemoryScan(bot.slug);
-        this.#memoryTurnOperations.add(bot.slug);
-        await (this.#memory?.reconcileTurnAsync ?? this.#memory?.reconcileTurn)?.({
-          botSlug: bot.slug,
-          sessionId: orchestrator.sessionId,
-          sourceEventId,
-          preserveObservation: this.#activeMemoryEvents.get(bot.slug)?.preserveObservation ?? false,
-        });
-        await this.#recordTurnCommits(bot.slug, sourceEventId!);
-      }
-      this.#markReportsHandled(memoryEventIds);
-      this.#inboxHarvest.settleHarvestHandled(bot.slug, [...readAdmissions]);
-      this.#notifyReadAdmissions(readAdmissions);
-      if (!this.#triageRunning.has(bot.slug)) this.#triageBaseline.delete(bot.slug);
-      if (tobCliTurn === undefined && !this.#stoppedTurns.has(bot.slug))
-        this.#activityEvents.queueTriage(bot.slug);
-    } catch (error) {
-      this.#setObserved(memoryEventIds, null);
-      this.#inboxHarvest.settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
-      this.#notifyReadAdmissions(readAdmissions);
-      if (observeMemory) {
-        await this.#memoryEvents.settleSteerMemoryScan(bot.slug);
-        this.#memoryTurnOperations.add(bot.slug);
-        await (this.#memory?.abortTurnAsync ?? this.#memory?.abortTurn)?.(
-          bot.slug,
-          orchestrator.sessionId,
-          preserveObservation || this.#activeMemoryEvents.get(bot.slug)?.preserveObservation,
-        );
-      }
-      throw error;
-    } finally {
-      this.#memoryTurnOperations.delete(bot.slug);
-      await processing?.stop();
-      if (this.#typingTurns.get(bot.slug) === processing) this.#typingTurns.delete(bot.slug);
-      if (this.#turnSources.get(bot.slug)?.eventIds === turnSources) {
-        this.#turnSources.delete(bot.slug);
-        this.#stoppedTurns.delete(bot.slug);
-      }
-      if (observeMemory) this.#activeMemoryEvents.delete(bot.slug);
-      this.#activeSessionModels.delete(orchestrator.sessionId);
-      this.#originalAttachments.clear(orchestrator.sessionId);
-    }
-  }
-
-  #orchestratorServices(
-    bot: PersonaBotRecord,
-    turn: OrchestratorServiceTurn,
-  ): Omit<
-    OrchestratorAgentRun,
-    'sessionId' | 'resume' | 'bot' | 'message' | 'inbox' | 'inboundChannelId'
-  > & { triage: OrchestratorInboxTriage } {
-    const channels = this.#channelAccess(
-      bot.slug,
-      turn.channelId,
-      turn.sourceEventId,
-      turn.sessionId,
-      turn.markSideEffect,
-      turn.readAdmissions,
-      (ref) => turn.importedFiles.set(attachmentIdentity(ref), ref),
-      turn.observeReads,
-      turn.modelContent,
-      turn.replyTargets,
-    );
-    return {
-      ...(this.#team
-        ? {
-            speakerPolicy: (humanId?: string, topic?: string) => {
-              this.#requireTurnAccess(bot.slug, turn.turnSources);
-              const source = this.#database.read((db) =>
-                db
-                  .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
-                  .get(turn.sourceEventId ?? null),
-              );
-              return this.#team!.speakerPolicy.forHuman(
-                humanId ??
-                  (typeof source?.['human_id'] === 'string' ? source['human_id'] : botOwner(bot)),
-                topic,
-              );
-            },
-          }
-        : {}),
-      ...(this.#tob?.isTob(bot.slug) ? { tobCli: true } : {}),
-      ...(this.#externalMessaging === undefined
-        ? {}
-        : {
-            externalMessaging: {
-              connected: () => {
-                const { identities, grants } = this.#externalMessaging!.deletionDependencies(
-                  bot.slug,
-                );
-                return identities.length > 0 || grants.length > 0;
-              },
-              senderPermissions: (id) => this.#externalMessaging!.senderPermissions(bot.slug, id),
-              directory: (query) => this.#externalMessaging!.directory(bot.slug, query),
-              reachable: async (bindingId, cursor) => {
-                const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
-                const identities = (snapshot.identities ?? []).filter(
-                  (identity) =>
-                    !identity.revokedAt &&
-                    identity.enabled &&
-                    identity.availability === 'available' &&
-                    (bindingId === undefined || identity.id === bindingId),
-                );
-                if (bindingId && !identities.length) throw new Error('identity-unavailable');
-                if (cursor && !bindingId) throw new Error('bad-request');
-                return Promise.all(
-                  identities.map(async (identity) => {
-                    const app = {
-                      bindingId: identity.id,
-                      platform: identity.platform,
-                      accountName: identity.name,
-                    };
-                    try {
-                      return {
-                        ...app,
-                        page: await this.#externalMessaging!.reachable(
-                          bot.slug,
-                          identity.id,
-                          cursor,
-                        ),
-                      };
-                    } catch (error) {
-                      return {
-                        ...app,
-                        reason:
-                          error instanceof Error &&
-                          'code' in error &&
-                          typeof error.code === 'string'
-                            ? error.code
-                            : 'provider-unavailable',
-                      };
-                    }
-                  }),
-                );
-              },
-              postConversation: (bindingId, conversationId, requestId, text) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.postConversation(
-                  bot.slug,
-                  bindingId,
-                  conversationId,
-                  requestId,
-                  text,
-                );
-              },
-              targets: async () => {
-                const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
-                return snapshot.grants
-                  .filter((g) => g.availability === 'available' && !g.revokedAt && g.canPost)
-                  .flatMap((g) =>
-                    g.postConversationId
-                      ? [
-                          {
-                            grantId: g.id,
-                            bindingId: g.bindingId,
-                            accountRef: g.accountRef,
-                            platform: g.platform,
-                            accountName: g.accountName,
-                            targetName: g.targetName,
-                            conversationId: g.postConversationId,
-                            canPost: true as const,
-                          },
-                        ]
-                      : [],
-                  );
-              },
-              post: (grantId, requestId, text) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.post(bot.slug, grantId, requestId, text);
-              },
-              outbox: (intentId) => {
-                if (intentId) return this.#externalMessaging!.inspectIntent(bot.slug, intentId);
-                return this.#externalMessaging!
-                  .history(bot.slug)
-                  .filter((intent) => intent.report)
-                  .slice(0, 10)
-                  .map(({ text, ...intent }) => ({
-                    ...intent,
-                    preview: text.slice(0, 160),
-                  }));
-              },
-              policies: async () => {
-                const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
-                return snapshot.grants
-                  .filter((grant) => grant.receiveScope && grant.groupPolicy)
-                  .map((grant) => ({
-                    grantId: grant.id,
-                    group: grant.targetName,
-                    policy: grant.groupPolicy!,
-                    ...(grant.receiveTargetChannelId &&
-                    this.#channels.get(grant.receiveTargetChannelId)
-                      ? {
-                          memberWake: externalMemberWake(
-                            this.#channels.get(grant.receiveTargetChannelId)!,
-                            bot.slug,
-                            this.#sourcePolicy
-                              .list(bot.slug)
-                              .find((rule) => rule.sourceClass === 'group-ordinary'),
-                            this.#externalMessaging!.defaults(),
-                          ),
-                        }
-                      : {}),
-                    ordinaryDelivery: grant.ordinaryDelivery ?? 'unverified',
-                  }));
-              },
-              setPolicy: (grantId, input) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.inbound.setPolicy(bot.slug, grantId, input, {
-                  kind: 'bot',
-                  botSlug: bot.slug,
-                });
-              },
-              threads: async () => {
-                const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
-                return snapshot.grants.flatMap((grant) =>
-                  (grant.threadPolicies ?? []).map((thread) => ({
-                    ...thread,
-                    grantId: grant.id,
-                    group: grant.targetName,
-                  })),
-                );
-              },
-              setThread: (sourceEventId, input) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.inbound.setThread(bot.slug, sourceEventId, input, {
-                  kind: 'bot',
-                  botSlug: bot.slug,
-                });
-              },
-              read: (id: string) => {
-                const source = this.#externalMessaging!.inbound.readShared(bot.slug, id);
-                if (turn.observeReads)
-                  this.#messagingEvents.observeExternalRead(bot.slug, [id], turn.readAdmissions);
-                return source;
-              },
-              replyCapability: (source, signal) =>
-                this.#externalMessaging!.replyCapability(bot.slug, source, signal),
-              share: (id, destinationChannelId) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.inbound.share(bot.slug, id, destinationChannelId);
-              },
-              context: async (id: string, query: ExternalContextQuery, signal?: AbortSignal) => {
-                const result = await this.#externalMessaging!.inbound.context(
-                  bot.slug,
-                  id,
-                  turn.sessionId,
-                  query,
-                  signal,
-                );
-                if (turn.observeReads)
-                  this.#messagingEvents.observeExternalRead(
-                    bot.slug,
-                    result.messages.map((item) => item.sourceEventId),
-                    turn.readAdmissions,
-                  );
-                return result;
-              },
-              saveFile: async (input) => {
-                if (this.#attachments === undefined || this.#grants === undefined)
-                  throw new Error('Bridge file operations are unavailable');
-                const destinationGrant = this.#grants.requireActive(bot.slug, input.grantId);
-                if (destinationGrant.orchestratorWrite !== true)
-                  throw new Error('Destination requires Orchestrator write authorization');
-                const ref = await (
-                  input.representation === 'playback'
-                    ? this.#externalMessaging!.prepareAudio
-                    : this.#externalMessaging!.acquireFile
-                )(bot.slug, input.sourceEventId, input.attachmentId);
-                return saveAttachmentFile(input, {
-                  botSlug: bot.slug,
-                  grants: this.#grants,
-                  attachments: this.#attachments,
-                  source: () => {
-                    if (!this.#externalMessaging!.inbound.available(bot.slug, input.sourceEventId))
-                      throw new Error('Bridge file source is unavailable');
-                    return this.#attachments!.current(ref);
-                  },
-                });
-              },
-              replyFile: (id: string, fileId: string, messageKey?: string) => {
-                const ref = turn.importedFiles.get(fileId);
-                if (ref === undefined || this.#attachments === undefined)
-                  throw new Error(
-                    'Select a result file with channel_attachment_import in this run before replying',
-                  );
-                turn.markSideEffect();
-                return this.#externalMessaging!.replyFile(
-                  bot.slug,
-                  id,
-                  this.#attachments.current(ref),
-                  messageKey,
-                );
-              },
-              reply: (id: string, text: string, messageKey?: string) => {
-                turn.markSideEffect();
-                return this.#externalMessaging!.reply(bot.slug, id, text, messageKey);
-              },
-            },
-          }),
-      inboxHistory: (input) => this.#inboxHistory.list(bot.slug, input),
-      triage: this.#inboxTriage.access({
-        botSlug: bot.slug,
-        sessionId: turn.sessionId,
-        current: () => [...turn.turnSources, ...turn.readAdmissions],
-        changed: (changedChannelId, messageId) =>
-          this.#channels.admissionChanged?.(changedChannelId, messageId),
-        snoozed: () => this.#activityEvents.armSnooze(bot.slug),
-      }),
-      channels,
-      replyDestination: (id) => {
-        const source = this.#database.read((db) => {
-          requireSourceEffects(db, id, bot.slug);
-          return db
-            .prepare('SELECT source_kind FROM source_events WHERE source_event_id = ?')
-            .get(id);
-        });
-        if (source?.source_kind === 'bridge-message') {
-          return {
-            kind: 'external',
-            source: this.#externalMessaging!.inbound.readShared(bot.slug, id),
-          };
-        }
-        const reply = channels.replySource!(id);
-        return { kind: 'channel', ...reply };
-      },
-      sourcePolicy: {
-        list: () => this.#sourcePolicy.list(bot.slug),
-        setAssignmentReport: (wake) => {
-          turn.markSideEffect();
-          const changed = this.#sourcePolicy.setAssignmentReport(bot.slug, wake, {
-            kind: 'bot',
-            botSlug: bot.slug,
-          });
-          return changed;
-        },
-        resetAssignmentReport: () => {
-          turn.markSideEffect();
-          const changed = this.#sourcePolicy.resetAssignmentReport(bot.slug, {
-            kind: 'bot',
-            botSlug: bot.slug,
-          });
-          return changed;
-        },
-        setGroupOrdinary: (wake, digestCount, digestIntervalSeconds) => {
-          turn.markSideEffect();
-          return this.#sourcePolicy.setGroupOrdinary(
-            bot.slug,
-            wake,
-            digestCount,
-            digestIntervalSeconds,
-            { kind: 'bot', botSlug: bot.slug },
-          );
-        },
-        setImmediateDelivery: (sourceClass, delivery) => {
-          turn.markSideEffect();
-          return this.#sourcePolicy.setImmediateDelivery(bot.slug, sourceClass, delivery, {
-            kind: 'bot',
-            botSlug: bot.slug,
-          });
-        },
-        resetImmediateDelivery: (sourceClass) => {
-          turn.markSideEffect();
-          return this.#sourcePolicy.resetImmediateDelivery(bot.slug, sourceClass, {
-            kind: 'bot',
-            botSlug: bot.slug,
-          });
-        },
-        resetGroupOrdinary: () => {
-          turn.markSideEffect();
-          return this.#sourcePolicy.resetGroupOrdinary(bot.slug, {
-            kind: 'bot',
-            botSlug: bot.slug,
-          });
-        },
-      },
-      ...(this.#schedules === undefined
-        ? {}
-        : { schedules: bindScheduleCommands(this.#schedules, bot, () => turn.markSideEffect()) }),
-      ...(turn.observeMemory
-        ? {
-            memory: {
-              continueFromCommit: (sha, branch) => {
-                if (this.#memory === undefined) throw new Error('Memory is unavailable');
-                const result = this.#memory.continueFromCommit({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  sha,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-              switchBranch: (branch) => {
-                if (this.#memory === undefined) throw new Error('Memory is unavailable');
-                const result = this.#memory.switchBranch({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-            },
-          }
-        : {}),
-      assignments: this.#assignmentAccess(
-        bot,
-        turn.sourceEventId,
-        turn.markSideEffect,
-        turn.sessionId,
-        turn.readAdmissions,
-      ),
-    };
-  }
-
-  async #publishSessionFailure(input: {
-    channelId: string;
-    requestMessageId?: string;
-    botSlug: string;
-    sessionId: string;
-    role: 'orchestrator' | 'assignment';
-    error: unknown;
-    context?: string;
-    assignmentAnswerTo?: string;
-    progress?: SessionFailureProgress | undefined;
-    autoContinue?: { attempt: number; maxAttempts: number; at: string };
-  }): Promise<void> {
-    if (input.error instanceof RouteRestingError) return;
-    if (
-      input.role === 'orchestrator' &&
-      input.error instanceof EngineLimitError &&
-      (await this.#holdForRestingRoute(input.botSlug, input.channelId, input.error))
-    )
-      return;
-    const details = sessionFailureDetails(input.error);
-    const failure = {
-      role: input.role,
-      sessionId: input.sessionId,
-      ...details,
-      ...(input.progress === undefined ? {} : { progress: input.progress }),
-      ...(input.autoContinue === undefined ? {} : { autoContinue: input.autoContinue }),
-      ...(input.context === undefined ? {} : { context: input.context }),
-      ...(input.assignmentAnswerTo === undefined
-        ? {}
-        : { assignmentAnswerTo: input.assignmentAnswerTo }),
-    };
-    const original = this.#channels.get(input.channelId);
-    const target =
-      original !== undefined &&
-      (isBotDmChannel(original) ||
-        (original.type === 'group' && !original.members.includes(input.botSlug)))
-        ? this.#channels.getOrCreateDm(
-            humanContext(botOwner(this.#registry.get(input.botSlug)!)),
-            input.botSlug,
-            this.#registry.get(input.botSlug)?.displayName ?? input.botSlug,
-          )
-        : original;
-    if (target === undefined)
-      throw new Error('Could not publish Session failure: Channel is missing');
-    const result = await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, target.id, {
-      id: `session-failure-${randomUUID()}`,
-      at: this.#now().toISOString(),
-      author: { kind: 'bot', slug: input.botSlug },
-      body: sessionFailureBody(details),
-      format: 'text',
-      sessionFailure: {
-        ...failure,
-        ...(input.requestMessageId === undefined
-          ? {}
-          : { requestMessageId: input.requestMessageId }),
-      },
-    });
-    if (result === undefined) {
-      throw new Error('Could not publish Session failure: Channel is missing');
-    }
-  }
-
   #assignmentAccess(
     bot: PersonaBotRecord,
     sourceEventId: string | undefined,
     markAttemptSideEffect: () => void = () => {
-      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId);
+      if (sourceEventId !== undefined) this.#admissions.markSideEffectStarted(sourceEventId);
     },
     orchestratorSessionId?: string,
     readAdmissions?: Set<string>,
@@ -4087,417 +2652,6 @@ class BotRuntimeImplementation implements BotRuntime {
     };
   }
 
-  #claimSourceEvent(
-    human: HumanContext,
-    botSlug: string,
-    channelId: string,
-    messageId: string,
-    body: string,
-    createdAt: string,
-  ): SourceEventClaim {
-    return this.#database.transaction(
-      (database) => {
-        const sourcePolicy = this.#sourcePolicy.resolveIn(database, botSlug, 'human-dm');
-        const existing = database
-          .prepare(
-            `SELECT source_event_id, bot_slug, body, handled_at, attempt_state
-               FROM source_events
-              WHERE channel_id = ? AND message_id = ?`,
-          )
-          .get(channelId, messageId) as SourceEventRow | undefined;
-        if (existing !== undefined) {
-          if (existing.bot_slug !== botSlug || existing.body !== body) {
-            throw new Error(`Source Event identity conflict for Channel message ${messageId}`);
-          }
-          database
-            .prepare(
-              `
-            INSERT OR IGNORE INTO inbox_admissions (
-              source_event_id, bot_slug, reason, attempt_state, handled_at,
-              source_policy_revision, source_policy_wake_mode
-            ) VALUES (?, ?, 'human-dm', ?, ?, ?, ?)
-          `,
-            )
-            .run(
-              existing.source_event_id,
-              botSlug,
-              existing.attempt_state,
-              existing.handled_at,
-              sourcePolicy.revision,
-              sourcePolicy.wake,
-            );
-          if (existing.handled_at !== null || existing.attempt_state === 'handled') {
-            return {
-              sourceEventId: existing.source_event_id,
-              shouldRun: false,
-            };
-          }
-          if (existing.attempt_state === 'running' || existing.attempt_state === 'needs-repair') {
-            return {
-              sourceEventId: existing.source_event_id,
-              shouldRun: false,
-              reconciliationRequired: true,
-            };
-          }
-          database
-            .prepare(
-              `UPDATE source_events SET attempt_state = 'running'
-                WHERE source_event_id = ?`,
-            )
-            .run(existing.source_event_id);
-          database
-            .prepare(
-              `
-            UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-            WHERE source_event_id = ? AND bot_slug = ?
-          `,
-            )
-            .run(existing.source_event_id, botSlug);
-          return { sourceEventId: existing.source_event_id, shouldRun: true };
-        }
-
-        const sourceEventId = this.#createEventId();
-        database
-          .prepare(
-            `INSERT INTO source_events (
-               source_event_id, source_kind, bot_slug, channel_id, message_id,
-               body, created_at, attempt_state, human_id
-             ) VALUES (?, 'human-message', ?, ?, ?, ?, ?, 'running', ?)`,
-          )
-          .run(sourceEventId, botSlug, channelId, messageId, body, createdAt, human.humanId);
-        database
-          .prepare(
-            `
-          INSERT INTO inbox_admissions
-            (source_event_id, bot_slug, reason, attempt_state,
-             source_policy_revision, source_policy_wake_mode)
-          VALUES (?, ?, 'human-dm', 'running', ?, ?)
-        `,
-          )
-          .run(sourceEventId, botSlug, sourcePolicy.revision, sourcePolicy.wake);
-        return { sourceEventId, shouldRun: true };
-      },
-      ['source-event', 'bot-inbox'],
-    );
-  }
-
-  #markSideEffectStarted(sourceEventId: string): void {
-    this.#database.transaction(
-      (database) => {
-        requireSourceContent(database, sourceEventId);
-        database
-          .prepare(
-            `UPDATE source_events
-                SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
-              WHERE source_event_id = ? AND attempt_state = 'running'`,
-          )
-          .run(this.#now().toISOString(), sourceEventId);
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions
-             SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
-           WHERE source_event_id = ? AND attempt_state = 'running'
-        `,
-          )
-          .run(this.#now().toISOString(), sourceEventId);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-  }
-
-  #markSourceEventFailed(sourceEventId: string): void {
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `UPDATE source_events
-                SET attempt_state = CASE
-                      WHEN side_effect_started_at IS NULL THEN 'retryable'
-                      ELSE 'needs-repair'
-                    END
-              WHERE source_event_id = ? AND attempt_state = 'running'`,
-          )
-          .run(sourceEventId);
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions
-             SET attempt_state = CASE
-               WHEN side_effect_started_at IS NULL THEN 'retryable' ELSE 'needs-repair' END
-           WHERE source_event_id = ? AND attempt_state = 'running'
-        `,
-          )
-          .run(sourceEventId);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-  }
-
-  #recoverInterruptedAttempts(): Array<{
-    channel_id: string;
-    message_id: string;
-    body: string;
-  }> {
-    const interruptedDms = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-        SELECT e.channel_id, e.message_id, e.body
-          FROM source_events e
-          JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-         WHERE e.source_kind = 'human-message' AND a.reason = 'human-dm'
-           AND e.attempt_state = 'running' AND a.attempt_state = 'running'
-           AND e.channel_id IS NOT NULL AND e.message_id IS NOT NULL
-         ORDER BY e.created_at, e.message_id
-      `,
-        )
-        .all(),
-    ) as Array<{ channel_id: string; message_id: string; body: string }>;
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `UPDATE source_events SET attempt_state = 'needs-repair'
-              WHERE attempt_state = 'running' AND side_effect_started_at IS NOT NULL`,
-          )
-          .run();
-        database
-          .prepare(
-            `UPDATE source_events SET attempt_state = 'retryable'
-              WHERE attempt_state = 'running' AND side_effect_started_at IS NULL`,
-          )
-          .run();
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            "UPDATE assignments SET stop_state = 'stopped', activity = 'idle', continuity_key = NULL, open_ask_source_event_id = NULL, open_ask_at = NULL WHERE stop_state = 'requested'",
-          )
-          .run();
-
-        const interrupted = database
-          .prepare(
-            "SELECT bot_slug, session_id FROM assignments WHERE activity = 'working' AND stop_state = 'running'",
-          )
-          .all() as Array<Pick<AssignmentRow, 'bot_slug' | 'session_id'>>;
-        const at = this.#now().toISOString();
-        for (const assignment of interrupted) {
-          const id = this.#createEventId();
-          const rule = this.#sourcePolicy.resolveIn(
-            database,
-            assignment.bot_slug,
-            'assignment-lifecycle',
-          );
-          database
-            .prepare(
-              "UPDATE assignments SET activity = 'error', updated_at = ? WHERE bot_slug = ? AND session_id = ? AND activity = 'working' AND stop_state = 'running'",
-            )
-            .run(at, assignment.bot_slug, assignment.session_id);
-          database
-            .prepare(
-              `
-              INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
-                body, created_at, handled_at, attempt_state, expects_reply, payload_json)
-              VALUES (?, 'assignment-lifecycle', ?, ?, ?, ?, ?, 'handled', 0, ?)
-            `,
-            )
-            .run(
-              id,
-              assignment.bot_slug,
-              assignment.session_id,
-              'Host recovery found this Assignment still marked as executing. Its prior execution outcome is unconfirmed; it was not resumed automatically. Its context is kept: send_assignment_request with this Session id continues it; archive_assignment resolves it.',
-              at,
-              at,
-              JSON.stringify({
-                author: { kind: 'system' },
-                assignmentLifecycle: {
-                  state: 'interrupted',
-                  cause: 'host-recovery',
-                },
-              }),
-            );
-          database
-            .prepare(
-              `
-              INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
-              VALUES (?, ?, 'assignment-lifecycle', ?, ?)
-            `,
-            )
-            .run(id, assignment.bot_slug, rule.revision, rule.wake);
-        }
-      },
-      ['assignments', 'source-event', 'bot-inbox'],
-    );
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `
-        UPDATE inbox_admissions SET attempt_state =
-          CASE WHEN side_effect_started_at IS NULL THEN 'retryable' ELSE 'needs-repair' END
-        WHERE attempt_state = 'running'
-      `,
-          )
-          .run();
-        database
-          .prepare(
-            `
-            UPDATE inbox_admissions
-               SET attempt_state = 'needs-repair',
-                   last_error = 'Assignment report observation interrupted'
-             WHERE reason IN ('assignment-report', 'assignment-lifecycle')
-               AND observed_at IS NOT NULL
-               AND attempt_state = 'retryable'
-          `,
-          )
-          .run();
-        database
-          .prepare(
-            `
-            UPDATE source_events SET observed_at = NULL
-             WHERE source_kind IN ('memory-change', 'schedule', 'bridge-message')
-               AND source_event_id IN (
-                 SELECT source_event_id FROM inbox_admissions
-                  WHERE reason IN ('memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm') AND attempt_state = 'retryable'
-                    AND side_effect_started_at IS NULL
-               )
-          `,
-          )
-          .run();
-        database
-          .prepare(
-            `
-            UPDATE inbox_admissions SET observed_at = NULL
-             WHERE (reason IN ('memory-change', 'schedule', 'group-mention', 'group-ordinary') OR
-                    (reason = 'human-dm' AND source_event_id IN (
-                      SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'
-                    ))) AND attempt_state = 'retryable'
-               AND side_effect_started_at IS NULL
-          `,
-          )
-          .run();
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    return interruptedDms;
-  }
-
-  async #retireWithdrawnNetworkAdmissions(botSlug: string, withdrawnHost?: string): Promise<void> {
-    const membership = this.#botNetwork?.membership;
-    if (membership === undefined && withdrawnHost === undefined) return;
-    const pending = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-        SELECT a.source_event_id, e.channel_id, e.message_id
-          FROM inbox_admissions a JOIN source_events e USING (source_event_id)
-         WHERE a.bot_slug = ? AND a.reason = 'bot-dm'
-           AND a.attempt_state IN ('pending', 'retryable')
-           AND a.observed_at IS NULL AND a.side_effect_started_at IS NULL
-           AND a.ignored_at IS NULL
-      `,
-        )
-        .all(botSlug),
-    ) as Array<{
-      source_event_id: string;
-      channel_id: string;
-      message_id: string;
-    }>;
-    const hosts = new Map<string, boolean>();
-    for (const row of pending) {
-      const peer = this.#channels.get(row.channel_id)?.remoteBot;
-      if (peer === undefined) continue;
-      if (withdrawnHost !== undefined && peer.hostId !== withdrawnHost) continue;
-      const unverified = peer.membership === undefined;
-      if (!unverified && !hosts.has(peer.hostId)) {
-        const state =
-          withdrawnHost === peer.hostId
-            ? 'withdrawn'
-            : await membership!(peer.hostId).catch(() => 'unavailable');
-        hosts.set(peer.hostId, state === 'withdrawn');
-      }
-      if ((!unverified && !hosts.get(peer.hostId)) || this.#closed) continue;
-      const at = this.#now().toISOString();
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions
-             SET attempt_state = 'handled', handled_at = ?, ignored_at = ?,
-                 snoozed_until = NULL, wake_count = NULL, wake_interval_ms = NULL,
-                 last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ?
-             AND attempt_state IN ('pending', 'retryable')
-             AND observed_at IS NULL AND side_effect_started_at IS NULL AND ignored_at IS NULL
-        `,
-            )
-            .run(
-              at,
-              at,
-              unverified
-                ? 'Bot collaboration provenance unavailable before execution'
-                : 'Bot collaboration membership withdrawn before execution',
-              row.source_event_id,
-              botSlug,
-            );
-        },
-        ['bot-inbox'],
-      );
-      this.#channels.admissionChanged?.(row.channel_id, row.message_id);
-    }
-  }
-
-  #retireRevokedGroupRetries(): void {
-    const retries = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-        SELECT a.source_event_id, a.bot_slug, e.channel_id
-          FROM inbox_admissions a JOIN source_events e USING (source_event_id)
-         WHERE a.reason IN ('group-mention', 'group-ordinary')
-           AND a.attempt_state IN ('pending', 'retryable')
-           AND a.side_effect_started_at IS NULL AND a.ignored_at IS NULL
-           AND e.source_kind != 'bridge-message' AND e.channel_id IS NOT NULL
-      `,
-        )
-        .all(),
-    ) as Array<{
-      source_event_id: string;
-      bot_slug: string;
-      channel_id: string;
-    }>;
-    const revoked = retries.filter((row) => {
-      const channel = this.#channels.get(row.channel_id);
-      return channel === undefined || !this.#isMember(row.bot_slug, channel);
-    });
-    if (revoked.length === 0) return;
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        for (const row of revoked)
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions
-             SET attempt_state = 'handled', handled_at = ?, ignored_at = ?,
-                 snoozed_until = NULL, wake_count = NULL, wake_interval_ms = NULL,
-                 last_error = 'Group membership revoked during recovery'
-           WHERE source_event_id = ? AND bot_slug = ?
-             AND attempt_state IN ('pending', 'retryable')
-             AND side_effect_started_at IS NULL AND ignored_at IS NULL
-        `,
-            )
-            .run(at, at, row.source_event_id, row.bot_slug);
-      },
-      ['bot-inbox'],
-    );
-  }
-
   originalAttachmentRoot(
     sessionId: string,
     path: string,
@@ -4505,95 +2659,6 @@ class BotRuntimeImplementation implements BotRuntime {
     shell = false,
   ): string | undefined {
     return this.#originalAttachments.root(sessionId, path, kind, shell);
-  }
-
-  #ignoreAdmission(
-    botSlug: string,
-    sessionId: string,
-    channelId: string,
-    messageId: string,
-  ): ReturnType<OrchestratorChannelAccess['ignore']> {
-    const decision = this.#database.transaction(
-      (database) => {
-        const row = database
-          .prepare(
-            `
-                SELECT a.source_event_id, a.attempt_state, a.observed_at, a.ignored_at
-                  FROM inbox_admissions a
-                  JOIN source_events e ON e.source_event_id = a.source_event_id
-                 WHERE a.bot_slug = ? AND e.channel_id = ? AND e.message_id = ?
-              `,
-          )
-          .get(botSlug, channelId, messageId) as
-          | {
-              source_event_id: string;
-              attempt_state: string;
-              observed_at: string | null;
-              ignored_at: string | null;
-            }
-          | undefined;
-        if (row === undefined)
-          return {
-            error: 'inbox_ignore: no Inbox Admission for this Bot',
-          } as const;
-        if (row.attempt_state === 'needs-repair')
-          return {
-            error: 'inbox_ignore: this admission needs repair',
-          } as const;
-        if (row.ignored_at !== null)
-          return {
-            sourceEventId: row.source_event_id,
-            ignoredAt: row.ignored_at,
-            alreadyIgnored: true,
-          };
-        if (
-          row.attempt_state !== 'running' &&
-          row.attempt_state !== 'handled' &&
-          row.observed_at === null
-        )
-          return {
-            error: 'inbox_ignore: observe this message before ignoring it',
-          } as const;
-        const ignoredAt = this.#now().toISOString();
-        database
-          .prepare(
-            `
-                UPDATE inbox_admissions
-                   SET ignored_at = ?, ignored_by_session_id = ?,
-                       resolved_at = COALESCE(resolved_at, ?),
-                       resolution = COALESCE(resolution, 'ignored'),
-                       resolved_by_session_id = COALESCE(resolved_by_session_id, ?),
-                       observed_at = COALESCE(observed_at, ?),
-                       attempt_state = CASE
-                         WHEN attempt_state IN ('pending', 'retryable', 'running') THEN 'handled'
-                         ELSE attempt_state END,
-                       handled_at = CASE
-                         WHEN attempt_state IN ('pending', 'retryable', 'running') THEN ?
-                         ELSE handled_at END
-                 WHERE source_event_id = ? AND bot_slug = ? AND ignored_at IS NULL
-              `,
-          )
-          .run(
-            ignoredAt,
-            sessionId,
-            ignoredAt,
-            sessionId,
-            ignoredAt,
-            ignoredAt,
-            row.source_event_id,
-            botSlug,
-          );
-        return {
-          sourceEventId: row.source_event_id,
-          ignoredAt,
-          alreadyIgnored: false,
-        };
-      },
-      ['bot-inbox'],
-    );
-    if ('error' in decision) throw new Error(decision.error);
-    this.#channels.admissionChanged?.(channelId, messageId);
-    return decision;
   }
 
   async #recordTurnCommits(botSlug: string, causeSourceEventId: string): Promise<void> {
@@ -4613,136 +2678,6 @@ class BotRuntimeImplementation implements BotRuntime {
         `memory-commit-record-failed bot=${botSlug} reason=${error instanceof Error ? error.name : 'unknown'}`,
       );
     }
-  }
-
-  #createBot(
-    botSlug: string,
-    sourceEventId: string | undefined,
-    beforeSend: () => void,
-    input: BotCreateInput,
-  ): BotCreateOutcome {
-    if (sourceEventId === undefined)
-      throw new DirectBotToolError('source-required', 'Bot creation requires a Source Event');
-    const refuse = (code: string, message: string): never => {
-      throw new DirectBotToolError(code, `${code}: ${message}`);
-    };
-    const creator = this.#registry.get(botSlug);
-    if (this.#closed || creator === undefined || creator.paused === true)
-      refuse('creator-unavailable', 'The creating PersonaBot is no longer active');
-    if (creator) this.#team?.roles.require(humanContext(botOwner(creator)), 'bots.createPrivate');
-    const displayName = input.displayName.trim();
-    if (displayName.length === 0 || [...displayName].length > MAX_CREATED_BOT_NAME_LENGTH)
-      refuse(
-        'invalid-input',
-        `display_name must be 1 to ${MAX_CREATED_BOT_NAME_LENGTH} characters`,
-      );
-    const description = input.description?.trim();
-    if (description !== undefined && [...description].length > MAX_CREATED_BOT_BIO_LENGTH)
-      refuse(
-        'invalid-input',
-        `description must be at most ${MAX_CREATED_BOT_BIO_LENGTH} characters`,
-      );
-    const tags = [
-      ...new Set((input.tags ?? []).map((tag) => tag.trim()).filter((tag) => tag.length > 0)),
-    ];
-    if (
-      tags.length > MAX_CREATED_BOT_TAGS ||
-      tags.some((tag) => [...tag].length > MAX_CREATED_BOT_TAG_LENGTH)
-    )
-      refuse(
-        'invalid-input',
-        `tags allows at most ${MAX_CREATED_BOT_TAGS} tags of at most ${MAX_CREATED_BOT_TAG_LENGTH} characters`,
-      );
-    const memoryLocation = input.memoryLocation?.trim();
-    if (memoryLocation !== undefined && memoryLocation.length > 0 && !isAbsolute(memoryLocation))
-      refuse('invalid-memory-dir', 'memory_location must be an absolute folder path');
-    const avatar =
-      input.avatarPath === undefined
-        ? undefined
-        : this.#readCreatedAvatar(botSlug, input.avatarPath);
-    if (memoryLocation) this.#grants?.validatePath?.(botSlug, memoryLocation, true);
-    const slug = this.#createBotId();
-    beforeSend();
-    const created = this.#registry.create({
-      slug,
-      ownerHumanId: botOwner(creator!),
-      displayName,
-      ...(input.soul === undefined ? {} : { persona: input.soul }),
-      ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
-      ...(tags.length === 0 ? {} : { roles: tags }),
-      ...(description ? { description } : {}),
-      ...(avatar === undefined ? {} : { avatar }),
-      ...(memoryLocation ? { memoryLocation } : {}),
-    });
-    if (!created.ok)
-      refuse(
-        created.reason === 'invalid-memory-dir' ||
-          created.reason === 'git-not-found' ||
-          created.reason === 'memory-unavailable'
-          ? created.reason
-          : 'invalid-input',
-        created.reason === 'invalid-memory-dir'
-          ? 'memory_location must be an existing absolute folder that does not already hold this Bot'
-          : created.reason === 'git-not-found'
-            ? 'Git is required to create a Memory Repository'
-            : (created.detail ?? 'The PersonaBot could not be created'),
-      );
-    const record = (created as Extract<typeof created, { ok: true }>).record;
-    const dm = this.#channels.getOrCreateDm(
-      humanContext(botOwner(record)),
-      record.slug,
-      record.displayName,
-    );
-    try {
-      this.#channels.appendBotCreateAction?.({
-        botSlug,
-        causeSourceEventId: sourceEventId,
-        created: { botSlug: record.slug, displayName: record.displayName },
-      });
-    } catch (error) {
-      this.#warn?.(
-        `bot-create-action-record-failed bot=${botSlug} created=${record.slug} reason=${error instanceof Error ? error.name : 'unknown'}`,
-      );
-    }
-    return {
-      botId: record.slug,
-      displayName: record.displayName,
-      dmChannelId: dm?.id ?? dmChannelId(record.slug),
-      memoryDir: this.#registry.memoryDirFor(record.slug) ?? '',
-      model: record.modelPlan === undefined && record.model === undefined ? 'host-default' : 'set',
-    };
-  }
-
-  #readCreatedAvatar(botSlug: string, path: string): string {
-    const refuse = (message: string): never => {
-      throw new DirectBotToolError('invalid-avatar', `invalid-avatar: ${message}`);
-    };
-    if (!isAbsolute(path)) refuse('avatar_path must be an absolute file path');
-    const roots = (this.#grants?.list(botSlug) ?? [])
-      .filter((grant) => grant.revokedAt === undefined)
-      .flatMap((grant) => {
-        try {
-          return [this.#grants!.requireActive(botSlug, grant.id).workspacePath];
-        } catch {
-          return [];
-        }
-      });
-    const memory = this.#registry.memoryDirFor(botSlug);
-    if (memory !== undefined) roots.push(memory);
-    this.#grants?.validatePath?.(botSlug, path);
-    if (authorizedPathRoot(roots, path) === undefined)
-      refuse('avatar_path is outside your Memory Repository and Workspace Grants');
-    let bytes: Buffer;
-    try {
-      const size = statSync(path).size;
-      if (size > MAX_PERSONA_BOT_AVATAR_BYTES)
-        refuse(`the image is larger than ${MAX_PERSONA_BOT_AVATAR_BYTES} bytes`);
-      bytes = readFileSync(path);
-    } catch (error) {
-      if (error instanceof DirectBotToolError) throw error;
-      return refuse('the image file cannot be read');
-    }
-    return personaBotAvatarFromBytes(bytes) ?? refuse('the image must be a PNG, JPEG or WebP file');
   }
 
   #memberBotEnabled(bot: PersonaBotRecord): boolean {
@@ -4768,50 +2703,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
-  #speakerInput(botSlug: string, sessionId: string, ids: readonly string[], body: string) {
-    const bot = this.#registry.get(botSlug);
-    if (!this.#team || !bot || !this.#team.bots.speakerContextEnabled(botSlug)) return undefined;
-    const pending = new Map<string, number>();
-    const envelopes: Array<ReturnType<TeamService['speakerPolicy']['envelope']>> = [];
-    let text = body;
-    for (const id of new Set(ids)) {
-      if (!text.includes(id)) continue;
-      const source = this.#database.read((db) =>
-        db
-          .prepare(
-            "SELECT human_id FROM source_events WHERE source_event_id=? AND source_kind='human-message'",
-          )
-          .get(id),
-      );
-      if (typeof source?.['human_id'] !== 'string') continue;
-      const envelope = this.#team.speakerPolicy.envelope(
-        sessionId,
-        source['human_id'],
-        '',
-        pending,
-      );
-      envelopes.push(envelope);
-      const direct = sessionDirectSpeaker(text, id, envelope.text);
-      if (direct !== undefined) {
-        text = direct;
-        continue;
-      }
-      const header = `Source Event ID: ${id}`;
-      const anchor = text.includes(header) ? header : `[Source Event ${id}]`;
-      if (text.includes(anchor))
-        text = text.replace(anchor, `${anchor} ${envelope.text.trimEnd()}`);
-      else text = text.replace(id, `${id} ${envelope.text.trimEnd()}`);
-    }
-    return envelopes.length
-      ? {
-          text,
-          commit: () => {
-            for (const envelope of envelopes) envelope.commit();
-          },
-        }
-      : undefined;
-  }
-
   #requireTurnAccess(botSlug: string, ids: Iterable<string>): void {
     if (!this.#team) return;
     this.#team.bots.requireActive(botSlug);
@@ -4832,127 +2723,6 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error(`PersonaBot ${botSlug} is not a member of Channel ${channelId}`);
     }
     return channel;
-  }
-
-  async #runOnLiveOrchestrator(
-    bot: PersonaBotRecord,
-    orchestrator: { sessionId: string; resume: boolean },
-    run: (orchestrator: { sessionId: string; resume: boolean }) => Promise<void>,
-  ): Promise<{ sessionId: string; resume: boolean }> {
-    try {
-      await run(orchestrator);
-      return orchestrator;
-    } catch (error) {
-      if (this.#closed || this.#turnSideEffectStarted(bot.slug)) throw error;
-      if (error instanceof OrchestratorWorkingDirectoryError)
-        return this.#replaceMisplacedOrchestrator(bot, orchestrator, error, run);
-      if (this.#sessionArchived?.(orchestrator.sessionId) !== true) throw error;
-      const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
-      if (replacement.sessionId === orchestrator.sessionId) throw error;
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'orchestrator-archived-mid-turn',
-          botSlug: bot.slug,
-          archivedSessionId: orchestrator.sessionId,
-          sessionId: replacement.sessionId,
-        }),
-      );
-      await run(replacement);
-      return replacement;
-    }
-  }
-
-  async #replaceMisplacedOrchestrator(
-    bot: PersonaBotRecord,
-    orchestrator: { sessionId: string; resume: boolean },
-    error: OrchestratorWorkingDirectoryError,
-    run: (orchestrator: { sessionId: string; resume: boolean }) => Promise<void>,
-  ): Promise<{ sessionId: string; resume: boolean }> {
-    if (this.currentOrchestratorSessionId(bot.slug) !== orchestrator.sessionId) throw error;
-    const replaced = await this.#replaceOrchestrator(bot.slug, () => undefined);
-    if (replaced.outcome === 'refused') throw error;
-    const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
-    if (replacement.sessionId === orchestrator.sessionId) throw error;
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'orchestrator-working-directory-replaced',
-        botSlug: bot.slug,
-        replacedSessionId: orchestrator.sessionId,
-        sessionId: replacement.sessionId,
-        sessionCwd: error.sessionCwd,
-        memoryCwd: error.memoryCwd,
-      }),
-    );
-    await run(replacement);
-    return replacement;
-  }
-
-  #turnSideEffectStarted(botSlug: string): boolean {
-    return (
-      this.#database.read((database) =>
-        database
-          .prepare(
-            `SELECT 1 FROM inbox_admissions
-              WHERE bot_slug = ? AND attempt_state = 'running'
-                AND side_effect_started_at IS NOT NULL
-              LIMIT 1`,
-          )
-          .get(botSlug),
-      ) !== undefined
-    );
-  }
-
-  #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
-    const existing = this.currentOrchestratorSessionId(bot.slug);
-    const orchestrator =
-      existing === undefined
-        ? { sessionId: this.#claimOrchestrator(bot, at), resume: false }
-        : { sessionId: existing, resume: true };
-    this.#releaseReplacedOrchestrators(bot.slug, orchestrator.sessionId);
-    return orchestrator;
-  }
-
-  #releaseReplacedOrchestrators(botSlug: string, current: string): void {
-    const release = this.#agents.releaseSession?.bind(this.#agents);
-    if (release === undefined) return;
-    for (const root of this.#ownership.rootsFor(botSlug, 'orchestrator')) {
-      if (root.sessionId === current) continue;
-      void release(root.sessionId).catch(() =>
-        this.#warn?.(
-          JSON.stringify({
-            component: 'bot-runtime',
-            event: 'orchestrator-release-failed',
-            botSlug,
-            sessionId: root.sessionId,
-          }),
-        ),
-      );
-    }
-  }
-
-  #claimOrchestrator(bot: PersonaBotRecord, at: string): string {
-    const sessionId = this.#createSessionId();
-    const cwdReference = this.#orchestratorCwdReference(bot);
-    this.#ownership.claim({
-      sessionId,
-      botSlug: bot.slug,
-      rootRole: 'orchestrator',
-      ...(cwdReference === undefined ? {} : { cwdReference }),
-      at,
-    });
-    return sessionId;
-  }
-
-  #orchestratorCwdReference(bot: PersonaBotRecord): string | undefined {
-    return this.#orchestratorCwd?.(bot) ?? this.#cwdReference(bot);
-  }
-
-  #cwdReference(bot: PersonaBotRecord): string | undefined {
-    const configured = bot.workspaces[0];
-    if (configured !== undefined) return configured;
-    return this.#workspaceRoot === undefined ? undefined : join(this.#workspaceRoot, bot.slug);
   }
 
   async #stopAssignment(
@@ -5122,157 +2892,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#channels
       .list()
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
-  }
-
-  #observeReadMessages(
-    botSlug: string,
-    messages: ChannelMessageView[],
-    readAdmissions: Set<string>,
-  ): void {
-    if (messages.length === 0) return;
-    const observedAt = this.#now().toISOString();
-    const { changedChannels, changedMessages } = this.#database.transaction(
-      (database) => {
-        const update = database.prepare(`
-          UPDATE inbox_admissions
-             SET observed_at = COALESCE(observed_at, ?),
-                 side_effect_started_at = COALESCE(side_effect_started_at, ?),
-                 attempt_state = 'running', last_error = NULL
-           WHERE bot_slug = ?
-             AND reason NOT IN ('assignment-report', 'assignment-lifecycle')
-             AND attempt_state IN ('pending', 'retryable')
-             AND source_event_id IN (
-               SELECT source_event_id FROM channel_placements
-                WHERE channel_id = ? AND message_id = ?
-             )
-           RETURNING source_event_id
-        `);
-        const changedChannels = new Set<string>();
-        const changedMessages: Array<{ channelId: string; messageId: string }> = [];
-        for (const item of messages) {
-          const claimed = update.get(
-            observedAt,
-            observedAt,
-            botSlug,
-            item.channelId,
-            item.message.id,
-          ) as { source_event_id: string } | undefined;
-          if (claimed === undefined) continue;
-          readAdmissions.add(claimed.source_event_id);
-          changedChannels.add(item.channelId);
-          changedMessages.push({
-            channelId: item.channelId,
-            messageId: item.message.id,
-          });
-        }
-        return { changedChannels, changedMessages };
-      },
-      ['bot-inbox'],
-    );
-    for (const { channelId, messageId } of changedMessages)
-      this.#channels.admissionChanged?.(channelId, messageId);
-    for (const channelId of changedChannels) this.#groupDigest.scheduleDigest(botSlug, channelId);
-  }
-
-  #notifyReadAdmissions(sourceEventIds: Set<string>): void {
-    if (sourceEventIds.size === 0) return;
-    const ids = [...sourceEventIds];
-    const placeholders = ids.map(() => '?').join(', ');
-    const rows = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT channel_id, message_id FROM source_events
-          WHERE source_event_id IN (${placeholders})`,
-        )
-        .all(...ids),
-    ) as Array<{ channel_id: string | null; message_id: string | null }>;
-    for (const source of rows) {
-      if (source.channel_id !== null && source.message_id !== null)
-        this.#channels.admissionChanged?.(source.channel_id, source.message_id);
-    }
-  }
-
-  #markReportSideEffects(sourceEventIds: readonly string[], botSlug: string): void {
-    if (sourceEventIds.length === 0) return;
-    const placeholders = sourceEventIds.map(() => '?').join(', ');
-    this.#database.transaction(
-      (database) =>
-        database
-          .prepare(
-            `
-            UPDATE inbox_admissions
-               SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
-             WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'group-mention', 'group-ordinary', 'human-dm')
-               AND attempt_state = 'running'
-               AND source_event_id IN (${placeholders})
-          `,
-          )
-          .run(this.#now().toISOString(), botSlug, ...sourceEventIds),
-      ['bot-inbox'],
-    );
-  }
-
-  #setObserved(sourceEventIds: string[], at: string | null, botSlug?: string): void {
-    if (sourceEventIds.length === 0) return;
-    const placeholders = sourceEventIds.map(() => '?').join(', ');
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `UPDATE source_events SET observed_at = ?
-              WHERE source_event_id IN (${placeholders})`,
-          )
-          .run(at, ...sourceEventIds);
-        database
-          .prepare(
-            `
-            UPDATE inbox_admissions
-               SET observed_at = ?,
-                   attempt_state = CASE
-                     WHEN ? IS NOT NULL THEN 'running'
-                     WHEN side_effect_started_at IS NULL THEN 'retryable'
-                     ELSE 'needs-repair'
-                   END
-             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
-               AND attempt_state IN ('pending', 'retryable', 'running')
-               AND (? IS NULL OR bot_slug = ?)
-               AND source_event_id IN (${placeholders})
-          `,
-          )
-          .run(at, at, botSlug ?? null, botSlug ?? null, ...sourceEventIds);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-  }
-
-  #markReportsHandled(sourceEventIds: string[], botSlug?: string, sessionId?: string): void {
-    if (sourceEventIds.length === 0) return;
-    const placeholders = sourceEventIds.map(() => '?').join(', ');
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `
-            UPDATE inbox_admissions
-               SET attempt_state = 'handled', handled_at = ?, opened_at = COALESCE(opened_at, ?)
-             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
-               AND attempt_state = 'running'
-               AND (? IS NULL OR bot_slug = ?)
-               AND source_event_id IN (${placeholders})
-          `,
-          )
-          .run(
-            this.#now().toISOString(),
-            this.#now().toISOString(),
-            botSlug ?? null,
-            botSlug ?? null,
-            ...sourceEventIds,
-          );
-        if (sessionId !== undefined)
-          linkScheduleFiringsToSession(database, sourceEventIds, placeholders, sessionId);
-      },
-      ['bot-inbox', 'bot-schedules'],
-    );
   }
 
   #setStopState(

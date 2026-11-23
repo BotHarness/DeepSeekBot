@@ -117,6 +117,27 @@ function setup(
 }
 
 describe('direct Bot tool runner', () => {
+  it('returns the original successful direct tool result when history cannot serialize it', async () => {
+    const { agents, runtime } = setup();
+    const result = { count: 1n };
+    const execute = vi.spyOn(agents, 'runDirectTool').mockResolvedValueOnce(result);
+    try {
+      const outcome = await runtime.runDirectBotTool!(
+        'ada',
+        'channel_list',
+        {},
+        new AbortController().signal,
+      );
+      expect(outcome.result).toBe(result);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(runtime.directBotToolCalls!('ada')).toMatchObject([
+        { tool: 'channel_list', outcome: 'ok', result: '[unserializable result]' },
+      ]);
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it('removes obsolete delivery tools from the catalog and refuses direct execution', async () => {
     const { runtime } = setup();
     try {
