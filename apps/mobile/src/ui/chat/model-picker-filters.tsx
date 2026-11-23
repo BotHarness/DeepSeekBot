@@ -4,13 +4,13 @@ import { ScrollView } from 'react-native';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 
-export function ModelPickerFilters({ children }: { children: ReactNode }) {
+export function ModelPickerFilters({ children, label }: { children: ReactNode; label?: string }) {
   const t = useStrings();
   return (
     <ScrollView
       horizontal
       testID="model-family-filters"
-      accessibilityLabel={t.modelSettings.families}
+      accessibilityLabel={label ?? t.modelSettings.families}
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       style={{ flexGrow: 0, flexShrink: 0 }}
