@@ -65,9 +65,9 @@ Usage:
   tobs schedules <id> [--home <dsh-home>]
   tobs schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                   --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                  --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-  tobs schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-  tobs schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                  --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--operation-key <key>] [--home <dsh-home>]
+  tobs schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--expected-revision <rev>] [--home <dsh-home>]
+  tobs schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
   tobs schedule-history <id> --sid <schedule> [--home <dsh-home>]
   tobs schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
   tobs schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]

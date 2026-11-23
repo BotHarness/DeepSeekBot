@@ -256,7 +256,12 @@ describe('bridge typert service', () => {
       'expectedChannel',
     ]);
     expect(parameterNames(service.channelRename)).toEqual(['channelId', 'name', 'expectedChannel']);
-    expect(parameterNames(service.channelMessages)).toEqual(['channelId', 'before', 'limit']);
+    expect(parameterNames(service.channelMessages)).toEqual([
+      'channelId',
+      'before',
+      'limit',
+      'cursor',
+    ]);
     expect(parameterNames(service.channelTimeline)).toEqual([
       'channelId',
       'direction',
