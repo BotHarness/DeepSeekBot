@@ -266,6 +266,39 @@ describe('custom request form', () => {
 });
 
 describe('editing a custom request', () => {
+  it('ignores edits while a save is pending', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    const setVoiceProviderTemplate = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    await render(
+      createElement(TemplateEditDialog, {
+        provider: { id: 'p1', name: 'Speaker' },
+        kind: 'tts',
+        actions: {
+          validateVoiceTemplate: vi.fn(async (_kind: string, template: unknown) => ({
+            valid: true,
+            template,
+          })),
+          voiceProviderTemplate: vi.fn(async () => TEMPLATE),
+          setVoiceProviderTemplate,
+        } as never,
+        t: zhTranslate,
+        onCancel: vi.fn(),
+        onSaved: vi.fn(),
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-voice-template-url]')).not.toBeNull(),
+    );
+    const url = () =>
+      (document.querySelector('[data-voice-template-url]') as HTMLInputElement).value;
+    const before = url();
+    await click(document.querySelector('[data-voice-template-save="p1"]'));
+    await vi.waitFor(() => expect(setVoiceProviderTemplate).toHaveBeenCalled());
+    type('[data-voice-template-url]', 'https://tts.example/late');
+    expect(url()).toBe(before);
+    await act(async () => finish({}));
+  });
+
   it('keeps unsaved edits when the parent passes a new actions object', async () => {
     const voiceProviderTemplate = vi.fn(async () => TEMPLATE);
     const dialog = (actions: object) =>

@@ -90,10 +90,18 @@ export function TemplateEditDialog({
           ) : null
         ) : (
           <FieldStack>
-            <TemplateFields kind={kind} draft={draft} errors={errors} t={t} onChange={setDraft} />
+            <TemplateFields
+              kind={kind}
+              draft={draft}
+              errors={errors}
+              t={t}
+              onChange={busy ? ignoreEdit : setDraft}
+            />
           </FieldStack>
         )}
       </div>
     </FormDialog>
   );
 }
+
+function ignoreEdit(): void {}
