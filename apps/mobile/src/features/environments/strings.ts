@@ -5,6 +5,15 @@ import type { DeviceRefusal } from '@botharness/host-client/client';
 
 export const en = {
   createHere: 'Create or join',
+  chatsCreate: {
+    group: 'New Group',
+    join: 'Join',
+    invite: 'Invite',
+    blank: 'Blank',
+    marketplace: 'Marketplace',
+    zip: 'ZIP',
+    git: 'Git',
+  },
   chooseCreationTarget: 'Choose where to create',
   noCreationTargets: 'No available actions for this environment.',
   creationSourceChanged: 'The selected connection changed. Close this menu and choose again.',
@@ -69,6 +78,7 @@ export const en = {
     'Could not reach your computer to remove the device. Remove it in Settings → Connections → Manage on the computer.',
   connected: 'Connected',
   computers: 'Computers',
+  environments: 'Environments',
   showing: 'Showing',
   pairAnother: 'Pair a new computer',
   switchComputer: (host: string) => `${host}, switch computer`,
@@ -121,6 +131,15 @@ export const en = {
 
 export const zh: typeof en = {
   createHere: '创建或加入',
+  chatsCreate: {
+    group: '新建群聊',
+    join: '加入',
+    invite: '邀请',
+    blank: '空白 Bot',
+    marketplace: '市场',
+    zip: 'ZIP',
+    git: 'Git',
+  },
   chooseCreationTarget: '选择创建位置',
   noCreationTargets: '当前环境没有可用操作。',
   creationSourceChanged: '所选连接已变更，关闭菜单后重新选择。',
@@ -182,6 +201,7 @@ export const zh: typeof en = {
   deviceRemoveFailed: '连不上你的电脑，没能移除。请在电脑上打开设置 → 连接 → 管理移除它。',
   connected: '已连接',
   computers: '电脑',
+  environments: '环境',
   showing: '当前显示',
   pairAnother: '配对新电脑',
   switchComputer: (host: string) => `${host}，切换电脑`,

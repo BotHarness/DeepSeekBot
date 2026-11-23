@@ -10,6 +10,7 @@ export type ChatsSearchResult = {
 };
 
 export type ChatsSearchBarProps = {
+  autoExpand?: boolean;
   placeholder: string;
   busy: boolean;
   results: ChatsSearchResult[];

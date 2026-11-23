@@ -1,199 +1,63 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, expect, it, vi } from 'vitest';
+import { act, createRef, type ComponentRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, it, vi } from 'vitest';
 
-const back = vi.hoisted(() => ({ handlers: [] as (() => boolean)[] }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
-  Keyboard: { dismiss: vi.fn() },
-  useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: 1 }),
+  Platform: { OS: 'android' },
 }));
-vi.mock('react-native-reanimated', () => ({ useReducedMotion: () => true }));
-vi.mock('@expo/ui/jetpack-compose', () => ({
-  Host: ({ children }: { children: ReactNode }) => children,
-}));
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ testID: (testID: string) => ({ testID }) }));
-vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
-vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
-vi.mock('../src/ui/shell/back-owner', () => ({
-  holdBack: (handler: () => boolean) => {
-    back.handlers.push(handler);
-    return { remove: () => back.handlers.splice(back.handlers.indexOf(handler), 1) };
-  },
-}));
-vi.mock('expo', () => ({
-  requireNativeView:
-    () =>
-    (props: {
-      items: { key: string; label: string; path: string }[];
-      expanded: boolean;
-      available: boolean;
-      label: string;
-      closeLabel: string;
-      onToggle(event: { nativeEvent: { expanded: boolean } }): void;
-      onPick(event: { nativeEvent: { key: string } }): void;
-    }) =>
-      createElement(
-        'section',
-        { 'data-expanded': String(props.expanded) },
-        createElement('button', {
-          'aria-label': props.expanded ? props.closeLabel : props.label,
-          onClick: () =>
-            (props.available || props.expanded) &&
-            props.onToggle({ nativeEvent: { expanded: !props.expanded } }),
-        }),
-        props.expanded
-          ? props.items.map((item) =>
-              createElement(
-                'button',
-                {
-                  key: item.key,
-                  'data-menu-item': '',
-                  'data-path': item.path,
-                  onClick: () => props.onPick({ nativeEvent: { key: item.key } }),
-                },
-                item.label,
-              ),
-            )
-          : null,
-      ),
-}));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-import { CreationMenuButton } from '../src/ui/shell/creation-menu-button.android';
-import { creationTargets } from '../src/host/creation-targets';
-import { computerEnvironmentKey } from '../src/host/conversation-environments';
-import { haptic } from '../src/ui/haptics';
+import { NavigationAction } from '../src/ui/shell/navigation-action';
+import { SessionCreateFab } from '../src/ui/shell/session-create-fab';
+import { useDesignTheme } from '../src/ui/design/theme';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-let root: Root;
-let host: HTMLElement;
-const pick = vi.fn();
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  back.handlers.length = 0;
-  vi.clearAllMocks();
-});
-function render(scope = 'all', busy = false) {
-  host = document.createElement('div');
-  document.body.append(host);
-  root = createRoot(host);
-  const targets = creationTargets({ hostId: 'mac', name: 'Mac' }, []).map((target) => ({
-    ...target,
-    channelCreation: false,
-  }));
-  act(() =>
-    root.render(
-      <CreationMenuButton scope={scope} targets={targets} size={56} busy={busy} onPick={pick} />,
-    ),
-  );
-}
-const items = () =>
-  [...host.querySelectorAll<HTMLElement>('[data-menu-item]')].map((item) => item.textContent);
-function click(label: string) {
-  const button = [...host.querySelectorAll<HTMLElement>('button')].find(
-    (b) => b.getAttribute('aria-label') === label || b.textContent === label,
-  );
-  expect(button, label).toBeDefined();
-  act(() => button!.click());
-}
-
-it('opens the native FAB menu and closes it before going to the scoped destination', () => {
-  render(computerEnvironmentKey('mac'));
-  for (const [label, action] of [
-    [t.botCreation.blank, 'bot'],
-    [t.botCreation.fromZip, 'zip'],
-    [t.marketplace.browse, 'marketplace'],
-    [t.botCreation.fromGit, 'git'],
-  ]) {
-    click(t.createHere);
-    expect(items()).toEqual([t.botCreation.blank, t.botCreation.importBot, t.marketplace.browse]);
-    expect(
-      [...host.querySelectorAll('[data-menu-item]')].every((item) =>
-        item.getAttribute('data-path'),
-      ),
-    ).toBe(true);
-    if (action === 'zip' || action === 'git') {
-      click(t.botCreation.importBot);
-      expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
-    }
-    click(label!);
-    expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
-    expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
+it('opens New Session directly from the Android FAB', () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const open = vi.fn();
+  try {
+    act(() => root.render(<SessionCreateFab onPress={open} />));
+    const button = host.querySelector<HTMLButtonElement>(
+      `button[aria-label="${t.hostSessions.create}"]`,
+    )!;
+    expect(button.dataset.testid).toBe('session-create-fab');
+    act(() => button.click());
+    expect(open).toHaveBeenCalledOnce();
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  } finally {
+    act(() => root.unmount());
   }
-  expect(haptic).toHaveBeenCalledTimes(4);
 });
 
-it('keeps All explicit and joins without a Computer', () => {
-  render();
-  click(t.createHere);
-  click(t.botCreation.blank);
-  expect(pick).toHaveBeenLastCalledWith('bot', undefined);
-  click(t.createHere);
-  click(t.cloudJoin.title);
-  expect(pick).toHaveBeenLastCalledWith('join', undefined);
-});
-
-it('closes from the toggle and from system Back without navigating', () => {
-  render();
-  click(t.createHere);
-  expect(back.handlers).toHaveLength(1);
-  click(t.close);
-  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
-  expect(back.handlers).toHaveLength(0);
-  click(t.createHere);
-  act(() => void back.handlers[0]!());
-  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
-  expect(pick).not.toHaveBeenCalled();
-  expect(haptic).toHaveBeenCalledTimes(2);
-});
-
-it('blocks the toggle while preparation is pending', () => {
-  render('all', true);
-  click(t.createHere);
-  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
-  expect(haptic).not.toHaveBeenCalled();
-});
-
-it('returns from the import choices before closing on system Back without selecting a source', () => {
-  render();
-  click(t.createHere);
-  click(t.botCreation.importBot);
-  expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
-  expect(pick).not.toHaveBeenCalled();
-  act(() => void back.handlers[0]!());
-  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('true');
-  expect(items()).toContain(t.botCreation.importBot);
-  expect(items()).not.toContain(t.botCreation.fromZip);
-  act(() => void back.handlers[0]!());
-  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
-  expect(pick).not.toHaveBeenCalled();
-});
-
-it('returns through the submenu Back row and cancels through Close without importing', () => {
-  render();
-  click(t.createHere);
-  click(t.botCreation.importBot);
-  click(t.back);
-  expect(items()).toContain(t.botCreation.importBot);
-  click(t.botCreation.importBot);
-  click(t.close);
-  expect(pick).not.toHaveBeenCalled();
-  click(t.createHere);
-  expect(items()).toContain(t.botCreation.importBot);
-});
-
-it('keeps All import choices destination-free until the existing import flow chooses a Computer', () => {
-  render();
-  for (const [label, action] of [
-    [t.botCreation.fromZip, 'zip'],
-    [t.botCreation.fromGit, 'git'],
-  ]) {
-    click(t.createHere);
-    click(t.botCreation.importBot);
-    click(label!);
-    expect(pick).toHaveBeenLastCalledWith(action, undefined);
+it('keeps the shared FAB at the platform touch size and prevents a disabled press', () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const open = vi.fn();
+  const ref = createRef<ComponentRef<typeof NavigationAction>>();
+  function SmallAction() {
+    const theme = useDesignTheme();
+    return (
+      <NavigationAction
+        ref={ref}
+        size={theme.touch / 2}
+        label={t.createHere}
+        disabled
+        onPress={open}
+      />
+    );
+  }
+  try {
+    act(() => root.render(<SmallAction />));
+    const button = host.querySelector('button')!;
+    expect(ref.current).toBe(button);
+    expect(JSON.parse(button.dataset.restStyle!)).toMatchObject({ width: 48, height: 48 });
+    act(() => button.click());
+    expect(open).not.toHaveBeenCalled();
+  } finally {
+    act(() => root.unmount());
   }
 });

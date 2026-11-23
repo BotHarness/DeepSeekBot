@@ -43,7 +43,7 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
-import { searchAppBar, space } from '../../../src/ui/design/tokens';
+import { fab, searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -54,6 +54,7 @@ import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
+import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
@@ -120,6 +121,7 @@ const HomeContent = memo(function HomeContent({
   hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const showWorkspaces = useWorkspacePanel();
@@ -226,19 +228,6 @@ const HomeContent = memo(function HomeContent({
   );
   const tobHref = tobModeHref(tobHostId, tobComputers);
   const pullFocused = useIsFocused();
-  const tobAction =
-    tobHostId === undefined ? null : (
-      <HeaderAction
-        icon="tob"
-        label={t.openTobMode}
-        testID="tob-mode-button"
-        onPress={() => {
-          if (tobHref === undefined) return;
-          recordFeature('tob:mode_open', {});
-          router.push(tobHref);
-        }}
-      />
-    );
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -471,7 +460,7 @@ const HomeContent = memo(function HomeContent({
             !hostFailed)),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
-  const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
+  const screen = <Stack.Screen options={{ title: t.chats, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
     return (
       <>
@@ -585,7 +574,7 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      {screen}
+      {Platform.OS === 'ios' ? null : screen}
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
@@ -593,21 +582,41 @@ const HomeContent = memo(function HomeContent({
           disruptedSince={selectedHost?.snapshot.disruptedSince}
           onWorkspaces={showWorkspaces}
           bar={
-            Platform.OS === 'android' ? (
+            Platform.OS === 'android' && searching ? (
               <ChatsSearchBar
+                autoExpand
                 placeholder={t.searchIn(environment.title)}
                 busy={connecting || messages.loading}
                 results={searchResults}
                 onQuery={onQuery}
-                onExpanded={setSearchFocused}
+                onExpanded={(expanded) => {
+                  setSearchFocused(expanded);
+                  if (!expanded) {
+                    setQuery('');
+                    setSearching(false);
+                  }
+                }}
                 onPick={pickSearch}
                 onNavigation={openHostDrawer}
               />
             ) : undefined
           }
-          barActions={searchFocused ? null : tobAction}
+          nativeSearch={{
+            placeholder: t.searchPlaceholder,
+            onChange: onQuery,
+            onFocus: () => {
+              setSearching(true);
+              setSearchFocused(true);
+            },
+            onBlur: () => setSearchFocused(false),
+            onCancel: () => {
+              setQuery('');
+              setSearchFocused(false);
+              setSearching(false);
+            },
+          }}
           search={
-            searching ? (
+            Platform.OS === 'web' && searching ? (
               <HeaderSearch
                 value={query}
                 placeholder={t.searchPlaceholder}
@@ -624,15 +633,12 @@ const HomeContent = memo(function HomeContent({
             ) : undefined
           }
           actions={
-            <>
-              <HeaderAction
-                icon="search"
-                label={t.openSearch}
-                testID="search-button"
-                onPress={() => setSearching(true)}
-              />
-              {tobAction}
-            </>
+            <HeaderAction
+              icon="search"
+              label={t.openSearch}
+              testID="search-button"
+              onPress={() => setSearching(true)}
+            />
           }
         >
           <LastChatSwipe
@@ -672,7 +678,7 @@ const HomeContent = memo(function HomeContent({
                   {...pull}
                   renderScrollComponent={renderKeyboardFormScroll}
                   scrollEventThrottle={1}
-                  contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
+                  contentContainerStyle={{ paddingBottom: bottom + fab.size + space.x6 }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   data={listItems}

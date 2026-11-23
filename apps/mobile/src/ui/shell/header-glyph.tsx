@@ -4,11 +4,19 @@ import {
   ActivitySearchIcon,
   ArchiveIcon,
   MoreIcon,
+  PlusIcon,
   SettingsIcon,
   TobModeIcon,
 } from './icons';
 
-export type HeaderActionIcon = 'archive' | 'filter' | 'more' | 'search' | 'settings' | 'tob';
+export type HeaderActionIcon =
+  | 'archive'
+  | 'filter'
+  | 'more'
+  | 'add'
+  | 'search'
+  | 'settings'
+  | 'tob';
 
 export type HeaderActionProps = {
   icon: HeaderActionIcon;
@@ -21,6 +29,7 @@ export type HeaderActionProps = {
 const glyphs = {
   archive: { Glyph: ArchiveIcon, size: 'size' },
   filter: { Glyph: ActivityFilterIcon, size: 'size' },
+  add: { Glyph: PlusIcon, size: 'line' },
   more: { Glyph: MoreIcon, size: 'size' },
   search: { Glyph: ActivitySearchIcon, size: 'size' },
   settings: { Glyph: SettingsIcon, size: 'line' },

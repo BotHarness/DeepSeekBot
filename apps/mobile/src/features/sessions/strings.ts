@@ -3,6 +3,8 @@ import { en as modelsEn, zh as modelsZh } from '../models/strings';
 export const en = {
   hostSessions: {
     title: 'Sessions',
+    create: 'New Session',
+    createPending: 'Starting a Session from your phone is coming soon.',
     toggle: 'Show Sessions tab',
     native: 'Native session',
     untitled: 'Untitled session',
@@ -174,6 +176,8 @@ export const en = {
 export const zh: typeof en = {
   hostSessions: {
     title: '会话',
+    create: '新建会话',
+    createPending: '即将支持在手机上新建会话。',
     toggle: '显示会话标签页',
     native: '原生会话',
     untitled: '未命名会话',
