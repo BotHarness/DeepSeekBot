@@ -36,8 +36,15 @@ export function createMemberDevices(options: {
     fingerprint: (await options.encryption()).fingerprint,
   });
   const routes = async () => memberUrls(await options.routes());
+  const issueOwner = (humanId: string, name: string, publicKey: string) => {
+    const issued = options.pairing.issueOwnerPasswordDevice({ humanId, name, publicKey });
+    if (!issued) throw new TeamError('credentials-invalid');
+    return issued;
+  };
   return {
     routes,
+    passwordSignInAvailable: () => options.team.passwordSignInAvailable(),
+    revokeMemberSignIn: (deviceId: string) => options.team.revoke(deviceId),
     async invitation(humanId: string): Promise<MemberInvitation> {
       const member = options.team.member(humanId);
       if (!member) throw new TeamError('member-not-found');
@@ -86,15 +93,23 @@ export function createMemberDevices(options: {
       const parsed = deviceSignInSchema.parse(input);
       const identity = await host();
       if (parsed.fingerprint !== identity.fingerprint) throw new TeamError('fingerprint-mismatch');
-      return options.team.signInOwnerDevice(parsed.username, parsed.password, ip, (humanId) => {
-        const issued = options.pairing.issueOwnerPasswordDevice({
-          humanId,
-          name: parsed.deviceName,
-          publicKey,
-        });
-        if (!issued) throw new TeamError('credentials-invalid');
-        return { ...issued, host: identity };
+      return options.team.signInOwnerDevice(parsed.username, parsed.password, ip, (humanId) => ({
+        ...issueOwner(humanId, parsed.deviceName, publicKey),
+        host: identity,
+      }));
+    },
+    async signInPassword(input: unknown, ip: string, publicKey: string) {
+      const parsed = deviceSignInSchema.parse(input);
+      const identity = await host();
+      if (parsed.fingerprint !== identity.fingerprint) throw new TeamError('fingerprint-mismatch');
+      const signed = await options.team.signInPasswordDevice({
+        username: parsed.username,
+        password: parsed.password,
+        ip,
+        device: { kind: 'paired-device', name: parsed.deviceName, publicKey },
+        issueOwner: (humanId) => issueOwner(humanId, parsed.deviceName, publicKey),
       });
+      return { ...signed.device, role: signed.role, host: identity };
     },
   };
 }

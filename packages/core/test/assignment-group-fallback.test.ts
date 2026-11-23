@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { groupMemberRoute } from '../src/models/catalog.js';
@@ -19,6 +19,8 @@ import type {
   OrchestratorAgentRun,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { setup } from './assignment-collaboration-fixtures.js';
+import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const SPENT = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const DEEPSEEK = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
@@ -45,6 +47,49 @@ const basePlan: PersonaBotModelPlan = {
 };
 
 describe('Assignment Routing Groups in the plan (#4420)', () => {
+  it('refuses the same group target when the Assignment stopped during selection', async () => {
+    const pick = deferred();
+    const target = { kind: 'route', route: DEEPSEEK } as const;
+    const rests = createRouteRests();
+    const fallback = createGroupFallback({
+      plan: () => undefined,
+      inheritedGroup: () => 'g',
+      routes: () => [DEEPSEEK],
+      rests,
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+    });
+    const groupFallback = {
+      ...fallback,
+      isMixed: () => true,
+      async pickMixedAssignment() {
+        await pick.promise;
+        return { kind: 'target', target } as const;
+      },
+    };
+    const { agents, admit, close } = await setup({ runtimeOptions: { groupFallback } });
+    try {
+      await admit('Start', 'same-group-target');
+      const created = agents.access!.create({
+        title: 'Research',
+        grantId: TEST_GRANT_ID,
+        description: 'Find the launch date',
+        model: DEEPSEEK,
+        modelGroupId: 'g',
+      });
+      if (created.outcome !== 'created') throw new Error('Assignment missing');
+      const select = agents.started[0]!.run.selectGroupTarget!;
+      const selecting = select(new Set());
+      await agents.access!.stop(created.assignment.sessionId);
+      pick.resolve();
+
+      await expect(selecting).resolves.toBeUndefined();
+    } finally {
+      pick.resolve();
+      await close();
+    }
+  });
+
   it('picks the default group, accepts a listed group and refuses others', () => {
     const plan = { ...basePlan, assignmentGroups: ['g', 'h'], assignmentDefaultGroupId: 'g' };
     expect(isPersonaBotModelPlan(plan)).toBe(true);
@@ -74,6 +119,51 @@ describe('Assignment Routing Groups in the plan (#4420)', () => {
 });
 
 describe('An Assignment on a Routing Group keeps working when its route runs out (#4420)', () => {
+  it('reports a failed continuation notice write without an unhandled rejection', async () => {
+    const rests = createRouteRests();
+    const groupFallback = createGroupFallback({
+      plan: () => undefined,
+      inheritedGroup: () => 'g',
+      routes: () => [SPENT],
+      rests,
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+    });
+    const warn = vi.fn();
+    const { runtime, channels, agents, admit, close } = await setup({
+      runtimeOptions: { groupFallback, routeRests: rests, warn },
+    });
+    try {
+      await admit('Start', 'failed-continuation-notice');
+      const publication = vi
+        .spyOn(channels, 'appendMessage')
+        .mockRejectedValueOnce(
+          Object.assign(new Error('Channel write failed'), { code: 'SQLITE_BUSY' }),
+        );
+      vi.spyOn(agents, 'runAssignment').mockImplementationOnce(async (run) => {
+        rests.rest(SPENT, Date.now() + 60_000, 'quota');
+        run.failedTurn?.({ turn: 1, endSeq: 1 });
+        throw new Error('Model quota exhausted');
+      });
+      const created = agents.access!.create({
+        title: 'Research',
+        grantId: TEST_GRANT_ID,
+        description: 'Find the launch date',
+        model: SPENT,
+        modelGroupId: 'g',
+      });
+      if (created.outcome !== 'created') throw new Error('Assignment missing');
+      await vi.waitFor(() => expect(publication).toHaveBeenCalledTimes(1));
+      expect(runtime.getAssignment('ada', created.assignment.sessionId)?.activity).toBe('error');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('"event":"assignment-failure-publication"'),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"code":"SQLITE_BUSY"'));
+    } finally {
+      await close();
+    }
+  });
+
   it.each([
     {
       action: 'stopped',

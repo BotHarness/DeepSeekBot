@@ -330,27 +330,30 @@ export function createAssignmentExecution(ports: AssignmentExecutionPorts) {
       return false;
     };
     if (!valid()) return refuse();
-    const pending = ports.nativeAssignmentSteps.get(sessionId);
-    if (pending !== undefined) {
-      const accepted = await new Promise<boolean>((resolve) => {
+    const waitUnlessCancelled = (step: Promise<boolean>) =>
+      new Promise<boolean>((resolve) => {
         const finish = (result: boolean) => {
           cancellation.removeEventListener('abort', abort);
           resolve(result);
         };
         const abort = () => finish(false);
         cancellation.addEventListener('abort', abort, { once: true });
-        void pending.step.then(finish, () => finish(false));
+        void step.then(finish, () => finish(false));
         if (cancellation.aborted) abort();
       });
+    const pending = ports.nativeAssignmentSteps.get(sessionId);
+    if (pending !== undefined) {
+      const accepted = await waitUnlessCancelled(pending.step);
       if (!valid()) return refuse();
       if (!accepted && pending.signal.aborted)
         return prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
       return accepted;
     }
     const prepare = async () => {
-      while (ports.assignmentRuns.has(sessionId)) {
+      for (let running = ports.assignmentRuns.get(sessionId); running !== undefined;) {
         if (ports.preparedAssignments.has(sessionId)) return valid();
-        await ports.assignmentRuns.get(sessionId);
+        if (!(await waitUnlessCancelled(running.then(() => true)))) return refuse();
+        running = ports.assignmentRuns.get(sessionId);
       }
       while (valid() && assignmentCapacityRefusal('awakened') !== undefined) {
         await new Promise<void>((resolve) => {
@@ -384,13 +387,13 @@ export function createAssignmentExecution(ports: AssignmentExecutionPorts) {
         cancellation.addEventListener('abort', abort, { once: true });
         const agentPreset = row.agent_preset ?? undefined;
         trackAssignmentRun(sessionId, async () => {
-          const modelRoute =
-            ports.sessionModels.get(sessionId) === null
-              ? await ports
-                  .refreshAssignmentRoute(row.bot_slug, sessionId)
-                  .catch(() => modelRouteFromRow(row))
-              : modelRouteFromRow(row);
           try {
+            const modelRoute =
+              ports.sessionModels.get(sessionId) === null
+                ? await ports
+                    .refreshAssignmentRoute(row.bot_slug, sessionId)
+                    .catch(() => modelRouteFromRow(row))
+                : modelRouteFromRow(row);
             await ports.agents.runAssignment({
               ...ports.assignmentModelSelection(bot.slug, sessionId),
               sessionId,
@@ -678,7 +681,8 @@ export function createAssignmentExecution(ports: AssignmentExecutionPorts) {
         await processing?.stop();
         if (ports.typingAssignments.get(sessionId) === processing)
           ports.typingAssignments.delete(sessionId);
-        ports.approvalCapacity.forget(sessionId);
+        if (ports.assignmentRuns.get(sessionId) === tracked)
+          ports.approvalCapacity.forget(sessionId);
       }
     })();
     tracked = run.then(

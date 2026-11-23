@@ -36,12 +36,12 @@ const codes: readonly TeamErrorCode[] = [
   'invalid-input',
   'remote-access/denied',
 ];
-function signedHost(
+export function signedMemberHost(
   input: unknown,
-  invitation: TeamInvitation,
+  invitation: Pick<TeamInvitation, 'host' | 'routes' | 'username'>,
   route: string,
   encryption: HostEncryption,
-): TeamResult<SavedHost> {
+): TeamResult<SavedHost, 'fingerprint-mismatch' | 'response-invalid'> {
   const value = teamRecord(input);
   const host = teamHostIdentity(value['host']);
   if (!host || host.id !== invitation.host.id || host.fingerprint !== invitation.host.fingerprint)
@@ -162,7 +162,7 @@ async function signInTeamRoute(
         input,
         signal,
       });
-      return result.ok ? signedHost(result.value, invitation, route, encryption) : result;
+      return result.ok ? signedMemberHost(result.value, invitation, route, encryption) : result;
     }
     const result = await options.carrier.request(`${route}/botharness-device/team/device-sign-in`, {
       method: 'POST',
@@ -172,7 +172,7 @@ async function signInTeamRoute(
     });
     const value: unknown = JSON.parse(await result.text());
     return result.status === 200
-      ? signedHost(value, invitation, route, encryption)
+      ? signedMemberHost(value, invitation, route, encryption)
       : signInRefusal(value, codes);
   } catch (error) {
     return signInTransportFailure(error, signal);
