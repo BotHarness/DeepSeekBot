@@ -14,8 +14,9 @@ const DEVICE_POSITIONALS = new Map<string, readonly (RegExp | undefined)[]>([
 ]);
 
 export function parseBotCliArgs(argv: readonly string[]) {
+  const args = [...argv];
   const config = {
-    args: [...argv],
+    args,
     options: BOT_CLI_OPTIONS,
     allowPositionals: true,
     strict: true,
@@ -33,14 +34,14 @@ export function parseBotCliArgs(argv: readonly string[]) {
     if (token.kind === 'positional') {
       slot++;
     } else if (token.kind === 'option') {
-      const arg = config.args[token.index];
+      const arg = args[token.index];
       if (
         arg !== undefined &&
         arg.startsWith('-') &&
         shapes[slot]?.test(arg) &&
         !(token.rawName === arg && Object.hasOwn(BOT_CLI_OPTIONS, token.name))
       ) {
-        config.args[token.index] = `_${arg}`;
+        args[token.index] = `_${arg}`;
         slot++;
       }
     }
