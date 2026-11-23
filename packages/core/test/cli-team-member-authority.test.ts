@@ -392,6 +392,28 @@ describe('Team CLI', () => {
     ]);
   });
 
+  it('passes the Owner device sign-out choice only with explicit CLI confirmation', async () => {
+    const f = await host();
+    const args = ['team-mode', 'owner-password', '--password-stdin', '--sign-out-others=true'];
+    const input = '{"current":"previous-owner-password","password":"updated-owner-password"}';
+    const refused = await run(f.url, args, input);
+    expect(refused.output).toMatchObject({ error: { code: 'confirm-required' } });
+    expect(f.calls).toEqual([]);
+
+    const changed = await run(f.url, [...args, '--confirm'], input);
+    expect(changed.status).toBe(0);
+    expect(changed.text + changed.errorText).not.toContain('updated-owner-password');
+    expect(f.calls[0]?.input).toMatchObject({
+      payload: {
+        args: {
+          current: 'previous-owner-password',
+          password: 'updated-owner-password',
+          signOutOthers: true,
+        },
+      },
+    });
+  });
+
   it('reads Owner and member passwords only from stdin and requires confirmation for insecure HTTP', async () => {
     const f = await host();
     expect(

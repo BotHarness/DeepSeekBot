@@ -196,6 +196,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'privateTunnel.title',
     'connections.hosts.account',
     'connections.hosts.other',
+    'connections.hosts.routes',
     'connections.hosts.preference',
     'connections.pending',
     'devices.lan.title',

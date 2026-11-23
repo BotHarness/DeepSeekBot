@@ -83,6 +83,26 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it.each([true, false])(
+    'forwards the Owner password sign-out choice %s',
+    async (signOutOthers) => {
+      const { service, methods } = setup();
+      const set = vi.spyOn(methods, 'teamOwnerPasswordSet');
+      await expect(
+        service.teamOwnerPasswordSet(
+          'next-owner-password',
+          'current-owner-password',
+          signOutOthers,
+        ),
+      ).rejects.toMatchObject({ code: 'unavailable' });
+      expect(set).toHaveBeenCalledWith({
+        password: 'next-owner-password',
+        current: 'current-owner-password',
+        signOutOthers,
+      });
+    },
+  );
+
   it('reuses one method table per Human across RPC calls', () => {
     const { service, methods, methodsForHuman } = setup();
     const identity = vi.spyOn(methods, 'humanIdentity');
