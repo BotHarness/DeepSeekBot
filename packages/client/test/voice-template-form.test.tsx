@@ -147,7 +147,7 @@ describe('voice template drafts', () => {
       ]),
     ).toEqual({
       url: 'Use an HTTP(S) URL.',
-      headers: 'headers.Authorization: Use auth.',
+      headers: 'Authorization: Use auth.',
       form: 'Too big.',
     });
   });

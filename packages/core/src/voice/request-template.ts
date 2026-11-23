@@ -148,8 +148,7 @@ export const voiceRequestTemplateSchema = z
         ctx.addIssue({
           code: 'custom',
           path: ['headers', key],
-          message:
-            'Configure authentication through auth; transport headers are managed by the Host.',
+          message: 'Set the key under Authentication instead; the Host manages this header.',
         });
     if (JSON.stringify(template).length > 65_536)
       ctx.addIssue({ code: 'custom', message: 'Template exceeds 64 KB.' });

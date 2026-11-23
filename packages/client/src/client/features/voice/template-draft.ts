@@ -170,7 +170,7 @@ export function templateErrors(
     const detail =
       field === 'form' || error.path.split('.').length <= 1
         ? error.message
-        : `${error.path}: ${error.message}`;
+        : `${field === 'headers' ? error.path.slice('headers.'.length) : error.path}: ${error.message}`;
     mapped[field] = mapped[field] === undefined ? detail : `${mapped[field]} ${detail}`;
   }
   return mapped;
