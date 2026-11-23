@@ -5,6 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from './text';
 import { useSelectionFeedback } from '../selection-feedback';
+import { segmentTestID } from './segment-test-id';
 
 export type SegmentedProps<T extends string> = {
   label: string;
@@ -16,10 +17,6 @@ export type SegmentedProps<T extends string> = {
   disabled?: boolean;
   testID?: string;
 };
-
-export function segmentTestID(testID: string | undefined, value: string): string | undefined {
-  return testID === undefined ? undefined : `${testID}-${value.toLowerCase()}`;
-}
 
 export function Segmented<T extends string>({
   label,

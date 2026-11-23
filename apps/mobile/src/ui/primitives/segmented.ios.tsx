@@ -8,7 +8,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { useDesignTheme } from '../design/theme';
-import { segmentTestID, type SegmentedProps } from './segmented';
+import { segmentTestID } from './segment-test-id';
+import type { SegmentedProps } from './segmented';
 
 export function Segmented<T extends string>({
   label,

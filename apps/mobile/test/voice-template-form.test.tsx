@@ -112,9 +112,9 @@ function sheetPort(): VoiceServiceSheetPort {
     add: vi.fn(async () => SERVICE),
     browse: vi.fn(),
     importVoice: vi.fn(),
-    validate: vi.fn(async (_kind, template) => ({
+    validate: vi.fn(async (kind, template) => ({
       valid: true as const,
-      template: voiceTemplateOf(template, 'voiceTemplateValidate'),
+      template: voiceTemplateOf(template, 'voiceTemplateValidate', kind),
     })),
   };
 }
@@ -215,9 +215,9 @@ it('shows Host refusals next to their field', async () => {
 it('edits an existing request and saves it', async () => {
   const port: VoiceTemplatePort = {
     template: vi.fn(async () => TEMPLATE),
-    validate: vi.fn(async (_kind, template) => ({
+    validate: vi.fn(async (kind, template) => ({
       valid: true as const,
-      template: voiceTemplateOf(template, 'voiceTemplateValidate'),
+      template: voiceTemplateOf(template, 'voiceTemplateValidate', kind),
     })),
     saveTemplate: vi.fn(async () => SERVICE),
   };

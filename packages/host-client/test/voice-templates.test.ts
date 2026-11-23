@@ -57,6 +57,23 @@ describe('voice template readers', () => {
     );
   });
 
+  it('matches the result to the template kind when a kind is given', () => {
+    const asr = { ...TEMPLATE, result: { kind: 'text', path: 'text' } };
+    expect(isVoiceTemplate(TEMPLATE)).toBe(true);
+    expect(isVoiceTemplate(asr)).toBe(true);
+    expect(isVoiceTemplate(TEMPLATE, 'tts')).toBe(true);
+    expect(isVoiceTemplate(asr, 'asr')).toBe(true);
+    expect(isVoiceTemplate(asr, 'tts')).toBe(false);
+    expect(isVoiceTemplate(TEMPLATE, 'asr')).toBe(false);
+    expect(() => voiceTemplateOf(asr, 'voiceTemplateValidate', 'tts')).toThrow(HostAnswerInvalid);
+  });
+
+  it('rejects an accepted template whose result does not fit the kind', async () => {
+    await expect(
+      validateVoiceTemplate(host({ valid: true, template: TEMPLATE }), 'asr', TEMPLATE),
+    ).rejects.toBeInstanceOf(HostAnswerInvalid);
+  });
+
   it('accepts only JSON values in a json body', () => {
     const withBody = (value: unknown) => ({ ...TEMPLATE, body: { kind: 'json', value } });
     const nested = (levels: number): unknown =>

@@ -70,7 +70,7 @@ function resultOk(value: unknown): boolean {
   );
 }
 
-export function isVoiceTemplate(value: unknown): value is VoiceRequestTemplate {
+export function isVoiceTemplate(value: unknown, kind?: VoiceKind): value is VoiceRequestTemplate {
   const template = record(value);
   return (
     template !== undefined &&
@@ -80,12 +80,17 @@ export function isVoiceTemplate(value: unknown): value is VoiceRequestTemplate {
     stringMap(template['headers']) &&
     authOk(template['auth']) &&
     bodyOk(template['body']) &&
-    resultOk(template['result'])
+    resultOk(template['result']) &&
+    (kind === undefined || (kind === 'asr') === (record(template['result'])?.['kind'] === 'text'))
   );
 }
 
-export function voiceTemplateOf(value: unknown, method: string): VoiceRequestTemplate {
-  if (!isVoiceTemplate(value)) throw new HostAnswerInvalid(`invalid ${method} response`);
+export function voiceTemplateOf(
+  value: unknown,
+  method: string,
+  kind?: VoiceKind,
+): VoiceRequestTemplate {
+  if (!isVoiceTemplate(value, kind)) throw new HostAnswerInvalid(`invalid ${method} response`);
   return value;
 }
 
@@ -97,7 +102,7 @@ export async function validateVoiceTemplate(
   const method = 'voiceTemplateValidate';
   const answer = answerRecord(await host.call(method, { kind, template }), method);
   if (answer['valid'] === true)
-    return { valid: true, template: voiceTemplateOf(answer['template'], method) };
+    return { valid: true, template: voiceTemplateOf(answer['template'], method, kind) };
   if (answer['valid'] !== false || !Array.isArray(answer['errors']))
     throw new HostAnswerInvalid(`invalid ${method} response`);
   return {

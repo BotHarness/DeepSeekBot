@@ -12,7 +12,8 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { androidSettings, space } from '../design/tokens';
 import { RadioMark } from './radio-mark';
 import { segmentCorners } from '../design/segment-corners';
-import { segmentTestID, type SegmentedProps } from './segmented';
+import { segmentTestID } from './segment-test-id';
+import type { SegmentedProps } from './segmented';
 import { Text } from './text';
 import { useSelectionFeedback } from '../selection-feedback';
 
