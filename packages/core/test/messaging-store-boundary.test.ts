@@ -15,6 +15,8 @@ const MESSAGING_TABLE_WRITERS = [
   'database/schema-plan.ts',
   'features/activity/events.ts',
   'features/activity/inbox-harvest.ts',
+  'features/activity/runtime-admission-recovery.ts',
+  'features/activity/runtime-admissions.ts',
   'features/assignments/events.ts',
   'features/assignments/reporting.ts',
   'features/messaging/events.ts',
