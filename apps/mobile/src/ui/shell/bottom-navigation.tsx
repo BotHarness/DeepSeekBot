@@ -43,7 +43,6 @@ function NavigationLayout() {
   const { fontScale } = useWindowDimensions();
   const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
-  const labelLines = fontScale > 2 ? 3 : fontScale > 1.3 ? 2 : 1;
   const size = android
     ? (nativeHeight ??
       Math.max(
@@ -55,7 +54,9 @@ function NavigationLayout() {
       ))
     : Math.max(
         navigationBar.height,
-        theme.type.title.line + theme.type.meta.line * fontScale * labelLines + space.x5,
+        theme.type.title.line +
+          theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) +
+          space.x5,
       );
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
