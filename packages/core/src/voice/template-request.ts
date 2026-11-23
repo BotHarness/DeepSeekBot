@@ -1,4 +1,4 @@
-import type { SsmlNode, VoiceRequestTemplate } from './request-template.js';
+import { templateUrl, type SsmlNode, type VoiceRequestTemplate } from './request-template.js';
 import { audioExtension } from './provider-audio.js';
 import { VoiceError } from './provider-types.js';
 
@@ -14,15 +14,60 @@ export interface VoiceTemplateValues {
   audioDataUrl?: string | undefined;
 }
 
+const MAX_RENDERED_AUDIO_BYTES = 16 * 1024 * 1024;
+
+function boundAudioExpansion(template: VoiceRequestTemplate, values: VoiceTemplateValues): void {
+  let total = 0;
+  const visit = (value: unknown, url = false, multipart = false): void => {
+    if (typeof value === 'string') {
+      for (const match of value.matchAll(/\{(audio|audioBase64|audioDataUrl)\}/gu)) {
+        const key = match[1]!;
+        const rawUpload = multipart && value === '{audio}';
+        const supplied = key === 'audioDataUrl' ? values.audioDataUrl : values.audioBase64;
+        const size = rawUpload
+          ? (values.audio?.byteLength ?? 0)
+          : supplied === undefined
+            ? Math.ceil((values.audio?.byteLength ?? 0) / 3) * 4 +
+              (key === 'audioDataUrl' ? 128 : 0)
+            : Buffer.byteLength(supplied, 'utf8');
+        total += url ? size * 3 : size;
+        if (total > MAX_RENDERED_AUDIO_BYTES)
+          throw new VoiceError('invalid-input', 'Rendered audio references exceed 16 MB.');
+      }
+    } else if (Array.isArray(value)) value.forEach((item) => visit(item, url, multipart));
+    else if (value !== null && typeof value === 'object')
+      Object.values(value).forEach((item) => visit(item, url, multipart));
+  };
+  visit(template.url, true);
+  visit(template.headers);
+  visit(
+    template.body.kind === 'multipart' ? template.body.fields : template.body,
+    false,
+    template.body.kind === 'multipart',
+  );
+}
+
+function audioValues(values: VoiceTemplateValues): VoiceTemplateValues {
+  if (values.audio === undefined) return values;
+  let encoded: string | undefined;
+  const base64 = () => (encoded ??= Buffer.from(values.audio!).toString('base64'));
+  return {
+    ...values,
+    get audioBase64() {
+      return values.audioBase64 ?? base64();
+    },
+    get audioDataUrl() {
+      return (
+        values.audioDataUrl ??
+        `data:${values.mime ?? 'application/octet-stream'};base64,${base64()}`
+      );
+    },
+  };
+}
+
 function placeholder(values: VoiceTemplateValues, key: string): string | undefined {
-  const value: unknown = Reflect.get(values, key);
+  const value: unknown = Reflect.get(values, key === 'audio' ? 'audioBase64' : key);
   if (typeof value === 'string') return value;
-  if (values.audio !== undefined && ['audio', 'audioBase64', 'audioDataUrl'].includes(key)) {
-    const encoded = Buffer.from(values.audio).toString('base64');
-    return key === 'audioDataUrl'
-      ? `data:${values.mime ?? 'application/octet-stream'};base64,${encoded}`
-      : encoded;
-  }
   return undefined;
 }
 
@@ -94,7 +139,13 @@ export function templateRequest(
   values: VoiceTemplateValues,
   key: string | undefined,
 ) {
-  const url = new URL(substitute(template.url, values, true)!);
+  boundAudioExpansion(template, values);
+  values = audioValues(values);
+  const fixed = templateUrl(template.url);
+  const pathAndQuery = /^https?:\/\/[^/?#]+(.*)$/iu.exec(template.url)?.[1] ?? '';
+  const url = new URL(fixed.origin + substitute(pathAndQuery, values, true)!);
+  if (url.origin !== fixed.origin)
+    throw new VoiceError('invalid-input', 'Template placeholders cannot change the origin.');
   const headers = new Headers();
   for (const [name, value] of Object.entries(template.headers)) {
     const rendered = substitute(value, values);

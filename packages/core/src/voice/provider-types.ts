@@ -56,7 +56,7 @@ export interface TtsProviderView {
   baseUrl: string;
   model?: string;
   defaultVoice?: string;
-  template?: VoiceRequestTemplate;
+  hasTemplate?: boolean;
   keySet: boolean;
   createdAt: string;
 }
@@ -71,7 +71,7 @@ export interface AsrProviderView {
   baseUrl: string;
   model?: string;
   language?: string;
-  template?: VoiceRequestTemplate;
+  hasTemplate?: boolean;
   keySet: boolean;
   createdAt: string;
 }

@@ -110,7 +110,7 @@ export function asrView(stored: StoredProvider): AsrProviderView {
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.language === undefined ? {} : { language: stored.language }),
-    ...(stored.template === undefined ? {} : { template: stored.template }),
+    ...(stored.template === undefined ? {} : { hasTemplate: true }),
     keySet: stored.credentialRevision !== undefined,
     createdAt: stored.createdAt,
   };
@@ -131,7 +131,7 @@ export function view(stored: StoredProvider): TtsProviderView {
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.defaultVoice === undefined ? {} : { defaultVoice: stored.defaultVoice }),
-    ...(stored.template === undefined ? {} : { template: stored.template }),
+    ...(stored.template === undefined ? {} : { hasTemplate: true }),
     keySet: stored.credentialRevision !== undefined,
     createdAt: stored.createdAt,
   };

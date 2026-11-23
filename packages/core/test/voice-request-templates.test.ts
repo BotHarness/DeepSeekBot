@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createVoiceBridgeMethods } from '../src/voice/bridge.js';
@@ -33,7 +33,7 @@ const base: VoiceRequestTemplate = {
   result: { kind: 'audio' },
 };
 
-async function fixture(fetcher: typeof fetch) {
+async function fixture(fetcher: typeof fetch, timeoutMs?: number) {
   const root = createTempRoot('voice-templates-');
   const ctx = new Context();
   const fiber = ctx.plugin(LocalCredentialProvider, {
@@ -50,6 +50,7 @@ async function fixture(fetcher: typeof fetch) {
     database: voiceDb,
     credentials: () => ctx.credentials,
     fetch: fetcher,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
   const registry = createTestRegistry({ rootDir: join(root, 'bots') });
   return { providers, db: voiceDb, methods: createVoiceBridgeMethods({ providers, registry }) };
@@ -198,7 +199,8 @@ describe('HTTP voice request templates', () => {
         defaultVoice: 'alloy',
         key: 'fixture-secret-123',
       });
-      expect(f.providers.get(provider.id).template).toEqual(template);
+      expect(f.providers.template(provider.id)).toEqual(template);
+      expect(f.providers.get(provider.id)).not.toHaveProperty('template');
       const synthesized = await f.providers.synthesize({ providerId: provider.id, text: TEXT });
       expect(synthesized.mime).toBe('audio/mpeg');
       expect(Buffer.from(synthesized.audio)).toEqual(MP3);
@@ -237,7 +239,11 @@ describe('HTTP voice request templates', () => {
           kind: 'ssml',
           root: {
             tag: 'speak',
-            attributes: { version: '1.0', 'xml:lang': 'en-US' },
+            attributes: {
+              version: '1.0',
+              xmlns: 'http://www.w3.org/2001/10/synthesis',
+              'xml:lang': 'en-US',
+            },
             children: [{ tag: 'voice', attributes: { name: '{voice}' }, children: ['{text}'] }],
           },
         },
@@ -256,6 +262,7 @@ describe('HTTP voice request templates', () => {
       key: 'azure-fixture-secret',
     });
     await f.providers.synthesize({ providerId: provider.id, text: TEXT });
+    expect(sent?.body).toContain('xmlns="http://www.w3.org/2001/10/synthesis"');
     expect(sent?.body).toContain('&lt;voice name=&quot;injected&quot;&gt;');
     expect(sent?.body).not.toContain('<voice name="injected">');
     expect(new Headers(sent?.headers).get('content-type')).toBe('application/ssml+xml');
@@ -343,7 +350,7 @@ describe('HTTP voice request templates', () => {
     });
     expect(updated).toMatchObject({
       ok: true,
-      value: { provider: { baseUrl: 'https://edited.example', template: { method: 'GET' } } },
+      value: { provider: { baseUrl: 'https://edited.example', hasTemplate: true } },
     });
     expect(f.methods.voiceProviderTemplate({ id: custom.id })).toMatchObject({
       ok: true,
@@ -411,22 +418,37 @@ describe('HTTP voice request templates', () => {
   });
 
   it.each([
-    Response.json({ missing: 'value' }),
-    Response.json({ audio: 'not base64!' }),
-    new Response('<html>private upstream detail</html>', {
-      headers: { 'Content-Type': 'text/html' },
-    }),
-  ])(
-    'refuses missing paths, malformed audio and HTML without echoing upstream content %#',
-    async (response) => {
-      await expect(
-        templateAudio({
-          response,
-          result: { kind: 'base64', path: 'audio' },
-          fetch,
-          signal: AbortSignal.timeout(1_000),
+    {
+      response: () => Response.json({ missing: 'private upstream detail' }),
+      result: { kind: 'base64', path: 'audio' },
+    },
+    {
+      response: () => Response.json({ audio: 'private upstream detail' }),
+      result: { kind: 'base64', path: 'audio' },
+    },
+    ...['audio', 'base64'].map((kind) => ({
+      response: () =>
+        new Response('<html>private upstream detail</html>', {
+          headers: { 'Content-Type': 'text/html' },
         }),
-      ).rejects.toMatchObject({ code: 'provider-bad-response' });
+      result:
+        kind === 'audio' ? { kind: 'audio' as const } : { kind: 'base64' as const, path: 'audio' },
+    })),
+    {
+      response: () => new Response('<html>private upstream detail</html>'),
+      result: { kind: 'audio' },
+    },
+  ] satisfies { response: () => Response; result: VoiceRequestTemplate['result'] }[])(
+    'refuses missing paths, malformed audio and HTML without echoing upstream content %#',
+    async ({ response, result }) => {
+      const error = await templateAudio({
+        response: response(),
+        result,
+        fetch,
+        signal: AbortSignal.timeout(1_000),
+      }).catch((error: unknown) => error);
+      expect(error).toMatchObject({ code: 'provider-bad-response' });
+      expect(String(error)).not.toContain('private upstream detail');
     },
   );
 
@@ -482,4 +504,223 @@ describe('HTTP voice request templates', () => {
       'private upstream detail',
     );
   });
+  it.each(['custom', 'fish-audio', 'elevenlabs', 'xiaomi-mimo'])(
+    'sends configured %s model and voice values literally',
+    async (preset) => {
+      let sent: RequestInit | undefined;
+      const f = await fixture(async (_url, init) => {
+        sent = init;
+        return preset === 'xiaomi-mimo'
+          ? Response.json({ choices: [{ message: { audio: { data: MP3.toString('base64') } } }] })
+          : new Response(MP3);
+      });
+      const model = 'adapter-{text}-{voice}';
+      const voice = 'speaker-{text}';
+      const provider = await f.providers.add({
+        preset,
+        baseUrl: 'https://speech.example',
+        model,
+        defaultVoice: voice,
+        key: 'fixture-secret',
+      });
+      await f.providers.synthesize({ providerId: provider.id, text: 'utterance' });
+      if (preset === 'fish-audio') expect(new Headers(sent?.headers).get('model')).toBe(model);
+      else
+        expect(JSON.parse(String(sent?.body))).toMatchObject(
+          preset === 'elevenlabs' ? { model_id: model } : { model },
+        );
+      if (preset === 'custom') expect(JSON.parse(String(sent?.body))).toMatchObject({ voice });
+    },
+  );
+
+  it('sends a configured ASR model literally and omits templates from both lists', async () => {
+    let sent: RequestInit | undefined;
+    const f = await fixture(async (_url, init) => {
+      sent = init;
+      return Response.json({ text: 'heard' });
+    });
+    const provider = await f.providers.add({
+      kind: 'asr',
+      preset: 'custom',
+      baseUrl: 'https://speech.example',
+      model: 'adapter-{text}',
+    });
+    await f.providers.transcribe({
+      providerId: provider.id,
+      audio: wavFromPcm16(new Int16Array([1]), 16_000),
+    });
+    expect(sent?.body).toBeInstanceOf(FormData);
+    if (!(sent?.body instanceof FormData)) throw new Error('Expected multipart');
+    expect(sent.body.get('model')).toBe('adapter-{text}');
+    const asr = parseVoiceTemplate(
+      {
+        ...base,
+        body: { kind: 'multipart', fields: { file: '{audio}' } },
+        result: { kind: 'text', path: 'text' },
+      },
+      'asr',
+    );
+    const custom = await f.providers.add({ kind: 'asr', preset: 'custom', template: asr });
+    await f.providers.add({ preset: 'custom', template: base });
+    const listed = f.methods.voiceProviders({});
+    expect(JSON.stringify(listed)).not.toContain('"template"');
+    expect(f.providers.listAsr().find(({ id }) => id === custom.id)).toMatchObject({
+      hasTemplate: true,
+    });
+    expect(f.providers.template(custom.id)).toEqual(asr);
+  });
+
+  it('rejects a raw template that becomes oversized only after normalization on every write path', async () => {
+    const { headers: _headers, ...scaffold } = { ...base, body: { kind: 'json', value: '' } };
+    const available = 65_530 - Buffer.byteLength(JSON.stringify(scaffold), 'utf8');
+    const input = {
+      ...scaffold,
+      body: {
+        kind: 'json',
+        value: '界'.repeat(Math.floor(available / 3)) + 'x'.repeat(available % 3),
+      },
+    };
+    expect(Buffer.byteLength(JSON.stringify(input), 'utf8')).toBe(65_530);
+    expect(Buffer.byteLength(JSON.stringify({ ...input, headers: {} }), 'utf8')).toBeGreaterThan(
+      65_536,
+    );
+    expect(validateVoiceTemplate(input, 'tts').valid).toBe(false);
+    const f = await fixture(async () => new Response(MP3));
+    expect(f.methods.voiceTemplateValidate({ kind: 'tts', template: input })).toMatchObject({
+      ok: true,
+      value: { valid: false },
+    });
+    expect(await f.methods.voiceProviderAdd({ preset: 'custom', template: input })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    const custom = await f.providers.add({ preset: 'custom', template: base });
+    expect(
+      await f.methods.voiceProviderTemplateSet({ id: custom.id, template: input }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(f.providers.template(custom.id)).toEqual(base);
+    expect(f.providers.list()).toHaveLength(1);
+  });
+
+  it.each([
+    'https:////{voice}.example/speak',
+    'https:\\\\{voice}.example/speak',
+    'https://speech.example\\{voice}.example/speak',
+    'https://speech.example/\n{voice}',
+  ])('rejects ambiguous URL authorities before credentials can be attached: %s', (url) => {
+    const template = { ...base, url };
+    expect(validateVoiceTemplate(template, 'tts').valid).toBe(false);
+    expect(() => templateRequest(template, { voice: 'attacker' }, 'secret')).toThrow();
+  });
+
+  it.each(['\u0000', '\u001f', '\u007f', '世界', '\r', '\n'])(
+    'rejects invalid fixed header bytes and auth prefixes %#',
+    (value) => {
+      expect(validateVoiceTemplate({ ...base, headers: { 'X-Label': value } }, 'tts').valid).toBe(
+        false,
+      );
+      expect(
+        validateVoiceTemplate(
+          { ...base, auth: { kind: 'header', name: 'X-API-Key', prefix: value } },
+          'tts',
+        ).valid,
+      ).toBe(false);
+    },
+  );
+
+  it.each<VoiceRequestTemplate['body']>([
+    { kind: 'json', value: {} },
+    { kind: 'ssml', root: { tag: 'speak', attributes: {}, children: [] } },
+    { kind: 'multipart', fields: {} },
+  ])('rejects Content-Type authentication for managed body %#', (body) => {
+    expect(
+      validateVoiceTemplate(
+        { ...base, body, auth: { kind: 'header', name: 'cOnTeNt-TyPe', prefix: '' } },
+        'tts',
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateVoiceTemplate(
+        { ...base, body, auth: { kind: 'header', name: 'X-API-Key', prefix: '' } },
+        'tts',
+      ).valid,
+    ).toBe(true);
+  });
+
+  it('validates placeholders by provider kind while allowing optional ASR language', () => {
+    for (const value of ['{text}', 'prefix {voice}'])
+      expect(
+        validateVoiceTemplate(
+          { ...base, body: { kind: 'json', value }, result: { kind: 'text', path: 'text' } },
+          'asr',
+        ).valid,
+      ).toBe(false);
+    expect(
+      validateVoiceTemplate(
+        {
+          ...base,
+          body: { kind: 'multipart', fields: { language: '{language}', file: '{audio}' } },
+          result: { kind: 'text', path: 'text' },
+        },
+        'asr',
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateVoiceTemplate({ ...base, body: { kind: 'json', value: '{audio}' } }, 'tts').valid,
+    ).toBe(false);
+  });
+
+  it('bounds cumulative audio expansion before encoding or copying', () => {
+    const audio = new Uint8Array(8 * 1024 * 1024);
+    const encoder = vi.spyOn(Buffer, 'from');
+    for (const body of [
+      { kind: 'json', value: ['{audio}', '{audioBase64}'] },
+      { kind: 'multipart', fields: { one: '{audio}', two: '{audio}', three: '{audio}' } },
+    ] satisfies VoiceRequestTemplate['body'][]) {
+      expect(() => templateRequest({ ...base, body }, { audio }, undefined)).toThrow(
+        expect.objectContaining({ code: 'invalid-input' }),
+      );
+    }
+    expect(encoder).not.toHaveBeenCalled();
+    encoder.mockRestore();
+    expect(
+      templateRequest(
+        { ...base, body: { kind: 'multipart', fields: { file: '{audio}' } } },
+        { audio },
+        undefined,
+      ).init.body,
+    ).toBeInstanceOf(FormData);
+  });
+
+  it.each(['timeout', 'cancellation'])(
+    'preserves %s while reading a successful JSON response body',
+    async (kind) => {
+      const controller = new AbortController();
+      const reason = new Error('caller stopped');
+      const f = await fixture(async (_url, init) => {
+        const signal = init?.signal;
+        if (signal === undefined || signal === null) throw new Error('Missing signal');
+        return new Response(
+          new ReadableStream({
+            start(stream) {
+              signal.addEventListener('abort', () => stream.error(signal.reason), { once: true });
+              if (kind === 'cancellation') controller.abort(reason);
+            },
+          }),
+        );
+      }, 30);
+      const custom = await f.providers.add({
+        preset: 'custom',
+        template: { ...base, result: { kind: 'base64', path: 'audio' } },
+      });
+      const synthesis = f.providers.synthesize({
+        providerId: custom.id,
+        text: 'hello',
+        signal: controller.signal,
+      });
+      if (kind === 'timeout')
+        await expect(synthesis).rejects.toMatchObject({ code: 'provider-timeout' });
+      else await expect(synthesis).rejects.toBe(reason);
+    },
+  );
 });
