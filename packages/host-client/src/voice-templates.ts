@@ -39,10 +39,24 @@ function ssmlOk(value: unknown, depth = 0): boolean {
   );
 }
 
+function plainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function jsonOk(value: unknown, depth = 0): boolean {
+  if (depth >= 32) return false;
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every((entry) => jsonOk(entry, depth + 1));
+  return plainObject(value) && Object.values(value).every((entry) => jsonOk(entry, depth + 1));
+}
+
 function bodyOk(value: unknown): boolean {
   const body = record(value);
   if (body?.['kind'] === 'none') return true;
-  if (body?.['kind'] === 'json') return 'value' in body;
+  if (body?.['kind'] === 'json') return 'value' in body && jsonOk(body['value']);
   if (body?.['kind'] === 'ssml') return ssmlOk(body['root']);
   return body?.['kind'] === 'multipart' && stringMap(body['fields']);
 }
@@ -56,20 +70,23 @@ function resultOk(value: unknown): boolean {
   );
 }
 
-export function voiceTemplateOf(value: unknown, method: string): VoiceRequestTemplate {
+export function isVoiceTemplate(value: unknown): value is VoiceRequestTemplate {
   const template = record(value);
-  if (
-    template === undefined ||
-    template['version'] !== 1 ||
-    typeof template['url'] !== 'string' ||
-    (template['method'] !== 'POST' && template['method'] !== 'GET') ||
-    !stringMap(template['headers']) ||
-    !authOk(template['auth']) ||
-    !bodyOk(template['body']) ||
-    !resultOk(template['result'])
-  )
-    throw new HostAnswerInvalid(`invalid ${method} response`);
-  return template as unknown as VoiceRequestTemplate;
+  return (
+    template !== undefined &&
+    template['version'] === 1 &&
+    typeof template['url'] === 'string' &&
+    (template['method'] === 'POST' || template['method'] === 'GET') &&
+    stringMap(template['headers']) &&
+    authOk(template['auth']) &&
+    bodyOk(template['body']) &&
+    resultOk(template['result'])
+  );
+}
+
+export function voiceTemplateOf(value: unknown, method: string): VoiceRequestTemplate {
+  if (!isVoiceTemplate(value)) throw new HostAnswerInvalid(`invalid ${method} response`);
+  return value;
 }
 
 export async function validateVoiceTemplate(

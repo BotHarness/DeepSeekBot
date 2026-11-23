@@ -14,7 +14,12 @@ export type SegmentedProps<T extends string> = {
   onChange(value: T): void | PromiseLike<void>;
   compact?: boolean;
   disabled?: boolean;
+  testID?: string;
 };
+
+export function segmentTestID(testID: string | undefined, value: string): string | undefined {
+  return testID === undefined ? undefined : `${testID}-${value.toLowerCase()}`;
+}
 
 export function Segmented<T extends string>({
   label,
@@ -24,6 +29,7 @@ export function Segmented<T extends string>({
   onChange,
   disabled = false,
   compact = false,
+  testID,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
@@ -45,6 +51,7 @@ export function Segmented<T extends string>({
         return (
           <Pressable
             key={option.value}
+            testID={segmentTestID(testID, option.value)}
             accessibilityRole="tab"
             accessibilityLabel={option.label}
             accessibilityState={{ selected, disabled }}

@@ -33,6 +33,7 @@ vi.mock('../src/ui/chat/sheet', () => ({
 }));
 
 import type { VoiceServicesView } from '@botharness/host-client/voice-providers';
+import { voiceTemplateOf } from '@botharness/host-client/voice-templates';
 import type { VoiceRequestTemplate } from '@botharness/host-protocol/voice-request-template';
 import { t } from '../src/ui/strings';
 import { VoiceServiceSheet, type VoiceServiceSheetPort } from '../src/ui/voice/voice-service-sheet';
@@ -113,7 +114,7 @@ function sheetPort(): VoiceServiceSheetPort {
     importVoice: vi.fn(),
     validate: vi.fn(async (_kind, template) => ({
       valid: true as const,
-      template: template as VoiceRequestTemplate,
+      template: voiceTemplateOf(template, 'voiceTemplateValidate'),
     })),
   };
 }
@@ -148,6 +149,28 @@ it('adds a custom request service through validation', async () => {
     }),
   );
   expect(added).toHaveBeenCalledWith(SERVICE);
+});
+
+it('addresses method and body choices by stable testIDs', async () => {
+  const port = sheetPort();
+  const view = await render(
+    <VoiceServiceSheet kind="tts" view={VIEW} port={port} onClose={vi.fn()} onAdded={vi.fn()} />,
+  );
+  await press(view, 'voice-service-preset');
+  await press(view, 'voice-service-preset-custom');
+  for (const id of ['post', 'get'])
+    expect(byTest(view, `voice-template-method-${id}`)?.getAttribute('aria-label')).toBe(
+      id.toUpperCase(),
+    );
+  for (const id of ['json', 'ssml', 'multipart', 'none'])
+    expect(byTest(view, `voice-template-body-${id}`)).not.toBeNull();
+  await press(view, 'voice-template-body-none');
+  expect(byTest(view, 'voice-template-body')).toBeNull();
+  await press(view, 'voice-template-body-json');
+  expect(byTest(view, 'voice-template-body')).not.toBeNull();
+  await press(view, 'voice-template-method-get');
+  expect(byTest(view, 'voice-template-body-json')).toBeNull();
+  expect(byTest(view, 'voice-template-body')).toBeNull();
 });
 
 it('starts from an example and keeps local JSON errors on the field', async () => {
@@ -194,7 +217,7 @@ it('edits an existing request and saves it', async () => {
     template: vi.fn(async () => TEMPLATE),
     validate: vi.fn(async (_kind, template) => ({
       valid: true as const,
-      template: template as VoiceRequestTemplate,
+      template: voiceTemplateOf(template, 'voiceTemplateValidate'),
     })),
     saveTemplate: vi.fn(async () => SERVICE),
   };

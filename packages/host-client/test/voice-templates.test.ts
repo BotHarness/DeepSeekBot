@@ -7,9 +7,11 @@ import { blankDraft, checkTemplate, draftFromTemplate } from '../src/shared/voic
 import { BLANK_EXAMPLE, exampleStart, examplesFor } from '../src/shared/voice-template-examples';
 import { loadVoiceServices } from '../src/voice-providers';
 import {
+  isVoiceTemplate,
   readVoiceServiceTemplate,
   setVoiceServiceTemplate,
   validateVoiceTemplate,
+  voiceTemplateOf,
 } from '../src/voice-templates';
 
 const TEMPLATE: VoiceRequestTemplate = {
@@ -51,6 +53,28 @@ describe('voice template readers', () => {
       readVoiceServiceTemplate(host({ template: { ...TEMPLATE, method: 'PUT' } }), 'tts-1'),
     ).rejects.toBeInstanceOf(HostAnswerInvalid);
     await expect(validateVoiceTemplate(host({ valid: 'yes' }), 'tts', {})).rejects.toBeInstanceOf(
+      HostAnswerInvalid,
+    );
+  });
+
+  it('accepts only JSON values in a json body', () => {
+    const withBody = (value: unknown) => ({ ...TEMPLATE, body: { kind: 'json', value } });
+    const nested = (levels: number): unknown =>
+      levels === 0 ? 'leaf' : { next: nested(levels - 1) };
+    expect(
+      isVoiceTemplate(withBody({ a: [1, 'two', true, null, { b: -0.5 }], c: Object.create(null) })),
+    ).toBe(true);
+    expect(isVoiceTemplate(withBody(nested(31)))).toBe(true);
+    for (const value of [
+      { text: () => 'x' },
+      { text: undefined },
+      { at: new Date(0) },
+      [Number.NaN],
+      { big: Number.POSITIVE_INFINITY },
+      nested(32),
+    ])
+      expect(isVoiceTemplate(withBody(value))).toBe(false);
+    expect(() => voiceTemplateOf(withBody({ at: new Date(0) }), 'voiceProviderTemplate')).toThrow(
       HostAnswerInvalid,
     );
   });

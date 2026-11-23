@@ -81,6 +81,7 @@ export function VoiceTemplateFields({
         <Labeled label={t.method} error={errors.method}>
           <Segmented
             label={t.method}
+            testID="voice-template-method"
             on={SHEET_GROUP}
             value={draft.method}
             options={[
@@ -171,6 +172,7 @@ export function VoiceTemplateFields({
           <Labeled label={t.body} error={draft.bodyKind === 'none' ? errors.body : undefined}>
             <Segmented
               label={t.body}
+              testID="voice-template-body"
               on={SHEET_GROUP}
               value={draft.bodyKind}
               options={TEMPLATE_BODY_KINDS.map((value) => ({ value, label: t.bodyKinds[value] }))}
