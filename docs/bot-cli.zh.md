@@ -1071,7 +1071,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
-继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key <receipt> <公钥> --confirm`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key --confirm -- <receipt> <公钥>`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
 
 ### 手机连接（Tailscale）
 
@@ -1097,12 +1097,15 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` 会为每个待批准的公钥提供可复制的 `pendingKeys[].approveCommand`。执行前，请逐位核对设备显示的完整指纹。批准命令接受小写十六进制或不带填充的 base64url 公钥。配对回执和设备 ID 可以以 `-` 开头。如果某个值与 CLI 选项完全相同，请将所有选项放在 `--` 前，将参数值放在其后。
 
 `devices-watch [--watch-seconds 10]`（1–60 秒）打开设备页使用的同一条实时流，返回 `{seconds, invalidations, initial, current}`：期间 Host 发出的 `devices` 资源变更（`resource/changed`）次数（手机请求批准、批准、配对完成、撤销或清除邀请），以及前后两次的 `{devices, pendingKeys}`。只有所有者会收到这些事件；连接无法建立实时流时以 `host-query-unsupported` 拒绝。
 
@@ -2049,7 +2052,7 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
 
-Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key --confirm -- <receipt> <公钥>` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
 
 手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。
 
@@ -2066,7 +2069,7 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
    Windows 使用带盘符的绝对路径。可选 `--ssh-config <absolute-file>` 指定已有配置，默认使用系统 OpenSSH 配置。输入必须是私有普通文件（Linux/macOS 权限为 0600）；输出只新建，不覆盖。启动失败可能留下空输出文件，重试时选择新的输出路径。
 
-3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key <receipt> <public-key> --confirm`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
+3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key --confirm -- <receipt> <公钥>`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
 4. 打开远端会话并使用已有 Host 操作。Ctrl+C 只停止隧道，远端 Host 和浏览器配对仍保留。用相同 local port、新的输出文件重启命令即可重连。过期输入链接仍可标识已配对 Host，但不会恢复过期 offer；新浏览器需新建 offer。
 
 隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
