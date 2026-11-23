@@ -470,6 +470,11 @@ function syncPreferenceHosts(): void {
   void notificationPreferences.sync(hosts).catch(() => undefined);
 }
 
+function revokedHost(saved: SavedHost): boolean {
+  const connection = sessions.get(saved.hostId)?.host.client.getSnapshot().connection;
+  return connection?.status === 'refused' && connection.code === 'device-revoked';
+}
+
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   const previous = state.saved;
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
@@ -666,7 +671,7 @@ export const hostSession = {
       previous: (id, route) =>
         previous.find((host) => host.routes.includes(route)) ??
         previous.find((host) => host.hostId === id),
-      allowExisting: (saved) => saved.member !== undefined,
+      allowExisting: (saved) => saved.member !== undefined || revokedHost(saved),
     });
     if (!signed.ok || signed.value.role === 'member') return signed;
 
@@ -676,8 +681,10 @@ export const hostSession = {
       return await serialize(async () => {
         if (input.signal.aborted) return { ok: false, code: 'request-cancelled' };
         if (
-          stored.hosts.some(
-            (item) => item.hostId === host.hostId || item.routes.includes(input.route),
+          stored.hosts.some((item) =>
+            item.hostId === host.hostId
+              ? !revokedHost(item) || identitySwitchRequired(item, host)
+              : item.routes.includes(input.route),
           )
         )
           return { ok: false, code: 'already-paired' };

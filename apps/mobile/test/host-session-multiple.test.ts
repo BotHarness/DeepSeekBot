@@ -183,6 +183,44 @@ it('keeps existing Hosts and commits only one grant from concurrent Owner sign-i
   expect(session.getState().saved).toEqual(targetHost);
 });
 
+it('replaces an Owner Host that revoked this phone when the Owner signs in again', async () => {
+  const revoked = new FakeHost('revoked');
+  revoked.revoked = true;
+  remotes.set('revoked.tailnet.ts.net', revoked);
+  const saved = {
+    hostId: 'revoked',
+    hostName: 'Revoked Host',
+    routes: ['https://revoked.tailnet.ts.net'],
+    deviceId: 'old-owner-device',
+    credential: revoked.credential,
+  };
+  session = (await import('../src/host/host-session')).hostSession;
+  await session.pair(saved);
+  await vi.waitFor(() =>
+    expect(session.getHost('revoked')?.client.getSnapshot().connection).toMatchObject({
+      status: 'refused',
+      code: 'device-revoked',
+    }),
+  );
+  const fresh = { ...saved, deviceId: 'new-owner-device', credential: 'new-owner-grant' };
+  let allowed: boolean | undefined;
+  passwordSignIn.mockImplementationOnce(async (options) => {
+    allowed = options.allowExisting?.(saved);
+    return { ok: true, value: { ...fresh, role: 'owner' } };
+  });
+  const signed = await session.signInPassword({
+    route: 'https://revoked.tailnet.ts.net',
+    username: 'owner',
+    password: 'new-password',
+    deviceName: 'Test phone',
+    signal: new AbortController().signal,
+  });
+  expect(allowed).toBe(true);
+  expect(signed).toEqual({ ok: true, value: { ...fresh, role: 'owner' } });
+  expect(session.getState().hosts).toEqual([fresh]);
+  expect(session.getState().saved).toEqual(fresh);
+});
+
 it('returns a member grant from password sign-in without saving it', async () => {
   session = (await import('../src/host/host-session')).hostSession;
   const member = {
