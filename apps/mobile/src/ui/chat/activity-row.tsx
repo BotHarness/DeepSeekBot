@@ -6,6 +6,7 @@ import type { ChannelActivity } from '@botharness/host-client/channel-activity';
 import type { RosterView } from '@botharness/host-client/client';
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { BotAvatar } from '../bot-avatar';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { useDesignTheme } from '../design/theme';
 import { motion, radius, space } from '../design/tokens';
 import { haptic } from '../haptics';
@@ -79,6 +80,7 @@ export function ActivityRow({
                     ? CpuIcon
                     : StopCircleIcon;
   const size = theme.type.meta.line * theme.fontScale;
+  const speakerSize = clampScaledIconSize(theme.type.meta.line, theme.fontScale, SPEAKER_AVATAR);
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
     measureMessageView(
@@ -116,9 +118,9 @@ export function ActivityRow({
           {dmSlug !== undefined ? null : (
             <View style={{ width: SPEAKER_AVATAR, alignItems: 'center' }}>
               {actor === undefined ? (
-                <Icon color={theme.color.muted} size={size} />
+                <Icon color={theme.color.muted} size={speakerSize} />
               ) : (
-                <BotAvatar bot={actor} size={size} corner={radius.xs} ring={false} />
+                <BotAvatar bot={actor} size={speakerSize} corner={radius.xs} ring={false} />
               )}
             </View>
           )}

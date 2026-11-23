@@ -1,5 +1,6 @@
 import type { ComponentRef, Ref } from 'react';
 import { Platform, Pressable, View } from 'react-native';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { fab, radius } from '../design/tokens';
 import { CloseIcon, PlusIcon } from './icons';
@@ -17,8 +18,10 @@ export type NavigationActionProps = {
 };
 
 export function fabGlyphSize(theme: DesignTheme): number {
-  const scale = Platform.OS === 'android' ? 1 : Math.min(theme.fontScale, fab.glyphMaxScale);
-  return theme.type.title.line * scale;
+  const size = theme.type.title.line;
+  return Platform.OS === 'android'
+    ? size
+    : clampScaledIconSize(size, theme.fontScale, size * fab.glyphMaxScale);
 }
 
 export function NavigationActionPressable({
