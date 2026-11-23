@@ -1,10 +1,8 @@
-import { Checkbox } from './ds/checkbox.js';
 import { useMemo, useRef, useState } from 'react';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import * as stylex from '@stylexjs/stylex';
 
 import {
-  sameModel,
   HostAnswerInvalid,
   type ModelRoute,
   type ModelSettingsClient,
@@ -16,8 +14,8 @@ import {
   saveModelPreset,
   setModelGroup,
   setModelRoute,
-  toggleAssignmentGroup,
-  toggleAssignmentModel,
+  modelSub,
+  setModelSub,
   type ModelScope,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
@@ -28,21 +26,17 @@ import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import {
-  groupFrontHint,
-  groupMenuId,
-  groupMenuKey,
-  groupMenuItems,
-  modelMenuItems,
-  type ModelMenuFavorites,
-} from './model-menu.js';
+import { groupMenuId, groupMenuKey, type ModelMenuFavorites } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
-import { ModelTrigger } from './model-trigger.js';
+import { modelOptionsOf } from './model-plan-editor.js';
+import { SubChoiceList } from './sub-choice-list.js';
+import type { SubChoices } from '@botharness/host-client/preset-sub';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
   choices: { display: 'flex', flexDirection: 'column', gap: space.x3 },
+  actions: { display: 'flex', gap: space.x2 },
 });
 
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
@@ -152,6 +146,7 @@ function Models({
   const [error, setError] = useState<ReturnType<typeof settingsFailure>>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
+  const [subDraft, setSubDraft] = useState<{ sub: SubChoices; base: ModelSettingsState }>();
   const [creation, setCreation] = useState<PresetCreation>({ kind: 'idle' });
   const creationOwner = useRef<PresetCreation>(creation);
   const generation = useRef(0);
@@ -198,8 +193,8 @@ function Models({
       if (generation.current === request) setBusy(false);
     }
   };
-  const savePresetDraft = async () => {
-    if (name === undefined || value === undefined || pending.current || !available) return false;
+  const savePresetDraft = async (state: ModelSettingsState | undefined = value) => {
+    if (name === undefined || state === undefined || pending.current || !available) return false;
     if (scope.kind === 'global' && creationOwner.current.kind === 'unknown') return false;
     const request = generation.current + 1;
     const record = (outcome: PresetCreation) => {
@@ -209,11 +204,11 @@ function Models({
     return run(
       async () => {
         if (scope.kind === 'preset') {
-          await saveModelPreset(client, value, name, true);
+          await saveModelPreset(client, state, name, true);
         } else if (creationOwner.current.kind === 'idle') {
           record({ kind: 'pending' });
           try {
-            const id = await saveModelPreset(client, value, name, false);
+            const id = await saveModelPreset(client, state, name, false);
             record({ kind: 'receipt', id });
           } catch (cause) {
             if (
@@ -263,30 +258,42 @@ function Models({
       return;
     void savePresetDraft();
   };
-  const draft = useRef({ name, value, scope, available, savePresetDraft });
-  draft.current = { name, value, scope, available, savePresetDraft };
+  const saveSubDraft = async () => {
+    const pendingDraft = draft.current.subDraft;
+    if (pendingDraft === undefined) return true;
+    return run(async () => {
+      await setModelSub(client, scope, pendingDraft.base, pendingDraft.sub);
+      if (draft.current.subDraft === pendingDraft) draft.current.subDraft = undefined;
+      setSubDraft((current) => (current === pendingDraft ? undefined : current));
+    });
+  };
+  const draft = useRef({ name, value, scope, available, savePresetDraft, subDraft, saveSubDraft });
+  draft.current = { name, value, scope, available, savePresetDraft, subDraft, saveSubDraft };
   const draftMount = useMountedResource<HTMLSpanElement>(
     () =>
       hostSettingsDrafts.register(hostId, {
         dirty: () =>
-          draft.current.name !== undefined &&
-          (draft.current.scope.kind === 'global'
-            ? draft.current.name !== ''
-            : draft.current.name.trim() !== draft.current.value?.preset?.name),
+          draft.current.subDraft !== undefined ||
+          (draft.current.name !== undefined &&
+            (draft.current.scope.kind === 'global'
+              ? draft.current.name !== ''
+              : draft.current.name.trim() !== draft.current.value?.preset?.name)),
         async save() {
-          const { name, value, savePresetDraft } = draft.current;
-          if (
-            name === undefined ||
-            value === undefined ||
-            pending.current ||
-            !draft.current.available
-          )
-            return false;
+          const { name, value, savePresetDraft, subDraft: tasks, saveSubDraft } = draft.current;
+          if (value === undefined || pending.current || !draft.current.available) return false;
+          if (tasks !== undefined) {
+            if (!(await saveSubDraft())) return false;
+            if (name === undefined || name.trim() === value.preset?.name) return true;
+            return savePresetDraft(await resource.refresh());
+          }
+          if (name === undefined) return false;
           return savePresetDraft();
         },
         discard: () => {
           draft.current.name = undefined;
+          draft.current.subDraft = undefined;
           setName(undefined);
+          setSubDraft(undefined);
         },
       }),
     [hostId, client, resource],
@@ -426,90 +433,34 @@ function Models({
           />
           {picker('orchestrator', routes?.orchestrator)}
           {scope.kind !== 'preset' ? null : (
-            <>
-              {picker('assignment', routes?.assignmentDefault)}
-              <div {...stylex.props(styles.choices)}>
-                <ModelTrigger
-                  value=""
-                  items={[
-                    ...groupMenuItems(catalog, t, catalogGroups)
-                      .filter(
-                        (item) =>
-                          item.group !== undefined &&
-                          !routes?.groups.assignmentGroups?.includes(item.group),
-                      )
-                      .map((item) => ({ ...item, disabled: false })),
-                    ...modelMenuItems(
-                      value.models
-                        .filter(
-                          (entry) =>
-                            entry.credential === undefined &&
-                            !routes?.assignmentModels.some((option) => sameModel(option, entry)),
-                        )
-                        .map((entry) => ({
-                          value: JSON.stringify([entry.provider, entry.model]),
-                          label: entry.modelName,
-                          hint: entry.providerName,
-                        })),
-                      catalog,
-                    ),
-                  ]}
-                  label={t('modelPreset.allowedTitle')}
-                  placeholder={t('modelPreset.chooseModel')}
-                  disabled={busy || !available || routes?.assignmentDefault === undefined}
-                  favoriteSource={favoriteSource}
-                  t={t}
-                  onSelect={(key) => {
-                    const group = groupMenuId(key);
-                    if (group !== undefined) {
-                      void run(() => toggleAssignmentGroup(client, scope, value, group));
-                      return;
-                    }
-                    const entry = value.models.find(
-                      (item) => JSON.stringify([item.provider, item.model]) === key,
-                    );
-                    if (entry !== undefined)
-                      void run(() => toggleAssignmentModel(client, scope, value, entry));
-                  }}
-                />
-                {routes?.groups.assignmentGroups?.map((id) => {
-                  const group = catalogGroups.find((entry) => entry.id === id);
-                  const frontHint = groupFrontHint(group, catalog, t);
-                  const note = routes.groups.assignmentGroupOptions?.find(
-                    (option) => option.group === id,
-                  )?.note;
-                  return (
-                    <Checkbox
-                      key={`group:${id}`}
-                      checked
-                      label={[
-                        group?.name ?? id,
-                        t('modelPreset.groupCount', { count: group?.routes.length ?? 0 }),
-                        ...(frontHint === undefined ? [] : [frontHint]),
-                        ...(note === undefined ? [] : [note]),
-                      ].join(' · ')}
-                      disabled={busy || !available || routes.groups.assignmentDefaultGroupId === id}
-                      onChange={() =>
-                        void run(() => toggleAssignmentGroup(client, scope, value, id))
-                      }
-                    />
-                  );
-                })}
-                {routes?.assignmentModels.map((option) => (
-                  <Checkbox
-                    key={JSON.stringify([option.provider, option.model])}
-                    checked
-                    label={`${option.model} · ${option.provider}`}
-                    disabled={busy || !available || sameModel(option, routes.assignmentDefault)}
-                    onChange={() => {
-                      const entry = value.models.find((item) => sameModel(item, option));
-                      if (entry !== undefined)
-                        void run(() => toggleAssignmentModel(client, scope, value, entry));
+            <div {...stylex.props(styles.choices)}>
+              <SubChoiceList
+                sub={subDraft?.sub ?? modelSub(value)}
+                catalog={catalog}
+                catalogGroups={catalogGroups}
+                modelOptions={modelOptionsOf(catalog, t)}
+                busy={busy || !available}
+                onChange={(sub) =>
+                  setSubDraft((current) => ({ sub, base: current?.base ?? value }))
+                }
+                t={t}
+              />
+              {subDraft === undefined ? null : (
+                <div {...stylex.props(styles.actions)}>
+                  <PillButton
+                    disabled={busy || !available}
+                    onClick={() => {
+                      void saveSubDraft();
                     }}
-                  />
-                ))}
-              </div>
-            </>
+                  >
+                    {t('relationships.save')}
+                  </PillButton>
+                  <PillButton disabled={busy} onClick={() => setSubDraft(undefined)}>
+                    {t('common.cancel')}
+                  </PillButton>
+                </div>
+              )}
+            </div>
           )}
           <TextField
             label={t('modelPreset.name')}
