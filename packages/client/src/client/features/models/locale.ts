@@ -39,7 +39,6 @@ export const zh = {
   'modelPreset.orchestrator': '主模型',
   'modelPreset.orchestratorHint': '和你对话、分派任务时使用',
   'modelPreset.assignment': '副模型',
-  'modelPreset.assignmentHint': '执行分派出去的任务时默认使用',
   'routingGroups.title': '路由组',
   'routingGroups.new': '新建路由组',
   'routingGroups.empty': '把几个模型按顺序组成一组，额度用完时 Bot 会自动切换到下一个。',
@@ -175,7 +174,6 @@ export const en = {
   'modelPreset.orchestrator': 'Main model',
   'modelPreset.orchestratorHint': 'Chats with you and hands out tasks',
   'modelPreset.assignment': 'Task model',
-  'modelPreset.assignmentHint': 'Runs delegated tasks by default',
   'routingGroups.title': 'Routing Groups',
   'routingGroups.new': 'New Routing Group',
   'routingGroups.empty':
