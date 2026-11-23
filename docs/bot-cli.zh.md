@@ -730,6 +730,13 @@ deepseekbot browser-observation <bot-id> [--tab <tab-id>] [--out /tmp/frame.png]
 deepseekbot browser-takeover-audit <bot-id>
 printf '%s' "<takeover-token>" | deepseekbot browser-takeover-recording --token-stdin
 deepseekbot browser-profile-set <bot-id> --profile work
+deepseekbot browser-profile-pair --out /private/absolute/profile-code
+deepseekbot browser-profile-forget
+deepseekbot browser-daily-connect <bot-id>
+deepseekbot browser-daily-grant <bot-id>
+deepseekbot browser-daily-return <bot-id>
+deepseekbot browser-borrow-pair <bot-id> --out /private/absolute/borrow-code
+deepseekbot browser-borrow-return <bot-id>
 deepseekbot browser-packages
 deepseekbot browser-install-packages --package libnss3 --package libgbm1 --confirm --wait
 deepseekbot computer-install-packages --confirm --wait
@@ -748,6 +755,8 @@ deepseekbot browser-webrtc --viewer <id> [--probe]
 本地 Browser 进程已运行但尚无所属当前标签页时，`browser-observation` 返回 `viewerUrl: null`；进程就绪不等于画面就绪。`browser-frame` 区分已停止/无标签页的拒绝（404）与有界等待后首帧不可用的 `host-refused`（503）。
 
 `browser-observation` 返回浏览器面板轮询的同一份状态：浏览器是否在运行、标签页和当前标签页、接管状态、已保存的 profile 和目标。当前画面不会以 base64 打印，只汇总为 `{mimeType, bytes}`，给出 `--out` 时保存到该文件。`browser-takeover-audit` 按时间顺序列出 Bot 的接管事件。`browser-takeover-recording` 读取一次接管及其录下的输入；token 是接管链接里 `takeover=` 的值，从 stdin 传入。`browser-profile-set` 为 Bot 选择浏览器 profile（`default` 恢复默认），命名规则与面板相同。
+
+`browser-profile-pair --out <file>` 开始 Chrome Profile 配对，`browser-borrow-pair <bot-id> --out <file>` 通过扩展把 Bot 与人类自己的浏览器配对。两者只把一次性配对码写入一个新的绝对路径文件（仅所有者可读写），输出过期时间和 `codeFile`，从不打印配对码；文件已存在时以 `pairing-file-failed` 拒绝。`browser-profile-forget` 忘记已配对的 Chrome Profile。`browser-daily-connect <bot-id>` 为日常浏览器启动 Playwright 扩展连接，`browser-daily-grant <bot-id>` 把人类在扩展中选中的页面交给 Bot（未选页面前按 Host 的消息拒绝），`browser-daily-return` 和 `browser-borrow-return` 收回浏览器。它们调用浏览器面板按钮使用的同一组路由。Tob 拒绝运行两个配对命令和 `browser-daily-grant`，并以 `self-escalation-refused` 拒绝任何会修改它自己的授权、访问、审批策略或待审批请求的命令（[Tob 决策](decisions/tob.md#tob-self-escalation)）。
 
 机器缺少 Chrome 所需的系统库时，`browser-open` 以 `provision-missing-libs` 拒绝，并在说明里列出需要的包。`browser-packages` 报告 Host 能否安装这些包（`access`）以及上次安装的进度；`browser-install-packages` 安装指定的包，`computer-install-packages` 安装本机 Computer 报告缺少的包。两者都和面板上的安装按钮一样需要 `--confirm`，`--wait` 会轮询到安装结束。Host 没有管理员权限时以 `needs-administrator` 拒绝。
 
@@ -1337,6 +1346,8 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 ### 市场、版本更新、使用统计、Git 与配对审核
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
+
+`marketplace-list` 返回的每一页都带 `search`：有条目时为 `matches`，市场已应答但没有条目时为 `no-matches`。市场无法搜索时（离线、网络失败、超时、市场出错或未配置），命令以非零状态退出并返回 `marketplace-unavailable`，不输出 `bots` 或 `search`；市场自身的编码拒绝（如 `rate-limited`）也以非零状态退出。搜索失败绝不是空结果。Tob 无需审批卡即可运行 `marketplace-list`，在自定义 Bot 方案旁给出实时候选（[Tob 决策](decisions/tob.md#tob-creation-candidates)）。
 
 `marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
 

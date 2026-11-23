@@ -502,6 +502,10 @@ async function readResetToken(io: BotCreateCliIo): Promise<string> {
   return token;
 }
 
+function marketplaceSearchResult(page: { bots?: unknown[] }): 'matches' | 'no-matches' {
+  return (page.bots?.length ?? 0) > 0 ? 'matches' : 'no-matches';
+}
+
 export async function runHostAdminCommand(
   command: HostAdminCommand,
   rest: string[],
@@ -533,8 +537,8 @@ export async function runHostAdminCommand(
       });
     case 'tob-home':
       return rpc('tobHome', {});
-    case 'marketplace-list':
-      return rpc('marketplaceList', {
+    case 'marketplace-list': {
+      const page = await rpc<{ bots?: unknown[] }>('marketplaceList', {
         query: {
           ...(values.query === undefined ? {} : { q: values.query }),
           ...(values.topic === undefined ? {} : { topic: values.topic }),
@@ -544,6 +548,8 @@ export async function runHostAdminCommand(
           ...(values['include-uploads'] === true ? { includeUploads: true } : {}),
         },
       });
+      return { ...page, search: marketplaceSearchResult(page) };
+    }
     case 'marketplace-avatar-list':
       return rpc('marketplaceAvatarList', {
         ...(values.cursor === undefined ? {} : { cursor: values.cursor }),

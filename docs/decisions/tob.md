@@ -85,3 +85,33 @@ One request runs at a time, and a busy Orchestrator refuses a new one; ordinary 
 Why: the temporary direct Session behind the Human CLI has no accepted Tob DM, so it could not pass the source check. Running inside a real turn lets agents test the production path, approval card included, without a model.
 
 Enforced by: `tob-cli-invocation.test.ts`, `tob-cli-approval.test.ts`.
+
+## 7. A Bot request gets a custom proposal and live Marketplace candidates in one DM
+
+<a id="tob-creation-candidates"></a>
+_Added for #4836; builds on §4 and §5 and the Marketplace install review of [ADR-0267](marketplace.md#adr-0267)._
+
+When the Human asks Tob for a new Bot, Tob first searches the Marketplace with `marketplace-list` using words from the request, unless the Human explicitly said to skip it. It answers in one Human DM message with both a custom proposal (name, Bot Bio, Bot Tags and a short Soul and Core Memory draft) and up to three live candidates, then asks the Human to choose. Nothing is created or installed before that choice. The custom choice runs `create` with the reviewed fields and an operation key (§5). A candidate goes through `marketplace-install`: Tob stages and reviews it, shows the findings, and installs with `--review` and `--confirm` after the Human agrees. A repository or ZIP the Human supplies goes through `bot-import-preview` and `create --from-git`, or `bot-zip-preview` and `bot-zip-import`. Tob adds no review of its own, and the result is an ordinary PersonaBot, never a second Tob. Tob reads the outcome back with `create-status`, `bot-zip-import-status` or the same install operation key.
+
+`marketplace-list` reports `search: matches` or `search: no-matches` on every page. A search that could not run exits non-zero, usually with `marketplace-unavailable`, and prints no page. Tob says the Marketplace could not be searched, names the code and still offers the custom proposal. It never reports such a failure as "no matches".
+
+`marketplace-list` is now on the broker read list, so Tob searches without an approval card. It is an external read that changes nothing, takes no file input or `--out`, and queries the same public catalogue as `marketplace-detail` and `marketplace-avatar-list`, which were already reads. The search words do leave the Host, but the Marketplace page already sends them when the Human searches. Staging an install, installing, creating and importing all stay writes behind a card.
+
+Why: with a card in front of the search, Tob would either skip it or ask the Human to approve a read before they saw any options. If an offline Host reported an empty catalogue, the Human would wrongly conclude that nothing suitable exists. Sending every path through the existing owners keeps one validation, one review and one receipt for each kind of Bot.
+
+Enforced by: `tob-creation-candidates.test.ts` (the Tob-only creation guidance; `matches`, `no-matches` and `marketplace-unavailable` output; the search is a read and every install or creation is a write), `tob-cli-bot-create.test.ts` (custom creation writes the Soul and Core Memory, makes one DM and no grants, and the new Bot is not Tob), `marketplace-uploaded-bots.test.ts` (an install keeps the source Soul, makes one DM and no grants, and the new Bot is not Tob).
+
+## 8. Tob cannot widen its own authority
+
+<a id="tob-self-escalation"></a>
+_Added for [#4830](https://github.com/BotHarness/DeepSeekBot/issues/4830) and the authorization report in [#4291](https://github.com/BotHarness/DeepSeekBot/issues/4291)._
+
+The Host refuses, before any approval card, a Tob `cli` request that names Tob itself or Tob's Human DM (a DM whose only member is Tob) and whose parsed effects carry management authority or cannot be classified. That covers Tob's own Workspace Grants, Browser and Computer access, Approval Template, Bot mode, approval route and pending approvals, in any position or `--option=value` form. The refusal is `self-escalation-refused` with a sentence that sends the Human to Bot settings. The same command for another Bot the Human owns still goes to the ordinary card (§4). Reads of Tob and ordinary profile or Memory writes are unchanged.
+
+`browser-profile-pair` and `browser-borrow-pair` print a one-time pairing code, and `browser-daily-grant` hands the page the Human selected in the Playwright extension to a Bot. Tob refuses all three as `cli-command-refused`: a pairing code is a credential, and the Daily Browser grant is the Human's consent in the extension. The Human CLI writes pairing codes only to a new private `--out` file. `browser-profile-forget`, `browser-daily-connect`, `browser-daily-return` and `browser-borrow-return` are ordinary writes behind the card.
+
+Why: the card is the Human's decision on one exact command, but a Human approving "give Tob Full Access" in Tob's own DM is Tob building its own authorization out of conversation, which #4291 reports. Authority over Tob stays in Bot settings and the Human's own CLI. Narrowing commands such as `grant-revoke` or `tool-approval-rule-revoke` carry management authority too and are refused for Tob, which costs the Human one trip to settings.
+
+Not covered, and still decided only by the ordinary card: commands that change something Tob shares with other Bots rather than Tob itself, such as editing the Approval Template Tob uses (`approval-template edit`), the global template or the default Bot mode, and `activity-allow-once` on an Activity item, whose id does not name a Bot. The Human sees the exact command on the card; refusing them would also block legitimate changes for every other Bot.
+
+Enforced by: `tob-cli-self-escalation.property.test.ts` (any management or unclassified command that names Tob anywhere is refused; the same command for another Bot never is), `tob-cli-self-escalation.test.ts` (refusal before any card or run; another Bot's approval-template edit shows one card; Human-only Browser commands refused), `cli-browser-pairing.test.ts`.
