@@ -50,8 +50,8 @@ export async function parseAgentMemory(
       'agent-scope-denied',
       'This option is not available for the scoped CLI operation.',
     );
-  if (rest.length !== 1) usage(`${command} needs exactly one bot id.`);
-  const slug = textValue(rest[0], 'bot id', 128);
+  if (rest.length !== 1) usage(`${command} needs exactly one Bot ID.`);
+  const slug = textValue(rest[0], 'Bot ID', 128);
   const expectedHead = commit(values['expected-head'], '--expected-head');
   if (command === 'memory-save') {
     const path = textValue(values['path'], '--path');

@@ -386,6 +386,9 @@ describe('reviewed Memory line diff', () => {
     expect(diff).toContain('@@ -1,5 +1,5 @@\n');
     expect(diff).toContain('@@ -16,5 +16,5 @@\n');
     expect(unifiedLineDiff('same.md', 'x\n', 'x\n')).toBe('');
+    expect(unifiedLineDiff('end.md', 'a\nb', 'a\nb\nc\n')).toBe(
+      '--- a/end.md\n+++ b/end.md\n@@ -1,2 +1,3 @@\n a\n-b\n\\ No newline at end of file\n+b\n+c\n',
+    );
   });
 });
 
