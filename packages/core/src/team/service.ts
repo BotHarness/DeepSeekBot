@@ -617,10 +617,12 @@ export class TeamService {
     human: HumanContext,
     password: string,
     current?: string,
+    options?: memberAuth.OwnerPasswordRotation,
   ): Promise<TeamModeView> {
     await memberAuth.setOwnerPassword.call(this.#memberOperations, human, password, {
       kind: 'settings',
       current,
+      ...options,
     });
     return this.mode(human);
   }

@@ -542,9 +542,9 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             passwordSaved.current = false;
             setDialog(undefined);
           }}
-          onSubmit={async (password, current) => {
+          onSubmit={async (password, current, signOutOthers) => {
             if (!passwordSaved.current) {
-              publish(await setOwnerPassword(call, password, current));
+              publish(await setOwnerPassword(call, password, current, signOutOthers));
               passwordSaved.current = true;
             }
             if (dialog.thenEnable) publish(await setTeamMode(call, true));
@@ -613,7 +613,7 @@ function memberMeta(
   return parts.join(' · ');
 }
 
-function TeamOwnerPasswordDialog({
+export function TeamOwnerPasswordDialog({
   t,
   hasPassword,
   thenEnable,
@@ -624,7 +624,11 @@ function TeamOwnerPasswordDialog({
   hasPassword: boolean;
   thenEnable: boolean;
   onCancel(): void;
-  onSubmit(password: string, current: string | undefined): Promise<void>;
+  onSubmit(
+    password: string,
+    current: string | undefined,
+    signOutOthers: boolean | undefined,
+  ): Promise<void>;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -637,10 +641,10 @@ function TeamOwnerPasswordDialog({
       busy={busy}
       error={error}
       onCancel={onCancel}
-      onSubmit={(password, current) => {
+      onSubmit={(password, current, signOutOthers) => {
         setBusy(true);
         setError(undefined);
-        onSubmit(password, current)
+        onSubmit(password, current, signOutOthers)
           .catch((failure: unknown) => setError(teamErrorText(t, failure)))
           .finally(() => setBusy(false));
       }}
