@@ -255,6 +255,9 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
               `Replacement Orchestrator Session ID is already claimed: ${input.sessionId}`,
             );
           db.prepare(
+            'DELETE FROM pending_orchestrator_replacements WHERE bot_slug = ? AND session_id <> ?',
+          ).run(input.botSlug, input.sessionId);
+          db.prepare(
             `INSERT INTO pending_orchestrator_replacements
                (session_id, bot_slug, cwd_reference, previous_cwd_reference, created_at)
              VALUES (?, ?, ?, ?, ?)`,

@@ -311,26 +311,9 @@ describe('Memory move', () => {
       expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
       await f.send();
       expect(f.runs[1]).toMatchObject({ sessionId: first, resume: true });
-      const unchangedCwdFailure = new Error('Replacement mutation failed without moving Memory');
-      await expect(
-        f.core.runtime.replaceOrchestrator!('ada', () => {
-          throw unchangedCwdFailure;
-        }),
-      ).rejects.toBe(unchangedCwdFailure);
-      expect(
-        database.read((db) =>
-          db
-            .prepare(
-              'SELECT cwd_reference FROM pending_orchestrator_replacements WHERE bot_slug = ?',
-            )
-            .all('ada'),
-        ),
-      ).toEqual(
-        expect.arrayContaining([
-          { cwd_reference: join(location, 'ada') },
-          { cwd_reference: before },
-        ]),
-      );
+      expect(f.core.ownership.pendingOrchestratorReplacements('ada')).toMatchObject([
+        { cwdReference: join(location, 'ada'), previousCwdReference: before },
+      ]);
       expect(f.core.ownership.list().map((root) => root.sessionId)).toEqual([first]);
       database.transaction((db) => db.exec('DROP TRIGGER fail_orchestrator_discard'));
     } finally {
@@ -348,6 +331,112 @@ describe('Memory move', () => {
         ),
       ).toEqual([]);
       expect(reopened.ownership.list().map((root) => root.sessionId)).toEqual([first]);
+    } finally {
+      await reopened.runtime.close();
+      reopened.operationalDatabase.close();
+    }
+  });
+
+  it('resumes a legacy Orchestrator after a failed same-directory replacement and discard', async () => {
+    const f = await fixture({ unsaved: true });
+    try {
+      const sessionId = 'legacy-orchestrator';
+      f.core.ownership.claim({
+        sessionId,
+        botSlug: 'ada',
+        rootRole: 'orchestrator',
+        provenance: 'legacy',
+        at: new Date().toISOString(),
+      });
+      const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
+      database.transaction((db) =>
+        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON pending_orchestrator_replacements
+                 BEGIN SELECT RAISE(ABORT, 'Replacement discard failed'); END`),
+      );
+      const mutationError = new Error('Replacement mutation failed without moving Memory');
+      await expect(
+        f.core.runtime.replaceOrchestrator!('ada', () => {
+          throw mutationError;
+        }),
+      ).rejects.toBe(mutationError);
+
+      const cwd = f.core.registry.memoryDirFor('ada');
+      expect(f.core.ownership.pendingOrchestratorReplacements('ada')).toMatchObject([
+        { cwdReference: cwd, previousCwdReference: cwd },
+      ]);
+      expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).toBe(sessionId);
+      await f.send();
+      expect(f.runs).toMatchObject([{ sessionId, resume: true }]);
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('does not revive a failed reservation when a later move reaches the same directory', async () => {
+    const f = await fixture({ unsaved: true });
+    const location = createTempRoot('botharness-memory-retry-');
+    const memoryDir = join(location, 'ada');
+    let failedId: string;
+    let laterId: string;
+    try {
+      await f.send();
+      const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
+      database.transaction((db) =>
+        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON pending_orchestrator_replacements
+                 BEGIN SELECT RAISE(ABORT, 'Replacement discard failed'); END`),
+      );
+      vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementationOnce(() => {
+        throw new Error('Registry update failed');
+      });
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
+        ok: false,
+        error: { message: 'Memory was not moved: Registry update failed' },
+      });
+      const [failed] = f.core.ownership.pendingOrchestratorReplacements('ada');
+      if (failed === undefined) throw new Error('Missing the failed reservation');
+      failedId = failed.sessionId;
+
+      database.transaction((db) =>
+        db.exec(`DROP TRIGGER fail_orchestrator_discard;
+                 CREATE TRIGGER fail_latest_orchestrator_publication BEFORE INSERT ON session_ownership
+                 WHEN NEW.session_id = (
+                   SELECT session_id FROM pending_orchestrator_replacements
+                   WHERE bot_slug = NEW.bot_slug ORDER BY created_at DESC LIMIT 1
+                 )
+                 BEGIN SELECT RAISE(ABORT, 'Latest replacement publication failed'); END`),
+      );
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toEqual({
+        ok: true,
+        value: { memoryDir, moved: true },
+      });
+      const [later] = f.core.ownership.pendingOrchestratorReplacements('ada');
+      if (later === undefined) throw new Error('Missing the later reservation');
+      laterId = later.sessionId;
+      expect(laterId).not.toBe(failedId);
+    } finally {
+      await f.close();
+    }
+
+    const blocked = createCore({ dshHome: f.home });
+    try {
+      expect(blocked.runtime.currentOrchestratorSessionId?.('ada')).toBeUndefined();
+      expect(blocked.ownership.resolve(failedId)).toBeUndefined();
+      expect(blocked.ownership.pendingOrchestratorReplacements('ada')).toMatchObject([
+        { sessionId: laterId, cwdReference: memoryDir },
+      ]);
+      attachOperationalModule(blocked.operationalDatabase, 'memory-move-test').transaction((db) =>
+        db.exec('DROP TRIGGER fail_latest_orchestrator_publication'),
+      );
+    } finally {
+      await blocked.runtime.close();
+      blocked.operationalDatabase.close();
+    }
+
+    const reopened = createCore({ dshHome: f.home });
+    try {
+      expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBe(laterId);
+      expect(reopened.ownership.resolve(failedId)).toBeUndefined();
+      expect(reopened.ownership.pendingOrchestratorReplacements('ada')).toEqual([]);
     } finally {
       await reopened.runtime.close();
       reopened.operationalDatabase.close();

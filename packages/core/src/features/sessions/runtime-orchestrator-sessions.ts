@@ -69,7 +69,10 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     if (
       ports.ownership
         .pendingOrchestratorReplacements(botSlug)
-        .some((replacement) => replacement.cwdReference === cwd)
+        .some(
+          ({ cwdReference, previousCwdReference }) =>
+            cwdReference === cwd && previousCwdReference !== cwdReference,
+        )
     )
       return undefined;
     return root.sessionId;
