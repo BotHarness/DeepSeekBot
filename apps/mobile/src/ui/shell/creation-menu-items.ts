@@ -4,7 +4,9 @@ import { creationActions, targetsFor, type CreationTarget } from '../../host/cre
 export function chatsCreationActions(scope: string, targets: readonly CreationTarget[]) {
   const actions = creationActions(scope, targets);
   return {
-    group: scope === 'all' || actions.includes('channel'),
+    group:
+      actions.includes('channel') ||
+      (scope === 'all' && !targets.some((target) => target.kind === 'computer')),
     bot: actions.includes('bot'),
     join: cloudAvailable && actions.includes('join'),
     invite:

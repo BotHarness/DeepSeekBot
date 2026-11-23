@@ -19,6 +19,9 @@ import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import { hostDrawer } from '../src/ui/shell/host-drawer';
 import { conversationFilter } from '../src/host/native-conversation-filter';
+import { refreshMemberPermissions } from '../src/host/member-permissions';
+import { ChatsCreate } from '../src/ui/shell/chats-create';
+import type { CreationPanelControls } from '../src/ui/shell/creation-panel';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -40,7 +43,7 @@ const {
   mockHostDrawer,
 } = await vi.hoisted(() => import('./home-search-mocks'));
 
-import { rows, prepareHomeState, resetHomeState } from './home-search-fixtures';
+import { emptyTeamHost, rows, prepareHomeState, resetHomeState } from './home-search-fixtures';
 
 let channelHistory = channelNavigationHarness();
 
@@ -132,6 +135,19 @@ vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
 
 vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 
+vi.mock('../src/ui/shell/creation-panel', () => ({
+  CreationPanel: ({ children }: { children: (controls: CreationPanelControls) => ReactNode }) =>
+    children({
+      level: 'actions',
+      showSources: vi.fn(),
+      back: vi.fn(),
+      dismiss: vi.fn(),
+      firstAction: { current: null },
+    }),
+}));
+
+vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
+
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
@@ -173,12 +189,25 @@ afterEach(() => {
   resetHomeState();
 });
 
-async function home(): Promise<HTMLElement> {
+async function home(creationScope?: string): Promise<HTMLElement> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root!.render(<HomeScreen />));
+  await act(async () =>
+    root!.render(
+      <>
+        <HomeScreen />
+        {creationScope && <ChatsCreate scope={creationScope} bottom={80} />}
+      </>,
+    ),
+  );
   return host;
+}
+
+async function expectNewGroup(view: HTMLElement, visible: boolean) {
+  const fab = view.querySelector<HTMLButtonElement>('[data-testid="chats-create-fab"]');
+  if (fab && !fab.disabled) await act(async () => fab.click());
+  expect(Boolean(view.querySelector('[data-testid="chats-create-group"]'))).toBe(visible);
 }
 
 function cloudFixture(): CloudRow {
@@ -438,7 +467,7 @@ describe('Search in the Chats header', () => {
       routes: ['https://studio.tailnet-example.ts.net'],
       credential: transport.credential,
       carrier: transport.carrier,
-      backoff: () => 5,
+      backoff: () => 1_000,
     });
     hostState.live = client;
     client.start();
@@ -497,6 +526,61 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).not.toContain(t.cloudListUnavailable);
     expect(view.textContent).toContain(t.cloudChannels.empty);
   });
+  it.each([
+    { viewer: 'owner', permissions: ['channels.create'], canCreate: true },
+    { viewer: 'member with a custom role', permissions: ['channels.create'], canCreate: true },
+    { viewer: 'member', permissions: ['dm.humans'], canCreate: false },
+    { viewer: 'member with permissions still loading', permissions: undefined, canCreate: false },
+  ])(
+    'shows permission-aware empty Team Channels for $viewer',
+    async ({ viewer, permissions, canCreate }) => {
+      const client = await emptyTeamHost(
+        viewer === 'owner' ? 'owner' : 'member',
+        permissions ?? ['channels.create'],
+      );
+      if (hostState.member && permissions) await refreshMemberPermissions(client);
+      const scope = computerEnvironmentKey('h1');
+      conversationFilter.set(scope);
+      const view = await home(scope);
+      expect(view.textContent).toContain(canCreate ? t.cloudChannels.empty : t.emptyTeamChannels);
+      expect(view.textContent?.includes(t.emptyTeamChannels)).toBe(!canCreate);
+      await expectNewGroup(view, canCreate);
+
+      if (!permissions) {
+        await act(async () => refreshMemberPermissions(client));
+        expect(view.textContent).toContain(t.cloudChannels.empty);
+        expect(view.textContent).not.toContain(t.emptyTeamChannels);
+        await expectNewGroup(view, true);
+      }
+    },
+  );
+  it.each(['owner', 'member'] as const)(
+    'shows permission-aware empty Cloud Chats for %s',
+    async (role) => {
+      const source = cloudFixture();
+      const scope = cloudViewScope(source);
+      cloudState.rows = [source];
+      directoryState.workspaces = [
+        {
+          scope,
+          instanceId: source.config.instanceId,
+          server: source.config.server,
+          organizationId: 'org_a',
+          organizationName: 'Cloud team',
+          guest: false,
+          role,
+        },
+      ];
+      const environment = cloudEnvironmentKey(scope, 'org_a');
+      conversationFilter.set(environment);
+      const view = await home(environment);
+      expect(view.textContent).toContain(
+        role === 'owner' ? t.cloudChannels.empty : t.cloudChannels.emptyMember,
+      );
+      expect(view.textContent?.includes(t.cloudChannels.emptyMember)).toBe(role === 'member');
+      await expectNewGroup(view, role === 'owner');
+    },
+  );
   it('retains same-account rows during refresh failure and drops them when the directory enrolls a new account', async () => {
     const source = cloudFixture();
     cloudState.rows = [source];

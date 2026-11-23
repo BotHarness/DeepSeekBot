@@ -56,22 +56,24 @@ it.each([
   });
 });
 
-it('keeps group creation and hides Bot creation from ungranted Team members', () => {
-  const targets = creationTargets(computer, []).map((target) => ({
-    ...target,
-    botCreation: false,
-  }));
-  expect(chatsCreationActions('all', targets)).toMatchObject({
-    group: true,
-    bot: false,
-    join: true,
-  });
-  expect(chatsCreationActions(computerEnvironmentKey('mac'), targets)).toMatchObject({
-    group: true,
-    bot: false,
-    join: false,
-  });
-});
+it.each([true, false])(
+  'offers group creation only when the Team member can create Channels (%s)',
+  (channelCreation) => {
+    const targets = creationTargets(computer, []).map((target) =>
+      target.kind === 'computer' ? { ...target, botCreation: false, channelCreation } : target,
+    );
+    expect(chatsCreationActions('all', targets)).toMatchObject({
+      group: channelCreation,
+      bot: false,
+      join: true,
+    });
+    expect(chatsCreationActions(computerEnvironmentKey('mac'), targets)).toMatchObject({
+      group: channelCreation,
+      bot: false,
+      join: false,
+    });
+  },
+);
 
 it('hides both cloud actions without cloud support', () => {
   feature.cloud = false;
