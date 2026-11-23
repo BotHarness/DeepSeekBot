@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 
 import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
@@ -138,44 +138,34 @@ export function PairScanner({
         }}
       >
         <DesktopPath steps={steps} />
-        <View
-          style={{
-            width: scan,
-            height: scan,
-            borderRadius: radius.lg,
-            overflow: 'hidden',
-            backgroundColor: theme.layer.well.fill,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {permission?.granted ? (
-            focused &&
-            !readingImage && (
+        {permission?.granted ? (
+          <View
+            style={{
+              width: scan,
+              height: scan,
+              borderRadius: radius.lg,
+              overflow: 'hidden',
+              backgroundColor: theme.layer.well.fill,
+            }}
+          >
+            {focused && !readingImage ? (
               <CameraView
                 style={{ width: '100%', height: '100%' }}
                 facing="back"
                 barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                 onBarcodeScanned={pairing.busy ? undefined : ({ data }) => void pair(data, 'qr')}
               />
-            )
-          ) : (
-            <Pressable
-              testID="pair-allow-camera"
-              onPress={() => void requestPermission()}
-              accessibilityRole="button"
-              style={{
-                padding: space.x5,
-                minHeight: theme.touch,
-                justifyContent: 'center',
-              }}
-            >
-              <Text tone="accent" strong style={{ textAlign: 'center' }}>
-                {t.allowCamera}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+            ) : null}
+          </View>
+        ) : (
+          <Button
+            testID="pair-allow-camera"
+            label={t.allowCamera}
+            tone="primary"
+            on="canvas"
+            onPress={() => void requestPermission()}
+          />
+        )}
         <Button
           testID="pair-choose-image"
           label={readingImage ? t.pairImage.reading : t.pairImage.choose}
