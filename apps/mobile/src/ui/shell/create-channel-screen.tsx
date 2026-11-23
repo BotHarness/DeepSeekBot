@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, Keyboard, View } from 'react-native';
+import { AppState, Keyboard, Platform, View } from 'react-native';
 import { channelCreation, useChannelCreation } from '../../host/native-channel-creation';
 import { hostSession, useHostAvailability, useHostSession } from '../../host/host-session';
 import { hostLooks } from '../../host/native-host-look';
@@ -184,6 +184,8 @@ export function CreateChannelScreen() {
       />
       <KeyboardFormScroll
         testID="create-channel-form"
+        mode={Platform.OS === 'ios' ? 'layout' : 'insets'}
+        contentInsetAdjustmentBehavior="automatic"
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
         pointerEvents={state.busy ? 'none' : 'auto'}

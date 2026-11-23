@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { View } from 'react-native';
 
+import type { LayerName } from '../design/layers';
 import { useDesignTheme } from '../design/theme';
 import { radius } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -11,10 +12,12 @@ export function AccountAvatar({
   uri,
   name,
   size,
+  layer = 'raised',
 }: {
   uri: string | null | undefined;
   name: string | undefined;
   size: number;
+  layer?: LayerName;
 }) {
   const theme = useDesignTheme();
   const initial = humanInitial(name);
@@ -25,7 +28,7 @@ export function AccountAvatar({
         height: size,
         borderRadius: radius.round,
         overflow: 'hidden',
-        backgroundColor: theme.layer.raised.fill,
+        backgroundColor: theme.layer[layer].fill,
         alignItems: 'center',
         justifyContent: 'center',
       }}

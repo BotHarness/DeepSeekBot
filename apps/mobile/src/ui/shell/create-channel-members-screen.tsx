@@ -101,9 +101,9 @@ export function CreateChannelMembersScreen() {
       nestedScrollEnabled
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingVertical: space.x5 }}
-      ListHeaderComponent={
-        draft ? (
-          <View style={{ paddingBottom: space.x2 }}>
+      ListFooterComponent={
+        draft && sections.length > 0 ? (
+          <View style={{ paddingTop: space.x2 }}>
             <SettingsFooter>
               {t.channelCreation.selected(record.members.length + humanIds.length)}
             </SettingsFooter>
@@ -147,7 +147,12 @@ export function CreateChannelMembersScreen() {
                 ? {}
                 : { detail: `@${item.person.username}` })}
               leading={
-                <AccountAvatar uri={undefined} name={item.person.displayName} size={theme.touch} />
+                <AccountAvatar
+                  uri={undefined}
+                  name={item.person.displayName}
+                  size={theme.touch}
+                  layer="well"
+                />
               }
               selected={checked}
               control={checked ? { kind: 'check' } : undefined}
