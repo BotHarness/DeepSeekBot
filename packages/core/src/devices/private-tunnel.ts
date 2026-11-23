@@ -199,7 +199,14 @@ export function createTunnelOrigin(options: {
       return;
     }
     response.writeHead(404, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    response.end(JSON.stringify({ code: 'not-found' }));
+    response.end(
+      JSON.stringify({
+        code:
+          request.method === 'GET' && request.url === CONNECT_CHANNEL_PATH
+            ? 'private-route'
+            : 'not-found',
+      }),
+    );
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const admission = privateAdmissionFromHeaders(

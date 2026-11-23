@@ -30,6 +30,7 @@ export type TeamErrorCode =
   | 'password-reused'
   | 'invalid-input'
   | 'unreachable'
+  | 'private-route'
   | 'response-invalid'
   | 'request-cancelled'
   | 'identity-switch-required'

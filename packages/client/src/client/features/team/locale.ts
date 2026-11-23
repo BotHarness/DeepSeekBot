@@ -46,6 +46,8 @@ export const zh = {
   'teamSignIn.error.password-reused': '请选择一个在此处未用过的密码。',
   'teamSignIn.error.mismatch': '两次输入的密码不一致。',
   'teamSignIn.error.unreachable': '无法连接到 Host，请检查地址和网络后重试。',
+  'teamSignIn.error.private-route':
+    '这是只供已配对设备使用的私有连接，不能输入地址登录。请在 Host 电脑上打开配对码或登录链接。',
   'teamSignIn.error.storage-failed': '无法在此浏览器保存登录信息，请重试。',
   'teamSignIn.error.this-host': '这就是当前 Host，请从 Host 列表中打开它。',
   'teamSignIn.error.owner-required': '只有此 Host 的所有者可以在这里添加其他 Host。',
@@ -446,6 +448,8 @@ export const en = {
   'teamSignIn.error.mismatch': 'Passwords do not match.',
   'teamSignIn.error.unreachable':
     'Could not reach the Host. Check the address and network, then try again.',
+  'teamSignIn.error.private-route':
+    'This is a private connection for devices already paired with this Host, so you cannot sign in by its address. Open a pairing code or sign-in link on the Host computer.',
   'teamSignIn.error.storage-failed': 'Could not save the sign-in in this browser. Try again.',
   'teamSignIn.error.this-host': 'That is this Host. Open it from the Host list instead.',
   'teamSignIn.error.owner-required': 'Only the owner of this Host can add other Hosts here.',

@@ -46,6 +46,7 @@ const ERRORS: Partial<Record<TeamSignInError | 'mismatch', BotHarnessKey>> = {
   'password-reused': 'teamSignIn.error.password-reused',
   mismatch: 'teamSignIn.error.mismatch',
   unreachable: 'teamSignIn.error.unreachable',
+  'private-route': 'teamSignIn.error.private-route',
   'storage-failed': 'teamSignIn.error.storage-failed',
   'this-host': 'teamSignIn.error.this-host',
   'owner-required': 'teamSignIn.error.owner-required',

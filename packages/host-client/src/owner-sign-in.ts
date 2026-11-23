@@ -27,6 +27,7 @@ export type OwnerSignInError =
   | 'this-host'
   | 'response-invalid'
   | 'unreachable'
+  | 'private-route'
   | 'request-cancelled';
 
 export interface OwnerSignInOptions {

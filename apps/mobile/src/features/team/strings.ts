@@ -82,6 +82,8 @@ export const en = {
       'password-reused': 'Choose a password you have not used here.',
       mismatch: 'Passwords do not match.',
       unreachable: 'Could not reach the Host. Check the network and try again.',
+      'private-route':
+        'This is a private connection for devices already paired with this Host, so you cannot sign in by its address. Open a pairing code or sign-in link on the Host computer and scan it.',
       'storage-failed': 'Could not save the sign-in on this phone. Try again.',
       'host-update-required': 'Update this Host before signing in with a password.',
     } as Record<string, string>,
@@ -164,6 +166,8 @@ export const zh: typeof en = {
       'password-reused': '换一个在这里没用过的密码。',
       mismatch: '两次输入的密码不一致。',
       unreachable: '无法连接 Host，检查网络后再试。',
+      'private-route':
+        '这是只供已配对设备使用的私有连接，不能输入地址登录。请在 Host 电脑上打开配对码或登录链接，然后扫码。',
       'storage-failed': '无法在本机保存登录，再试一次。',
       'host-update-required': '先更新这台 Host，再用账密登录。',
     } as Record<string, string>,

@@ -19,7 +19,7 @@ export async function discoverSignInHost(options: {
 }): Promise<
   TeamResult<
     { host: TeamHostIdentity; publicKey: string; signIn?: { password: boolean } },
-    'unreachable' | 'response-invalid' | 'fingerprint-mismatch'
+    'unreachable' | 'private-route' | 'response-invalid' | 'fingerprint-mismatch'
   >
 > {
   const { carrier, route, signal, redirect, invitedHost } = options;
@@ -28,6 +28,8 @@ export async function discoverSignInHost(options: {
     signal,
     ...(redirect === undefined ? {} : { redirect }),
   });
+  if (response.status === 404 && privateRoute(await response.text()))
+    return { ok: false, code: 'private-route' };
   if (response.status !== 200) return { ok: false, code: 'unreachable' };
 
   const body = await response.text();
@@ -57,6 +59,14 @@ export async function discoverSignInHost(options: {
     ok: true,
     value: { host, publicKey, ...(typeof password === 'boolean' ? { signIn: { password } } : {}) },
   };
+}
+
+function privateRoute(body: string): boolean {
+  try {
+    return teamRecord(JSON.parse(body))['code'] === 'private-route';
+  } catch {
+    return false;
+  }
 }
 
 export function matchesSavedSignInHost(
