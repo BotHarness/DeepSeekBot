@@ -315,7 +315,11 @@ export function VoiceProviderSettings({
     const voice = draft.kind === 'tts' ? chosenValue(draft.voice) : undefined;
     const fields = {
       ...(draft.kind === 'asr' ? { kind: 'asr' as const } : {}),
-      ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
+      ...(draft.name.trim()
+        ? { name: draft.name.trim() }
+        : draft.template === undefined || suggestedName === undefined
+          ? {}
+          : { name: suggestedName }),
       ...(model === undefined ? {} : { model }),
       ...(voice === undefined ? {} : { defaultVoice: voice }),
       ...(draft.key.trim() ? { key: draft.key.trim() } : {}),

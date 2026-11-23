@@ -203,6 +203,7 @@ describe('custom request form', () => {
     const input = (addVoiceProvider.mock.calls[0] as unknown as [Record<string, unknown>])[0];
     expect(input).toMatchObject({
       preset: 'custom',
+      name: '自定义请求',
       key: 'secret-key-123',
       template: {
         version: 1,

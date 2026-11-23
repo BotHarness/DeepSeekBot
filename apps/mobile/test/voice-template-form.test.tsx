@@ -140,7 +140,12 @@ it('adds a custom request service through validation', async () => {
     expect.objectContaining({ url: 'https://tts.example/v1/speak', auth: { kind: 'bearer' } }),
   );
   expect(port.add).toHaveBeenCalledWith(
-    expect.objectContaining({ kind: 'tts', preset: 'custom', key: 'dummy-key' }),
+    expect.objectContaining({
+      kind: 'tts',
+      preset: 'custom',
+      name: copy.template.service,
+      key: 'dummy-key',
+    }),
   );
   expect(added).toHaveBeenCalledWith(SERVICE);
 });

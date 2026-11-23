@@ -181,7 +181,11 @@ export function VoiceServiceSheet({
     const fields: VoiceServiceAdd = {
       kind,
       preset: draft.preset,
-      ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
+      ...(draft.name.trim()
+        ? { name: draft.name.trim() }
+        : custom === undefined
+          ? {}
+          : { name: suggested }),
       ...(model === undefined ? {} : { model }),
       ...(voice === undefined ? {} : { defaultVoice: voice }),
       ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
@@ -307,12 +311,7 @@ export function VoiceServiceSheet({
           </View>
           <KeyboardFormScroll enabled={false} nestedScrollEnabled>
             {presets.map((entry, index) => (
-              <SettingsGroupItem
-                key={entry.id}
-                first={index === 0}
-                last={index === presets.length - 1}
-                on={SHEET_GROUP}
-              >
+              <SettingsGroupItem key={entry.id} first={index === 0} last={false} on={SHEET_GROUP}>
                 <SettingsRow
                   on={SHEET_GROUP}
                   testID={`voice-service-preset-${entry.id}`}
