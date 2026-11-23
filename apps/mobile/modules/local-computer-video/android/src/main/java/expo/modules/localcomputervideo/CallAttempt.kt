@@ -187,8 +187,7 @@ class CallAttempt(
   fun start(completion: (Result<String>) -> Unit) {
     answered = completion
     enqueue {
-      PeerConnectionFactory.initialize(
-        PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
+      WebRtcRuntime.initialize(context)
       val module = JavaAudioDeviceModule.builder(context)
         .setUseHardwareAcousticEchoCanceler(JavaAudioDeviceModule.isBuiltInAcousticEchoCancelerSupported())
         .setUseHardwareNoiseSuppressor(JavaAudioDeviceModule.isBuiltInNoiseSuppressorSupported())
