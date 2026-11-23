@@ -317,7 +317,7 @@ export const CLI_EFFECTS = {
   'marketplace-digests': { effects: externalRead, brokerRead: true },
   'marketplace-file': { effects: externalRead, brokerRead: true },
   'marketplace-install': { effects: externalWrite, brokerRead: false },
-  'marketplace-list': { effects: externalRead, brokerRead: false },
+  'marketplace-list': { effects: externalRead, brokerRead: true },
   'marketplace-mine': { effects: externalRead, brokerRead: true },
   'marketplace-report': { effects: external, brokerRead: false },
   'marketplace-sections': { effects: externalRead, brokerRead: true },

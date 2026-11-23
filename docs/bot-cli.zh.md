@@ -1347,6 +1347,8 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
+`marketplace-list` 返回的每一页都带 `search`：有条目时为 `matches`，市场已应答但没有条目时为 `no-matches`。市场无法搜索时（离线、网络失败、超时、市场出错或未配置），命令以非零状态退出并返回 `marketplace-unavailable`，不输出 `bots` 或 `search`；市场自身的编码拒绝（如 `rate-limited`）也以非零状态退出。搜索失败绝不是空结果。Tob 无需审批卡即可运行 `marketplace-list`，在自定义 Bot 方案旁给出实时候选（[Tob 决策](decisions/tob.md#tob-creation-candidates)）。
+
 `marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
 
 `marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`；`picks` 是文章中仍在上架的最多四个精选 Bot，按文章顺序排列，stderr 每篇一行，列出日期、标题和精选 Bot 名称。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。

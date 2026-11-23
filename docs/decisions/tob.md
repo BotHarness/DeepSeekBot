@@ -86,7 +86,22 @@ Why: the temporary direct Session behind the Human CLI has no accepted Tob DM, s
 
 Enforced by: `tob-cli-invocation.test.ts`, `tob-cli-approval.test.ts`.
 
-## 7. Tob cannot widen its own authority
+## 7. A Bot request gets a custom proposal and live Marketplace candidates in one DM
+
+<a id="tob-creation-candidates"></a>
+_Added for #4836; builds on §4 and §5 and the Marketplace install review of [ADR-0267](marketplace.md#adr-0267)._
+
+When the Human asks Tob for a new Bot, Tob first searches the Marketplace with `marketplace-list` using words from the request, unless the Human explicitly said to skip it. It answers in one Human DM message with both a custom proposal (name, Bio, tags and a short Soul and Core Memory draft) and up to three live candidates, then asks the Human to choose. Nothing is created or installed before that choice. The custom choice runs `create` with the reviewed fields and an operation key (§5). A candidate goes through `marketplace-install`: Tob stages and reviews it, shows the findings, and installs with `--review` and `--confirm` after the Human agrees. A repository or ZIP the Human supplies goes through `bot-import-preview` and `create --from-git`, or `bot-zip-preview` and `bot-zip-import`. Tob adds no review of its own, and the result is an ordinary PersonaBot, never a second Tob. Tob reads the outcome back with `create-status`, `bot-zip-import-status` or the same install operation key.
+
+`marketplace-list` reports `search: matches` or `search: no-matches` on every page. A search that could not run exits non-zero, usually with `marketplace-unavailable`, and prints no page. Tob says the Marketplace could not be searched, names the code and still offers the custom proposal. It never reports such a failure as "no matches".
+
+`marketplace-list` is now on the broker read list, so Tob searches without an approval card. It is an external read that changes nothing, takes no file input or `--out`, and queries the same public catalogue as `marketplace-detail` and `marketplace-avatar-list`, which were already reads. The search words do leave the Host, but the Marketplace page already sends them when the Human searches. Staging an install, installing, creating and importing all stay writes behind a card.
+
+Why: with a card in front of the search, Tob would either skip it or ask the Human to approve a read before they saw any options. If an offline Host reported an empty catalogue, the Human would wrongly conclude that nothing suitable exists. Sending every path through the existing owners keeps one validation, one review and one receipt for each kind of Bot.
+
+Enforced by: `tob-creation-candidates.test.ts` (the Tob-only creation guidance; `matches`, `no-matches` and `marketplace-unavailable` output; the search is a read and every install or creation is a write), `tob-cli-bot-create.test.ts` (custom creation writes the Soul and Core Memory, makes one DM and no grants, and the new Bot is not Tob), `marketplace-uploaded-bots.test.ts` (an install keeps the source Soul, makes one DM and no grants, and the new Bot is not Tob).
+
+## 8. Tob cannot widen its own authority
 
 <a id="tob-self-escalation"></a>
 _Added for [#4830](https://github.com/BotHarness/DeepSeekBot/issues/4830) and the authorization report in [#4291](https://github.com/BotHarness/DeepSeekBot/issues/4291)._
