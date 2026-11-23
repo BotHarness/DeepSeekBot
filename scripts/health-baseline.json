@@ -1,13 +1,5 @@
 {
   "long-files": [
-    "apps/mobile/test/bot-profile-sheet.test.tsx",
-    "apps/mobile/test/cloud-client.test.ts",
-    "apps/mobile/test/conversation-navigation.test.tsx",
-    "apps/mobile/test/conversation.test.ts",
-    "apps/mobile/test/follow-latest-gestures.test.tsx",
-    "apps/mobile/test/home-search.test.tsx",
-    "apps/mobile/test/host-client.test.ts",
-    "apps/mobile/test/message-bubble.test.tsx",
     "packages/browser/test/browser-tools.test.ts",
     "packages/browser/test/runtime.test.ts",
     "packages/client/src/client/channel-dock.tsx",
