@@ -4183,6 +4183,24 @@ const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION: SchemaMigration = {
+  id: 'bot-schedule-creation-receipts',
+  module: 'bot-schedules',
+  description: 'Reconcile a retried Bot Schedule creation by its operation key',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_schedule_creations (
+        operation_key TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        schedule_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX bot_schedule_creations_bot ON bot_schedule_creations(bot_slug);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4366,4 +4384,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MODEL_PRESET_SUB_ENGINE_MIGRATION,
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
+  BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION,
 ]);

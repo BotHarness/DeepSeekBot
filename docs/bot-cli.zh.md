@@ -117,9 +117,11 @@ deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--hom
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -682,6 +684,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 ```
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
+
+每个定时任务都带 `revision`，它是可编辑内容（标题、提示、触发器、启用、锁定）的指纹；触发记录和下次运行时间不会改变它。把它作为 `--expected-revision` 传给 `schedule-update` 或 `schedule-delete`，若读取后任务已被改动，Host 会以 `stale-revision` 拒绝。`schedule-create --operation-key <key>`（8–128 个字母、数字、`.`、`:`、`_` 或 `-`）让重试变得安全：同一个 key 加同样的请求会返回原来的任务并带 `reconciled: true`，不会再建一个；同一个 key 加不同请求以 `operation-key-conflict` 失败；key 对应的任务已被删除时以 `operation-key-consumed` 失败，不会重新创建。两个参数在 `--home` 离线模式下同样可用。Tob 运行这些命令时必须带上它们（见 [Tob](decisions/tob.md#adr-0225)）。
 
 ### 在线 Host 上的接管交接（Takeover Handoff）
 

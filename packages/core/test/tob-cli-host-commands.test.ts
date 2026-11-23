@@ -92,6 +92,57 @@ describe('Tob runs any Human CLI command on the Host', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('refuses schedule writes without an operation key or expected revision before any approval card', async () => {
+    const run = vi.fn<TobHostCliRunner>(async () => ({ exitCode: 0, stdout: '{}' }));
+    const f = await host(run);
+    for (const argv of [
+      ['schedule-create', 'tob', '--title', 'T', '--prompt', 'P', '--every', '3600'],
+      ['schedule-update', 'tob', '--sid', 's1', '--title', 'T'],
+      ['schedule-delete', 'tob', '--sid', 's1', '--confirm'],
+    ]) {
+      const refused = await f.invoke({ argv });
+      expect(refused).toMatchObject({ ok: false, error: { code: 'usage' } });
+      expect(JSON.stringify(refused)).toMatch(/--(operation-key|expected-revision)/u);
+    }
+    expect(f.approve).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('retries a keyed schedule creation after an uncertain outcome with the same command', async () => {
+    let attempts = 0;
+    const run = vi.fn<TobHostCliRunner>(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('connection reset');
+      return { exitCode: 0, stdout: '{"schedule":{"id":"s1"},"reconciled":true}' };
+    });
+    const f = await host(run);
+    const argv = [
+      'schedule-create',
+      'tob',
+      '--title',
+      'T',
+      '--prompt',
+      'P',
+      '--every',
+      '3600',
+      '--operation-key=tob-op-0001',
+    ];
+    expect(await f.invoke({ argv })).toMatchObject({
+      ok: false,
+      error: { code: 'operation-outcome-uncertain' },
+    });
+    expect(await f.invoke({ argv })).toEqual({
+      ok: true,
+      value: { schedule: { id: 's1' }, reconciled: true },
+    });
+    expect(classifyTobHostCli(['schedule-update', 'tob', '--expected-revision', 'r1'])).toEqual({
+      command: 'schedule-update',
+      write: true,
+    });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(f.approve).toHaveBeenCalledTimes(2);
+  });
+
   it('runs a read at once without an approval card', async () => {
     const run = vi.fn<TobHostCliRunner>(async () => ({
       exitCode: 0,

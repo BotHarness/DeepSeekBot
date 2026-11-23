@@ -117,9 +117,11 @@ deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--hom
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -726,6 +728,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 ```
 
 With a Host selected, the schedule commands call the same Host methods as the Schedules panel, so the Host checks the Bot, the trigger, the time zone and the lock, and a refusal keeps its code (`invalid-input`, `not-found`, `locked`, `inactive`). `schedule-preview` returns the trigger and the Host's next occurrences. `schedule-run-now` queues a firing that the running Host executes. `schedule-delete` also removes the schedule's history, so it needs `--confirm`, like the panel's confirmation.
+
+Every schedule carries a `revision`, a fingerprint of what you can edit (title, prompt, trigger, enabled, locked); firings and the next run time do not change it. Pass it as `--expected-revision` to `schedule-update` or `schedule-delete` and the Host refuses with `stale-revision` if the schedule changed since you read it. `schedule-create --operation-key <key>` (8–128 letters, digits, `.`, `:`, `_` or `-`) makes a retry safe: the same key with the same request returns the original schedule with `reconciled: true` instead of a second one, the same key with a different request fails with `operation-key-conflict`, and a key whose schedule was deleted fails with `operation-key-consumed` rather than recreating it. Both flags also work offline with `--home`. Tob must pass them when it runs these commands (see [Tob](decisions/tob.md#adr-0225)).
 
 ### Takeover Handoffs on a live Host
 

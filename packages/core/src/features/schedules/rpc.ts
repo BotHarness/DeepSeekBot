@@ -20,8 +20,15 @@ export function scheduleCreate(
   methods: SchedulesBridgeMethods,
   slug: string,
   input: BotScheduleInput,
-): { schedule: BotSchedule } {
-  return unwrap(methods.scheduleCreate({ ...input, slug }));
+  operationKey?: string,
+): { schedule: BotSchedule; reconciled?: true } {
+  return unwrap(
+    methods.scheduleCreate({
+      ...input,
+      slug,
+      ...(operationKey === undefined ? {} : { operationKey }),
+    }),
+  );
 }
 
 export function scheduleUpdate(
@@ -29,16 +36,31 @@ export function scheduleUpdate(
   slug: string,
   id: string,
   change: BotScheduleChange,
+  expectedRevision?: string,
 ): { schedule: BotSchedule } {
-  return unwrap(methods.scheduleUpdate({ ...change, slug, id }));
+  return unwrap(
+    methods.scheduleUpdate({
+      ...change,
+      slug,
+      id,
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+    }),
+  );
 }
 
 export function scheduleDelete(
   methods: SchedulesBridgeMethods,
   slug: string,
   id: string,
+  expectedRevision?: string,
 ): { removed: boolean } {
-  return unwrap(methods.scheduleDelete({ slug, id }));
+  return unwrap(
+    methods.scheduleDelete({
+      slug,
+      id,
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+    }),
+  );
 }
 
 export function scheduleHistory(
@@ -69,16 +91,25 @@ export const schedulesServiceRpc = {
     return scheduleList(this.methods, slug);
   },
 
-  scheduleCreate(slug: string, input: BotScheduleInput): { schedule: BotSchedule } {
-    return scheduleCreate(this.methods, slug, input);
+  scheduleCreate(
+    slug: string,
+    input: BotScheduleInput,
+    operationKey?: string,
+  ): { schedule: BotSchedule; reconciled?: true } {
+    return scheduleCreate(this.methods, slug, input, operationKey);
   },
 
-  scheduleUpdate(slug: string, id: string, change: BotScheduleChange): { schedule: BotSchedule } {
-    return scheduleUpdate(this.methods, slug, id, change);
+  scheduleUpdate(
+    slug: string,
+    id: string,
+    change: BotScheduleChange,
+    expectedRevision?: string,
+  ): { schedule: BotSchedule } {
+    return scheduleUpdate(this.methods, slug, id, change, expectedRevision);
   },
 
-  scheduleDelete(slug: string, id: string): { removed: boolean } {
-    return scheduleDelete(this.methods, slug, id);
+  scheduleDelete(slug: string, id: string, expectedRevision?: string): { removed: boolean } {
+    return scheduleDelete(this.methods, slug, id, expectedRevision);
   },
 
   scheduleHistory(slug: string, id: string): { firings: BotScheduleFiring[] } {
