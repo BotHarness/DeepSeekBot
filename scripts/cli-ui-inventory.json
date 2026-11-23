@@ -50,7 +50,7 @@
     },
     {
       "id": "client-layout-selected",
-      "description": "Selected-Client global Simple/Advanced layout, rail order/visibility and one Channel workspace through the mounted Bot-mode dock.",
+      "description": "Selected-Client global Simple/Advanced layout, rail order/visibility and one Channel workspace through the mounted Bot mode layout.",
       "scope": "Client / Channel",
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
@@ -61,7 +61,7 @@
     },
     {
       "id": "client-layout",
-      "description": "Remaining layout without a selected-Client command: split trees, members panel, gap, panel heights, dock reset, roster/folder/view preferences and migration backups.",
+      "description": "Remaining layout without a selected-Client command: split trees, members panel, gap, panel heights, Bot mode layout reset, roster/folder/view preferences and migration backups.",
       "scope": "Client / Channel",
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('dock.reset')}",
