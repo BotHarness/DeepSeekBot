@@ -328,6 +328,8 @@ export interface ChannelStore {
     answer: AskUserQuestionAnswer,
   ): Promise<ChannelMessage | undefined>;
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
+  messagePosition(id: string, messageId: string): number | undefined;
+  historyEpoch(id: string): number;
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
   searchHumanMessages?(
     human: HumanContext,

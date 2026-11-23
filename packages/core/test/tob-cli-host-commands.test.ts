@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
 import {
+  authorizeTobHostCli,
   classifyTobHostCli,
   createTobHostCliOperations,
   spawnHostCli,
@@ -11,6 +12,9 @@ import {
   type TobHostCliRunner,
 } from '../src/tob/cli-host-commands.js';
 import { TobError } from '../src/tob/service.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
+import type { ChannelRecord } from '../src/channels/channel.js';
 
 const brokers: TobCliBroker[] = [];
 afterEach(async () => {
@@ -225,4 +229,41 @@ it('does not admit write-capable read command families as broker reads', () => {
   expect(classifyTobHostCli(['channels']).write).toBe(false);
   expect(classifyTobHostCli(['channels', 'not-a-supported-action']).write).toBe(true);
   expect(classifyTobHostCli(['channels', '--unknown-option']).write).toBe(true);
+});
+
+it('keeps cursor continuation of content reads a broker read and still refuses foreign Bot DMs', () => {
+  for (const argv of [
+    ['channel-messages', 'dm-ada', '--cursor', 'eyJ2IjoxfQ'],
+    ['channel-messages', 'dm-ada', '--limit', '20', '--cursor=eyJ2IjoxfQ'],
+    ['bot-activity', 'ada', '--cursor', 'eyJ2IjoxfQ'],
+  ])
+    expect(classifyTobHostCli(argv)).toMatchObject({ write: false });
+  const bots: Record<string, Pick<PersonaBotRecord, 'slug' | 'ownerHumanId'>> = {
+    ada: { slug: 'ada' },
+    eve: { slug: 'eve', ownerHumanId: 'someone-else' },
+  };
+  const channels: Record<string, Pick<ChannelRecord, 'id' | 'type' | 'members'>> = {
+    'dm-ada': { id: 'dm-ada', type: 'dm', members: ['ada'] },
+    'dm-eve': { id: 'dm-eve', type: 'dm', members: ['eve'] },
+  };
+  const deps = {
+    registry: {
+      getHistorical: (slug: string) => bots[slug] as PersonaBotRecord | undefined,
+    },
+    channels: {
+      get: (id: string) => channels[id] as ChannelRecord | undefined,
+    },
+    human: OWNER_HUMAN_CONTEXT,
+  };
+  expect(() =>
+    authorizeTobHostCli(['channel-messages', 'dm-ada', '--cursor', 'eyJ2IjoxfQ'], deps),
+  ).not.toThrow();
+  for (const argv of [
+    ['channel-messages', 'dm-eve', '--cursor', 'eyJ2IjoxfQ'],
+    ['channel-messages', 'dm-ada', '--cursor', 'dm-eve'],
+    ['bot-activity', 'eve', '--cursor', 'eyJ2IjoxfQ'],
+  ])
+    expect(() => authorizeTobHostCli(argv, deps)).toThrow(
+      expect.objectContaining({ code: 'permission-required' }),
+    );
 });
