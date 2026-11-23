@@ -122,7 +122,9 @@ export interface EventProperties {
   'marketplace:digest_open': { entry: 'hero' | 'archive' };
   'marketplace:digest_view': Record<string, never>;
   'marketplace:section_view': Record<string, never>;
-  'model:plan_update': { via: 'default' | 'custom' | 'plan' | 'assignments' | 'inherit' | 'group' };
+  'model:plan_update': {
+    via: 'default' | 'custom' | 'plan' | 'assignments' | 'inherit' | 'group' | 'sub';
+  };
   'notification:push_open': Record<string, never>;
   'search:result_open': { kind: 'message' };
   'share:bot_share_send': { content: 'text' | 'files' | 'both' };
@@ -256,7 +258,7 @@ export const MOBILE_EVENT_FIELDS: Record<
   'marketplace:digest_view': {},
   'marketplace:section_view': {},
   'model:plan_update': {
-    via: member('default', 'custom', 'plan', 'assignments', 'inherit', 'group'),
+    via: member('default', 'custom', 'plan', 'assignments', 'inherit', 'group', 'sub'),
   },
   'notification:push_open': {},
   'search:result_open': { kind: member('message') },

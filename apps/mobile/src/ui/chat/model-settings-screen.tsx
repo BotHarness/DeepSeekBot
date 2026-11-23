@@ -28,14 +28,8 @@ import {
   modelSettingsResource,
   saveModelPreset,
   searchModels,
-  setAssignmentEfforts,
-  setAssignmentGroupNote,
   setModelGroup,
   setModelRoute,
-  toggleAssignmentGroup,
-  toggleAssignmentModel,
-  type AssignmentEffortTarget,
-  type ModelField,
   type ModelScope,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
@@ -45,14 +39,11 @@ import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
 import { modelFamilyKey, restingNotice } from './composer-labels';
-import { AllowedEffortLinks, AllowedEffortPage } from './allowed-efforts';
-import { GroupNotes } from './group-notes';
 import { CurrentEngineModel, PickerLink, RouteIcon } from './model-route-label';
 import { EffortBar, GroupEffortBar, GroupEffortLink, GroupEfforts } from './model-effort';
 import {
   effortChoices,
   groupEffortChoices,
-  groupEffortOf,
   keptEffort,
   keptGroupEffort,
   presetDetail,
@@ -63,6 +54,10 @@ import {
 import { ModelPickerFilters } from './model-picker-filters';
 import { ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
 import { RoutingGroupLink, type RoutingGroupLinkItem } from './routing-group-links';
+import { useEngineOptions } from './sub-choice-engines';
+import { SubChoiceSection } from './sub-choice-section';
+import { subChoiceKey } from './sub-choice-text';
+import type { SubChoice } from '@botharness/host-client/preset-sub';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
@@ -84,7 +79,7 @@ type PickerRow =
   | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined }
   | { kind: 'preset'; preset: ModelPreset };
 
-function useModels(client: HostClient, scope: ModelScope) {
+export function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, key]);
   const [value, setValue] = useState(resource.peek);
@@ -169,16 +164,15 @@ export function ModelsView({
   client,
   scope,
   picker,
-  effortTarget,
 }: {
   client: HostClient;
   scope: ModelScope;
-  picker?: ModelField | undefined;
-  effortTarget?: AssignmentEffortTarget | undefined;
+  picker?: 'orchestrator' | 'orchestrator-effort' | undefined;
 }) {
   const t = useStrings();
   const router = useRouter();
   const models = useModels(client, scope);
+  const engines = useEngineOptions(client);
   const theme = useDesignTheme();
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<string>();
@@ -192,38 +186,35 @@ export function ModelsView({
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
   const value = models.value;
-  const openPicker = (field: ModelField, target?: AssignmentEffortTarget) => {
-    const extra =
-      target === undefined
-        ? {}
-        : target.kind === 'group'
-          ? { group: target.id }
-          : { provider: target.provider, model: target.model };
+  const openPicker = (field: 'orchestrator' | 'orchestrator-effort' | 'sub-add') => {
     if (scope.kind === 'bot')
       router.push({
         pathname: '/bot/[slug]/model-picker',
-        params: { slug: scope.slug, field, ...extra },
+        params: { slug: scope.slug, field },
       });
     else
       router.push({
         pathname: '/settings/model-picker',
-        params: { field, ...extra, ...(scope.kind === 'preset' ? { id: scope.id } : {}) },
+        params: { field, ...(scope.kind === 'preset' ? { id: scope.id } : {}) },
       });
   };
+  const openChoice = (choice: SubChoice) => {
+    const key = subChoiceKey(choice);
+    if (scope.kind === 'bot')
+      router.push({ pathname: '/bot/[slug]/model-sub-choice', params: { slug: scope.slug, key } });
+    else if (scope.kind === 'preset')
+      router.push({ pathname: '/settings/model-sub-choice', params: { id: scope.id, key } });
+  };
   const title =
-    picker === 'allowed'
-      ? t.modelSettings.allowed
-      : picker?.endsWith('-effort')
-        ? t.modelSettings.effort
-        : picker === 'assignment'
-          ? t.modelSettings.assignment
-          : picker === 'orchestrator'
-            ? scope.kind === 'global'
-              ? t.modelSettings.global
-              : t.modelSettings.orchestrator
-            : scope.kind === 'preset'
-              ? (value?.preset?.name ?? t.modelPresets)
-              : t.modelSettings.title;
+    picker === 'orchestrator-effort'
+      ? t.modelSettings.effort
+      : picker === 'orchestrator'
+        ? scope.kind === 'global'
+          ? t.modelSettings.global
+          : t.modelSettings.orchestrator
+        : scope.kind === 'preset'
+          ? (value?.preset?.name ?? t.modelPresets)
+          : t.modelSettings.title;
   const frame = (body: ReactNode) => (
     <SheetPage title={title}>
       <KeyboardAvoidingView enabled={picker !== undefined} behavior="padding" style={{ flex: 1 }}>
@@ -240,6 +231,7 @@ export function ModelsView({
       ),
     );
   const routes = modelRoutes(value);
+  const groupEffort = routes.groups.orchestratorGroupEffort ?? '';
   const banner =
     models.error === undefined ? null : (
       <View style={{ gap: space.x3, paddingBottom: space.x3 }}>
@@ -251,13 +243,11 @@ export function ModelsView({
     );
 
   if (picker !== undefined) {
-    const assignment = picker.startsWith('assignment');
-    const current = assignment ? routes.assignmentDefault : routes.orchestrator;
+    const current = routes.orchestrator;
     const currentEntry = value.models.find((entry) => sameModel(entry, current));
     const choose = (route: ModelRoute, stay = false) => {
       models.run(
-        () =>
-          setModelRoute(client, scope, value, assignment ? 'assignment' : 'orchestrator', route),
+        () => setModelRoute(client, scope, value, route),
         () => {
           if (stay) return;
           Keyboard.dismiss();
@@ -265,12 +255,9 @@ export function ModelsView({
         },
       );
     };
-    const fieldGroupId = assignment
-      ? routes.groups.assignmentDefaultGroupId
-      : scope.kind === 'global'
-        ? value.defaultGroupId
-        : routes.groups.orchestratorGroupId;
-    const effortGroup = value.groups?.find((group) => group.id === fieldGroupId);
+    const fieldGroupId =
+      scope.kind === 'global' ? value.defaultGroupId : routes.groups.orchestratorGroupId;
+    const currentGroup = value.groups?.find((group) => group.id === fieldGroupId);
     const chooseEffort = (effort: string) =>
       current === undefined
         ? undefined
@@ -279,11 +266,9 @@ export function ModelsView({
             model: current.model,
             ...(effort === '' ? {} : { reasoningEffort: effort }),
           });
-    const field = assignment ? 'assignment' : 'orchestrator';
-    const groupEffort = groupEffortOf(routes.groups, assignment);
     const pickGroup = (group: ModelCatalogGroup, effort: string, stay: boolean) =>
       models.run(
-        () => setModelGroup(client, scope, value, group.id, field, effort),
+        () => setModelGroup(client, scope, value, group.id, effort),
         () => {
           if (stay) return;
           Keyboard.dismiss();
@@ -307,32 +292,14 @@ export function ModelsView({
           onChange={(effort) => pickGroup(group, effort, true)}
         />
       );
-    if (picker === 'allowed-effort')
+    if (picker === 'orchestrator-effort')
       return frame(
-        effortTarget === undefined ? (
-          <SheetNote>{t.modelSettings.noResults}</SheetNote>
-        ) : (
-          <AllowedEffortPage
-            value={value}
-            target={effortTarget}
-            busy={models.busy}
-            header={banner}
-            onSave={(allowed, effort) =>
-              models.run(() =>
-                setAssignmentEfforts(client, scope, value, effortTarget, allowed, effort),
-              )
-            }
-          />
-        ),
-      );
-    if (picker.endsWith('-effort'))
-      return frame(
-        effortGroup !== undefined && groupEffortChoices(value, effortGroup).length === 0 ? (
-          <GroupEfforts value={value} group={effortGroup} header={banner} />
+        currentGroup !== undefined && groupEffortChoices(value, currentGroup).length === 0 ? (
+          <GroupEfforts value={value} group={currentGroup} header={banner} />
         ) : (
           <View>
             {banner}
-            {effortBar(effortGroup)}
+            {effortBar(currentGroup)}
           </View>
         ),
       );
@@ -343,10 +310,7 @@ export function ModelsView({
         name: entry.modelName,
       })),
     );
-    const groups = picker === 'orchestrator' || scope.kind !== 'global' ? (value.groups ?? []) : [];
-    const listedGroups = routes.groups.assignmentGroups ?? [];
-    const currentGroup =
-      picker === 'allowed' ? undefined : groups.find((group) => group.id === fieldGroupId);
+    const groups = value.groups ?? [];
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
     const rowKey = (row: PickerRow) =>
       row.kind === 'preset'
@@ -370,9 +334,7 @@ export function ModelsView({
       };
     });
     const presetRows: PickerRow[] =
-      picker === 'orchestrator' && scope.kind === 'bot'
-        ? value.presets.map((preset) => ({ kind: 'preset', preset }))
-        : [];
+      scope.kind === 'bot' ? value.presets.map((preset) => ({ kind: 'preset', preset })) : [];
     const presetPart = (groupId: string | undefined, route: ModelRoute | undefined) => {
       const group = value.groups?.find((entry) => entry.id === groupId);
       if (group !== undefined) return group.name;
@@ -384,7 +346,7 @@ export function ModelsView({
       value.models.filter(starredModel).length +
       groupRows.filter(starredRow).length +
       presetRows.filter(starredRow).length;
-    const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
+    const showFavorites = favoriteCount > 0;
     const filter =
       family === FAVORITES || (family === undefined && showFavorites)
         ? showFavorites
@@ -428,17 +390,12 @@ export function ModelsView({
               ? row.kind === 'group'
               : row.kind === 'model' && modelFamilyKey(row.entry) === shownFamily),
     );
-    const entries =
+    const rows =
       shownFamily === FAVORITES
         ? found
         : [...found.filter(listedRow), ...found.filter((row) => !listedRow(row))];
-    const lastGroup = entries.findLastIndex((row) => row.kind === 'group');
-    const rows: (PickerRow | { kind: 'notes' })[] =
-      picker === 'allowed' && listedGroups.length > 0 && lastGroup >= 0
-        ? [...entries.slice(0, lastGroup + 1), { kind: 'notes' }, ...entries.slice(lastGroup + 1)]
-        : entries;
-    const first = (index: number) => index === 0 || rows[index - 1]?.kind === 'notes';
-    const last = (index: number) => index === rows.length - 1 || rows[index + 1]?.kind === 'notes';
+    const first = (index: number) => index === 0;
+    const last = (index: number) => index === rows.length - 1;
     const star = (row: PickerRow, on: boolean) => {
       if (family === undefined) setFamily(shownFamily);
       setHeld(
@@ -530,30 +487,16 @@ export function ModelsView({
         <FlatList
           style={{ flex: 1 }}
           data={rows}
-          keyExtractor={(row) => (row.kind === 'notes' ? 'group-notes' : rowKey(row))}
+          keyExtractor={rowKey}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ListHeaderComponent={
-            picker === 'allowed' ? (
-              <SheetNote>{t.modelSettings.allowedHint}</SheetNote>
-            ) : picker === 'orchestrator' && scope.kind === 'bot' && currentGroup === undefined ? (
+            scope.kind === 'bot' && currentGroup === undefined ? (
               <CurrentEngineModel value={value} />
             ) : undefined
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
           renderItem={({ item: row, index }) => {
-            if (row.kind === 'notes')
-              return (
-                <GroupNotes
-                  listed={listedGroups}
-                  groups={value.groups ?? []}
-                  options={routes.groups.assignmentGroupOptions ?? []}
-                  busy={models.busy}
-                  onSave={(id, note) =>
-                    models.run(() => setAssignmentGroupNote(client, scope, value, id, note))
-                  }
-                />
-              );
             if (row.kind === 'preset') {
               const { preset } = row;
               const selected = value.plan?.sourcePresetId === preset.id;
@@ -606,15 +549,7 @@ export function ModelsView({
             }
             if (row.kind === 'group') {
               const { group, front } = row;
-              const selected =
-                picker === 'allowed'
-                  ? listedGroups.includes(group.id)
-                  : currentGroup?.id === group.id;
-              const required =
-                picker === 'allowed' && routes.groups.assignmentDefaultGroupId === group.id;
-              const note = routes.groups.assignmentGroupOptions?.find(
-                (option) => option.group === group.id,
-              )?.note;
+              const selected = currentGroup?.id === group.id;
               const usable =
                 group.restingUntil === undefined &&
                 group.routes.some(
@@ -628,16 +563,13 @@ export function ModelsView({
                     group={group}
                     front={front}
                     currentTarget={
-                      scope.kind === 'bot' && picker === 'orchestrator' && selected
-                        ? value.currentTarget
-                        : undefined
+                      scope.kind === 'bot' && selected ? value.currentTarget : undefined
                     }
                     models={value.models}
                     engines={value.engines}
-                    groups={value.groups ?? []}
+                    groups={groups}
                     usable={usable}
-                    showCount={picker !== 'orchestrator'}
-                    note={picker === 'allowed' ? note : undefined}
+                    showCount={false}
                     testID={`model-group-${group.id}`}
                     selected={selected}
                     control={selected ? { kind: 'check' } : undefined}
@@ -655,46 +587,32 @@ export function ModelsView({
                       />
                     }
                     onPress={
-                      models.busy || required || (selected && picker !== 'allowed')
+                      models.busy || selected
                         ? undefined
-                        : picker === 'allowed' && selected
-                          ? () =>
-                              models.run(() =>
-                                toggleAssignmentGroup(client, scope, value, group.id),
-                              )
-                          : restingNotice(group.name, group) !== undefined
-                            ? () => setRestNotice(restingNotice(group.name, group))
-                            : !usable
-                              ? undefined
-                              : picker === 'allowed'
-                                ? () =>
-                                    models.run(() =>
-                                      toggleAssignmentGroup(client, scope, value, group.id),
-                                    )
-                                : () =>
-                                    pickGroup(
-                                      group,
-                                      keptGroupEffort(
-                                        value,
-                                        group,
-                                        currentGroup === undefined
-                                          ? (current?.reasoningEffort ?? '')
-                                          : groupEffort,
-                                      ),
-                                      groupEffortChoices(value, group).length > 0,
-                                    )
+                        : restingNotice(group.name, group) !== undefined
+                          ? () => setRestNotice(restingNotice(group.name, group))
+                          : !usable
+                            ? undefined
+                            : () =>
+                                pickGroup(
+                                  group,
+                                  keptGroupEffort(
+                                    value,
+                                    group,
+                                    currentGroup === undefined
+                                      ? (current?.reasoningEffort ?? '')
+                                      : groupEffort,
+                                  ),
+                                  groupEffortChoices(value, group).length > 0,
+                                )
                     }
                   />
                 </SettingsGroupItem>
               );
             }
             const item = row.entry;
-            const selected =
-              picker === 'allowed'
-                ? routes.assignmentModels.some((option) => sameModel(option, item))
-                : currentGroup === undefined && sameModel(item, current);
+            const selected = currentGroup === undefined && sameModel(item, current);
             const usable = item.credential === undefined && item.restingUntil === undefined;
-            const required = picker === 'allowed' && sameModel(item, routes.assignmentDefault);
             const isFavorite = starredRow(row);
             return (
               <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
@@ -716,27 +634,22 @@ export function ModelsView({
                     />
                   }
                   onPress={
-                    models.busy || required
+                    models.busy
                       ? undefined
-                      : restingNotice(item.modelName, item) !== undefined &&
-                          !(picker === 'allowed' && selected)
+                      : restingNotice(item.modelName, item) !== undefined
                         ? () => setRestNotice(restingNotice(item.modelName, item))
-                        : !usable && !(picker === 'allowed' && selected)
+                        : !usable
                           ? undefined
                           : () => {
-                              if (picker === 'allowed')
-                                models.run(() => toggleAssignmentModel(client, scope, value, item));
-                              else {
-                                const reasoningEffort = keptEffort(item, current);
-                                choose(
-                                  {
-                                    provider: item.provider,
-                                    model: item.model,
-                                    ...(reasoningEffort === '' ? {} : { reasoningEffort }),
-                                  },
-                                  effortChoices(item).length > 0,
-                                );
-                              }
+                              const reasoningEffort = keptEffort(item, current);
+                              choose(
+                                {
+                                  provider: item.provider,
+                                  model: item.model,
+                                  ...(reasoningEffort === '' ? {} : { reasoningEffort }),
+                                },
+                                effortChoices(item).length > 0,
+                              );
                             }
                   }
                 />
@@ -744,7 +657,7 @@ export function ModelsView({
             );
           }}
         />
-        {picker === 'allowed' ? null : effortBar(currentGroup)}
+        {effortBar(currentGroup)}
       </>,
     );
   }
@@ -762,15 +675,6 @@ export function ModelsView({
     scope.kind === 'preset'
       ? groupName(routes.groups.orchestratorGroupId)
       : currentModel(value).group;
-  const assignmentGroup = groupName(routes.groups.assignmentDefaultGroupId);
-  const assignmentCatalogGroup = value.groups?.find(
-    (group) => group.id === routes.groups.assignmentDefaultGroupId,
-  );
-  const assignmentShown =
-    assignmentCatalogGroup === undefined ||
-    assignmentCatalogGroup.routes.some((route) => sameModel(route, routes.assignmentDefault))
-      ? routes.assignmentDefault
-      : modelCatalogGroupFront(assignmentCatalogGroup, value.models);
   const form = (
     <View style={{ gap: space.x4 }}>
       <SheetNote>
@@ -784,7 +688,7 @@ export function ModelsView({
       {models.busy ? <LoadingIndicator /> : null}
       <View style={{ paddingHorizontal: space.x5 }}>
         <SettingsSection
-          title={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.title}
+          {...(scope.kind === 'global' ? { title: t.modelSettings.global } : {})}
           on={SHEET_GROUP}
         >
           {scope.kind === 'bot' && value.currentTarget?.kind === 'engine' ? (
@@ -813,54 +717,9 @@ export function ModelsView({
               groupId={
                 scope.kind === 'global' ? value.defaultGroupId : routes.groups.orchestratorGroupId
               }
-              effort={groupEffortOf(routes.groups, false)}
+              effort={groupEffort}
               onPress={models.busy ? undefined : () => openPicker('orchestrator-effort')}
             />
-          )}
-          {scope.kind === 'global' ? null : (
-            <>
-              <PickerLink
-                label={t.modelSettings.assignment}
-                detail={
-                  assignmentGroup !== undefined
-                    ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
-                    : routeEffortLabel(value, routes.assignmentDefault)
-                }
-                leading={
-                  <RouteIcon
-                    value={value}
-                    route={
-                      assignmentGroup !== undefined ? assignmentShown : routes.assignmentDefault
-                    }
-                  />
-                }
-                onPress={models.busy ? undefined : () => openPicker('assignment')}
-              />
-              {assignmentGroup === undefined ? null : (
-                <GroupEffortLink
-                  value={value}
-                  groupId={assignmentCatalogGroup?.id}
-                  effort={groupEffortOf(routes.groups, true)}
-                  onPress={models.busy ? undefined : () => openPicker('assignment-effort')}
-                />
-              )}
-              <PickerLink
-                label={t.modelSettings.allowed}
-                detail={
-                  routes.assignmentDefault === undefined
-                    ? t.modelSettings.inherited
-                    : t.modelSettings.count(
-                        routes.assignmentModels.length +
-                          (routes.groups.assignmentGroups?.length ?? 0),
-                      )
-                }
-                onPress={
-                  models.busy || routes.assignmentDefault === undefined
-                    ? undefined
-                    : () => openPicker('allowed')
-                }
-              />
-            </>
           )}
           {scope.kind === 'bot' ? (
             <SettingsRow
@@ -877,11 +736,16 @@ export function ModelsView({
           ) : null}
         </SettingsSection>
       </View>
-      {scope.kind === 'global' || routes.assignmentDefault === undefined ? null : (
-        <AllowedEffortLinks
-          value={value}
-          onOpen={models.busy ? undefined : (target) => openPicker('allowed-effort', target)}
-        />
+      {scope.kind === 'global' ? null : (
+        <View style={{ paddingHorizontal: space.x5 }}>
+          <SubChoiceSection
+            value={value}
+            engines={engines}
+            busy={models.busy}
+            onOpen={openChoice}
+            onAdd={() => openPicker('sub-add')}
+          />
+        </View>
       )}
       <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
         <TextField

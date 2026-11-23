@@ -24,6 +24,7 @@ import {
   chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
+  setModelPlanSub,
   setStandingLimits,
   type ModelCatalogView,
   type ModelChoice,
@@ -92,6 +93,12 @@ export interface ModelActions {
     assignmentModels: AssignmentModelOptionView[],
     openAssignmentModels?: boolean,
     groups?: ModelPlanGroupsView,
+  ): Promise<ModelPlanView>;
+  setModelPlanSub(
+    slug: string,
+    expectedRevision: number,
+    main: Parameters<typeof setModelPlanSub>[3],
+    sub: Parameters<typeof setModelPlanSub>[4],
   ): Promise<ModelPlanView>;
 }
 
@@ -182,6 +189,10 @@ export function createModelActions(
           groups,
         ),
         () => getActions().telemetryEvent('model:plan_update', { via: 'plan' }),
+      ),
+    setModelPlanSub: (slug, expectedRevision, main, sub) =>
+      recorded(setModelPlanSub(call, slug, expectedRevision, main, sub), () =>
+        getActions().telemetryEvent('model:plan_update', { via: 'plan' }),
       ),
   } satisfies ModelActions;
 }

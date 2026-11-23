@@ -117,3 +117,40 @@ export async function choose(label: string, query: string, option: string): Prom
   if (match === undefined) throw new Error(`No option ${option} for ${query}`);
   await act(async () => match.click());
 }
+
+export function taskTiles(): string[] {
+  return [
+    ...document.querySelectorAll('section[aria-label="Task model"] [data-list-card] > li'),
+  ].map((tile) => tile.textContent ?? '');
+}
+
+export async function addTask(query: string, option: string): Promise<void> {
+  await choose('Add a task model', query, option);
+}
+
+export const followsMain = { choices: [], default: null };
+
+export function modelSub(
+  ...models: { provider: string; model: string; effort?: string; note?: string }[]
+) {
+  return {
+    choices: models.map(({ provider, model, effort = '', note }) => ({
+      kind: 'model' as const,
+      provider,
+      model,
+      allowedEfforts: [effort],
+      defaultEffort: effort,
+      ...(note === undefined ? {} : { note }),
+    })),
+    default:
+      models[0] === undefined
+        ? null
+        : { kind: 'model' as const, provider: models[0].provider, model: models[0].model },
+  };
+}
+
+export function labelled(label: string): HTMLButtonElement {
+  const found = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (found === null) throw new Error(`No button labelled ${label}`);
+  return found;
+}

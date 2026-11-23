@@ -6,6 +6,78 @@ import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 
+it.each(['before', 'after'] as const)(
+  'checks keyed Group send access when revocation is %s commit',
+  async (revoke) => {
+    let sourceId = '';
+    let destinationId = '';
+    const outcomes: unknown[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('keyed-group-revocation-'),
+      agents: {
+        async runOrchestrator(run) {
+          if (run.inboundChannelId !== sourceId) return;
+          const send = () =>
+            run.channels.send({
+              channelId: destinationId,
+              body: 'Group response',
+              deliveryKey: 'response',
+            });
+          try {
+            outcomes.push(await send());
+            if (revoke === 'after') outcomes.push(await send());
+          } catch (error) {
+            outcomes.push(error);
+          }
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('unexpected assignment');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = (name: string) =>
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name, members: ['ada'] });
+      sourceId = group('Source').id;
+      destinationId = group('Destination').id;
+      core.runtime.groupSendReview!.configure(sourceId, true);
+      const append = core.channels.appendMessageOnce.bind(core.channels);
+      core.channels.appendMessageOnce = async (...args) => {
+        if (args[1] === destinationId && revoke === 'before')
+          core.channels.removeGroupMember(sourceId, 'ada');
+        const result = await append(...args);
+        if (args[1] === destinationId && revoke === 'after' && result.status === 'appended')
+          core.channels.removeGroupMember(sourceId, 'ada');
+        return result;
+      };
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, sourceId, {
+        id: 'request',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada Send a response',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      core.runtime.admitGroupMessage(sourceId, 'request');
+      await core.runtime.whenIdle();
+      const messages = core.channels.readMessages(destinationId);
+      if (revoke === 'before') {
+        expect(outcomes).toMatchObject([{ code: 'group-reply-source-revoked' }]);
+        expect(messages).toEqual([]);
+      } else {
+        expect(messages).toHaveLength(1);
+        const receipt = { id: messages[0]!.id, body: 'Group response' };
+        expect(outcomes).toMatchObject([receipt, receipt]);
+      }
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  },
+);
+
 it('revoking the initiating Group stops cross-Channel continuation but not a later independent DM', async () => {
   const outcomes: unknown[] = [];
   let groupId = '';

@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { TobCliCommand, TobCliStatus } from '../../tob/cli-request.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
@@ -46,3 +47,38 @@ export function botToolRun(
     }),
   );
 }
+
+export const tobRpcMethods = {
+  tobHome() {
+    return tobHome(this.methods);
+  },
+
+  async tobCli(
+    action: 'start' | 'status' | 'cancel',
+    command?: TobCliCommand,
+    id?: string,
+  ): Promise<TobCliStatus> {
+    return tobCli(this.methods, action, command, id);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const directBotToolRpc = {
+  botTools(): { sessionId: 'direct'; tools: DirectBotToolSpec[] } {
+    return botTools(this.methods);
+  },
+
+  botToolRun(
+    slug: string,
+    tool: string,
+    args?: Record<string, unknown>,
+    sessionId?: string,
+    sourceEventId?: string,
+  ): Promise<{
+    slug: string;
+    tool: string;
+    sessionId: 'direct';
+    result: unknown;
+  }> {
+    return botToolRun(this.methods, slug, tool, args, sessionId, sourceEventId);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

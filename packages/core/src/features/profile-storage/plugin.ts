@@ -1,3 +1,8 @@
+import { mountContentPurge } from '../../purge/owner.js';
+import type { AttachmentStore } from '../../attachments/store.js';
+import type { OperationalDatabaseOwner } from '../../database/owner.js';
+import type { MemoryService } from '../../memory/service.js';
+import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import { nativeReleaseRuntime } from '../../release/compatibility.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from '../../portability/http.js';
 import { join } from 'node:path';
@@ -7,12 +12,13 @@ import { startMediaBackfill } from '../../attachments/media-backfill.js';
 import { createStorageCleanup } from '../../storage/media-cleanup.js';
 import { memoryAttachmentReferences } from '../../memory/backup.js';
 import { homedir } from 'node:os';
-import { type ReleaseRestarter } from '../../release/restart.js';
+import type { ReleaseRestarter } from '../../release/restart.js';
 import { installedDshVersion } from '../../telemetry/service.js';
-import { createHostModelCatalog } from '../../models/host-models.js';
+import type { createHostModelCatalog } from '../../models/host-models.js';
 import { failOperationalDatabase } from '../../database/owner.js';
 import { applyPendingDataReset, createDataReset } from '../../data-reset/reset.js';
 import type { BotHarnessCore } from '../../plugin.js';
+import type { CoreOptions } from '../../plugin-types.js';
 
 export function apply(ctx: Context, dshHome: string) {
   applyPendingDataReset({
@@ -172,3 +178,42 @@ export function mountFetch(
 }
 
 export { createProfileRecovery } from '../../portability/recovery.js';
+
+export function createContentPurge(deps: {
+  dshHome: string;
+  operationalDatabase: OperationalDatabaseOwner;
+  attachments: AttachmentStore;
+  options: CoreOptions;
+  readonly memory: MemoryService;
+  readonly grants: WorkspaceGrantStore;
+}) {
+  const { dshHome, operationalDatabase, attachments, options } = deps;
+  return mountContentPurge({
+    dshHome,
+    database: operationalDatabase,
+    attachments,
+    derivatives: (ids, botSlugs) => {
+      const references = deps.memory.sourceReferences(ids);
+      const slugs = [...new Set([...botSlugs, ...references.map((ref) => ref.botSlug)])].sort();
+      return [
+        ...references.map((ref) => ({
+          kind: 'memory' as const,
+          botSlug: ref.botSlug,
+          location: ref.memoryDir ?? '',
+          reference: ref.sha,
+          tracking: ref.available ? ('recorded' as const) : ('unavailable' as const),
+        })),
+        ...slugs.flatMap((slug) =>
+          deps.grants.list(slug).map((grant) => ({
+            kind: 'workspace' as const,
+            botSlug: slug,
+            location: grant.workspacePath,
+            reference: grant.id,
+            tracking: 'possible' as const,
+          })),
+        ),
+      ];
+    },
+    ...(options.warn === undefined ? {} : { warn: options.warn }),
+  });
+}

@@ -1,5 +1,8 @@
 import {
+  assignmentModelsOf,
   matchesPresetSubChoice,
+  presetSubFromLegacy,
+  presetSubWithEngine,
   type AssignmentGroupOption,
   type AssignmentModelOption,
   type PresetSub,
@@ -12,6 +15,9 @@ import type { ModelPreset, ModelPresetEngine, ModelRoute, PersonaBotModelPlan } 
 
 export {
   ASSIGNMENT_MODEL_NOTE_MAX,
+  assignmentModelsOf,
+  presetSubFromLegacy,
+  presetSubWithEngine,
   isAssignmentGroupChoice,
   isAssignmentGroupOption,
   isAssignmentModelOption,
@@ -48,75 +54,6 @@ export function assignmentGroupOption(option: AssignmentGroupOption): Assignment
       ? {}
       : { allowedEfforts: [...option.allowedEfforts], defaultEffort: option.defaultEffort! }),
     ...(option.note === undefined ? {} : { note: option.note }),
-  };
-}
-
-export function assignmentModelsOf(
-  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels' | 'sub'>,
-): AssignmentModelOption[] {
-  if (plan.sub !== undefined)
-    return plan.sub.choices.flatMap((choice) => {
-      if (choice.kind !== 'model') return [];
-      const { kind: _kind, ...model } = choice;
-      return [model];
-    });
-  if (plan.assignmentDefault === undefined) return [];
-  return (
-    plan.assignmentModels ?? [
-      {
-        provider: plan.assignmentDefault.provider,
-        model: plan.assignmentDefault.model,
-        allowedEfforts: [plan.assignmentDefault.reasoningEffort ?? ''],
-        defaultEffort: plan.assignmentDefault.reasoningEffort ?? '',
-      },
-    ]
-  );
-}
-
-export function presetSubFromLegacy(
-  preset: Pick<
-    ModelPreset,
-    | 'assignmentFollowsMain'
-    | 'assignmentModels'
-    | 'assignmentGroups'
-    | 'assignmentDefaultGroupId'
-    | 'assignmentGroupOptions'
-  > &
-    Pick<PersonaBotModelPlan, 'assignmentDefault'>,
-): PresetSub {
-  const route = preset.assignmentDefault;
-  if (preset.assignmentFollowsMain === true || route === undefined)
-    return { choices: [], default: null };
-  return {
-    choices: [
-      ...assignmentModelsOf({
-        assignmentDefault: route,
-        ...(preset.assignmentModels === undefined
-          ? {}
-          : { assignmentModels: preset.assignmentModels }),
-      }).map((model) => ({ ...model, kind: 'model' as const })),
-      ...(preset.assignmentGroups ?? []).map((group) => ({
-        ...preset.assignmentGroupOptions?.find((option) => option.group === group),
-        kind: 'group' as const,
-        group,
-      })),
-    ],
-    default:
-      preset.assignmentDefaultGroupId === undefined
-        ? { kind: 'model', provider: route.provider, model: route.model }
-        : { kind: 'group', group: preset.assignmentDefaultGroupId },
-  };
-}
-
-export function presetSubWithEngine(
-  sub: PresetSub,
-  engine: ModelPresetEngine | undefined,
-): PresetSub {
-  if (engine === undefined || sub.choices.some((choice) => choice.kind === 'engine')) return sub;
-  const { effort: _effort, ...selection } = engine;
-  return {
-    choices: [...sub.choices, { kind: 'engine', ...engine }],
-    default: { kind: 'engine', ...selection },
   };
 }
 

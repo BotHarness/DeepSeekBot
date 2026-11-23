@@ -20,6 +20,7 @@ import {
   type ModelPreset,
   type ModelRoute,
 } from '@botharness/host-client/model-plans';
+import type { SubChoices } from '@botharness/host-client/preset-sub';
 
 export type ModelRouteView = ModelRoute;
 
@@ -259,5 +260,26 @@ export async function setModelPlan(
     assignmentDefault,
     assignmentModels,
     ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+  });
+}
+
+export async function setModelPlanSub(
+  call: BridgeCall,
+  slug: string,
+  expectedRevision: number,
+  main: {
+    orchestrator?: ModelRouteView;
+    orchestratorGroupId?: string | null;
+    orchestratorGroupEffort?: string | null;
+  },
+  sub: SubChoices,
+): Promise<ModelPlanView> {
+  return setHostModelPlan(bridgeHost(call), slug, expectedRevision, {
+    ...(main.orchestrator === undefined ? {} : { orchestrator: main.orchestrator }),
+    ...(main.orchestratorGroupId == null ? {} : { orchestratorGroupId: main.orchestratorGroupId }),
+    ...(main.orchestratorGroupEffort == null
+      ? {}
+      : { orchestratorGroupEffort: main.orchestratorGroupEffort }),
+    sub,
   });
 }

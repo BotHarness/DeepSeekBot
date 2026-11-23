@@ -93,7 +93,7 @@ export function queryCallWindow({
     input,
   )!;
   const { call: _call, fromMs: _fromMs, toMs: _toMs, ...filters } = input;
-  const page = channels.queryMessages(channel.id, {
+  const queryOptions: ChannelMessageQueryOptions = {
     ...filters,
     from: window.startedAt,
     ...(window.endedAt === undefined ? {} : { to: window.endedAt }),
@@ -106,8 +106,9 @@ export function queryCallWindow({
       from: window.from,
       ...(window.to === undefined ? {} : { to: window.to }),
     },
-  });
-  return { channel, window, page };
+  };
+  const page = channels.queryMessages(channel.id, queryOptions);
+  return { channel, window, page, queryOptions };
 }
 
 export function lastCallNote(

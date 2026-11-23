@@ -147,6 +147,10 @@ The current inserted alert occupies layout space above navigation. It owns its t
 
 References: [Apple toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars), [Apple sheets](https://developer.apple.com/design/human-interface-guidelines/sheets), [Material bottom sheets](https://m3.material.io/components/bottom-sheets/guidelines), [Android radio selection](https://developer.android.com/develop/ui/compose/components/radio-button).
 
+## Phone Sessions query controls
+
+The Sessions tab adds Search and Filter and sort to its navigation bar. Search uses the existing iOS header search and Android Compose Material 3 `DockedSearchBar`, with the virtualized list below it. End editing to return to the toolbar and keep the query. Close search to clear the query. The iOS navigation bar’s pull-down `UIMenu` shows inline checkmark groups for Sort by and Source. The Android `ModalBottomSheet` shows the same choices with radio buttons. Select an option to apply it immediately. Sessions sort by last Human turn by default, with creation time and last activity also available. The device remembers the sort. Source is All, Native (Host Owner) or a Bot with visible Sessions. Search and source can apply together.
+
 ## Android chat top bar and composer
 
 Android conversations use the floating island header specified above, replacing the previous continuous `TopAppBar` by explicit Human request (#3621). The identity island displays the existing Bot/channel avatar, name and live status or member count; it opens the same Profile as the trailing action. Calling stays conditional on the existing capability check, and group channels never receive a Call action. A native progress indicator and connection label retain reconnection feedback. The name is always one line with trailing ellipsis, with one smaller secondary status line. Native text scaling remains enabled; all three islands share a common height sufficient for these two text lines, and the single-action buttons stay circular at that same height. The measured header height reserves the list's initial top space, including system insets, while scrolling messages pass underneath the transparent overlay and its fade.
@@ -273,7 +277,9 @@ Deliver runnable vertical slices: native blank creation with target selection an
 
 ## Structure
 
-Chats, Activity and Settings are the three top-level destinations on iOS and Android. Settings is a tab page ([ADR-0272](../../docs/decisions/mobile-ui.md#adr-0272)). It uses a native-stack large title on iOS and a fixed top app bar on Android. Its child pages push on the app stack, leaving the tab controls on the three top-level pages.
+Chats, Activity and Settings are the three top-level destinations on iOS and Android. Settings is a tab page ([ADR-0272](../../docs/decisions/mobile-ui.md#adr-0272)). It uses a native-stack large title on iOS and a fixed top app bar on Android. Its child pages push on the app stack, leaving the tab controls on the top-level pages.
+
+Settings → Interface has an off-by-default Sessions switch (iOS Toggle ↔ Android Switch). When enabled, the iOS tab bar and Android NavigationBar include Sessions. The tab opens the current Host’s root Session list, ordered by last Human prompt. The list refreshes on entry or pull-to-refresh and keeps its previous rows during a refresh for the same Host. Bot rows use their Bot portrait. Native rows use the Session symbol. Both open the shared Session detail stack. Sessions uses a compact navigation bar title on iOS. At accessibility text sizes the creation button moves above the four-destination iOS tab bar so every destination keeps its own touch area.
 
 - **One workspace drawer, two connection types.** Computers are paired Hosts; cloud workspaces belong to an explicitly trusted TOB instance. The existing left drawer is shared across both, with Computers and Cloud tabs. Cloud headers expose the same workspace switcher. A guest sees the organization initial/name and “invited channels only”; selecting it shows only current channel grants. Instance domains disambiguate identically named workspaces. The contextual join/pair action stays below the tabs; the directory scrolls between that header and a fixed footer.
 - **Computer workspaces.** Each paired computer is a Host.

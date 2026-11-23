@@ -44,6 +44,7 @@ vi.mock('expo-router/js-tabs', () => ({
           routes: [
             { key: 'home', name: '(home)' },
             { key: 'activity', name: '(activity)' },
+            { key: 'sessions', name: '(sessions)' },
             { key: 'settings', name: '(settings)' },
           ],
         },
@@ -69,6 +70,7 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 import { router } from 'expo-router';
 import { BottomNavigation } from '../src/ui/shell/bottom-navigation';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { t } from '../src/ui/strings';
 import { setHapticsEnabled } from '../src/ui/haptics';
 import { played } from './expo-haptics-shim';
@@ -156,7 +158,7 @@ it.each([
     await act(async () => (settings() as HTMLButtonElement).click());
     expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('settings');
     expect(router.push).not.toHaveBeenCalled();
-    fixture.index = 2;
+    fixture.index = 3;
     await act(async () => root.render(<BottomNavigation />));
     expect(settings().getAttribute('aria-selected')).toBe('true');
   } finally {
@@ -165,3 +167,29 @@ it.each([
     fixture.index = 0;
   }
 });
+
+it.each(['ios', 'android'])(
+  'adds Sessions to the tab bar only when enabled on %s',
+  async (platform) => {
+    fixture.platform = platform;
+    fixture.navigateToTab.mockClear();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const findSessions = () =>
+      host.querySelector<HTMLButtonElement>(`button[aria-label="${t.hostSessions.title}"]`);
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      expect(findSessions()).toBeNull();
+      await act(async () => interfacePreferences.setSessionsTab(true));
+      const sessions = findSessions();
+      expect(sessions).not.toBeNull();
+      await act(async () => sessions?.click());
+      expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('sessions');
+      await act(async () => interfacePreferences.setSessionsTab(false));
+      expect(findSessions()).toBeNull();
+    } finally {
+      act(() => root.unmount());
+      interfacePreferences.setSessionsTab(false);
+    }
+  },
+);

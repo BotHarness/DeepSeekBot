@@ -1,10 +1,35 @@
 import { en as modelsEn, zh as modelsZh } from '../models/strings';
 
 export const en = {
+  hostSessions: {
+    title: 'Sessions',
+    toggle: 'Show Sessions tab',
+    native: 'Native session',
+    untitled: 'Untitled session',
+    empty: 'No sessions on this Host.',
+    noMatches: 'No matching sessions.',
+    search: 'Search sessions',
+    options: 'Filter and sort',
+    sortLabel: 'Sort by',
+    sourceLabel: 'Source',
+    all: 'All',
+    nativeSource: 'Native',
+    sort: {
+      'last-human-turn': 'Last human turn',
+      created: 'Creation time',
+      'last-activity': 'Last activity',
+    },
+    offline: 'Connect to a Host to see its sessions.',
+    loadFailed: 'Couldn’t load sessions.',
+    running: 'Running',
+    idle: 'Idle',
+  },
   sessionModel: {
     choice: 'Model choice',
     defaultLabel: 'Bot default',
     default: 'Use Bot default',
+    nativeDefaultLabel: 'Original model',
+    nativeDefault: 'Use the Session’s original model',
     groups: 'Routing Groups',
     apiModels: 'API models',
     api: 'API',
@@ -90,7 +115,18 @@ export const en = {
     } as Record<string, readonly [string, string?]>,
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? 'New' : 'Sent to'} · ${count}`,
+    linkNeeds: {
+      'needs-you': 'Needs you',
+      'waiting-human': 'Waiting on you',
+      blocked: 'Blocked',
+    },
     title: 'Session',
+    options: 'Session options',
+    archive: 'Archive',
+    unarchive: 'Unarchive',
+    archiveFailed: (detail: string) => `Couldn’t change archive status. ${detail}`,
     list: 'Sessions',
     listFailed: 'Couldn’t load sessions.',
     assignmentFailed: 'Couldn’t load assignment details.',
@@ -136,10 +172,35 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  hostSessions: {
+    title: '会话',
+    toggle: '显示会话标签页',
+    native: '原生会话',
+    untitled: '未命名会话',
+    empty: '此 Host 还没有会话。',
+    noMatches: '没有匹配的会话。',
+    search: '搜索会话',
+    options: '筛选与排序',
+    sortLabel: '排序方式',
+    sourceLabel: '来源',
+    all: '全部',
+    nativeSource: '原生',
+    sort: {
+      'last-human-turn': '最近一次用户发言',
+      created: '创建时间',
+      'last-activity': '最近活动',
+    },
+    offline: '连接 Host 后可查看会话。',
+    loadFailed: '加载会话失败。',
+    running: '运行中',
+    idle: '空闲',
+  },
   sessionModel: {
     choice: '模型选择',
     defaultLabel: 'Bot 默认模型',
     default: '使用 Bot 默认模型',
+    nativeDefaultLabel: '原始模型',
+    nativeDefault: '使用会话的原始模型',
     groups: '路由组',
     apiModels: 'API 模型',
     api: 'API',
@@ -213,7 +274,18 @@ export const zh: typeof en = {
     },
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? '新建' : '转给'} · ${count}`,
+    linkNeeds: {
+      'needs-you': '需要你处理',
+      'waiting-human': '等你回复',
+      blocked: '受阻',
+    },
     title: '会话',
+    options: '会话选项',
+    archive: '归档',
+    unarchive: '取消归档',
+    archiveFailed: (detail: string) => `无法更改归档状态。${detail}`,
     list: '会话',
     listFailed: '无法加载会话列表。',
     assignmentFailed: '无法加载事项详情。',

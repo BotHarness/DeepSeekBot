@@ -42,6 +42,16 @@ export async function sessionOwner(host: HostCall, sessionId: string) {
   return parseSessionOwner(await host.call('sessionOwner', { sessionId }));
 }
 
+export async function setSessionArchived(
+  host: HostCall,
+  slug: string,
+  sessionId: string,
+  archived: boolean,
+): Promise<boolean> {
+  const value = asRecord(await host.call('sessionArchiveSet', { slug, sessionId, archived }));
+  return value?.['archived'] === true;
+}
+
 export type SessionTranscriptTrigger =
   | 'request'
   | 'goal'
@@ -238,7 +248,7 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
 }
 
 export interface SessionTranscript {
-  role: 'orchestrator' | 'assignment';
+  role: 'orchestrator' | 'assignment' | 'native';
   displayTitle?: string;
   items: SessionTranscriptItem[];
   omitted: number;
@@ -396,7 +406,7 @@ export function parseItems(items: unknown[]): SessionTranscriptItem[] {
 
 export async function sessionTranscript(
   host: HostCall,
-  slug: string,
+  slug: string | null,
   sessionId: string,
 ): Promise<SessionTranscript> {
   const value = asRecord(await host.call('sessionTranscript', { slug, sessionId }));
@@ -406,7 +416,8 @@ export async function sessionTranscript(
   const engine = parseSessionEngine(value['engine']);
   const currentTarget = value['currentTarget'];
   return {
-    role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
+    role:
+      value['role'] === 'native' || value['role'] === 'orchestrator' ? value['role'] : 'assignment',
     ...(typeof value['displayTitle'] === 'string' && value['displayTitle'].trim() !== ''
       ? { displayTitle: value['displayTitle'] }
       : {}),
@@ -421,7 +432,7 @@ export async function sessionTranscript(
 
 export async function sessionLive(
   host: HostCall,
-  slug: string,
+  slug: string | null,
   sessionId: string,
   after: number | undefined,
 ): Promise<SessionLiveSnapshot> {
@@ -486,7 +497,7 @@ export async function sendSessionRequest(
 
 export async function sendOrchestratorMessage(
   host: HostCall,
-  botSlug: string,
+  botSlug: string | null,
   sessionId: string,
   text: string,
 ): Promise<void> {

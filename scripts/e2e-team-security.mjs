@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runHostSessionGate } from './team-security-host-sessions-gate.mjs';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
@@ -164,8 +165,6 @@ class Suite {
         DEEPSEEKBOT_HOST: this.url.origin,
         DEEPSEEKBOT_HOST_TOKEN: this.url.searchParams.get('token') ?? '',
       },
-      shell: false,
-      windowsHide: true,
     });
     let value;
     if (result.error) {
@@ -954,6 +953,7 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C5', 'Subscription account grants', (check) =>
       runEngineAccountGrantGate(s, fx, check),
     );
+    await define('C6', 'Native Session access', (check) => runHostSessionGate(s, fx, check));
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

@@ -5,7 +5,12 @@ import { SHEET_GROUP } from './chat/sheet';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { UsageCard } from './shell/usage-card';
-import { AppearanceSetting, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
+import {
+  AppearanceSetting,
+  InterfaceSaveNotice,
+  LanguageSetting,
+  SessionsTabSetting,
+} from './interface-settings';
 import { useStrings } from './strings';
 
 export interface SettingsActions {
@@ -52,7 +57,7 @@ export function SettingsView({
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>
-      <SettingsSection title={t.modelSettings.title} on={SHEET_GROUP}>
+      <SettingsSection title={t.modelConfig.section} on={SHEET_GROUP}>
         <SettingsRow
           on={SHEET_GROUP}
           title={t.modelProviders.title}
@@ -64,9 +69,9 @@ export function SettingsView({
         />
         <SettingsRow
           on={SHEET_GROUP}
-          title={t.modelSettings.title}
+          title={t.modelConfig.title}
           icon="model"
-          detail={t.modelSettings.global}
+          detail={t.modelConfig.rowHint}
           disclosure
           onPress={actions.onModels}
         />
@@ -100,6 +105,7 @@ export function SettingsView({
       <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
+        <SessionsTabSetting on={SHEET_GROUP} />
         {messageDisplay}
         {sendJump}
         <SettingsRow

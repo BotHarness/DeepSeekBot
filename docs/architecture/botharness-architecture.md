@@ -692,9 +692,11 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
 
-DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
+DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 
-Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。
+
+[Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
 
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
@@ -849,6 +851,8 @@ Assignment Request 的 `context-update`、`next-step`、`next-turn` 分别映射
 Web 的选中 Channel、Roster 与 Activity 消费在每个文档内共用一个受认证的 EventSource；既有 `/api/botharness/stream` 在选中 Channel 时携带 `channelId`／`after` 与 `roster=1`／`activity=1`，从 owning Channel live hub 组合原有 Channel revision 流、roster 通知、撤销基线与同一 Activity Projection 的有界快照。没有选中 Channel 时复用 roster／Activity 流。各逻辑消费者独立清理，最后一个离开时关闭物理流；Channel 选择变化调整查询，替换构造失败保留健康旧流，Host 合成 adapter 断开时取消两个原流读取者；重连错误清除可回放 Activity 基线，迟到消费者保持 stale 与 HTTP 恢复直到新快照到达。慢消费者只保留当前 Activity 更新，背压时跳过心跳；Channel revision／回放和 Owner 认证不改变。这是过程内传输复用，不创建新的 Activity 或内容权威（[#1451](https://github.com/BotHarness/DeepSeekBot/issues/1451)）。
 
 DSH 失败的 `turn/end` 仍是执行事实权威；BotHarness 在所属 Orchestrator 或 Assignment 回合结束并判定失败后，由 Host 向对应 PersonaBot DM 提交一条带 role、Session ID、错误码、可用 HTTP status、简短错误详情和事项上下文的 application-defined failure notice。该消息是面向 Human 的持久通知，不把 SessionEvent 全文或工具日志复制成第二套执行历史；Client 把它渲染成可读的失败卡，刷新后从 Channel authority 恢复。Orchestrator 的 Human Source Event 仍依原有 retry/reconciliation 语义处理，失败通知不等于完成该 Source Event。
+
+The application-defined Host Sessions interface uses the existing Typert / API Gateway service. The DSH Session Controller provides the root inventory, last Human prompt projection, passive history and prompt admission. BotHarness joins the inventory to durable Session ownership and applies Team authority on the Host. Native requests require a Human Owner and an unowned root; Bot-owned requests keep the existing Bot Session checks. The shared Session detail uses the existing live SessionEvent and assistant stream projection. The phone switch is device-local and the inventory loads when the Sessions tab is focused. This adds no work to the default Chats journey. The inventory uses one DSH list request and batches titles for authorized rows that need them. [#4932](https://github.com/BotHarness/DeepSeekBot/issues/4932)
 
 DSH SessionEvent 是 durable execution authority；BotHarness 不复制 tool call 或 assistant output 为第二套 Session fact。explicit Session Ownership 把 Session 归属到 PersonaBot 及 `orchestrator` / `assignment` root role，PersonaBot module 再把这些事实与 live liveness 折叠成一个可重建的 Activity Projection。Browser 首先经 Typert/API Gateway 查询 projection，随后消费带单调 revision 的 live update；revision 断档时重新查询，而不是由 Client 自己推导状态。
 

@@ -423,13 +423,7 @@ it.each(['stale', 'missing'] as const)(
         ).toMatchObject({ ok: true });
       }
       await expect(
-        setModelRoute(
-          client,
-          { kind: 'global' },
-          observed,
-          'orchestrator',
-          condition === 'stale' ? old : other,
-        ),
+        setModelRoute(client, { kind: 'global' }, observed, condition === 'stale' ? old : other),
       ).rejects.toMatchObject(
         condition === 'stale'
           ? { code: 'stale-setting' }
@@ -442,7 +436,7 @@ it.each(['stale', 'missing'] as const)(
       }
       if (condition === 'stale') {
         const refreshed = await resource.refresh();
-        await setModelRoute(client, { kind: 'global' }, refreshed, 'orchestrator', old);
+        await setModelRoute(client, { kind: 'global' }, refreshed, old);
         expect(pinned()).toMatchObject({ orchestrator: old, revision: 3 });
       }
     });

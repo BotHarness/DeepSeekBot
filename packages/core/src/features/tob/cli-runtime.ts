@@ -28,6 +28,7 @@ export interface TobCliRequestLease {
   botSlug: string;
   controller: AbortController;
   status: TobCliStatus;
+  result: TobCliOutput | undefined;
   finishedAt: number | undefined;
 }
 
@@ -74,7 +75,11 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       const request = ports.tobCliRequests.get(input.id);
       if (!request || request.humanId !== human.humanId)
         throw new TobError('cli-request-unavailable');
-      if (input.action === 'cancel' && request.status.state === 'running') {
+      if (
+        input.action === 'cancel' &&
+        request.status.state === 'running' &&
+        request.result === undefined
+      ) {
         request.status = { ...request.status, cancelRequested: true };
         request.controller.abort();
       }
@@ -120,39 +125,43 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         state: 'running',
         cancelRequested: false,
       },
+      result: undefined,
       finishedAt: undefined,
     };
     ports.tobCliRequests.set(id, request);
     const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
     timer.unref?.();
-    let result: TobCliOutput | undefined;
     const finish = (error?: unknown) => {
       clearTimeout(timer);
       request.finishedAt = Date.now();
-      request.status = controller.signal.aborted
-        ? {
-            id,
-            channelId,
-            messageId,
-            state: 'cancelled',
-            cancelRequested: true,
-            code: 'operation-cancelled',
-          }
-        : error !== undefined || result === undefined
-          ? {
-              id,
-              channelId,
-              messageId,
-              state: 'failed',
-              cancelRequested: false,
-              code:
-                error instanceof TobError ||
-                error instanceof DirectBotToolError ||
-                error instanceof TeamError
-                  ? error.code
-                  : 'operation-failed',
-            }
-          : { id, channelId, messageId, state: 'completed', cancelRequested: false, result };
+      const { result } = request;
+      request.result = undefined;
+      const { aborted } = controller.signal;
+      request.status =
+        result !== undefined && (error === undefined || aborted)
+          ? { id, channelId, messageId, state: 'completed', cancelRequested: false, result }
+          : aborted
+            ? {
+                id,
+                channelId,
+                messageId,
+                state: 'cancelled',
+                cancelRequested: true,
+                code: 'operation-cancelled',
+              }
+            : {
+                id,
+                channelId,
+                messageId,
+                state: 'failed',
+                cancelRequested: false,
+                code:
+                  error instanceof TobError ||
+                  error instanceof DirectBotToolError ||
+                  error instanceof TeamError
+                    ? error.code
+                    : 'operation-failed',
+              };
     };
     try {
       ports.requireExecution?.(bot.slug);
@@ -173,7 +182,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
           command: { argv: [...input.command.argv], stdin: input.command.stdin },
           signal: controller.signal,
           complete: (output) => {
-            result = output;
+            if (!controller.signal.aborted) request.result = output;
           },
         },
       );

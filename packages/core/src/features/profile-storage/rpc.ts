@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../bridge/rpc-result.js';
 import type { PurgePreview, TextCleanupPreview, TextCleanupResult } from '../../purge/contracts.js';
 import type {
@@ -102,3 +103,60 @@ export function channelPurgeConfirm(
 ): { accepted: number } {
   return unwrap(methods.channelPurgeConfirm({ channelId, sourceEventIds, token }));
 }
+
+export const dataResetRpc = {
+  dataResetPreview(): { preview: DataResetPreview } {
+    return dataResetPreview(this.methods);
+  },
+
+  dataResetConfirm(token: string): { reset: DataResetResult } {
+    return dataResetConfirm(this.methods, token);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const profileStorageRpc = {
+  storageUsage(): StorageUsage {
+    return storageUsage(this.methods);
+  },
+
+  storageCleanupPreview(
+    before: string,
+    channelIds?: string[],
+    kinds?: StorageMediaKind[],
+  ): MediaCleanupPreview {
+    return storageCleanupPreview(this.methods, before, channelIds, kinds);
+  },
+
+  storageCleanupConfirm(
+    before: string,
+    channelIds: string[] | undefined,
+    kinds: StorageMediaKind[] | undefined,
+    token: string,
+  ): MediaCleanupResult {
+    return storageCleanupConfirm(this.methods, before, channelIds, kinds, token);
+  },
+
+  storageMessagesCleanupPreview(before: string, channelIds?: string[]): TextCleanupPreview {
+    return storageMessagesCleanupPreview(this.methods, before, channelIds);
+  },
+
+  storageMessagesCleanupConfirm(
+    before: string,
+    channelIds: string[] | undefined,
+    token: string,
+  ): TextCleanupResult {
+    return storageMessagesCleanupConfirm(this.methods, before, channelIds, token);
+  },
+
+  channelPurgePreview(channelId: string, sourceEventIds: string[]): PurgePreview {
+    return channelPurgePreview(this.methods, channelId, sourceEventIds);
+  },
+
+  channelPurgeConfirm(
+    channelId: string,
+    sourceEventIds: string[],
+    token: string,
+  ): { accepted: number } {
+    return channelPurgeConfirm(this.methods, channelId, sourceEventIds, token);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

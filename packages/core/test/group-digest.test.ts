@@ -1,5 +1,5 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { isChannelRecord } from '../src/channels/channel.js';
@@ -647,6 +647,70 @@ describe('Group ordinary-message digest', () => {
       core.operationalDatabase.close();
     }
   });
+
+  it.each(['another channel', 'the same channel'])(
+    'honors the digest retry deadline on a mention in %s',
+    async (location) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const startedAt = Date.now();
+      const turns: string[] = [];
+      const core = createCore({
+        dshHome: createTempRoot('bh-digest-opportunistic-retry-'),
+        agents: adapter(async (run) => {
+          turns.push(run.message);
+          if (turns.length === 1) throw new Error('Temporary provider failure');
+        }),
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const digest = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Discussion',
+          members: ['ada'],
+        });
+        const mentionChannel =
+          location === 'the same channel'
+            ? digest
+            : core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+                name: 'Requests',
+                members: ['ada'],
+              });
+        core.channels.setGroupWakePolicy(digest.id, 'ada', {
+          mode: 'digest',
+          count: 1,
+          intervalSeconds: 3600,
+        });
+        const mention = async (id: string) => {
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, mentionChannel.id, {
+            id,
+            at: new Date().toISOString(),
+            author: { kind: 'human' },
+            body: '@Ada ping',
+            mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+          });
+          core.runtime.admitGroupMessage(mentionChannel.id, id);
+          await core.runtime.whenIdle();
+        };
+        await ordinary(core, digest.id, 'cooling-digest');
+        await core.runtime.whenIdle();
+        expect(turns).toHaveLength(1);
+        expect(turns[0]).toContain('ordinary cooling-digest');
+
+        await mention('before-deadline');
+        expect(turns).toHaveLength(2);
+        expect(turns[1]).toContain('Message ID: before-deadline');
+        expect(turns[1]).not.toContain('ordinary cooling-digest');
+
+        vi.setSystemTime(startedAt + 10_000);
+        await mention('at-deadline');
+        expect(turns).toHaveLength(3);
+        expect(turns[2]).toContain('ordinary cooling-digest');
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it('commits Group history without admitting a paused Bot and keeps active peers independent', async () => {
     const home = createTempRoot('botharness-archived-ordinary-');

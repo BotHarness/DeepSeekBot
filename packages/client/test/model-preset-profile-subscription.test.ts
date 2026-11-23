@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import {
+  addTask,
   button,
   catalog,
   choose,
+  labelled,
   openPicker,
   picked,
+  taskTiles,
   translate,
+  trigger,
 } from './model-preset-profile-fixtures.js';
 import { type Root } from 'react-dom/client';
 import type { ModelPlanView } from '../src/client/bridge.js';
@@ -83,12 +87,19 @@ describe('Subscription models in the model dialog', () => {
         if (engine !== null) selections.push({ botSlug, role, engine, ...options });
       });
     const apply = vi.fn(async () => plan);
-    const set = vi.fn(async () => ({ ...plan, revision: 8 }));
+    const set = vi.fn(
+      async (
+        _slug: string,
+        _revision: number,
+        _main: unknown,
+        sub: NonNullable<ModelPlanView['sub']>,
+      ): Promise<ModelPlanView> => ({ ...plan, revision: 8, sub }),
+    );
     const actions = {
       modelPlanState: async () => ({ plan }),
       modelCatalog: async () => ({ models: catalog }),
       modelPresets: async () => presets,
-      setModelPlan: set,
+      setModelPlanSub: set,
       applyModelPreset: apply,
     } as unknown as BridgeActions;
     return { actions, read, use, apply, set };
@@ -107,16 +118,19 @@ describe('Subscription models in the model dialog', () => {
         )!
         .click(),
     );
-    await choose('Task model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => labelled('Remove Flash').click());
+    await addTask('gpt-6', 'GPT-6 Subscription');
     expect(picked('Main model')).toBe('GPT-6 Subscription');
-    expect(picked('Task model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toEqual([expect.stringMatching(/^GPT-6 Subscription.*Default/)]);
     expect(use).not.toHaveBeenCalled();
     await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [{ kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'medium' }],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
     expect(use.mock.calls).toEqual([
       ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'high' }],
-      ['ada', 'assignment', 'codex', { model: 'gpt-6', effort: 'medium' }],
     ]);
-    expect(set).not.toHaveBeenCalled();
   });
 
   it('persists an explicit model for an engine configured before model selection was available', async () => {
@@ -131,7 +145,7 @@ describe('Subscription models in the model dialog', () => {
     });
   });
 
-  it('shows the current engine model and clears only the role changed to a DSH route', async () => {
+  it('moves a live task engine into the saved list and clears the old role selection', async () => {
     const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
     const { actions, use, set } = fixture([
       { ...choice, role: 'orchestrator' },
@@ -139,10 +153,23 @@ describe('Subscription models in the model dialog', () => {
     ]);
     await render(markOriginActions(actions), vi.fn());
     expect(picked('Main model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toEqual([
+      expect.stringContaining('Flash'),
+      expect.stringMatching(/^GPT-6 Subscription.*Default/),
+    ]);
     await choose('Main model', 'pro', 'Pro');
     await act(async () => button('Save').click());
-    expect(set).toHaveBeenCalledOnce();
-    expect(use).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', null, {});
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [
+        expect.objectContaining({ kind: 'model', model: 'flash' }),
+        { kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' },
+      ],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', null, {}],
+      ['ada', 'assignment', null, {}],
+    ]);
     expect(set.mock.invocationCallOrder[0]).toBeLessThan(use.mock.invocationCallOrder[0]!);
   });
 
@@ -164,7 +191,7 @@ describe('Subscription models in the model dialog', () => {
     );
     await render(markOriginActions(actions), vi.fn());
     expect(picked('Main model')).toBe('GPT-6 Subscription');
-    expect(picked('Task model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toContainEqual(expect.stringContaining('GPT-6 Subscription'));
 
     await act(async () => button('Choose preset').click());
     const row = [
@@ -173,13 +200,184 @@ describe('Subscription models in the model dialog', () => {
     await act(async () => row.click());
     await act(async () => button('Specific models').click());
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
     expect(button('Save').disabled).toBe(false);
     expect(apply).not.toHaveBeenCalled();
 
     await act(async () => button('Save').click());
     expect(apply).toHaveBeenCalledExactlyOnceWith('ada', preset.id);
     expect(use).not.toHaveBeenCalled();
+  });
+
+  it('shows a live task engine on an inheriting plan and moves it into the list on save', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...choice, role: 'assignment' }]);
+    const mainOnly: ModelPlanView = {
+      revision: 7,
+      orchestrator: route,
+      sourcePresetId: '',
+      sourcePresetName: '',
+    };
+    const customize = vi.fn();
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: mainOnly }),
+        customizeModelPlan: customize,
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    expect(taskTiles()).toContainEqual(expect.stringMatching(/^GPT-6 Subscription.*Default/));
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(customize).not.toHaveBeenCalled();
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [{ kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' }],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toEqual([['ada', 'assignment', null, {}]]);
+  });
+
+  it('waits for the engine read before saving a plan without a stored list', async () => {
+    const { actions, read } = fixture([]);
+    let finishRead: () => void = () => undefined;
+    read.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRead = () =>
+            resolve({
+              engines: [{ engine: 'codex', available: true, installed: true }],
+              selections: [],
+            });
+        }),
+    );
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'pro', 'Pro');
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => finishRead());
+    expect(button('Save').disabled).toBe(false);
+  });
+
+  it('locks the Task list until the engine read returns an existing task engine', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, read } = fixture([]);
+    let finishRead: () => void = () => undefined;
+    read.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRead = () =>
+            resolve({
+              engines: [{ engine: 'codex', available: true, installed: true }],
+              selections: [{ ...choice, role: 'assignment' }],
+            });
+        }),
+    );
+    await render(markOriginActions(actions), vi.fn());
+    expect(trigger('Add a task model')?.disabled).toBe(true);
+    expect(labelled('Remove Flash').disabled).toBe(true);
+    await act(async () => finishRead());
+    expect(trigger('Add a task model')?.disabled).toBe(false);
+    expect(taskTiles()).toContainEqual(expect.stringMatching(/^GPT-6 Subscription.*Default/));
+  });
+
+  it('warns before a task engine migration ends an open Assignment policy', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, set } = fixture([{ ...choice, role: 'assignment' }]);
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: { ...plan, openAssignmentModels: true } }),
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    expect(document.body.textContent).toContain(translate('modelPreset.openDropped'));
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a live task engine that differs from an engine already in the inherited list', async () => {
+    const live = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...live, role: 'assignment' }]);
+    const mainOnly: ModelPlanView = {
+      revision: 7,
+      orchestrator: route,
+      sourcePresetId: '',
+      sourcePresetName: '',
+    };
+    const inherited = {
+      id: 'default',
+      name: 'Default',
+      revision: 1,
+      orchestrator: route,
+      assignmentDefault: route,
+      sub: {
+        choices: [{ kind: 'engine' as const, engine: 'codex' as const, model: 'gpt-5' }],
+        default: { kind: 'engine' as const, engine: 'codex' as const, model: 'gpt-5' },
+      },
+    } as ModelPresetView;
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: mainOnly }),
+        modelPresets: async () => [inherited],
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5' },
+        { kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' },
+      ],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toContainEqual(['ada', 'assignment', null, {}]);
+  });
+
+  it('migrates a live task engine even when only the main engine changes', async () => {
+    const live = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...live, role: 'assignment' }]);
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'medium' }],
+      ['ada', 'assignment', null, {}],
+    ]);
+  });
+
+  it('retries a failed task-role clear without writing the plan again', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...choice, role: 'assignment' }]);
+    let failClear = true;
+    use.mockImplementation(async (_slug, role, engine) => {
+      if (role === 'assignment' && engine === null && failClear) {
+        failClear = false;
+        throw new Error('clear failed');
+      }
+    });
+    let current: ModelPlanView = plan;
+    set.mockImplementation(async (_slug, _revision, _main, sub) => {
+      current = { ...plan, revision: 8, sub };
+      return current;
+    });
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: current }),
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('clear failed');
+    expect(set).toHaveBeenCalledOnce();
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+    expect(use.mock.calls.filter(([, role]) => role === 'assignment')).toHaveLength(2);
   });
 
   it('keeps the remote picker on the remote DSH catalog', async () => {

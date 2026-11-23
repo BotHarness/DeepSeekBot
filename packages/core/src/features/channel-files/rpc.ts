@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BridgeLive } from '../../bridge/rpc.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
@@ -32,3 +33,24 @@ export function channelFilesPage(
     });
   return team?.approvals.project(invocationHuman(), page, channelId) ?? page;
 }
+
+export const channelFilesRpcMethods = {
+  channelFilesPage(channelId: string, before?: number, limit?: number): ChannelFilesPage {
+    return channelFilesPage(
+      this.live,
+      () => this.invocationHuman(),
+      this.team,
+      channelId,
+      before,
+      limit,
+    );
+  },
+
+  messageAttachmentTarget(
+    channelId: string,
+    messageId: string,
+    fileId: string,
+  ): { target: MemoryFileTarget } {
+    return messageAttachmentTarget(this.methods, channelId, messageId, fileId);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

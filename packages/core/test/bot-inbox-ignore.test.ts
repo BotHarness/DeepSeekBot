@@ -28,6 +28,50 @@ async function ordinary(core: ReturnType<typeof createCore>, channelId: string, 
 }
 
 describe('explicit Bot Inbox ignore decision', () => {
+  it('settles an ignored queued Human DM Source Event so replay is a no-op', async () => {
+    const human = OWNER_HUMAN_CONTEXT;
+    const turns: string[] = [];
+    let channelId = '';
+    const queued = { messageId: 'queued', body: 'Queued request' };
+    const core = createCore({
+      dshHome: createTempRoot('ignore-queued-dm-'),
+      agents: adapter(async (run) => {
+        turns.push(run.message);
+        if (!run.message.includes('First request')) return;
+        const admission = core.runtime.admitDmMessage(human, { channelId, ...queued });
+        expect(admission.admitted).toBe(true);
+        run.channels.ignore({ channelId, messageId: queued.messageId });
+      }),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      channelId = core.channels.getOrCreateDm(human, 'ada', 'Ada')!.id;
+      const first = { messageId: 'first', body: 'First request' };
+      for (const message of [first, queued]) {
+        await core.channels.appendMessage(human, channelId, {
+          id: message.messageId,
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          body: message.body,
+        });
+      }
+      const start = core.runtime.admitDmMessage(human, { channelId, ...first });
+      if (!start.admitted) throw new Error(start.reason);
+      await start.settled;
+      await core.runtime.whenIdle();
+      expect(core.channels.message(channelId, queued.messageId)?.deliveries).toEqual([
+        { botSlug: 'ada', state: 'ignored' },
+      ]);
+      const replay = core.runtime.admitDmMessage(human, { channelId, ...queued });
+      if (!replay.admitted) throw new Error(replay.reason);
+      await expect(replay.settled).resolves.toBeUndefined();
+      expect(turns).toHaveLength(1);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('distinguishes one explicit ignore from a handled no-reply digest, including restart', async () => {
     const home = createTempRoot('botharness-inbox-ignore-');
     let groupId = '';
