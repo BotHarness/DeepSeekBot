@@ -16,6 +16,7 @@ import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../chan
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
 import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
+import { expandGenuiContent, genuiPreviews, type GenuiPreviewStore } from './genui-authoring.js';
 import {
   qqReplyFailureCapability,
   sourceReplyCapability,
@@ -131,6 +132,7 @@ export function createBotMessageTool(
     discard(channelId: string): void;
   },
   sentToHumanDm?: (messageId: string) => void,
+  previews?: GenuiPreviewStore,
 ) {
   const runsWithFailedQqReply = new WeakSet<OrchestratorAgentRun>();
   return defineTool({
@@ -235,7 +237,12 @@ export function createBotMessageTool(
       genui_json: {
         type: 'string',
         description:
-          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
+          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). After genui_preview, send genui_preview_id instead. Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
+      },
+      genui_preview_id: {
+        type: 'string',
+        description:
+          'Publish exactly the document a successful genui_preview returned under this id, instead of repeating genui_json. Human DM only; body is the readable summary. Use either genui_preview_id or genui_json. An expired id is refused with genui-preview-expired: preview again.',
       },
       resolve_inbox_ids: {
         type: 'array',
@@ -321,18 +328,29 @@ export function createBotMessageTool(
           'invalid-review',
           'Recovery requires draft_id and a fresh observation_id.',
         );
+      if (args.genui_json !== undefined && args.genui_preview_id !== undefined)
+        throw new BotMessageError(
+          'invalid-genui',
+          'Use either genui_preview_id or genui_json, not both.',
+        );
       const genui =
-        args.genui_json === undefined
+        args.genui_json === undefined && args.genui_preview_id === undefined
           ? undefined
-          : (() => {
+          : await (async () => {
               if (external || channel?.kind !== 'human-dm' || !args.body.trim())
                 throw new BotMessageError(
                   'unsupported-genui-destination',
                   'Reports require a Human DM and a readable summary.',
                 );
-              if (new TextEncoder().encode(args.genui_json).length > GENUI_DOCUMENT_LIMITS.bytes)
+              if (args.genui_preview_id !== undefined)
+                return parseGenuiContent(
+                  (previews ?? genuiPreviews).read(run.bot.slug, args.genui_preview_id),
+                );
+              if (new TextEncoder().encode(args.genui_json!).length > GENUI_DOCUMENT_LIMITS.bytes)
                 throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
-              return parseGenuiContent(JSON.parse(args.genui_json));
+              return parseGenuiContent(
+                await expandGenuiContent(JSON.parse(args.genui_json!), { signal: exec.signal }),
+              );
             })();
       if (
         args.freshness_override &&
