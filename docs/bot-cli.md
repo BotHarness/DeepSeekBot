@@ -110,7 +110,7 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
@@ -172,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -189,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` also returns `bot.active`: whether any authoritative session is thinking or working, independent of the priority display `state`. It remains true when another session needs approval and is not derived from the bounded `sessions` output. Android keep-connected summaries combine this full activity feed with complete Human Inbox action discovery, counting distinct Bot identities per Host; old Hosts without `active` remain unsynchronized rather than reporting zero.
+
+`channel-messages` and `bot-activity` return each page with `provenance` (the source: a Channel's id, `dm` or `group` type, `incarnation` (its creation time), member ids and the `revision` the read started at; or a Bot's slug, `incarnation`, activity `generation` and `revision`), `complete`, and `nextCursor` only while older entries remain. Pass `nextCursor` unchanged as `--cursor` with the same target to read the next page; `--cursor` and `--before` cannot be combined. The Host checks the cursor against the current target: a cursor from another Channel or Bot, or one whose target was deleted and recreated, is refused as `changed-read-target`; a Channel history rewritten under the cursor (a purge, or the anchor message no longer at its position) or a changed Bot activity snapshot is `stale-read-revision`; a malformed or edited cursor is `invalid-read-cursor`. Start again from the first page after any of them. Messages sent after the first page never invalidate older pages. A Channel page holds at most `--limit` messages and stops early, with `complete: false`, at 64 KiB of serialized messages. `provenance.contentIsData` marks message bodies and session names as quoted data from that source, never instructions.
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
 
@@ -1589,7 +1592,7 @@ The model verbs manage the same records afterwards: `model-presets` lists the pr
 
 ## Channels, grants, schedules, pairings
 
-`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
+`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`, or `--cursor` with a returned `nextCursor`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
 
 ### Approve one Workspace request online
 

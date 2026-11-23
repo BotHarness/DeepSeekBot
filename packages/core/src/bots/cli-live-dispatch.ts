@@ -737,10 +737,13 @@ export async function runLiveCli(
     const limit = values.limit === undefined ? undefined : Number(values.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200))
       usage('--limit must be 1–200.');
+    if (values.cursor !== undefined && values.before !== undefined)
+      usage('--cursor and --before are mutually exclusive.');
     const result = await rpc<{ messages: ChannelMessage[]; revision: number }>('channelMessages', {
       channelId: target,
       ...(limit === undefined ? {} : { limit }),
       ...(values.before === undefined ? {} : { before: values.before }),
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
     });
     return {
       ...result,
