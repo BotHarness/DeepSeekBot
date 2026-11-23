@@ -2591,12 +2591,51 @@ export function ChannelDock({
       seed: seed.current,
       activeChannelId: channelRef.current?.id,
       knownChannelIds: channelIds?.() ?? [],
+      gap: gapRef.current,
+      members: membersRef.current,
+      splits: channelSplitsRef.current,
+      splitOf: (id, saved) => {
+        let tree =
+          saved ??
+          legacyChannelSplit({
+            ...Object.fromEntries(
+              botPanelIds.map((panel) => [
+                panel,
+                botWorkspacesRef.current[id]?.[panel] ??
+                  botSeeds.current[panel] ?? { ...DEFAULT_CHANNEL_WORKSPACE, open: false },
+              ]),
+            ),
+            sessions: channelWorkspacesRef.current[id] ?? seed.current,
+          });
+        for (const panel of channelPanelIds)
+          if (!splitPanels(tree).includes(panel))
+            tree = { axis: 'horizontal', ratio: 0.7, first: tree, second: { panel } };
+        return tree;
+      },
     }),
-    apply: ({ global, rail, channel: edit }) => {
-      if (edit) {
-        channelWorkspacesRef.current = { ...channelWorkspacesRef.current, [edit.id]: edit.state };
-        if (edit.id === channelRef.current?.id) sessionStateRef.current = edit.state;
+    apply: ({ global, rail, channel: edit, gap: nextGap, members: nextMembers }) => {
+      if (edit?.state) {
+        const state = edit.state;
+        channelWorkspacesRef.current = { ...channelWorkspacesRef.current, [edit.id]: state };
+        if (edit.id === channelRef.current?.id) sessionStateRef.current = state;
         updateChannelWorkspaces(channelWorkspacesRef.current);
+      }
+      if (edit?.split !== undefined) {
+        const { [edit.id]: _previous, ...rest } = channelSplitsRef.current;
+        channelSplitsRef.current = edit.split === null ? rest : { ...rest, [edit.id]: edit.split };
+        updateChannelSplits(channelSplitsRef.current);
+      }
+      if (nextGap !== undefined) {
+        gapRef.current = nextGap;
+        updateGap(nextGap);
+      }
+      if (nextMembers) {
+        if (nextMembers.open && !membersRef.current.open) {
+          files?.setOpen(false);
+          inbox?.setOpen(false);
+        }
+        membersRef.current = nextMembers;
+        updateMembers(nextMembers);
       }
       if (rail) {
         const hiding = rail.hidden.filter((id) => !hiddenControlsRef.current.includes(id));

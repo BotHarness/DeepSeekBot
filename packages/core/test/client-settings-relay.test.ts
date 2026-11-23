@@ -210,4 +210,6 @@ it('tells a caller the patch shape before any write is attempted', () => {
     'appearance-set {"preference":"system|light|dark"}',
   );
   expect(described['client-layout-set']).toContain('"direction":"left|right|above|below"');
+  expect(described['client-layout-set']).toContain('"move":{"panel","target","direction"}');
+  expect(described['client-layout-set']).toContain('{"gap":0-16}');
 });
