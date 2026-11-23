@@ -387,17 +387,6 @@ export function CreatePersonaBotModal({
             disabled={fieldsLocked}
             onChange={(style) => setAvatar(style === 'tilties' ? randomTiltiesAvatar() : undefined)}
           />
-          {avatar === undefined ? null : (
-            <Button
-              size="sm"
-              variant="outline"
-              type="button"
-              disabled={fieldsLocked}
-              onClick={() => setAvatar(randomTiltiesAvatar(avatar))}
-            >
-              {t('profile.avatar.shuffle')}
-            </Button>
-          )}
         </div>
       ) : null}
       <Field label={t('bot.create.roles.label')} hint={t('bot.create.roles.hint')}>

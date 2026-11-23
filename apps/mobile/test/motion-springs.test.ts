@@ -49,3 +49,24 @@ describe('platform springs', () => {
     }
   });
 });
+
+describe('morph spring', () => {
+  const settle = ({ stiffness, mass }: { stiffness: number; mass: number }, within: number) => {
+    const omega = Math.sqrt(stiffness / mass);
+    let t = 0;
+    while ((1 + omega * t) * Math.exp(-omega * t) > within) t += 0.001;
+    return t;
+  };
+
+  it('finishes the iOS transform within 300 ms without bouncing', () => {
+    const { morph } = platformSprings('ios');
+    expect(ratio(morph)).toBeCloseTo(1);
+    expect(settle(morph, 0.01)).toBeLessThan(0.3);
+  });
+
+  it('matches the release spring on Android', () => {
+    const { morph, release } = platformSprings('android');
+    expect([morph.stiffness, morph.mass]).toEqual([release.stiffness, release.mass]);
+    expect(ratio(morph)).toBeCloseTo(1);
+  });
+});

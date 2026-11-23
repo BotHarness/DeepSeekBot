@@ -8,7 +8,7 @@ import { expect, it } from 'vitest';
 import { buildShellIsolationProbe } from '../e2e-team-security.mjs';
 
 const run = promisify(execFile);
-const probeName = 'b2-probe-fixture.cjs';
+const probeName = 'b2-probe-fixture.sh';
 
 it('keeps B2 discovery off recursive filesystem scans', () => {
   const home = join('fixtures', 'test profile');
@@ -52,8 +52,8 @@ it('reports synthetic reads, discovery, writes, environment presence and loopbac
         port: server.address().port,
       }),
     );
-    const { stdout } = await run(process.execPath, [probe], {
-      env: { B2_TEST_SECRET: 'FAKE_SECRET_VALUE' },
+    const { stdout } = await run('bash', [probe], {
+      env: { PATH: process.env.PATH, B2_TEST_SECRET: 'FAKE_SECRET_VALUE' },
       timeout: 3000,
       shell: false,
       windowsHide: true,
@@ -75,3 +75,33 @@ it('reports synthetic reads, discovery, writes, environment presence and loopbac
     await rm(home, { recursive: true, force: true });
   }
 });
+
+it.skipIf(process.platform === 'win32')(
+  'reports an immediate loopback refusal without waiting for the deadline',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'm15 B2 refused-'));
+    const server = createServer();
+    try {
+      await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address();
+      await new Promise((resolve) => server.close(resolve));
+      const probe = join(home, probeName);
+      await writeFile(
+        probe,
+        buildShellIsolationProbe({
+          foreignFiles: [],
+          account: join(home, 'bob-account.md'),
+          own: join(home, 'own.txt'),
+          outside: join(home, 'outside.txt'),
+          port,
+        }),
+      );
+      const started = Date.now();
+      const { stdout } = await run('bash', [probe], { env: { PATH: process.env.PATH } });
+      expect(stdout).toContain('"hostApi":"ECONNREFUSED"');
+      expect(Date.now() - started).toBeLessThan(900);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);

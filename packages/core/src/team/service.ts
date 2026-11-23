@@ -318,6 +318,10 @@ export class TeamService {
     this.speakerPolicy = new SpeakerPolicy(db, this.roles);
     this.approvals = new TeamApprovals(db, channels, this.roles, this.bots);
     channels.bindHumanAccess?.({
+      addInitialMembers: (db, human, channelId, humanIds, joinedAt) => {
+        if (!this.enabled()) throw new TeamError('team-mode-off');
+        return this.channelAccess.addInitialMembers(db, human, channelId, humanIds, joinedAt);
+      },
       searchText: (human, channelId, messageId, text) =>
         this.approvals.searchText(human, channelId, messageId, text),
       canRead: (human, id) => this.channelAccess.canRead(human, id),

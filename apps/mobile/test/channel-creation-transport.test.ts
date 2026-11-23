@@ -18,6 +18,41 @@ const answer = (value: unknown) => ({
   text: async () => JSON.stringify({ type: 'server-response', result: { ok: true, value } }),
 });
 
+it('replays saved Host member IDs with the original group creation key', async () => {
+  const operation = {
+    hostId: 'B',
+    deviceId: 'phone-B',
+    name: 'Team',
+    members: ['ada'],
+    humanIds: ['host-member'],
+    operationKey: 'mobile-team-create',
+  };
+  const request = vi.fn<HostCarrier['request']>(async (_url, options) => {
+    expect(JSON.parse(String(options.body)).payload.args).toEqual({
+      name: operation.name,
+      members: operation.members,
+      humanIds: operation.humanIds,
+      operationKey: operation.operationKey,
+    });
+    return answer({
+      channel: { id: 'group-team', type: 'group', name: 'Team', members: ['ada'] },
+      receipt: {
+        operationKey: operation.operationKey,
+        channelId: 'group-team',
+        status: 'completed',
+      },
+    });
+  });
+  const controller = createChannelCreation({
+    key: () => 'unused',
+    storage: { read: async () => ({ kind: 'submitted', ...operation }), write: async () => {} },
+    port: channelCreationTransport(() => hosts, { request, openSocket: vi.fn() }),
+  });
+  await controller.submit();
+  expect(controller.getSnapshot().result).toBe('group-team');
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
 it('creates on the chosen Host through the authenticated client with only eligible selected Bots', async () => {
   const request = vi.fn<HostCarrier['request']>(async (url, options) => {
     const method = url.split('/').at(-1);
@@ -163,4 +198,22 @@ it('keeps fallback avatars for malformed optional metadata without attaching cre
     { slug: 'bo', displayName: 'Bo' },
   ]);
   expect(request).toHaveBeenCalledTimes(1);
+});
+
+it('reads people from the creation picker and hides them when the Host offers none', async () => {
+  let canAddPeople = true;
+  const request = vi.fn<HostCarrier['request']>(async (url, options) => {
+    expect(url.split('/').at(-1)).toBe('channelGroupMemberPicker');
+    expect(JSON.parse(String(options.body)).payload.args).toEqual({ query: '' });
+    return answer({
+      canAddBots: true,
+      canAddPeople,
+      people: canAddPeople ? [{ id: 'h-ann', displayName: 'Ann', username: 'ann' }, { id: 7 }] : [],
+      bots: [],
+    });
+  });
+  const port = channelCreationTransport(() => hosts, { request, openSocket: vi.fn() });
+  expect(await port.people?.('A')).toEqual([{ id: 'h-ann', displayName: 'Ann', username: 'ann' }]);
+  canAddPeople = false;
+  expect(await port.people?.('A')).toBeUndefined();
 });

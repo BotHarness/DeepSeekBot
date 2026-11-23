@@ -196,7 +196,7 @@ export const LIVE_COMMANDS = [
   },
   {
     command: 'group-create',
-    description: 'create a group Channel with optional initial Bots',
+    description: 'create a group Channel with repeatable --member <bot-id> and --human <human-id>',
   },
   {
     command: 'im-app-add',

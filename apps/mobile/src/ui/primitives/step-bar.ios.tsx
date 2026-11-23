@@ -15,6 +15,7 @@ import {
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { accessibilityTextSize, capsuleBorderShape } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { space, stepBar } from '../design/tokens';
 import { useStrings } from '../strings';
@@ -28,7 +29,9 @@ export type { StepBarAction, StepBarProps } from './step-bar-contract';
 export function StepBar({ primary, back, step, note, error }: StepBarProps) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const glass = useLiquidGlass();
+  const accessibilityText = accessibilityTextSize(theme.fontScale);
+  const glass = useLiquidGlass() && !accessibilityText;
+  const border = capsuleBorderShape(theme.fontScale);
   const insets = useSafeAreaInsets();
   const label = Math.max(theme.touch, stepBar.height.ios) - space.x5;
   return (
@@ -83,7 +86,9 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
             onPress={primary.onPress}
             modifiers={[
               buttonStyle(glass ? 'glassProminent' : 'borderedProminent'),
-              buttonBorderShape('capsule'),
+              border.shape === 'capsule'
+                ? buttonBorderShape(border.shape)
+                : buttonBorderShape(border.shape, border.cornerRadius),
               controlSize('large'),
               tint(theme.color.accent),
               disabled(Boolean(primary.disabled || primary.busy)),
@@ -96,7 +101,7 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
             >
               {primary.busy ? <ProgressView /> : null}
               <Text modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>
-                {stepBarLabel(primary.label, step)}
+                {stepBarLabel(primary.label, accessibilityText ? undefined : step)}
               </Text>
             </HStack>
           </Button>
