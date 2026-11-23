@@ -11,7 +11,7 @@
 - `apps/mobile/src/ui/pairing-failure.ts`
 - `apps/mobile/src/ui/primitives/pairing-actions*`
 - `apps/mobile/src/ui/shell/{pairing-*,use-pairing}.{ts,tsx}`
-- `packages/client/src/client/{pairing-settings,pairing-table}.tsx`
+- `packages/client/src/client/{paired-devices,pairing-settings,pairing-table,phone-pairing-address}.tsx`
 - `packages/core/src/devices/pairing.ts`
 
 ## Terms
@@ -93,7 +93,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## Sub-features
 
-- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. Every phone entry first displays the shared iOS/Android installation guide. Only App installed, start connecting may proceed: an existing ready route then displays **Scan the pairing code** and **Enter this computer’s address on the phone**; otherwise preparation appears without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
+- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. Every phone entry first displays the shared iOS/Android installation guide. Only App installed, start connecting may proceed: an existing ready route then opens the QR directly. Check its expiry, copy link, and **Or enter this computer’s address on the phone** below it when an eligible HTTPS origin exists. Verify the address copy action and that Owner password setup opens over the QR when sign-in is off; otherwise preparation appears without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
 
 - `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
@@ -187,7 +187,7 @@ From Mobile app → Start pairing → App installed, start connecting → Quick 
 
 On a fresh Profile, open the Phone step in the Desktop intro. Skip for now must advance without creating an invitation, route, listener or login. Back returns to Phone. Connect phone opens the shared Connections dialog as the only dialog; Close returns to the same intro step and permits retry.
 
-From the phone Control Rail, Connections settings and intro entries, verify the same installation guide inside the dialog, with working iOS/Android download links and no invitation before explicit App installed confirmation. Repeat with an existing ready route; Back, Close and reentry must not bypass the guide.
+From the phone Control Rail, Connections settings and intro entries, verify the same installation guide inside the dialog, with working iOS/Android download links and no invitation before explicit App installed confirmation. Repeat with an existing ready route. Confirm that the QR opens directly after installation confirmation and that any eligible address and Owner sign-in status appear below it. Back, Close and reentry must not bypass the guide.
 
 Create a Quick Tunnel explicitly, pair the assigned Simulator through the normal encrypted enrollment and compare the full fingerprints. Approval alone and another device's Feed acknowledgement must not complete the step. Open the intended phone's Bot list: its mobile Host client loads and publishes the actual Bot/Channel roster, then reports the read through its authenticated device gateway. Verify `devices.devices[].feedReadAt` for the exact redeemed device and the Desktop success state; Continue is explicit. Reopen and Back preserve the grant and route. Revoked grants must not produce completion. `device-probe --device-file` exercises the same read/acknowledgement owner without a model; `feedRead: unsupported` or `unconfirmed` is not a successful acknowledgement.
 

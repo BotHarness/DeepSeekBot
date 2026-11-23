@@ -126,13 +126,13 @@ export function OwnerPasswordSignInSettings({
                 : undefined
         }
         info={
-          username === undefined
+          showStatus || username === undefined
             ? undefined
             : { label: title, text: t('connections.ownerSignIn.disableHint') }
         }
         control={
           view !== undefined ? (
-            username === undefined || (showStatus && !view.enabled) ? (
+            showStatus && view.enabled ? null : username === undefined || showStatus ? (
               <Button
                 variant="outline"
                 size="sm"

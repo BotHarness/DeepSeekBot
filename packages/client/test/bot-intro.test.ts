@@ -59,17 +59,26 @@ vi.mock('../src/client/appearance-material-settings.js', () => ({
 vi.mock('../src/client/bot-icon.js', () => ({ BotIcon: () => null }));
 vi.mock('../src/client/connections-dialog.js', () => ({
   ConnectionsDialog: ({
+    call,
+    pairPhone,
     onClose,
     onDevicePaired,
     onFeedRead,
   }: {
+    call?: BridgeCall;
+    pairPhone?: boolean;
     onClose(): void;
     onDevicePaired?(id: string): void;
     onFeedRead?(id: string): void;
   }) =>
     createElement(
       'div',
-      { role: 'dialog', 'data-phone-connection': '' },
+      {
+        role: 'dialog',
+        'data-phone-connection': '',
+        'data-pair-phone': pairPhone,
+        'data-address-setup': call !== undefined,
+      },
       createElement('button', { onClick: onClose }, 'Close connection'),
       createElement('button', { onClick: () => onDevicePaired?.('phone-1') }, 'Approve phone'),
       createElement('button', { onClick: () => onFeedRead?.('phone-1') }, 'Read Feed'),
@@ -668,7 +677,10 @@ describe('intro modal', () => {
       await controller.enter();
       controller.openIntro();
       controller.setIntroStep(INTRO_STEPS.indexOf('phone'));
-      await act(async () => root.render(createElement(BotIntro, { actions, t: zhTranslate })));
+      const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: fakeTeamMode(ownerViewer) }));
+      await act(async () =>
+        root.render(createElement(BotIntro, { actions, call, t: zhTranslate })),
+      );
       const click = async (label: string) =>
         act(async () =>
           [...container.querySelectorAll('button')]
@@ -682,6 +694,11 @@ describe('intro modal', () => {
       expect(container.querySelector('[data-phone-connection]')).toBeNull();
       await click('连接手机');
       expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+      expect(
+        container.querySelector(
+          '[data-phone-connection][data-pair-phone="true"][data-address-setup="true"]',
+        ),
+      ).not.toBeNull();
       await click('Close connection');
       expect(container.querySelector('[data-intro-step="phone"]')).not.toBeNull();
       await click('连接手机');
@@ -692,6 +709,7 @@ describe('intro modal', () => {
       expect(container.textContent).toContain('手机已读到这台电脑的内容。');
       await click('下一步');
       expect(container.querySelector('[data-intro-step="community"]')).not.toBeNull();
+      expect(container.querySelector('[data-phone-connection]')).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }

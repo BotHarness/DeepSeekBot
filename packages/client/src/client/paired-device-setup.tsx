@@ -1,9 +1,8 @@
-import { useState, type ComponentProps, type ReactElement } from 'react';
-import * as stylex from '@stylexjs/stylex';
+import { type ComponentProps, type ReactElement } from 'react';
 import type { PairedDevicesSettingsProps } from './paired-devices.js';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
-import { CopyChip, StatusBlock, StatusDisclosure, StatusStack } from './ds/status-block.js';
+import { StatusBlock, StatusDisclosure, StatusStack } from './ds/status-block.js';
 import { Note } from './ds/note.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -16,12 +15,6 @@ import { PrivateRelaySettings } from './private-relay-settings.js';
 import { PrivateTunnelSettings } from './private-tunnel-settings.js';
 import { PhoneRouteSteps, type PhoneRouteStatus } from './phone-route-steps.js';
 import { hasPhoneRoute, onTailnet, type usePairedDevices } from './use-paired-devices.js';
-import { teamHttpsRoute } from '@botharness/host-protocol/team-invitation';
-import type { BridgeCall } from './bridge-transport.js';
-import { loadTeamMode } from './team-bridge.js';
-import { OwnerPasswordSignInSettings } from './owner-password-sign-in-settings.js';
-import type { BotHarnessTranslate } from './locale.js';
-import { useMountedResource } from './mounted-resource.js';
 
 export function ConnectionMethod({
   title,
@@ -66,84 +59,10 @@ export function ConnectionPanel({
   );
 }
 
-const phoneAddressStyles = stylex.create({
-  body: { minWidth: 0, width: '100%' },
-});
-
-function PhoneAddress({
-  call,
-  t,
-}: {
-  call?: BridgeCall | undefined;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const [read, setRead] = useState<
-    { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; urls: string[] }
-  >({ kind: call ? 'loading' : 'failed' });
-  const [retry, setRetry] = useState(0);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    if (call === undefined) return;
-    const controller = new AbortController();
-    void loadTeamMode(call, controller.signal).then(
-      ({ memberUrls }) => {
-        if (controller.signal.aborted) return;
-        const urls = [
-          ...new Set(memberUrls.filter(teamHttpsRoute).map((url) => new URL(url).origin)),
-        ];
-        setRead({ kind: 'ready', urls });
-      },
-      () => {
-        if (!controller.signal.aborted) setRead({ kind: 'failed' });
-      },
-    );
-    return () => controller.abort();
-  }, [call, retry]);
-  return (
-    <div ref={mount} data-phone-address="" {...stylex.props(phoneAddressStyles.body)}>
-      <StatusStack>
-        {read.kind === 'loading' ? (
-          <Note>{t('devices.list.loading')}</Note>
-        ) : read.kind === 'failed' ? (
-          <>
-            <Note tone="warning">{t('connections.phone.addressReadFailed')}</Note>
-            {call === undefined ? null : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setRead({ kind: 'loading' });
-                  setRetry(retry + 1);
-                }}
-              >
-                {t('devices.connection.retry')}
-              </Button>
-            )}
-          </>
-        ) : read.urls.length === 0 ? (
-          <Note>{t('connections.phone.noHttps')}</Note>
-        ) : (
-          <>
-            <Note>{t('connections.phone.addressHint')}</Note>
-            {read.urls.map((url) => (
-              <CopyChip
-                key={url}
-                value={url}
-                copyLabel={t('connections.phone.copyAddress')}
-                copiedLabel={t('devices.pair.copied')}
-              />
-            ))}
-          </>
-        )}
-        {call === undefined ? null : <OwnerPasswordSignInSettings call={call} t={t} showStatus />}
-      </StatusStack>
-    </div>
-  );
-}
-
 export function renderPairedDeviceSetup({
   t,
   standalone,
   pairedDeviceId,
-  ownerPasswordSignInCall,
   state,
   setupBack,
   connectControls,
@@ -151,7 +70,7 @@ export function renderPairedDeviceSetup({
   renderConnectMethod,
   pairingProps,
   metaProps,
-}: Pick<PairedDevicesSettingsProps, 't' | 'pairedDeviceId' | 'ownerPasswordSignInCall'> & {
+}: Pick<PairedDevicesSettingsProps, 't' | 'pairedDeviceId'> & {
   standalone: boolean;
   state: ReturnType<typeof usePairedDevices>;
   setupBack: ReactElement | undefined;
@@ -175,21 +94,18 @@ export function renderPairedDeviceSetup({
     readState,
     load,
     publish,
-    createOffer,
     open,
     setLan,
     routes,
     tailscaleReady,
     lanReady,
-    ready,
     advancedMethods,
     setAdvancedMethods,
   } = state;
-  const phoneSetup = setup === 'phoneWays' || setup === 'phoneAddress';
   return (
     <ConnectionPanel
       inline={standalone}
-      title={t(phoneSetup ? 'connections.invite' : 'connections.add')}
+      title={t('connections.add')}
       secondary={setupBack}
       closeLabel={t('common.close')}
       size="small"
@@ -210,10 +126,10 @@ export function renderPairedDeviceSetup({
             </Button>
           </>
         ) : null}
-        {!phoneSetup && setup !== 'direction' && setup !== 'app' ? (
+        {setup !== 'direction' && setup !== 'app' ? (
           <ConnectionProgress t={t} step={setup === 'method' ? 0 : 1} />
         ) : null}
-        {!phoneSetup && setup !== 'app' ? (
+        {setup !== 'app' ? (
           <Note>
             {t(
               setup === 'direction'
@@ -252,35 +168,6 @@ export function renderPairedDeviceSetup({
             </Button>
             <MobileAppDownloads t={t} />
           </div>
-        ) : setup === 'phoneWays' ? (
-          <StatusStack>
-            <ChoiceButton
-              title={t('connections.phone.scan')}
-              description={t('connections.phone.recommended')}
-              leading={<Icon name="smartphone" />}
-              disabled={!ready}
-              onClick={() => void createOffer()}
-            />
-            <ChoiceButton
-              title={t('connections.phone.address')}
-              leading={<Icon name="link" />}
-              disabled={!ready}
-              onClick={() => setSetup('phoneAddress')}
-            />
-          </StatusStack>
-        ) : setup === 'phoneAddress' ? (
-          ready ? (
-            <PhoneAddress
-              key={snapshot?.routes.routes
-                .filter((route) => route.ready)
-                .map((route) => route.url)
-                .join('\n')}
-              call={ownerPasswordSignInCall}
-              t={t}
-            />
-          ) : (
-            <Note>{t('devices.connection.prepare')}</Note>
-          )
         ) : setup === 'direction' ? (
           renderDirectionChoices()
         ) : setup === 'method' ? (

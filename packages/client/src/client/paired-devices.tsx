@@ -40,6 +40,7 @@ import {
 } from './paired-device-setup.js';
 import { renderPairedDeviceNetworkStatus } from './paired-device-network-status.js';
 import { json, PATH, usePairedDevices } from './use-paired-devices.js';
+import { PhonePairingAddress } from './phone-pairing-address.js';
 import { OwnerPasswordSignInSettings } from './owner-password-sign-in-settings.js';
 import type { BridgeCall } from './bridge-transport.js';
 
@@ -327,11 +328,9 @@ export function PairedDevicesSettings({
           setup === 'private' && tunnelStep !== 'choose'
             ? setTunnelStep('choose')
             : setSetup(
-                setup === 'phoneAddress'
-                  ? 'phoneWays'
-                  : setup === 'method' || setup === 'app' || setup === 'remote'
-                    ? 'direction'
-                    : 'method',
+                setup === 'method' || setup === 'app' || setup === 'remote'
+                  ? 'direction'
+                  : 'method',
               )
         }
       >
@@ -342,10 +341,7 @@ export function PairedDevicesSettings({
     <Button
       variant="outline"
       icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
-      onClick={() => {
-        close();
-        if (ready && pairView.state !== 'paired') setSetup('phoneWays');
-      }}
+      onClick={close}
     >
       {t('connections.back')}
     </Button>
@@ -587,7 +583,6 @@ export function PairedDevicesSettings({
             t,
             standalone,
             pairedDeviceId,
-            ownerPasswordSignInCall,
             state,
             setupBack,
             connectControls,
@@ -853,6 +848,16 @@ export function PairedDevicesSettings({
                 </div>
               </>
             )}
+            {ready && offer && ownerPasswordSignInCall ? (
+              <PhonePairingAddress
+                key={routes?.routes
+                  .filter((route) => route.ready)
+                  .map((route) => route.url)
+                  .join('\n')}
+                call={ownerPasswordSignInCall}
+                t={t}
+              />
+            ) : null}
           </div>
         </ConnectionPanel>
       ) : null}

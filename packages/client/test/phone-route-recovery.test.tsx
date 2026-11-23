@@ -198,7 +198,6 @@ it('invalidates the old QR and offers regeneration when its address changes', as
   await mountWithTimers();
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
-  await act(async () => button(zhTranslate('connections.phone.scan'))?.click());
   expect(offerRequests).toHaveLength(1);
   expect(document.body.querySelector('[data-pair-qr]')).not.toBeNull();
   snapshot = {
@@ -263,7 +262,6 @@ it('retries QR creation after a temporary failure without closing the dialog', a
   await mountWithTimers();
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
-  await act(async () => button(zhTranslate('connections.phone.scan'))?.click());
   expect(document.body.querySelector('[data-pair-qr]')).toBeNull();
   expect(document.body.querySelector('[data-pair-dialog]')?.textContent).not.toContain(
     zhTranslate('devices.list.loading'),
@@ -312,7 +310,6 @@ it('failed QR creation gives an in-dialog retry action', async () => {
   await mountWithTimers();
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
-  await act(async () => button(zhTranslate('connections.phone.scan'))?.click());
   const dialog = document.body.querySelector('[data-pair-dialog]');
   expect(dialog?.textContent).toContain(zhTranslate('devices.error'));
   const actions = [...(dialog?.querySelectorAll('button') ?? [])].map((node) => node.textContent);

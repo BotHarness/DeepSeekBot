@@ -93,8 +93,6 @@ export function usePairedDevices({
   const [lanDetails, setLanDetails] = useState(false);
   const [accountHosts, setAccountHosts] = useState<ConnectedHost[]>([]);
   type Setup =
-    | 'phoneWays'
-    | 'phoneAddress'
     | 'app'
     | 'private'
     | 'privateRelay'
@@ -271,7 +269,7 @@ export function usePairedDevices({
       setSetup('app');
       return;
     }
-    setSetup('phoneWays');
+    void createOffer();
   };
 
   const createOffer = async (): Promise<void> => {
