@@ -36,7 +36,7 @@ export const TOB_ASSIGNMENT_LEASE_CAPABILITIES: readonly TobCliCapability[] = [
   },
   {
     command: 'memory-history',
-    description: 'List a leased Bot accepted Memory commits',
+    description: "List a leased Bot's Memory Commits",
     write: false,
   },
   {
