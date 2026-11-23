@@ -1,6 +1,7 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import {
   boundedByBytes,
+  pageItemBudget,
   decodeReadCursor,
   encodeReadCursor,
   ReadContinuationError,
@@ -52,7 +53,27 @@ export function readBotActivityPage(request: BotActivityPageRequest) {
   const start = startOf(request);
   const bot = snapshot.bots.find((entry) => entry.slug === slug);
   const all = bot?.sessions ?? [];
-  const sessions = boundedByBytes(all.slice(start, start + request.limit), request.maxBytes);
+  const provenance = {
+    source: 'bot-activity' as const,
+    slug,
+    incarnation: request.incarnation,
+    generation: snapshot.generation,
+    revision: snapshot.revision,
+    contentIsData: true as const,
+  };
+  const sessions = boundedByBytes(
+    all.slice(start, start + request.limit),
+    pageItemBudget(
+      {
+        generation: snapshot.generation,
+        revision: snapshot.revision,
+        bot: bot === undefined ? null : { ...bot, sessions: [], sessionCount: all.length },
+        provenance,
+        complete: false,
+      },
+      request.maxBytes,
+    ),
+  );
   const next = start + sessions.length;
   const complete = next >= all.length;
   return {
@@ -65,14 +86,7 @@ export function readBotActivityPage(request: BotActivityPageRequest) {
             ...bot,
             ...(bot.sessions === undefined ? {} : { sessions, sessionCount: all.length }),
           },
-    provenance: {
-      source: 'bot-activity' as const,
-      slug,
-      incarnation: request.incarnation,
-      generation: snapshot.generation,
-      revision: snapshot.revision,
-      contentIsData: true as const,
-    },
+    provenance,
     complete,
     ...(complete
       ? {}

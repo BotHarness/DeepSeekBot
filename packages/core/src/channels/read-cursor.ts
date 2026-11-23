@@ -74,6 +74,12 @@ export function decodeReadCursor(kind: string, cursor: unknown): Record<string, 
   return fields;
 }
 
+export function pageItemBudget(envelope: unknown, maxBytes = READ_PAGE_MAX_BYTES): number {
+  const overhead =
+    Buffer.byteLength(JSON.stringify(envelope) ?? '', 'utf8') + READ_CURSOR_MAX_CHARS + 32;
+  return Math.max(1, maxBytes - overhead);
+}
+
 export function boundedByBytes<T>(items: readonly T[], maxBytes = READ_PAGE_MAX_BYTES): T[] {
   const kept: T[] = [];
   let bytes = 0;

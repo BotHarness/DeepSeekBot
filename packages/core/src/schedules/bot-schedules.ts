@@ -688,11 +688,11 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
         title,
         prompt,
         trigger:
-          record === undefined && input.trigger.kind === 'once'
+          input.trigger.kind === 'once'
             ? {
                 kind: 'once',
                 date: input.trigger.date,
-                time: input.trigger.time.slice(0, 5),
+                time: localTime(input.trigger.time),
                 timeZone: input.trigger.timeZone,
               }
             : triggerOf(record!),

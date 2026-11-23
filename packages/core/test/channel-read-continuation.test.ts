@@ -161,6 +161,23 @@ describe('channelMessages continuation on the Host method', () => {
     expect(seen).toEqual(['m3', 'm2', 'm1']);
     expect(cursor).toBeUndefined();
   });
+
+  it('keeps the whole serialized page, envelope and cursor included, within the byte cap', async () => {
+    const { channels } = setup();
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    for (const id of ['m1', 'm2', 'm3', 'm4'])
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        id,
+        at: '2026-11-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'x'.repeat(3_800),
+      });
+    const maxBytes = 8 * 1024;
+    const page = readChannelMessagePage(channels, dm.id, { limit: 4, maxBytes })!;
+    expect(page.messages.length).toBeGreaterThan(0);
+    expect(page.nextCursor).toBeDefined();
+    expect(Buffer.byteLength(JSON.stringify(page), 'utf8')).toBeLessThanOrEqual(maxBytes);
+  });
 });
 
 describe('channel continuation on the operational store', () => {

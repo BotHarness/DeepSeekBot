@@ -2,6 +2,7 @@ import type { ChannelMessage, ChannelRecord } from './channel.js';
 import type { ChannelStore } from './store-types.js';
 import {
   boundedByBytes,
+  pageItemBudget,
   decodeReadCursor,
   encodeReadCursor,
   ReadContinuationError,
@@ -94,7 +95,19 @@ export function readChannelMessagePage(
     ...(bound.before === undefined ? {} : { before: bound.before }),
     ...(request.limit === undefined ? {} : { limit: request.limit }),
   });
-  const messages = boundedByBytes(raw, request.maxBytes);
+  const provenance = {
+    source: 'channel' as const,
+    channelId,
+    type: channel.type,
+    incarnation: channel.createdAt,
+    members: [...channel.members],
+    revision: bound.boundRevision,
+    contentIsData: true as const,
+  };
+  const messages = boundedByBytes(
+    raw,
+    pageItemBudget({ messages: [], revision, provenance, complete: false }, request.maxBytes),
+  );
   const oldest = messages.at(-1);
   const complete =
     oldest === undefined ||
@@ -109,15 +122,7 @@ export function readChannelMessagePage(
   return {
     messages,
     revision,
-    provenance: {
-      source: 'channel',
-      channelId,
-      type: channel.type,
-      incarnation: channel.createdAt,
-      members: [...channel.members],
-      revision: bound.boundRevision,
-      contentIsData: true,
-    },
+    provenance,
     complete,
     ...(position === undefined
       ? {}

@@ -878,5 +878,12 @@ describe('live CLI over the authenticated DSH carrier', () => {
     );
     expect(both.json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(calls);
+    const blank = await invoke(
+      ['channel-messages', dm.id, '--cursor', '', '--before', 'm2'],
+      live.url,
+    );
+    expect(blank.code).toBe(0);
+    expect(live.calls.at(-1)).toMatchObject({ args: { channelId: dm.id, before: 'm2' } });
+    expect(live.calls.at(-1)?.args).not.toHaveProperty('cursor');
   });
 });
