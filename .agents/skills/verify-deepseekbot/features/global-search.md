@@ -27,9 +27,9 @@ No model is needed. Seed a few group channels with `node scripts/verify-app.mjs 
 
 ```bash
 node scripts/verify-app.mjs shot search-pinyin --name <n> --bot-mode --locale zh \
-  --press Alt+K --fill "搜索 Bot、群聊、频道或设置，支持拼音=waiguan"
+  --press Alt+K --fill "搜索 Bot、群聊、频道、消息或设置，支持拼音=waiguan"
 node scripts/verify-app.mjs shot search-open-setting --name <n> --bot-mode --locale zh \
-  --press Alt+K --fill "搜索 Bot、群聊、频道或设置，支持拼音=zhuti" --press Enter
+  --press Alt+K --fill "搜索 Bot、群聊、频道、消息或设置，支持拼音=zhuti" --press Enter
 ```
 
 The first shows the 外观讨论 conversation and the 界面设置 section under 设置; the second shows Bot settings open on 界面设置 with the 主题 row highlighted.

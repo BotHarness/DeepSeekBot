@@ -17,7 +17,7 @@
 
 - `client-preferences-get/set`: theme and this-Host notifications per Client; locale is Host-scoped. Enabling notifications never opens the permission prompt and reports pending or denied consent.
 - `client-shortcuts-get/set`: stable action ids, effective bindings, set/disable/reset one action, conflict owner, reserved keys.
-- `client-layout-get/set`: global Simple/Advanced layout, rail, and one Channel workspace (move, resize, hide/show) through the mounted Bot-mode dock.
+- `client-layout-get/set`: global Simple/Advanced layout, rail, and one Channel workspace (move, resize, hide/show) through the mounted Bot mode layout.
 - Tob reads without a card; every `-set` waits for the Human's approval card in the Tob DM.
 
 ## How to get to it (user POV)

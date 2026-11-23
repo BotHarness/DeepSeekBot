@@ -4,7 +4,7 @@ Why the CLI and Tob change one selected Client's own settings the way they do. H
 
 ## 1. One relay, one registry, three settings domains
 
-_Issues [#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831), [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832), [#4833](https://github.com/BotHarness/DeepSeekBot/issues/4833). Builds on [ADR-0236](../adr/0236-deepseekbot-appearance-is-client-local-and-scoped.md), [ADR-0253](../adr/0253-connection-onboarding-targets-the-owning-client.md) and [ADR-0314](../adr/0314-tob-runs-every-cli-command-with-approved-writes.md)._
+_Issues [#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831), [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832), [#4833](https://github.com/BotHarness/DeepSeekBot/issues/4833). Builds on [ADR-0236](desktop-ui.md#adr-0236), [ADR-0253](connections.md#adr-0253) and [ADR-0314](tob.md#adr-0314)._
 
 Theme, notifications, layout and shortcuts are owned by the Client that shows them, in that Client's own storage. A Host write cannot say which Client changed, and copying these values to the Host would create a second owner. So every command reaches one explicitly selected Client through the existing Client control relay (`/api/botharness/appearance-control`), and the Client's existing owner performs the change.
 
@@ -31,15 +31,17 @@ Remaining Client-local preferences without a selected-Client command are recorde
 
 Enforced by: `preference-settings-control.test.ts`.
 
-## 3. Layout: the mounted dock is the only writer
+## 3. Layout: the mounted Bot mode layout is the only writer
 
 _Issue [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832)._
 
-The `layout` domain is registered by the Bot-mode `ChannelDock` while it is mounted, and applies a patch through the same setters its own controls use: the global Simple/Advanced layout, the rail order and hidden controls, and one Channel's workspace (`open`, `direction`, `ratio`). It then saves through the dock's existing save path, so storage, migration and backups behave exactly as for a UI change. Ranges are the ones the dock already clamps to (Channel ratio 0.2–0.8, Subpanel column width 0.2–0.6), so a reload never rewrites the value and changes the revision. Editing a Channel that is not active does not switch to it; other Channels and parked panel positions are left alone. A Channel must be known to the conversation store or the dock (`layout-channel-unknown`).
+The `layout` domain is registered by the Bot-mode `ChannelDock` while it is mounted, and applies a patch through the same setters its own controls use: the Layout mode (Simple or Advanced) and the Side column, the rail order and hidden controls, and one Channel's workspace (`open`, `direction`, `ratio`). It then saves through its existing save path, so storage, migration and backups behave exactly as for a UI change. Ranges are the ones the Bot mode layout already clamps to (Channel ratio 0.2–0.8, Subpanel column width 0.2–0.6), so a reload never rewrites the value and changes the revision. Editing a Channel that is not active does not switch to it; other Channels and parked panel positions are left alone. A Channel must be known to the conversation store or the Bot mode layout (`layout-channel-unknown`).
 
-Why: localStorage edits behind a mounted dock would be overwritten by its next save and would not show until reload. Outside Bot mode there is no dock to apply the change, so the command refuses instead of writing storage. Split trees, the members panel, gap and per-panel heights have no patch shape yet and stay in `scripts/cli-ui-inventory.json` under `client-layout`.
+Layout mode stays a device-local choice owned by the Client layout owner, as [onboarding](onboarding.md) describes. This command does not add a second owner or a Host copy: the relay only delivers the Human-approved patch to that one Client, whose owner applies it the same way as Bot Settings → Appearance, so switching keeps each mode's own arrangement. This amends onboarding's earlier "no Host route or CLI command" for Layout mode to this selected-Client path only.
 
-Enforced by: `layout-settings-control.test.ts` (patch rules, revision, unknown Channel, legacy layout migration and reload), `simple-side-column.test.tsx` (writes through the mounted dock without switching the active Channel).
+Why: localStorage edits behind a mounted Bot mode layout would be overwritten by its next save and would not show until reload. Outside Bot mode there is no Bot mode layout to apply the change, so the command refuses instead of writing storage. Split trees, the members panel, gap and per-panel heights have no patch shape yet and stay in `scripts/cli-ui-inventory.json` under `client-layout`.
+
+Enforced by: `layout-settings-control.test.ts` (patch rules, revision, unknown Channel, legacy layout migration and reload), `simple-side-column.test.tsx` (writes through the mounted Bot mode layout without switching the active Channel, and a Layout mode switch keeps the saved Advanced arrangement exactly as the UI toggle does).
 
 ## 4. Shortcuts: set, disable or reset one action, never take another's key
 
