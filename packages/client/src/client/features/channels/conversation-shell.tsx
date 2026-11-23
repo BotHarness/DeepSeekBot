@@ -383,6 +383,7 @@ export function renderConversationShell({
             {docked ? (
               <ChannelDock
                 conversation={conversationScope}
+                channelIds={() => state.channels.map((item) => item.id)}
                 hasBots={channel === undefined || hasChannelBots(channel)}
                 body={chatPane}
                 header={
