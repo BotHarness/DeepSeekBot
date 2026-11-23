@@ -1,13 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ShellExecutor } from '@deepseek-ai/dsh-shell';
-import * as bashTools from '@deepseek-ai/dsh-tool-bash';
-import * as pwshTools from '@deepseek-ai/dsh-tool-pwsh';
 import type { DshAgentPresetHost } from '../runtime/dsh-bot-agent-adapter.js';
 import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
-
-const NATIVE_SHELL_TOOLS = { bash: bashTools, pwsh: pwshTools } as const;
-type NativeShellToolName = keyof typeof NATIVE_SHELL_TOOLS;
+import { pluginShellTools, presetShells } from './orchestrator-file-tools.js';
 
 export async function installAssignmentShell(
   agentCtx: Context,
@@ -18,13 +14,7 @@ export async function installAssignmentShell(
   const shell = (presets?.serviceFor?.(agent, 'shell') ?? agentCtx.get('shell')) as
     | ShellExecutor
     | undefined;
-  const tools = agentCtx.get('tools') as
-    | { schemas(agent: Agent): Array<{ name: string }> }
-    | undefined;
-  const visible = new Set((tools?.schemas(agent) ?? []).map((tool) => tool.name));
-  const shells = (Object.keys(NATIVE_SHELL_TOOLS) as NativeShellToolName[]).filter((name) =>
-    visible.has(name),
-  );
+  const shells = presetShells(agentCtx, agent);
   if (shell === undefined || shells.length === 0) return undefined;
   const fiber = agentCtx.isolate('shell').plugin({
     name: 'botharness-assignment-shell',
@@ -34,12 +24,7 @@ export async function installAssignmentShell(
   });
   try {
     await fiber.await();
-    const shellFibers = shells.map((name) =>
-      fiber.ctx.plugin(NATIVE_SHELL_TOOLS[name], {
-        enableRunInBackground: false,
-        promoteOnTimeout: false,
-      }),
-    );
+    const shellFibers = pluginShellTools(fiber.ctx, shells);
     for (const shellFiber of shellFibers) await shellFiber.await();
     if (shellFibers.some((shellFiber) => shellFiber.state !== ACTIVE_FIBER_STATE))
       throw new Error('Assignment Shell Tools failed to activate');
