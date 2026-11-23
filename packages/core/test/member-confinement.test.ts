@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -418,5 +418,43 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
     );
     expect(result.stdout).not.toContain('LEAK');
     expect(result.stdout.match(/refused/gu)).toHaveLength(4);
+  });
+});
+
+describe('confined PATH', () => {
+  it('keeps a PATH entry that points into a hidden root reachable through its target', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bh-plan-'));
+    const linkRoot = mkdtempSync(join(homedir(), 'bh-path-'));
+    const previous = process.env['PATH'];
+    try {
+      const f = fixture(dir);
+      const target = join(f.work.alpha, 'node-bin');
+      mkdirSync(target, { recursive: true });
+      const link = join(linkRoot, 'bin');
+      symlinkSync(target, link);
+      process.env['PATH'] = `/usr/bin:${link}`;
+      const result = memberExecutionPlan(f.core, f.dsh, 'ada-sub');
+      if (result.kind !== 'plan') throw new Error(result.kind);
+      const entries = (result.plan.pathEnv ?? '').split(':');
+      expect(entries).toContain(realpathSync(target));
+      expect(entries).not.toContain(link);
+    } finally {
+      process.env['PATH'] = previous;
+      rmSync(linkRoot, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('passes the rewritten PATH into the sandbox', () => {
+    const plan = {
+      readable: [],
+      writable: [],
+      hidden: [],
+      pathEnv: '/opt/node/bin:/usr/bin',
+      home: '/tmp/bh-home',
+    };
+    const args = bwrapArgs(plan, 'read-only', false);
+    const index = args.indexOf('--setenv');
+    expect(args.slice(index, index + 3)).toEqual(['--setenv', 'PATH', '/opt/node/bin:/usr/bin']);
   });
 });
