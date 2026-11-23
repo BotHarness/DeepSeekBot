@@ -36,7 +36,7 @@ export function signInRefusal<E extends string>(
 }
 
 export function encryptedSignIn<E extends string>(options: {
-  type: 'owner-sign-in' | 'team-sign-in';
+  type: 'owner-sign-in' | 'team-sign-in' | 'password-sign-in';
   carrier: HostCarrier;
   route: string;
   host: TeamHostIdentity;
@@ -63,7 +63,11 @@ export function encryptedSignIn<E extends string>(options: {
       abort();
       return;
     }
-    const replyType = options.type === 'owner-sign-in' ? 'owner-signed-in' : 'team-signed-in';
+    const replyType = {
+      'owner-sign-in': 'owner-signed-in',
+      'team-sign-in': 'team-signed-in',
+      'password-sign-in': 'password-signed-in',
+    }[options.type];
     try {
       socket = openNoiseSocket({
         origin: options.route,
@@ -73,6 +77,10 @@ export function encryptedSignIn<E extends string>(options: {
         closed: (reason) =>
           finish(signInTransportFailure(new ConnectRefused(reason), options.signal)),
         message: (frame) => {
+          if (options.type === 'password-sign-in' && frame['type'] === 'refused') {
+            finish(signInRefusal(frame, options.codes));
+            return;
+          }
           if (frame['type'] !== replyType) return;
           const result = teamRecord(frame['result']);
           finish(

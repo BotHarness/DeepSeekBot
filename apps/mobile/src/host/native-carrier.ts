@@ -2,6 +2,7 @@ import { installedAppVersion } from './app-version';
 import { noiseKeyAgreement } from './noise-key-agreement';
 import { requireOptionalNativeModule } from 'expo';
 import { getRandomBytes } from 'expo-crypto';
+import { fetch as expoFetch } from 'expo/fetch';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { isLanRoute } from '@botharness/host-protocol/route';
 import { localNetworkStatus, openLanSocket } from './native-lan-socket';
@@ -51,10 +52,12 @@ export function nativeCarrier(): HostCarrier {
       : {}),
     async request(url, init) {
       if (isLanRoute(new URL(url).origin)) throw new Error('encrypted-channel-required');
-      const response = await fetch(url, {
+      const request = init.redirect === 'error' ? expoFetch : fetch;
+      const response = await request(url, {
         method: init.method,
         signal: init.signal,
         credentials: 'omit',
+        ...(init.redirect === undefined ? {} : { redirect: init.redirect }),
         headers: {
           ...(typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}),
           ...init.headers,

@@ -113,12 +113,21 @@ export async function signIn(
   const credential = member ? this.credential(member.humanId) : undefined;
   const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
   if (!valid || !member) throw new TeamError('credentials-invalid');
-  if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
+  return signInMemberGrant.call(this, member, credential?.hash.hash, device);
+}
+
+async function signInMemberGrant(
+  this: MemberAuthHost,
+  member: TeamMember,
+  verifiedHash: string | undefined,
+  device?: { kind: 'paired-device'; name: string; publicKey?: string },
+): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
+  if (this.credential(member.humanId)?.hash.hash !== verifiedHash)
     throw new TeamError('credentials-invalid');
   this.active(this.member(member.humanId));
   this.spaceProvider?.().ensureAccount(member.humanId);
   if (member.owner) await this.ensureTob?.(humanContext(member.humanId));
-  if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
+  if (this.credential(member.humanId)?.hash.hash !== verifiedHash)
     throw new TeamError('credentials-invalid');
   this.active(this.member(member.humanId));
   return { ...this.createGrant(member, device), member };
@@ -130,6 +139,49 @@ function ownerPasswordEnabled(db: MemberAuthHost['db']): boolean {
       db.prepare('SELECT owner_password_sign_in FROM team_settings WHERE singleton = 1').get()
         ?.owner_password_sign_in === 1,
   );
+}
+
+export function passwordSignInAvailable(this: MemberAuthHost): boolean {
+  return this.db.read(
+    (db) =>
+      db
+        .prepare(`SELECT owner_password_sign_in OR (enabled AND EXISTS (
+        SELECT 1 FROM member_credentials c JOIN humans h USING(human_id)
+        WHERE c.human_id <> team_settings.owner_human_id AND h.status = 'active'
+      )) AS available FROM team_settings WHERE singleton = 1`)
+        .get()?.available === 1,
+  );
+}
+
+export async function signInPasswordDevice<T>(
+  this: MemberAuthHost,
+  input: {
+    username: string;
+    password: string;
+    ip: string;
+    device: { kind: 'paired-device'; name: string; publicKey: string };
+    issueOwner: (humanId: string) => T;
+  },
+): Promise<
+  | { role: 'owner'; device: T }
+  | { role: 'member'; device: ReturnType<TeamService['deviceGrantResult']> }
+> {
+  if (!passwordSignInAvailable.call(this)) throw new TeamError('password-sign-in-unavailable');
+  this.passwordAttempt(input.username, input.ip);
+  const member = this.byUsername(input.username);
+  const credential = member && this.credential(member.humanId);
+  const valid = await verifyPassword(input.password, credential?.hash ?? DUMMY_PASSWORD_HASH);
+  if (!valid || !member || !credential) throw new TeamError('credentials-invalid');
+
+  if (member.owner) {
+    const humanId = ownerPasswordIdentity.call(this, member.humanId, credential.hash.hash);
+    return { role: 'owner', device: input.issueOwner(humanId) };
+  }
+  const current = this.member(member.humanId);
+  if (current?.owner) throw new TeamError('credentials-invalid');
+  this.active(current);
+  const grant = await signInMemberGrant.call(this, current, credential.hash.hash, input.device);
+  return { role: 'member', device: this.deviceGrantResult(grant, grant.member) };
 }
 
 export async function setOwnerPassword(
@@ -238,13 +290,21 @@ export async function signInOwnerDevice<T>(
   const matches = credential?.username === username;
   const valid = await verifyPassword(password, matches ? credential.hash : DUMMY_PASSWORD_HASH);
   if (!matches || !valid) throw new TeamError('credentials-invalid');
+  return issue(ownerPasswordIdentity.call(this, humanId, credential.hash.hash));
+}
+
+function ownerPasswordIdentity(
+  this: MemberAuthHost,
+  humanId: string,
+  verifiedHash: string,
+): string {
   if (!ownerPasswordEnabled(this.db)) throw new TeamError('owner-sign-in-disabled');
   if (
     this.roles.ownerContext().humanId !== humanId ||
-    this.credential(humanId)?.hash.hash !== credential.hash.hash
+    this.credential(humanId)?.hash.hash !== verifiedHash
   )
     throw new TeamError('credentials-invalid');
-  return issue(humanId);
+  return humanId;
 }
 
 export function createGrant(

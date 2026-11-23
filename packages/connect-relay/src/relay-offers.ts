@@ -45,6 +45,7 @@ export function createOfferHandler({ options, now, touch, hostname }: OfferHandl
     try {
       reply = await (options.fetchHost ?? fetch)(`https://${hostname(row)}${OFFER_PATH}`, {
         method: 'GET',
+        redirect: 'error',
         signal: AbortSignal.timeout(OFFER_TIMEOUT_MS),
       });
     } catch (error) {
@@ -59,6 +60,7 @@ export function createOfferHandler({ options, now, touch, hostname }: OfferHandl
       | {
           encryption?: { protocol?: unknown; publicKey?: unknown };
           host?: { id?: unknown; name?: unknown };
+          signIn?: { password?: unknown };
         }
       | undefined;
     if (
@@ -80,6 +82,9 @@ export function createOfferHandler({ options, now, touch, hostname }: OfferHandl
       expiresAt: new Date(now().getTime() + 5 * 60 * 1000).toISOString(),
       hostname: hostname(row),
       host: { id: answer.host.id, name: answer.host.name },
+      ...(typeof answer.signIn?.password === 'boolean'
+        ? { signIn: { password: answer.signIn.password } }
+        : {}),
     });
   };
 }
