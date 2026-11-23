@@ -323,7 +323,7 @@ describe('empty composer', () => {
       const input = field();
       input.focus();
       const style = () => speech.input!['style'] as { height?: number; minHeight?: number };
-      const height = () => style().height ?? style().minHeight;
+      const height = () => style().height ?? style().minHeight ?? 0;
       const contentSize = async (height: number) => {
         await act(async () =>
           (speech.input!['onContentSizeChange'] as (event: unknown) => void)({
