@@ -225,14 +225,20 @@ const Row = memo(function Row({
                 item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
               }
               sourceLabel={item.activitySource?.label}
+              lines={theme.largeText ? 2 : 1}
               glyph={mixed && item.activitySource !== undefined}
             />
-            {time === '' ? null : (
+            {time === '' || theme.largeText ? null : (
               <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
                 {time}
               </Text>
             )}
           </View>
+          {theme.largeText && time !== '' ? (
+            <Text variant="meta" tone="subtle">
+              {time}
+            </Text>
+          ) : null}
           <Text
             variant="meta"
             dynamicTypeRamp="subheadline"

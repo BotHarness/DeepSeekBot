@@ -6,6 +6,7 @@ import {
   BOT_TURN_TRIGGERS,
 } from './bot-turn-spec.js';
 import { CLIENT_ISSUE_DURATION_BUCKETS, CLIENT_ISSUE_KINDS } from './client-issues.js';
+import { TELEMETRY_MODEL_ID, TELEMETRY_PROVIDER_KINDS } from './model-route.js';
 
 export const CONNECTOR_TYPES = ['feishu', 'lark', 'slack', 'discord', 'weixin', 'other'] as const;
 
@@ -89,7 +90,7 @@ export const TELEMETRY_SURFACES = [
 ] as const;
 export type TelemetrySurface = (typeof TELEMETRY_SURFACES)[number];
 
-export type TelemetryPropertySpec = readonly string[] | 'boolean' | 'count';
+export type TelemetryPropertySpec = readonly string[] | 'boolean' | 'count' | 'model_id';
 
 export interface TelemetryEventSpec {
   origin: 'host' | 'client';
@@ -158,14 +159,36 @@ export const TELEMETRY_EVENTS = {
       is_reconciled: 'boolean',
     },
   },
+  'app:model_usage_report': {
+    origin: 'host',
+    description:
+      'Changed daily Bot-owned Session token snapshots per provider kind and model from the last seven Host-local days; take the latest per install, day, provider kind and model, never sum snapshots.',
+    properties: {
+      day_timestamp: 'count',
+      provider_kind: TELEMETRY_PROVIDER_KINDS,
+      model_id: 'model_id',
+      input_token_count: 'count',
+      output_token_count: 'count',
+      cache_read_token_count: 'count',
+      cache_write_token_count: 'count',
+      total_token_count: 'count',
+      reported_total_token_count: 'count',
+      unknown_total_count: 'count',
+      is_partial: 'boolean',
+      is_reconciled: 'boolean',
+    },
+  },
   'chat:bot_turn_complete': {
     origin: 'host',
     description:
-      'A Bot-owned Orchestrator or Assignment turn ended: reported token usage summed over its model steps, and estimated context tokens per Context Source for the whole context (the context properties) and for what this turn added (the added properties). No message text.',
+      'A Bot-owned Orchestrator or Assignment turn ended: reported token usage summed over its model steps, the provider kind and model of its last model step, and estimated context tokens per Context Source for the whole context (the context properties) and for what this turn added (the added properties). No message text.',
     properties: {
       role: BOT_TURN_ROLES,
       outcome: BOT_TURN_OUTCOMES,
       trigger: BOT_TURN_TRIGGERS,
+      provider_kind: TELEMETRY_PROVIDER_KINDS,
+      model_id: 'model_id',
+      has_model_switch: 'boolean',
       step_count: 'count',
       tool_call_count: 'count',
       input_token_count: 'count',
@@ -464,6 +487,8 @@ export function telemetryEventProperties(
       if (typeof value !== 'boolean') return undefined;
     } else if (allowed === 'count') {
       if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) return undefined;
+    } else if (allowed === 'model_id') {
+      if (typeof value !== 'string' || !TELEMETRY_MODEL_ID.test(value)) return undefined;
     } else if (typeof value !== 'string' || !allowed.includes(value)) return undefined;
     out[key] = value;
   }

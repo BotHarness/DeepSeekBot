@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { NavigationDestination } from '../src/ui/shell/navigation-destination';
+import { emptyHostSession } from './support/host-session';
 
 const navigation = vi.hoisted(() => ({
   platform: 'android',
@@ -55,7 +56,7 @@ vi.mock('react-native-reanimated', async () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ left: 0, right: 0, bottom: 0 }),
 }));
-vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({}) }));
+vi.mock('../src/host/host-session', () => ({ useHostSession: () => emptyHostSession }));
 vi.mock('../src/host/native-conversation-filter', () => ({ useConversationFilter: () => ['all'] }));
 vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => undefined }));
 vi.mock('../src/host/native-activity-count', () => ({ useActivityCount: () => ({ count: 0 }) }));

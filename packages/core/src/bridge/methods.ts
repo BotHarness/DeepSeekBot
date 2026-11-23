@@ -720,6 +720,7 @@ function buildBridgeMethods(
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
+      isHostOwner,
       log: deps.voiceLog,
     }),
     ...createBotModeBridgeMethods({

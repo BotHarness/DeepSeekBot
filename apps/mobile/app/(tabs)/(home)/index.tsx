@@ -49,6 +49,8 @@ import {
   computerEnvironmentKey,
   cloudEnvironmentKey,
 } from '../../../src/host/conversation-environments';
+import { chatsCreationActions } from '../../../src/ui/shell/creation-menu-items';
+import { useCreationTargets } from '../../../src/ui/shell/use-creation-targets';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
@@ -205,6 +207,22 @@ const HomeContent = memo(function HomeContent({
   const selectedHost = hosts.find(
     (host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter,
   );
+  const channelHost = selectedHost?.saved ?? (effectiveFilter === 'all' ? saved : undefined);
+  const creationTargets = useCreationTargets(filter);
+  const { group: canCreateChannel } = chatsCreationActions(filter, creationTargets);
+  const emptyChannels = canCreateChannel
+    ? t.cloudChannels.empty
+    : channelHost?.member
+      ? t.emptyTeamChannels
+      : environment.kind === 'cloud' &&
+          directory.workspaces.some(
+            (workspace) =>
+              !workspace.guest &&
+              workspace.role === 'member' &&
+              cloudEnvironmentKey(workspace.scope, workspace.organizationId) === effectiveFilter,
+          )
+        ? t.cloudChannels.emptyMember
+        : t.cloudChannels.empty;
   useFocusEffect(
     useCallback(() => {
       cloudEntryFocused.current = true;
@@ -788,7 +806,7 @@ const HomeContent = memo(function HomeContent({
                               hosts.length > 0 &&
                               hosts.every((host) => host.snapshot.connection.status !== 'connected')
                             ? t.noOnlineChats
-                            : t.cloudChannels.empty}
+                            : emptyChannels}
                       </Text>
                     )
                   }

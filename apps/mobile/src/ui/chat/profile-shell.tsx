@@ -7,6 +7,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { systemSegmented } from '../design/system-shape';
@@ -56,6 +57,8 @@ export function ProfileShell({
   const paging = useProfilePaging();
   const [selection] = useState(() => createProfilePagerSelection(tab));
   const showTabs = tabs.length > 1;
+  const scrollingIdentity = accessibilityTextSize(theme.fontScale);
+  const identityBlock = <View pointerEvents="box-none">{identity}</View>;
   return (
     <View
       testID="profile-page"
@@ -79,8 +82,9 @@ export function ProfileShell({
           </HeaderCircleButton>
         </View>
       )}
-      <View pointerEvents="box-none">{identity}</View>
+      {scrollingIdentity ? null : identityBlock}
       <Tabs.Container
+        {...(scrollingIdentity ? { renderHeader: () => identityBlock } : {})}
         containerStyle={{ overflow: 'hidden' }}
         initialTabName={tab}
         lazy={false}

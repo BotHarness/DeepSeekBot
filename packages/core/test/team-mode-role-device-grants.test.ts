@@ -25,6 +25,45 @@ Object.defineProperty(
 );
 
 describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
+  it('lists voice provider metadata for members without disclosing endpoints or templates', async () => {
+    const f = await actors({ voice: true });
+    const ownerPeer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+    const template = {
+      version: 1,
+      url: 'https://m15-voice.example/private-speech',
+      method: 'POST',
+      auth: { kind: 'none' },
+      headers: { 'x-voice-fixture': 'private-header-value' },
+      body: { kind: 'json', value: { text: '{text}' } },
+      result: { kind: 'audio' },
+    };
+    await f.invoke('voiceProviderAdd', { preset: 'custom', template }, ownerPeer);
+    await f.invoke(
+      'voiceProviderAdd',
+      {
+        kind: 'asr',
+        preset: 'custom',
+        template: {
+          ...template,
+          body: { kind: 'multipart', fields: { file: '{audio}' } },
+          result: { kind: 'text', path: 'text' },
+        },
+      },
+      ownerPeer,
+    );
+    const ownerList = await f.invoke('voiceProviders', {}, ownerPeer);
+    const memberList = await f.invoke('voiceProviders');
+    expect(ownerList).toMatchObject({
+      providers: [{ baseUrl: 'https://m15-voice.example', hasTemplate: true }],
+      asrProviders: [{ baseUrl: 'https://m15-voice.example', hasTemplate: true }],
+    });
+    expect(memberList).toMatchObject({
+      providers: [{ preset: 'custom', hasTemplate: true }],
+      asrProviders: [{ preset: 'custom', hasTemplate: true }],
+    });
+    expect(JSON.stringify(memberList)).not.toMatch(/https?:\/\/|private-header-value|"template"/u);
+  });
+
   it('refuses every credentials and provider-key method on both existing member devices', async () => {
     const f = await actors();
     const second = await f.team.signIn('bob', 'member-password-1', 'second-device');
@@ -51,6 +90,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       'voiceCatalogImport',
       'voiceProviderRemove',
       'voiceProviderTest',
+      'voiceDefaultSet',
     ];
     for (const peer of [f.bobLogin.peer, second.peer]) {
       await expect(f.invoke('voiceProviders', {}, peer)).rejects.toMatchObject({

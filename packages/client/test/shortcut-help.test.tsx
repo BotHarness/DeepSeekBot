@@ -138,7 +138,7 @@ describe('shortcut list', () => {
     act(() => change().click());
     press({ key: 'Escape', code: 'Escape' });
     expect(recorder()).toBeNull();
-    expect(bindings.binding('bot-mode').code).toBe('KeyB');
+    expect(bindings.binding('bot-mode')?.code).toBe('KeyB');
 
     const reset = [...row().querySelectorAll('button')].find(
       (button) => button.textContent === 'Reset',

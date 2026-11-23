@@ -19,7 +19,8 @@
 - `projection`: deterministic owned, child and Assignment SessionEvents match the token snapshot wire; unowned native Sessions and replay do not increase totals.
 - `unknown`: omitted provider buckets remain absent, reported lower bounds match Overview, and unavailable histories set reconciliation coverage.
 - `lifecycle`: opt-out prevents reads and sends; disposal stops checks; restart may repeat a snapshot without changing the latest-snapshot calculation.
-- `live`: a real isolated Bot reply produces local token usage matching the production snapshot wire and, when authorized, PostHog ingestion.
+- `models`: per-model snapshots and Bot turn events name only a provider kind and built-in model ID; per-model snapshots add up to the day snapshot.
+- `live`: a real isolated Bot reply produces local token usage matching the production day and per-model snapshot wire and, when authorized, PostHog ingestion.
 
 ## How to get to it (user POV)
 
