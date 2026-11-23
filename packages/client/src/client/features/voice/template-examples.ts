@@ -48,7 +48,11 @@ export const TEMPLATE_EXAMPLES: readonly TemplateExample[] = [
         kind: 'ssml',
         root: {
           tag: 'speak',
-          attributes: { version: '1.0', 'xml:lang': 'en-US' },
+          attributes: {
+            version: '1.0',
+            xmlns: 'http://www.w3.org/2001/10/synthesis',
+            'xml:lang': 'en-US',
+          },
           children: [{ tag: 'voice', attributes: { name: '{voice}' }, children: ['{text}'] }],
         },
       },
@@ -168,7 +172,7 @@ export const TEMPLATE_EXAMPLES: readonly TemplateExample[] = [
               role: 'user',
               content: [
                 { type: 'text', text: 'Transcribe this audio verbatim.' },
-                { type: 'input_audio', input_audio: { data: '{audioBase64}', format: 'wav' } },
+                { type: 'input_audio', input_audio: { data: '{audioBase64}', format: '{format}' } },
               ],
             },
           ],

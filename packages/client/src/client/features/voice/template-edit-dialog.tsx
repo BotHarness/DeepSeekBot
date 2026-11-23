@@ -38,10 +38,10 @@ export function TemplateEditDialog({
   const [errors, setErrors] = useState<TemplateErrors>({});
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const { voiceProviderTemplate } = actions;
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
-    void actions
-      .voiceProviderTemplate(provider.id)
+    void voiceProviderTemplate(provider.id)
       .then((template) => {
         if (live) setDraft(draftFromTemplate(template));
       })
@@ -51,7 +51,7 @@ export function TemplateEditDialog({
     return () => {
       live = false;
     };
-  }, [actions, provider.id]);
+  }, [voiceProviderTemplate, provider.id]);
   const submit = (): void => {
     if (draft === undefined || busy) return;
     setBusy(true);
