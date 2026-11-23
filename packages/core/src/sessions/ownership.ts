@@ -66,6 +66,7 @@ export interface SessionOwnership {
   contentAvailable(sessionId: string): boolean;
   markContentUnavailable(): void;
   claim(input: SessionOwnershipClaim): SessionOwnershipRecord;
+  discardUnstartedOrchestrator(sessionId: string, botSlug: string): void;
 
   claimWithin(connection: DatabaseSync, input: SessionOwnershipClaim): SessionOwnershipRecord;
   resolve(sessionId: string): SessionOwnershipRecord | undefined;
@@ -234,6 +235,19 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
       } catch (error) {
         return rethrowDomainError(error);
       }
+    },
+    discardUnstartedOrchestrator(sessionId, botSlug) {
+      database.transaction(
+        (db) => {
+          db.prepare(
+            `DELETE FROM session_ownership
+               WHERE session_id = ? AND bot_slug = ? AND root_role = 'orchestrator'
+                 AND provenance = 'created' AND parent_session_id IS NULL
+                 AND prompt_snapshot IS NULL AND persona_snapshot IS NULL`,
+          ).run(sessionId, botSlug);
+        },
+        ['session-ownership'],
+      );
     },
     claimWithin(connection, input) {
       return claimRow(connection, input);

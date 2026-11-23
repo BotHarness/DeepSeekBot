@@ -168,16 +168,20 @@ export function createMemoryBridgeMethods(
       } catch {}
       let outcome;
       try {
-        outcome = await deps.runtime.replaceOrchestrator(slug, (): MemoryMoveResult => {
-          const moved = moveMemoryDirectory(target.from, target.to);
-          try {
-            deps.registry.setMemoryDir(slug, target.custom ? target.to : undefined);
-          } catch (error) {
-            moveMemoryDirectory(target.to, target.from);
-            throw error;
-          }
-          return moved;
-        });
+        outcome = await deps.runtime.replaceOrchestrator(
+          slug,
+          (): MemoryMoveResult => {
+            const moved = moveMemoryDirectory(target.from, target.to);
+            try {
+              deps.registry.setMemoryDir(slug, target.custom ? target.to : undefined);
+            } catch (error) {
+              moveMemoryDirectory(target.to, target.from);
+              throw error;
+            }
+            return moved;
+          },
+          () => target.to,
+        );
       } catch (error) {
         return {
           ok: false,

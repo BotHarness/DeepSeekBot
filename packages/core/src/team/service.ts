@@ -176,7 +176,9 @@ export class TeamService {
     if (!spaces) throw new TeamError('unavailable');
     return spaces;
   }
-  private readonly replaceBotMemory: (<T>(slug: string, action: () => T) => Promise<T>) | undefined;
+  private readonly replaceBotMemory:
+    | (<T>(slug: string, action: () => T, nextCwd: () => string | undefined) => Promise<T>)
+    | undefined;
   private readonly stopBots: ((slugs: readonly string[]) => Promise<void>) | undefined;
   private readonly settleBotPreparations: ((humanId: string) => Promise<void>) | undefined;
   private readonly peers = new Map<string, PeerScope>();
@@ -281,7 +283,11 @@ export class TeamService {
     options: {
       purge?: ContentPurge;
       spaces?: () => WorkspaceSpaces;
-      replaceBotMemory?: <T>(slug: string, action: () => T) => Promise<T>;
+      replaceBotMemory?: <T>(
+        slug: string,
+        action: () => T,
+        nextCwd: () => string | undefined,
+      ) => Promise<T>;
       stopBots?: (slugs: readonly string[]) => Promise<void>;
       settleBotPreparations?: (humanId: string) => Promise<void>;
       now?: () => number;
@@ -881,7 +887,11 @@ export class TeamService {
     const action = () => this.bots.setVisibility(human, slug, visibility, true);
     const memory = preview.preview.memory;
     return this.replaceBotMemory && memory && memory.from !== memory.to
-      ? this.replaceBotMemory(slug, action)
+      ? this.replaceBotMemory(
+          slug,
+          action,
+          () => this.bots.setVisibility(human, slug, visibility, false).preview.memory?.to,
+        )
       : action();
   }
 

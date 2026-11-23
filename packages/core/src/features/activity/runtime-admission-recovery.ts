@@ -192,20 +192,16 @@ export function createRuntimeAdmissionRecovery(ports: RuntimeAdmissionRecoveryPo
       channel_id: string;
       message_id: string;
     }>;
-    const hosts = new Map<string, boolean>();
     for (const row of pending) {
       const peer = ports.channels.get(row.channel_id)?.remoteBot;
       if (peer === undefined) continue;
       if (withdrawnHost !== undefined && peer.hostId !== withdrawnHost) continue;
       const unverified = peer.membership === undefined;
-      if (!unverified && !hosts.has(peer.hostId)) {
-        const state =
-          withdrawnHost === peer.hostId
-            ? 'withdrawn'
-            : await membership!(peer.hostId).catch(() => 'unavailable');
-        hosts.set(peer.hostId, state === 'withdrawn');
-      }
-      if ((!unverified && !hosts.get(peer.hostId)) || ports.closed()) continue;
+      const withdrawn =
+        withdrawnHost === peer.hostId ||
+        (!unverified &&
+          (await membership?.(peer.hostId).catch(() => 'unavailable')) === 'withdrawn');
+      if ((!unverified && !withdrawn) || ports.closed()) continue;
       const at = ports.now().toISOString();
       ports.database.transaction(
         (database) => {

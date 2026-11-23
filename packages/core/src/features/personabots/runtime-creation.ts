@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 import { MAX_PERSONA_BOT_AVATAR_BYTES, personaBotAvatarFromBytes } from '../../bots/persona-bot.js';
@@ -189,14 +189,29 @@ export function createRuntimeBotCreation(ports: RuntimeBotCreationPorts) {
     const memory = ports.registry.memoryDirFor(botSlug);
     if (memory !== undefined) roots.push(memory);
     ports.grants?.validatePath?.(botSlug, path);
-    if (authorizedPathRoot(roots, path) === undefined)
-      refuse('avatar_path is outside your Memory Repository and Workspace Grants');
     let bytes: Buffer;
     try {
-      const size = statSync(path).size;
-      if (size > MAX_PERSONA_BOT_AVATAR_BYTES)
-        refuse(`the image is larger than ${MAX_PERSONA_BOT_AVATAR_BYTES} bytes`);
-      bytes = readFileSync(path);
+      const target = realpathSync(path);
+      if (authorizedPathRoot(roots, target) === undefined)
+        refuse('avatar_path is outside your Memory Repository and Workspace Grants');
+      const fd = openSync(target, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+      try {
+        const stat = fstatSync(fd);
+        if (!stat.isFile()) refuse('avatar_path must be a regular file');
+        const tooLarge = `the image is larger than ${MAX_PERSONA_BOT_AVATAR_BYTES} bytes`;
+        if (stat.size > MAX_PERSONA_BOT_AVATAR_BYTES) refuse(tooLarge);
+        const buffer = Buffer.allocUnsafe(MAX_PERSONA_BOT_AVATAR_BYTES + 1);
+        let length = 0;
+        while (length < buffer.length) {
+          const read = readSync(fd, buffer, length, buffer.length - length, null);
+          if (read === 0) break;
+          length += read;
+        }
+        if (length > MAX_PERSONA_BOT_AVATAR_BYTES) refuse(tooLarge);
+        bytes = buffer.subarray(0, length);
+      } finally {
+        closeSync(fd);
+      }
     } catch (error) {
       if (error instanceof DirectBotToolError) throw error;
       return refuse('the image file cannot be read');

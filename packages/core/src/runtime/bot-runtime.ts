@@ -727,7 +727,11 @@ export interface BotRuntime {
   activeSessionModel?(sessionId: string): SessionModelChoice | null | undefined;
   sessionTurnTarget?(sessionId: string): TurnTarget | undefined;
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
-  replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
+  replaceOrchestrator?<T>(
+    botSlug: string,
+    body: () => T,
+    nextCwd?: () => string | undefined,
+  ): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
   hasPendingInbox?(botSlug: string): boolean;
@@ -2395,11 +2399,12 @@ class BotRuntimeImplementation implements BotRuntime {
   async replaceOrchestrator<T>(
     botSlug: string,
     body: () => T,
+    nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     if (this.#tails.has(botSlug)) return BOT_BUSY;
     let result: OrchestratorReplacement<T> | undefined;
     await this.#scheduling.enqueue(botSlug, async () => {
-      result = await this.#orchestratorSessions.replaceOrchestrator(botSlug, body);
+      result = await this.#orchestratorSessions.replaceOrchestrator(botSlug, body, nextCwd);
     });
     if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
     return result;

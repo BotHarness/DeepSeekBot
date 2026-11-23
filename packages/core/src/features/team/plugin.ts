@@ -29,10 +29,10 @@ export function apply({
   const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
     purge: contentPurge,
     spaces,
-    replaceBotMemory: async (slug, action) => {
+    replaceBotMemory: async (slug, action, nextCwd) => {
       const runtime = getRuntime();
       if (!runtime?.replaceOrchestrator) throw new TeamError('unavailable');
-      const result = await runtime.replaceOrchestrator(slug, action);
+      const result = await runtime.replaceOrchestrator(slug, action, nextCwd);
       if (result.outcome === 'refused') throw new TeamError(result.code, undefined, { slug });
       return result.value;
     },

@@ -4,6 +4,7 @@ import type { ChannelRecord, SessionFailureProgress } from '../../channels/chann
 import type { createChannelAdmission } from '../../channels/runtime-admission.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
+import { EngineLimitError } from '../../engines/engine-session.js';
 import { sourceSenderAllowed } from '../../messaging/sender-access.js';
 import type { PromptLimits } from '../../prompts/prompt-limits.js';
 import type { PromptText } from '../../prompts/prompt-parts.js';
@@ -344,6 +345,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
         if (retry.timer !== undefined) clearTimeout(retry.timer);
         ports.inboxFactoryRetries.delete(botSlug);
       }
+      let engineLimitHandled = false;
       if (orchestrator !== undefined && primaryChannelId !== undefined) {
         try {
           await ports.publishSessionFailure({
@@ -353,6 +355,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
             role: 'orchestrator',
             error,
           });
+          engineLimitHandled = error instanceof EngineLimitError;
         } catch (reportError) {
           ports.warn?.(
             JSON.stringify({
@@ -364,7 +367,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
           );
         }
       }
-      await ports.noteAutomaticFailure(botSlug, primaryChannelId, error);
+      if (!engineLimitHandled) await ports.noteAutomaticFailure(botSlug, primaryChannelId, error);
       throw error;
     } finally {
       for (const item of claimed.items)
@@ -810,6 +813,12 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
               WHERE e.bot_slug = ?
                 AND e.source_kind IN ('assignment-report', 'assignment-lifecycle', 'schedule')
                 AND e.observed_at IS NULL
+                AND (e.source_kind <> 'schedule' OR NOT EXISTS (
+                  SELECT 1 FROM inbox_admissions i
+                  WHERE i.source_event_id = e.source_event_id AND i.bot_slug = e.bot_slug
+                    AND i.reason = 'schedule'
+                    AND (i.attempt_state NOT IN ('pending', 'retryable') OR i.side_effect_started_at IS NOT NULL)
+                ))
               ORDER BY e.rowid DESC
               LIMIT 20`,
           )

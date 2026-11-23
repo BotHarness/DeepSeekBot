@@ -59,6 +59,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
   async function replaceOrchestrator<T>(
     botSlug: string,
     body: () => T,
+    nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
     const current = ports.currentOrchestratorSessionId(botSlug);
     if (current === undefined) return { outcome: 'replaced', value: body() };
@@ -71,7 +72,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       if (!(error instanceof Error && error.name === 'WorkspaceUnknownSessionError')) throw error;
       return {
         outcome: 'replaced',
-        value: supersedeUnsavedOrchestrator(current, body),
+        value: supersedeUnsavedOrchestrator(current, body, nextCwd),
       };
     }
     await ports.agents.releaseSession?.(current).catch(() =>
@@ -92,13 +93,27 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     }
   }
 
-  function supersedeUnsavedOrchestrator<T>(unsaved: string, body: () => T): T {
+  function supersedeUnsavedOrchestrator<T>(
+    unsaved: string,
+    body: () => T,
+    nextCwd?: () => string | undefined,
+  ): T {
     const owner = ports.ownership.resolve(unsaved);
     const bot = owner === undefined ? undefined : ports.registry.get(owner.botSlug);
     if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
-    const value = body();
     const at = Math.max(ports.now().getTime(), Date.parse(owner.createdAt) + 1);
-    releaseReplacedOrchestrators(bot.slug, claimOrchestrator(bot, new Date(at).toISOString()));
+    const sessionId = ports.createSessionId();
+    if (ports.ownership.resolve(sessionId) !== undefined)
+      throw new Error('Replacement Orchestrator Session ID is already claimed');
+    claimOrchestrator(bot, new Date(at).toISOString(), sessionId, nextCwd?.());
+    let value: T;
+    try {
+      value = body();
+    } catch (error) {
+      ports.ownership.discardUnstartedOrchestrator(sessionId, bot.slug);
+      throw error;
+    }
+    releaseReplacedOrchestrators(bot.slug, sessionId);
     return value;
   }
 
@@ -133,9 +148,12 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     }
   }
 
-  function claimOrchestrator(bot: PersonaBotRecord, at: string): string {
-    const sessionId = ports.createSessionId();
-    const cwdReference = orchestratorCwdReference(bot);
+  function claimOrchestrator(
+    bot: PersonaBotRecord,
+    at: string,
+    sessionId = ports.createSessionId(),
+    cwdReference = orchestratorCwdReference(bot),
+  ): string {
     ports.ownership.claim({
       sessionId,
       botSlug: bot.slug,

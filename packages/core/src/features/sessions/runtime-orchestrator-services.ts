@@ -10,6 +10,7 @@ import { externalMemberWake } from '../../messaging/defaults.js';
 import type { ExternalContextQuery } from '../../messaging/inbound.js';
 import type { OutboundMessaging } from '../../messaging/outbound.js';
 import { requireSourceEffects } from '../../purge/fence.js';
+import { BotMessageError } from '../../runtime/bot-message-tool.js';
 import type {
   OrchestratorAssignmentAccess,
   OrchestratorAgentRun,
@@ -329,9 +330,14 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             .get(id);
         });
         if (source?.source_kind === 'bridge-message') {
+          if (ports.externalMessaging === undefined)
+            throw new BotMessageError(
+              'unavailable-destination',
+              'External messaging is unavailable.',
+            );
           return {
             kind: 'external',
-            source: ports.externalMessaging!.inbound.readShared(bot.slug, id),
+            source: ports.externalMessaging.inbound.readShared(bot.slug, id),
           };
         }
         const reply = channels.replySource!(id);

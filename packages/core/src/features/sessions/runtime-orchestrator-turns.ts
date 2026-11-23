@@ -16,6 +16,7 @@ import {
 import type { createChannelAdmission } from '../../channels/runtime-admission.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
+import { EngineLimitError } from '../../engines/engine-session.js';
 import { humanContext } from '../../humans/context.js';
 import type { OutboundMessaging } from '../../messaging/outbound.js';
 import type { MessagingProcessing } from '../../messaging/typing.js';
@@ -284,24 +285,47 @@ export function createOrchestratorTurns(ports: OrchestratorTurnsPorts) {
             }
           : undefined;
       const sessionId = orchestrator.sessionId;
-      await ports.publishSessionFailure({
-        channelId,
-        requestMessageId: messageId,
-        botSlug: bot.slug,
-        sessionId,
-        role: 'orchestrator',
-        error,
-        progress: await ports.readTurnProgress?.(sessionId).catch(() => undefined),
-        ...(autoContinue === undefined ? {} : { autoContinue }),
-      });
-      if (resting) await ports.holdForRestingRoute(bot.slug, channelId, error);
-      if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
-        ports.continuation.armAutoContinue(
-          bot.slug,
-          { channelId, messageId, sessionId, attempt: autoContinue.attempt },
-          delayMs,
-          code,
+      let finishReport: () => void = () => undefined;
+      const retryPending =
+        autoContinue !== undefined && code !== undefined && delayMs !== undefined
+          ? ports.continuation.armAutoContinue(
+              bot.slug,
+              { channelId, messageId, sessionId, attempt: autoContinue.attempt },
+              delayMs,
+              code,
+              new Promise<void>((resolve) => {
+                finishReport = resolve;
+              }),
+            )
+          : undefined;
+      let engineLimitHandled = false;
+      try {
+        const progress = await ports.readTurnProgress?.(sessionId).catch(() => undefined);
+        await ports.publishSessionFailure({
+          channelId,
+          requestMessageId: messageId,
+          botSlug: bot.slug,
+          sessionId,
+          role: 'orchestrator',
+          error,
+          progress,
+          ...(retryPending?.() && autoContinue !== undefined ? { autoContinue } : {}),
+        });
+        engineLimitHandled = error instanceof EngineLimitError;
+      } catch (reportError) {
+        ports.warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'session-failure-report-failed',
+            botSlug: bot.slug,
+            error: String(reportError),
+          }),
         );
+      } finally {
+        finishReport();
+      }
+      if (resting && !engineLimitHandled)
+        await ports.holdForRestingRoute(bot.slug, channelId, error);
       throw error;
     }
     ports.markReportsHandled(collected.eventIds, bot.slug, orchestrator.sessionId);
@@ -393,15 +417,6 @@ export function createOrchestratorTurns(ports: OrchestratorTurnsPorts) {
       ...reportEventIds,
       ...nativeSourceIds,
     ]);
-    ports.activeSessionModels.set(orchestrator.sessionId, choice);
-    ports.turnSources.set(bot.slug, {
-      sessionId: orchestrator.sessionId,
-      eventIds: turnSources,
-      acceptedEventIds: new Set(turnSources),
-      inboundChannelId: channelId,
-      steeredChannelIds: new Set(),
-      memoryObservation,
-    });
     const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
       if (!unit.assignmentSessionId) continue;
@@ -446,6 +461,15 @@ export function createOrchestratorTurns(ports: OrchestratorTurnsPorts) {
       markAttemptSideEffect(database);
     };
     try {
+      ports.activeSessionModels.set(orchestrator.sessionId, choice);
+      ports.turnSources.set(bot.slug, {
+        sessionId: orchestrator.sessionId,
+        eventIds: turnSources,
+        acceptedEventIds: new Set(turnSources),
+        inboundChannelId: channelId,
+        steeredChannelIds: new Set(),
+        memoryObservation,
+      });
       const ids = [...new Set(wakeEventIds)];
       if (ids.length > 0)
         ports.database.transaction(
