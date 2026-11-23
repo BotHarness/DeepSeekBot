@@ -193,9 +193,31 @@ it.skipIf(!withdrawalAliases)(
         },
       },
     });
+    const peerListener = createServer((_request, response) => {
+      response.end(
+        JSON.stringify({
+          hostId: 'returning',
+          publicKey: 'a'.repeat(64),
+          contacts: [
+            {
+              hostId: 'returning',
+              botSlug: 'bot',
+              displayName: 'Returning Bot',
+              device: { model: null, platform: 'test' },
+              capabilities: [],
+            },
+          ],
+        }),
+      );
+    });
     const detach = routes.attach({ ...bridge, membership: bridge.probeMembership });
     try {
+      await new Promise<void>((resolve, reject) => {
+        peerListener.once('error', reject);
+        peerListener.listen(43275, peer.address, resolve);
+      });
       await bridge.start();
+      expect(routes.contacts()).toHaveLength(1);
       snapshot = 'absent';
       notify?.({ removedNodeIds: [peer.nodeId] });
       await expect
@@ -225,14 +247,23 @@ it.skipIf(!withdrawalAliases)(
         ),
       );
 
+      await bridge.refresh?.();
+      expect(routes.contacts()).toEqual([]);
+      expect(attempts).toHaveLength(3);
+
       refusal = false;
       expect(await routes.membership?.('returning')).toBe('member');
-      expect(attempts).toEqual(['returning', 'returning', 'returning']);
+      expect(attempts).toEqual(['returning', 'returning', 'returning', 'returning']);
       expect(await routes.membership?.('returning')).toBe('member');
-      expect(attempts).toHaveLength(3);
+      await bridge.refresh?.();
+      expect(routes.contacts()).toHaveLength(1);
+      expect(attempts).toHaveLength(4);
     } finally {
       detach();
       await bridge.close();
+      peerListener.closeAllConnections();
+      if (peerListener.listening)
+        await new Promise<void>((resolve) => peerListener.close(() => resolve()));
     }
   },
 );

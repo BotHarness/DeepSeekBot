@@ -613,7 +613,9 @@ export function createTailnetBotBridge(options: {
       );
       if (signal.aborted || closed) return;
       routes.clear();
-      if (!closed) for (const [id, route] of found) if (!collisions.has(id)) routes.set(id, route);
+      for (const [id, route] of found) {
+        if (!collisions.has(id) && !observedWithdrawn.has(id)) routes.set(id, route);
+      }
       options.record?.({ phase: 'discovery', durationMs: Date.now() - started });
     } catch {
       if (signal.aborted || closed) return;
