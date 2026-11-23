@@ -11,7 +11,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { hoverTooltip } from './primitive-mocks.js';
-import { afterEach, beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi, type Mock } from 'vitest';
 import { BotSidebar } from '../src/client/bot-sidebar.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store } from '../src/client/store.js';
@@ -599,9 +599,9 @@ let prefs: BotModePrefsSnapshot = {
   status: 'ready',
 };
 
-let setSortMode = vi.fn();
+let setSortMode: Mock = vi.fn();
 
-let setSectionSortMode = vi.fn();
+let setSectionSortMode: Mock = vi.fn();
 
 let menuView: { root: ReturnType<typeof createRoot>; host: HTMLDivElement } | undefined;
 
