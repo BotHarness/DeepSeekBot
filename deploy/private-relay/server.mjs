@@ -69,11 +69,12 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
     for (const [name, slot] of slots) if (equal(token, slot[field])) return name;
   };
   const bearer = (request) => request.headers.authorization?.replace(/^Bearer /u, '');
-  const json = (response, status, value) => {
+  const json = (response, status, value, headers = {}) => {
     response.writeHead(status, {
       'content-type': 'application/json',
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
+      ...headers,
     });
     response.end(JSON.stringify(value));
   };
@@ -112,6 +113,8 @@ export function createPrivateRelay({ directory, bootstrap, hostKeys = () => new 
       drop(name);
       return json(response, 200, { released: true });
     }
+    if (request.url === '/botharness-device/channel' && request.method === 'GET')
+      return json(response, 404, { code: 'private-route' }, { 'access-control-allow-origin': '*' });
     if (request.url !== '/claim' || request.method !== 'POST')
       return json(response, 404, { code: 'not-found' });
     const key = bearer(request);

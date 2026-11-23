@@ -198,15 +198,13 @@ export function createTunnelOrigin(options: {
       response.end(nonce);
       return;
     }
-    response.writeHead(404, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    response.end(
-      JSON.stringify({
-        code:
-          request.method === 'GET' && request.url === CONNECT_CHANNEL_PATH
-            ? 'private-route'
-            : 'not-found',
-      }),
-    );
+    const discovery = request.method === 'GET' && request.url === CONNECT_CHANNEL_PATH;
+    response.writeHead(404, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      ...(discovery ? { 'access-control-allow-origin': '*' } : {}),
+    });
+    response.end(JSON.stringify({ code: discovery ? 'private-route' : 'not-found' }));
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const admission = privateAdmissionFromHeaders(
