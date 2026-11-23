@@ -1,40 +1,29 @@
-import type { ComponentProps, ReactElement } from 'react';
+import { type ComponentProps, type ReactElement } from 'react';
 import type { PairedDevicesSettingsProps } from './paired-devices.js';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
-import { StatusBlock, StatusDisclosure, StatusStack } from './ds/status-block.js';
+import { StatusBlock, StatusHeading, StatusStack } from './ds/status-block.js';
 import { Note } from './ds/note.js';
-import { ChoiceButton } from './ds/choice-button.js';
-import { Tooltip } from './ds/tooltip.js';
+import { ConnectionMethods } from './connection-methods.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MobileAppDownloads } from './mobile-apps.js';
-import { ConnectionProgress } from './connection-progress.js';
+import { StepProgress } from './ds/step-progress.js';
 import { ConnectionProgressLog } from './connection-progress-log.js';
 import { ConnectionGuide } from './connection-guide.js';
 import { PrivateRelaySettings } from './private-relay-settings.js';
 import { PrivateTunnelSettings } from './private-tunnel-settings.js';
-import { PhoneRouteSteps, type PhoneRouteStatus } from './phone-route-steps.js';
-import { hasPhoneRoute, onTailnet, type usePairedDevices } from './use-paired-devices.js';
-
-export function ConnectionMethod({
-  title,
-  description,
-  detail,
-  disabled,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  detail: string;
-  disabled: boolean;
-  onClick(): void;
-}): ReactElement {
-  return (
-    <Tooltip label={detail} side="right" portal delayMs={0} focusDelayMs={0} maxWidth={360}>
-      <ChoiceButton title={title} description={description} disabled={disabled} onClick={onClick} />
-    </Tooltip>
-  );
-}
+import {
+  PhoneRouteSteps,
+  TailscaleStaleRoutes,
+  type PhoneRouteStatus,
+} from './phone-route-steps.js';
+import {
+  hasPhoneRoute,
+  onTailnet,
+  quickReady,
+  quickRoute,
+  type usePairedDevices,
+} from './use-paired-devices.js';
 
 export function portOf(routes: PhoneRouteStatus): string {
   const loopback = routes.routes.find((route) => route.kind === 'loopback');
@@ -66,8 +55,6 @@ export function renderPairedDeviceSetup({
   state,
   setupBack,
   connectControls,
-  renderDirectionChoices,
-  renderConnectMethod,
   pairingProps,
   metaProps,
 }: Pick<PairedDevicesSettingsProps, 't' | 'pairedDeviceId'> & {
@@ -75,8 +62,6 @@ export function renderPairedDeviceSetup({
   state: ReturnType<typeof usePairedDevices>;
   setupBack: ReactElement | undefined;
   connectControls: ReactElement | null;
-  renderDirectionChoices(): ReactElement;
-  renderConnectMethod(): ReactElement;
   pairingProps: Pick<ComponentProps<'div'>, 'className' | 'style'>;
   metaProps: Pick<ComponentProps<'p'>, 'className' | 'style'>;
 }): ReactElement {
@@ -94,19 +79,49 @@ export function renderPairedDeviceSetup({
     readState,
     load,
     publish,
-    createOffer,
     open,
     setLan,
     routes,
     tailscaleReady,
     lanReady,
-    advancedMethods,
-    setAdvancedMethods,
+    startQuick,
+    setError,
   } = state;
+  const quick = quickRoute(snapshot);
+  const configuredQuick = snapshot?.privateRoutes?.find((route) => route.id === 'quick');
+  const readyQuick = snapshot !== undefined && freshSnapshot && quickReady(snapshot);
+  const readyConnect =
+    freshSnapshot && routes?.routes.some((route) => route.kind === 'connect' && route.ready);
+  const namedMethod = tunnelStep === 'choose' ? undefined : tunnelStep;
+  const blockedByTunnel = Boolean(
+    snapshot?.privateRoutes?.length ||
+    (snapshot?.privateTunnel && snapshot.privateTunnel.state !== 'off'),
+  );
+  const blockedByRelay = (snapshot?.privateRelay?.state ?? 'off') !== 'off';
+  const setupTitle = {
+    app: t('connections.add'),
+    method: t('connections.methods'),
+    quick: t('connections.quick'),
+    quickStart: t('connections.quick'),
+    private:
+      namedMethod === 'named'
+        ? t('connections.method.domain')
+        : namedMethod === 'ingress'
+          ? t('connections.method.proxy')
+          : t('privateTunnel.title'),
+    privateRelay: t('connections.method.relay'),
+    lan: t('connections.lan'),
+    tailscale: t('devices.tailscale.title'),
+    connect: 'Tobs Connect',
+    closed: t('connections.title'),
+  }[setup];
+  const tailscaleMemberSignIn = routes?.routes.find(
+    (route) => route.kind === 'tailscale' && route.ready,
+  )?.memberSignIn;
   return (
     <ConnectionPanel
       inline={standalone}
-      title={t('connections.add')}
+      title={setupTitle}
       secondary={setupBack}
       closeLabel={t('common.close')}
       size="small"
@@ -116,35 +131,38 @@ export function renderPairedDeviceSetup({
       }}
     >
       <div {...pairingProps}>
-        {readState === 'loading' && setup !== 'direction' ? (
-          <Note>{t('devices.list.loading')}</Note>
-        ) : null}
+        {readState === 'loading' ? <Note>{t('devices.list.loading')}</Note> : null}
         {readState === 'stale' ? (
           <>
             <Note tone="warning">{t('devices.connection.stale')}</Note>
-            <Button variant="outline" onClick={() => void load()}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void load().then((value) => {
+                  if (setup === 'quick' && value) void startQuick(value);
+                })
+              }
+            >
               {t('devices.connection.retry')}
             </Button>
           </>
         ) : null}
-        {setup !== 'direction' && setup !== 'app' ? (
-          <ConnectionProgress t={t} step={setup === 'method' ? 0 : 1} />
+        {standalone && (setup === 'quick' || setup === 'quickStart') ? (
+          <StatusHeading>{setupTitle}</StatusHeading>
         ) : null}
-        {setup !== 'app' ? (
-          <Note>
-            {t(
-              setup === 'direction'
-                ? 'connections.direction'
-                : setup === 'method'
-                  ? 'connections.choose'
-                  : 'connections.prepare',
-            )}
-          </Note>
+        {setup === 'quick' || setup === 'quickStart' ? (
+          <StepProgress
+            label={t('privateTunnel.panel.steps')}
+            steps={[
+              t('privateTunnel.panel.stepStart'),
+              t('privateTunnel.panel.stepCheck'),
+              t('privateTunnel.panel.stepPair'),
+            ]}
+            step={setup === 'quick' ? 1 : readyQuick ? 2 : 0}
+          />
         ) : null}
-        {(setup === 'privateRelay' ||
-          (setup === 'private' && (snapshot?.privateRelay?.state ?? 'off') !== 'off')) &&
-        ((snapshot?.privateTunnel?.state ?? 'off') !== 'off' ||
-          (snapshot?.privateRelay?.state ?? 'off') !== 'off') ? (
+        {(setup === 'privateRelay' && blockedByTunnel) ||
+        ((setup === 'private' || setup === 'quickStart') && blockedByRelay) ? (
           <Note tone="warning">{t('connections.privateReplacement')}</Note>
         ) : null}
         {setup === 'app' ? (
@@ -161,8 +179,7 @@ export function renderPairedDeviceSetup({
                   setSetup('closed');
                   void load();
                 } else if (snapshot && (hasPhoneRoute(snapshot.routes) || onTailnet())) {
-                  setSetup('closed');
-                  void createOffer();
+                  open();
                 } else setSetup('method');
               }}
             >
@@ -170,96 +187,61 @@ export function renderPairedDeviceSetup({
             </Button>
             <MobileAppDownloads t={t} />
           </div>
-        ) : setup === 'direction' ? (
-          renderDirectionChoices()
         ) : setup === 'method' ? (
+          <ConnectionMethods t={t} state={state} />
+        ) : setup === 'quickStart' ? (
           <>
-            <ConnectionMethod
-              title={t(
-                snapshot?.privateTunnel?.mode && snapshot.privateTunnel.mode !== 'quick'
-                  ? 'privateTunnel.title'
-                  : 'privateTunnel.quickEntry',
-              )}
-              description={t(
-                snapshot?.privateTunnel?.mode && snapshot.privateTunnel.mode !== 'quick'
-                  ? 'privateTunnel.description'
-                  : 'privateTunnel.quickEntryDescription',
-              )}
-              detail={t('privateTunnel.intro')}
-              disabled={!freshSnapshot}
-              onClick={() => {
-                setTunnelStep('choose');
-                setSetup('private');
-              }}
-            />
-            {renderConnectMethod()}
-            <StatusDisclosure
-              icon="settings"
-              title={t('connections.advancedMethods')}
-              fullWidth
-              open={advancedMethods}
-              onToggle={() => setAdvancedMethods(!advancedMethods)}
+            <Note>{t('connections.quickRequirements')}</Note>
+            <Button
+              variant="primary"
+              disabled={!freshSnapshot || busy !== undefined || blockedByRelay}
+              onClick={() => snapshot && void startQuick(snapshot)}
             >
-              <ConnectionMethod
-                title={t('connections.lan')}
-                description={t('connections.lanDescription')}
-                detail={t('connections.lanDetail')}
-                disabled={!freshSnapshot}
-                onClick={() => {
-                  if (lanReady) {
-                    setSetup('closed');
-                    open();
-                  } else setSetup('lan');
-                }}
+              {t(readyQuick ? 'privateRelay.pair' : 'privateTunnel.panel.quickAction')}
+            </Button>
+            {quick ? (
+              <PrivateTunnelSettings
+                t={t}
+                status={quick}
+                {...(configuredQuick ? { routes: [configuredQuick] } : {})}
+                fresh={freshSnapshot}
+                refresh={load}
+                pair={open}
+                advanced={() => setSetup('privateRelay')}
+                step="choose"
+                setStep={setTunnelStep}
+                managementOnly
               />
-              <ConnectionMethod
-                title="Tailscale"
-                description={t('connections.tailscaleDescription')}
-                detail={t('connections.tailscaleDetail')}
-                disabled={!freshSnapshot}
-                onClick={() => {
-                  setSetup('tailscale');
-                }}
-              />
-              <ConnectionMethod
-                title={t('privateTunnel.namedTitle')}
-                description={t('privateTunnel.namedDescription')}
-                detail={t('connections.namedRequirements')}
-                disabled={!freshSnapshot}
-                onClick={() => {
-                  setTunnelStep('named');
-                  setSetup('private');
-                }}
-              />
-              <ConnectionMethod
-                title={t('privateTunnel.ingressTitle')}
-                description={t('privateTunnel.ingressDescription')}
-                detail={t('connections.ingressRequirements')}
-                disabled={!freshSnapshot}
-                onClick={() => {
-                  setTunnelStep('ingress');
-                  setSetup('private');
-                }}
-              />
-              <ConnectionMethod
-                title={t('privateRelay.title')}
-                description={t('privateRelay.description')}
-                detail={t('privateRelay.requirement')}
-                disabled={!freshSnapshot}
-                onClick={() => setSetup('privateRelay')}
-              />
-            </StatusDisclosure>
+            ) : null}
           </>
-        ) : (setup === 'private' ||
-            (setup === 'privateRelay' &&
-              snapshot?.privateTunnel?.state !== undefined &&
-              snapshot.privateTunnel.state !== 'off')) &&
-          (snapshot?.privateRelay?.state ?? 'off') === 'off' ? (
+        ) : setup === 'quick' ? (
+          <>
+            <StatusBlock
+              icon={error ? 'info' : 'zap'}
+              tone={error ? 'warning' : 'accent'}
+              title={t(
+                error ? 'privateTunnel.panel.failedTitle' : 'privateTunnel.panel.startingTitle',
+              )}
+              action={
+                error && snapshot && freshSnapshot ? (
+                  <Button
+                    variant="primary"
+                    disabled={busy !== undefined}
+                    onClick={() => void startQuick(snapshot)}
+                  >
+                    {t('devices.connection.retry')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          </>
+        ) : setup === 'private' ? (
           <PrivateTunnelSettings
             t={t}
             {...(snapshot?.privateTunnel ? { status: snapshot.privateTunnel } : {})}
             {...(snapshot?.privateRoutes ? { routes: snapshot.privateRoutes } : {})}
             refresh={load}
+            fresh={freshSnapshot}
             pair={() => {
               setSetup('closed');
               open();
@@ -267,12 +249,15 @@ export function renderPairedDeviceSetup({
             advanced={() => setSetup('privateRelay')}
             step={tunnelStep}
             setStep={setTunnelStep}
+            method={namedMethod}
+            locked={blockedByRelay}
           />
-        ) : setup === 'private' || setup === 'privateRelay' ? (
+        ) : setup === 'privateRelay' ? (
           <PrivateRelaySettings
             t={t}
             {...(snapshot?.privateRelay ? { status: snapshot.privateRelay } : {})}
             refresh={load}
+            locked={blockedByTunnel}
             pair={() => {
               setSetup('closed');
               open();
@@ -280,20 +265,43 @@ export function renderPairedDeviceSetup({
           />
         ) : setup === 'lan' ? (
           <StatusStack title={t('devices.lan.title')}>
+            <StepProgress
+              label={t('connections.progress')}
+              steps={[t('devices.lan.title'), t('privateTunnel.panel.stepPair')]}
+              step={lanReady ? 1 : 0}
+            />
             <StatusBlock
               icon="house"
               tone="accent"
-              title={t('devices.lan.panel.offTitle')}
+              title={t(lanReady ? 'connections.methodStatus.ready' : 'devices.lan.panel.offTitle')}
               body={t('devices.lan.notice')}
               action={
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={!freshSnapshot || busy !== undefined}
-                  onClick={() => void setLan('enable', true)}
-                >
-                  {t('connections.enableContinue')}
-                </Button>
+                <>
+                  {lanReady ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={!freshSnapshot || busy !== undefined}
+                      onClick={open}
+                    >
+                      {t('privateRelay.pair')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant={lanReady ? 'outline' : 'primary'}
+                    size="sm"
+                    disabled={!freshSnapshot || busy !== undefined}
+                    onClick={() =>
+                      void setLan(snapshot?.lan?.state === 'listening' ? 'disable' : 'enable', true)
+                    }
+                  >
+                    {t(
+                      snapshot?.lan?.state === 'listening'
+                        ? 'devices.lan.disable'
+                        : 'connections.enableContinue',
+                    )}
+                  </Button>
+                </>
               }
               data={{ 'data-lan-setup': snapshot?.lan?.state ?? 'off' }}
             >
@@ -319,6 +327,7 @@ export function renderPairedDeviceSetup({
           <StatusStack title={t('devices.tailscale.title')}>
             <Note tone="warning">{t('connections.tailscaleVpn')}</Note>
             <ConnectionGuide t={t} method="tailscale" />
+            {freshSnapshot ? <TailscaleStaleRoutes t={t} routes={routes?.staleRoutes} /> : null}
             {tailscaleReady ? (
               <StatusBlock
                 icon="check"
@@ -339,7 +348,17 @@ export function renderPairedDeviceSetup({
                   </Button>
                 }
                 data={{ 'data-tailscale-setup': 'ready' }}
-              />
+              >
+                {tailscaleMemberSignIn ? (
+                  <Note tone={tailscaleMemberSignIn === 'managed-tls' ? 'success' : 'warning'}>
+                    {t(
+                      tailscaleMemberSignIn === 'managed-tls'
+                        ? 'devices.tailscale.memberSignIn.trusted'
+                        : 'devices.tailscale.memberSignIn.untrusted',
+                    )}
+                  </Note>
+                ) : null}
+              </StatusBlock>
             ) : (
               <StatusBlock
                 icon="shield-check"
@@ -359,7 +378,18 @@ export function renderPairedDeviceSetup({
                 }}
               />
             )}
-            {routes && !tailscaleReady ? (
+            {routes?.managed?.enabled || routes?.managed?.owned ? (
+              <Button
+                variant="outline"
+                disabled={!freshSnapshot || busy !== undefined}
+                onClick={() =>
+                  void publish('disable').then((failure) => setError(failure !== undefined))
+                }
+              >
+                {t('devices.tailscale.disable')}
+              </Button>
+            ) : null}
+            {routes ? (
               <PhoneRouteSteps
                 t={t}
                 status={routes}
@@ -371,22 +401,18 @@ export function renderPairedDeviceSetup({
           </StatusStack>
         ) : (
           <>
-            {connectControls ?? <Note>{t('connections.connectUnavailable')}</Note>}
-            <Button
-              variant="outline"
-              onClick={() => {
-                setTunnelStep('choose');
-                setSetup('private');
-              }}
-            >
+            <StepProgress
+              label={t('connections.progress')}
+              steps={[t('connections.signInConnect'), t('privateTunnel.panel.stepPair')]}
+              step={readyConnect ? 1 : 0}
+            />
+            {connectControls}
+            <Button variant="outline" onClick={() => setSetup('quickStart')}>
               {t('connections.useQuickTunnel')}
             </Button>
             <Button
               variant="primary"
-              disabled={
-                !freshSnapshot ||
-                !routes?.routes.some((route) => route.kind === 'connect' && route.ready)
-              }
+              disabled={!readyConnect}
               onClick={() => {
                 setSetup('closed');
                 open();
@@ -396,12 +422,12 @@ export function renderPairedDeviceSetup({
             </Button>
           </>
         )}
-        {['private', 'privateRelay', 'connect', 'tailscale', 'lan'].includes(setup) ? (
+        {['quick', 'private', 'privateRelay', 'connect', 'tailscale', 'lan'].includes(setup) ? (
           <ConnectionProgressLog
             key={setup}
             t={t}
             source={
-              setup === 'private'
+              setup === 'quick' || setup === 'private'
                 ? 'private-tunnel'
                 : setup === 'privateRelay'
                   ? 'private-relay'

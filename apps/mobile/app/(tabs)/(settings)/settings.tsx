@@ -70,6 +70,9 @@ export default function SettingsScreen() {
           onStorage: () => router.push('/settings/storage'),
           onModelProviders: () => router.push('/settings/model-providers'),
           onModels: () => router.push('/settings/models'),
+          ...(saved != null && saved.member === undefined
+            ? { onVoice: () => router.push('/settings/voice') }
+            : {}),
           onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,
         }}

@@ -38,3 +38,28 @@ export function uniqueProviderName(base: string, taken: readonly string[]): stri
     if (!names.has(candidate.toLowerCase())) return candidate;
   }
 }
+
+const HTTPS_LINK = /^https:\/\/[^\s/?#@]+(?:[/?#]\S*)?$/iu;
+
+function httpsLink(raw: unknown): string | undefined {
+  return typeof raw === 'string' && HTTPS_LINK.test(raw) ? raw : undefined;
+}
+
+export function voiceCatalogItem(raw: unknown): VoiceCatalogItem | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+  const item = raw as Record<string, unknown>;
+  const { id, name, importFrom } = item;
+  if (
+    typeof id !== 'string' ||
+    typeof name !== 'string' ||
+    (importFrom !== undefined && typeof importFrom !== 'string')
+  )
+    return undefined;
+  const previewUrl = httpsLink(item['previewUrl']);
+  return {
+    id,
+    name,
+    ...(importFrom === undefined ? {} : { importFrom }),
+    ...(previewUrl === undefined ? {} : { previewUrl }),
+  };
+}

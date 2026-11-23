@@ -263,9 +263,8 @@ export function DevicesSection({
   call,
   t,
   pairPhone,
-  joinComputer,
 }: SectionProps<BotSettingsSectionOwnerProps & { call: BridgeCall }>): ReactElement {
-  return <ConnectionsPage call={call} t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
+  return <ConnectionsPage call={call} t={t} pairPhone={pairPhone} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

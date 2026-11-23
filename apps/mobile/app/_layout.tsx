@@ -92,6 +92,7 @@ function RootNavigator() {
     ['usage', t.usage],
     ['model-providers', t.modelProviders.title],
     ['model-provider-account', t.modelProviders.account],
+    ['voice', t.voiceSettings.title],
     ['models', t.modelConfig.title],
     ['model-preset-new', undefined],
     ['model-sub-choice', undefined],

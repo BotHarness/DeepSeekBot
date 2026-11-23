@@ -35,7 +35,7 @@ Generated from exported components and [catalogue.json](catalogue.json) by `pnpm
 - [Kbd](kbd.tsx) replaces ad hoc keycap formatting.
 - [KeyCombo](kbd.tsx) replaces locally spaced sequences of keycaps.
 - [ListCard](list-card.tsx) replaces padded card lists where hover stops short of the card edge; the card has no padding and owns radius, fill and clipping per Tobs style.
-- [ListCardItem](list-card.tsx) replaces hand-built list tiles; a full-bleed tile with leading, title, summary, trailing, detail and an optional whole-tile toggle.
+- [ListCardItem](list-card.tsx) replaces hand-built list tiles; a full-bleed tile with leading, title, summary, trailing, detail and an optional whole-tile toggle or action.
 - [Menu](menu.tsx) replaces feature-owned action menus and keyboard navigation.
 - [MenuItemButton](menu.tsx) replaces hand-styled action controls inside menus.
 - [MenuRowButton](menu-row-button.tsx) replaces styled native buttons for menu-like rows.

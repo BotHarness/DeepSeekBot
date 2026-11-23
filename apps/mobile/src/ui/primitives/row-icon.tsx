@@ -28,7 +28,7 @@ const ROW_ICONS = {
   background: { ios: 'photo', android: 'wallpaper' },
   haptics: { ios: 'iphone.radiowaves.left.and.right', android: 'mobile_vibrate' },
   delivery: { ios: 'checkmark.bubble', android: 'mark_chat_read' },
-  sessions: { ios: 'text.quote', android: 'article' },
+  sessions: { ios: 'list.bullet.rectangle', android: 'article' },
   sendJump: { ios: 'arrow.down.to.line', android: 'vertical_align_bottom' },
   messageDisplay: { ios: 'text.bubble', android: 'chat' },
   streaming: { ios: 'ellipsis.bubble', android: 'stream' },
@@ -44,6 +44,7 @@ const ROW_ICONS = {
   lan: { ios: 'wifi', android: 'wifi' },
   encrypted: { ios: 'lock', android: 'vpn_lock' },
   add: { ios: 'plus', android: 'add' },
+  voice: { ios: 'waveform', android: 'graphic_eq' },
 } as const;
 
 export type RowIconName = keyof typeof ROW_ICONS;
