@@ -48,7 +48,14 @@ export function channelCreationTransport(
           if (
             creation &&
             !uncertain &&
-            ['unknown-bot', 'archived-bot', 'protected-bot', 'invalid-input'].includes(error.code)
+            [
+              'unknown-bot',
+              'archived-bot',
+              'protected-bot',
+              'invalid-input',
+              'member-not-found',
+              'team-mode-off',
+            ].includes(error.code)
           )
             throw new ChannelCreationNotAccepted(error.code);
           throw new Error(error.code, { cause: error });
@@ -127,6 +134,7 @@ export function channelCreationTransport(
           const channel = await createGroupChannel(client, {
             name: operation.name,
             members: operation.members,
+            ...(operation.humanIds === undefined ? {} : { humanIds: operation.humanIds }),
             operationKey: operation.operationKey,
           });
           return channel.id;

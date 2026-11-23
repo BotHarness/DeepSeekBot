@@ -5,12 +5,13 @@ import {
   creationAvatarRecipe,
   type BotAvatarChoice,
 } from '@botharness/host-client/bot-avatar-choice';
-import { type AvatarRecipe } from '../../../../../packages/core/src/bots/avatar-appearance';
+import { isTiltiesAvatar } from '@botharness/host-client/tilties-avatars';
 import { useStrings } from '../strings';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { AvatarCustomizer } from './avatar-customizer';
+import { TiltiesPicker } from './tilties-picker';
 
 export function CreationAvatarEditorScreen() {
   const state = useBotCreation();
@@ -20,10 +21,9 @@ export function CreationAvatarEditorScreen() {
     if (router.canGoBack()) router.back();
     else router.replace({ pathname: '/create-bot', params: { entry: 'resume' } });
   };
-  const save = async (recipe: AvatarRecipe): Promise<boolean> => {
+  const save = async (avatar: BotAvatarChoice): Promise<boolean> => {
     const current = botCreation.getSnapshot();
     if (!current.loaded || current.busy || current.record.kind !== 'draft') return false;
-    const avatar: BotAvatarChoice = { kind: 'recipe', recipe };
     await botCreation.setAvatar(avatar);
     const next = botCreation.getSnapshot();
     return (
@@ -39,10 +39,19 @@ export function CreationAvatarEditorScreen() {
         <Text>{t.avatarEditor.unavailable}</Text>
       </View>
     );
+  const avatar = state.record.draft.avatar;
+  if (avatar?.kind === 'photo' && isTiltiesAvatar(avatar.image))
+    return (
+      <TiltiesPicker
+        initial={avatar.image}
+        onSave={(image) => save({ kind: 'photo', image })}
+        onClose={close}
+      />
+    );
   return (
     <AvatarCustomizer
-      initial={creationAvatarRecipe(state.record.draft.avatar)}
-      onSave={save}
+      initial={creationAvatarRecipe(avatar)}
+      onSave={(recipe) => save({ kind: 'recipe', recipe })}
       onClose={close}
     />
   );

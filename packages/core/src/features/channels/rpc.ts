@@ -88,8 +88,16 @@ export function channelCreate(
   name: string,
   members: string[],
   operationKey?: string,
+  humanIds?: string[],
 ): { channel: ChannelRecord } | ChannelManagementResult {
-  return unwrap(methods.channelCreate({ name, members, operationKey }));
+  return unwrap(
+    methods.channelCreate({
+      name,
+      members,
+      operationKey,
+      ...(humanIds === undefined ? {} : { humanIds }),
+    }),
+  );
 }
 
 export function channelRename(
@@ -580,8 +588,9 @@ export const channelManagementRpc = {
     name: string,
     members: string[],
     operationKey?: string,
+    humanIds?: string[],
   ): { channel: ChannelRecord } | ChannelManagementResult {
-    return channelCreate(this.methods, name, members, operationKey);
+    return channelCreate(this.methods, name, members, operationKey, humanIds);
   },
 
   channelRename(

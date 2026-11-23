@@ -153,7 +153,7 @@ Usage:
   tobs settings-set <namespace> --patch-stdin [--expected-revision <n> --previous-value <json>]
   tobs workspace-create <absolute-path>
   tobs channel <channel-id>
-  tobs group-create <name> [--member <bot-id> ...] [--operation-key <key>]
+  tobs group-create <name> [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <key>]
   tobs group-member-picker [channel-id] [--query <text>]
   tobs group-members-add <channel-id> --body-stdin
   tobs group-invite <channel-id> --bot <bot-id> [--operation-key <key>] [--expected-channel <fingerprint>]

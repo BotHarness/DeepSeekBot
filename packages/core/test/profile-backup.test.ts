@@ -142,18 +142,26 @@ it('runs online preview, download and inspection through the CLI and the same Pr
     }
     expect((await invoke(['profile-backup-recovery'])).value).toMatchObject({ restored: false });
     expect(preview.code).toBe(0);
-    expect(preview.value).toMatchObject({ bots: 0, token: expect.any(String) });
+    expect(preview.value).toMatchObject({ bots: 0, confirmation: null });
+    expect(preview.value).not.toHaveProperty('token');
+    const confirmation = join(root(), 'confirmation.json');
+    const saved = await invoke(['profile-backup-preview', '--out', confirmation]);
+    expect(saved.value).toMatchObject({ bots: 0, confirmation: { path: confirmation } });
+    expect(saved.value).not.toHaveProperty('token');
     const path = join(root(), 'download.botharness-backup');
     const unwritable = await invoke(
       ['profile-backup-export', '--out', join(root(), 'missing', 'backup'), '--confirmation-stdin'],
-      JSON.stringify(preview.value),
+      readFileSync(confirmation, 'utf8'),
     );
     expect(unwritable.code).not.toBe(0);
     expect(unwritable.value).toMatchObject({ error: { code: 'backup-io-failed' } });
-    const downloaded = await invoke(
-      ['profile-backup-export', '--out', path, '--confirmation-stdin'],
-      JSON.stringify(preview.value),
-    );
+    const downloaded = await invoke([
+      'profile-backup-export',
+      '--out',
+      path,
+      '--confirmation-file',
+      confirmation,
+    ]);
     expect(downloaded.code).toBe(0);
     expect(downloaded.value).toMatchObject({ bytes: readFileSync(path).length });
     const inspected = await invoke(['profile-backup-inspect', '--file', path]);

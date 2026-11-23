@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
@@ -316,7 +317,7 @@ export class TeamChannels {
     this.requirePolicy(human, channelId, 'addMembers');
     const humanId = typeof reference === 'string' ? this.memberId(reference) : reference.humanId;
     const operationKey = typeof reference === 'string' ? undefined : reference.operationKey;
-    if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
+    this.requireActiveMember(humanId);
     const outcome = this.db.transaction(
       (db): 'applied' | 'joined' | 'ended' | 'key-conflict' => {
         let alreadyJoined = false;
@@ -338,10 +339,7 @@ export class TeamChannels {
             return alreadyJoined ? 'joined' : 'ended';
           }
         }
-        if (!alreadyJoined)
-          db.prepare(
-            `INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,? FROM humans WHERE human_id = ? ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`,
-          ).run(channelId, new Date().toISOString(), humanId);
+        if (!alreadyJoined) this.writeMember(db, channelId, humanId, new Date().toISOString());
         if (operationKey !== undefined)
           db.prepare(
             'INSERT INTO channel_human_add_receipts (actor_human_id, operation_key, channel_id, target_human_id) VALUES (?, ?, ?, ?)',
@@ -354,6 +352,34 @@ export class TeamChannels {
     if (outcome === 'ended') throw new TeamError('channel-membership-ended');
     if (outcome === 'applied') this.changed();
     return null;
+  }
+  addInitialMembers(
+    db: DatabaseSync,
+    human: HumanContext,
+    channelId: string,
+    humanIds: readonly string[],
+    joinedAt: string,
+  ): (() => void) | undefined {
+    this.roles.require(human, 'channels.create');
+    this.requirePolicy(human, channelId, 'addMembers');
+    for (const humanId of humanIds) {
+      this.requireActiveMember(humanId);
+      this.writeMember(db, channelId, humanId, joinedAt);
+    }
+    return humanIds.some((humanId) => humanId !== human.humanId) ? () => this.changed() : undefined;
+  }
+  private requireActiveMember(humanId: string): void {
+    if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
+  }
+  private writeMember(
+    db: DatabaseSync,
+    channelId: string,
+    humanId: string,
+    joinedAt: string,
+  ): void {
+    db.prepare(
+      `INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,? FROM humans WHERE human_id = ? ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`,
+    ).run(channelId, joinedAt, humanId);
   }
   descriptionSet(human: HumanContext, channelId: string, description: string): null {
     this.requirePolicy(human, channelId, 'editDetails');

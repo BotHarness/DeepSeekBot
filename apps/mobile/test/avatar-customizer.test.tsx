@@ -48,6 +48,8 @@ vi.mock('react-native-svg', () => ({
 }));
 
 import { AvatarCustomizer } from '../src/ui/shell/avatar-customizer';
+import { TiltiesPicker } from '../src/ui/shell/tilties-picker';
+import { TILTIES_PORTRAITS } from '@botharness/host-client/tilties-avatars';
 import { CreationAvatar, CreationAvatarPreview } from '../src/ui/shell/creation-avatar';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 
@@ -78,18 +80,20 @@ it('changes the creation portrait only through its explicit actions', async () =
   click('Customize');
   expect(push).toHaveBeenCalledWith('/create-bot-avatar');
   expect(change).not.toHaveBeenCalled();
-  click('Shuffle');
-  expect(change).toHaveBeenCalledOnce();
-  expect(change.mock.calls[0]?.[0]).toEqual({ kind: 'generated', seed: expect.any(String) });
+  expect(buttonNamed('Shuffle')).toBeUndefined();
+  expect(node.querySelector('[data-testid="create-bot-avatar-shuffle"]')).toBeNull();
 });
 afterEach(() => {
   act(() => root.unmount());
   node.remove();
 });
-function click(name: string) {
-  const button = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
+function buttonNamed(name: string) {
+  return [...node.querySelectorAll<HTMLButtonElement>('button')].find(
     (b) => b.getAttribute('aria-label') === name || b.textContent === name,
   );
+}
+function click(name: string) {
+  const button = buttonNamed(name);
   expect(button, name).toBeDefined();
   if (button) act(() => button.click());
 }
@@ -150,4 +154,71 @@ it('changing the preview name never changes its image identity', async () => {
   );
   expect(node.querySelector('img')).toBe(image);
   expect(node.querySelector('img')?.src).toBe(uri);
+});
+
+it('offers Shuffle only in the Pixel section and keeps the shuffled draft until Done', async () => {
+  const saved: AvatarRecipe[] = [];
+  const initial = seededAvatarFor('initial', 2);
+  await act(async () =>
+    root.render(
+      <AvatarCustomizer
+        initial={initial}
+        onSave={async (recipe) => {
+          saved.push(recipe);
+          return true;
+        }}
+        onClose={() => {}}
+      />,
+    ),
+  );
+  expect(node.querySelector('[data-testid="avatar-editor-shuffle"]')).not.toBeNull();
+  const before = node
+    .querySelector('[data-testid="avatar-editor-preview"] img')
+    ?.getAttribute('src');
+  click('Shuffle');
+  const after = node
+    .querySelector('[data-testid="avatar-editor-preview"] img')
+    ?.getAttribute('src');
+  expect(after).not.toBe(before);
+  click('Line');
+  expect(node.querySelector('[data-testid="avatar-editor-shuffle"]')).toBeNull();
+  click('Pixel');
+  expect(node.querySelector('[data-testid="avatar-editor-preview"] img')?.getAttribute('src')).toBe(
+    after,
+  );
+  expect(saved).toEqual([]);
+  await act(async () => click('Done'));
+  expect(saved).toHaveLength(1);
+  expect(saved[0]).not.toEqual(initial);
+  expect(saved[0]?.family).toBe('illustrated');
+});
+
+it('lets a Tilties draft pick a portrait directly and saves it only after Done', async () => {
+  const [first, second] = TILTIES_PORTRAITS;
+  if (!first || !second) throw Error('Expected Tilties');
+  const saved: string[] = [];
+  const close = vi.fn();
+  await act(async () =>
+    root.render(
+      <TiltiesPicker
+        initial={first.image}
+        onSave={async (image) => {
+          saved.push(image);
+          return true;
+        }}
+        onClose={close}
+      />,
+    ),
+  );
+  const checked = (id: string) =>
+    node.querySelector(`[data-testid="tilties-avatar-${id}"]`)?.getAttribute('aria-checked');
+  expect(checked(first.id)).toBe('true');
+  expect(buttonNamed('Shuffle')).toBeUndefined();
+  click(second.en);
+  expect(checked(second.id)).toBe('true');
+  expect(checked(first.id)).toBe('false');
+  expect(saved).toEqual([]);
+  await act(async () => click('Done'));
+  expect(saved).toEqual([second.image]);
+  expect(close).toHaveBeenCalledOnce();
 });

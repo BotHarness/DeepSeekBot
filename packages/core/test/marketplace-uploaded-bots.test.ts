@@ -275,6 +275,7 @@ it('sets and clears the Account Profile avatar through the Host', async () => {
 it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot with one commit', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);
+  write(memory, 'SOUL.md', 'You are Helper, a patient note keeper who answers in haiku.');
   readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
@@ -362,6 +363,16 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
   expect(copy).not.toBe(memory);
   expect(readFileSync(join(copy, 'notes/today.md'), 'utf8')).toBe('Today I wrote.');
   expect(readFileSync(join(copy, 'tools/run.sh'), 'utf8')).toBe('echo hi');
+  expect(readFileSync(join(copy, 'SOUL.md'), 'utf8')).toBe(
+    'You are Helper, a patient note keeper who answers in haiku.',
+  );
+  expect(f.core.channels.get(installed.value.channelId)).toMatchObject({
+    botSlug: installed.value.bot.slug,
+  });
+  const tob = await f.core.tob.ensure();
+  expect(f.core.tob.isTob(tob.botSlug)).toBe(true);
+  expect(f.core.tob.isTob(installed.value.bot.slug)).toBe(false);
+  expect(f.core.grants.list(installed.value.bot.slug)).toEqual([]);
   const commits = execFileSync('git', ['rev-list', '--count', 'HEAD'], {
     cwd: copy,
     encoding: 'utf8',

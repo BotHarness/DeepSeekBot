@@ -248,7 +248,12 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.channels)).toEqual([]);
     expect(parameterNames(service.channelDm)).toEqual(['slug', 'displayName']);
     expect(parameterNames(service.channelGet)).toEqual(['channelId']);
-    expect(parameterNames(service.channelCreate)).toEqual(['name', 'members', 'operationKey']);
+    expect(parameterNames(service.channelCreate)).toEqual([
+      'name',
+      'members',
+      'operationKey',
+      'humanIds',
+    ]);
     expect(parameterNames(service.channelGroupInvite)).toEqual([
       'channelId',
       'botSlug',

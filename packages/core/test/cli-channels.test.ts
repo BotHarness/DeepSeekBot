@@ -284,6 +284,10 @@ describe('Channel and group CLI commands', () => {
             'ada',
             '--member',
             'bob',
+            '--human',
+            'member-bob',
+            '--human',
+            'member-ada',
             '--operation-key',
             'team-create-1',
           ],
@@ -293,7 +297,12 @@ describe('Channel and group CLI commands', () => {
     ).toBe(0);
     expect(live.calls.at(-1)).toEqual({
       method: 'channelCreate',
-      args: { name: 'Team', members: ['ada', 'bob'], operationKey: 'team-create-1' },
+      args: {
+        name: 'Team',
+        members: ['ada', 'bob'],
+        humanIds: ['member-bob', 'member-ada'],
+        operationKey: 'team-create-1',
+      },
     });
     expect(
       (
