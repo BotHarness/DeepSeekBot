@@ -131,7 +131,7 @@ it('preserves the last settings value if a toggle is refused', async () => {
   expect(host.textContent).not.toContain('保存失败，再试一次。');
 });
 
-it('requires the current password and retains Team settings error handling', async () => {
+it.each([true, false])('rotates a password with sign-out %s', async (signOutOthers) => {
   const mode = { ...fakeTeamMode(), ownerPasswordSet: true };
   let refuse = true;
   const call = vi.fn<BridgeCall>(async (method) => {
@@ -151,6 +151,9 @@ it('requires the current password and retains Team settings error handling', asy
   const dialog = document.querySelector('[role="dialog"]');
   if (!dialog) throw new Error('Missing change-password dialog');
   const submit = button(zhTranslate('team.save'), dialog);
+  const checkbox = field(zhTranslate('team.ownerPassword.signOutOthers'));
+  expect(checkbox.checked).toBe(true);
+  if (!signOutOthers) await act(async () => checkbox.click());
   await fill(zhTranslate('team.password.new'), 'new-test-password');
   await fill(zhTranslate('team.password.confirm'), 'new-test-password');
   expect(submit.disabled).toBe(true);
@@ -165,12 +168,12 @@ it('requires the current password and retains Team settings error handling', asy
   expect(call.mock.calls.filter(([method]) => method === 'teamOwnerPasswordSet')).toEqual([
     [
       'teamOwnerPasswordSet',
-      { password: 'new-test-password', current: 'old-test-password' },
+      { password: 'new-test-password', current: 'old-test-password', signOutOthers },
       undefined,
     ],
     [
       'teamOwnerPasswordSet',
-      { password: 'new-test-password', current: 'old-test-password' },
+      { password: 'new-test-password', current: 'old-test-password', signOutOthers },
       undefined,
     ],
   ]);

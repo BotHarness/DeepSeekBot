@@ -88,7 +88,10 @@ export const navigationBar = {
   indicatorHeight: 32,
   indicatorRadius: radius.md,
   itemPadding: 6,
-  labelMinScale: 0.5,
+  symbolBox: 32,
+  labelInset: 4,
+  labelLeading: 1.18,
+  hitFill: '#00000001',
   shadow: {
     light: '0 2px 8px rgba(15, 17, 21, 0.06)',
     dark: '0 2px 8px rgba(0, 0, 0, 0.12)',
@@ -101,6 +104,8 @@ export const materialNavigationBar = {
   indicatorWidth: 56,
   indicatorHeight: 32,
   iconLabelGap: 4,
+  labelSize: 12,
+  labelInset: 8,
 } as const;
 export const materialIconButton = {
   target: 48,
@@ -120,6 +125,7 @@ export const fab = {
   menuWidth: 320,
   menuSettle: 350,
 } as const;
+export const creationCard = { fadeDuration: 150, levelDuration: 180 } as const;
 export const materialDrawer = {
   width: 360,
   scrimGutter: 56,

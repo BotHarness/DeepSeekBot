@@ -45,7 +45,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'team-mode',
     description:
-      'status | on | off | owner-password --password-stdin | owner-sign-in status|on|off | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
+      'status | on | off | owner-password --password-stdin [--sign-out-others=true --confirm] | owner-sign-in status|on|off | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
   },
   {
     command: 'members',
@@ -388,11 +388,18 @@ export async function runTeamCommand(
     if ((action === 'on' || action === 'off') && rest.length === 1)
       return rpc('teamModeSet', { enabled: action === 'on' });
     if (action === 'owner-password' && values['password-stdin'] && rest.length === 1) {
+      const signOut = values['sign-out-others'];
+      if (signOut !== undefined && signOut !== 'true' && signOut !== 'false') return usage();
+      if (signOut === 'true' && !values.confirm)
+        throw new CliLiveError('confirm-required', 'Signing out other devices requires --confirm.');
       const text = await secret(io);
       const input = text.startsWith('{')
         ? secretJson(z.object({ password: z.string(), current: z.string().optional() }), text)
         : { password: text };
-      return rpc('teamOwnerPasswordSet', input);
+      return rpc('teamOwnerPasswordSet', {
+        ...input,
+        ...(signOut === undefined ? {} : { signOutOthers: signOut === 'true' }),
+      });
     }
     if (
       action === 'insecure-http' &&

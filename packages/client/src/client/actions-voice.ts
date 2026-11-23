@@ -2,6 +2,8 @@ import type { BridgeCall } from './bridge.js';
 import { createVoiceDictationPort } from './composer-dictation.js';
 import {
   addVoiceProvider,
+  browseVoiceCatalog,
+  importSharedVoice,
   loadVoiceProviders,
   removeVoiceProvider,
   setBotAsr,
@@ -13,6 +15,10 @@ import {
   type BotAsrView,
   type BotVoiceView,
   type VoiceDefaultsView,
+  type VoiceCatalogImportInput,
+  type VoiceCatalogInput,
+  type VoiceCatalogItem,
+  type VoiceCatalogPage,
   type VoiceSpeechThresholdView,
   type VoiceProviderAddInput,
   type VoiceProviderHealthView,
@@ -23,6 +29,8 @@ import {
 
 export interface VoiceActions {
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  browseVoiceCatalog?(input: VoiceCatalogInput, signal?: AbortSignal): Promise<VoiceCatalogPage>;
+  importSharedVoice?(input: VoiceCatalogImportInput): Promise<VoiceCatalogItem>;
   dictationPort?(slug?: string): import('./composer-dictation.js').VoiceDictationPort;
   addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
   removeVoiceProvider?(id: string): Promise<string[]>;
@@ -50,6 +58,8 @@ export interface VoiceActions {
 export function createVoiceActions(call: BridgeCall) {
   return {
     voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    browseVoiceCatalog: (input, signal) => browseVoiceCatalog(call, input, signal),
+    importSharedVoice: (input) => importSharedVoice(call, input),
     dictationPort: (slug) => createVoiceDictationPort(call, { slug }),
     addVoiceProvider: (input) => addVoiceProvider(call, input),
     removeVoiceProvider: (id) => removeVoiceProvider(call, id),

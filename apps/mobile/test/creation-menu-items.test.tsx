@@ -1,72 +1,85 @@
 import { expect, it, vi } from 'vitest';
-import { interfacePreferences } from '../src/ui/interface-preferences';
-vi.mock('../src/cloud/available', () => ({ cloudAvailable: false }));
-import { creationMenuItems } from '../src/ui/shell/creation-menu-items';
+import { cloudEnvironmentKey, computerEnvironmentKey } from '../src/host/conversation-environments';
 import { creationTargets } from '../src/host/creation-targets';
-import { computerEnvironmentKey } from '../src/host/conversation-environments';
-const targets = creationTargets({ hostId: 'mac', name: 'Mac' }, []).map((t) => ({
-  ...t,
-  channelCreation: false,
+import { chatsCreationActions } from '../src/ui/shell/creation-menu-items';
+
+const feature = vi.hoisted(() => ({ cloud: true }));
+vi.mock('../src/cloud/available', () => ({
+  get cloudAvailable() {
+    return feature.cloud;
+  },
 }));
-it('groups imports without pairing and keeps All destination-free', () => {
-  for (const ts of [[], targets]) {
-    const items = creationMenuItems({ scope: 'all', targets: ts });
-    expect(items.map((i) => i.action)).toEqual(['bot', 'import', 'marketplace']);
-    expect(items.find((i) => i.action === 'import')?.children?.map((i) => i.action)).toEqual([
-      'zip',
-      'git',
-    ]);
-    expect(items.every((i) => i.target === undefined)).toBe(true);
-    expect(items.flatMap((i) => i.children ?? [i]).every((i) => i.target === undefined)).toBe(true);
-  }
-});
-it('carries the explicitly selected Computer for every source', () => {
-  expect(
-    creationMenuItems({ scope: computerEnvironmentKey('mac'), targets })
-      .flatMap((i) => i.children ?? [i])
-      .every((i) => i.target?.kind === 'computer' && i.target.hostId === 'mac'),
-  ).toBe(true);
-});
-it('preserves explicit target selection for legacy channel actions', () => {
-  const choices = creationMenuItems({
-    scope: 'all',
-    targets: creationTargets({ hostId: 'mac', name: 'Mac' }, []),
+
+const computer = { hostId: 'mac', name: 'Mac' };
+const scope = cloudEnvironmentKey('owner', 'org');
+const workspace = {
+  instanceId: 'tobs',
+  organizationId: 'org',
+  organizationName: 'Team',
+  scope: 'owner',
+  server: 'https://tobs.example.test',
+  guest: false,
+  role: 'owner' as const,
+};
+
+it('offers Join in All and reserves Invite for the selected eligible cloud workspace', () => {
+  const targets = creationTargets(computer, [workspace]);
+  expect(chatsCreationActions('all', targets)).toEqual({
+    group: true,
+    bot: true,
+    join: true,
+    invite: undefined,
   });
-  expect(choices.find((i) => i.action === 'channel')?.children).toEqual([
-    expect.objectContaining({
-      action: 'channel',
-      target: expect.objectContaining({ hostId: 'mac' }),
-    }),
-  ]);
+  expect(chatsCreationActions(computerEnvironmentKey('mac'), targets)).toEqual({
+    group: true,
+    bot: true,
+    join: false,
+    invite: undefined,
+  });
+  expect(chatsCreationActions(scope, targets)).toEqual({
+    group: true,
+    bot: false,
+    join: false,
+    invite: expect.objectContaining({ kind: 'cloud', workspace }),
+  });
 });
 
-it('opens the native channel form from All before choosing a Host, including without pairing', () => {
-  for (const ts of [[], targets]) {
-    const item = creationMenuItems({ scope: 'all', targets: ts, nativeChannelForm: true }).find(
-      (item) => item.action === 'channel',
-    );
-    expect(item?.action).toBe('channel');
-    expect(item?.children).toBeUndefined();
-    expect(item?.target).toBeUndefined();
-  }
+it.each([
+  { ...workspace, guest: true },
+  { ...workspace, role: 'member' as const },
+])('hides Invite and group creation in an ineligible cloud workspace', (ineligible) => {
+  expect(chatsCreationActions(scope, creationTargets(computer, [ineligible]))).toEqual({
+    group: false,
+    bot: false,
+    join: false,
+    invite: undefined,
+  });
 });
 
-it('uses the approved top-level labels and order in both languages', () => {
-  const original = interfacePreferences.getSnapshot().language;
+it('keeps group creation and hides Bot creation from ungranted Team members', () => {
+  const targets = creationTargets(computer, []).map((target) => ({
+    ...target,
+    botCreation: false,
+  }));
+  expect(chatsCreationActions('all', targets)).toMatchObject({
+    group: true,
+    bot: false,
+    join: true,
+  });
+  expect(chatsCreationActions(computerEnvironmentKey('mac'), targets)).toMatchObject({
+    group: true,
+    bot: false,
+    join: false,
+  });
+});
+
+it('hides both cloud actions without cloud support', () => {
+  feature.cloud = false;
   try {
-    interfacePreferences.setLanguage('en');
-    expect(
-      creationMenuItems({ scope: 'all', targets: [], nativeChannelForm: true }).map(
-        (item) => item.label,
-      ),
-    ).toEqual(['Create Bot', 'Import Bot', 'Create Channel', 'Bot Marketplace']);
-    interfacePreferences.setLanguage('zh');
-    expect(
-      creationMenuItems({ scope: 'all', targets: [], nativeChannelForm: true }).map(
-        (item) => item.label,
-      ),
-    ).toEqual(['创建 Bot', '导入 Bot', '创建频道', 'Bot市场']);
+    const targets = creationTargets(computer, [workspace]);
+    expect(chatsCreationActions('all', targets).join).toBe(false);
+    expect(chatsCreationActions(scope, targets).invite).toBeUndefined();
   } finally {
-    interfacePreferences.setLanguage(original);
+    feature.cloud = true;
   }
 });

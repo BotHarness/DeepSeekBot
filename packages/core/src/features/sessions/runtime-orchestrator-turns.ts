@@ -450,13 +450,16 @@ export function createOrchestratorTurns(ports: OrchestratorTurnsPorts) {
     let memoryEventIds: string[] = [];
     let preserveObservation = false;
     const importedFiles = new Map<string, ChannelAttachmentRef>();
-    const markSideEffect = (database?: DatabaseSync): void => {
-      ports.requireTurnAccess(bot.slug, new Set([...turnSources, ...readAdmissions]));
+    const requireSideEffectAccess = (): void => {
+      const sources = new Set([...turnSources, ...readAdmissions]);
+      ports.requireTurnAccess(bot.slug, sources);
       if (ports.stoppedTurns.has(bot.slug)) throw new Error(SESSION_STOPPED_REFUSAL);
       ports.database.read((db) => {
-        for (const id of new Set([...turnSources, ...readAdmissions]))
-          requireSourceEffects(db, id, bot.slug);
+        for (const id of sources) requireSourceEffects(db, id, bot.slug);
       });
+    };
+    const markSideEffect = (database?: DatabaseSync): void => {
+      requireSideEffectAccess();
       ports.markReportSideEffects([...reportEventIds, ...memoryEventIds], bot.slug, database);
       markAttemptSideEffect(database);
     };
@@ -667,6 +670,7 @@ export function createOrchestratorTurns(ports: OrchestratorTurnsPorts) {
           sessionId: orchestrator.sessionId,
           channelId,
           sourceEventId,
+          requireSideEffectAccess,
           markSideEffect,
           readAdmissions,
           importedFiles,

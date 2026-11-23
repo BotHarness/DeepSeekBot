@@ -27,6 +27,10 @@ export async function providerMessage(
   response: Response,
   key: string | undefined,
 ): Promise<string> {
+  if (response.headers.get('content-type')?.toLowerCase().startsWith('text/html') === true) {
+    await response.body?.cancel().catch(() => undefined);
+    return `HTTP ${response.status}`;
+  }
   let text = '';
   try {
     text = new TextDecoder().decode(await readBounded(response, 4_096));
@@ -86,5 +90,10 @@ export function statusError(status: number, detail: string): VoiceError {
     );
   if (status >= 500)
     return new VoiceError('provider-unavailable', `The provider failed: ${detail}`);
+  if (status === 404)
+    return new VoiceError(
+      'provider-rejected',
+      `The provider endpoint was not found: ${detail}. Check the preset and base URL.`,
+    );
   return new VoiceError('provider-rejected', `The provider rejected the request: ${detail}`);
 }

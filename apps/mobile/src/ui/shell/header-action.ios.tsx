@@ -20,6 +20,7 @@ const symbols = {
   archive: 'archivebox',
   filter: 'line.3.horizontal.decrease',
   more: 'ellipsis',
+  add: 'plus',
   search: 'magnifyingglass',
   settings: 'gearshape',
   tob: 'chevron.down.circle',

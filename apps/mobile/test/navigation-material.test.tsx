@@ -143,3 +143,50 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
     for (const path of assets) delete requireAsset.cache[path];
   }
 });
+
+it('drops every Material label together when labels do not fit and keeps each content description', async () => {
+  const requireAsset = createRequire(import.meta.url);
+  const assets = ['chats', 'sessions', 'settings'].map((name) =>
+    requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
+  );
+  for (const path of assets) {
+    const asset = new Module(path);
+    asset.exports = 1;
+    requireAsset.cache[path] = asset;
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const item = (key: string, kind: { sessions?: boolean; settings?: boolean }) => ({
+    key,
+    focused: key === 'chats',
+    activity: false,
+    ...kind,
+    count: 0,
+    onPress() {},
+    onLongPress() {},
+  });
+  try {
+    act(() =>
+      root.render(
+        createElement(NavigationDestinations, {
+          labels: false,
+          items: [
+            item('chats', {}),
+            item('sessions', { sessions: true }),
+            item('settings', { settings: true }),
+          ],
+        }),
+      ),
+    );
+    expect(host.querySelectorAll('[data-slot="label"]')).toHaveLength(0);
+    expect(host.querySelectorAll('[data-slot="icon"] i')).toHaveLength(3);
+    expect([...host.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))).toEqual([
+      t.chats,
+      t.hostSessions.title,
+      t.settings,
+    ]);
+  } finally {
+    act(() => root.unmount());
+    for (const path of assets) delete requireAsset.cache[path];
+  }
+});

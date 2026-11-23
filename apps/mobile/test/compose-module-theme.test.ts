@@ -13,7 +13,6 @@ const modules = [
 ];
 const adapters = [
   'src/ui/primitives/icon-tabs.android.tsx',
-  'src/ui/shell/creation-menu-button.android.tsx',
   'src/ui/primitives/search-field.android.tsx',
   'src/ui/shell/chats-search-bar.android.tsx',
   'src/ui/primitives/split-button.android.tsx',

@@ -6,6 +6,7 @@ import type { HeaderActionIcon } from './header-glyph';
 const symbols = {
   archive: { android: 'archive' },
   filter: { android: 'filter_list' },
+  add: { android: 'add' },
   more: { android: 'more_vert' },
   search: { android: 'search' },
   settings: { android: 'settings' },

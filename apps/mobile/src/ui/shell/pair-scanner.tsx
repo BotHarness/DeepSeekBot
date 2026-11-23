@@ -1,9 +1,10 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
+import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
-import { connectInput } from '../../host/connect-input';
+import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { HOST_NAME_MAX } from '@botharness/host-client/ui/design/host-look';
@@ -49,6 +50,17 @@ export function PairScanner({
   const submitting = useRef(false);
   const deepLinked = useRef(false);
   const pairing = usePairing();
+  const scroll = useRef<KeyboardAwareScrollViewRef>(null);
+  const [linkBottom, setLinkBottom] = useState(0);
+  const [submitBottom, setSubmitBottom] = useState(0);
+  const named = link.trim() !== '' && connectInput(link).kind === 'pairing';
+  const submitClearance =
+    submitBottom > linkBottom
+      ? Math.max(
+          theme.touch + space.x6 * 2,
+          submitBottom - linkBottom + space.x6 * Math.max(1, theme.fontScale),
+        )
+      : undefined;
 
   const pair = async (text: string, method: PairingMethod): Promise<void> => {
     if (!active.current || imageOperation.current || submitting.current) return;
@@ -122,6 +134,8 @@ export function PairScanner({
 
   return (
     <KeyboardFormScroll
+      ref={scroll}
+      {...(submitClearance === undefined ? {} : { bottomOffset: submitClearance })}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
@@ -138,44 +152,34 @@ export function PairScanner({
         }}
       >
         <DesktopPath steps={steps} />
-        <View
-          style={{
-            width: scan,
-            height: scan,
-            borderRadius: radius.lg,
-            overflow: 'hidden',
-            backgroundColor: theme.layer.well.fill,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {permission?.granted ? (
-            focused &&
-            !readingImage && (
+        {permission?.granted ? (
+          <View
+            style={{
+              width: scan,
+              height: scan,
+              borderRadius: radius.lg,
+              overflow: 'hidden',
+              backgroundColor: theme.layer.well.fill,
+            }}
+          >
+            {focused && !readingImage ? (
               <CameraView
                 style={{ width: '100%', height: '100%' }}
                 facing="back"
                 barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                 onBarcodeScanned={pairing.busy ? undefined : ({ data }) => void pair(data, 'qr')}
               />
-            )
-          ) : (
-            <Pressable
-              testID="pair-allow-camera"
-              onPress={() => void requestPermission()}
-              accessibilityRole="button"
-              style={{
-                padding: space.x5,
-                minHeight: theme.touch,
-                justifyContent: 'center',
-              }}
-            >
-              <Text tone="accent" strong style={{ textAlign: 'center' }}>
-                {t.allowCamera}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+            ) : null}
+          </View>
+        ) : (
+          <Button
+            testID="pair-allow-camera"
+            label={t.allowCamera}
+            tone="primary"
+            on="canvas"
+            onPress={() => void requestPermission()}
+          />
+        )}
         <Button
           testID="pair-choose-image"
           label={readingImage ? t.pairImage.reading : t.pairImage.choose}
@@ -198,7 +202,12 @@ export function PairScanner({
       {pairing.canRetry && imageError === undefined ? (
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />
       ) : null}
-      <View style={{ gap: space.x2 }}>
+      <View
+        style={{ gap: space.x2 }}
+        onLayout={({ nativeEvent }) =>
+          setLinkBottom(nativeEvent.layout.y + nativeEvent.layout.height)
+        }
+      >
         {labelInField ? null : (
           <Text variant="meta" tone="muted" accessibilityRole="header">
             {t.pasteLink}
@@ -222,7 +231,7 @@ export function PairScanner({
           onSubmitEditing={() => void pair(link, 'paste')}
         />
       </View>
-      {link.trim() !== '' && connectInput(link).kind === 'pairing' ? (
+      {named ? (
         <ConnectionNameField
           value={pairing.connectionName}
           onChange={pairing.setConnectionName}
@@ -230,15 +239,24 @@ export function PairScanner({
           disabled={pairing.busy || readingImage}
         />
       ) : null}
-      <Button
-        testID="pair-link-submit"
-        label={t.pairContinue}
-        tone="primary"
-        on="canvas"
-        busy={pairing.busy}
-        disabled={pairing.busy || readingImage || link.trim() === ''}
-        onPress={() => void pair(link, 'paste')}
-      />
+      <View
+        onLayout={({ nativeEvent }) => {
+          const bottom = nativeEvent.layout.y + nativeEvent.layout.height;
+          if (bottom === submitBottom) return;
+          setSubmitBottom(bottom);
+          requestAnimationFrame(() => scroll.current?.assureFocusedInputVisible());
+        }}
+      >
+        <Button
+          testID="pair-link-submit"
+          label={t.pairContinue}
+          tone="primary"
+          on="canvas"
+          busy={pairing.busy}
+          disabled={pairing.busy || readingImage || link.trim() === ''}
+          onPress={() => void pair(link, 'paste')}
+        />
+      </View>
       {children}
     </KeyboardFormScroll>
   );

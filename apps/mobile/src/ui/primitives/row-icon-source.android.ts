@@ -48,6 +48,7 @@ export const ROW_ICON_SOURCES: Record<
   check: require('../../../assets/row-icons/check.xml'),
   chevron: require('../../../assets/row-icons/chevron.xml'),
   add: require('../../../assets/row-icons/add.xml'),
+  voice: require('../../../assets/row-icons/voice.xml'),
   expand: require('../../../assets/row-icons/expand.xml'),
   collapse: require('../../../assets/row-icons/collapse.xml'),
 };

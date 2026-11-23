@@ -8,6 +8,7 @@ import { useStrings } from '../strings';
 import type { ChatsSearchBarProps, ChatsSearchResult } from './chats-search-bar';
 
 type NativeSearchBarProps = PrimitiveBaseProps & {
+  autoExpand?: boolean;
   placeholder: string;
   navigationLabel: string;
   closeLabel: string;
@@ -37,6 +38,7 @@ export function ChatsSearchBar(props: ChatsSearchBarProps) {
     >
       <NativeSearchBar
         modifiers={[testID('chats-search-bar')]}
+        autoExpand={props.autoExpand ?? false}
         placeholder={props.placeholder}
         navigationLabel={t.workspaces}
         closeLabel={t.closeSearch}

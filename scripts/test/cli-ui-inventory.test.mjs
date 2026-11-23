@@ -69,6 +69,15 @@ describe('UI and CLI coverage inventory', () => {
     ).toEqual(['field:packages/computer/src/settings.ts:target']);
   });
 
+  it('keeps inventory keys when a settings action moves into a list card', () => {
+    const rows = uiSurfacesFrom(client, '<SettingsRow title="Connections" control={<Button />} />');
+    const cards = uiSurfacesFrom(
+      client,
+      '<><ListCardItem title="Connections" trailing={<Button />} /><ListCardItem title="Status" /></>',
+    );
+    expect(cards).toEqual(rows);
+  });
+
   it('tracks constants, templates, shorthand paths, prefix routes and helper routes', () => {
     const host = 'packages/core/src/http.ts';
     const surfaces = uiSurfacesFrom(

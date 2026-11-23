@@ -87,6 +87,64 @@ function deferred() {
 }
 
 describe('Memory turn Host responsiveness', () => {
+  it('keeps the Memory branch and refs unchanged when a stopped turn calls branch commands', async () => {
+    const refusals: string[] = [];
+    let stop: ReturnType<NonNullable<ReturnType<typeof createCore>['runtime']['stopSession']>>;
+    let currentSessionId: string | undefined;
+    let head = '';
+    const core = createCore({
+      dshHome: createTempRoot('memory-stopped-branch-'),
+      agents: {
+        async runOrchestrator(run) {
+          currentSessionId = run.sessionId;
+          stop = core.runtime.stopSession!('atlas', run.sessionId);
+          for (const command of [
+            () => run.memory!.switchBranch('existing'),
+            () => run.memory!.continueFromCommit(head, 'new-branch'),
+          ]) {
+            try {
+              command();
+            } catch (error) {
+              refusals.push(String(error));
+            }
+          }
+        },
+        stopOrchestratorTurn: () => currentSessionId,
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('Unexpected assignment');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'atlas', displayName: 'Atlas' });
+      const root = core.registry.memoryDirFor('atlas')!;
+      git(root, 'branch', 'existing');
+      head = git(root, 'rev-parse', 'HEAD');
+      const branch = git(root, 'branch', '--show-current');
+      const refs = git(root, 'branch', '--list');
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'atlas')!;
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'memory-branches',
+        body: 'Switch Memory branch',
+      });
+      if (!admission.admitted) throw new Error('Not admitted');
+      await admission.settled;
+      await stop!;
+      expect(refusals).toEqual([
+        expect.stringContaining('The Human stopped this Session'),
+        expect.stringContaining('The Human stopped this Session'),
+      ]);
+      expect(git(root, 'branch', '--show-current')).toBe(branch);
+      expect(git(root, 'branch', '--list')).toBe(refs);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('stops preparation before an adapter run exists and permits a later fresh turn', async () => {
     const gate = deferred();
     const entered = deferred();

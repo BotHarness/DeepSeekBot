@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { teamInvitationRoute } from '../src/team/team-link-path';
+import { teamInvitationRoute } from '@botharness/host-client/connect-input';
 
 describe('Team invitation links opened by the system', () => {
   it('routes store, Dev and already-stripped invitation paths to sign-in', () => {

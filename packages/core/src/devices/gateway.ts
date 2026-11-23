@@ -392,11 +392,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     if (!admission.ok) return refuse(response, 401, admission.code);
     const pathname = new URL(request.url ?? '/', 'http://device').pathname;
     const endpoint = pathname.slice(`${prefix}/api/`.length);
-    if (
-      decodeURIComponent(endpoint)
-        .replace(/\/{2,}/gu, '/')
-        .startsWith('botharness/relationships')
-    )
+    const normalizedEndpoint = decodeURIComponent(endpoint).replace(/\/{2,}/gu, '/');
+    if (normalizedEndpoint.startsWith('botharness/relationships'))
       return refuse(response, 403, 'relationship-local-client-required');
     if (
       await refuseConnectRpc(request, response, endpoint, () =>
@@ -404,6 +401,13 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       )
     )
       return;
+    if (
+      admission.device.enrollment === 'owner-password' &&
+      normalizedEndpoint.replace(/\/$/u, '') === 'botharness/teamOwnerPasswordSet'
+    ) {
+      if (!options.team) return refuse(response, 503, 'host-session-unavailable');
+      return options.team.ownerDevicePassword(request, response, admission.device.id);
+    }
     let session: string;
     try {
       session = await hostSession();

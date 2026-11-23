@@ -98,6 +98,18 @@ export function mountDeviceGateway(
         get device() {
           return memberGateway?.device;
         },
+        async ownerDevicePassword(
+          request: IncomingMessage,
+          response: ServerResponse,
+          deviceId: string,
+        ) {
+          if (memberGateway) return memberGateway.ownerDevicePassword(request, response, deviceId);
+          response.writeHead(503, {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          });
+          response.end(JSON.stringify({ code: 'member-carrier-unavailable' }));
+        },
         async handle(request: IncomingMessage, response: ServerResponse) {
           if (memberGateway) return memberGateway.handle(request, response);
           response.writeHead(503, {

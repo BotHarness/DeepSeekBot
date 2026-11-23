@@ -142,7 +142,6 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
     sectionId: 'im-apps',
     compactList: false,
     pairPhone: false,
-    joinComputer: false,
   });
   expect(imApps.takeNotice()).toBeUndefined();
 
@@ -153,7 +152,6 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
     sectionId: 'im-apps',
     compactList: false,
     pairPhone: false,
-    joinComputer: false,
   });
   expect(imApps.takeNotice()).toBe('settings-unavailable');
   expect(imApps.takeNotice()).toBeUndefined();

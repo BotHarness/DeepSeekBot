@@ -945,11 +945,7 @@
       "width: 10px"
     ],
     "packages/client/src/client/model-brand.tsx": ["bottom: -3px", "insetInlineEnd: -4px"],
-    "packages/client/src/client/paired-devices.tsx": [
-      "backgroundColor: white",
-      "height: 220px",
-      "width: 220px"
-    ],
+    "packages/client/src/client/paired-devices.tsx": ["backgroundColor: white", "width: 220px"],
     "packages/client/src/client/phone-route-steps.tsx": ["height: 6px", "width: 6px"],
     "packages/client/src/client/pinned-panel-cards.tsx": [
       "bottom: -5px",
@@ -1481,7 +1477,6 @@
   "jsxCopy": {
     "apps/mobile/src/ui/widgets/call-activity.tsx": ["Hang Up", "取消静音", "挂断", "静音"],
     "apps/mobile/src/ui/widgets/request-activity.tsx": ["更新于"],
-    "packages/client/src/client/connection-hosts.tsx": ["Tobs Connect"],
     "packages/client/src/client/create-app-form.tsx": ["App ID", "App Secret"],
     "packages/client/src/client/external-source-content.tsx": ["Source Event:"],
     "packages/client/src/client/features/channels/channel-message-body.tsx": ["Open channel {…}"],
@@ -1489,10 +1484,9 @@
       "Mention a PersonaBot",
       "Reference a Group Channel"
     ],
-    "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
+    "packages/client/src/client/paired-devices.tsx": ["Tobs Connect"]
   },
   "pressableLabel": {
-    "apps/mobile/app/pair/tailscale.tsx": ["Pressable"],
     "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
     "apps/mobile/src/ui/shell/activity-feed.tsx": ["Pressable"]
   },
@@ -1512,7 +1506,6 @@
     "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
     "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
     "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/navigation-action.tsx": ["Pressable"]
+    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"]
   }
 }

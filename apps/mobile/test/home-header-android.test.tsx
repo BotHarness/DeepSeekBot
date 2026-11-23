@@ -150,6 +150,16 @@ describe('Android Chats header', () => {
     expect(Number.parseFloat(bar.style.height)).toBe(56 + 24 * (scale - 1) + 8);
   });
 
+  it('keeps actions reachable on a separate row at large text sizes', () => {
+    const readDirection = () =>
+      header(false).querySelector<HTMLElement>('[data-testid="home-header"]')?.style.flexDirection;
+    device.fontScale = 1;
+    expect(readDirection()).toBe('row');
+    device.fontScale = 2;
+    expect(readDirection()).toBe('column');
+    expect(header(false).querySelectorAll('[data-symbol]')).toHaveLength(2);
+  });
+
   it.each([1, 1.5, 2])(
     'reserves the native search height before opening at font scale %s',
     (fontScale) => {
@@ -204,7 +214,7 @@ describe('Android Chats header', () => {
 
 describe('Chats header Host name', () => {
   it.each(['ios', 'android'])(
-    'wraps the Host name to at most two lines at accessibility text sizes on %s',
+    'allows the entire Host name to wrap at accessibility text sizes on %s',
     (os) => {
       platform.OS = os;
       device.fontScale = 3.12;
@@ -220,7 +230,7 @@ describe('Chats header Host name', () => {
         const name = [...view.querySelectorAll<HTMLElement>('span')].find(
           (node) => node.textContent === 'DoodleBeardeMacBook-Air',
         )!;
-        expect(name.dataset.lines).toBe('2');
+        expect(name.dataset.lines).toBeUndefined();
       } finally {
         platform.OS = 'android';
         device.fontScale = 1;

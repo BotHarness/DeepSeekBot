@@ -29,7 +29,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -52,6 +56,7 @@ class FabMenuItem : Record {
 data class FabMenuProps(
   val items: List<FabMenuItem> = emptyList(),
   val expanded: Boolean = false,
+  val direct: Boolean = false,
   val available: Boolean = true,
   val label: String = "",
   val closeLabel: String = "",
@@ -86,9 +91,13 @@ fun FabMenu(
   var expanded by remember { mutableStateOf(props.expanded) }
   LaunchedEffect(props.expanded) { expanded = props.expanded }
   val toggle = {
-    nextExpanded(expanded, props.available)?.let {
-      expanded = it
-      onToggle(it)
+    if (props.direct) {
+      if (props.available) onToggle(true)
+    } else {
+      nextExpanded(expanded, props.available)?.let {
+        expanded = it
+        onToggle(it)
+      }
     }
   }
   // Reduce Motion keeps the morph but drops the overshooting Expressive spring.
@@ -96,6 +105,22 @@ fun FabMenu(
     val scheme = MaterialTheme.colorScheme
     val add = remember { vector(ADD) }
     val close = remember { vector(CLOSE) }
+    val buttonSemantics = if (props.direct) {
+      Modifier.testTag("session-create-button").clearAndSetSemantics {
+        role = Role.Button
+        contentDescription = props.label
+        onClick {
+          toggle()
+          true
+        }
+      }
+    } else {
+      Modifier.testTag("creation-menu-trigger").semantics {
+        traversalIndex = -1f
+        contentDescription = if (expanded) props.closeLabel else props.label
+        stateDescription = if (expanded) "expanded" else "collapsed"
+      }
+    }
     Box(
       modifier = modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
       contentAlignment = Alignment.BottomEnd,
@@ -127,13 +152,7 @@ fun FabMenu(
           ToggleFloatingActionButton(
             checked = expanded,
             onCheckedChange = { toggle() },
-            modifier = Modifier
-              .testTag("creation-menu-trigger")
-              .semantics {
-                traversalIndex = -1f
-                contentDescription = if (expanded) props.closeLabel else props.label
-                stateDescription = if (expanded) "expanded" else "collapsed"
-              },
+            modifier = buttonSemantics,
           ) {
             Icon(
               if (fabGlyph(checkedProgress) == FabGlyph.Close) close else add,

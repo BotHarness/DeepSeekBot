@@ -765,21 +765,10 @@ describe('Search in the Chats header', () => {
     const view = await home();
     await act(async () => conversationFilter.set(computerEnvironmentKey('removed-host')));
     expect(conversationFilter.getSnapshot()).toBe('all');
-    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
-      t.allEnvironments,
-    );
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(t.chats);
     expect(rows(view)).toHaveLength(3);
   });
-  it("opens the computer's Tob DM from the Tob Mode action, through the top entrance", async () => {
-    const tobButton = (view: HTMLElement) =>
-      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.openTobMode}"]`);
-    let view = await home();
-    expect(tobButton(view)).not.toBeNull();
-    push.mockClear();
-    await act(async () => tobButton(view)!.click());
-    expect(push).not.toHaveBeenCalled();
-    act(() => root?.unmount());
-    host?.remove();
+  it('keeps the Tob conversation and removes the header shortcut', async () => {
     roster.bots.push({
       slug: 'tob',
       displayName: 'Tob',
@@ -792,14 +781,10 @@ describe('Search in the Chats header', () => {
       dmChannelId: 'dm-tob',
     });
     try {
-      view = await home();
-      const href = { pathname: '/dm-top/[slug]', params: { slug: 'tob', hostId: 'h1' } };
-      await act(async () => tobButton(view)!.click());
-      expect(push).toHaveBeenLastCalledWith(href);
+      const view = await home();
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
       expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
-      await act(async () => tobButton(view)!.click());
-      expect(push).toHaveBeenLastCalledWith(href);
+      expect(view.querySelector('[data-testid="tob-mode-button"]')).toBeNull();
     } finally {
       roster.bots.pop();
     }

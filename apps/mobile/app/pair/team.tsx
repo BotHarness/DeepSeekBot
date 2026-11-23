@@ -490,6 +490,16 @@ export default function TeamSignInScreen() {
               onSubmitEditing={() => void passwordSignIn(step.found)}
             />
           </Labeled>
+          {errorText}
+          <Button
+            testID="team-sign-in"
+            label={t.teamSignIn.signIn}
+            tone="primary"
+            on="canvas"
+            busy={busy}
+            disabled={busy || username.trim() === '' || password === ''}
+            onPress={() => void passwordSignIn(step.found)}
+          />
           <Button
             testID="team-fingerprint-toggle"
             label={fingerprintShown ? t.teamSignIn.hideFingerprint : t.teamSignIn.showFingerprint}
@@ -503,16 +513,6 @@ export default function TeamSignInScreen() {
               fingerprint={step.found.host.fingerprint}
             />
           ) : null}
-          {errorText}
-          <Button
-            testID="team-sign-in"
-            label={t.teamSignIn.signIn}
-            tone="primary"
-            on="canvas"
-            busy={busy}
-            disabled={busy || username.trim() === '' || password === ''}
-            onPress={() => void passwordSignIn(step.found)}
-          />
         </>
       ) : step.kind === 'switch' ? (
         <>
@@ -556,41 +556,43 @@ export default function TeamSignInScreen() {
             {step.again === true ? <Text tone="muted">{t.teamSignIn.againHint}</Text> : null}
           </View>
           {step.pick === true ? (
+            <Labeled label={t.teamSignIn.username}>
+              <TextField
+                testID="team-username"
+                accessibilityLabel={t.teamSignIn.username}
+                value={username}
+                onChangeText={(value) => {
+                  setUsername(value);
+                  setError(undefined);
+                }}
+                textContentType="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                editable={!busy}
+              />
+            </Labeled>
+          ) : null}
+          <Labeled label={t.teamSignIn.password}>
             <TextField
-              testID="team-username"
-              accessibilityLabel={t.teamSignIn.username}
-              placeholder={t.teamSignIn.username}
-              value={username}
+              testID="team-password"
+              accessibilityLabel={t.teamSignIn.password}
+              value={password}
               onChangeText={(value) => {
-                setUsername(value);
+                setPassword(value);
                 setError(undefined);
               }}
-              textContentType="username"
-              autoComplete="username"
+              secureTextEntry
+              textContentType="password"
+              autoComplete="current-password"
               autoCapitalize="none"
               autoCorrect={false}
-              returnKeyType="next"
+              returnKeyType="go"
               editable={!busy}
+              onSubmitEditing={() => void signIn(step.invitation, step.pick === true)}
             />
-          ) : null}
-          <TextField
-            testID="team-password"
-            accessibilityLabel={t.teamSignIn.password}
-            placeholder={t.teamSignIn.password}
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-              setError(undefined);
-            }}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="current-password"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="go"
-            editable={!busy}
-            onSubmitEditing={() => void signIn(step.invitation, step.pick === true)}
-          />
+          </Labeled>
           {step.again === true ? null : (
             <Text variant="meta" tone="muted">
               {t.teamSignIn.passwordHint}
@@ -615,40 +617,42 @@ export default function TeamSignInScreen() {
             </Text>
             <Text tone="muted">{t.teamSignIn.changeHint}</Text>
           </View>
-          <TextField
-            testID="team-new-password"
-            accessibilityLabel={t.teamSignIn.newPassword}
-            placeholder={t.teamSignIn.newPassword}
-            value={next}
-            onChangeText={(value) => {
-              setNext(value);
-              setError(undefined);
-            }}
-            secureTextEntry
-            textContentType="newPassword"
-            autoComplete="new-password"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!busy}
-          />
-          <TextField
-            testID="team-confirm-password"
-            accessibilityLabel={t.teamSignIn.confirmPassword}
-            placeholder={t.teamSignIn.confirmPassword}
-            value={confirm}
-            onChangeText={(value) => {
-              setConfirm(value);
-              setError(undefined);
-            }}
-            secureTextEntry
-            textContentType="newPassword"
-            autoComplete="new-password"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            editable={!busy}
-            onSubmitEditing={() => void change(step.host, step.current)}
-          />
+          <Labeled label={t.teamSignIn.newPassword}>
+            <TextField
+              testID="team-new-password"
+              accessibilityLabel={t.teamSignIn.newPassword}
+              value={next}
+              onChangeText={(value) => {
+                setNext(value);
+                setError(undefined);
+              }}
+              secureTextEntry
+              textContentType="newPassword"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!busy}
+            />
+          </Labeled>
+          <Labeled label={t.teamSignIn.confirmPassword}>
+            <TextField
+              testID="team-confirm-password"
+              accessibilityLabel={t.teamSignIn.confirmPassword}
+              value={confirm}
+              onChangeText={(value) => {
+                setConfirm(value);
+                setError(undefined);
+              }}
+              secureTextEntry
+              textContentType="newPassword"
+              autoComplete="new-password"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              editable={!busy}
+              onSubmitEditing={() => void change(step.host, step.current)}
+            />
+          </Labeled>
           <Text variant="meta" tone="muted">
             {t.teamSignIn.rule.replace('{min}', String(PASSWORD_MIN))}
           </Text>

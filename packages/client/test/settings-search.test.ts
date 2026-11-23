@@ -221,7 +221,8 @@ it('reaches rows in the newer sections', () => {
     searchSettings(zhSections, '局域网', zhTranslate)
       .slice(0, 3)
       .map((row) => row.target),
-  ).toEqual(expect.arrayContaining(['局域网', '同一局域网', '局域网 Bot 协作']));
+  ).toEqual(expect.arrayContaining(['同一局域网', '局域网 Bot 协作']));
+  expect(first('Wi-Fi')).toMatchObject({ section: 'devices', target: '同一 Wi-Fi' });
   expect(first('备份')).toMatchObject({ section: 'data-privacy', target: '环境备份' });
   expect(first('逐字')).toMatchObject({ section: 'messaging', target: '逐字显示 Bot 回复' });
   expect(first('自动压缩阈值')).toMatchObject({ section: 'models' });

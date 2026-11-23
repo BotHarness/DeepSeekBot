@@ -33,7 +33,7 @@
   "kbd.tsx#Kbd": "ad hoc keycap formatting.",
   "kbd.tsx#KeyCombo": "locally spaced sequences of keycaps.",
   "list-card.tsx#ListCard": "padded card lists where hover stops short of the card edge; the card has no padding and owns radius, fill and clipping per Tobs style.",
-  "list-card.tsx#ListCardItem": "hand-built list tiles; a full-bleed tile with leading, title, summary, trailing, detail and an optional whole-tile toggle.",
+  "list-card.tsx#ListCardItem": "hand-built list tiles; a full-bleed tile with leading, title, summary, trailing, detail and an optional whole-tile toggle or action.",
   "menu-row-button.tsx#MenuRowButton": "styled native buttons for menu-like rows.",
   "menu.tsx#Menu": "feature-owned action menus and keyboard navigation.",
   "menu.tsx#MenuItemButton": "hand-styled action controls inside menus.",

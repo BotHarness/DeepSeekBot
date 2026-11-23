@@ -215,6 +215,7 @@ export function createDirectTools(ports: DirectToolPorts) {
         sourceEventId: directSource
           ? String(directSource.source_event_id)
           : `direct-${randomUUID()}`,
+        requireSideEffectAccess: () => undefined,
         markSideEffect: () => undefined,
         readAdmissions: new Set(),
         importedFiles: new Map(),

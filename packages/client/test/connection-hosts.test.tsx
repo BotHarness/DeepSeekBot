@@ -191,7 +191,15 @@ it('refuses a stale private row before planning instead of replacing its display
 
 it('keeps local removal separate from target device revocation and confirms the target', async () => {
   await open();
-  expect(document.body.textContent).toContain('Test phone');
+  const lists = [...document.querySelectorAll('ul')];
+  const routes = lists.find(
+    (list) => list.getAttribute('aria-label') === t('connections.hosts.routes'),
+  );
+  const devices = lists.find((list) => list.getAttribute('aria-label') === t('devices.list.title'));
+  expect(routes?.textContent).toContain(t('connections.hosts.testRoute'));
+  expect(devices?.textContent).toContain('Test phone');
+  expect(devices?.textContent).toContain(t('connections.hosts.revoke'));
+  expect(devices?.textContent).not.toContain(t('connections.hosts.remove'));
   await click(t('connections.hosts.remove'));
   expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
     t('connections.hosts.removeHint'),

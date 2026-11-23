@@ -80,8 +80,7 @@ export async function addressInvitation(options: {
   }
 }
 
-export async function prepareTeamSignIn(options: {
-  target: TeamSignInTarget;
+interface TeamSignInOptions {
   carrier: HostCarrier;
   previous(hostId: string): SavedHost | undefined;
   commit(
@@ -91,7 +90,11 @@ export async function prepareTeamSignIn(options: {
   ): Promise<TeamResult<SavedHost, TeamSignInError>>;
   signal?: AbortSignal;
   now?: () => number;
-}): Promise<TeamResult<TeamSignInFlow, TeamSignInError>> {
+}
+
+export async function prepareTeamSignIn(
+  options: TeamSignInOptions & { target: TeamSignInTarget },
+): Promise<TeamResult<TeamSignInFlow, TeamSignInError>> {
   const now = options.now ?? Date.now;
   let invitation: TeamInvitation;
   if (options.target.kind === 'invitation') {
@@ -113,14 +116,28 @@ export async function prepareTeamSignIn(options: {
   if (!matchesSavedSignInHost(previous, invitation.host))
     return { ok: false, code: 'fingerprint-mismatch' };
   if (options.signal?.aborted) return { ok: false, code: 'request-cancelled' };
+  return { ok: true, value: createTeamSignInFlow(options, { invitation }) };
+}
+
+export function continueTeamSignIn(
+  options: TeamSignInOptions,
+  host: SavedHost & { member: HostMemberIdentity },
+): TeamSignInFlow {
+  return createTeamSignInFlow(options, { host });
+}
+
+function createTeamSignInFlow(
+  options: TeamSignInOptions,
+  source: { invitation: TeamInvitation } | { host: SavedHost & { member: HostMemberIdentity } },
+): TeamSignInFlow {
   const abort = new AbortController();
   const signal = options.signal ? AbortSignal.any([abort.signal, options.signal]) : abort.signal;
-  let state: TeamSignInState = {
-    kind: 'fingerprint',
-    host: invitation.host,
-    username: invitation.username,
-  };
-  let pending: SavedHost | undefined;
+  const invitation = 'invitation' in source ? source.invitation : undefined;
+  let pending: SavedHost | undefined = 'host' in source ? source.host : undefined;
+  let state: TeamSignInState =
+    'invitation' in source
+      ? { kind: 'fingerprint', host: source.invitation.host, username: source.invitation.username }
+      : signedInState(source.host.member);
   let busy = false;
   let committing: Promise<void> | undefined;
   let finishCommit: (() => void) | undefined;
@@ -153,6 +170,7 @@ export async function prepareTeamSignIn(options: {
     confirmFingerprint(fingerprint) {
       const refused = refuse('fingerprint');
       if (refused) return refused;
+      if (!invitation) return { ok: false, code: 'flow-step-invalid' };
       if (fingerprint !== invitation.host.fingerprint)
         return { ok: false, code: 'fingerprint-mismatch' };
       publish({ kind: 'sign-in', host: invitation.host, username: invitation.username });
@@ -161,6 +179,7 @@ export async function prepareTeamSignIn(options: {
     async signIn(input) {
       const refused = refuse('sign-in');
       if (refused) return refused;
+      if (!invitation) return { ok: false, code: 'flow-step-invalid' };
       busy = true;
       try {
         const result = await signInTeamDevice({
@@ -168,7 +187,7 @@ export async function prepareTeamSignIn(options: {
           carrier: options.carrier,
           invitation,
           signal,
-          now: now(),
+          now: (options.now ?? Date.now)(),
         });
         if (!result.ok) return result;
         if (signal.aborted) {
@@ -181,10 +200,7 @@ export async function prepareTeamSignIn(options: {
           pending = undefined;
           return { ok: false, code: 'response-invalid' };
         }
-        publish({
-          kind: pending.member.mustChangePassword ? 'password-change' : 'identity-confirmation',
-          member: pending.member,
-        });
+        publish(signedInState(pending.member));
         return { ok: true, value: state };
       } finally {
         busy = false;
@@ -259,5 +275,12 @@ export async function prepareTeamSignIn(options: {
     void flow.cancel();
   };
   options.signal?.addEventListener('abort', onAbort, { once: true });
-  return { ok: true, value: flow };
+  return flow;
+}
+
+function signedInState(member: HostMemberIdentity): TeamSignInState {
+  return {
+    kind: member.mustChangePassword ? 'password-change' : 'identity-confirmation',
+    member,
+  };
 }

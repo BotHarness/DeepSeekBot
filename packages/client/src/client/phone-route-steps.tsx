@@ -32,6 +32,30 @@ export interface PublishFailure {
   enableUrl?: string;
 }
 
+export function TailscaleStaleRoutes({
+  t,
+  routes,
+}: PropsLocale<'botharness'> & {
+  routes?: PhoneRouteStatus['staleRoutes'];
+}): ReactElement | null {
+  if (!routes?.length) return null;
+  return (
+    <div data-tailscale-stale="">
+      <Note tone="warning">{t('devices.tailscale.stale')}</Note>
+      {routes.map((route) => (
+        <div key={route.url}>
+          <CopyChip
+            value={route.url}
+            copyLabel={t('devices.route.copy')}
+            copiedLabel={t('devices.pair.copied')}
+          />
+          <Note>{t('devices.tailscale.localPort', { port: route.targetPort })}</Note>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type StepId = 'install' | 'signIn' | 'publish';
 type StepState = 'done' | 'current' | 'pending';
 

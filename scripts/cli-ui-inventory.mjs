@@ -66,7 +66,12 @@ export function uiSurfacesFrom(file, source) {
       if (['setItem', 'removeItem'].includes(method))
         add('storage', `${method}(${node.arguments[0] ? text(node.arguments[0]) : '<missing>'})`);
     }
-    if (node.type === 'JSXOpeningElement' && node.name.name === 'SettingsRow') {
+    if (
+      node.type === 'JSXOpeningElement' &&
+      (node.name.name === 'SettingsRow' ||
+        (node.name.name === 'ListCardItem' &&
+          node.attributes.some((attr) => attr.name?.name === 'trailing')))
+    ) {
       const title = node.attributes.find((attr) => attr.name?.name === 'title');
       add('setting', title?.value ? text(title.value) : '<no title>');
     }

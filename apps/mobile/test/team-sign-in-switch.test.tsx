@@ -187,6 +187,13 @@ it('switches to another member account on a saved Host by username, behind the s
       setter.call(input, ' carol ');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
+    const labels = [...element.querySelectorAll('*')]
+      .filter((node) => node.children.length === 0)
+      .map((node) => node.textContent);
+    expect(labels).toContain(t.teamSignIn.username);
+    expect(labels).toContain(t.teamSignIn.password);
+    for (const field of element.querySelectorAll('textarea, input'))
+      expect(field.getAttribute('placeholder')).toBeNull();
     await signIn(element);
     expect(signInTeamDevice).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -241,6 +248,9 @@ it('asks how to connect, then signs in with one username and password form for a
     expect(element.querySelector('[data-testid="team-choose-approve"]')).not.toBeNull();
     await press('team-choose-password');
     expect(element.querySelector('[data-testid="team-fingerprint-rows"]')).toBeNull();
+    const signIn = element.querySelector('[data-testid="team-sign-in"]')!;
+    const toggle = element.querySelector('[data-testid="team-fingerprint-toggle"]')!;
+    expect(signIn.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await press('team-fingerprint-toggle');
     const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
     expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
@@ -285,6 +295,15 @@ it('continues a member to the password change after address sign-in', async () =
     await type('team-password', 'one-time-password');
     await press('team-sign-in');
     expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
+    await type('team-new-password', 'a-new-password');
+    await type('team-confirm-password', 'a-new-password');
+    const labels = [...element.querySelectorAll('*')]
+      .filter((node) => node.children.length === 0)
+      .map((node) => node.textContent);
+    expect(labels).toContain(t.teamSignIn.newPassword);
+    expect(labels).toContain(t.teamSignIn.confirmPassword);
+    for (const input of element.querySelectorAll('input'))
+      expect(input.getAttribute('placeholder')).toBeNull();
   } finally {
     close();
   }

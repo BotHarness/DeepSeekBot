@@ -6,7 +6,6 @@ import { androidSettings, space } from '../design/tokens';
 import { RadioMark } from '../primitives/radio-mark';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { HeaderAction } from './header-action';
 
 type Choice = { id: string; label: string; select(): void };
 export type SessionOptionGroup = {
@@ -15,19 +14,6 @@ export type SessionOptionGroup = {
   selected: string;
   choices: Choice[];
 };
-
-export function HostSessionOptionsButton({ active, onOpen }: { active: boolean; onOpen(): void }) {
-  const t = useStrings().hostSessions;
-  return (
-    <HeaderAction
-      icon="filter"
-      label={t.options}
-      testID="host-sessions-options"
-      active={active}
-      onPress={onOpen}
-    />
-  );
-}
 
 type HostSessionOptionsSheetProps = {
   open: boolean;

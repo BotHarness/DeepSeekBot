@@ -431,6 +431,9 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     if (!bot || bot.paused || !ports.agents.loadOrchestrator)
       throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
     ports.requireExecution?.(botSlug);
+    const refuseSideEffect = () => {
+      throw new Error('Maintenance cannot perform Bot actions');
+    };
     const loading = ports.agents.loadOrchestrator({
       sessionId,
       resume: true,
@@ -442,9 +445,8 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         sessionId,
         channelId: undefined,
         sourceEventId: `maintenance-${randomUUID()}`,
-        markSideEffect: () => {
-          throw new Error('Maintenance cannot perform Bot actions');
-        },
+        requireSideEffectAccess: refuseSideEffect,
+        markSideEffect: refuseSideEffect,
         readAdmissions: new Set(),
         importedFiles: new Map(),
         turnSources: new Set(),
