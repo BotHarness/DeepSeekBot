@@ -95,6 +95,7 @@ function HostSessionsList({
   const rows = result?.search === search && result.source === source ? result.rows : undefined;
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const flight = useRef<AbortController>(undefined);
   const online = useSyncExternalStore(
     client.subscribe,
@@ -116,29 +117,35 @@ function HostSessionsList({
     }, []),
   );
 
-  const refresh = useCallback(() => {
-    if (!online || !searchReady || flight.current !== undefined) return;
-    const abort = new AbortController();
-    flight.current = abort;
-    setFailed(false);
-    setBusy(true);
-    void readHostSessionList(sessionReadHost(client, abort.signal), { search, sort, source })
-      .then(
-        (value) => {
-          if (abort.signal.aborted) return;
-          setResult({ search, source, rows: value.sessions });
-          setSources(value.sources);
-        },
-        () => {
-          if (!abort.signal.aborted) setFailed(true);
-        },
-      )
-      .finally(() => {
-        if (flight.current !== abort) return;
-        flight.current = undefined;
-        setBusy(false);
-      });
-  }, [client, online, search, searchReady, sort, source]);
+  const refresh = useCallback(
+    (origin?: 'pull') => {
+      if (!online || !searchReady) return;
+      if (origin === 'pull') setPullRefreshing(true);
+      if (flight.current !== undefined) return;
+      const abort = new AbortController();
+      flight.current = abort;
+      setFailed(false);
+      setBusy(true);
+      void readHostSessionList(sessionReadHost(client, abort.signal), { search, sort, source })
+        .then(
+          (value) => {
+            if (abort.signal.aborted) return;
+            setResult({ search, source, rows: value.sessions });
+            setSources(value.sources);
+          },
+          () => {
+            if (!abort.signal.aborted) setFailed(true);
+          },
+        )
+        .finally(() => {
+          if (flight.current !== abort) return;
+          flight.current = undefined;
+          setBusy(false);
+          setPullRefreshing(false);
+        });
+    },
+    [client, online, search, searchReady, sort, source],
+  );
   useFocusEffect(
     useCallback(() => {
       refresh();
@@ -146,6 +153,7 @@ function HostSessionsList({
         flight.current?.abort();
         flight.current = undefined;
         setBusy(false);
+        setPullRefreshing(false);
       };
     }, [refresh]),
   );
@@ -268,8 +276,8 @@ function HostSessionsList({
         }}
         data={rows}
         keyExtractor={(row) => row.sessionId}
-        refreshing={online && busy && rows !== undefined}
-        onRefresh={online ? refresh : undefined}
+        refreshing={online && pullRefreshing}
+        onRefresh={online ? () => refresh('pull') : undefined}
         ListHeaderComponent={
           failed && rows !== undefined ? (
             <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} disabled={!online} />
