@@ -289,7 +289,7 @@ export function VoiceCatalogList({
         inset={space.x5}
       />
       {hasPublic ? (
-        <ModelPickerFilters>
+        <ModelPickerFilters label={t.catalog.filters}>
           <Chip
             testID={`${testID}-filter-available`}
             label={t.catalog.available}

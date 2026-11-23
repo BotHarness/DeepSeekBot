@@ -260,7 +260,7 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
         title={service.name}
         detail={detail}
         detailDot={dot}
-        control={state === 'testing' ? { kind: 'busy' } : { kind: 'value', text: copy.test }}
+        control={state === 'testing' ? { kind: 'busy' } : undefined}
         accessibilityLabel={`${service.name}, ${detail}`}
         onPress={() =>
           showActionMenu(copy.serviceActions(service.name), [
@@ -312,7 +312,7 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
           key={`${kind}-service`}
           on={SHEET_GROUP}
           testID={`voice-default-${kind}`}
-          title={`${copy.defaultService} · ${kind === 'tts' ? copy.tts : copy.asr}`}
+          title={kind === 'tts' ? copy.defaultTts : copy.defaultAsr}
           control={{ kind: 'value', text: provider?.name ?? copy.none, chevron: true }}
           onPress={() => {
             setChoiceError(undefined);
@@ -357,7 +357,7 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
       const binding = choosing.kind === 'tts' ? view.defaults.tts : view.defaults.asr;
       return (
         <ChoiceSheet
-          title={copy.defaultService}
+          title={choosing.kind === 'tts' ? copy.defaultTts : copy.defaultAsr}
           rows={[
             { id: NONE, name: copy.none },
             ...services.map((service) => ({ id: service.id, name: service.name, service })),

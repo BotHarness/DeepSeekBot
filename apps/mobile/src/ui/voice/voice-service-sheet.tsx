@@ -192,16 +192,21 @@ export function VoiceServiceSheet({
   ) => {
     const state = draft[field];
     const custom = (
-      <CreationField
-        testID={`voice-service-${field}-custom`}
-        accessibilityLabel={field === 'model' ? t.customModel : t.customVoice}
-        value={state.custom}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onChangeText={(text) =>
-          setDraft((current) => ({ ...current, [field]: { choice: CUSTOM_CHOICE, custom: text } }))
-        }
-      />
+      <View style={{ paddingHorizontal: space.x5 }}>
+        <CreationField
+          testID={`voice-service-${field}-custom`}
+          accessibilityLabel={field === 'model' ? t.customModel : t.customVoice}
+          value={state.custom}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={(text) =>
+            setDraft((current) => ({
+              ...current,
+              [field]: { choice: CUSTOM_CHOICE, custom: text },
+            }))
+          }
+        />
+      </View>
     );
     if (values.length === 0 && catalog === undefined) return custom;
     return (
@@ -214,8 +219,10 @@ export function VoiceServiceSheet({
               leading={
                 <ModelBrandIcon brand={brand} size={theme.type.title.line} color={theme.color.fg} />
               }
-              title={label}
-              control={{ kind: 'value', text: choiceLabel(state, names, t.custom), chevron: true }}
+              title={choiceLabel(state, names, t.custom)}
+              detail={label}
+              accessibilityLabel={`${label}, ${choiceLabel(state, names, t.custom)}`}
+              control={{ kind: 'chevron' }}
               onPress={() => {
                 Keyboard.dismiss();
                 setPage(field);
@@ -228,7 +235,7 @@ export function VoiceServiceSheet({
     );
   };
   return (
-    <Sheet visible label={title} onClose={close} avoidKeyboard fill={page !== 'form'}>
+    <Sheet visible label={title} onClose={close} avoidKeyboard fill>
       {page === 'preset' ? (
         <View testID="voice-service-presets" style={{ flexShrink: 1 }}>
           <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
@@ -291,7 +298,7 @@ export function VoiceServiceSheet({
           <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
             <DrawerHeader title={title} onClose={close} />
           </View>
-          <KeyboardFormScroll enabled={false} nestedScrollEnabled>
+          <KeyboardFormScroll nestedScrollEnabled>
             <View testID="voice-service-form" style={{ gap: space.x4 }}>
               <SettingsGroupItem first last on={SHEET_GROUP}>
                 <SettingsRow
@@ -304,8 +311,10 @@ export function VoiceServiceSheet({
                       color={theme.color.fg}
                     />
                   }
-                  title={t.preset}
-                  control={{ kind: 'value', text: preset?.name ?? draft.preset, chevron: true }}
+                  title={preset?.name ?? draft.preset}
+                  detail={t.preset}
+                  accessibilityLabel={`${t.preset}, ${preset?.name ?? draft.preset}`}
+                  control={{ kind: 'chevron' }}
                   onPress={() => {
                     Keyboard.dismiss();
                     setPage('preset');
