@@ -2533,7 +2533,7 @@ deepseekbot voice-provider-test <provider-id>
 
 For ASR, add `--kind asr` to validation and creation; use `voice-transcribe --provider <id> --file /absolute/speech.wav`. Editing retains the existing key, model, voice and language. Keys are read only from `--key-stdin` on creation and stored in credentials. Never put a key in template constants. Authentication is described by `auth: {kind: "bearer"}`, `{kind: "header", name: "X-API-Key", prefix: "Token "}`, `{kind: "query", name: "key"}`, or `{kind: "none"}`.
 
-Team members can use `voice-providers` to find providers and their bindings. The list shows `hasTemplate: true` for a configured template and hides endpoints, templates, headers, and key values. Template commands and provider management return `permission-required` for Team members.
+Team members can use `voice-providers` to find providers and their bindings. The list shows `hasTemplate: true` for a configured template and hides endpoints, templates, headers, and key values. Template commands and provider management return `remote-access/denied` for Team members.
 
 ```json
 {

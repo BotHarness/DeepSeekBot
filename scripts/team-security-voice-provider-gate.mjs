@@ -58,7 +58,7 @@ export async function runVoiceProviderGate(s, { as }, check) {
       const result = s.cli(args, { as, input, allowFail: true });
       check(
         `Member ${label} refused without disclosure`,
-        result?.error?.code === 'permission-required' && !disclosesFixture(result),
+        result?.error?.code === 'remote-access/denied' && !disclosesFixture(result),
         result?.error?.code,
       );
     };
