@@ -19,7 +19,7 @@ Authentication describes bearer, a named header with a prefix, a named query par
 
 TTS accepts a bounded audio body, a dot-separated JSON path containing base64 or hex, or a JSON path containing one HTTP(S) audio URL. The download has no credential headers, shares the original deadline/cancellation signal, refuses redirects and is bounded to 10 MB. ASR accepts a JSON path containing text and retains its 256 KB response and 4,000 character transcript limits. Upstream failure bodies and JSON parse errors are never echoed. Template validation returns field paths and readable errors without issuing a request. Templates are limited to 64 KB and 16 nesting levels.
 
-Only the Host Owner can create, read or change templates through the existing guarded Bridge. The CLI uses that same authority. Provider lists retain their existing member access; stored templates contain no key. The Web form is a separate #5012 slice.
+Only the Host Owner can create, read or change templates through the existing guarded Bridge. The CLI uses that same authority. Provider lists retain their existing member access; stored templates contain no key. The Web settings form calls the same Owner-only methods: it hides **Custom request** and **Edit request** for members, keeps the key in the existing password field, and validates through `voiceTemplateValidate` before saving.
 
 ## Boundary with vendor code
 

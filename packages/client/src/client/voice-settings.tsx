@@ -495,7 +495,10 @@ export function VoiceProviderSettings({
   ): ReactElement => {
     const state = health[provider.id];
     const presetRow = presetsOf(current, kind).find((entry) => entry.id === provider.preset);
-    const presetName = presetRow?.name ?? provider.preset;
+    const presetName =
+      provider.template === undefined
+        ? (presetRow?.name ?? provider.preset)
+        : t('voice.template.service');
     const missingKey = presetRow?.keyRequired === true && !provider.keySet;
     const failed = state !== undefined && state !== 'testing' && !state.ok;
     const ready = state !== undefined && state !== 'testing' && state.ok;
