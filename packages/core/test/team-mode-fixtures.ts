@@ -49,6 +49,7 @@ export function teamFixture(
     routes?: () => Promise<string[]>;
     now?: () => number;
     warn?: (message: string) => void;
+    liveRosterChanges?: boolean;
   } = {},
 ) {
   const root = createTempRoot('team-mode-');
@@ -56,10 +57,12 @@ export function teamFixture(
   const db = registryDatabase(root);
   const database = attachOperationalModule(db, 'team');
   const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+  let publishRosterChanged = () => {};
   const channels = createSqliteChannelStore({
     database,
     rootDir: join(root, 'channels'),
     attachments,
+    ...(options.liveRosterChanges ? { onRecordChanged: () => publishRosterChanged() } : {}),
   });
   let placements: Array<{ sourceEventId: string; channelId: string; messageId: string }> = [];
   const purge = mountContentPurge({
@@ -83,6 +86,7 @@ export function teamFixture(
     (human, id) => team.channelAccess.canRead(human, id, true),
     (human, id) => team.channelAccess.canKnow(human, id),
   );
+  publishRosterChanged = () => live.publishRosterCommitted();
   team.onAccessChanged(() => live.refreshAccess());
   const ctx = new Context();
   const peers: Peer[] = [];

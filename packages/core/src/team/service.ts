@@ -314,7 +314,7 @@ export class TeamService {
     channels.bindHumanAccess?.({
       addInitialMembers: (db, human, channelId, humanIds, joinedAt) => {
         if (!this.enabled()) throw new TeamError('team-mode-off');
-        this.channelAccess.addInitialMembers(db, human, channelId, humanIds, joinedAt);
+        return this.channelAccess.addInitialMembers(db, human, channelId, humanIds, joinedAt);
       },
       searchText: (human, channelId, messageId, text) =>
         this.approvals.searchText(human, channelId, messageId, text),

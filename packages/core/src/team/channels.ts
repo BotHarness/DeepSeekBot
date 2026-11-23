@@ -359,13 +359,14 @@ export class TeamChannels {
     channelId: string,
     humanIds: readonly string[],
     joinedAt: string,
-  ): void {
+  ): (() => void) | undefined {
     this.roles.require(human, 'channels.create');
     this.requirePolicy(human, channelId, 'addMembers');
     for (const humanId of humanIds) {
       this.requireActiveMember(humanId);
       this.writeMember(db, channelId, humanId, joinedAt);
     }
+    return humanIds.some((humanId) => humanId !== human.humanId) ? () => this.changed() : undefined;
   }
   private requireActiveMember(humanId: string): void {
     if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');

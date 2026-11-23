@@ -116,7 +116,7 @@ export function createChannelRecords({
   ): void => {
     const addInitialMembers = humanAccess.current?.addInitialMembers;
     if (humanIds.length && !addInitialMembers) throw new TeamError('unavailable');
-    database.transaction(
+    const notifyInitialMembers = database.transaction(
       (db) => {
         if (hasChannelAccessSchema())
           db.prepare(`INSERT INTO channel_records (channel_id, record_json, owner_human_id) VALUES (?, ?, ?)
@@ -137,10 +137,17 @@ export function createChannelRecords({
               (channel_id, human_id, display_name, visible_from_revision, joined_at)
             VALUES (?, ?, 'Human', 1, ?)
           `).run(record.id, human.humanId, record.createdAt);
-        if (humanIds.length) addInitialMembers?.(db, human, record.id, humanIds, record.createdAt);
+        return humanIds.length
+          ? addInitialMembers?.(db, human, record.id, humanIds, record.createdAt)
+          : undefined;
       },
       ['channel'],
     );
+    try {
+      notifyInitialMembers?.();
+    } catch (error) {
+      options.warn?.('Channel access notification failed: ' + String(error));
+    }
     publishRecordChanged();
   };
 

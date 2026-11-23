@@ -137,7 +137,7 @@ export interface ChannelStore {
       channelId: string,
       humanIds: readonly string[],
       joinedAt: string,
-    ): void;
+    ): (() => void) | undefined;
     requireBotJoin?(slug: string, channelId: string): void;
     requireBotPost?(slug: string, channel: ChannelRecord): void;
     requireDm?(human: HumanContext, slug: string): void;
