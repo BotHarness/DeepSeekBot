@@ -1027,9 +1027,7 @@ describe('Search in the Chats header', () => {
     const view = await home();
     await act(async () => conversationFilter.set(computerEnvironmentKey('removed-host')));
     expect(conversationFilter.getSnapshot()).toBe('all');
-    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
-      t.allEnvironments,
-    );
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(t.chats);
     expect(rows(view)).toHaveLength(3);
   });
 
@@ -1228,9 +1226,12 @@ describe('Search in the Chats header', () => {
   });
   it('replaces the title and Search with the field, and keeps a query after editing ends', async () => {
     const view = await home();
+    const create = () => view.querySelector(`button[aria-label="${t.createHere}"]`);
+    expect(create()).not.toBeNull();
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
     await type(view, 'ada');
     expect(view.querySelector('[data-testid="search-button"]')).toBeNull();
+    expect(create()).toBeNull();
     const field = view.querySelector<HTMLTextAreaElement>(
       `textarea[aria-label="${t.searchPlaceholder}"]`,
     )!;

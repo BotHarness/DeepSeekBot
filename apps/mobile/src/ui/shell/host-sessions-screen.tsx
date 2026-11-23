@@ -1,7 +1,6 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Keyboard, Platform, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HostClient } from '@botharness/host-client/client';
 import { readHostSessionList } from '@botharness/host-client/host-sessions';
 import {
@@ -16,8 +15,7 @@ import { sessionReadHost } from '../../host/session-detail';
 import { BotPortrait } from '../bot-avatar';
 import { SheetLoading } from '../chat/sheet';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { materialSearchHeight } from '../design/material-search';
-import { radius, space, tabHeader } from '../design/tokens';
+import { fab, radius, space } from '../design/tokens';
 import { interfacePreferences, useSessionsTab, useSessionSort } from '../interface-preferences';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
@@ -25,11 +23,10 @@ import { useStrings } from '../strings';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { HeaderAction } from './header-action';
 import { HeaderSearch } from './header-search';
-import {
-  HostSessionOptionsButton,
-  HostSessionOptionsSheet,
-  type SessionOptionGroup,
-} from './host-session-options';
+import { HostSessionOptionsSheet, type SessionOptionGroup } from './host-session-options';
+import { HostSessionOptionsButton } from './host-session-options-button';
+import { canCreateNativeSession, openNewSession } from './page-create-actions';
+import { TabPageHeader } from './tab-page-header';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
 
 export function HostSessionsScreen() {
@@ -43,11 +40,13 @@ export function HostSessionsScreen() {
         key={`${saved.hostId}:${saved.deviceId}`}
         client={client}
         hostId={saved.hostId}
+        canCreate={canCreateNativeSession(saved)}
       />
     );
   return (
     <>
-      <Stack.Screen options={{ title: t.title, headerLargeTitleEnabled: false }} />
+      <Stack.Screen options={{ title: t.title, headerShown: false }} />
+      <TabPageHeader testID="host-sessions-header" leading={<SessionsTitle />} />
       <Text tone="muted" style={{ padding: space.x5 }}>
         {t.offline}
       </Text>
@@ -55,11 +54,27 @@ export function HostSessionsScreen() {
   );
 }
 
-function HostSessionsList({ client, hostId }: { client: HostClient; hostId: string }) {
+function SessionsTitle() {
+  const t = useStrings().hostSessions;
+  return (
+    <Text variant="title" strong accessibilityRole="header">
+      {t.title}
+    </Text>
+  );
+}
+
+function HostSessionsList({
+  client,
+  hostId,
+  canCreate,
+}: {
+  client: HostClient;
+  hostId: string;
+  canCreate: boolean;
+}) {
   const router = useRouter();
   const t = useStrings().hostSessions;
-  const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
+  const android = Platform.OS === 'android';
   const bottom = useFloatingTabInset();
   const sort = useSessionSort();
   const [source, setSource] = useState<HostSessionFilter>('all');
@@ -186,84 +201,11 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
   };
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: t.title,
-          headerLargeTitleEnabled: false,
-          headerShown: !searchOpen,
-          ...(Platform.OS === 'ios'
-            ? {
-                unstable_headerRightItems: () =>
-                  canQuery
-                    ? [
-                        {
-                          type: 'button',
-                          label: t.search,
-                          identifier: 'host-sessions-search',
-                          icon: { type: 'sfSymbol', name: 'magnifyingglass' },
-                          ...(search === '' ? {} : { tintColor: theme.color.accent }),
-                          onPress: () => setSearchOpen(true),
-                        },
-                        {
-                          type: 'menu',
-                          label: t.options,
-                          identifier: 'host-sessions-options',
-                          icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
-                          ...(optionsActive ? { tintColor: theme.color.accent } : {}),
-                          menu: {
-                            multiselectable: true,
-                            items: groups.map((group) => ({
-                              type: 'submenu',
-                              label: group.label,
-                              inline: true,
-                              items: group.choices.map((choice) => ({
-                                type: 'action',
-                                label: choice.label,
-                                state: group.selected === choice.id ? 'on' : 'off',
-                                onPress: choice.select,
-                              })),
-                            })),
-                          },
-                        },
-                      ]
-                    : [],
-              }
-            : {
-                headerRight: () =>
-                  canQuery ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-                      <HostSessionOptionsButton
-                        active={optionsActive}
-                        onOpen={() => setOptionsOpen(true)}
-                      />
-                      <HeaderAction
-                        icon="search"
-                        label={t.search}
-                        testID="host-sessions-search"
-                        active={search !== ''}
-                        onPress={() => setSearchOpen(true)}
-                      />
-                    </View>
-                  ) : null,
-              }),
-        }}
-      />
-      {searchOpen ? (
-        <View
-          style={{
-            paddingTop: insets.top,
-            paddingHorizontal: tabHeader.gutter,
-            paddingBottom: space.x2,
-          }}
-        >
-          <View
-            style={{
-              minHeight:
-                Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : theme.touch,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
+      <Stack.Screen options={{ title: t.title, headerShown: false }} />
+      <TabPageHeader
+        testID="host-sessions-header"
+        leading={
+          searchOpen ? (
             <HeaderSearch
               testID="host-sessions-query"
               value={draft}
@@ -280,14 +222,49 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
               }}
               onClose={() => setSearchOpen(false)}
             />
-          </View>
-        </View>
-      ) : null}
+          ) : (
+            <SessionsTitle />
+          )
+        }
+        actions={
+          searchOpen ? undefined : (
+            <>
+              {canQuery ? (
+                <>
+                  <HeaderAction
+                    icon="search"
+                    label={t.search}
+                    testID="host-sessions-search"
+                    active={search !== ''}
+                    onPress={() => setSearchOpen(true)}
+                  />
+                  <HostSessionOptionsButton
+                    active={optionsActive}
+                    groups={groups}
+                    onOpen={() => setOptionsOpen(true)}
+                  />
+                </>
+              ) : null}
+              {!android && canCreate ? (
+                <HeaderAction
+                  icon="add"
+                  label={t.create}
+                  testID="session-create-button"
+                  onPress={openNewSession}
+                />
+              ) : null}
+            </>
+          )
+        }
+      />
       <FlatList
         testID="host-sessions-list"
-        contentInsetAdjustmentBehavior={searchOpen ? 'never' : 'automatic'}
+        contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: space.x4, paddingBottom: bottom }}
+        contentContainerStyle={{
+          paddingHorizontal: space.x4,
+          paddingBottom: bottom + (android && canCreate ? fab.size : 0),
+        }}
         data={rows}
         keyExtractor={(row) => row.sessionId}
         refreshing={online && busy && rows !== undefined}

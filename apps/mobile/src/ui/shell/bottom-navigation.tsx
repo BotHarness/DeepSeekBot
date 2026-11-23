@@ -1,36 +1,22 @@
-import { useMemberCanCreateBots } from '../../host/member-permissions';
 import { ChatsSheetRoot } from './chats-sheet-root';
 import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
-import { router } from 'expo-router';
-import { useRef, useState, type ComponentProps } from 'react';
-import { Platform, View, useWindowDimensions, type ViewInstance } from 'react-native';
+import { useState, type ComponentProps } from 'react';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
-import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
 import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
-import {
-  creationTargets,
-  type CreationAction,
-  type CreationTarget,
-} from '../../host/creation-targets';
-import { cloudClient } from '../../cloud/native';
-import { useCloudConversations } from '../../cloud/native-conversations';
-import { cloudError } from '../../cloud/client';
-import { prepareCloudCreation } from '../../cloud/prepare-creation';
-import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme } from '../design/theme';
 import { fab, materialNavigationBar, navigationBar, radius, space } from '../design/tokens';
-import { useMounted } from '../mounted';
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
-import { creationMenuItems } from './creation-menu-items';
-import { CreationMenuButton } from './creation-menu-button';
-import { showAppDialog } from '../primitives/app-dialog';
+import { ChatsCreate } from './chats-create';
+import { androidTabCreateAction, openNewSession } from './page-create-actions';
+import { SessionCreateFab } from './session-create-fab';
 import { FloatingTabInset } from './floating-tab-inset';
 import { useSessionsTab } from '../interface-preferences';
 import { useStrings } from '../strings';
@@ -73,9 +59,7 @@ function NavigationLayout() {
           space.x5,
       );
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
-  const separateCreation = Platform.OS === 'ios' && sessionsTab && theme.largeText;
-  const reserved =
-    size + bottom + space.x5 + (separateCreation ? navigationBar.height + space.x3 : 0);
+  const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
   const profileSetup = useProfileSetupPrompt();
   return (
@@ -93,7 +77,6 @@ function NavigationLayout() {
                 bottom={bottom}
                 onNativeHeight={setNativeHeight}
                 sessionsTab={sessionsTab}
-                separateCreation={separateCreation}
               />
             )}
             screenOptions={{
@@ -117,7 +100,6 @@ function NavigationLayout() {
 
 type NavigationBarLayout = TabBarProps & {
   sessionsTab: boolean;
-  separateCreation: boolean;
   size: number;
   bottom: number;
   onNativeHeight(height: number): void;
@@ -136,7 +118,6 @@ function ScopedNavigationBar({
   bottom,
   onNativeHeight,
   sessionsTab,
-  separateCreation,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const t = useStrings();
@@ -144,85 +125,15 @@ function ScopedNavigationBar({
   const selectTab = useSelectionFeedback(currentKey, (key) => {
     if (key !== undefined) return navigateToTab(key);
   });
-  const { saved } = useHostSession();
-  const look = useHostLook(saved?.hostId);
-  const directory = useCloudConversations();
-  const canCreateBots = useMemberCanCreateBots(
-    saved?.member === undefined ? undefined : saved.hostId,
-  );
-  const targets = creationTargets(
-    saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
-    directory.workspaces,
-  ).map((target) =>
-    target.kind === 'computer'
-      ? { ...target, channelCreation: Platform.OS === 'android', botCreation: canCreateBots }
-      : target,
-  );
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
-  const [busy, setBusy] = useState(false);
-  const pendingCreation = useRef(false);
-  const generation = useRef(0);
-  const mount = useMounted<ViewInstance>(() => {
-    return () => {
-      generation.current++;
-    };
-  }, [currentKey]);
-  const choose = async (action: CreationAction, target?: CreationTarget) => {
-    if (pendingCreation.current) return;
-    const version = generation.current;
-    if (action === 'join') {
-      router.push('/cloud-join');
-      return;
-    }
-    if (action === 'bot' || action === 'zip' || action === 'marketplace' || action === 'git') {
-      router.push({
-        pathname:
-          action === 'marketplace'
-            ? '/marketplace'
-            : action === 'zip'
-              ? '/import-bot-zip'
-              : action === 'git'
-                ? '/import-bot-git'
-                : '/create-bot',
-        params:
-          target?.kind === 'computer' ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
-      });
-      return;
-    }
-    if (action === 'channel' && target?.kind !== 'cloud' && Platform.OS === 'android') {
-      router.push({
-        pathname: '/create-channel',
-        params:
-          scope === 'all' || !target ? { entry: 'all' } : { entry: 'host', hostId: target.hostId },
-      });
-      return;
-    }
-    if (!target) return;
-    pendingCreation.current = true;
-    setBusy(true);
-    try {
-      if (target.kind === 'cloud') {
-        await prepareCloudCreation(cloudClient, target.workspace);
-        if (version !== generation.current) return;
-        router.push({
-          pathname: action === 'invite' ? '/cloud-invitations' : '/cloud-create-channel',
-          params: {
-            instanceId: target.workspace.instanceId,
-            organizationId: target.workspace.organizationId,
-            accountScope: target.workspace.scope,
-          },
-        });
-      }
-    } catch (e) {
-      if (version === generation.current)
-        showAppDialog(t.createHere, cloudError(e), [{ text: t.close, style: 'cancel' }]);
-    } finally {
-      pendingCreation.current = false;
-      setBusy(false);
-    }
-  };
+  const { saved, client } = useHostSession();
+  const create = androidTabCreateAction(
+    state.routes[state.index]?.name,
+    sessionsTab,
+    client ? saved : undefined,
+  );
   const items: NavigationDestination[] = state.routes
     .filter((route) => sessionsTab || route.name !== '(sessions)')
     .map((route) => ({
@@ -243,23 +154,10 @@ function ScopedNavigationBar({
       onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
     }));
   const fabBottom = size + bottom + fab.margin;
-  const creatable =
-    creationMenuItems({ scope, targets, nativeChannelForm: Platform.OS === 'android' }).length > 0;
-  const create = (buttonSize: number) =>
-    creatable ? (
-      <CreationMenuButton
-        scope={scope}
-        targets={targets}
-        size={buttonSize}
-        busy={busy}
-        onPick={(action, target) => void choose(action, target)}
-      />
-    ) : null;
   if (Platform.OS === 'android')
     return (
       <>
         <View
-          ref={mount}
           onLayout={({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height)}
           pointerEvents="box-none"
           style={[
@@ -274,7 +172,7 @@ function ScopedNavigationBar({
         >
           <NavigationDestinations items={items} />
         </View>
-        {state.routes[state.index]?.name === '(home)' ? (
+        {create ? (
           <View
             pointerEvents="box-none"
             style={[
@@ -285,45 +183,31 @@ function ScopedNavigationBar({
               },
             ]}
           >
-            {create(fab.size)}
+            {create === 'chats' ? (
+              <ChatsCreate scope={scope} size={fab.size} />
+            ) : (
+              <SessionCreateFab onPress={openNewSession} />
+            )}
           </View>
         ) : null}
       </>
     );
   return (
-    <>
-      <View
-        ref={mount}
-        pointerEvents="box-none"
-        style={[
-          {
-            position: 'absolute',
-            left: insets.left + space.x5,
-            right: insets.right + space.x5,
-            bottom,
-            flexDirection: separateCreation ? 'column' : 'row',
-            alignItems: separateCreation ? 'stretch' : 'flex-end',
-            gap: space.x3,
-          },
-        ]}
-      >
-        {separateCreation && creatable ? (
-          <View style={{ alignSelf: 'flex-end' }}>{create(navigationBar.height)}</View>
-        ) : null}
-        <View
-          style={{
-            flex: separateCreation ? undefined : 1,
-            height: size,
-            flexDirection: 'row',
-            padding: space.x2,
-            borderRadius: radius.round,
-          }}
-        >
-          <NavigationMaterial />
-          <NavigationDestinations items={items} />
-        </View>
-        {separateCreation ? null : create(navigationBar.height)}
-      </View>
-    </>
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        left: insets.left + space.x5,
+        right: insets.right + space.x5,
+        bottom,
+        height: size,
+        flexDirection: 'row',
+        padding: space.x2,
+        borderRadius: radius.round,
+      }}
+    >
+      <NavigationMaterial />
+      <NavigationDestinations items={items} />
+    </View>
   );
 }

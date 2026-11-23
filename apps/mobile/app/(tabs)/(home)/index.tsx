@@ -54,6 +54,8 @@ import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
+import { ChatsCreate } from '../../../src/ui/shell/chats-create';
+import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
@@ -120,6 +122,7 @@ const HomeContent = memo(function HomeContent({
   hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const showWorkspaces = useWorkspacePanel();
@@ -471,7 +474,7 @@ const HomeContent = memo(function HomeContent({
             !hostFailed)),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
-  const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
+  const screen = <Stack.Screen options={{ title: t.chats, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
     return (
       <>
@@ -593,13 +596,20 @@ const HomeContent = memo(function HomeContent({
           disruptedSince={selectedHost?.snapshot.disruptedSince}
           onWorkspaces={showWorkspaces}
           bar={
-            Platform.OS === 'android' ? (
+            Platform.OS === 'android' && searching ? (
               <ChatsSearchBar
+                autoExpand
                 placeholder={t.searchIn(environment.title)}
                 busy={connecting || messages.loading}
                 results={searchResults}
                 onQuery={onQuery}
-                onExpanded={setSearchFocused}
+                onExpanded={(expanded) => {
+                  setSearchFocused(expanded);
+                  if (!expanded) {
+                    setQuery('');
+                    setSearching(false);
+                  }
+                }}
                 onPick={pickSearch}
                 onNavigation={openHostDrawer}
               />
@@ -607,7 +617,7 @@ const HomeContent = memo(function HomeContent({
           }
           barActions={searchFocused ? null : tobAction}
           search={
-            searching ? (
+            Platform.OS !== 'android' && searching ? (
               <HeaderSearch
                 value={query}
                 placeholder={t.searchPlaceholder}
@@ -632,6 +642,9 @@ const HomeContent = memo(function HomeContent({
                 onPress={() => setSearching(true)}
               />
               {tobAction}
+              {Platform.OS !== 'android' ? (
+                <ChatsCreate scope={effectiveFilter} size={theme.touch} />
+              ) : null}
             </>
           }
         >

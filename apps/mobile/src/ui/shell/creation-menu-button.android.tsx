@@ -1,6 +1,5 @@
-import { Host, type PrimitiveBaseProps } from '@expo/ui/jetpack-compose';
+import { Host } from '@expo/ui/jetpack-compose';
 import { testID } from '@expo/ui/jetpack-compose/modifiers';
-import { requireNativeView } from 'expo';
 import { useCallback, useState } from 'react';
 import { Keyboard, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -10,25 +9,10 @@ import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
 import { holdBack } from './back-owner';
-import { creationMenuItems, type CreationMenuItem } from './creation-menu-items';
+import { creationMenuGroups, type CreationMenuItem } from './creation-menu-items';
+import { NativeFabMenu } from './material-fab-menu.android';
 import type { CreationMenuButtonProps } from './creation-menu-button';
 import { fabMenuPath, type FabMenuIcon } from './fab-menu-paths';
-
-type NativeFabMenuProps = PrimitiveBaseProps & {
-  items: { key: string; label: string; path: string }[];
-  expanded: boolean;
-  available: boolean;
-  label: string;
-  closeLabel: string;
-  reduceMotion: boolean;
-  onToggle(event: { nativeEvent: { expanded: boolean } }): void;
-  onPick(event: { nativeEvent: { key: string } }): void;
-};
-
-const NativeFabMenu = requireNativeView<NativeFabMenuProps>(
-  'MaterialFabMenu',
-  'MaterialFabMenuView',
-);
 
 export function fabMenuHeight(count: number, size: number): number {
   return (
@@ -72,12 +56,12 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
     item?: CreationMenuItem | undefined;
   }[] = [
     ...(parent ? [{ key: 'back', label: t.back, icon: 'back' as const }] : []),
-    ...(parent?.children ?? creationMenuItems({ ...props, nativeChannelForm: true })).map(
+    ...(parent?.children ?? creationMenuGroups(props).flat()).map(
       (item): { key: string; label: string; icon: FabMenuIcon; item: CreationMenuItem } => ({
         key: item.key,
         label: item.label,
         icon:
-          parent && parent.action !== 'import'
+          parent && parent.action !== 'create-bot'
             ? item.target?.kind === 'cloud'
               ? 'cloud'
               : 'computer'
@@ -94,7 +78,7 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
     }
     const item = entries.find((entry) => entry.key === key)?.item;
     if (item === undefined) return;
-    if (item.action === 'import' || item.children) {
+    if (item.action === 'create-bot' || item.children) {
       setParent(item);
       return;
     }

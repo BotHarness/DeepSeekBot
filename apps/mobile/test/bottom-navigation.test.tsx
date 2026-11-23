@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { afterEach, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({
   scope: 'all',
   platform: 'ios',
   index: 0,
+  saved: undefined as SavedHost | undefined,
   navigateToTab: vi.fn(),
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
@@ -34,7 +36,11 @@ vi.mock('react-native-reanimated', async () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn() }, useIsFocused: () => true }));
+vi.mock('expo-router', () => ({
+  router: { push: vi.fn() },
+  useIsFocused: () => true,
+  useFocusEffect: vi.fn(),
+}));
 vi.mock('expo-router/js-tabs', () => ({
   Tabs: Object.assign(
     ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>
@@ -56,10 +62,15 @@ vi.mock('expo-router/js-tabs', () => ({
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
 vi.mock('../src/host/host-session', () => ({
-  useHostSession: () => ({ saved: undefined }),
+  useHostSession: () => ({
+    saved: fixture.saved,
+    client: fixture.saved
+      ? { subscribe: () => () => {}, getSnapshot: () => ({ connection: { status: 'idle' } }) }
+      : undefined,
+  }),
   hostSession: { getState: () => ({ saved: undefined }) },
 }));
-vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => undefined }));
+vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => ({}) }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   useConversationFilter: () => [fixture.scope],
 }));
@@ -77,6 +88,10 @@ import { played } from './expo-haptics-shim';
 afterEach(() => {
   setHapticsEnabled(true);
   played.length = 0;
+  fixture.saved = undefined;
+  fixture.index = 0;
+  interfacePreferences.setSessionsTab(false);
+  vi.mocked(router.push).mockClear();
 });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it.each(['ios', 'android'])(
@@ -98,42 +113,93 @@ it.each(['ios', 'android'])(
   },
 );
 
+it('acknowledges Android Chats creation once and respects scope and preference', async () => {
+  fixture.platform = 'android';
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<BottomNavigation />));
+    const plus = [...host.querySelectorAll('button')].find(
+      (b) => b.getAttribute('aria-label') === t.createHere,
+    )!;
+    await act(async () => {
+      plus.click();
+      plus.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(played).toEqual(['impact:light']);
+    await act(async () => plus.click());
+    expect(played).toEqual(['impact:light']);
+    fixture.scope = 'another-source';
+    await act(async () => root.render(<BottomNavigation />));
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    fixture.scope = 'all';
+    await act(async () => root.render(<BottomNavigation />));
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    setHapticsEnabled(false);
+    const reopened = host.querySelector<HTMLButtonElement>(`button[aria-label="${t.createHere}"]`)!;
+    await act(async () => reopened.click());
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(played).toEqual(['impact:light']);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});
+
+const owner: SavedHost = {
+  hostId: 'host',
+  hostName: 'Computer',
+  routes: [],
+  deviceId: 'device',
+  credential: 'test-fixture',
+};
+
 it.each(['ios', 'android'])(
-  'acknowledges creation once and respects scope and preference on %s',
+  'scopes bottom create actions to their tabs on %s',
   async (platform) => {
     fixture.platform = platform;
+    fixture.saved = owner;
+    await act(async () => interfacePreferences.setSessionsTab(true));
     const host = document.createElement('div');
-    document.body.append(host);
     const root = createRoot(host);
+    const chatsCreate = () => host.querySelector(`button[aria-label="${t.createHere}"]`);
+    const sessionCreate = () =>
+      host.querySelector<HTMLButtonElement>(`button[aria-label="${t.hostSessions.create}"]`);
     try {
+      for (const index of [0, 1, 2, 3]) {
+        fixture.index = index;
+        await act(async () => root.render(<BottomNavigation />));
+        expect(Boolean(chatsCreate())).toBe(platform === 'android' && index === 0);
+        expect(Boolean(sessionCreate())).toBe(platform === 'android' && index === 2);
+      }
+      if (platform !== 'android') return;
+
+      fixture.index = 2;
       await act(async () => root.render(<BottomNavigation />));
-      const plus = [...host.querySelectorAll('button')].find(
-        (b) => b.getAttribute('aria-label') === t.createHere,
-      )!;
-      await act(async () => {
-        plus.click();
-        plus.click();
-      });
-      expect(host.querySelector('[role="dialog"]')).not.toBeNull();
-      expect(played).toEqual(['impact:light']);
-      await act(async () => plus.click());
-      expect(played).toEqual(['impact:light']);
-      fixture.scope = 'another-source';
-      await act(async () => root.render(<BottomNavigation />));
+      await act(async () => sessionCreate()?.click());
+      expect(router.push).toHaveBeenCalledExactlyOnceWith('/create-session');
       expect(host.querySelector('[role="dialog"]')).toBeNull();
-      fixture.scope = 'all';
+
+      fixture.saved = {
+        ...owner,
+        member: {
+          humanId: 'member-1',
+          displayName: 'Test Member',
+          username: 'test-member',
+          fingerprint: 'a'.repeat(64),
+          mustChangePassword: false,
+        },
+      };
       await act(async () => root.render(<BottomNavigation />));
-      expect(host.querySelector('[role="dialog"]')).toBeNull();
-      setHapticsEnabled(false);
-      const reopened = host.querySelector<HTMLButtonElement>(
-        `button[aria-label="${t.createHere}"]`,
-      )!;
-      await act(async () => reopened.click());
-      expect(host.querySelector('[role="dialog"]')).not.toBeNull();
-      expect(played).toEqual(['impact:light']);
+      expect(sessionCreate()).toBeNull();
+
+      fixture.saved = owner;
+      await act(async () => interfacePreferences.setSessionsTab(false));
+      expect(sessionCreate()).toBeNull();
     } finally {
       act(() => root.unmount());
-      host.remove();
     }
   },
 );
