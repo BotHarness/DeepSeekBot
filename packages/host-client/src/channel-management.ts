@@ -147,12 +147,12 @@ export async function openBotDm(
   return requiredChannel(answer['channel'], 'channelDm');
 }
 
-export interface GroupChannelCreateArgs {
+export type GroupChannelCreateArgs = {
   name: string;
   members: readonly string[];
   humanIds?: readonly string[];
   operationKey?: string;
-}
+};
 
 export async function createGroupChannel(
   host: HostCall,
