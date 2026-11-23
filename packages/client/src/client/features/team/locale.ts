@@ -47,7 +47,7 @@ export const zh = {
   'teamSignIn.error.mismatch': '两次输入的密码不一致。',
   'teamSignIn.error.unreachable': '无法连接到 Host，请检查地址和网络后重试。',
   'teamSignIn.error.private-route':
-    '这是只供已配对设备使用的私有连接，不能输入地址登录。请在 Host 上打开配对码或登录链接。',
+    '这是只供已配对设备使用的私有连接，不能输入地址登录。在 Host 上打开配对码或登录链接。',
   'teamSignIn.error.storage-failed': '无法在此浏览器保存登录信息，请重试。',
   'teamSignIn.error.this-host': '这就是当前 Host，请从 Host 列表中打开它。',
   'teamSignIn.error.owner-required': '只有此 Host 的所有者可以在这里添加其他 Host。',

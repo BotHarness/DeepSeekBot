@@ -167,7 +167,7 @@ export const zh: typeof en = {
       mismatch: '两次输入的密码不一致。',
       unreachable: '无法连接 Host，检查网络后再试。',
       'private-route':
-        '这是只供已配对设备使用的私有连接，不能输入地址登录。请在 Host 上打开配对码或登录链接，然后扫码。',
+        '这是只供已配对设备使用的私有连接，不能输入地址登录。在 Host 上打开配对码或登录链接，然后扫码。',
       'storage-failed': '无法在本机保存登录，再试一次。',
       'host-update-required': '先更新这台 Host，再用账密登录。',
     } as Record<string, string>,
