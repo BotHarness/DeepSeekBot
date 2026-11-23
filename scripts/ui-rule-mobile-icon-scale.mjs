@@ -112,6 +112,8 @@ function scaleInSize(value, checkReference = false) {
       callee.source.endsWith('/design/scaled-icon-size')
     )
       return scaleInSize(path.get('arguments.2'), true);
+    if (!checkReference && path.get('callee').matchesPattern('Math.min'))
+      return path.get('arguments').every((arg) => scaleInSize(arg));
     return path.get('arguments').some((arg) => scaleInSize(arg, checkReference));
   }
   return false;
@@ -212,6 +214,35 @@ export function mobileIconScale(file, ast) {
         );
       if (fixed && !capped)
         found.push({ rule: 'fixedIconScale', file, line: opening.node.loc.start.line, text: name });
+    },
+  });
+  return found;
+}
+
+const COMPOSE = '@expo/ui/jetpack-compose';
+const COMPOSE_MODIFIERS = `${COMPOSE}/modifiers`;
+const ICON_BUTTON = /^(?:Filled|FilledTonal|Outlined)?IconButton$/u;
+const BOX_MODIFIERS = ['size', 'width', 'height', 'requiredSize'];
+
+export function mobileActionScale(file, ast) {
+  const found = [];
+  traverse(ast, {
+    JSXOpeningElement(opening) {
+      const button = importOf(opening.get('name'));
+      if (button?.source !== COMPOSE || !ICON_BUTTON.test(button.name)) return;
+      const scaled = entries(prop(opening, 'modifiers'), true).some(
+        (entry) =>
+          entry.isCallExpression() &&
+          BOX_MODIFIERS.some((name) => imported(entry.get('callee'), name, COMPOSE_MODIFIERS)) &&
+          entry.get('arguments').some((arg) => scaleInSize(arg)),
+      );
+      if (scaled)
+        found.push({
+          rule: 'scaledActionBox',
+          file,
+          line: opening.node.loc.start.line,
+          text: button.name,
+        });
     },
   });
   return found;
