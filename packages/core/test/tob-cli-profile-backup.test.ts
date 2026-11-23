@@ -219,12 +219,14 @@ it('refuses an export confirmation that is missing or not a saved preview', asyn
 });
 
 it('refuses a preview the Host returned without an export confirmation and saves nothing', async () => {
-  const f = await tob(await serveHost(async () => Response.json({ bots: 0 })));
-  const out = join(root(), 'confirmation.json');
-  for (const argv of [['profile-backup-preview'], ['profile-backup-preview', '--out', out]])
-    expect(await f.invoke(argv)).toMatchObject({
-      ok: false,
-      error: { code: 'host-protocol-error' },
-    });
-  expect(existsSync(out)).toBe(false);
+  for (const preview of [{ bots: 0 }, { bots: 0, token: 'x'.repeat(513) }]) {
+    const f = await tob(await serveHost(async () => Response.json(preview)));
+    const out = join(root(), 'confirmation.json');
+    for (const argv of [['profile-backup-preview'], ['profile-backup-preview', '--out', out]])
+      expect(await f.invoke(argv)).toMatchObject({
+        ok: false,
+        error: { code: 'host-protocol-error' },
+      });
+    expect(existsSync(out)).toBe(false);
+  }
 });

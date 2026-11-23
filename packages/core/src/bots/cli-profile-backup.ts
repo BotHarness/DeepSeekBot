@@ -95,7 +95,7 @@ async function preview(
   const { bytes } = await host.http(PATH);
   const value = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
   const { token, ...review } = value;
-  if (typeof token !== 'string' || token === '')
+  if (typeof token !== 'string' || token === '' || token.length > 512)
     throw new CliLiveError(
       'host-protocol-error',
       'The Host returned a preview without an export confirmation; update the Host.',
