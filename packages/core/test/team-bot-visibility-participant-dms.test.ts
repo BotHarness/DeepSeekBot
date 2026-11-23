@@ -144,6 +144,42 @@ describe('M7 Bot principal and participant authority', () => {
     core.team.bots.optOut(bob, 'helper', true);
     await expect(send()).rejects.toMatchObject({ code: 'bot-proactive-denied' });
   });
+  it('keeps replacement tokens in a Group speaker display name literal', async () => {
+    const prompts: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('m7-literal-speaker-'),
+      agents: {
+        async runOrchestrator(run) {
+          prompts.push(run.message);
+        },
+        async runAssignment() {},
+        requestAssignment: () => ({ delivery: 'steer' }),
+        async close() {},
+      },
+    });
+    closes.push(async () => {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    });
+    core.registry.create({ slug: 'worker', displayName: 'Worker' });
+    const displayName = "Pat $& $$ $'";
+    const db = attachOperationalModule(core.operationalDatabase, 'literal-speaker-test');
+    db.transaction((db) =>
+      db
+        .prepare('UPDATE humans SET display_name=? WHERE human_id=?')
+        .run(displayName, owner.humanId),
+    );
+    const group = core.channels.createGroup(owner, { name: 'Speaker', members: ['worker'] });
+    await core.channels.appendMessage(owner, group.id, {
+      ...post('literal-speaker'),
+      body: '@Worker check',
+      mentions: [{ botSlug: 'worker', label: 'Worker', start: 0, end: 7 }],
+    });
+    core.runtime.admitGroupMessage(group.id, 'literal-speaker');
+    await core.runtime.whenIdle();
+    expect(prompts).toEqual([expect.stringContaining(displayName)]);
+  });
+
   it('reattaches speaker policy after refused steering and commits only accepted delivery', async () => {
     let release = () => {};
     let started = () => {};
