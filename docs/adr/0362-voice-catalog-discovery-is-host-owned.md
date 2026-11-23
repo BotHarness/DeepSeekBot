@@ -3,7 +3,7 @@ Status: Accepted
 Date: 2026-11-21
 ---
 
-# ADR-0360: Speech catalog discovery is Host-owned
+# ADR-0362: Speech catalog discovery is Host-owned
 
 ## Context
 

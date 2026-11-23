@@ -606,7 +606,7 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 小米 MiMo 预设通过独立的协议适配调用 Chat Completions。适配负责生成合成请求并解码响应里的音频。凭据读取、请求超时、音频大小限制和健康检查仍由 `VoiceProviders` 管理。
 
-[ADR-0360](../adr/0360-voice-catalog-discovery-is-host-owned.md)：语音目录由 `VoiceProviders` 查询。厂商适配负责认证、模型能力筛选、音色来源和分页。添加表单可以用草稿密钥查询该厂商的官方端点，保存服务时才通过凭据存储写入密钥。公开音色需要写入外部账户时，由 Human 单独确认，并使用账户返回的音色 ID。MiMo ASR 复用同一厂商的 Chat Completions 协议，通过现有的批量转写路径处理 WAV 和 MP3。
+[ADR-0362](../adr/0362-voice-catalog-discovery-is-host-owned.md)：语音目录由 `VoiceProviders` 查询。厂商适配负责认证、模型能力筛选、音色来源和分页。添加表单可以用草稿密钥查询该厂商的官方端点，保存服务时才通过凭据存储写入密钥。公开音色需要写入外部账户时，由 Human 单独确认，并使用账户返回的音色 ID。MiMo ASR 复用同一厂商的 Chat Completions 协议，通过现有的批量转写路径处理 WAV 和 MP3。
 
 ### Bot 通话（ADR-0281）
 
