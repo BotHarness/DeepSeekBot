@@ -174,6 +174,71 @@ describe('Assignment collaboration', () => {
     }
   });
 
+  it('cancels preparation waiting on an existing run and preserves that run', async () => {
+    const { runtime, agents, sessionId, close } = await idleNativeAssignment();
+    const controller = new AbortController();
+    try {
+      expect(
+        agents.access!.request({ sessionId, mode: 'next-turn', text: 'Continue' }).delivery,
+      ).toBe('followup');
+      const waiting = runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        ['native-child'],
+        controller.signal,
+      );
+      let result: boolean | undefined;
+      void waiting.then((accepted) => {
+        result = accepted;
+      });
+      controller.abort();
+      await vi.waitFor(() => expect(result).toBe(false));
+      expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('working');
+      expect(agents.started).toHaveLength(2);
+
+      const next = runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        ['native-child'],
+        new AbortController().signal,
+      );
+      agents.finish(sessionId);
+      await expect(next).resolves.toBe(true);
+      expect(agents.started).toHaveLength(3);
+    } finally {
+      controller.abort();
+      await close();
+    }
+  });
+
+  it('settles native preparation when the stored group route cannot be read', async () => {
+    const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment();
+    const controller = new AbortController();
+    try {
+      attachOperationalModule(owner, 'wake-test').transaction(
+        (db) =>
+          db
+            .prepare(
+              'UPDATE assignments SET model_group_id = ?, model_route_json = ? WHERE session_id = ?',
+            )
+            .run('g', '{"provider":"test","model":"legacy","reasoningEffort":" "}', sessionId),
+        ['assignments'],
+      );
+      const preparing = runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        ['native-child'],
+        controller.signal,
+      );
+      let result: boolean | undefined;
+      void preparing.then((accepted) => {
+        result = accepted;
+      });
+      await vi.waitFor(() => expect(result).toBe(false));
+      expect(agents.started).toHaveLength(1);
+    } finally {
+      controller.abort();
+      await close();
+    }
+  });
+
   it('queues one native wake behind capacity, without polling or creating a second child input', async () => {
     const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment({
       assignmentConcurrencyLimit: 1,
@@ -344,6 +409,45 @@ describe('Assignment collaboration', () => {
       });
       await expect(tool()).rejects.toThrow('execution authority is unavailable');
     } finally {
+      await close();
+    }
+  });
+
+  it('preserves the next run’s approval wait when the previous run finishes cleanup', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    const controller = new AbortController();
+    try {
+      await admit('Start', 'superseded-approval');
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Work awaiting a follow-up',
+      });
+      if (created.outcome !== 'created') throw new Error('Assignment missing');
+      const { sessionId } = created.assignment;
+      const followUp = vi.fn(() => {
+        const request = agents.access!.request({ sessionId, mode: 'next-turn', text: 'Continue' });
+        runtime.beginAssignmentApprovalWait!(sessionId, 'next-approval', controller.signal);
+        return request.delivery;
+      });
+      const unsubscribe = owner.subscribe(() => {
+        if (runtime.getAssignment('ada', sessionId)?.activity !== 'idle') return;
+        unsubscribe();
+        followUp();
+      });
+      try {
+        agents.finish(sessionId);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(followUp).toHaveReturnedWith('followup');
+        expect(runtime.getAssignment('ada', sessionId)?.executionWait).toBe('waiting-human');
+        agents.finish(sessionId);
+        await runtime.whenIdle();
+        expect(runtime.getAssignment('ada', sessionId)?.executionWait).toBeUndefined();
+      } finally {
+        unsubscribe();
+      }
+    } finally {
+      controller.abort();
       await close();
     }
   });

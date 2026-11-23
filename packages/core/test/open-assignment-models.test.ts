@@ -10,9 +10,12 @@ import {
   createModelPresetStore,
   isPersonaBotModelPlan,
   selectAssignmentRoute,
+  type ModelRoute,
   type PersonaBotModelPlan,
 } from '../src/models/presets.js';
 import { resolveSubagentRoute } from '../src/models/subagent-route.js';
+import { setup } from './assignment-collaboration-fixtures.js';
+import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const homes: string[] = [];
 const owners: OperationalDatabaseOwner[] = [];
@@ -50,6 +53,45 @@ function entry(
 }
 
 describe('Open Assignment Models', () => {
+  it('rejects an unreadable route before storing or starting an Assignment', async () => {
+    const { runtime, agents, registry, admit, close } = await setup();
+    try {
+      expect(
+        registry.setModelPlan(
+          'ada',
+          {
+            orchestrator: pro,
+            assignmentDefault: flash,
+            assignmentModels: [{ ...flash, allowedEfforts: [''], defaultEffort: '' }],
+            openAssignmentModels: true,
+          },
+          0,
+        ).ok,
+      ).toBe(true);
+      await admit('Start', 'open-model');
+      const create = (model: ModelRoute) =>
+        agents.access!.create({
+          title: 'Research',
+          description: 'Find the launch date',
+          grantId: TEST_GRANT_ID,
+          model,
+        });
+
+      expect(() => create({ ...pro, reasoningEffort: ' ' })).toThrow(
+        'Invalid Assignment model route',
+      );
+      expect(agents.started).toHaveLength(0);
+      expect(runtime.listAssignments('ada')).toEqual([]);
+      const route = { provider: pro.provider, model: pro.model };
+      expect(create(route)).toMatchObject({
+        outcome: 'created',
+        assignment: { modelRoute: route },
+      });
+    } finally {
+      await close();
+    }
+  });
+
   it('keeps the listed set unless the plan is open', () => {
     expect(() => selectAssignmentRoute(plan(false), pro)).toThrow(
       'Assignment model deepseek/deepseek-pro is not allowed',

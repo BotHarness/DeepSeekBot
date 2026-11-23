@@ -12,6 +12,7 @@ import {
   type AssignmentRequestDelivery,
   type BotAgentAdapter,
   type BotRuntime,
+  type BotRuntimeOptions,
   type OrchestratorAgentRun,
   type OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
@@ -118,6 +119,7 @@ export function sourceEvents(owner: ReturnType<typeof mountOperationalDatabase>)
 export async function setup(
   options: {
     assignmentConcurrencyLimit?: number | (() => number);
+    runtimeOptions?: Pick<BotRuntimeOptions, 'groupFallback' | 'routeRests' | 'warn'>;
     saveReportSpill?: (input: {
       sessionId: string;
       content: string;
@@ -177,6 +179,7 @@ export async function setup(
     channels,
     agents,
     grants,
+    ...options.runtimeOptions,
     ...(options.saveReportSpill === undefined ? {} : { saveReportSpill: options.saveReportSpill }),
     ...(options.readAssignmentTail === undefined
       ? {}

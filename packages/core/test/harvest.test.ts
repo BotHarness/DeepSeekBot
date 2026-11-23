@@ -600,6 +600,61 @@ describe('turn-time harvest', () => {
     }
   });
 
+  it.each(['group-mention', 'group-ordinary'])(
+    'makes all claimed admissions retryable when the %s observation write fails',
+    async (reason) => {
+      const runs: OrchestratorAgentRun[] = [];
+      const core = createCore({
+        dshHome: createTempRoot('bh-harvest-observation-failure-'),
+        agents: {
+          async runOrchestrator(run) {
+            runs.push(run);
+          },
+          async runAssignment() {},
+          requestAssignment() {
+            throw new Error('No Assignment expected');
+          },
+          async close() {},
+        },
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Team',
+          members: ['ada'],
+        });
+        core.channels.setGroupWakePolicy(group.id, 'ada', {
+          mode: 'digest',
+          count: 1,
+          intervalSeconds: 30,
+        });
+        await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
+          id: 'digest-observation',
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          body: 'Group discussion',
+        });
+        await admitMention(core, group.id, 'mention-observation', '@Ada ping');
+        attachOperationalModule(core.operationalDatabase, 'harvest-test').transaction((db) =>
+          db.exec(`
+            CREATE TRIGGER refuse_observation BEFORE UPDATE OF observed_at ON inbox_admissions
+            WHEN NEW.observed_at IS NOT NULL AND OLD.attempt_state = 'running' AND OLD.reason = '${reason}'
+            BEGIN SELECT RAISE(ABORT, 'Observation write failed'); END
+          `),
+        );
+        admit(core, group.id, 'digest-observation');
+        admit(core, group.id, 'mention-observation');
+        await core.runtime.whenIdle();
+
+        expect(runs).toHaveLength(0);
+        expect(admissionStates(core, 'ada')).toEqual(['retryable', 'retryable']);
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
   it('leaves every included admission needs-repair when the harvest fails after a side effect', async () => {
     const home = createTempRoot('botharness-harvest-failure-');
     let runs = 0;

@@ -231,26 +231,26 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
     const sourceEventId = claimed.items[0]?.sourceEventId ?? digestIds[0] ?? collected.eventIds[0];
     if (sourceEventId === undefined) return;
     const timestamp = ports.now().toISOString();
-    for (const item of claimed.items)
-      ports.observeAdmission(item.sourceEventId, botSlug, item.channelId, item.messageId);
-    if (digestIds.length + contextIds.length > 0)
-      ports.database.transaction(
-        (database) => {
-          for (const id of [...digestIds, ...contextIds])
-            database
-              .prepare(
-                `
-        UPDATE inbox_admissions SET observed_at = ?
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-      `,
-              )
-              .run(timestamp, id, botSlug);
-        },
-        ['bot-inbox'],
-      );
-    ports.setObserved(collected.eventIds, timestamp, botSlug);
     let orchestrator: { sessionId: string; resume: boolean } | undefined;
     try {
+      for (const item of claimed.items)
+        ports.observeAdmission(item.sourceEventId, botSlug, item.channelId, item.messageId);
+      if (digestIds.length + contextIds.length > 0)
+        ports.database.transaction(
+          (database) => {
+            for (const id of [...digestIds, ...contextIds])
+              database
+                .prepare(
+                  `
+          UPDATE inbox_admissions SET observed_at = ?
+           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
+        `,
+                )
+                .run(timestamp, id, botSlug);
+          },
+          ['bot-inbox'],
+        );
+      ports.setObserved(collected.eventIds, timestamp, botSlug);
       const started = ports.ensureOrchestrator(bot, timestamp);
       orchestrator = started;
       const sections = [
@@ -314,6 +314,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
         );
       }
     } catch (error) {
+      settleHarvestFailure(botSlug, includedIds, String(error));
       ports.setObserved(collected.eventIds, null, botSlug);
       ports.database.transaction(
         (db) => {
@@ -324,7 +325,6 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
         },
         ['bot-inbox'],
       );
-      settleHarvestFailure(botSlug, includedIds, String(error));
       for (const digest of claimed.digests) {
         const key = `${botSlug}:${digest.channelId}`;
         const failures = Math.min(6, (ports.digestFailureCount.get(key) ?? 0) + 1);
@@ -376,6 +376,11 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
         for (const row of context.rows)
           ports.channels.admissionChanged?.(context.channelId, row.message_id);
     }
+  }
+
+  function digestReady(botSlug: string, channelId: string, now?: number): boolean {
+    const retryAt = ports.digestRetryAt.get(`${botSlug}:${channelId}`);
+    return retryAt === undefined || retryAt <= (now ?? ports.now().getTime());
   }
 
   function claimHarvest(
@@ -490,6 +495,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
           omittedCount: number;
         }> = [];
         for (const group of groups) {
+          if (!digestReady(botSlug, group.channel_id, now)) continue;
           if (
             group.count < group.wake_count &&
             Date.parse(group.first_at) + group.interval_ms > now
@@ -611,7 +617,8 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
      WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
            AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
        AND (a.wake_mode IN ('all', 'digest', 'mentions') OR (a.wake_mode = 'silent' AND a.source_policy_wake_mode = 'context'))
-       AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?`;
+       AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?
+       ${digestReady(botSlug, channelId) ? '' : 'AND a.wake_count IS NULL'}`;
     const total = database.prepare(`SELECT COUNT(*) AS count ${base}`).get(botSlug, channelId) as {
       count: number;
     };
