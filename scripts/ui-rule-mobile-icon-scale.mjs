@@ -128,7 +128,9 @@ function entries(value, includeBranches = false) {
   if (includeBranches && path.isConditionalExpression())
     return ['consequent', 'alternate'].flatMap((key) => entries(path.get(key), includeBranches));
   if (includeBranches && path.isLogicalExpression())
-    return entries(path.get('right'), includeBranches);
+    return (path.node.operator === '&&' ? ['right'] : ['left', 'right']).flatMap((key) =>
+      entries(path.get(key), includeBranches),
+    );
   return [path];
 }
 
