@@ -77,7 +77,7 @@ Capture HTTP headers/URLs and WebSocket frames at the Connect origin before chan
 
 ## Native pairing links with the Pair sheet open
 
-In the shared device QA batch, open Pair a computer. Open a task-owned pairing URL for the installed app variant and confirm the normal verification starts. While the first attempt waits for approval, open a second link and then open that same link again. Confirm the first attempt stays active. Finish it and verify the second link starts exactly once through its own fingerprint and approval steps. Repeat from a cold launch to check the initial route. Keep pairing URLs and fingerprints out of public evidence.
+In the shared device QA batch, open the Pair screen from the workspace drawer (UI label "Pair a new computer") so its scanner is showing. Open a task-owned pairing URL for the installed app variant and confirm the normal verification starts. While the first attempt waits for approval, open a second link and then open that same link again. Confirm the first attempt stays active. Finish it and verify the second link starts exactly once through its own fingerprint and approval steps. Repeat from a cold launch to check the initial route. Keep pairing URLs and fingerprints out of public evidence.
 
 ## Native attachment regression
 
