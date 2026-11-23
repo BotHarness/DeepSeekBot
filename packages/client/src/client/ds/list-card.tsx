@@ -129,7 +129,10 @@ export function ListCardItem({
   data?: Record<`data-${string}`, string | undefined>;
 } & (
   | { toggle?: ListCardToggle | undefined; action?: never }
-  | { toggle?: never; action: { label: string; disabled?: boolean; onClick(): void } }
+  | {
+      toggle?: never;
+      action: { label: string; disabled?: boolean; pressed?: boolean; onClick(): void };
+    }
 )): ReactElement {
   const trigger = toggle ?? action;
   return (
@@ -142,6 +145,7 @@ export function ListCardItem({
             aria-label={trigger.label}
             aria-expanded={toggle?.expanded}
             aria-controls={toggle?.controls}
+            aria-pressed={action?.pressed}
             disabled={action?.disabled}
             onClick={toggle?.onToggle ?? action?.onClick}
           />

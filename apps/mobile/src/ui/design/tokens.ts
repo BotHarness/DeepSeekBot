@@ -45,6 +45,11 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const largeTextFallback = {
+  minScale: 1.4,
+  radius: radius.lg,
+} as const;
+
 export const alertOverlay = {
   maxHeightFraction: 0.5,
   swipeStart: 12,
@@ -114,6 +119,7 @@ export const materialIconButton = {
 } as const;
 export const fab = {
   size: 56,
+  glyphMaxScale: 1.353,
   radius: 16,
   margin: 16,
   elevation: 6,
@@ -125,7 +131,11 @@ export const fab = {
   menuWidth: 320,
   menuSettle: 350,
 } as const;
-export const creationCard = { fadeDuration: 150, levelDuration: 180 } as const;
+export const creationCard = {
+  fadeDuration: 150,
+  levelDuration: 180,
+  contentReveal: 0.95,
+} as const;
 export const materialDrawer = {
   width: 360,
   scrimGutter: 56,
@@ -302,6 +312,11 @@ export const springs: Record<
     spatial: { fast: material(0.6, 800), default: material(0.8, 380), slow: material(0.8, 200) },
     effects: { fast: material(1, 3800), default: material(1, 1600), slow: material(1, 800) },
   },
+};
+
+export const morphSprings: Record<PlatformOS, SpringPhysics> = {
+  ios: swiftUI(0.28, 0),
+  android: material(1, 380),
 };
 
 export const decelerate: Record<PlatformOS, readonly [number, number, number, number]> = {

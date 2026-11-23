@@ -94,12 +94,6 @@ export function CreationAvatar({
   const theme = useDesignTheme();
   const tiltiesImage =
     avatar?.kind === 'photo' && isTiltiesAvatar(avatar.image) ? avatar.image : undefined;
-  const shuffle = () =>
-    onChange(
-      tiltiesImage === undefined
-        ? { kind: 'generated', seed: randomAvatarSeed() }
-        : { kind: 'photo', image: randomTiltiesAvatar(tiltiesImage) },
-    );
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
@@ -142,14 +136,6 @@ export function CreationAvatar({
           gap: space.x3,
         }}
       >
-        <View style={{ flex: theme.largeText ? undefined : 1 }}>
-          <Button
-            label={copy.shuffleAvatar}
-            testID="create-bot-avatar-shuffle"
-            disabled={disabled}
-            onPress={shuffle}
-          />
-        </View>
         <View style={{ flex: theme.largeText ? undefined : 1 }}>
           <Button
             label={copy.photoAvatar}

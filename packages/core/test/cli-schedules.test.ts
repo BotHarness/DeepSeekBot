@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { requestListener } from './async-listener.js';
+import { invoke as invokeOffline } from './bot-create-cli-fixture.js';
+import { createTempRoot } from './helpers.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -256,10 +258,136 @@ describe('online schedule commands', () => {
     expect(live.calls).toEqual([{ method: 'schedulePreview', args: { trigger } }]);
   });
 
+  it('sends the operation key on create and passes a reconciled result through', async () => {
+    const live = await host(() => ({ ok: true, value: { schedule, reconciled: true } }));
+    const argv = [
+      'schedule-create',
+      'ada',
+      '--title',
+      'Standup',
+      '--prompt',
+      'Summarize',
+      '--every',
+      '3600',
+      '--operation-key',
+      'tob-op-0001',
+    ];
+    const result = await invoke(argv, live.url);
+    expect(result).toEqual({ code: 0, value: { schedule, reconciled: true } });
+    expect(live.calls[0]).toEqual({
+      method: 'scheduleCreate',
+      args: {
+        slug: 'ada',
+        input: {
+          title: 'Standup',
+          prompt: 'Summarize',
+          trigger: { kind: 'every', everySeconds: 3600 },
+        },
+        operationKey: 'tob-op-0001',
+      },
+    });
+    const malformed = await invoke([...argv.slice(0, -1), 'bad key'], live.url);
+    expect(malformed.value.error.code).toBe('usage');
+    expect(live.calls).toHaveLength(1);
+  });
+
+  it('sends the expected revision on update and delete and refuses it elsewhere', async () => {
+    const live = await host((method) =>
+      method === 'scheduleDelete'
+        ? { ok: false, error: { code: 'stale-revision', message: 'changed' } }
+        : { ok: true, value: { schedule } },
+    );
+    await invoke(
+      ['schedule-update', 'ada', '--sid', 'sched-1', '--title', 'T', '--expected-revision', 'r1'],
+      live.url,
+    );
+    const stale = await invoke(
+      ['schedule-delete', 'ada', '--sid', 'sched-1', '--confirm', '--expected-revision', 'r1'],
+      live.url,
+    );
+    expect(stale).toEqual({
+      code: 1,
+      value: { error: { code: 'stale-revision', message: 'changed' } },
+    });
+    const misplaced = await invoke(
+      ['schedule-run-now', 'ada', '--sid', 'sched-1', '--expected-revision', 'r1'],
+      live.url,
+    );
+    expect(misplaced.value.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'scheduleUpdate',
+        args: { slug: 'ada', id: 'sched-1', change: { title: 'T' }, expectedRevision: 'r1' },
+      },
+      {
+        method: 'scheduleDelete',
+        args: { slug: 'ada', id: 'sched-1', expectedRevision: 'r1' },
+      },
+    ]);
+  });
+
   it('refuses --home together with an online Host', async () => {
     const live = await host(() => ({ ok: true, value: {} }));
     const result = await invoke(['schedules', 'ada', '--home', '/tmp/x'], live.url);
     expect(result.value.error.code).toBe('usage');
     expect(live.calls).toEqual([]);
+  });
+});
+
+describe('offline schedule operation keys and revisions', () => {
+  it('reconciles a repeated keyed create and refuses a stale revision', async () => {
+    const home = createTempRoot('botharness-cli-schedule-keys-');
+    const bot = await invokeOffline(['create', '--name', 'Ada'], home);
+    const id = bot.json.bot.id as string;
+    const argv = [
+      'schedule-create',
+      id,
+      '--title',
+      'Ping',
+      '--prompt',
+      'Say hi',
+      '--every',
+      '3600',
+      '--operation-key',
+      'human-op-0001',
+    ];
+    const created = await invokeOffline(argv, home);
+    const retried = await invokeOffline(argv, home);
+    expect(created.json.reconciled).toBeUndefined();
+    expect(retried.json).toMatchObject({
+      reconciled: true,
+      schedule: { id: created.json.schedule.id },
+    });
+    const listed = await invokeOffline(['schedules', id], home);
+    expect(listed.json.schedules).toHaveLength(1);
+    const revision = listed.json.schedules[0].revision as string;
+    expect(revision).toBe(created.json.schedule.revision);
+    const sid = created.json.schedule.id as string;
+    const updated = await invokeOffline(
+      ['schedule-update', id, '--sid', sid, '--title', 'Pong', '--expected-revision', revision],
+      home,
+    );
+    expect(updated.code).toBe(0);
+    const stale = await invokeOffline(
+      ['schedule-delete', id, '--sid', sid, '--confirm', '--expected-revision', revision],
+      home,
+    );
+    expect(stale.code).toBe(1);
+    expect(stale.json.error.code).toBe('stale-revision');
+    const deleted = await invokeOffline(
+      [
+        'schedule-delete',
+        id,
+        '--sid',
+        sid,
+        '--confirm',
+        '--expected-revision',
+        updated.json.schedule.revision,
+      ],
+      home,
+    );
+    expect(deleted.json.removed).toBe(true);
+    const consumed = await invokeOffline(argv, home);
+    expect(consumed.json.error.code).toBe('operation-key-consumed');
   });
 });

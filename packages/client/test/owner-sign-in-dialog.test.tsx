@@ -113,6 +113,11 @@ it('routes a Team invitation to the existing flow', async () => {
   );
   expect(discoverAddress).not.toHaveBeenCalled();
   expect(pairStart).not.toHaveBeenCalled();
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    t('teamSignIn.error.unreachable'),
+  );
+  expect(container.querySelector<HTMLInputElement>('input:not([type="file"])')?.value).toBe(link);
+  expect(container.querySelector('button[data-remote-host-add-submit]')).not.toBeNull();
 });
 
 it('discovers an address, offers both ways and saves the Owner sign-in', async () => {

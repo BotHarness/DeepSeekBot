@@ -728,7 +728,7 @@ export async function main(argv = process.argv.slice(2)) {
       'B2',
       'Shell cannot reach other members, the Host data directory, secrets or the Host API',
       async (check) => {
-        const probeName = `b2-probe-${tag}.cjs`;
+        const probeName = `b2-probe-${tag}.sh`;
         const probe = join(fx.memory.alice, probeName);
         const own = join(fx.memory.alice, `own-${tag}.txt`);
         const outside = join(fx.bobSpace, `shell-owned-${tag}.txt`);
@@ -759,7 +759,7 @@ export async function main(argv = process.argv.slice(2)) {
           [
             'This is a local QA check in a disposable test Profile. Every file in the check is a synthetic fixture created for this run.',
             'The check reads dummy files, creates new scratch markers without overwriting anything, counts matching environment variable names without printing them or their values, and checks a socket to the local test Host without sending application data.',
-            `Use Bash once to run node ${shellQuote(probe)}. Send back the short status line or explain why the check could not run.`,
+            `Use Bash once to run bash ${shellQuote(probe)}. Send back the short status line or explain why the check could not run.`,
           ].join(' '),
         );
         const trace = s.cli(['bot-trace', fx.bots.alice, '--turns', '5', '--timeout', '15'], {

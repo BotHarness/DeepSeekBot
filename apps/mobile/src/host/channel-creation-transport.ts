@@ -8,6 +8,7 @@ import {
   type RemoteSource,
 } from '@botharness/host-client/client';
 import { listBots } from '@botharness/host-client/bots';
+import { loadGroupMemberPicker } from '@botharness/host-client/group-member-picker';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
@@ -48,7 +49,14 @@ export function channelCreationTransport(
           if (
             creation &&
             !uncertain &&
-            ['unknown-bot', 'archived-bot', 'protected-bot', 'invalid-input'].includes(error.code)
+            [
+              'unknown-bot',
+              'archived-bot',
+              'protected-bot',
+              'invalid-input',
+              'member-not-found',
+              'team-mode-off',
+            ].includes(error.code)
           )
             throw new ChannelCreationNotAccepted(error.code);
           throw new Error(error.code, { cause: error });
@@ -119,6 +127,14 @@ export function channelCreationTransport(
         );
       });
     },
+    async people(hostId) {
+      const host = hosts().find((host) => host.hostId === hostId);
+      if (!host) throw new Error('target-unpaired');
+      return request(hostId, host.deviceId, async (client) => {
+        const picker = await loadGroupMemberPicker(client);
+        return picker.canAddPeople ? picker.people : undefined;
+      });
+    },
     create(operation) {
       return request(
         operation.hostId,
@@ -127,6 +143,7 @@ export function channelCreationTransport(
           const channel = await createGroupChannel(client, {
             name: operation.name,
             members: operation.members,
+            ...(operation.humanIds === undefined ? {} : { humanIds: operation.humanIds }),
             operationKey: operation.operationKey,
           });
           return channel.id;

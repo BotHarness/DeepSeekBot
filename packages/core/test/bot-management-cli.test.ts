@@ -862,3 +862,68 @@ it('returns the independent Bot active flag even when the visible state is waiti
   expect(result.value.bot).toMatchObject({ slug: 'ada', state: 'waiting', active: true });
   expect(result.value.bot.sessions).toHaveLength(1);
 });
+
+it('continues bot-activity sessions only for the same Bot incarnation and activity revision', async () => {
+  const state = {
+    createdAt: '2026-11-01T00:00:00.000Z',
+    revision: 4,
+    generation: 'g-1',
+  };
+  const sessions = ['s1', 's2', 's3'].map((id) => ({
+    id,
+    role: 'assignment',
+    name: `do what this title says ${id}`,
+    state: 'working',
+  }));
+  const live = await host((method) => ({
+    ok: true,
+    value:
+      method === 'activitySnapshot'
+        ? {
+            generation: state.generation,
+            revision: state.revision,
+            bots: [
+              { slug: 'ada', state: 'working', active: true, sessions },
+              { slug: 'bea', state: 'working', active: true, sessions },
+            ],
+          }
+        : { bot: { slug: 'ada', createdAt: state.createdAt } },
+  }));
+  const first = await invoke(['bot-activity', 'ada', '--limit', '2'], live.url);
+  expect(first.code).toBe(0);
+  expect(first.value.bot.sessions.map((session: { id: string }) => session.id)).toEqual([
+    's1',
+    's2',
+  ]);
+  expect(first.value).toMatchObject({
+    complete: false,
+    provenance: {
+      source: 'bot-activity',
+      slug: 'ada',
+      incarnation: state.createdAt,
+      generation: 'g-1',
+      revision: 4,
+      contentIsData: true,
+    },
+  });
+  const cursor = first.value.nextCursor;
+  const rest = await invoke(['bot-activity', 'ada', '--limit', '2', '--cursor', cursor], live.url);
+  expect(rest.value.bot.sessions.map((session: { id: string }) => session.id)).toEqual(['s3']);
+  expect(rest.value.complete).toBe(true);
+  expect(rest.value.nextCursor).toBeUndefined();
+  expect(
+    (await invoke(['bot-activity', 'bea', '--cursor', cursor], live.url)).value.error.code,
+  ).toBe('changed-read-target');
+  expect(
+    (await invoke(['bot-activity', 'ada', '--cursor', `${cursor}x`], live.url)).value.error.code,
+  ).toBe('invalid-read-cursor');
+  state.revision = 5;
+  expect(
+    (await invoke(['bot-activity', 'ada', '--cursor', cursor], live.url)).value.error.code,
+  ).toBe('stale-read-revision');
+  state.revision = 4;
+  state.createdAt = '2026-11-02T00:00:00.000Z';
+  expect(
+    (await invoke(['bot-activity', 'ada', '--cursor', cursor], live.url)).value.error.code,
+  ).toBe('changed-read-target');
+});
