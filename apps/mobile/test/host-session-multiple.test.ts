@@ -202,6 +202,8 @@ it('replaces an Owner Host that revoked this phone when the Owner signs in again
       code: 'device-revoked',
     }),
   );
+  session.getHost('revoked')!.client.stop();
+  expect(session.getHost('revoked')?.client.getSnapshot().connection.status).not.toBe('refused');
   const fresh = { ...saved, deviceId: 'new-owner-device', credential: 'new-owner-grant' };
   let allowed: boolean | undefined;
   passwordSignIn.mockImplementationOnce(async (options) => {

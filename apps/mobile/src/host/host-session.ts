@@ -97,7 +97,7 @@ export interface ConnectedHost {
   attention: InboxSnapshot;
 }
 
-const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
+const sessions = new Map<string, { host: ConnectedHost; revoked(): boolean; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
 const callRetains = new Map<HostClient, number>();
 export function retainHostActivity(client: HostClient): () => void {
@@ -450,6 +450,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   });
   return {
     host: { saved, client, inbox, snapshot: client.getSnapshot(), attention: inbox.getSnapshot() },
+    revoked: () => revoked,
     dispose() {
       disposed = true;
       offInbox();
@@ -471,8 +472,7 @@ function syncPreferenceHosts(): void {
 }
 
 function revokedHost(saved: SavedHost): boolean {
-  const connection = sessions.get(saved.hostId)?.host.client.getSnapshot().connection;
-  return connection?.status === 'refused' && connection.code === 'device-revoked';
+  return sessions.get(saved.hostId)?.revoked() === true;
 }
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
