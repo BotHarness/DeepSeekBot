@@ -56,7 +56,10 @@ export function PairScanner({
   const named = link.trim() !== '' && connectInput(link).kind === 'pairing';
   const submitClearance =
     submitBottom > linkBottom
-      ? Math.max(theme.touch + space.x6 * 2, submitBottom - linkBottom + space.x3)
+      ? Math.max(
+          theme.touch + space.x6 * 2,
+          submitBottom - linkBottom + space.x6 * Math.max(1, theme.fontScale),
+        )
       : undefined;
 
   const pair = async (text: string, method: PairingMethod): Promise<void> => {
