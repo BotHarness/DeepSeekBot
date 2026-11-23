@@ -98,6 +98,26 @@ const TEMPLATE: VoiceRequestTemplate = {
   result: { kind: 'audio' },
 };
 
+const ADDED: VoiceRequestTemplate = {
+  version: 1,
+  url: 'https://tts.example/v1/speak',
+  method: 'POST',
+  auth: { kind: 'bearer' },
+  headers: {},
+  body: { kind: 'json', value: { text: '{text}', voice: '{voice}' } },
+  result: { kind: 'audio' },
+};
+
+const EDITED: VoiceRequestTemplate = {
+  version: 1,
+  url: 'https://tts.example/v2/speak',
+  method: 'POST',
+  auth: { kind: 'header', name: 'X-API-Key', prefix: '' },
+  headers: {},
+  body: { kind: 'json', value: { text: '{text}' } },
+  result: { kind: 'audio' },
+};
+
 const SERVICE = {
   id: 'tts-9',
   name: 'Speak',
@@ -136,18 +156,18 @@ it('adds a custom request service through validation', async () => {
   await type(view, 'voice-template-url', 'https://tts.example/v1/speak');
   await type(view, 'voice-service-key', 'dummy-key');
   await press(view, 'voice-service-submit');
-  expect(port.validate).toHaveBeenCalledWith(
-    'tts',
-    expect.objectContaining({ url: 'https://tts.example/v1/speak', auth: { kind: 'bearer' } }),
-  );
-  expect(port.add).toHaveBeenCalledWith(
-    expect.objectContaining({
-      kind: 'tts',
-      preset: 'custom',
-      name: copy.template.service,
-      key: 'dummy-key',
-    }),
-  );
+  expect(vi.mocked(port.validate).mock.calls).toEqual([['tts', ADDED]]);
+  expect(vi.mocked(port.add).mock.calls).toEqual([
+    [
+      {
+        kind: 'tts',
+        preset: 'custom',
+        name: copy.template.service,
+        key: 'dummy-key',
+        template: ADDED,
+      },
+    ],
+  ]);
   expect(added).toHaveBeenCalledWith(SERVICE);
 });
 
@@ -236,10 +256,8 @@ it('edits an existing request and saves it', async () => {
   expect((byTest(view, 'voice-template-auth-name') as HTMLTextAreaElement).value).toBe('X-API-Key');
   await type(view, 'voice-template-url', 'https://tts.example/v2/speak');
   await press(view, 'voice-template-save');
-  expect(port.saveTemplate).toHaveBeenCalledWith(
-    'tts-9',
-    expect.objectContaining({ url: 'https://tts.example/v2/speak' }),
-  );
+  expect(vi.mocked(port.validate).mock.calls).toEqual([['tts', EDITED]]);
+  expect(vi.mocked(port.saveTemplate).mock.calls).toEqual([['tts-9', EDITED]]);
   expect(saved).toHaveBeenCalledWith(SERVICE);
 });
 
