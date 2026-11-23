@@ -1,4 +1,5 @@
-import { createTeamDeviceHttp, type TeamDeviceHttp } from './device-http.js';
+import { createTeamDeviceHttp, deviceFailure, type TeamDeviceHttp } from './device-http.js';
+import { createTeamBridge } from './bridge.js';
 import type { MemberDevices } from './devices.js';
 import { isIPv4 } from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -13,16 +14,17 @@ import { TeamError, type TeamService } from './service.js';
 
 export const TEAM_PATH = '/botharness-device/team';
 export const MEMBER_COOKIE = 'botharness-member';
+const rpcCallSchema = z.object({
+  type: z.literal('client-request'),
+  rpcId: z.string(),
+  method: z.string(),
+  payload: z.object({ args: z.record(z.string(), z.unknown()).optional() }).optional(),
+});
 const rpcSchema = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('call'),
     path: z.string(),
-    body: z.object({
-      type: z.literal('client-request'),
-      rpcId: z.string(),
-      method: z.string(),
-      payload: z.object({ args: z.record(z.string(), z.unknown()).optional() }).optional(),
-    }),
+    body: rpcCallSchema,
   }),
   z.object({
     op: z.literal('stream-open'),
@@ -36,6 +38,11 @@ const rpcSchema = z.discriminatedUnion('op', [
 
 export interface TeamHttp {
   handle(request: IncomingMessage, response: ServerResponse): Promise<void>;
+  ownerDevicePassword(
+    request: IncomingMessage,
+    response: ServerResponse,
+    deviceId: string,
+  ): Promise<void>;
   close(): Promise<void>;
   device?: TeamDeviceHttp | undefined;
 }
@@ -280,6 +287,22 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
 
   return {
     ...(device ? { device } : {}),
+    async ownerDevicePassword(request, response, deviceId) {
+      try {
+        const command = rpcCallSchema.parse(await readTeamBody(request));
+        if (request.method !== 'POST' || command.method !== 'botharness/teamOwnerPasswordSet')
+          throw new TeamError('invalid-input');
+        const currentOwner = options.team.ownerContext();
+        const result = await createTeamBridge(
+          currentOwner,
+          options.team,
+          deviceId,
+        ).teamOwnerPasswordSet(command.payload?.args ?? {});
+        teamJson(response, 200, { type: 'server-response', rpcId: command.rpcId, result });
+      } catch (error) {
+        deviceFailure(response, error);
+      }
+    },
     async handle(request, response) {
       const url = new URL(request.url ?? '/', 'http://member.invalid');
       const path = url.pathname;

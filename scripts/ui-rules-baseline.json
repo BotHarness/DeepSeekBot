@@ -1481,7 +1481,6 @@
   "jsxCopy": {
     "apps/mobile/src/ui/widgets/call-activity.tsx": ["Hang Up", "取消静音", "挂断", "静音"],
     "apps/mobile/src/ui/widgets/request-activity.tsx": ["更新于"],
-    "packages/client/src/client/connection-hosts.tsx": ["Tobs Connect"],
     "packages/client/src/client/create-app-form.tsx": ["App ID", "App Secret"],
     "packages/client/src/client/external-source-content.tsx": ["Source Event:"],
     "packages/client/src/client/features/channels/channel-message-body.tsx": ["Open channel {…}"],
@@ -1512,7 +1511,6 @@
     "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
     "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
     "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/navigation-action.tsx": ["Pressable"]
+    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"]
   }
 }

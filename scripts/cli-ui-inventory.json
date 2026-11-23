@@ -307,6 +307,7 @@
       "description": "API key provider settings with template, display name, write-only key and custom endpoint and model.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/model-providers-settings.tsx:{provider.name}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.apiKey')}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.endpoint')}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.model')}",
@@ -497,23 +498,30 @@
     },
     {
       "id": "model",
-      "description": "#2088 reuses default-model, Bot plan and preset create/read/update/apply owners with scoped Tob revisions/catalog validation. No preset delete owner; credentials remain native private input.",
+      "description": "#2088 reuses default-model, Bot plan and preset create/read/update/delete/apply owners with scoped Tob revisions and catalog validation. Credentials remain native private input.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/model-presets-settings.tsx:{name}",
         "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}",
-        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}"
+        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}",
+        "setting:packages/client/src/client/sub-choice-list.tsx:{name}"
       ],
       "commands": [
         "home-model-set",
         "model-catalog",
         "model-plan",
         "model-plan-set",
+        "model-plan-sub",
+        "model-plan-sub-set",
         "model-plan-customize",
         "model-plan-inherit",
         "model-plan-assignments-set",
         "model-presets",
         "model-preset-create",
+        "model-preset-sub",
+        "model-preset-sub-set",
         "model-preset-update",
+        "model-preset-delete",
         "model-preset-apply"
       ]
     },
@@ -1109,6 +1117,7 @@
       "scope": "Host / PersonaBot",
       "surfaces": [
         "route:packages/core/src/features/models/plugin.ts:ENGINES_PATH",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{ <span {...stylex.props(styles.titleLine)}> <span {...stylex.props(styles.titleText)}>{title}</span> <StatusLabel tone={state.tone} label={state.label} /> </span> }",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.accountEngine')}",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.name')}"
       ],
@@ -1228,7 +1237,7 @@
         "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
         "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
         "setting:packages/client/src/client/connection-hosts.tsx:{label}",
-        "setting:packages/client/src/client/connection-hosts.tsx:\"Tobs Connect\"",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t('devices.connect.title')}",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(item.key)",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(executionKey)",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:setItem(CONNECTION_OPERATIONS_INDEX)"
@@ -1248,6 +1257,7 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.members.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
+        "setting:packages/client/src/client/settings-environment.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
         "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.admins')}",
         "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",

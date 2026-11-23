@@ -85,12 +85,12 @@ const press = (button: HTMLButtonElement, event: string) =>
   });
 
 describe.each(['light', 'dark'] as const)('%s pressed visual tokens', (scheme) => {
-  it('highlights the default navigation action immediately, restores on cancellation, and has a ripple', () => {
+  it('highlights the close navigation action immediately, restores on cancellation, and has a ripple', () => {
     device.scheme = scheme;
     const theme = resolveTheme(scheme, {}, 'android');
     const onPress = vi.fn();
     act(() =>
-      root.render(<NavigationAction size={theme.touch} label="Create" onPress={onPress} />),
+      root.render(<NavigationAction close size={theme.touch} label="Close" onPress={onPress} />),
     );
     const button = host.querySelector('button')!;
     expect(button.dataset.fill).toBe('transparent');

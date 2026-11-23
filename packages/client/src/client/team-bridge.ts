@@ -228,11 +228,13 @@ export async function setOwnerPassword(
   call: BridgeCall,
   password: string,
   current?: string,
+  signOutOthers?: boolean,
 ): Promise<TeamModeView> {
   return parseTeamMode(
     await unwrap(call, 'teamOwnerPasswordSet', {
       password,
       ...(current === undefined ? {} : { current }),
+      ...(signOutOthers === undefined ? {} : { signOutOthers }),
     }),
   );
 }

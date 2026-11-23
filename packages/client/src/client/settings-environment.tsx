@@ -1,10 +1,12 @@
-import { useMemo, useRef, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 
 import type { HostClient } from '@botharness/host-client/client';
 
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Note } from './ds/note.js';
+import { Button } from './ds/button.js';
 import { Select } from './ds/select.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { useHostLook } from './host-looks.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { RemoteHostModels } from './remote-host-models.js';
@@ -21,6 +23,8 @@ import { RemoteMessagingSettings } from './remote-messaging-settings.js';
 import { StorageSettings } from './storage-settings.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
+import { loadTeamMode, setOwnerPassword } from './team-bridge.js';
+import { TeamOwnerPasswordDialog } from './team-settings.js';
 
 export type SettingsEnvironments = Pick<
   RemoteHosts,
@@ -115,7 +119,16 @@ export function RemoteEnvironmentSection({
       />
     );
   if (section === REMOTE_SETTINGS_SECTIONS.hostConnections)
-    return remote === undefined ? offline : <HostDetails key={hostId} remote={remote} t={t} />;
+    return remote === undefined ? (
+      offline
+    ) : (
+      <>
+        <HostDetails key={hostId} remote={remote} t={t} />
+        {connected && client !== undefined && remote.host.member === undefined ? (
+          <RemoteOwnerPassword key={hostId} client={client} t={t} />
+        ) : null}
+      </>
+    );
   if (section === REMOTE_SETTINGS_SECTIONS.hostModels) {
     if (shownClient === undefined) return offline;
     return (
@@ -133,6 +146,48 @@ export function RemoteEnvironmentSection({
   }
   if (!connected || client === undefined) return offline;
   return <RemoteHostData key={hostId} client={client} name={displayName} section={section} t={t} />;
+}
+
+function RemoteOwnerPassword({ client, t }: { client: HostClient; t: BotHarnessTranslate }) {
+  const { call } = remoteHostSettings(client);
+  const [available, setAvailable] = useState(false);
+  const [open, setOpen] = useState(false);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    setAvailable(false);
+    void loadTeamMode(call, controller.signal)
+      .then((view) => {
+        if (!controller.signal.aborted) setAvailable(view.viewer.owner && view.ownerPasswordSet);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [call]);
+  return (
+    <div ref={mount}>
+      {available ? (
+        <SettingsRow
+          title={t('team.ownerPassword.title')}
+          control={
+            <Button variant="outline" onClick={() => setOpen(true)}>
+              {t('team.ownerPassword.change')}
+            </Button>
+          }
+        />
+      ) : null}
+      {available && open ? (
+        <TeamOwnerPasswordDialog
+          t={t}
+          hasPassword
+          thenEnable={false}
+          onCancel={() => setOpen(false)}
+          onSubmit={async (password, current, signOutOthers) => {
+            await setOwnerPassword(call, password, current, signOutOthers);
+            setOpen(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 export function LocalHostAppearance({

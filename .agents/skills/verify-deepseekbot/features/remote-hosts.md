@@ -7,6 +7,7 @@ The browser reads each Remote Host Feed through its own Paired Device and the sh
 - `packages/client/src/client/remote-host*.{ts,tsx}`
 - `packages/client/src/client/features/environments/remote-host-*.ts`
 - `packages/client/src/client/owner-password-{dialog,sign-in-settings}.tsx`
+- `packages/client/src/client/connection-hosts.tsx`
 - `packages/host-client/src/{owner-sign-in,sign-in-discovery}.ts`
 - `packages/client/src/client/relationship{s,-settings}.{ts,tsx}`
 - `packages/core/src/devices/relationship*.ts`
@@ -25,6 +26,14 @@ Use two fresh Profiles on the same build. Serve the target Host's device channel
 With Team mode off, open the target Host's Connections settings. Turn on **Password sign-in** and set an Owner username and password. In the source Owner Client, open **Add remote**, choose password sign-in, and enter the HTTPS address and credentials. Open a Channel unique to the target Host. Compare the visible Channel with the target CLI roster and the new exact device record. Check wrong credentials and an invalid or changed Host identity before the successful attempt. Record a clean console and an accessibility snapshot without credential fields.
 
 Use `team-mode owner-sign-in status` to inspect the setting. Sign in a separate CLI device with `device-owner-sign-in` and validate `device-probe` with its private device file. Disable password sign-in on the target. Verify that a new login is refused and both enrolled devices still read the target Feed. Revoke the CLI device by its ID and verify it loses access. Restart the target Profile and verify the setting and selected username persist. Remove test device files during cleanup.
+
+## Change the Owner password (#4899)
+
+On a fresh Host with Team mode off, enroll two Owner devices by password and one by QR code. On the first device, open the target **Host settings → Connections → Your password → Change**. On the Host itself, use **Settings → Team → Your password → Change**. Confirm the sign-out checkbox defaults to selected. Save the new password. The other password-enrolled device loses its live connection and its next authenticated read is refused. The device that changed the password and the QR-paired device still read the target Host Feed. Verify the old password is refused for new sign-ins and the new password works. Repeat with the checkbox cleared and verify all existing devices keep their access.
+
+For CLI parity, pass the private JSON containing `current` and `password` on stdin to `team-mode owner-password --password-stdin --sign-out-others=true --confirm`. Compare `devices` and `device-probe` results for password and QR grants, and repeat with `--sign-out-others=false`. Redact credentials from visual and console evidence.
+
+In remote Connections, check that route selection, route status and route actions share a list card, and that each paired device has its own row and revoke action in the device card. Use a narrow settings window with a long route address to check that the address and action remain readable. Compare the device list with the target Host's `devices` output.
 
 ## Reciprocal relationship (E1)
 

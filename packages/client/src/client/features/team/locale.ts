@@ -58,6 +58,7 @@ export const zh = {
   'team.ownerPassword.change': '更改',
   'team.ownerPassword.setupTitle': '设置你的密码',
   'team.ownerPassword.changeTitle': '更改你的密码',
+  'team.ownerPassword.signOutOthers': '退出其他通过账密登录的设备',
   'team.ownerPassword.hint': '在这台电脑上打开仍不需要密码。',
   'team.ownerPassword.enableHint': '开启团队模式前需要先设置密码。在这台电脑上打开仍不需要密码。',
   'team.ownerPassword.saveAndEnable': '保存并开启',
@@ -457,6 +458,7 @@ export const en = {
   'team.ownerPassword.change': 'Change',
   'team.ownerPassword.setupTitle': 'Set your password',
   'team.ownerPassword.changeTitle': 'Change your password',
+  'team.ownerPassword.signOutOthers': 'Sign out other devices that used your password',
   'team.ownerPassword.hint': 'This computer still opens without it.',
   'team.ownerPassword.enableHint':
     'Team mode needs your password first. This computer still opens without it.',
