@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import { inspectMemoryRepository } from '../src/memory/repository.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -261,6 +262,57 @@ describe('Memory move', () => {
       expect(existsSync(join(location, 'ada'))).toBe(false);
     } finally {
       await f.close();
+    }
+  });
+
+  it('preserves the mutation error and resumes the original Orchestrator when replacement discard fails', async () => {
+    const f = await fixture({ unsaved: true });
+    try {
+      await f.send();
+      const first = f.runs[0]!.sessionId;
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-discard-failed-');
+      const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
+      database.transaction((db) =>
+        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON session_ownership
+                 BEGIN SELECT RAISE(ABORT, 'Replacement discard failed'); END`),
+      );
+      vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementationOnce(() => {
+        throw new Error('Registry update failed');
+      });
+
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
+        ok: false,
+        error: { message: 'Memory was not moved: Registry update failed' },
+      });
+      expect(f.core.registry.memoryDirFor('ada')).toBe(before);
+      expect(existsSync(join(location, 'ada'))).toBe(false);
+      expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
+      await f.send();
+      expect(f.runs[1]).toMatchObject({ sessionId: first, resume: true });
+      expect(
+        database.read((db) =>
+          db
+            .prepare('SELECT cwd_reference FROM session_ownership WHERE session_id <> ?')
+            .all(first),
+        ),
+      ).toEqual([{ cwd_reference: join(location, 'ada') }]);
+      database.transaction((db) => db.exec('DROP TRIGGER fail_orchestrator_discard'));
+    } finally {
+      await f.close();
+    }
+    const reopened = createCore({ dshHome: f.home });
+    try {
+      const first = f.runs[0]!.sessionId;
+      expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
+      expect(
+        attachOperationalModule(reopened.operationalDatabase, 'memory-move-test').read((db) =>
+          db.prepare('SELECT session_id FROM session_ownership WHERE bot_slug = ?').all('ada'),
+        ),
+      ).toEqual([{ session_id: first }]);
+    } finally {
+      await reopened.runtime.close();
+      reopened.operationalDatabase.close();
     }
   });
 

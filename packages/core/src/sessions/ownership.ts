@@ -26,6 +26,7 @@ export interface SessionOwnershipClaim {
   provenance?: SessionOwnershipProvenance;
   parentSessionId?: string;
   cwdReference?: string;
+  replacementPending?: true;
   at: string;
 }
 
@@ -66,7 +67,9 @@ export interface SessionOwnership {
   contentAvailable(sessionId: string): boolean;
   markContentUnavailable(): void;
   claim(input: SessionOwnershipClaim): SessionOwnershipRecord;
+  commitOrchestratorReplacement(sessionId: string): void;
   discardUnstartedOrchestrator(sessionId: string, botSlug: string): void;
+  reconcilePendingOrchestratorReplacements(): void;
 
   claimWithin(connection: DatabaseSync, input: SessionOwnershipClaim): SessionOwnershipRecord;
   resolve(sessionId: string): SessionOwnershipRecord | undefined;
@@ -102,6 +105,7 @@ interface OwnershipRow {
   parent_session_id: string | null;
   cwd_reference: string | null;
   agent_preset: string | null;
+  replacement_pending: number;
   created_at: string;
 }
 
@@ -119,7 +123,7 @@ function toRecord(row: OwnershipRow): SessionOwnershipRecord {
 }
 
 const COLUMNS =
-  'session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, agent_preset, created_at';
+  'session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, agent_preset, created_at, replacement_pending';
 
 function readRow(connection: DatabaseSync, sessionId: string): OwnershipRow | undefined {
   return connection
@@ -153,8 +157,8 @@ function insertRow(
   connection
     .prepare(
       `INSERT INTO session_ownership
-         (session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, created_at, replacement_pending)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.sessionId,
@@ -164,12 +168,18 @@ function insertRow(
       input.parentSessionId ?? null,
       input.cwdReference ?? null,
       input.at,
+      input.replacementPending === true ? 1 : 0,
     );
 }
 
 function claimRow(connection: DatabaseSync, input: SessionOwnershipClaim): SessionOwnershipRecord {
   const row = readRow(connection, input.sessionId);
   if (row !== undefined) {
+    if (row.replacement_pending === 1 || input.replacementPending === true) {
+      throw new SessionOwnershipError(
+        `Replacement Orchestrator Session ID is already claimed: ${input.sessionId}`,
+      );
+    }
     const existing = toRecord(row);
     if (existing.botSlug === input.botSlug && existing.rootRole === input.rootRole) {
       return existing;
@@ -181,7 +191,7 @@ function claimRow(connection: DatabaseSync, input: SessionOwnershipClaim): Sessi
   }
   if (
     input.parentSessionId !== undefined &&
-    readRow(connection, input.parentSessionId) === undefined
+    readRow(connection, input.parentSessionId)?.replacement_pending !== 0
   ) {
     throw new SessionOwnershipError(`Unknown parent Session ownership: ${input.parentSessionId}`);
   }
@@ -197,7 +207,7 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
     const row = database.read((connection) => readRow(connection, sessionId)) as
       | OwnershipRow
       | undefined;
-    return row === undefined ? undefined : toRecord(row);
+    return row?.replacement_pending === 0 ? toRecord(row) : undefined;
   };
 
   const insert = (input: SessionOwnershipClaim, provenance: SessionOwnershipProvenance): void => {
@@ -219,7 +229,9 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
       return database.read(
         (db) =>
           db
-            .prepare('SELECT content_available FROM session_ownership WHERE session_id = ?')
+            .prepare(
+              'SELECT content_available FROM session_ownership WHERE session_id = ? AND replacement_pending = 0',
+            )
             .get(sessionId)?.content_available === 1,
       );
     },
@@ -236,18 +248,42 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
         return rethrowDomainError(error);
       }
     },
+    commitOrchestratorReplacement(sessionId) {
+      database.transaction(
+        (db) => {
+          const result = db
+            .prepare(
+              'UPDATE session_ownership SET replacement_pending = 0 WHERE session_id = ? AND replacement_pending = 1',
+            )
+            .run(sessionId);
+          if (result.changes !== 1)
+            throw new SessionOwnershipError(
+              `Unknown pending Orchestrator replacement: ${sessionId}`,
+            );
+        },
+        ['session-ownership'],
+      );
+    },
     discardUnstartedOrchestrator(sessionId, botSlug) {
       database.transaction(
         (db) => {
           db.prepare(
-            `DELETE FROM session_ownership
-               WHERE session_id = ? AND bot_slug = ? AND root_role = 'orchestrator'
-                 AND provenance = 'created' AND parent_session_id IS NULL
-                 AND prompt_snapshot IS NULL AND persona_snapshot IS NULL`,
+            'DELETE FROM session_ownership WHERE session_id = ? AND bot_slug = ? AND replacement_pending = 1',
           ).run(sessionId, botSlug);
         },
         ['session-ownership'],
       );
+    },
+    reconcilePendingOrchestratorReplacements() {
+      const pending = database.read((db) =>
+        db.prepare('SELECT 1 FROM session_ownership WHERE replacement_pending = 1 LIMIT 1').get(),
+      );
+      if (pending !== undefined) {
+        database.transaction(
+          (db) => db.exec('DELETE FROM session_ownership WHERE replacement_pending = 1'),
+          ['session-ownership'],
+        );
+      }
     },
     claimWithin(connection, input) {
       return claimRow(connection, input);
@@ -258,7 +294,7 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
         connection
           .prepare(
             `SELECT ${COLUMNS} FROM session_ownership
-              WHERE bot_slug = ? AND parent_session_id IS NULL
+              WHERE bot_slug = ? AND parent_session_id IS NULL AND replacement_pending = 0
                 AND session_id NOT LIKE 'direct-%'
                 ${rootRole === undefined ? '' : 'AND root_role = ?'}
               ORDER BY created_at DESC, session_id ASC`,
@@ -466,7 +502,7 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
       const rows = database.read((connection) =>
         connection
           .prepare(
-            `SELECT ${COLUMNS} FROM session_ownership ORDER BY created_at ASC, session_id ASC`,
+            `SELECT ${COLUMNS} FROM session_ownership WHERE replacement_pending = 0 ORDER BY created_at ASC, session_id ASC`,
           )
           .all(),
       ) as unknown as OwnershipRow[];

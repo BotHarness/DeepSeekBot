@@ -16,6 +16,8 @@ Each PersonaBot has at most one Orchestrator root Session, which owns its Inbox,
 
 Why: DSH continuable Subagents copy the parent's cwd and preset, are fenced from generic resume, are capped per tree and are orphaned by a parent fork, so Assignments must be roots. DSH's Session metadata is a closed contract and live handles vanish on restart, so ownership needs its own table. A cwd match picks the wrong Bot when several share a Workspace.
 
+If DSH has no saved Orchestrator Session to archive, the Host reserves a replacement root in Session Ownership before running the mutation. The reservation is hidden from Session selection until the mutation returns successfully. An unsuccessful mutation keeps its original error. Startup deletes any uncommitted reservations, including ones the previous Host could not discard. Reserving first catches ownership write failures before moving Memory. Hiding the reservation protects future turns even when SQLite refuses the cleanup. `memory-move.test.ts` covers a failed Memory update followed by a failed discard.
+
 Enforced by: `session-ownership-boundary.test.ts` (only `sessions/ownership.ts` writes `session_ownership`), `session-ownership.test.ts`.
 
 ## 2. The Orchestrator manages Assignments through a durable directory, and archive is the only end

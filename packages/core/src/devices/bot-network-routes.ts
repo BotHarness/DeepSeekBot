@@ -1,15 +1,19 @@
 import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError, type BotNetworkPort } from '../runtime/bot-network.js';
 
+type BotNetworkProvider = BotNetworkPort & {
+  probeWithdrawalMembership?: BotNetworkPort['membership'];
+};
+
 export function createBotNetworkRoutes(
   options: {
     withdrawn?(hostId: string): Promise<void>;
   } = {},
 ): BotNetworkPort & {
   observeWithdrawal(hostId: string): Promise<void>;
-  attach(provider: BotNetworkPort): () => void;
+  attach(provider: BotNetworkProvider): () => void;
 } {
-  const providers = new Set<BotNetworkPort>();
+  const providers = new Set<BotNetworkProvider>();
   async function refresh() {
     await Promise.all([...providers].map((provider) => provider.refresh?.()));
   }
@@ -26,17 +30,24 @@ export function createBotNetworkRoutes(
     }
     return conflicts;
   }
-  async function membership(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'> {
+  async function membership(
+    hostId: string,
+    checkingWithdrawal = false,
+  ): Promise<'member' | 'withdrawn' | 'unavailable'> {
     if (conflictingHosts().has(hostId)) return 'unavailable';
     const states = await Promise.all(
-      [...providers].map((provider) => provider.membership?.(hostId)),
+      [...providers].map((provider) =>
+        checkingWithdrawal && provider.probeWithdrawalMembership !== undefined
+          ? provider.probeWithdrawalMembership(hostId)
+          : provider.membership?.(hostId),
+      ),
     );
     if (states.includes('member')) return 'member';
     return states.includes('withdrawn') ? 'withdrawn' : 'unavailable';
   }
   return {
     async observeWithdrawal(hostId) {
-      if ((await membership(hostId)) === 'withdrawn') await options.withdrawn?.(hostId);
+      if ((await membership(hostId, true)) === 'withdrawn') await options.withdrawn?.(hostId);
     },
     attach(provider) {
       providers.add(provider);

@@ -103,16 +103,34 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
     const at = Math.max(ports.now().getTime(), Date.parse(owner.createdAt) + 1);
     const sessionId = ports.createSessionId();
-    if (ports.ownership.resolve(sessionId) !== undefined)
-      throw new Error('Replacement Orchestrator Session ID is already claimed');
-    claimOrchestrator(bot, new Date(at).toISOString(), sessionId, nextCwd?.());
+    const cwdReference = nextCwd?.() ?? orchestratorCwdReference(bot);
+    ports.ownership.claim({
+      sessionId,
+      botSlug: bot.slug,
+      rootRole: 'orchestrator',
+      ...(cwdReference === undefined ? {} : { cwdReference }),
+      replacementPending: true,
+      at: new Date(at).toISOString(),
+    });
     let value: T;
     try {
       value = body();
     } catch (error) {
-      ports.ownership.discardUnstartedOrchestrator(sessionId, bot.slug);
+      try {
+        ports.ownership.discardUnstartedOrchestrator(sessionId, bot.slug);
+      } catch {
+        ports.warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'orchestrator-replacement-discard-failed',
+            botSlug: bot.slug,
+            sessionId,
+          }),
+        );
+      }
       throw error;
     }
+    ports.ownership.commitOrchestratorReplacement(sessionId);
     releaseReplacedOrchestrators(bot.slug, sessionId);
     return value;
   }
@@ -148,12 +166,9 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     }
   }
 
-  function claimOrchestrator(
-    bot: PersonaBotRecord,
-    at: string,
-    sessionId = ports.createSessionId(),
-    cwdReference = orchestratorCwdReference(bot),
-  ): string {
+  function claimOrchestrator(bot: PersonaBotRecord, at: string): string {
+    const sessionId = ports.createSessionId();
+    const cwdReference = orchestratorCwdReference(bot);
     ports.ownership.claim({
       sessionId,
       botSlug: bot.slug,
@@ -174,8 +189,22 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     return ports.workspaceRoot === undefined ? undefined : join(ports.workspaceRoot, bot.slug);
   }
 
+  function reconcilePendingOrchestratorReplacements(): void {
+    try {
+      ports.ownership.reconcilePendingOrchestratorReplacements();
+    } catch {
+      ports.warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'orchestrator-replacement-recovery-failed',
+        }),
+      );
+    }
+  }
+
   return {
     captureNativeOrchestratorModel,
+    reconcilePendingOrchestratorReplacements,
     currentOrchestratorSessionId,
     replaceOrchestrator,
     ensureOrchestrator,
