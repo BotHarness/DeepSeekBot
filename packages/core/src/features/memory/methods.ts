@@ -167,6 +167,7 @@ export function createMemoryBridgeMethods(
           };
       } catch {}
       let outcome;
+      let failure: { at: string; recorded: string; registry: string; move: string } | undefined;
       try {
         outcome = await deps.runtime.replaceOrchestrator(
           slug,
@@ -175,7 +176,20 @@ export function createMemoryBridgeMethods(
             try {
               deps.registry.setMemoryDir(slug, target.custom ? target.to : undefined);
             } catch (error) {
-              moveMemoryDirectory(target.to, target.from);
+              try {
+                moveMemoryDirectory(target.to, target.from);
+              } catch (rollbackError) {
+                try {
+                  deps.registry.setMemoryDir(slug, target.custom ? target.to : undefined);
+                } catch {}
+                failure = {
+                  at: target.to,
+                  recorded: deps.registry.memoryDirFor(slug) ?? target.from,
+                  registry: error instanceof Error ? error.message : String(error),
+                  move:
+                    rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+                };
+              }
               throw error;
             }
             return moved;
@@ -183,12 +197,22 @@ export function createMemoryBridgeMethods(
           () => target.to,
         );
       } catch (error) {
+        const failed = failure;
         return {
           ok: false,
-          error: {
-            code: 'memory-unavailable',
-            message: `Memory was not moved: ${error instanceof Error ? error.message : String(error)}`,
-          },
+          error:
+            failed === undefined
+              ? {
+                  code: 'memory-unavailable',
+                  message: `Memory was not moved: ${error instanceof Error ? error.message : String(error)}`,
+                }
+              : {
+                  code: 'memory-unavailable',
+                  message:
+                    failed.recorded === failed.at
+                      ? `Memory is at ${failed.at} and the registry names it too; updating it failed (${failed.registry}) and moving Memory back also failed (${failed.move})`
+                      : `Memory is at ${failed.at}, but the registry names ${failed.recorded}: updating it failed (${failed.registry}) and moving Memory back also failed (${failed.move})`,
+                },
         };
       }
       if (outcome.outcome === 'refused')
