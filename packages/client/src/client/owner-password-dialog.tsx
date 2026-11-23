@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { Checkbox } from './ds/checkbox.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -15,7 +16,11 @@ type OwnerPasswordDialogProps = {
       kind: 'team';
       hasPassword: boolean;
       thenEnable: boolean;
-      onSubmit(password: string, current: string | undefined): void;
+      onSubmit(
+        password: string,
+        current: string | undefined,
+        signOutOthers: boolean | undefined,
+      ): void;
     }
 );
 
@@ -28,6 +33,7 @@ export function OwnerPasswordDialog(props: OwnerPasswordDialogProps): ReactEleme
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [signOutOthers, setSignOutOthers] = useState(true);
   const normalizedUsername = username.trim();
   const passwordTooLong = standalone && new TextEncoder().encode(password).length > 1024;
   const passwordTooShort = password.length < TEAM_PASSWORD_MIN_LENGTH;
@@ -94,6 +100,14 @@ export function OwnerPasswordDialog(props: OwnerPasswordDialogProps): ReactEleme
         }
         onChange={setConfirmation}
       />
+      {hasPassword ? (
+        <Checkbox
+          label={t('team.ownerPassword.signOutOthers')}
+          checked={signOutOthers}
+          onChange={setSignOutOthers}
+          disabled={busy}
+        />
+      ) : null}
     </>
   );
   return (
@@ -118,7 +132,12 @@ export function OwnerPasswordDialog(props: OwnerPasswordDialogProps): ReactEleme
       onCancel={onCancel}
       onSubmit={() => {
         if (standalone) props.onSubmit(normalizedUsername, password);
-        else props.onSubmit(password, hasPassword ? current : undefined);
+        else
+          props.onSubmit(
+            password,
+            hasPassword ? current : undefined,
+            hasPassword ? signOutOthers : undefined,
+          );
       }}
     >
       {standalone ? fields : <FieldStack>{fields}</FieldStack>}

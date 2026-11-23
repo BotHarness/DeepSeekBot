@@ -12,7 +12,11 @@ import type { HumanContext } from '../humans/context.js';
 import type { BridgeResult } from '../bridge/method-utils.js';
 import { TeamError, type TeamService } from './service.js';
 
-export function createTeamBridge(human: HumanContext, team: TeamService | undefined) {
+export function createTeamBridge(
+  human: HumanContext,
+  team: TeamService | undefined,
+  currentOwnerDeviceId?: string,
+) {
   const call = async <T>(
     run: (service: TeamService) => T | Promise<T>,
   ): Promise<BridgeResult<T>> => {
@@ -166,10 +170,17 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
       ),
     teamOwnerPasswordSet: (payload: unknown) =>
       call((service) => {
-        const { password, current } = z
-          .object({ password: z.string().max(1024), current: z.string().max(1024).optional() })
+        const { password, current, signOutOthers } = z
+          .object({
+            password: z.string().max(1024),
+            current: z.string().max(1024).optional(),
+            signOutOthers: z.boolean().optional(),
+          })
           .parse(payload);
-        return service.setOwnerPassword(human, password, current);
+        return service.setOwnerPassword(human, password, current, {
+          ...(signOutOthers === undefined ? {} : { signOutOthers }),
+          ...(currentOwnerDeviceId === undefined ? {} : { currentDeviceId: currentOwnerDeviceId }),
+        });
       }),
     teamInsecureHttpSet: (payload: unknown) =>
       call((service) =>

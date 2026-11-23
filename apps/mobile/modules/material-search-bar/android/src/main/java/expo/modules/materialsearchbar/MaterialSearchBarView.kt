@@ -67,6 +67,7 @@ class SearchResult : Record {
 
 @OptimizedComposeProps
 data class SearchBarProps(
+  val autoExpand: Boolean = false,
   val placeholder: String = "",
   val navigationLabel: String = "",
   val closeLabel: String = "",
@@ -120,6 +121,7 @@ fun FunctionalComposableScope.SearchBarContent(
     snapshotFlow { text.text.toString() }.collect { queryChanged(it) }
   }
   LaunchedEffect(bar) {
+    if (props.autoExpand) bar.animateToExpanded()
     snapshotFlow { bar.currentValue == SearchBarValue.Expanded }.collect { open ->
       expandedChanged(open)
       if (clearsOnCollapse(open, text.text.toString())) text.clearText()

@@ -490,6 +490,16 @@ export default function TeamSignInScreen() {
               onSubmitEditing={() => void passwordSignIn(step.found)}
             />
           </Labeled>
+          {errorText}
+          <Button
+            testID="team-sign-in"
+            label={t.teamSignIn.signIn}
+            tone="primary"
+            on="canvas"
+            busy={busy}
+            disabled={busy || username.trim() === '' || password === ''}
+            onPress={() => void passwordSignIn(step.found)}
+          />
           <Button
             testID="team-fingerprint-toggle"
             label={fingerprintShown ? t.teamSignIn.hideFingerprint : t.teamSignIn.showFingerprint}
@@ -503,16 +513,6 @@ export default function TeamSignInScreen() {
               fingerprint={step.found.host.fingerprint}
             />
           ) : null}
-          {errorText}
-          <Button
-            testID="team-sign-in"
-            label={t.teamSignIn.signIn}
-            tone="primary"
-            on="canvas"
-            busy={busy}
-            disabled={busy || username.trim() === '' || password === ''}
-            onPress={() => void passwordSignIn(step.found)}
-          />
         </>
       ) : step.kind === 'switch' ? (
         <>

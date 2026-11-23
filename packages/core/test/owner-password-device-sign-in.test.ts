@@ -356,6 +356,101 @@ it('reuses an existing Owner credential and keeps standalone configuration Owner
   });
 });
 
+it.each([true, false])(
+  'changes the Owner password while respecting sign-out choice %s',
+  async (signOutOthers) => {
+    const f = teamFixture();
+    f.team.bindPairing(f.pairing);
+    const host = await memberDeviceHost(f);
+    const next = 'new-standalone-owner-password';
+    expect(
+      await f.methods(owner).ownerPasswordSignInSet({
+        enabled: true,
+        username: 'my-owner',
+        password,
+      }),
+    ).toMatchObject({ ok: true });
+
+    const admit = async () => {
+      const encryption = deviceEncryption(f);
+      const { value } = z
+        .object({
+          ok: z.literal(true),
+          value: z.object({ credential: z.string(), deviceId: z.string() }),
+        })
+        .parse(await signIn(f, host, encryption));
+      return {
+        ...value,
+        carrier: encryptedCarrier({
+          credential: value.credential,
+          encryption: { ...encryption, required: true },
+          hostId: f.pairing.host().id,
+          raw: host.carrier,
+        }),
+      };
+    };
+    const current = await admit();
+    const other = await admit();
+    const qr = f.pairing.redeem({ offer: f.pairing.createOffer().offer });
+    if (!qr.ok) throw new Error(qr.code);
+    const feed = (device: typeof current) =>
+      device.carrier.request(target + '/botharness-device/feed-read', {
+        method: 'POST',
+        signal: AbortSignal.timeout(5_000),
+      });
+    try {
+      expect((await feed(current)).status).toBe(200);
+      expect((await feed(other)).status).toBe(200);
+
+      const method = 'botharness/teamOwnerPasswordSet';
+      const changed = await current.carrier.request(target + `/botharness-device/api/${method}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: 'owner-password-change',
+          method,
+          payload: {
+            args: {
+              password: next,
+              current: password,
+              signOutOthers,
+              currentDeviceId: other.deviceId,
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      expect(JSON.parse(await changed.text())).toMatchObject({
+        type: 'server-response',
+        rpcId: 'owner-password-change',
+        result: { ok: true },
+      });
+      expect((await feed(current)).status).toBe(200);
+      if (signOutOthers) {
+        await expect(feed(other)).rejects.toThrow();
+        expect(f.pairing.check(other.deviceId)).toMatchObject({
+          ok: false,
+          code: 'device-revoked',
+        });
+      } else {
+        expect((await feed(other)).status).toBe(200);
+      }
+      expect((await host.post('/feed-read', {}, qr.credential)).status).toBe(200);
+      expect(await signIn(f, host, deviceEncryption(f))).toMatchObject({
+        ok: false,
+        code: 'credentials-invalid',
+      });
+      expect(await signIn(f, host, deviceEncryption(f), { attempt: next })).toMatchObject({
+        ok: true,
+      });
+    } finally {
+      current.carrier.close?.();
+      other.carrier.close?.();
+    }
+  },
+);
+
 it('uses the same failure and account/source limits for missing and wrong Owner credentials', async () => {
   const f = teamFixture();
   await f.methods(owner).ownerPasswordSignInSet({ enabled: true, username: 'my-owner', password });
