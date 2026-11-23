@@ -9,6 +9,11 @@ import {
   setVoiceDefault,
   testVoiceService,
 } from '@botharness/host-client/voice-providers';
+import {
+  readVoiceServiceTemplate,
+  setVoiceServiceTemplate,
+  validateVoiceTemplate,
+} from '@botharness/host-client/voice-templates';
 import { useHostSession } from '../../src/host/host-session';
 import { SheetNote } from '../../src/ui/chat/sheet';
 import { useStrings } from '../../src/ui/strings';
@@ -32,6 +37,9 @@ export default function VoiceSettingsScreen() {
               setVoiceDefault(client, kind, providerId, voiceId),
             browse: (input) => browseVoiceCatalog(client, input),
             importVoice: (input) => importSharedVoice(client, input),
+            validate: (kind, template) => validateVoiceTemplate(client, kind, template),
+            template: (id) => readVoiceServiceTemplate(client, id),
+            saveTemplate: (id, template) => setVoiceServiceTemplate(client, id, template),
           },
     [client],
   );

@@ -30,8 +30,8 @@ import {
   draftFromTemplate,
   fieldOf,
   templateErrors,
-} from '../src/client/features/voice/template-draft.js';
-import { TEMPLATE_EXAMPLES } from '../src/client/features/voice/template-examples.js';
+} from '@botharness/host-client/shared/voice-template-draft';
+import { TEMPLATE_EXAMPLES } from '@botharness/host-client/shared/voice-template-examples';
 import type { VoiceRequestTemplate } from '@botharness/host-protocol/voice-request-template';
 
 const MESSAGES = { invalidJson: 'bad json', expectObject: 'need object' };
@@ -203,6 +203,7 @@ describe('custom request form', () => {
     const input = (addVoiceProvider.mock.calls[0] as unknown as [Record<string, unknown>])[0];
     expect(input).toMatchObject({
       preset: 'custom',
+      name: '自定义请求',
       key: 'secret-key-123',
       template: {
         version: 1,

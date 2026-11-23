@@ -12,6 +12,17 @@ import {
   type Choice,
 } from '@botharness/host-client/shared/voice-options';
 import {
+  checkTemplate,
+  type TemplateDraft,
+  type TemplateErrors,
+} from '@botharness/host-client/shared/voice-template-draft';
+import {
+  BLANK_EXAMPLE,
+  exampleStart,
+  examplesFor,
+} from '@botharness/host-client/shared/voice-template-examples';
+import type { VoiceTemplateValidation } from '@botharness/host-protocol/voice-request-template';
+import {
   presetsOf,
   voiceAccessDenied,
   type VoiceKind,
@@ -35,15 +46,20 @@ import { Button } from '../primitives/button';
 import { CreationField } from '../primitives/creation-field';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import { PreferenceRow } from '../primitives/preference-row';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { VoiceCatalogList, type VoiceCatalogSource } from './voice-catalog-list';
+import { useTemplateMessages, VoiceTemplateFields } from './voice-template-fields';
 
 export interface VoiceServiceSheetPort {
   add(input: VoiceServiceAdd): Promise<VoiceServiceView>;
   browse(input: VoiceCatalogInput): Promise<VoiceCatalogPage>;
   importVoice(input: VoiceCatalogImportInput): Promise<VoiceCatalogItem>;
+  validate(kind: VoiceKind, template: unknown): Promise<VoiceTemplateValidation>;
 }
+
+export const TEMPLATE_PRESET = '\u0000template';
 
 interface Draft {
   readonly preset: string;
@@ -52,6 +68,8 @@ interface Draft {
   readonly key: string;
   readonly model: Choice;
   readonly voice: Choice;
+  readonly template?: TemplateDraft;
+  readonly example?: string;
 }
 
 type Page = 'form' | 'preset' | 'model' | 'voice';
@@ -67,6 +85,20 @@ function emptyDraft(preset: VoicePresetView | undefined): Draft {
       (preset?.voices ?? []).map((voice) => voice.id),
       preset?.defaultVoice,
     ),
+  };
+}
+
+function templateDraft(kind: VoiceKind, example: string, keep?: Draft): Draft {
+  const start = exampleStart(kind, example);
+  return {
+    preset: TEMPLATE_PRESET,
+    name: keep?.name ?? '',
+    baseUrl: '',
+    key: keep?.key ?? '',
+    model: { choice: CUSTOM_CHOICE, custom: start.model },
+    voice: { choice: CUSTOM_CHOICE, custom: start.voice },
+    template: start.template,
+    example: start.example,
   };
 }
 
@@ -100,10 +132,14 @@ export function VoiceServiceSheet({
   const [page, setPage] = useState<Page>('form');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [templateErrors, setTemplateErrors] = useState<TemplateErrors>({});
   const pending = useRef(false);
+  const messages = useTemplateMessages();
+  const custom = draft.template;
   const preset = presets.find((entry) => entry.id === draft.preset);
-  const brand = providerBrand(draft.preset, preset?.name);
-  const needsUrl = preset?.baseUrl === undefined;
+  const presetName = custom === undefined ? (preset?.name ?? draft.preset) : t.template.service;
+  const brand = providerBrand(custom === undefined ? draft.preset : 'custom', preset?.name);
+  const needsUrl = custom === undefined && preset?.baseUrl === undefined;
   const needsKey = preset?.keyRequired === true;
   const models = choiceValues(preset?.models ?? [], preset?.defaultModel);
   const voices = choiceValues(
@@ -113,10 +149,7 @@ export function VoiceServiceSheet({
   const voiceNames = Object.fromEntries(
     (preset?.voices ?? []).map((voice) => [voice.id, voice.name]),
   );
-  const suggested = defaultProviderName(preset?.name ?? draft.preset, [
-    ...view.providers,
-    ...view.asrProviders,
-  ]);
+  const suggested = defaultProviderName(presetName, [...view.providers, ...view.asrProviders]);
   const catalogFor = (collection: 'models' | 'account'): VoiceCatalogSource | undefined =>
     preset?.catalogs?.includes(collection) === true
       ? {
@@ -136,37 +169,72 @@ export function VoiceServiceSheet({
     Keyboard.dismiss();
     onClose();
   };
+  const fail = (cause: unknown) => {
+    pending.current = false;
+    setBusy(false);
+    setError(voiceAccessDenied(cause) ? t.ownerOnly : errorText(cause));
+  };
   const submit = () => {
     if (pending.current) return;
     const model = chosenValue(draft.model);
     const voice = kind === 'tts' ? chosenValue(draft.voice) : undefined;
+    const fields: VoiceServiceAdd = {
+      kind,
+      preset: draft.preset,
+      ...(draft.name.trim()
+        ? { name: draft.name.trim() }
+        : custom === undefined
+          ? {}
+          : { name: suggested }),
+      ...(model === undefined ? {} : { model }),
+      ...(voice === undefined ? {} : { defaultVoice: voice }),
+      ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
+    };
     pending.current = true;
     setBusy(true);
     setError(undefined);
     Keyboard.dismiss();
-    port
-      .add({
-        kind,
-        preset: draft.preset,
-        ...(draft.name.trim() ? { name: draft.name.trim() } : {}),
-        ...(draft.baseUrl.trim() ? { baseUrl: draft.baseUrl.trim() } : {}),
-        ...(model === undefined ? {} : { model }),
-        ...(voice === undefined ? {} : { defaultVoice: voice }),
-        ...(draft.key.trim() ? { key: draft.key.trim() } : {}),
-      })
-      .then(
-        (service) => {
-          pending.current = false;
-          setBusy(false);
-          onAdded(service);
-        },
-        (cause: unknown) => {
-          pending.current = false;
-          setBusy(false);
-          setError(voiceAccessDenied(cause) ? t.ownerOnly : errorText(cause));
-        },
-      );
+    const request: Promise<VoiceServiceView | undefined> =
+      custom === undefined
+        ? port.add({
+            ...fields,
+            ...(draft.baseUrl.trim() ? { baseUrl: draft.baseUrl.trim() } : {}),
+          })
+        : checkTemplate(port.validate, kind, custom, messages).then((checked) => {
+            setTemplateErrors(checked.ok ? {} : checked.errors);
+            if (checked.ok)
+              return port.add({ ...fields, preset: 'custom', template: checked.template });
+            setError(checked.errors.form);
+            return undefined;
+          });
+    request.then((service) => {
+      pending.current = false;
+      setBusy(false);
+      if (service !== undefined) onAdded(service);
+    }, fail);
   };
+  const keyField = (
+    <CreationField
+      testID="voice-service-key"
+      accessibilityLabel={needsKey ? t.key : t.keyOptional}
+      supportingText={custom === undefined ? t.keyHint : t.template.keyHint}
+      value={draft.key}
+      secureTextEntry
+      autoCapitalize="none"
+      autoCorrect={false}
+      onChangeText={(key) =>
+        setDraft((current) => {
+          const defaults = emptyDraft(preset);
+          return {
+            ...current,
+            key,
+            model: current.model.catalogName === undefined ? current.model : defaults.model,
+            voice: current.voice.catalogName === undefined ? current.voice : defaults.voice,
+          };
+        })
+      }
+    />
+  );
   const title = kind === 'tts' ? t.addTts : t.addAsr;
   const choose = (field: 'model' | 'voice') => (item: VoiceCatalogItem, fromCatalog: boolean) => {
     setDraft((current) => ({
@@ -243,12 +311,7 @@ export function VoiceServiceSheet({
           </View>
           <KeyboardFormScroll enabled={false} nestedScrollEnabled>
             {presets.map((entry, index) => (
-              <SettingsGroupItem
-                key={entry.id}
-                first={index === 0}
-                last={index === presets.length - 1}
-                on={SHEET_GROUP}
-              >
+              <SettingsGroupItem key={entry.id} first={index === 0} last={false} on={SHEET_GROUP}>
                 <SettingsRow
                   on={SHEET_GROUP}
                   testID={`voice-service-preset-${entry.id}`}
@@ -263,12 +326,38 @@ export function VoiceServiceSheet({
                   selected={entry.id === draft.preset}
                   control={entry.id === draft.preset ? { kind: 'check' } : undefined}
                   onPress={() => {
-                    if (entry.id !== draft.preset) setDraft(emptyDraft(entry));
+                    if (entry.id !== draft.preset) {
+                      setTemplateErrors({});
+                      setDraft(emptyDraft(entry));
+                    }
                     setPage('form');
                   }}
                 />
               </SettingsGroupItem>
             ))}
+            <SettingsGroupItem first={presets.length === 0} last on={SHEET_GROUP}>
+              <SettingsRow
+                on={SHEET_GROUP}
+                testID="voice-service-preset-custom"
+                leading={
+                  <ModelBrandIcon
+                    brand={providerBrand('custom')}
+                    size={theme.type.title.line}
+                    color={theme.color.fg}
+                  />
+                }
+                title={t.template.service}
+                selected={custom !== undefined}
+                control={custom !== undefined ? { kind: 'check' } : undefined}
+                onPress={() => {
+                  if (custom === undefined) {
+                    setTemplateErrors({});
+                    setDraft(templateDraft(kind, BLANK_EXAMPLE));
+                  }
+                  setPage('form');
+                }}
+              />
+            </SettingsGroupItem>
           </KeyboardFormScroll>
         </View>
       ) : page === 'model' ? (
@@ -311,9 +400,9 @@ export function VoiceServiceSheet({
                       color={theme.color.fg}
                     />
                   }
-                  title={preset?.name ?? draft.preset}
+                  title={presetName}
                   detail={t.preset}
-                  accessibilityLabel={`${t.preset}, ${preset?.name ?? draft.preset}`}
+                  accessibilityLabel={`${t.preset}, ${presetName}`}
                   control={{ kind: 'chevron' }}
                   onPress={() => {
                     Keyboard.dismiss();
@@ -321,6 +410,28 @@ export function VoiceServiceSheet({
                   }}
                 />
               </SettingsGroupItem>
+              {custom === undefined ? null : (
+                <SettingsGroupItem first last on={SHEET_GROUP}>
+                  <PreferenceRow
+                    on={SHEET_GROUP}
+                    title={t.template.example}
+                    testID="voice-template-example"
+                    value={draft.example ?? BLANK_EXAMPLE}
+                    options={[
+                      { value: BLANK_EXAMPLE, label: t.template.blank, icon: 'preset' as const },
+                      ...examplesFor(kind).map((entry) => ({
+                        value: entry.id,
+                        label: entry.name,
+                        icon: 'preset' as const,
+                      })),
+                    ]}
+                    onChange={(example) => {
+                      setTemplateErrors({});
+                      setDraft((current) => templateDraft(kind, example, current));
+                    }}
+                  />
+                </SettingsGroupItem>
+              )}
               <View style={{ paddingHorizontal: space.x5, gap: space.x4 }}>
                 <CreationField
                   testID="voice-service-name"
@@ -343,29 +454,17 @@ export function VoiceServiceSheet({
                     onChangeText={(baseUrl) => setDraft((current) => ({ ...current, baseUrl }))}
                   />
                 ) : null}
-                <CreationField
-                  testID="voice-service-key"
-                  accessibilityLabel={needsKey ? t.key : t.keyOptional}
-                  supportingText={t.keyHint}
-                  value={draft.key}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onChangeText={(key) =>
-                    setDraft((current) => {
-                      const defaults = emptyDraft(preset);
-                      return {
-                        ...current,
-                        key,
-                        model:
-                          current.model.catalogName === undefined ? current.model : defaults.model,
-                        voice:
-                          current.voice.catalogName === undefined ? current.voice : defaults.voice,
-                      };
-                    })
-                  }
-                />
+                {custom === undefined ? keyField : null}
               </View>
+              {custom === undefined ? null : (
+                <VoiceTemplateFields
+                  kind={kind}
+                  draft={custom}
+                  errors={templateErrors}
+                  keyField={keyField}
+                  onChange={(template) => setDraft((current) => ({ ...current, template }))}
+                />
+              )}
               {pickerRow('model', t.model, {}, models, modelCatalog)}
               {kind === 'tts'
                 ? pickerRow('voice', t.voice, voiceNames, voices, voiceCatalog)
@@ -379,12 +478,12 @@ export function VoiceServiceSheet({
             <SheetActions>
               <Button
                 testID="voice-service-submit"
-                label={busy ? t.adding : t.submit}
+                label={busy ? t.adding : custom === undefined ? t.submit : t.template.save}
                 tone="primary"
                 busy={busy}
                 on={SHEET_GROUP}
                 disabled={
-                  preset === undefined ||
+                  (custom === undefined ? preset === undefined : custom.url.trim() === '') ||
                   (needsUrl && draft.baseUrl.trim() === '') ||
                   (needsKey && draft.key.trim() === '')
                 }
