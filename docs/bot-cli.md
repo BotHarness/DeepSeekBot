@@ -2518,3 +2518,42 @@ deepseekbot --as bob channels add-member <channel-id> alice
 ```
 
 Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.
+
+### Custom HTTP voice request templates
+
+The Host Owner can use `custom` with a secret-free JSON template. Existing `custom` Providers without a template keep the OpenAI-compatible speech/transcription endpoints. Templates support synchronous HTTP only; streaming protocols, request signatures and polling jobs need vendor adapters.
+
+```bash
+deepseekbot voice-template-validate --template-file /absolute/template.json
+deepseekbot voice-provider-add custom --template-file /absolute/template.json --key-stdin
+deepseekbot voice-provider-template <provider-id>
+deepseekbot voice-provider-template-set <provider-id> --template-file /absolute/template.json
+deepseekbot voice-provider-test <provider-id>
+```
+
+For ASR, add `--kind asr` to validation and creation; use `voice-transcribe --provider <id> --file /absolute/speech.wav`. Editing retains the existing key, model, voice and language. Keys are read only from `--key-stdin` on creation and stored in credentials. Never put a key in template constants. Authentication is described by `auth: {kind: "bearer"}`, `{kind: "header", name: "X-API-Key", prefix: "Token "}`, `{kind: "query", name: "key"}`, or `{kind: "none"}`.
+
+```json
+{
+  "version": 1,
+  "url": "https://texttospeech.googleapis.com/v1/text:synthesize",
+  "method": "POST",
+  "auth": { "kind": "query", "name": "key" },
+  "headers": {},
+  "body": {
+    "kind": "json",
+    "value": {
+      "input": { "text": "{text}" },
+      "voice": { "languageCode": "en-US", "name": "{voice}" },
+      "audioConfig": { "audioEncoding": "MP3" }
+    }
+  },
+  "result": { "kind": "base64", "path": "audioContent" }
+}
+```
+
+Placeholders are `{text}`, `{voice}`, `{model}`, `{format}` and `{language}`. ASR additionally supports `{audio}` (a multipart Blob or JSON base64), `{audioBase64}` and `{audioDataUrl}`. URL values are encoded and may appear in the path/query only. Standalone missing values are omitted from object and multipart fields. Body variants are `json` with a structured `value`, `multipart` with string `fields`, `ssml` with a `root: {tag, attributes, children}` element tree, or `none` (required for GET). Text and XML attributes are escaped during serialization. Fixed non-secret headers can specify vendor options such as Azure's output format.
+
+Results are `{kind: "audio"}` for raw bytes, or `{kind: "base64"|"hex"|"url"|"text", path: "choices.0.message.audio.data"}`. Paths use dot-separated object fields and numeric array indexes, without `$`, wildcards or expressions. ASR requires `text`; TTS requires an audio result. URL extraction downloads once, without forwarding credentials or following redirects, under the same deadline and 10 MB audio limit. Templates are limited to 64 KB and 16 nesting levels. Validation returns `{valid: true, template}` or `{valid: false, errors: [{path, message}]}`; it sends no provider request. Upstream failures return coded errors without raw upstream content.
+
+Bridge consumers use `voiceProviderAdd` with an optional `template`, `voiceProviderTemplate({id})`, `voiceTemplateValidate({kind, template})` and `voiceProviderTemplateSet({id, template})`; the positional RPC facade takes `voiceProviderTemplate(id)`, `voiceTemplateValidate(kind, template)`, `voiceProviderTemplateSet(id, template)`, and the ninth argument of `voiceProviderAdd`. The shapes are defined by `VoiceRequestTemplate` and `VoiceTemplateValidation` in `@botharness/host-protocol/voice-request-template` (the core schema validates that shared contract). The custom-template Settings form is a separate #5012 slice.

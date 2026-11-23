@@ -3,8 +3,10 @@ import { VoiceError } from './provider-types.js';
 
 export async function readBounded(response: Response, max: number): Promise<Uint8Array> {
   const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > max)
+  if (Number.isFinite(declared) && declared > max) {
+    await response.body?.cancel().catch(() => undefined);
     throw new VoiceError('audio-too-large', 'The provider returned more audio than allowed.');
+  }
   if (response.body === null) return new Uint8Array();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -25,36 +27,10 @@ export async function readBounded(response: Response, max: number): Promise<Uint
 
 export async function providerMessage(
   response: Response,
-  key: string | undefined,
+  _key: string | undefined,
 ): Promise<string> {
-  if (response.headers.get('content-type')?.toLowerCase().startsWith('text/html') === true) {
-    await response.body?.cancel().catch(() => undefined);
-    return `HTTP ${response.status}`;
-  }
-  let text = '';
-  try {
-    text = new TextDecoder().decode(await readBounded(response, 4_096));
-  } catch {
-    text = '';
-  }
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    const nested = parsed['error'] ?? parsed['detail'];
-    const candidate =
-      typeof parsed['message'] === 'string'
-        ? parsed['message']
-        : typeof nested === 'string'
-          ? nested
-          : typeof nested === 'object' && nested !== null
-            ? ((nested as Record<string, unknown>)['message'] ??
-              (nested as Record<string, unknown>)['status'])
-            : undefined;
-    if (typeof candidate === 'string') text = candidate;
-  } catch {}
-  let clean = text.replace(/\s+/gu, ' ').trim();
-  if (key !== undefined && key.length >= 4) clean = clean.split(key).join('[redacted]');
-  clean = clean.replace(/\b(sk|xi|fa)[-_][A-Za-z0-9_-]{8,}/gu, '[redacted]');
-  return clean.slice(0, 200) || `HTTP ${response.status}`;
+  await response.body?.cancel().catch(() => undefined);
+  return `HTTP ${response.status}`;
 }
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '0.0.0.0']);

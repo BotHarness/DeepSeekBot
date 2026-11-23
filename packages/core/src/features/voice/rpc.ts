@@ -1,3 +1,7 @@
+import type {
+  VoiceRequestTemplate,
+  VoiceTemplateValidation,
+} from '../../voice/request-template.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
@@ -55,6 +59,7 @@ export function voiceProviderAdd(
   key?: string,
   kind?: string,
   language?: string,
+  template?: VoiceRequestTemplate,
 ): Promise<{ provider: VoiceProviderView }> {
   return unwrapAsync(
     methods.voiceProviderAdd({
@@ -66,6 +71,7 @@ export function voiceProviderAdd(
       key,
       kind,
       language,
+      template,
     }),
   );
 }
@@ -154,6 +160,18 @@ export function voiceDictation(
 }
 
 export const voiceProviderRpc = {
+  voiceProviderTemplate(id: string): { template: VoiceRequestTemplate } {
+    return unwrap(this.methods.voiceProviderTemplate({ id }));
+  },
+  voiceTemplateValidate(kind: string, template: unknown): VoiceTemplateValidation {
+    return unwrap(this.methods.voiceTemplateValidate({ kind, template }));
+  },
+  voiceProviderTemplateSet(
+    id: string,
+    template: unknown,
+  ): Promise<{ provider: VoiceProviderView }> {
+    return unwrapAsync(this.methods.voiceProviderTemplateSet({ id, template }));
+  },
   voiceProviders(slug?: string): VoiceProvidersView {
     return voiceProviders(this.methods, slug);
   },
@@ -189,6 +207,7 @@ export const voiceProviderRpc = {
     key?: string,
     kind?: string,
     language?: string,
+    template?: VoiceRequestTemplate,
   ): Promise<{ provider: VoiceProviderView }> {
     return voiceProviderAdd(
       this.methods,
@@ -200,6 +219,7 @@ export const voiceProviderRpc = {
       key,
       kind,
       language,
+      template,
     );
   },
 

@@ -33,6 +33,7 @@ import * as teamCopy from './features/team/locale.js';
 import * as tobCopy from './features/tob/locale.js';
 import * as usageCopy from './features/usage/locale.js';
 import * as voiceCopy from './features/voice/locale.js';
+import * as voiceTemplateCopy from './features/voice/template-locale.js';
 import * as workspacesCopy from './features/workspaces/locale.js';
 
 import * as modelProviderCopy from './model-provider-copy.js';
@@ -79,6 +80,7 @@ export const zh = {
   ...tobCopy.zh,
   ...usageCopy.zh,
   ...voiceCopy.zh,
+  ...voiceTemplateCopy.zh,
   ...workspacesCopy.zh,
   'home.starters': '快捷提问',
   'home.greeting': '你好，我是托布',
@@ -244,6 +246,7 @@ export const en = {
   ...tobCopy.en,
   ...usageCopy.en,
   ...voiceCopy.en,
+  ...voiceTemplateCopy.en,
   ...workspacesCopy.en,
   'home.starters': 'Suggested questions',
   'home.greeting': 'Hello, I’m Tob',

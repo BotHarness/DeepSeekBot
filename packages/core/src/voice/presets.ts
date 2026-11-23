@@ -38,12 +38,14 @@ export interface TtsPreset {
     streaming: boolean;
     billing: 'per-character' | 'self-hosted';
   };
+  requestTemplate?: boolean;
   docsUrl?: string;
 }
 
 export const TTS_PRESETS: readonly TtsPreset[] = [
   {
     id: 'custom',
+    requestTemplate: true,
     name: 'OpenAI-compatible endpoint',
     wire: 'openai',
     keyRequired: false,
@@ -168,12 +170,14 @@ export interface AsrPreset {
     streaming: boolean;
     billing: 'per-minute' | 'self-hosted';
   };
+  requestTemplate?: boolean;
   docsUrl?: string;
 }
 
 export const ASR_PRESETS: readonly AsrPreset[] = [
   {
     id: 'custom',
+    requestTemplate: true,
     name: 'OpenAI-compatible endpoint',
     keyRequired: false,
     wire: 'openai',

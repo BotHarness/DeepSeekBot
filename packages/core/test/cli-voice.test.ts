@@ -322,6 +322,61 @@ describe('deepseekbot voice commands', () => {
     ]);
   });
 
+  it('creates, reads, validates and edits a custom template through the CLI', async () => {
+    const { run } = await host();
+    const root = createTempRoot('cli-voice-template-');
+    const file = join(root, 'template.json');
+    const template = {
+      version: 1,
+      url: 'https://speech.example/speak',
+      method: 'POST',
+      auth: { kind: 'bearer' },
+      headers: {},
+      body: { kind: 'json', value: { input: '{text}' } },
+      result: { kind: 'audio' },
+    };
+    writeFileSync(file, JSON.stringify(template));
+    expect(await run('voice-template-validate', [], { 'template-file': file })).toMatchObject({
+      valid: true,
+    });
+    const added = await run(
+      'voice-provider-add',
+      ['custom'],
+      { 'template-file': file, 'key-stdin': true },
+      'cli-template-secret',
+    );
+    if (
+      typeof added !== 'object' ||
+      added === null ||
+      !('provider' in added) ||
+      typeof added.provider !== 'object' ||
+      added.provider === null ||
+      !('id' in added.provider) ||
+      typeof added.provider.id !== 'string'
+    )
+      throw new Error('Provider missing');
+    const id = added.provider.id;
+    expect(JSON.stringify(added)).not.toContain('cli-template-secret');
+    expect(await run('voice-provider-template', [id])).toEqual({ template });
+    writeFileSync(file, JSON.stringify({ ...template, method: 'GET', body: { kind: 'none' } }));
+    expect(await run('voice-provider-template-set', [id], { 'template-file': file })).toMatchObject(
+      { provider: { hasTemplate: true } },
+    );
+    expect(await run('voice-provider-template', [id])).toMatchObject({
+      template: { method: 'GET' },
+    });
+    writeFileSync(file, JSON.stringify({ ...template, url: 'file:///private' }));
+    expect(await run('voice-template-validate', [], { 'template-file': file })).toMatchObject({
+      valid: false,
+      errors: [{ path: 'url' }],
+    });
+    writeFileSync(file, 'not json');
+    await expect(
+      run('voice-template-validate', [], { 'template-file': file }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(run('voice-provider-template-set', [id])).rejects.toMatchObject({ code: 'usage' });
+  });
+
   it('refuses malformed arguments before connecting', async () => {
     const { run, calls } = await host();
     for (const [command, rest, values] of [

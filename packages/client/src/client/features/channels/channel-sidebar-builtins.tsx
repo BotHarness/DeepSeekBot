@@ -16,7 +16,7 @@ import { AutoApprovalBadge, AutoApprovalSettingsEntry } from '../../approval-tem
 import { ModelPresetProfile } from '../../model-preset-profile.js';
 import { BotPromptSettingsEntry } from '../../prompt-preset-settings.js';
 import { BotModeSettingsEntry } from '../../bot-mode-settings.js';
-import { BotVoiceSettingsEntry } from '../../voice-settings.js';
+import { BotVoiceSettingsEntry } from '../../voice-bot-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from '../../model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from '../../bridge.js';
 import { AssignmentConcurrencySetting } from '../../assignment-concurrency-setting.js';
