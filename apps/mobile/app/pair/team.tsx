@@ -31,7 +31,7 @@ import { DesktopPath } from '../../src/ui/shell/desktop-path';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { labelInField } from '../../src/ui/primitives/field-label';
-import { TextField } from '../../src/ui/primitives/text-field';
+import { TextField, type TextFieldHandle } from '../../src/ui/primitives/text-field';
 import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
 
@@ -113,6 +113,8 @@ export default function TeamSignInScreen() {
   const [link, setLink] = useState('');
   const [address, setAddress] = useState(typeof params.address === 'string' ? params.address : '');
   const pending = useRef<AbortController | undefined>(undefined);
+  const passwordField = useRef<TextFieldHandle>(null);
+  const confirmField = useRef<TextFieldHandle>(null);
   const [fingerprintShown, setFingerprintShown] = useState(false);
   const discovered = useRef(false);
   useFocusEffect(
@@ -467,11 +469,14 @@ export default function TeamSignInScreen() {
               autoCorrect={false}
               maxLength={32}
               returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordField.current?.focus()}
               editable={!busy}
             />
           </Labeled>
           <Labeled label={t.teamSignIn.password}>
             <TextField
+              ref={passwordField}
               testID="team-password"
               accessibilityLabel={t.teamSignIn.password}
               value={password}
@@ -570,12 +575,15 @@ export default function TeamSignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordField.current?.focus()}
                 editable={!busy}
               />
             </Labeled>
           ) : null}
           <Labeled label={t.teamSignIn.password}>
             <TextField
+              ref={passwordField}
               testID="team-password"
               accessibilityLabel={t.teamSignIn.password}
               value={password}
@@ -631,11 +639,15 @@ export default function TeamSignInScreen() {
               autoComplete="new-password"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => confirmField.current?.focus()}
               editable={!busy}
             />
           </Labeled>
           <Labeled label={t.teamSignIn.confirmPassword}>
             <TextField
+              ref={confirmField}
               testID="team-confirm-password"
               accessibilityLabel={t.teamSignIn.confirmPassword}
               value={confirm}
