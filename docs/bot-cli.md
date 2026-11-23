@@ -1104,7 +1104,7 @@ For model-free device-side qualification, `device-pair --link-file <trusted-priv
 
 `deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
 
-Use `device-offer --out <new-private-file>` and `device-approve-key --confirm -- <receipt> <public-key>` through the existing pairing owner. The installed app scans the trusted computer code and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
+Use `device-offer --out <new-private-file>` and `device-approve-key --confirm -- <receipt> <public-key>` through the existing pairing owner. The installed app scans the code shown by the trusted Host and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
 
 ### Phone route (Tailscale)
 

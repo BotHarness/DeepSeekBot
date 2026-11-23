@@ -1071,7 +1071,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
-继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key --confirm -- <receipt> <公钥>`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key --confirm -- <receipt> <公钥>`。已安装的 App 扫描可信 Host 上显示的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
 
 ### 手机连接（Tailscale）
 
