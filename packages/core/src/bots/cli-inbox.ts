@@ -1,4 +1,5 @@
 import { sessionModelChoice } from '@botharness/host-protocol/session-model';
+import { isHostSessionFilter, isHostSessionSort } from '@botharness/host-protocol/host-sessions';
 import {
   readHumanAttention,
   dismissHumanAttention,
@@ -87,7 +88,10 @@ export const INBOX_COMMANDS = [
   },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
-  { command: 'session-list', description: 'list accessible root Sessions on the Host' },
+  {
+    command: 'session-list',
+    description: 'list accessible root Sessions on the Host (--search, --sort, --source)',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -304,7 +308,9 @@ export async function runInboxCommand(
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
-      'Update the Host to use Activity search, unread filtering and mention ordering.',
+      call.method === 'sessionList'
+        ? 'Update the Host to search, sort and filter Sessions.'
+        : 'Update the Host to use Activity search, unread filtering and mention ordering.',
     );
   if (call.method === 'privateMcpServerEnable' && result['accepted'] !== true)
     throw new CliLiveError(
@@ -548,9 +554,25 @@ function prepare(
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
-    case 'session-list':
+    case 'session-list': {
       positionals(command, rest, 0, '');
-      return { method: 'sessionList', args: {} };
+      const { search, sort, source } = values;
+      if (sort !== undefined && !isHostSessionSort(sort))
+        usage('session-list --sort must be last-human-turn, created, or last-activity.');
+      if (source !== undefined && !isHostSessionFilter(source))
+        usage('session-list --source must be all, native, or bot:<slug>.');
+      return {
+        method: 'sessionList',
+        args: {
+          ...(search === undefined ? {} : { search }),
+          ...(sort === undefined ? {} : { sort }),
+          ...(source === undefined ? {} : { source }),
+          ...(search === undefined && sort === undefined && source === undefined
+            ? {}
+            : { queryVersion: 1 }),
+        },
+      };
+    }
     case 'session-transcript': {
       const [slug = null] = positionals(
         command,

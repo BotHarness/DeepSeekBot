@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { isHostSessionSort, type HostSessionSort } from '@botharness/host-protocol/host-sessions';
 
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
@@ -7,6 +8,7 @@ export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
   sessionsTab: boolean;
+  sessionSort: HostSessionSort;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -29,12 +31,13 @@ export function createInterfacePreferences() {
     language: 'system',
     appearance: 'system',
     sessionsTab: false,
+    sessionSort: 'last-human-turn',
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
   let snapshot = { ...value, locale: system, loaded: false, storageError: false };
   let storage: InterfaceStorage | undefined;
-  let touched = false;
+  const touched = new Set<keyof InterfacePreferences>();
   const listeners = new Set<() => void>();
   const publish = () => {
     snapshot = {
@@ -52,6 +55,12 @@ export function createInterfacePreferences() {
       snapshot = { ...snapshot, storageError: true };
     }
   };
+  const change = <K extends keyof InterfacePreferences>(key: K, next: InterfacePreferences[K]) => {
+    if (!snapshot.loaded) touched.add(key);
+    value = { ...value, [key]: next };
+    if (snapshot.loaded) persist();
+    publish();
+  };
   return {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) {
@@ -64,22 +73,39 @@ export function createInterfacePreferences() {
       storage = adapter;
       try {
         const saved = await adapter.read();
-        if (!touched && typeof saved === 'object' && saved !== null) {
-          if ('sessionsTab' in saved && typeof saved.sessionsTab === 'boolean')
+        if (typeof saved === 'object' && saved !== null) {
+          if (
+            !touched.has('sessionsTab') &&
+            'sessionsTab' in saved &&
+            typeof saved.sessionsTab === 'boolean'
+          )
             value.sessionsTab = saved.sessionsTab;
-          if ('inAppAlerts' in saved && typeof saved.inAppAlerts === 'boolean')
+          if (
+            !touched.has('sessionSort') &&
+            'sessionSort' in saved &&
+            isHostSessionSort(saved.sessionSort)
+          )
+            value.sessionSort = saved.sessionSort;
+          if (
+            !touched.has('inAppAlerts') &&
+            'inAppAlerts' in saved &&
+            typeof saved.inAppAlerts === 'boolean'
+          )
             value.inAppAlerts = saved.inAppAlerts;
           if (
+            !touched.has('inAppAlertStyle') &&
             'inAppAlertStyle' in saved &&
             (saved.inAppAlertStyle === 'inline' || saved.inAppAlertStyle === 'overlay')
           )
             value.inAppAlertStyle = saved.inAppAlertStyle;
           if (
+            !touched.has('language') &&
             'language' in saved &&
             (saved.language === 'system' || saved.language === 'en' || saved.language === 'zh')
           )
             value.language = saved.language;
           if (
+            !touched.has('appearance') &&
             'appearance' in saved &&
             (saved.appearance === 'system' ||
               saved.appearance === 'light' ||
@@ -91,38 +117,27 @@ export function createInterfacePreferences() {
         snapshot = { ...snapshot, storageError: true };
       }
       snapshot = { ...snapshot, loaded: true };
-      if (touched) persist();
+      if (touched.size > 0) persist();
+      touched.clear();
       publish();
     },
     setLanguage(language: LanguagePreference) {
-      touched = true;
-      value = { ...value, language };
-      if (snapshot.loaded) persist();
-      publish();
+      change('language', language);
     },
     setAppearance(appearance: AppearancePreference) {
-      touched = true;
-      value = { ...value, appearance };
-      if (snapshot.loaded) persist();
-      publish();
+      change('appearance', appearance);
     },
     setSessionsTab(sessionsTab: boolean) {
-      touched = true;
-      value = { ...value, sessionsTab };
-      if (snapshot.loaded) persist();
-      publish();
+      change('sessionsTab', sessionsTab);
+    },
+    setSessionSort(sessionSort: HostSessionSort) {
+      change('sessionSort', sessionSort);
     },
     setInAppAlerts(inAppAlerts: boolean) {
-      touched = true;
-      value = { ...value, inAppAlerts };
-      if (snapshot.loaded) persist();
-      publish();
+      change('inAppAlerts', inAppAlerts);
     },
     setInAppAlertStyle(inAppAlertStyle: InAppAlertStyle) {
-      touched = true;
-      value = { ...value, inAppAlertStyle };
-      if (snapshot.loaded) persist();
-      publish();
+      change('inAppAlertStyle', inAppAlertStyle);
     },
     retrySave() {
       if (snapshot.loaded) persist();
@@ -140,6 +155,15 @@ export function createInterfacePreferences() {
 export const interfacePreferences = createInterfacePreferences();
 
 const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
+const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
+
+export function useSessionSort() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionSortSnapshot,
+    sessionSortSnapshot,
+  );
+}
 
 export function useSessionsTab() {
   return useSyncExternalStore(

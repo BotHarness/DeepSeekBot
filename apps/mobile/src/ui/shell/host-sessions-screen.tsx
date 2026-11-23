@@ -1,20 +1,35 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
+import { FlatList, Keyboard, Platform, Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { HostClient } from '@botharness/host-client/client';
-import { listHostSessions } from '@botharness/host-client/host-sessions';
-import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
+import { readHostSessionList } from '@botharness/host-client/host-sessions';
+import {
+  HOST_SESSION_SEARCH_MAX,
+  HOST_SESSION_SORTS,
+  type HostSessionFilter,
+  type HostSessionRow,
+  type HostSessionSourceOption,
+} from '@botharness/host-protocol/host-sessions';
 import { useHostSession } from '../../host/host-session';
 import { sessionReadHost } from '../../host/session-detail';
 import { BotPortrait } from '../bot-avatar';
 import { SheetLoading } from '../chat/sheet';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
-import { useSessionsTab } from '../interface-preferences';
+import { materialSearchHeight } from '../design/material-search';
+import { radius, space, tabHeader } from '../design/tokens';
+import { interfacePreferences, useSessionsTab, useSessionSort } from '../interface-preferences';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { useFloatingTabInset } from './floating-tab-inset';
+import { HeaderAction } from './header-action';
+import { HeaderSearch } from './header-search';
+import {
+  HostSessionOptionsButton,
+  HostSessionOptionsSheet,
+  type SessionOptionGroup,
+} from './host-session-options';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
 
 export function HostSessionsScreen() {
@@ -22,20 +37,20 @@ export function HostSessionsScreen() {
   const { client, saved } = useHostSession();
   const t = useStrings().hostSessions;
   if (!enabled) return <Redirect href="/" />;
+  if (client && saved)
+    return (
+      <HostSessionsList
+        key={`${saved.hostId}:${saved.deviceId}`}
+        client={client}
+        hostId={saved.hostId}
+      />
+    );
   return (
     <>
       <Stack.Screen options={{ title: t.title, headerLargeTitleEnabled: false }} />
-      {client && saved ? (
-        <HostSessionsList
-          key={`${saved.hostId}:${saved.deviceId}`}
-          client={client}
-          hostId={saved.hostId}
-        />
-      ) : (
-        <Text tone="muted" style={{ padding: space.x5 }}>
-          {t.offline}
-        </Text>
-      )}
+      <Text tone="muted" style={{ padding: space.x5 }}>
+        {t.offline}
+      </Text>
     </>
   );
 }
@@ -43,8 +58,26 @@ export function HostSessionsScreen() {
 function HostSessionsList({ client, hostId }: { client: HostClient; hostId: string }) {
   const router = useRouter();
   const t = useStrings().hostSessions;
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
   const bottom = useFloatingTabInset();
-  const [rows, setRows] = useState<HostSessionRow[]>();
+  const sort = useSessionSort();
+  const [source, setSource] = useState<HostSessionFilter>('all');
+  const [sources, setSources] = useState<HostSessionSourceOption[]>();
+  const [draft, setDraft] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pendingSearch = useRef('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [result, setResult] = useState<{
+    search: string;
+    source: HostSessionFilter;
+    rows: HostSessionRow[];
+  }>();
+  const search = draft.trim();
+  const searchReady = search === '' || search === debounced;
+  const rows = result?.search === search && result.source === source ? result.rows : undefined;
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const flight = useRef<AbortController>(undefined);
@@ -53,16 +86,33 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
     () => client.getSnapshot().connection.status === 'connected',
   );
 
+  const changeSearch = (text: string, immediate = false) => {
+    setDraft(text);
+    clearTimeout(debounceTimer.current);
+    const query = text.trim();
+    pendingSearch.current = query;
+    if (query === '' || immediate) setDebounced(query);
+    else debounceTimer.current = setTimeout(() => setDebounced(query), 250);
+  };
+  useFocusEffect(
+    useCallback(() => {
+      setDebounced(pendingSearch.current);
+      return () => clearTimeout(debounceTimer.current);
+    }, []),
+  );
+
   const refresh = useCallback(() => {
-    if (!online || flight.current !== undefined) return;
+    if (!online || !searchReady || flight.current !== undefined) return;
     const abort = new AbortController();
     flight.current = abort;
     setFailed(false);
     setBusy(true);
-    void listHostSessions(sessionReadHost(client, abort.signal))
+    void readHostSessionList(sessionReadHost(client, abort.signal), { search, sort, source })
       .then(
         (value) => {
-          if (!abort.signal.aborted) setRows(value);
+          if (abort.signal.aborted) return;
+          setResult({ search, source, rows: value.sessions });
+          setSources(value.sources);
         },
         () => {
           if (!abort.signal.aborted) setFailed(true);
@@ -73,7 +123,7 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
         flight.current = undefined;
         setBusy(false);
       });
-  }, [client, online]);
+  }, [client, online, search, searchReady, sort, source]);
   useFocusEffect(
     useCallback(() => {
       refresh();
@@ -84,6 +134,44 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
       };
     }, [refresh]),
   );
+
+  const groups: SessionOptionGroup[] = [
+    {
+      id: 'sort',
+      label: t.sortLabel,
+      selected: sort,
+      choices: HOST_SESSION_SORTS.map((id) => ({
+        id,
+        label: t.sort[id],
+        select: () => interfacePreferences.setSessionSort(id),
+      })),
+    },
+    {
+      id: 'source',
+      label: t.sourceLabel,
+      selected: source,
+      choices: [
+        { id: 'all', label: t.all, select: () => setSource('all') },
+        ...(sources ?? [])
+          .slice()
+          .sort((a, b) => {
+            if (a.kind === 'native') return b.kind === 'native' ? 0 : -1;
+            if (b.kind === 'native') return 1;
+            return a.displayName.localeCompare(b.displayName) || a.botSlug.localeCompare(b.botSlug);
+          })
+          .map((item) => {
+            const id: HostSessionFilter = item.kind === 'native' ? 'native' : `bot:${item.botSlug}`;
+            return {
+              id,
+              label: item.kind === 'native' ? t.nativeSource : item.displayName,
+              select: () => setSource(id),
+            };
+          }),
+      ],
+    },
+  ];
+  const canQuery = online && sources !== undefined;
+  const optionsActive = sort !== 'last-human-turn' || source !== 'all';
 
   const open = (row: HostSessionRow) => {
     router.push({
@@ -97,38 +185,143 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
     });
   };
   return (
-    <FlatList
-      testID="host-sessions-list"
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ paddingHorizontal: space.x4, paddingBottom: bottom }}
-      data={rows}
-      keyExtractor={(row) => row.sessionId}
-      refreshing={online && busy && rows !== undefined}
-      onRefresh={online ? refresh : undefined}
-      ListHeaderComponent={
-        failed && rows !== undefined ? (
-          <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} disabled={!online} />
-        ) : undefined
-      }
-      ListEmptyComponent={
-        !online ? (
-          <Text tone="muted" style={{ padding: space.x3 }}>
-            {t.offline}
-          </Text>
-        ) : failed ? (
-          <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} />
-        ) : rows === undefined ? (
-          <SheetLoading />
-        ) : (
-          <Text tone="muted" style={{ padding: space.x3 }}>
-            {t.empty}
-          </Text>
-        )
-      }
-      renderItem={({ item }) => (
-        <HostSessionListItem row={item} client={client} onPress={() => open(item)} />
-      )}
-    />
+    <>
+      <Stack.Screen
+        options={{
+          title: t.title,
+          headerLargeTitleEnabled: false,
+          headerShown: !searchOpen,
+          ...(Platform.OS === 'ios'
+            ? {
+                unstable_headerRightItems: () =>
+                  canQuery
+                    ? [
+                        {
+                          type: 'button',
+                          label: t.search,
+                          identifier: 'host-sessions-search',
+                          icon: { type: 'sfSymbol', name: 'magnifyingglass' },
+                          ...(search === '' ? {} : { tintColor: theme.color.accent }),
+                          onPress: () => setSearchOpen(true),
+                        },
+                        {
+                          type: 'menu',
+                          label: t.options,
+                          identifier: 'host-sessions-options',
+                          icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
+                          ...(optionsActive ? { tintColor: theme.color.accent } : {}),
+                          menu: {
+                            multiselectable: true,
+                            items: groups.map((group) => ({
+                              type: 'submenu',
+                              label: group.label,
+                              inline: true,
+                              items: group.choices.map((choice) => ({
+                                type: 'action',
+                                label: choice.label,
+                                state: group.selected === choice.id ? 'on' : 'off',
+                                onPress: choice.select,
+                              })),
+                            })),
+                          },
+                        },
+                      ]
+                    : [],
+              }
+            : {
+                headerRight: () =>
+                  canQuery ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+                      <HostSessionOptionsButton
+                        active={optionsActive}
+                        onOpen={() => setOptionsOpen(true)}
+                      />
+                      <HeaderAction
+                        icon="search"
+                        label={t.search}
+                        testID="host-sessions-search"
+                        active={search !== ''}
+                        onPress={() => setSearchOpen(true)}
+                      />
+                    </View>
+                  ) : null,
+              }),
+        }}
+      />
+      {searchOpen ? (
+        <View
+          style={{
+            paddingTop: insets.top,
+            paddingHorizontal: tabHeader.gutter,
+            paddingBottom: space.x2,
+          }}
+        >
+          <View
+            style={{
+              minHeight:
+                Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : theme.touch,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <HeaderSearch
+              testID="host-sessions-query"
+              value={draft}
+              placeholder={t.search}
+              maxLength={HOST_SESSION_SEARCH_MAX}
+              onChangeText={changeSearch}
+              onFocusChange={(focused) => {
+                if (!focused && Platform.OS === 'ios') setSearchOpen(false);
+              }}
+              onSubmitEditing={(text) => {
+                changeSearch(text, true);
+                Keyboard.dismiss();
+                setSearchOpen(false);
+              }}
+              onClose={() => setSearchOpen(false)}
+            />
+          </View>
+        </View>
+      ) : null}
+      <FlatList
+        testID="host-sessions-list"
+        contentInsetAdjustmentBehavior={searchOpen ? 'never' : 'automatic'}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: space.x4, paddingBottom: bottom }}
+        data={rows}
+        keyExtractor={(row) => row.sessionId}
+        refreshing={online && busy && rows !== undefined}
+        onRefresh={online ? refresh : undefined}
+        ListHeaderComponent={
+          failed && rows !== undefined ? (
+            <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} disabled={!online} />
+          ) : undefined
+        }
+        ListEmptyComponent={
+          !online ? (
+            <Text tone="muted" style={{ padding: space.x3 }}>
+              {t.offline}
+            </Text>
+          ) : failed && searchReady ? (
+            <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} />
+          ) : rows === undefined ? (
+            <SheetLoading />
+          ) : (
+            <Text tone="muted" style={{ padding: space.x3 }}>
+              {search || source !== 'all' ? t.noMatches : t.empty}
+            </Text>
+          )
+        }
+        renderItem={({ item }) => (
+          <HostSessionListItem row={item} client={client} onPress={() => open(item)} />
+        )}
+      />
+      <HostSessionOptionsSheet
+        open={optionsOpen}
+        groups={groups}
+        onClose={() => setOptionsOpen(false)}
+      />
+    </>
   );
 }
 
