@@ -27,7 +27,7 @@ In the shared device QA lanes, use two isolated Hosts with separate Feed markers
 
 Exercise an untrusted certificate, a redirect and a changed key for a saved Host. In each case, verify the Host receives no password. Correct a wrong credential and retry with the address and username still populated. Verify QR pairing, fingerprint comparison and approval from the same menu. Repeat the form with the software keyboard and default, intermediate and maximum text sizes in both themes. Save redacted visuals for the menu and form on each platform.
 
-For #5047, use header Back from each chooser option and confirm the same Host chooser reappears without re-entering the address. Repeat with iOS edge swipe, Android system Back and iOS accessibility Escape. Header Back from the chooser returns to Pair. The Scan code action still returns directly to Pair, as does Back from the scan-a-code guidance when discovery reports password sign-in is disabled.
+For #5047, use the navigation bar Back from each chooser option and confirm the same Host chooser reappears without re-entering the address. Repeat with iOS edge swipe, Android system Back and iOS accessibility Escape. Navigation bar Back from the chooser returns to Pair. The Scan code action still returns directly to Pair, as does Back from the scan-a-code guidance when discovery reports password sign-in is disabled.
 
 ## Connect desktop self-check (#4170)
 
