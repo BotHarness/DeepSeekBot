@@ -19,6 +19,7 @@ import {
   type BotScheduleStore,
 } from '../src/schedules/bot-schedules.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { deferred } from './deferred.js';
 
 function storeAt(
   start: string,
@@ -448,6 +449,98 @@ describe('Bot Schedule Run now', () => {
 });
 
 describe('Bot Schedule firing', () => {
+  it('keeps a collected schedule firing out of the next Inbox after a side effect and failure', async () => {
+    const localStarted = deferred<void>();
+    const finishLocal = deferred<void>();
+    const inboxes: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('bh-schedule-repair-'),
+      agents: {
+        async runOrchestrator(run) {
+          inboxes.push(run.inbox);
+          if (inboxes.length === 1) {
+            localStarted.resolve();
+            await finishLocal.promise;
+          } else if (inboxes.length === 2) {
+            run.schedules!.create({
+              title: 'Created by the turn',
+              prompt: 'Follow up',
+              trigger: { kind: 'every', everySeconds: 3600 },
+            });
+            throw new Error('Turn failed after creating a schedule');
+          }
+        },
+        async runAssignment() {},
+        requestAssignment: () => ({ delivery: 'steer' }),
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada')!;
+      const start = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'start',
+        body: 'Start',
+      });
+      if (!start.admitted) throw new Error(start.reason);
+      await localStarted.promise;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Work',
+        members: ['ada'],
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'primary',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada check',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      core.runtime.admitGroupMessage(group.id, 'primary');
+      const first = core.schedules.create(
+        'ada',
+        {
+          title: 'Original firing',
+          prompt: 'Original',
+          trigger: { kind: 'every', everySeconds: 3600 },
+        },
+        'human',
+      );
+      const firing = core.schedules.runNow('ada', first.id);
+      finishLocal.resolve();
+      await start.settled;
+      await core.runtime.whenIdle();
+      const later = core.schedules.create(
+        'ada',
+        { title: 'Later firing', prompt: 'Later', trigger: { kind: 'every', everySeconds: 3600 } },
+        'human',
+      );
+      core.schedules.runNow('ada', later.id);
+      await core.runtime.whenIdle();
+      expect(inboxes).toEqual([
+        expect.any(String),
+        expect.stringContaining('Original firing'),
+        expect.stringContaining('Later firing'),
+      ]);
+      expect(inboxes[2]).not.toContain('Original firing');
+      expect(core.schedules.list('ada')).toContainEqual(
+        expect.objectContaining({ title: 'Created by the turn' }),
+      );
+      expect(
+        attachOperationalModule(core.operationalDatabase, 'schedule-test').read((db) =>
+          db
+            .prepare('SELECT attempt_state FROM inbox_admissions WHERE source_event_id = ?')
+            .get(firing.sourceEventId ?? null),
+        ),
+      ).toMatchObject({ attempt_state: 'needs-repair' });
+    } finally {
+      finishLocal.resolve();
+      core.schedules.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('does not inherit private input interaction from a previous Human turn in the same Session', async () => {
     const observations: Array<{ sessionId: string; interactive: boolean }> = [];
     const core = createCore({

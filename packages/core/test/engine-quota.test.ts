@@ -285,9 +285,10 @@ describe('A Bot whose subscription runs out (#4493)', () => {
   const until = new Date(clock + 3 * 3_600_000).toISOString();
   const API_ROUTE = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 
-  function bot(options: { fallback: boolean }) {
+  function bot(options: { fallback: boolean; fallbackAfter?: number }) {
     const runs: string[] = [];
     let limited = true;
+    let fallbackChecks = 0;
     const agents: BotAgentAdapter = {
       async runOrchestrator(run) {
         if (limited) {
@@ -308,7 +309,7 @@ describe('A Bot whose subscription runs out (#4493)', () => {
       agents,
       autoContinueDelaysMs: [1],
       engineFallback: (_slug, limit) =>
-        options.fallback
+        options.fallback && ++fallbackChecks > (options.fallbackAfter ?? 0)
           ? {
               kind: 'switch',
               from: { provider: limit.engine, model: limit.account },
@@ -339,6 +340,19 @@ describe('A Bot whose subscription runs out (#4493)', () => {
     };
     return { core, runs, dm };
   }
+
+  it('publishes one model switch when failure reporting handles the engine limit', async () => {
+    const { core, dm } = bot({ fallback: true, fallbackAfter: 1 });
+    try {
+      await dm('ada-1');
+      expect(
+        core.channels.readMessages('dm-ada').filter((message) => message.modelSwitch),
+      ).toHaveLength(1);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
 
   it('stops the Bot and posts the limit card with the reset time when no fallback was chosen', async () => {
     const { core, runs, dm } = bot({ fallback: false });

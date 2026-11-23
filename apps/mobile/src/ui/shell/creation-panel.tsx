@@ -27,6 +27,7 @@ import { creationCard, fab, radius, space, swipeOpen } from '../design/tokens';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useStrings } from '../strings';
 import { PlusIcon } from './icons';
+import { fabGlyphSize } from './navigation-action-pressable';
 import { NavigationMaterial } from './navigation-material';
 
 type CreationLevel = 'actions' | 'sources';
@@ -272,7 +273,7 @@ export function CreationPanel({
                 iconStyle,
               ]}
             >
-              <PlusIcon color={theme.color.fg} size={theme.type.title.line * theme.fontScale} />
+              <PlusIcon color={theme.color.fg} size={fabGlyphSize(theme)} />
             </Animated.View>
           </View>
         </View>
