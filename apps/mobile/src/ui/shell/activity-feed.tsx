@@ -185,6 +185,7 @@ const Row = memo(function Row({
   const summary = summaryPreview(itemSummary(item));
   const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
   const time = shortTime(item.createdAt, new Date(now));
+  const large = Platform.OS === 'android' && theme.largeText;
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
@@ -226,18 +227,24 @@ const Row = memo(function Row({
               }
               sourceLabel={item.activitySource?.label}
               glyph={mixed && item.activitySource !== undefined}
+              lines={large ? 2 : 1}
             />
-            {time === '' ? null : (
+            {time === '' || large ? null : (
               <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
                 {time}
               </Text>
             )}
           </View>
+          {large && time !== '' ? (
+            <Text variant="meta" tone="subtle">
+              {time}
+            </Text>
+          ) : null}
           <Text
             variant="meta"
             dynamicTypeRamp="subheadline"
             tone={settled ? 'muted' : 'fg'}
-            numberOfLines={1}
+            numberOfLines={large ? 2 : 1}
             ellipsizeMode="tail"
             style={conversationType.preview}
           >
