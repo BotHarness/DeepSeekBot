@@ -10,6 +10,7 @@ interface Command {
   notifications?: unknown;
   hostLook?: unknown;
   connection?: unknown;
+  settings?: unknown;
   expectedRevision?: string;
 }
 interface Client {
@@ -21,7 +22,8 @@ interface Client {
   pending?: { command: Command; resolve: (response: Response) => void };
 }
 const json = (value: unknown, status = 200) => Response.json(value, { status });
-const refused = (code: string, status = 409) => json({ error: { code, message: code } }, status);
+const refused = (code: string, status = 409, message = code) =>
+  json({ error: { code, message } }, status);
 const record = (v: unknown): Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 export function createAppearanceControl(now = Date.now) {
@@ -79,28 +81,43 @@ export function createAppearanceControl(now = Date.now) {
             input.notifications,
             input.hostLook,
             input.connection,
+            input.settings,
           ].filter((v) => v !== undefined).length > 1
         )
           return refused('appearance-invalid-input', 400);
         if (input.patch !== undefined && typeof input.expectedRevision !== 'string')
           return refused('appearance-revision-required', 400);
+        const deadline = input.hostLook !== undefined || input.settings !== undefined;
         if (
-          input.hostLook !== undefined &&
+          input.settings !== undefined &&
+          record(input.settings).patch !== undefined &&
+          typeof input.expectedRevision !== 'string'
+        )
+          return refused('appearance-revision-required', 400);
+        if (
+          deadline &&
           (typeof input.expiresAt !== 'number' ||
             !Number.isFinite(input.expiresAt) ||
             input.expiresAt <= now())
         )
           return refused('appearance-request-stale');
-        const expiresAt =
-          input.hostLook === undefined
-            ? now() + 8000
-            : Math.min(now() + 8000, input.expiresAt as number);
+        const expiresAt = deadline
+          ? Math.min(now() + 8000, input.expiresAt as number)
+          : now() + 8000;
         if (client.pending) return refused('appearance-client-busy');
         if (!client.poll) return refused('appearance-client-unavailable');
         const command: Command = {
           id: randomUUID(),
           expiresAt,
           ...(input.connection === undefined ? {} : { connection: input.connection }),
+          ...(input.settings === undefined
+            ? {}
+            : {
+                settings: input.settings,
+                ...(typeof input.expectedRevision === 'string'
+                  ? { expectedRevision: input.expectedRevision }
+                  : {}),
+              }),
           ...(input.hostLook === undefined
             ? {}
             : { hostLook: input.hostLook, expectedRevision: input.expectedRevision as string }),
@@ -152,8 +169,16 @@ export function createAppearanceControl(now = Date.now) {
         )
           return refused('appearance-request-stale');
         const result = record(input.result);
-        const code = record(result.error).code;
-        client.pending.resolve(typeof code === 'string' ? refused(code) : json(result));
+        const { code, message } = record(result.error);
+        client.pending.resolve(
+          typeof code === 'string'
+            ? refused(
+                code,
+                409,
+                typeof message === 'string' && message.length <= 300 ? message : code,
+              )
+            : json(result),
+        );
         delete client.pending;
         return json({ ok: true });
       }

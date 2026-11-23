@@ -998,6 +998,14 @@
       "gap": "Native restart and different-Host restore require the task-owned Desktop procedure; Human QA is separate."
     },
     {
+      "id": "desktop.client-settings",
+      "label": "Change one selected Client's theme, notifications, layout and shortcuts from the CLI and through Tob's approval card",
+      "source": "packages/client/src/client/client-settings-control.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/client-settings.md",
+      "task": 4831,
+      "gap": "macOS Desktop restart and physical-keyboard evidence are separate; Human QA is separate."
+    },
+    {
       "id": "desktop.global-materials",
       "label": "Adjust global Header/Body materials through UI and targeted CLI with actual backdrop blur",
       "source": "packages/client/src/client/appearance-material-settings.tsx",
@@ -2657,6 +2665,22 @@
       "reason": "Runs actual scoped theme controls, local persistence and explicit Client-targeted CLI against an isolated Host; no model call. L-4 makes direct-argv process options explicit.",
       "task": 2258,
       "sha256": "d7bc18a9c58f45295835dc9fdf9e49e978fbb23d5e3e7b8b0a9daea44bb908e0"
+    },
+    {
+      "path": "scripts/e2e-client-settings.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.client-settings"],
+      "reason": "Two isolated browser Clients on a real Host: preference, shortcut (pressed) and layout writes on one, refusals, reload read-back under a new id, stale/missing targets, and the other Client unchanged; light and dark screenshots. No model call.",
+      "task": 4831,
+      "sha256": "bfcf2f2f7e63c9408f0c52c0d3d88bbef92bc7104a919847b4647fdc932a0acd"
+    },
+    {
+      "path": "scripts/e2e-client-settings-tob.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.client-settings"],
+      "reason": "Tob DM write through the real approval card, model-free via tob-cli or with --natural through a live model (approving each card Tob asks for), then read-back and the new key pressed.",
+      "task": 4833,
+      "sha256": "f2a7856a982785eeb9c2a0d5ae20284b6a6e0ac2e5ae55de1f5704742a66da06"
     },
     {
       "path": "scripts/e2e-global-materials.mjs",

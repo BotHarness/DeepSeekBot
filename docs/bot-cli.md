@@ -2186,6 +2186,26 @@ Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes
 
 The phone's native private form and browser remote chat reach the existing credential owner through the same channel. Legacy Connect pairings require a new fingerprint ceremony; failures never retry plaintext. The full phone WebView remains removed, and Connect Browser/Computer viewers are unavailable pending separate qualification. CLI channel state is not native acceptance or proof of a real Cloudflare path.
 
+## Selected-Client settings
+
+`client-preferences-*`, `client-layout-*` and `client-shortcuts-*` change one selected Web or Desktop Client's own settings through the same owners as its UI. Run `appearance-clients` first and pass one `--client-id`; a reload or restart registers a new id, so list again instead of reusing an old one. Each `-get` returns the settings and a `revision`. Each `-set` needs that `--expected-revision` and a JSON patch on stdin (`--patch-stdin`), and returns the fresh read:
+
+```sh
+deepseekbot appearance-clients
+deepseekbot client-preferences-get --client-id <id>
+echo '{"notifications":{"enabled":false}}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-shortcuts-get --client-id <id>
+echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-layout-get --client-id <id>
+echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+```
+
+- **Preferences.** The read includes the Client's `theme`, but theme has one writer: `appearance-set` with `{"preference":"system|light|dark"}` (the read says `writeWith: "appearance-set"`). Patch any of `locale` (an id from `locale.available`) and `notifications: {"enabled": true|false}`; a `theme` key refuses `client-settings-invalid-input` and names `appearance-set`. Notifications are stored in that Client only. Locale is the DSH language choice, which DSH keeps for the whole Host, so the read marks it `scope: "host"` and every Client of that Host follows it. The command never opens the browser or OS permission prompt: turning notifications on refuses `notification-permission-pending` until the Human allows them in that Client, `notification-permission-denied` when the Client blocked them, and `notification-unsupported` without the API. Nothing is stored in those cases.
+- **Shortcuts.** The read lists every stable action id with its effective `binding` (or `null` when disabled), its `default`, whether it is `custom`, its display `text`, the Client `platform`, and the `reserved` key codes. Patch exactly one action: `{"action","binding":{code,mod,alt,shift}}` sets it, `{"action","binding":null}` disables it, `{"action","reset":true}` restores its default. A binding that another action holds refuses `shortcut-conflict` and names that action in the message; it is never taken from the other action. `shortcut-reserved`, `shortcut-needs-modifier` and `shortcut-action-unknown` refuse the other cases. A disabled quick switcher does not fall back to the legacy Cmd/Ctrl+K.
+- **Layout.** Available while the Client shows Bot mode. The read returns `activeChannelId`, `global` (`mode`, `sideColumn`, `channelsWidth`, `column`), `rail` (`order`, `hidden`) and the saved `channels` workspace layouts. Patch `global`, `rail`, and one `channel` (`id` plus any of `open`, `direction` `left`/`right`/`above`/`below`, `ratio` 0.2–0.8). Editing a Channel that is not active does not switch to it and keeps other Channels and parked panels. An unknown Channel refuses `layout-channel-unknown`. Channel split trees, members panel, gap and per-panel heights are not covered yet.
+
+A different revision refuses `client-settings-revision-conflict`; read again and retry. A Client without the owner mounted (for example, layout outside Bot mode) refuses `client-settings-unavailable`. Target refusals are the relay's: `appearance-client-stale`, `appearance-client-unavailable`, `appearance-client-busy` and `appearance-client-timeout`. When a write's reply is lost, the CLI reports `client-settings-outcome-unknown`: read the same Client before retrying. The three `-get` commands are on Tob's read list; every `-set` shows the Human an approval card first. See [selected-Client control](decisions/client-control.md).
+
 ## SSH tunnel from a computer
 
 Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must already be running and reachable through an SSH alias whose host key and key/agent login you have verified in your normal terminal. This command uses batch authentication and refuses password prompts or unknown/changed SSH host keys. It does not install or start the remote Host. Use an up-to-date local Host browser client with **Add remote**; older clients reject the version 2 tunnel link.

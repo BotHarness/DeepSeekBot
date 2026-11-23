@@ -88,6 +88,8 @@ import {
 } from './channel-sidebar-builtins.js';
 import { webShortcutBlocked, webModalOpen, webShortcutHelpQuestion } from './channel-shortcuts.js';
 import { ShortcutBindings } from './shortcut-bindings.js';
+import { mountSelectedClientSettings } from './selected-client-settings.js';
+import { subscribeDesktopNotificationTriggers } from './desktop-notification-triggers.js';
 import { mountSettingsShortcut } from './settings-shortcut.js';
 import {
   browserNotificationApi,
@@ -115,7 +117,7 @@ import {
   bridgeHost,
 } from './bridge.js';
 import { listBots } from '@botharness/host-client/bots';
-import { observeHumanAttention, observeResource } from './messaging-defaults-live.js';
+import { observeResource } from './messaging-defaults-live.js';
 import type { CompanionSource } from './live-snapshots.js';
 import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
@@ -350,6 +352,18 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
+  ctx.effect(
+    () =>
+      member
+        ? () => {}
+        : mountSelectedClientSettings(
+            appearance,
+            ctx.locale,
+            desktopNotifications,
+            shortcutBindings,
+          ),
+    'botharness: selected-Client settings control',
+  );
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
       {
@@ -728,28 +742,8 @@ export function apply(ctx: ClientContext): void {
       },
       channels: () => store.getSnapshot().channels,
       attentive: () => document.visibilityState === 'visible' && document.hasFocus(),
-      subscribe: (listener) => {
-        let prior = store.getSnapshot().activityList;
-        const offStore = store.subscribe(() => {
-          const next = store.getSnapshot().activityList;
-          if (next.unreadCount === prior.unreadCount && next.hasAction === prior.hasAction) return;
-          prior = next;
-          listener();
-        });
-        const offPrefs = desktopNotifications.subscribe(listener);
-        const offAttention = observeHumanAttention(listener);
-        document.addEventListener('visibilitychange', listener);
-        window.addEventListener('focus', listener);
-        window.addEventListener('blur', listener);
-        return () => {
-          offStore();
-          offPrefs();
-          offAttention();
-          document.removeEventListener('visibilitychange', listener);
-          window.removeEventListener('focus', listener);
-          window.removeEventListener('blur', listener);
-        };
-      },
+      subscribe: (listener) =>
+        subscribeDesktopNotificationTriggers(store, desktopNotifications, listener),
       title: (kind, item) => {
         const bot =
           store.getSnapshot().bots.find((candidate) => candidate.slug === item.botSlug)
