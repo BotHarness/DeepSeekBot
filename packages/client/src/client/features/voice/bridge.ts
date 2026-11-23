@@ -189,11 +189,23 @@ export function createVoiceBridge(
     );
   }
 
+  function ssmlOk(value: unknown, depth = 0): boolean {
+    const node = fields(value);
+    return (
+      depth < 32 &&
+      node !== undefined &&
+      typeof node['tag'] === 'string' &&
+      stringMap(node['attributes']) &&
+      Array.isArray(node['children']) &&
+      node['children'].every((child) => typeof child === 'string' || ssmlOk(child, depth + 1))
+    );
+  }
+
   function bodyOk(value: unknown): boolean {
     const body = fields(value);
     if (body?.['kind'] === 'none') return true;
     if (body?.['kind'] === 'json') return 'value' in body;
-    if (body?.['kind'] === 'ssml') return fields(body['root']) !== undefined;
+    if (body?.['kind'] === 'ssml') return ssmlOk(body['root']);
     return body?.['kind'] === 'multipart' && stringMap(body['fields']);
   }
 

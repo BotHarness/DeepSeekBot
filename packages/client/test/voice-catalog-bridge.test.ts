@@ -45,6 +45,24 @@ it('rejects a stored template whose variant is missing its fields', async () => 
   await expect(read({ ...valid, auth: { kind: 'header' } })).rejects.toThrow(
     'invalid voiceProviderTemplate response',
   );
+  const ssml = {
+    kind: 'ssml',
+    root: {
+      tag: 'speak',
+      attributes: {},
+      children: [{ tag: 'voice', attributes: {}, children: ['{text}'] }],
+    },
+  };
+  await expect(read({ ...valid, body: ssml })).resolves.toEqual({ ...valid, body: ssml });
+  await expect(read({ ...valid, body: { kind: 'ssml', root: {} } })).rejects.toThrow(
+    'invalid voiceProviderTemplate response',
+  );
+  await expect(
+    read({
+      ...valid,
+      body: { kind: 'ssml', root: { tag: 'speak', attributes: {}, children: [{}] } },
+    }),
+  ).rejects.toThrow('invalid voiceProviderTemplate response');
   await expect(read({ ...valid, result: { kind: 'text' } })).rejects.toThrow(
     'invalid voiceProviderTemplate response',
   );
