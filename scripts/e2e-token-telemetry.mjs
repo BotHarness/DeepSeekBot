@@ -27,6 +27,7 @@ const bundle = join(paths.dir, 'token-telemetry-source.mjs');
 const imported = [
   ['queryTokenUsageDays', 'usage/telemetry.ts'],
   ['queryModelUsageDays', 'usage/telemetry.ts'],
+  ['telemetryModelRoute', 'telemetry/model-route.ts'],
   ['startTokenUsage, startModelUsage', 'telemetry/token-usage.ts'],
   ['createTelemetryService, fetchTelemetrySender', 'telemetry/service.ts'],
 ];
@@ -50,6 +51,7 @@ await build({
 const {
   queryTokenUsageDays,
   queryModelUsageDays,
+  telemetryModelRoute,
   startTokenUsage,
   startModelUsage,
   createTelemetryService,
@@ -64,10 +66,15 @@ const database = new DatabaseSync(join(instance.home, 'botharness', 'botharness.
 try {
   const days = queryTokenUsageDays(database, new Date());
   const models = queryModelUsageDays(database, new Date());
-  const routes = database
-    .prepare('SELECT DISTINCT provider, model FROM usage_daily')
-    .all()
-    .flatMap((row) => [row.provider, row.model]);
+  const routes = database.prepare('SELECT DISTINCT provider, model FROM usage_daily').all();
+  const SENTINELS = new Set(['custom', 'other', 'unknown']);
+  const localOnly = routes.flatMap(({ provider, model }) => [
+    ...(/-\d+$/u.test(provider) ? [provider] : []),
+    ...(telemetryModelRoute(provider, model).model_id !== model.toLowerCase() &&
+    !SENTINELS.has(model)
+      ? [model]
+      : []),
+  ]);
   const batches = [];
   let delivered = 0;
   const sender = flag('--send') ? fetchTelemetrySender() : undefined;
@@ -113,9 +120,11 @@ try {
       assert.ok(!/bot_slug|session_id|human_id|content|prompt/.test(key));
   }
   const modelWire = JSON.stringify(modelEvents);
-  for (const value of routes)
-    if (/^(?:custom|other)(?:-\d+)?$/u.test(value) || /-\d+$/u.test(value))
-      assert.ok(!modelWire.includes(`"${value}"`), 'Provider instance IDs stay local');
+  for (const value of localOnly)
+    assert.ok(
+      !modelWire.includes(`"${value}"`),
+      'Provider instance IDs and typed models stay local',
+    );
   for (const event of events) {
     const properties = event.properties;
     const day = new Date(properties.day_timestamp).toISOString().slice(0, 10);

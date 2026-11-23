@@ -157,6 +157,10 @@ describe('Bot turn telemetry', () => {
     observe('orch', at(8, 'turn/end', { reason: { kind: 'completed' } }));
     observe('orch', at(9, 'turn/start', {}));
     observe('orch', at(10, 'turn/end', { reason: { kind: 'completed' } }));
+    observe('orch', at(11, 'turn/start', {}));
+    observe('orch', reply(12, 'custom-2', 'private-a'));
+    observe('orch', reply(13, 'custom-2', 'private-b'));
+    observe('orch', at(14, 'turn/end', { reason: { kind: 'completed' } }));
     expect(
       captured.map(({ properties }) => [
         properties['provider_kind'],
@@ -167,8 +171,10 @@ describe('Bot turn telemetry', () => {
       ['opencode_go', 'deepseek-v4.1-flash', false],
       ['custom', 'custom', true],
       ['unknown', 'unknown', false],
+      ['custom', 'custom', true],
     ]);
-    expect(JSON.stringify(captured)).not.toContain('private-model');
+    for (const secret of ['private-model', 'private-a', 'private-b'])
+      expect(JSON.stringify(captured)).not.toContain(secret);
     for (const { properties } of captured)
       expect(telemetryEventProperties('chat:bot_turn_complete', properties)).toEqual(properties);
   });

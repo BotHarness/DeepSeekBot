@@ -28,6 +28,7 @@ interface OpenTurn {
   cacheWrite: number;
   unknownUsage: boolean;
   route: TelemetryModelRoute | undefined;
+  routeIdentity: string | undefined;
   switched: boolean;
 }
 
@@ -139,6 +140,7 @@ export function createBotTurnTelemetry(options: {
             cacheWrite: 0,
             unknownUsage: false,
             route: undefined,
+            routeIdentity: undefined,
             switched: false,
           });
           return;
@@ -159,13 +161,11 @@ export function createBotTurnTelemetry(options: {
             const source = assistantMessageRoute(event);
             if (source !== undefined) {
               const route = telemetryModelRoute(source.provider, source.model);
-              if (
-                state.route !== undefined &&
-                (state.route.provider_kind !== route.provider_kind ||
-                  state.route.model_id !== route.model_id)
-              )
+              const identity = JSON.stringify([route.provider_kind, source.model.toLowerCase()]);
+              if (state.routeIdentity !== undefined && state.routeIdentity !== identity)
                 state.switched = true;
               state.route = route;
+              state.routeIdentity = identity;
             }
             const usage = reportedBuckets(event);
             if (

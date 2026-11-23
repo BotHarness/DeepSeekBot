@@ -2808,7 +2808,7 @@
       "behaviors": ["telemetry.bot-tokens"],
       "reason": "Compares live Host Overview with production day and per-model token snapshot readers and serializers; optional separately marked QA wire send.",
       "task": 5083,
-      "sha256": "4137d1e1af9b176f3c598062922de260aa945889ba3caf0c56d10eb4d905838c"
+      "sha256": "cf325471d048ab577080cb6acbeacfcec0b6bccd72c5298d1c8f888e7bcda25d"
     },
     {
       "path": "scripts/e2e-avatar-scroll.mjs",
