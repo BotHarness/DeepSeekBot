@@ -167,10 +167,43 @@ export function createVoiceBridge(
     );
   }
 
-  function kindOf(value: unknown, kinds: readonly string[]): boolean {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-    const kind = (value as Record<string, unknown>)['kind'];
-    return typeof kind === 'string' && kinds.includes(kind);
+  function fields(value: unknown): Record<string, unknown> | undefined {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  }
+
+  function stringMap(value: unknown): boolean {
+    const map = fields(value);
+    return map !== undefined && Object.values(map).every((entry) => typeof entry === 'string');
+  }
+
+  function authOk(value: unknown): boolean {
+    const auth = fields(value);
+    if (auth?.['kind'] === 'none' || auth?.['kind'] === 'bearer') return true;
+    if (auth?.['kind'] === 'query') return typeof auth['name'] === 'string';
+    return (
+      auth?.['kind'] === 'header' &&
+      typeof auth['name'] === 'string' &&
+      typeof auth['prefix'] === 'string'
+    );
+  }
+
+  function bodyOk(value: unknown): boolean {
+    const body = fields(value);
+    if (body?.['kind'] === 'none') return true;
+    if (body?.['kind'] === 'json') return 'value' in body;
+    if (body?.['kind'] === 'ssml') return fields(body['root']) !== undefined;
+    return body?.['kind'] === 'multipart' && stringMap(body['fields']);
+  }
+
+  function resultOk(value: unknown): boolean {
+    const result = fields(value);
+    if (result?.['kind'] === 'audio') return true;
+    return (
+      ['base64', 'hex', 'url', 'text'].includes(result?.['kind'] as string) &&
+      typeof result?.['path'] === 'string'
+    );
   }
 
   function templateOf(value: unknown, method: string): VoiceRequestTemplate {
@@ -180,13 +213,10 @@ export function createVoiceBridge(
       template['version'] !== 1 ||
       typeof template['url'] !== 'string' ||
       (template['method'] !== 'POST' && template['method'] !== 'GET') ||
-      typeof headers !== 'object' ||
-      headers === null ||
-      Array.isArray(headers) ||
-      Object.values(headers).some((entry) => typeof entry !== 'string') ||
-      !kindOf(template['auth'], ['none', 'bearer', 'header', 'query']) ||
-      !kindOf(template['body'], ['none', 'json', 'ssml', 'multipart']) ||
-      !kindOf(template['result'], ['audio', 'base64', 'hex', 'url', 'text'])
+      !stringMap(headers) ||
+      !authOk(template['auth']) ||
+      !bodyOk(template['body']) ||
+      !resultOk(template['result'])
     )
       throw new Error(`invalid ${method} response`);
     return template as unknown as VoiceRequestTemplate;
