@@ -324,7 +324,13 @@ function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-function exactTriggerOf(record: StoredRecord): unknown {
+function withSeconds(trigger: BotScheduleTrigger): BotScheduleTrigger {
+  return trigger.kind === 'daily' || trigger.kind === 'weekly'
+    ? { ...trigger, time: localTime(trigger.time) }
+    : trigger;
+}
+
+function storedTriggerOf(record: StoredRecord): BotScheduleTrigger {
   switch (record.kind) {
     case 'daily':
       return { kind: 'daily', time: localTime(record.time), timeZone: record.timeZone };
@@ -335,12 +341,17 @@ function exactTriggerOf(record: StoredRecord): unknown {
         timeZone: record.timeZone,
         weekdays: [...record.weekdays],
       };
-    case 'at':
-      return { kind: 'once', ...record.local, at: record.scheduledAt };
     case 'every':
+    case 'at':
     case 'cron':
       return triggerOf(record);
   }
+}
+
+function exactTriggerOf(record: StoredRecord): unknown {
+  return record.kind === 'at'
+    ? { kind: 'once', ...record.local, at: record.scheduledAt }
+    : storedTriggerOf(record);
 }
 
 function scheduleRevision(row: ScheduleRow, record: StoredRecord): string {
@@ -790,11 +801,13 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
           change.prompt === undefined
             ? record.prompt
             : normalizeText(change.prompt, 'prompt', 4000);
-        const trigger = change.trigger ?? triggerOf(record);
+        const stored = storedTriggerOf(record);
+        const trigger = change.trigger ?? stored;
         const enabled = change.enabled ?? row.enabled === 1;
         const locked = change.locked ?? row.locked === 1;
         if (enabled && row.enabled === 0) requireCapacity(db, botSlug, id);
-        const restart = (enabled && row.enabled === 0) || !sameTrigger(trigger, triggerOf(record));
+        const restart =
+          (enabled && row.enabled === 0) || !sameTrigger(withSeconds(trigger), stored);
         const next: StoredRecord = restart
           ? buildRecord(id, title, prompt, trigger, at.getTime())
           : { ...record, title, prompt };

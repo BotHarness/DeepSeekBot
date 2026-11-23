@@ -9,11 +9,18 @@ function snapshot(names: readonly string[]): PersonaBotActivitySnapshot {
     bots: [
       {
         slug: 'ada',
-        state: 'idle',
-        sessions: names.map((name, index) => ({ id: `s${index}`, name })),
+        state: 'working',
+        sessions: names.map((name, index) => ({
+          id: `s${index}`,
+          role: 'orchestrator',
+          name,
+          revision: 1,
+          at: 0,
+          state: 'working',
+        })),
       },
     ],
-  } as unknown as PersonaBotActivitySnapshot;
+  };
 }
 
 describe('Bot activity pages', () => {

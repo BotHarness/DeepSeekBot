@@ -94,6 +94,28 @@ describe('Bot Schedule operation keys and revisions', () => {
     );
   });
 
+  it('applies an edit that only drops the seconds of a daily time', () => {
+    const { store } = storeAt('2026-10-06T00:00:00.000Z');
+    const first = store.create(
+      'ada',
+      {
+        title: 'Standup',
+        prompt: 'Post the standup',
+        trigger: { kind: 'daily', time: '09:00:10', timeZone: 'Asia/Tokyo' },
+      },
+      'human',
+    );
+    const edited = store.update(
+      'ada',
+      first.id,
+      { trigger: { kind: 'daily', time: '09:00', timeZone: 'Asia/Tokyo' } },
+      'human',
+      first.revision,
+    );
+    expect(edited.revision).not.toBe(first.revision);
+    expect(new Date(edited.nextRunAt!).getUTCSeconds()).toBe(0);
+  });
+
   it('reconciles at the enabled limit without counting the original twice', () => {
     const { store } = storeAt('2026-10-06T00:00:00.000Z');
     for (let index = 1; index < BOT_SCHEDULE_ENABLED_LIMIT; index += 1)
