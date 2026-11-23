@@ -22,6 +22,7 @@ import { SheetStack } from '../primitives/sheet-stack';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SHEET_GROUP } from '../chat/sheet';
 import { space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
 import { creationError } from './bot-creation-copy';
 import { useCreationDraftGuard } from './creation-draft-guard';
 import { useStrings } from '../strings';
@@ -52,6 +53,7 @@ function hostStatusLabel(t: ReturnType<typeof useStrings>, status: HostStatus | 
 
 export function CreateChannelScreen() {
   const t = useStrings();
+  const theme = useDesignTheme();
   const { entry, hostId } = useLocalSearchParams<{ entry?: string; hostId?: string }>();
   const { hosts } = useHostSession();
   const availability = useHostAvailability();
@@ -254,11 +256,18 @@ export function CreateChannelScreen() {
                   on={SHEET_GROUP}
                   testID="create-channel-choose-bots"
                   title={t.channelCreation.chooseBots}
-                  control={{
-                    kind: 'value',
-                    text: t.channelCreation.selected(record.members.length),
-                    chevron: true,
-                  }}
+                  {...(theme.largeText
+                    ? {
+                        detail: t.channelCreation.selected(record.members.length),
+                        control: { kind: 'chevron' as const },
+                      }
+                    : {
+                        control: {
+                          kind: 'value' as const,
+                          text: t.channelCreation.selected(record.members.length),
+                          chevron: true,
+                        },
+                      })}
                   disclosure
                   onPress={() => {
                     Keyboard.dismiss();
