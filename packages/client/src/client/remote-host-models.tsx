@@ -317,42 +317,27 @@ function Models({
             setValue((current) => (current === undefined ? current : { ...current, favorites }));
           },
         };
-  const pickerGroup = (field: 'orchestrator' | 'assignment') =>
-    field === 'assignment'
-      ? routes?.groups.assignmentDefaultGroupId
-      : scope.kind === 'global'
-        ? value?.defaultGroupId
-        : routes?.groups.orchestratorGroupId;
-  const pickerGroupEffort = (field: 'orchestrator' | 'assignment') =>
-    (field === 'assignment'
-      ? routes?.groups.assignmentGroupOptions?.find(
-          (option) => option.group === routes.groups.assignmentDefaultGroupId,
-        )?.defaultEffort
-      : routes?.groups.orchestratorGroupEffort) ?? '';
-  const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
+  const pickerGroup =
+    scope.kind === 'global' ? value?.defaultGroupId : routes?.groups.orchestratorGroupId;
+  const picker = (route: ModelRoute | undefined) =>
     value === undefined ? null : (
       <ModelPicker
-        title={t(
-          scope.kind === 'global'
-            ? 'onboarding.defaultTitle'
-            : field === 'orchestrator'
-              ? 'modelPreset.orchestrator'
-              : 'modelPreset.assignment',
-        )}
+        title={t(scope.kind === 'global' ? 'onboarding.defaultTitle' : 'modelPreset.orchestrator')}
         hint={t(
           scope.kind === 'global'
             ? 'onboarding.defaultDescription'
-            : field === 'orchestrator'
-              ? 'modelPreset.orchestratorHint'
-              : 'modelPreset.assignmentHint',
+            : 'modelPreset.orchestratorHint',
         )}
         choice={
-          pickerGroup(field) === undefined
+          pickerGroup === undefined
             ? {
                 key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
                 effort: route?.reasoningEffort ?? '',
               }
-            : { key: groupMenuKey(pickerGroup(field)!), effort: pickerGroupEffort(field) }
+            : {
+                key: groupMenuKey(pickerGroup),
+                effort: routes?.groups.orchestratorGroupEffort ?? '',
+              }
         }
         catalog={catalog}
         favoriteSource={favoriteSource}
@@ -369,7 +354,7 @@ function Models({
         onChange={({ key, effort }) => {
           const group = groupMenuId(key);
           if (group !== undefined) {
-            void run(() => setModelGroup(client, scope, value, group, field, effort));
+            void run(() => setModelGroup(client, scope, value, group, effort));
             return;
           }
           const entry = value.models.find(
@@ -377,7 +362,7 @@ function Models({
           );
           if (entry === undefined) return;
           void run(() =>
-            setModelRoute(client, scope, value, field, {
+            setModelRoute(client, scope, value, {
               provider: entry.provider,
               model: entry.model,
               ...(effort === '' ? {} : { reasoningEffort: effort }),
@@ -431,7 +416,7 @@ function Models({
               />
             }
           />
-          {picker('orchestrator', routes?.orchestrator)}
+          {picker(routes?.orchestrator)}
           {scope.kind !== 'preset' ? null : (
             <div {...stylex.props(styles.choices)}>
               <SubChoiceList

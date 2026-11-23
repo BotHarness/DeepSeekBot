@@ -247,7 +247,7 @@ export function ModelsView({
     const currentEntry = value.models.find((entry) => sameModel(entry, current));
     const choose = (route: ModelRoute, stay = false) => {
       models.run(
-        () => setModelRoute(client, scope, value, 'orchestrator', route),
+        () => setModelRoute(client, scope, value, route),
         () => {
           if (stay) return;
           Keyboard.dismiss();
@@ -268,7 +268,7 @@ export function ModelsView({
           });
     const pickGroup = (group: ModelCatalogGroup, effort: string, stay: boolean) =>
       models.run(
-        () => setModelGroup(client, scope, value, group.id, 'orchestrator', effort),
+        () => setModelGroup(client, scope, value, group.id, effort),
         () => {
           if (stay) return;
           Keyboard.dismiss();
