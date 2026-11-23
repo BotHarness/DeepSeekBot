@@ -86,7 +86,10 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     const current =
       ports.currentOrchestratorSessionId(botSlug) ??
       (nextCwd === undefined ? undefined : latestAvailableOrchestrator(botSlug)?.sessionId);
-    if (current === undefined) return { outcome: 'replaced', value: body() };
+    if (current === undefined) {
+      ports.ownership.discardOrchestratorReplacements(botSlug);
+      return { outcome: 'replaced', value: body() };
+    }
     const archive = ports.sessionArchive?.();
     if (archive === undefined) throw new Error('DSH Session archive is unavailable');
     try {
@@ -110,6 +113,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       ),
     );
     try {
+      ports.ownership.discardOrchestratorReplacements(botSlug);
       return { outcome: 'replaced', value: body() };
     } catch (error) {
       await archive.unarchiveSession(current);

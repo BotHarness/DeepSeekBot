@@ -77,6 +77,7 @@ export interface SessionOwnership {
   reserveOrchestratorReplacement(input: PendingOrchestratorReplacement): void;
   commitOrchestratorReplacement(sessionId: string): void;
   discardOrchestratorReplacement(sessionId: string): void;
+  discardOrchestratorReplacements(botSlug: string): void;
   pendingOrchestratorReplacements(botSlug?: string): PendingOrchestratorReplacement[];
 
   claimWithin(connection: DatabaseSync, input: SessionOwnershipClaim): SessionOwnershipRecord;
@@ -300,6 +301,11 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
         db
           .prepare('DELETE FROM pending_orchestrator_replacements WHERE session_id = ?')
           .run(sessionId),
+      );
+    },
+    discardOrchestratorReplacements(botSlug) {
+      database.transaction((db) =>
+        db.prepare('DELETE FROM pending_orchestrator_replacements WHERE bot_slug = ?').run(botSlug),
       );
     },
     pendingOrchestratorReplacements(botSlug) {

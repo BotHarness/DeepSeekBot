@@ -443,6 +443,64 @@ describe('Memory move', () => {
     }
   });
 
+  it('does not revive a failed reservation after a later move archives the saved Orchestrator', async () => {
+    const archiveOptions = { unsaved: true };
+    const f = await fixture(archiveOptions);
+    const location = createTempRoot('botharness-memory-archive-retry-');
+    const memoryDir = join(location, 'ada');
+    let originalId: string;
+    let failedId: string;
+    try {
+      await f.send();
+      originalId = f.runs[0]!.sessionId;
+      const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
+      database.transaction((db) =>
+        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON pending_orchestrator_replacements
+                 BEGIN SELECT RAISE(ABORT, 'Replacement discard failed'); END`),
+      );
+      vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementationOnce(() => {
+        throw new Error('Registry update failed');
+      });
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
+        ok: false,
+        error: { message: 'Memory was not moved: Registry update failed' },
+      });
+      const [failed] = f.core.ownership.pendingOrchestratorReplacements('ada');
+      if (failed === undefined) throw new Error('Missing the failed reservation');
+      failedId = failed.sessionId;
+
+      database.transaction((db) => db.exec('DROP TRIGGER fail_orchestrator_discard'));
+      archiveOptions.unsaved = false;
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toEqual({
+        ok: true,
+        value: { memoryDir, moved: true },
+      });
+      expect(f.calls).toEqual([
+        `archive:${originalId}`,
+        `archive:${originalId}`,
+        `release:${originalId}`,
+      ]);
+    } finally {
+      await f.close();
+    }
+
+    const reopened = createCore({
+      dshHome: f.home,
+      workspaces: () => ({
+        get: () => undefined,
+        list: () => [],
+        archivedSessionIds: [originalId],
+      }),
+    });
+    try {
+      expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBeUndefined();
+      expect(reopened.ownership.resolve(failedId)).toBeUndefined();
+    } finally {
+      await reopened.runtime.close();
+      reopened.operationalDatabase.close();
+    }
+  });
+
   it('reports the applied Memory move and keeps new turns off the old cwd when replacement publication fails', async () => {
     const f = await fixture({ unsaved: true });
     let freshSessionId: string | undefined;
