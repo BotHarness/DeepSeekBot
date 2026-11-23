@@ -14,7 +14,10 @@ afterEach(async () => {
 
 const deps = {
   registry: { getHistorical: () => undefined },
-  channels: { get: () => undefined },
+  channels: {
+    get: (id: string) =>
+      id === 'dm-tob' ? ({ type: 'dm', members: ['tob'] } as never) : undefined,
+  },
   human: humanContext('owner'),
   isTob: (slug: string) => slug === 'tob',
 };
@@ -61,6 +64,8 @@ describe('Tob grant, approval policy and Browser commands', () => {
     ['computer-access-set', 'tob', '--enabled'],
     ['bot-mode-set', 'tob', '--mode', 'full-access'],
     ['tool-approval-decide', 'tob', 'm-1', '--outcome', 'allowed-always-kind'],
+    ['tool-approval-decide', 'dm-tob', '--message-id', 'm-1', '--outcome', 'allowed-once'],
+    ['approval-template-set', '--bot=dm-tob', 'full-access'],
     ['approval-route', 'tob', '--pairing', 'none'],
     ['browser-daily-connect', 'tob'],
     ['bot-tool', 'tob', 'bot_send_message'],

@@ -137,7 +137,14 @@ export function authorizeTobHostCli(
   const values = argv
     .slice(1)
     .map((token) => (token.includes('=') ? token.slice(token.indexOf('=') + 1) : token).trim());
-  if (deps.isTob !== undefined && values.some(deps.isTob) && widensAuthority(argv))
+  const isTob = deps.isTob;
+  const namesTob = (value: string): boolean => {
+    if (isTob === undefined) return false;
+    if (isTob(value)) return true;
+    const channel = deps.channels.get(value);
+    return channel?.type === 'dm' && channel.members.some(isTob);
+  };
+  if (values.some(namesTob) && widensAuthority(argv))
     throw new TobCliCommandError(
       'self-escalation-refused',
       'Tob cannot change its own grants, access, approval policy or pending approvals. Ask the Human to make this change in Bot settings or run the command themselves.',
