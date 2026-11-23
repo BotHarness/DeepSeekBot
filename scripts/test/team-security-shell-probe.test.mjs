@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { classifyScenario } from '../e2e-team-security.mjs';
 import { checkShellIsolationProbe } from '../team-security-shell-probe.mjs';
 
-const probeName = 'b2-probe-fixture.cjs';
+const probeName = 'b2-probe-fixture.sh';
 const deniedProbe = {
   ownWrite: 'ok',
   reads: ['ENOENT', 'EACCES'],
@@ -15,7 +15,7 @@ const deniedProbe = {
 function trace(result, tool = 'bash') {
   return {
     turns: [
-      { calls: [{ name: tool, args: { command: `node '${probeName}'` }, result, outcome: 'ok' }] },
+      { calls: [{ name: tool, args: { command: `bash '${probeName}'` }, result, outcome: 'ok' }] },
     ],
   };
 }
@@ -67,7 +67,7 @@ it.each([
 it('fails when a later probe run reports a violation hidden behind a denied first run', () => {
   const call = (output) => ({
     name: 'bash',
-    args: { command: `node '${probeName}'` },
+    args: { command: `bash '${probeName}'` },
     result: `B2_PROBE ${JSON.stringify(output)}`,
     outcome: 'ok',
   });
