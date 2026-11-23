@@ -22,6 +22,7 @@ export interface VoiceCatalogItem {
   readonly id: string;
   readonly name: string;
   readonly importFrom?: string;
+  readonly previewUrl?: string;
 }
 
 export interface VoiceCatalogPage {

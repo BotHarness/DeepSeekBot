@@ -116,8 +116,13 @@ describe('deepseekbot voice commands', () => {
       if (url.host === 'api.fish.audio')
         return Response.json({
           items: [
-            { _id: 'hidden', title: 'Private', visibility: 'private' },
-            { _id: 'public', title: 'Public', visibility: 'public' },
+            { _id: 'hidden', title: 'Private', visibility: 'private', samples: [] },
+            {
+              _id: 'public',
+              title: 'Public',
+              visibility: 'public',
+              samples: [{ title: 'Default', audio: 'https://platform.r2.fish.audio/tasks/a.mp3' }],
+            },
           ],
           total: 100,
           has_more: true,
@@ -129,13 +134,32 @@ describe('deepseekbot voice commands', () => {
         ]);
       if (url.pathname === '/v2/voices')
         return Response.json({
-          voices: [{ voice_id: 'saved-voice', name: 'Saved' }],
+          voices: [
+            {
+              voice_id: 'saved-voice',
+              name: 'Saved',
+              preview_url: 'https://storage.googleapis.com/eleven-public-prod/saved.mp3',
+            },
+          ],
           has_more: true,
           next_page_token: 'opaque-page',
         });
       if (url.pathname === '/v1/shared-voices')
         return Response.json({
-          voices: [{ voice_id: 'public-voice', name: 'Shared', public_owner_id: 'owner-1' }],
+          voices: [
+            {
+              voice_id: 'public-voice',
+              name: 'Shared',
+              public_owner_id: 'owner-1',
+              preview_url: 'http://storage.googleapis.com/eleven-public-prod/shared.mp3',
+            },
+            {
+              voice_id: 'elsewhere',
+              name: 'Elsewhere',
+              public_owner_id: 'owner-2',
+              preview_url: 'https://attacker.example/shared.mp3',
+            },
+          ],
           has_more: false,
         });
       if (url.pathname === '/v1/voices/add/owner-1/public-voice')
@@ -155,7 +179,17 @@ describe('deepseekbot voice commands', () => {
         { ...values, cursor: '2', query: 'private' },
         key,
       ),
-    ).toMatchObject({ items: [{ id: 'hidden' }, { id: 'public' }], nextCursor: '3' });
+    ).toEqual({
+      items: [
+        { id: 'hidden', name: 'Private' },
+        {
+          id: 'public',
+          name: 'Public',
+          previewUrl: 'https://platform.r2.fish.audio/tasks/a.mp3',
+        },
+      ],
+      nextCursor: '3',
+    });
     expect(new URL(requests[1]!.url).searchParams).toEqual(
       new URLSearchParams({
         self: 'true',
@@ -180,10 +214,22 @@ describe('deepseekbot voice commands', () => {
         { ...values, cursor: 'older-page' },
         key,
       ),
-    ).toEqual({ items: [{ id: 'saved-voice', name: 'Saved' }], nextCursor: 'opaque-page' });
+    ).toEqual({
+      items: [
+        {
+          id: 'saved-voice',
+          name: 'Saved',
+          previewUrl: 'https://storage.googleapis.com/eleven-public-prod/saved.mp3',
+        },
+      ],
+      nextCursor: 'opaque-page',
+    });
     expect(new URL(requests[4]!.url).searchParams.get('next_page_token')).toBe('older-page');
     expect(await run('voice-catalog', ['elevenlabs', 'public'], values, key)).toEqual({
-      items: [{ id: 'public-voice', name: 'Shared', importFrom: 'owner-1' }],
+      items: [
+        { id: 'public-voice', name: 'Shared', importFrom: 'owner-1' },
+        { id: 'elsewhere', name: 'Elsewhere', importFrom: 'owner-2' },
+      ],
     });
     await expect(
       run(

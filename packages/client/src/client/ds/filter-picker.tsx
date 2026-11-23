@@ -33,6 +33,14 @@ export interface FilterPickerOption {
   readonly favorite?: boolean | undefined;
   readonly selected?: boolean | undefined;
   readonly exclusive?: boolean | undefined;
+  readonly action?: FilterPickerRowAction | undefined;
+}
+
+export interface FilterPickerRowAction {
+  readonly label: string;
+  readonly icon: ReactNode;
+  readonly pressed: boolean;
+  onPress(): void;
 }
 
 export interface FilterPickerFavorites {
@@ -186,6 +194,11 @@ const styles = stylex.create({
   },
   starShown: { opacity: 1 },
   starOn: { color: color.warning },
+  rowAction: {
+    opacity: { default: 1, ':disabled': 0.4 },
+    cursor: { default: 'pointer', ':disabled': 'default' },
+  },
+  actionOn: { color: color.accent },
   shortcut: {
     flexShrink: 0,
     paddingInline: space.x1,
@@ -550,6 +563,25 @@ export function FilterPicker({
                         </span>
                       ) : null}
                     </button>
+                    {option.action === undefined ? null : (
+                      <button
+                        type="button"
+                        aria-pressed={option.action.pressed}
+                        aria-label={`${option.action.label} · ${name}`}
+                        title={option.action.label}
+                        data-picker-action={option.value}
+                        disabled={busy}
+                        onPointerDown={(event) => event.preventDefault()}
+                        onClick={option.action.onPress}
+                        {...stylex.props(
+                          styles.star,
+                          styles.rowAction,
+                          option.action.pressed && styles.actionOn,
+                        )}
+                      >
+                        {option.action.icon}
+                      </button>
+                    )}
                     {favorites === undefined ||
                     option.filter === undefined ||
                     option.favorite === undefined ? null : (

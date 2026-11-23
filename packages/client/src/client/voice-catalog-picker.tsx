@@ -178,7 +178,36 @@ function VoiceCatalogPanel({
   const [page, setPage] = useState<VoiceCatalogPage>();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [playing, setPlaying] = useState<string>();
+  const [previewFailed, setPreviewFailed] = useState(false);
   const abort = useRef<AbortController | undefined>(undefined);
+  const player = useRef<HTMLAudioElement | undefined>(undefined);
+  const stopPreview = () => {
+    player.current?.pause();
+    player.current = undefined;
+    setPlaying(undefined);
+  };
+  const togglePreview = (item: VoiceCatalogItem) => {
+    if (item.previewUrl === undefined) return;
+    if (playing === item.id) {
+      stopPreview();
+      return;
+    }
+    player.current?.pause();
+    const audio = new Audio(item.previewUrl);
+    player.current = audio;
+    setPreviewFailed(false);
+    setPlaying(item.id);
+    const finish = (failure: boolean) => {
+      if (player.current !== audio) return;
+      player.current = undefined;
+      setPlaying(undefined);
+      if (failure) setPreviewFailed(true);
+    };
+    audio.addEventListener('ended', () => finish(false));
+    audio.addEventListener('error', () => finish(true));
+    void audio.play().catch(() => finish(true));
+  };
   const browse = catalog?.browse;
   const preset = catalog?.preset;
   const kind = catalog?.kind;
@@ -217,12 +246,16 @@ function VoiceCatalogPanel({
   const mount = useMountedResource<HTMLDivElement>(() => {
     setPage(undefined);
     setFailed(false);
+    stopPreview();
+    setPreviewFailed(false);
     setPending(enabled);
     if (!enabled) return;
     const timer = setTimeout(() => load(), SEARCH_DELAY_MS);
     return () => {
       clearTimeout(timer);
       abort.current?.abort();
+      player.current?.pause();
+      player.current = undefined;
     };
   }, [preset, kind, apiKey, collection, query, browse, enabled]);
   const entries = new Map<
@@ -256,15 +289,17 @@ function VoiceCatalogPanel({
   const next = full ? undefined : page?.nextCursor;
   const notice = failed
     ? t('voice.catalog.failed')
-    : pending
-      ? t('voice.catalog.loading')
-      : catalog !== undefined &&
-          catalog.collections.some((entry) => entry === primary) &&
-          apiKey === ''
-        ? t('voice.catalog.enterKey')
-        : matches.length > MAX_RESULTS || (full && page?.nextCursor !== undefined)
-          ? t('voice.catalog.narrow')
-          : undefined;
+    : previewFailed
+      ? t('voice.catalog.previewFailed')
+      : pending
+        ? t('voice.catalog.loading')
+        : catalog !== undefined &&
+            catalog.collections.some((entry) => entry === primary) &&
+            apiKey === ''
+          ? t('voice.catalog.enterKey')
+          : matches.length > MAX_RESULTS || (full && page?.nextCursor !== undefined)
+            ? t('voice.catalog.narrow')
+            : undefined;
   const footer = pending
     ? undefined
     : failed && enabled
@@ -310,6 +345,18 @@ function VoiceCatalogPanel({
           filter: collection,
           search: entry.remote && query ? [entry.item.id, query] : [entry.item.id],
           disabled: entry.item.importFrom !== undefined && catalog?.importVoice === undefined,
+          action:
+            entry.item.previewUrl === undefined
+              ? undefined
+              : {
+                  label:
+                    playing === entry.item.id
+                      ? t('voice.catalog.stopPreview')
+                      : t('voice.catalog.preview'),
+                  icon: <Icon name={playing === entry.item.id ? 'square' : 'play'} size={14} />,
+                  pressed: playing === entry.item.id,
+                  onPress: () => togglePreview(entry.item),
+                },
         }))}
         allFilter={{
           key: primary,

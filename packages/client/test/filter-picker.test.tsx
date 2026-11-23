@@ -68,3 +68,62 @@ it.each([
     }
   },
 );
+
+function SamplePicker({ onSelect }: { onSelect(value: string): void }) {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [playing, setPlaying] = useState(false);
+  return (
+    <>
+      <button ref={anchor} type="button">
+        Voices
+      </button>
+      <FilterPicker
+        label="Voices"
+        value=""
+        options={[
+          {
+            value: 'sampled',
+            label: 'Sampled voice',
+            action: {
+              label: playing ? 'Stop sample' : 'Play sample',
+              icon: null,
+              pressed: playing,
+              onPress: () => setPlaying((previous) => !previous),
+            },
+          },
+          { value: 'silent', label: 'Silent voice' },
+        ]}
+        onSelect={onSelect}
+        closeOnSelect
+        filters={[]}
+        allFilter={{ key: 'all', label: 'All', icon: null }}
+        filtersLabel="Voice sources"
+        searchLabel="Search voices"
+        emptyLabel="No matches"
+        anchorRef={anchor}
+        onClose={() => undefined}
+      />
+    </>
+  );
+}
+
+it('toggles a row action without choosing the row', () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.body.appendChild(document.createElement('div'));
+  const root = createRoot(host);
+  const onSelect = vi.fn();
+  try {
+    act(() => root.render(<SamplePicker onSelect={onSelect} />));
+    const action = () =>
+      document.querySelector<HTMLButtonElement>('[data-picker-action="sampled"]');
+    expect(document.querySelector('[data-picker-action="silent"]')).toBeNull();
+    expect(action()?.getAttribute('aria-label')).toBe('Play sample · Sampled voice');
+    act(() => action()?.click());
+    expect(action()?.getAttribute('aria-pressed')).toBe('true');
+    expect(action()?.getAttribute('aria-label')).toBe('Stop sample · Sampled voice');
+    expect(onSelect).not.toHaveBeenCalled();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});

@@ -33,6 +33,8 @@ export const voiceCatalogInput = z.object({
 const entryId = z.string().min(1).max(200);
 const pathId = entryId.regex(/^[a-zA-Z0-9_-]+$/u);
 const entryName = z.string().trim().min(1).max(200);
+const previewLink = z.string().max(2_048).nullish();
+const fishSample = z.object({ audio: previewLink }).passthrough();
 
 export const voiceCatalogImportInput = z.object({
   preset: voiceCatalogInput.shape.preset,
@@ -53,7 +55,14 @@ type CatalogOperation = (query: VoiceCatalogInput) => CatalogRequest<VoiceCatalo
 type CatalogCapabilities = Partial<Record<VoiceCatalogCollection, CatalogOperation>>;
 
 const fishVoices = z.object({
-  items: z.array(z.object({ _id: entryId, title: entryName, visibility: z.string() })),
+  items: z.array(
+    z.object({
+      _id: entryId,
+      title: entryName,
+      visibility: z.string(),
+      samples: z.array(fishSample).nullish(),
+    }),
+  ),
   total: z.number().int().nonnegative(),
   has_more: z.boolean().nullish(),
 });
@@ -65,7 +74,7 @@ const elevenModels = z.array(
     can_do_text_to_speech: z.boolean().optional(),
   }),
 );
-const elevenVoice = z.object({ voice_id: entryId, name: entryName });
+const elevenVoice = z.object({ voice_id: entryId, name: entryName, preview_url: previewLink });
 const elevenAccountVoices = z.object({
   voices: z.array(elevenVoice),
   has_more: z.boolean(),
@@ -82,6 +91,23 @@ function index(cursor: string | undefined, first: number): number | undefined {
   if (!/^\d{1,7}$/u.test(cursor)) return undefined;
   const page = Number(cursor);
   return page >= first ? page : undefined;
+}
+
+const PREVIEW_HOSTS: readonly ((host: string) => boolean)[] = [
+  (host) => host === 'fish.audio' || host.endsWith('.fish.audio'),
+  (host) => host === 'storage.googleapis.com' || host.endsWith('.elevenlabs.io'),
+];
+
+function preview(link: string | null | undefined): { previewUrl?: string } {
+  if (typeof link !== 'string') return {};
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return {};
+  }
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return {};
+  return PREVIEW_HOSTS.some((allowed) => allowed(url.hostname)) ? { previewUrl: url.href } : {};
 }
 
 function list(items: readonly VoiceCatalogItem[], nextCursor?: string): VoiceCatalogPage {
@@ -114,7 +140,11 @@ function fishVoiceList(query: VoiceCatalogInput): CatalogRequest<VoiceCatalogPag
         items
           .filter((item) => account || item.visibility === 'public')
           .slice(0, PAGE_SIZE)
-          .map((item) => ({ id: item._id, name: item.title })),
+          .map((item) => ({
+            id: item._id,
+            name: item.title,
+            ...preview(item.samples?.find((sample) => sample.audio)?.audio),
+          })),
         (hasMore ?? page * PAGE_SIZE < total) ? String(page + 1) : undefined,
       );
     },
@@ -153,7 +183,11 @@ function elevenAccountList(query: VoiceCatalogInput): CatalogRequest<VoiceCatalo
       if (!result.success) return undefined;
       const { voices, has_more: hasMore, next_page_token: next } = result.data;
       return list(
-        voices.map((voice) => ({ id: voice.voice_id, name: voice.name })),
+        voices.map((voice) => ({
+          id: voice.voice_id,
+          name: voice.name,
+          ...preview(voice.preview_url),
+        })),
         hasMore && next && next !== query.cursor ? next : undefined,
       );
     },
@@ -178,6 +212,7 @@ function elevenPublicList(query: VoiceCatalogInput): CatalogRequest<VoiceCatalog
           id: voice.voice_id,
           name: voice.name,
           importFrom: voice.public_owner_id,
+          ...preview(voice.preview_url),
         })),
         result.data.has_more ? String(page + 1) : undefined,
       );
