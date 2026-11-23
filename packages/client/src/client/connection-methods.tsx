@@ -31,21 +31,21 @@ type Attribute =
 
 const attributes = {
   anyNetwork: 'globe',
-  sameWifi: 'wifi',
+  sameWifi: 'house',
   noAccount: 'user',
-  signIn: 'key-round',
+  signIn: 'id-card',
   changes: 'refresh-cw',
   fixed: 'link',
   tailscale: 'shield-check',
-  cloudflare: 'cloud',
+  cloudflare: 'id-card',
   publicHttps: 'lock',
   server: 'server',
 } satisfies Record<Attribute, string>;
 
 const statuses = {
   ready: { icon: 'check', tone: 'success' },
-  on: { icon: 'power', tone: 'info' },
-  failing: { icon: 'triangle-alert', tone: 'warning' },
+  on: { icon: 'play', tone: 'info' },
+  failing: { icon: 'info', tone: 'warning' },
 } as const;
 
 function methodStatus(state: string | undefined, ready: boolean): MethodStatus | undefined {
@@ -175,7 +175,7 @@ export function ConnectionMethods({
         })}
         {row({
           title: 'Tobs Connect',
-          icon: 'cloud',
+          icon: 'plug',
           facts: ['anyNetwork', 'signIn', 'fixed'],
           status: methodStatus(snapshot?.connect?.state, routeReady('connect')),
           select: () => setSetup('connect'),
@@ -185,7 +185,7 @@ export function ConnectionMethods({
       <ListCard label={local}>
         {row({
           title: t('connections.lan'),
-          icon: 'wifi',
+          icon: 'house',
           facts: ['sameWifi', 'noAccount'],
           status: lan,
           select: () => {
@@ -224,7 +224,7 @@ export function ConnectionMethods({
           })}
           {row({
             title: t('connections.method.proxy'),
-            icon: 'network',
+            icon: 'git-branch',
             facts: ['anyNetwork', 'publicHttps', 'fixed'],
             status:
               custom?.mode === 'ingress'
