@@ -14,6 +14,8 @@ import {
 import { parseConnectedHosts } from './connect-account-hosts.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { Icon } from './ds/icon.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { StatusDisclosure } from './ds/status-block.js';
 import { Note } from './ds/note.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
@@ -153,6 +155,7 @@ function HostDetailsSession({
     }
   };
   const observed = observedHost(remote);
+  const devices = managed?.devices.filter((device) => !device.revoked) ?? [];
   const mutationBlocked =
     busy ||
     remote.host.pendingConnection !== undefined ||
@@ -180,75 +183,135 @@ function HostDetailsSession({
           </Button>
         </>
       ) : null}
-      <SettingsRow
-        title={t('connections.hosts.preference')}
-        description={t('connections.hosts.preferenceScope')}
-        control={
-          <Select
-            label={t('connections.hosts.preference')}
-            value={observed.routePreference}
-            disabled={busy}
-            options={[
-              { value: 'automatic', label: t('connections.hosts.automatic') },
-              ...[
-                ...new Set([
-                  ...observed.routes.map((route) => route.address),
-                  ...(observed.routePreference === 'automatic' ? [] : [observed.routePreference]),
-                ]),
-              ].map((route) => ({
-                value: route,
-                label: `${routeLabel(route, t)} · ${route}`,
-              })),
-            ]}
-            onChange={(route) => void perform({ action: 'select-route', route, confirm: true })}
-          />
-        }
-      />
-      {observed.routeChangePending ? <Note>{t('connections.hosts.switchPending')}</Note> : null}
-      {observed.routePreference !== 'automatic' ? (
-        <>
-          <Note>{t('connections.hosts.manualHint')}</Note>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              void perform({
-                action: 'select-route',
-                route: 'automatic',
-                confirm: true,
-              })
+      <SettingsSection title={t('connections.hosts.routes')}>
+        <ListCard label={t('connections.hosts.routes')}>
+          <ListCardItem
+            leading={<Icon name="sliders-horizontal" />}
+            title={t('connections.hosts.preference')}
+            summary={t('connections.hosts.preferenceScope')}
+            detail={
+              observed.routeChangePending || observed.routePreference !== 'automatic' ? (
+                <>
+                  {observed.routeChangePending ? (
+                    <Note>{t('connections.hosts.switchPending')}</Note>
+                  ) : null}
+                  {observed.routePreference !== 'automatic' ? (
+                    <>
+                      <Note>{t('connections.hosts.manualHint')}</Note>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() =>
+                          void perform({
+                            action: 'select-route',
+                            route: 'automatic',
+                            confirm: true,
+                          })
+                        }
+                      >
+                        {t('connections.hosts.returnAutomatic')}
+                      </Button>
+                    </>
+                  ) : null}
+                </>
+              ) : undefined
             }
-          >
-            {t('connections.hosts.returnAutomatic')}
-          </Button>
-        </>
-      ) : null}
-      {observed.routes.map((route) => (
-        <SettingsRow
-          key={route.address}
-          title={route.address}
-          description={t(
-            route.current
-              ? 'connections.hosts.current'
-              : route.status === 'verified'
-                ? 'connections.hosts.verified'
-                : route.status === 'unreachable'
-                  ? 'connections.hosts.unreachable'
-                  : 'connections.hosts.unchecked',
-          )}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => void perform({ action: 'test-route', route: route.address })}
-            >
-              {t('connections.hosts.testRoute')}
-            </Button>
-          }
-        />
-      ))}
+            trailing={
+              <Select
+                label={t('connections.hosts.preference')}
+                value={observed.routePreference}
+                disabled={busy}
+                options={[
+                  { value: 'automatic', label: t('connections.hosts.automatic') },
+                  ...[
+                    ...new Set([
+                      ...observed.routes.map((route) => route.address),
+                      ...(observed.routePreference === 'automatic'
+                        ? []
+                        : [observed.routePreference]),
+                    ]),
+                  ].map((route) => ({
+                    value: route,
+                    label: `${routeLabel(route, t)} · ${route}`,
+                  })),
+                ]}
+                onChange={(route) => void perform({ action: 'select-route', route, confirm: true })}
+              />
+            }
+          />
+          {observed.routes.map((route) => (
+            <ListCardItem
+              key={route.address}
+              leading={<Icon name="link" />}
+              title={route.address}
+              summary={t(
+                route.current
+                  ? 'connections.hosts.current'
+                  : route.status === 'verified'
+                    ? 'connections.hosts.verified'
+                    : route.status === 'unreachable'
+                      ? 'connections.hosts.unreachable'
+                      : 'connections.hosts.unchecked',
+              )}
+              trailing={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void perform({ action: 'test-route', route: route.address })}
+                >
+                  {t('connections.hosts.testRoute')}
+                </Button>
+              }
+            />
+          ))}
+          {[
+            ...(managed?.stops.includes('lan')
+              ? [
+                  {
+                    kind: 'lan',
+                    routeId: undefined,
+                    expectedRevision: undefined,
+                    label: t('connections.lan'),
+                  },
+                ]
+              : []),
+            ...(managed?.privateRoutes
+              .filter((route) => route.state !== 'off')
+              .map((route) => ({
+                kind: 'private-tunnel',
+                routeId: route.id,
+                expectedRevision: route.revision,
+                label: route.origin || route.id,
+              })) ?? []),
+          ].map(({ kind, routeId, expectedRevision, label }) => (
+            <ListCardItem
+              key={`${kind}-${routeId ?? ''}`}
+              leading={<Icon name="plug" />}
+              title={label}
+              trailing={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={mutationBlocked}
+                  onClick={() =>
+                    void prepare({
+                      action: 'stop-route',
+                      kind,
+                      ...(routeId === undefined ? {} : { routeId }),
+                      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+                      label,
+                    })
+                  }
+                >
+                  {t('connections.hosts.stop')}
+                </Button>
+              }
+            />
+          ))}
+        </ListCard>
+      </SettingsSection>
       {unknown || remote.host.pendingConnection ? (
         <>
           <Note tone="warning">{t('connections.remote.unknown', { name })}</Note>
@@ -266,110 +329,85 @@ function HostDetailsSession({
       ) : failed ? (
         <Note tone="warning">{t('connections.hosts.failed')}</Note>
       ) : null}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={busy}
-        onClick={() =>
-          remote.host.connectionOperationUnavailable
-            ? void perform({ action: 'read-operation' })
-            : void load()
+      <SettingsSection
+        title={t('devices.list.title')}
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              remote.host.connectionOperationUnavailable
+                ? void perform({ action: 'read-operation' })
+                : void load()
+            }
+          >
+            {t('devices.connection.retry')}
+          </Button>
         }
       >
-        {t('devices.connection.retry')}
-      </Button>
-      {managed?.devices
-        .filter((device) => !device.revoked)
-        .map((device) => (
-          <SettingsRow
-            key={device.id}
-            title={device.name}
-            description={device.current ? t('connections.hosts.thisClient') : undefined}
-            control={
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={mutationBlocked}
-                onClick={() =>
-                  void prepare({
-                    action: 'revoke-device',
-                    deviceId: device.id,
-                    label: device.name,
-                  })
+        {devices.length > 0 ? (
+          <ListCard label={t('devices.list.title')}>
+            {devices.map((device) => (
+              <ListCardItem
+                key={device.id}
+                leading={<Icon name={device.current ? 'monitor' : 'shield'} />}
+                title={device.name}
+                summary={device.current ? t('connections.hosts.thisClient') : undefined}
+                trailing={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={mutationBlocked}
+                    onClick={() =>
+                      void prepare({
+                        action: 'revoke-device',
+                        deviceId: device.id,
+                        label: device.name,
+                      })
+                    }
+                  >
+                    {t('connections.hosts.revoke')}
+                  </Button>
                 }
-              >
-                {t('connections.hosts.revoke')}
-              </Button>
-            }
-          />
-        ))}
-      {[
-        ...(managed?.stops.includes('lan')
-          ? [
-              {
-                kind: 'lan',
-                routeId: undefined,
-                expectedRevision: undefined,
-                label: t('connections.lan'),
-              },
-            ]
-          : []),
-        ...(managed?.privateRoutes
-          .filter((route) => route.state !== 'off')
-          .map((route) => ({
-            kind: 'private-tunnel',
-            routeId: route.id,
-            expectedRevision: route.revision,
-            label: route.origin || route.id,
-          })) ?? []),
-      ].map(({ kind, routeId, expectedRevision, label }) => (
-        <SettingsRow
-          key={`${kind}-${routeId ?? ''}`}
-          title={label}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={mutationBlocked}
-              onClick={() =>
-                void prepare({
-                  action: 'stop-route',
-                  kind,
-                  ...(routeId === undefined ? {} : { routeId }),
-                  ...(expectedRevision === undefined ? {} : { expectedRevision }),
-                  label,
-                })
-              }
-            >
-              {t('connections.hosts.stop')}
-            </Button>
-          }
-        />
-      ))}
+              />
+            ))}
+          </ListCard>
+        ) : managed ? (
+          <Note>{t('devices.list.empty')}</Note>
+        ) : null}
+      </SettingsSection>
       {managed?.accountState === 'signed-in' ? (
-        <SettingsRow
-          title="Tobs Connect"
-          description={t('connections.remote.signOutScope')}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={mutationBlocked}
-              onClick={() => void prepare({ action: 'sign-out', label: name })}
-            >
-              {t('connections.remote.signOut')}
-            </Button>
-          }
-        />
+        <SettingsSection>
+          <ListCard label={t('devices.connect.title')}>
+            <ListCardItem
+              leading={<Icon name="plug" />}
+              title={t('devices.connect.title')}
+              summary={t('connections.remote.signOutScope')}
+              trailing={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={mutationBlocked}
+                  onClick={() => void prepare({ action: 'sign-out', label: name })}
+                >
+                  {t('connections.remote.signOut')}
+                </Button>
+              }
+            />
+          </ListCard>
+        </SettingsSection>
       ) : null}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={busy}
-        onClick={() => void prepare({ action: 'forget-host', label: name })}
-      >
-        {t('connections.hosts.remove')}
-      </Button>
+      <SettingsSection>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => void prepare({ action: 'forget-host', label: name })}
+        >
+          {t('connections.hosts.remove')}
+        </Button>
+      </SettingsSection>
       {confirm ? (
         <ConfirmDialog
           title={t(

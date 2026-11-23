@@ -141,6 +141,8 @@ function ownerPasswordEnabled(db: MemberAuthHost['db']): boolean {
   );
 }
 
+export type OwnerPasswordRotation = { signOutOthers?: boolean; currentDeviceId?: string };
+
 export function passwordSignInAvailable(this: MemberAuthHost): boolean {
   return this.db.read(
     (db) =>
@@ -189,7 +191,7 @@ export async function setOwnerPassword(
   human: HumanContext,
   password: string,
   options:
-    | { kind: 'settings'; current: string | undefined }
+    | ({ kind: 'settings'; current: string | undefined } & OwnerPasswordRotation)
     | { kind: 'enable-sign-in'; username: string },
 ): Promise<void> {
   this.owner(human);
@@ -216,6 +218,32 @@ export async function setOwnerPassword(
   if (options.kind === 'enable-sign-in' && this.byUsername(username))
     throw new TeamError('username-taken');
 
+  const currentDeviceId = options.kind === 'settings' ? options.currentDeviceId : undefined;
+  if (
+    currentDeviceId !== undefined &&
+    !this.db.read((db) =>
+      db
+        .prepare(`SELECT 1 FROM paired_devices WHERE device_id = ? AND human_id = ?
+          AND enrollment = 'owner-password' AND revoked_at IS NULL`)
+        .get(currentDeviceId, human.humanId),
+    )
+  )
+    throw new TeamError('device-revoked');
+
+  const others =
+    previous && options.kind === 'settings' && options.signOutOthers
+      ? this.db.read((db) =>
+          z.array(z.object({ device_id: z.string() })).parse(
+            db
+              .prepare(`SELECT device_id FROM paired_devices WHERE human_id = ?
+                AND enrollment = 'owner-password' AND revoked_at IS NULL AND device_id <> ?`)
+              .all(human.humanId, currentDeviceId ?? ''),
+          ),
+        )
+      : [];
+  const pairing = this.pairing;
+  if (others.length > 0 && !pairing) throw new TeamError('unavailable');
+
   const credential = credentialPasswordJson(hash, human.humanId);
   this.db.transaction(
     (db) => {
@@ -231,10 +259,18 @@ export async function setOwnerPassword(
         );
       if (options.kind === 'enable-sign-in')
         db.prepare('UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1').run();
+      if (others.length > 0) {
+        const revoke = db.prepare('UPDATE paired_devices SET revoked_at = ? WHERE device_id = ?');
+        const revokedAt = new Date(this.now()).toISOString();
+        for (const { device_id } of others) revoke.run(revokedAt, device_id);
+      }
     },
-    ['team'],
+    others.length > 0 ? ['team', 'paired-devices'] : ['team'],
   );
+  for (const { device_id } of others) pairing?.revoke(device_id);
   this.invalidate();
+  if (options.kind === 'settings')
+    this.log('owner-password-updated', { initiator: 'owner', revokedDevices: others.length });
 }
 
 export function ownerPasswordSignIn(

@@ -10,9 +10,20 @@ import {
 import { Platform } from 'react-native';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
-import type { NavigationActionProps } from './navigation-action';
+import {
+  NavigationActionPressable,
+  type NavigationActionProps,
+} from './navigation-action-pressable';
 
-export function NavigationAction({ size, label, close = false, onPress }: NavigationActionProps) {
+export function NavigationAction(props: NavigationActionProps) {
+  return props.close ? (
+    <NavigationCloseAction {...props} />
+  ) : (
+    <NavigationActionPressable {...props} />
+  );
+}
+
+function NavigationCloseAction({ size, label, onPress }: NavigationActionProps) {
   const theme = useDesignTheme();
   const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
   return (
@@ -27,7 +38,7 @@ export function NavigationAction({ size, label, close = false, onPress }: Naviga
         ]}
       >
         <Image
-          systemName={close ? 'xmark' : 'plus'}
+          systemName="xmark"
           modifiers={[
             font({ textStyle: 'title2' }),
             frame({ width: size - space.x5, height: size - space.x5 }),

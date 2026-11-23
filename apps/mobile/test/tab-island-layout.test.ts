@@ -32,26 +32,19 @@ it('estimates SF Pro label widths within a few percent of measured advances', ()
   }
 });
 
-it('shows one shared label size at default text and moves creation out only when that makes labels fit', () => {
+it('keeps one shared label size while the longest localized label fits', () => {
   for (const labels of [en, zh, en.filter((label) => label !== 'Sessions')])
-    expect(tabIslandLayout({ os: 'ios', labels, width: iphone, fontScale: sizes.large })).toEqual({
-      labels: true,
-      separateCreation: false,
-      labelSize: 11,
-    });
-  expect(
-    tabIslandLayout({ os: 'ios', labels: en, width: iphone, fontScale: sizes.xxxLarge }),
-  ).toEqual({ labels: true, separateCreation: true, labelSize: 17 });
-  expect(
-    tabIslandLayout({ os: 'ios', labels: zh, width: iphone, fontScale: sizes.xxxLarge }),
-  ).toEqual({ labels: true, separateCreation: false, labelSize: 17 });
+    for (const fontScale of [sizes.large, sizes.xxxLarge, sizes.ax1])
+      expect(tabIslandLayout({ os: 'ios', labels, width: iphone, fontScale })).toEqual({
+        labels: true,
+        labelSize: tabLabelFontSize('ios', fontScale),
+      });
 });
 
 it('hides every label together when the longest localized label cannot fit', () => {
   for (const fontScale of [sizes.ax2, sizes.ax5]) {
     const layout = tabIslandLayout({ os: 'ios', labels: en, width: iphone, fontScale });
     expect(layout.labels).toBe(false);
-    expect(layout.separateCreation).toBe(false);
     expect(iosTabIslandHeight(layout)).toBe(navigationBar.height);
   }
   const chinese = tabIslandLayout({ os: 'ios', labels: zh, width: iphone, fontScale: sizes.ax5 });
@@ -73,7 +66,6 @@ it('applies the same rule to the Android navigation bar at its own label metrics
   );
   expect(tabIslandLayout({ os: 'android', labels: en, width: 412, fontScale: 2 })).toEqual({
     labels: false,
-    separateCreation: false,
     labelSize: 24,
   });
   expect(tabIslandLayout({ os: 'android', labels: zh, width: 412, fontScale: 2 }).labels).toBe(

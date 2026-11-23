@@ -6,6 +6,7 @@ vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'ios', Version: 26 },
 }));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ $type: 'accessibilityLabel', label }),
   accessibilityElement: () => ({}),

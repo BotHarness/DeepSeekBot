@@ -50,31 +50,18 @@ export type TabIslandInput = {
   fontScale: number;
 };
 
-export type TabIslandLayout = {
-  labels: boolean;
-  separateCreation: boolean;
-  labelSize: number;
-};
+export type TabIslandLayout = { labels: boolean; labelSize: number };
 
-function slot(os: PlatformOS, width: number, count: number, inlineCreation: boolean): number {
+function slot(os: PlatformOS, width: number, count: number): number {
   if (os === 'android') return width / count - materialNavigationBar.labelInset * 2;
-  const island =
-    width -
-    space.x5 * 2 -
-    (inlineCreation ? navigationBar.height + space.x3 : 0) -
-    space.x2 * 2 -
-    space.x2 * (count - 1);
+  const island = width - space.x5 * 2 - space.x2 * 2 - space.x2 * (count - 1);
   return island / count - navigationBar.labelInset * 2;
 }
 
 export function tabIslandLayout({ os, labels, width, fontScale }: TabIslandInput): TabIslandLayout {
   const labelSize = tabLabelFontSize(os, fontScale);
   const widest = Math.max(0, ...labels.map((label) => tabLabelWidth(label, labelSize)));
-  const fits = (inlineCreation: boolean) =>
-    widest <= slot(os, width, Math.max(1, labels.length), inlineCreation);
-  if (fits(true)) return { labels: true, separateCreation: false, labelSize };
-  if (os === 'ios' && fits(false)) return { labels: true, separateCreation: true, labelSize };
-  return { labels: false, separateCreation: false, labelSize };
+  return { labels: widest <= slot(os, width, Math.max(1, labels.length)), labelSize };
 }
 
 export function iosTabIslandHeight(layout: TabIslandLayout): number {

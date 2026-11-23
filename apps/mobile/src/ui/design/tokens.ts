@@ -125,6 +125,7 @@ export const fab = {
   menuWidth: 320,
   menuSettle: 350,
 } as const;
+export const creationCard = { fadeDuration: 150, levelDuration: 180 } as const;
 export const materialDrawer = {
   width: 360,
   scrimGutter: 56,

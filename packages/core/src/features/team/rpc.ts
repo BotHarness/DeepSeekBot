@@ -142,8 +142,9 @@ export function teamOwnerPasswordSet(
   methods: TeamBridgeMethods,
   password: string,
   current?: string,
+  signOutOthers?: boolean,
 ) {
-  return unwrapAsync(methods.teamOwnerPasswordSet({ password, current }));
+  return unwrapAsync(methods.teamOwnerPasswordSet({ password, current, signOutOthers }));
 }
 
 export function teamInsecureHttpSet(methods: TeamBridgeMethods, allowed: boolean) {
@@ -457,8 +458,8 @@ export const teamServiceRpc = {
     return ownerPasswordSignInSet(this.methods, enabled, username, password);
   },
 
-  teamOwnerPasswordSet(password: string, current?: string) {
-    return teamOwnerPasswordSet(this.methods, password, current);
+  teamOwnerPasswordSet(password: string, current?: string, signOutOthers?: boolean) {
+    return teamOwnerPasswordSet(this.methods, password, current, signOutOthers);
   },
 
   teamInsecureHttpSet(allowed: boolean) {
