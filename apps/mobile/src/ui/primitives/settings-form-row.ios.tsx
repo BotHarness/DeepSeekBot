@@ -227,12 +227,7 @@ export function FormRow({
       <HStack alignment="firstTextBaseline" spacing={space.x5}>
         <Image
           systemName={rowSymbol(symbol.name).ios}
-          modifiers={[
-            font({ textStyle: 'subheadline' }),
-            dynamicTypeSize({ max: 'xxxLarge' }),
-            frame({ width: 50 }),
-            symbolStyle,
-          ]}
+          modifiers={[font({ textStyle: 'subheadline' }), frame({ minWidth: 50 }), symbolStyle]}
         />
         {text}
       </HStack>

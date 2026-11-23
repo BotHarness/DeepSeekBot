@@ -104,7 +104,7 @@ export const RULES = {
     section: 'apps/mobile/DESIGN.md § Code rules 4',
   },
   fixedIconScale: {
-    help: 'fit the glyph with clampScaledIconSize or a SwiftUI dynamicTypeSize ceiling',
+    help: 'let the box grow with the glyph (min width/height), or, if the box is truly fixed, fit the glyph with clampScaledIconSize or a SwiftUI dynamicTypeSize ceiling',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };

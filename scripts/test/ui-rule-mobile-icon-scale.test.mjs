@@ -9,7 +9,7 @@ describe('mobile fixed-slot icon scale', () => {
   it('rejects raw RN scaling and SwiftUI text styles without an upper bound', () => {
     const found = check(`
       import { StyleSheet, View, useWindowDimensions } from 'react-native';
-      import { Image as SymbolImage, VStack } from '@expo/ui/swift-ui';
+      import { Host, Image as SymbolImage, VStack } from '@expo/ui/swift-ui';
       import { font as type, frame, dynamicTypeSize } from '@expo/ui/swift-ui/modifiers';
       import { PlusIcon as Add } from './icons';
       const styles = StyleSheet.create({ circle: { width: fab.size, height: fab.size } });
@@ -28,6 +28,9 @@ describe('mobile fixed-slot icon scale', () => {
             type({ textStyle: 'body' }), frame({ width: theme.touch }),
             dynamicTypeSize({ min: 'large' }),
           ]} />
+          <Host style={{ width: theme.touch, height: theme.touch }}>
+            <SymbolImage systemName="ellipsis" modifiers={[type({ textStyle: 'title3' })]} />
+          </Host>
         </>;
       }
     `);
@@ -35,9 +38,10 @@ describe('mobile fixed-slot icon scale', () => {
       ['fixedIconScale', 'Add', 13],
       ['fixedIconScale', 'SymbolImage', 16],
       ['fixedIconScale', 'SymbolImage', 18],
+      ['fixedIconScale', 'SymbolImage', 23],
     ]);
     expect(compare(found, {}).problems).toEqual([
-      expect.stringContaining('fit the glyph with clampScaledIconSize'),
+      expect.stringContaining('let the box grow with the glyph'),
     ]);
   });
 
@@ -68,6 +72,33 @@ describe('mobile fixed-slot icon scale', () => {
             <Host matchContents={{ vertical: true }} style={{ maxHeight: measuredHeight }}>
               <Image systemName="plus" modifiers={[textFont, frame({ maxWidth: Infinity })]} />
             </Host>
+          </>;
+        }
+      `),
+    ).toEqual([]);
+  });
+
+  it('accepts a glyph whose box grows with it, so no cap is needed', () => {
+    expect(
+      check(`
+        import { View } from 'react-native';
+        import { Button, HStack, Image } from '@expo/ui/swift-ui';
+        import { font, frame } from '@expo/ui/swift-ui/modifiers';
+        function Examples() {
+          const size = theme.type.meta.line * theme.fontScale;
+          return <>
+            <Button modifiers={[]}>
+              <Image systemName="chevron.left" modifiers={[
+                font({ textStyle: 'body', weight: 'semibold' }),
+                frame({ minWidth: label, minHeight: label }),
+              ]} />
+            </Button>
+            <HStack alignment="firstTextBaseline">
+              <Image systemName="bell" modifiers={[font({ textStyle: 'subheadline' }), frame({ minWidth: 50 })]} />
+            </HStack>
+            <View style={{ minWidth: theme.touch, minHeight: theme.touch }}>
+              <PlusIcon size={size} />
+            </View>
           </>;
         }
       `),

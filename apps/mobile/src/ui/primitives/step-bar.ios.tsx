@@ -6,7 +6,6 @@ import {
   buttonStyle,
   controlSize,
   disabled,
-  dynamicTypeSize,
   font,
   frame,
   tint,
@@ -70,8 +69,7 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
                 systemName="chevron.left"
                 modifiers={[
                   font({ textStyle: 'body', weight: 'semibold' }),
-                  dynamicTypeSize({ max: 'xxxLarge' }),
-                  frame({ width: label, height: label }),
+                  frame({ minWidth: label, minHeight: label }),
                 ]}
               />
             </Button>
