@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   claudeAccount,
@@ -107,6 +107,13 @@ function setup(
 }
 
 describe('Claude Code Subscription Engine Session (replay)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-01T00:00:00Z') });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('answers a DM through bot_send_message and writes the turn into the DSH Session', async () => {
     const { host, dsh, replay, execute, request, root } = setup();
     await host.runTurn(request);
