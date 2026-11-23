@@ -107,16 +107,26 @@ export interface TobCliProposal {
 }
 export type TobCliWriteProposal = TobCliProposal | TobManagementProposal;
 
+interface TobCliWriteScope {
+  approvalChannelId?: string | undefined;
+  authorize(): void;
+  markSideEffect?(): void;
+}
+
 export interface TobCliBrokerOptions {
   signal: AbortSignal;
   log?(phase: string, details: Record<string, string | number>): void;
   authorize(): void;
   readSetting(): TobSetting;
   writeSetting(value: number, expectedRevision: number, authorize: () => void): Promise<TobSetting>;
-  approve(input: TobCliWriteProposal, signal: AbortSignal): Promise<void | (() => void)>;
+  beginWrite?(): TobCliWriteScope;
+  approve(
+    input: TobCliWriteProposal,
+    signal: AbortSignal,
+    scope: Pick<TobCliWriteScope, 'approvalChannelId' | 'authorize'>,
+  ): Promise<void | (() => void)>;
   prepareOperation?: PrepareTobOperation;
   capabilities?: readonly TobCliCapability[];
-  beforeWrite?(): void;
 }
 export interface TobCliBroker {
   endpoint: string;
@@ -224,6 +234,36 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
         if (signal.aborted) refuse('operation-cancelled');
         options.authorize();
       };
+      const approveWrite = async (proposal: TobCliWriteProposal) => {
+        authorize();
+        const scope = options.beginWrite?.();
+        const requireWrite = () => {
+          if (signal.aborted) refuse('operation-cancelled');
+          if (scope) scope.authorize();
+          else options.authorize();
+        };
+        const reviewGuard = await abortable(
+          options.approve(proposal, signal, {
+            approvalChannelId: scope?.approvalChannelId,
+            authorize: requireWrite,
+          }),
+          signal,
+        );
+        const guard = () => {
+          requireWrite();
+          reviewGuard?.();
+        };
+        const markSideEffect = scope?.markSideEffect;
+        return {
+          guard,
+          markSideEffect:
+            markSideEffect &&
+            (() => {
+              guard();
+              markSideEffect();
+            }),
+        };
+      };
       try {
         const actualAuth = Buffer.from(request.headers.authorization ?? '');
         if (actualAuth.length !== expectedAuth.length || !timingSafeEqual(actualAuth, expectedAuth))
@@ -273,7 +313,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                       (entry.command === 'cli'
                         ? 'deepseekbot <any command> [options]; find one with deepseekbot search <words>'
                         : entry.command === 'settings'
-                          ? 'deepseekbot settings [botharness-client|agent-default-model]'
+                          ? 'deepseekbot settings [botharness-client]'
                           : 'deepseekbot settings-set <namespace> --patch-stdin --expected-revision <observed revision> --previous-value <JSON of previous values for patched fields>'),
                   })),
                 }
@@ -311,16 +351,9 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
             if (writing) refuse('operation-in-progress');
             writing = true;
             try {
-              const reviewGuard = await abortable(
-                options.approve(prepared.proposal, signal),
-                signal,
-              );
-              const guard = () => {
-                authorize();
-                reviewGuard?.();
-              };
+              const { guard, markSideEffect } = await approveWrite(prepared.proposal);
               guard();
-              value = await prepared.run(guard, options.beforeWrite);
+              value = await prepared.run(guard, markSideEffect);
             } finally {
               writing = false;
             }
@@ -335,10 +368,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
           const operation = proposal(args);
           if (writing) refuse('operation-in-progress');
           writing = true;
-          let reviewGuard: void | (() => void);
-          const validate = () => {
-            authorize();
-            reviewGuard?.();
+          const validateRevision = () => {
             const current = options.readSetting();
             if (
               current.revision !== operation.expectedRevision ||
@@ -347,14 +377,19 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
               refuse('stale-setting');
           };
           try {
-            validate();
+            validateRevision();
+            let approved: Awaited<ReturnType<typeof approveWrite>>;
             try {
-              reviewGuard = await abortable(options.approve(operation, signal), signal);
+              approved = await approveWrite(operation);
             } catch (error) {
               throw new TobError(
                 codeOf(error, signal.aborted ? 'operation-cancelled' : 'approval-denied'),
               );
             }
+            const validate = () => {
+              approved.guard();
+              validateRevision();
+            };
             validate();
             log('approved', {
               namespace: NAMESPACE,
@@ -366,7 +401,10 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
               await options.writeSetting(
                 operation.patch.assignmentConcurrencyLimit,
                 operation.expectedRevision,
-                validate,
+                () => {
+                  validate();
+                  approved.markSideEffect?.();
+                },
               ),
             );
           } finally {

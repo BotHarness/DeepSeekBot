@@ -90,7 +90,11 @@ function RootNavigator() {
     ['profile-setup', undefined],
     ['uploaded-bots', t.accountProfile.uploads],
     ['usage', t.usage],
-    ['models', t.modelSettings.title],
+    ['model-providers', t.modelProviders.title],
+    ['model-provider-account', t.modelProviders.account],
+    ['models', t.modelConfig.title],
+    ['model-preset-new', undefined],
+    ['model-sub-choice', undefined],
     ['model-picker', undefined],
     ['model-preset', undefined],
     ['routing-group', undefined],
@@ -227,6 +231,7 @@ function RootNavigator() {
                       title: t.privateInputOpen,
                     }}
                   />
+                  <Stack.Screen name="session/[id]" />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
                   <Stack.Screen
                     name="conversation-section"

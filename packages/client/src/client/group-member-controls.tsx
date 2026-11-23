@@ -9,14 +9,12 @@ import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
-import { BotChoiceList } from './bot-choice-list.js';
 import { HumanAvatarImage } from './human-avatar.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
 import { useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { useDelayedSearch } from './delayed-search.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
@@ -30,7 +28,16 @@ import { personaBotActivity } from './persona-activity.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
 import { useSubmission } from './submission.js';
 import { IconButton } from './ds/icon-button.js';
-import { AddPeopleAction } from './channel-add-people.js';
+import type { BridgeCall } from './bridge.js';
+import { loadGroupMemberPicker } from './group-member-bridge.js';
+import {
+  GroupMemberPicker,
+  GroupMemberResults,
+  groupSelectionNeedsOwner,
+  useGroupMemberBatch,
+  type PickedGroupMember,
+} from './group-member-picker.js';
+import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
   attentionHeading: {
@@ -114,75 +121,81 @@ function BellIcon(): ReactElement {
   );
 }
 
-function InviteMemberModal({
-  group,
-  bots,
+function AddGroupMembersDialog({
+  channelId,
+  call,
   actions,
   t,
   onClose,
 }: {
-  group: ChannelSummary;
-  bots: readonly BotSummary[];
+  channelId: string;
+  call: BridgeCall;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onClose: () => void;
 }): ReactElement {
-  const { query, delayedQuery, updateQuery, cancelOnUnmount } = useDelayedSearch(250, (value) =>
-    value.trim().toLocaleLowerCase(),
+  const showTobGuidance = useClientStore((state) =>
+    state.bots.some((bot) => bot.tob !== undefined),
   );
-  const [selected, setSelected] = useState('');
-  const submission = useSubmission();
-  const available = bots.filter(
-    (bot) =>
-      bot.tob === undefined &&
-      !bot.paused &&
-      !bot.deleted &&
-      !group.members.includes(bot.slug) &&
-      !group.invitations?.some(
-        (invitation) => invitation.targetBotSlug === bot.slug && invitation.status === 'pending',
-      ),
-  );
-  const selectedAvailable = available.some((bot) => bot.slug === selected);
-  const filtered = available.filter(
-    (bot) =>
-      bot.displayName.toLocaleLowerCase().includes(delayedQuery) ||
-      bot.slug.toLocaleLowerCase().includes(delayedQuery),
-  );
-  const invite = async (): Promise<void> => {
-    if (!selectedAvailable) return;
-    if (await submission.run(() => actions.inviteGroupBot(group.id, selected))) onClose();
+  const [selected, setSelected] = useState<PickedGroupMember[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const inFlight = useRef(false);
+  const batch = useGroupMemberBatch();
+  const apply = async () => {
+    if (inFlight.current || (!batch.items && groupSelectionNeedsOwner(selected))) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(false);
+    try {
+      await batch.apply(call, channelId, selected);
+      void actions.openChannel(channelId, { scopedCall: call }).catch(() => undefined);
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+      inFlight.current = false;
+    }
   };
   return (
     <FormDialog
-      title={t('group.invite')}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t('group.invite')}
-      submitDisabled={!selectedAvailable}
-      busy={submission.state === 'busy'}
-      error={submission.state === 'failed' ? t('members.error') : undefined}
-      onCancel={onClose}
-      onSubmit={() => void invite()}
+      title={t('groupMembers.add')}
+      labels={{
+        close: t('common.close'),
+        cancel: t(batch.items ? 'common.close' : 'common.cancel'),
+      }}
+      submitLabel={t(
+        batch.complete
+          ? 'common.close'
+          : batch.items
+            ? 'groupMembers.retry'
+            : 'groupMembers.submit',
+      )}
+      submitDisabled={selected.length === 0 || (!batch.items && groupSelectionNeedsOwner(selected))}
+      busy={busy}
+      showCancel={!batch.complete}
+      scroll
+      error={error ? t('groupMembers.unconfirmed') : undefined}
+      onCancel={() => {
+        if (!inFlight.current) onClose();
+      }}
+      onSubmit={() => (batch.complete ? onClose() : void apply())}
     >
-      <TextField
-        label={t('group.inviteSearch')}
-        data-group-invite-search=""
-        value={query}
-        placeholder={t('group.inviteSearch')}
-        onChange={updateQuery}
-        initialFocus
-      />
-      {bots.some((bot) => bot.tob !== undefined) ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
-      <BotChoiceList
-        bots={filtered}
-        selected={selected}
-        onSelect={setSelected}
-        label={t('group.inviteSelect')}
-        empty={<Note>{t('group.inviteEmpty')}</Note>}
-        t={t}
-        listRef={cancelOnUnmount}
-        data={{ 'data-group-invite': '' }}
-        optionMarker="data-group-invite-option"
-      />
+      {batch.items ? (
+        <GroupMemberResults items={batch.items} busy={busy} t={t} />
+      ) : (
+        <>
+          <GroupMemberPicker
+            call={call}
+            channelId={channelId}
+            selected={selected}
+            onChange={setSelected}
+            disabled={busy}
+            t={t}
+          />
+          {showTobGuidance ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
+        </>
+      )}
     </FormDialog>
   );
 }
@@ -322,26 +335,66 @@ function MembersHeaderActionForChannel({
 }: ChannelSidebarEntryProps): ReactElement {
   const group = useClientStore((state) => state.conversation.channel);
   const bots = useClientStore((state) => state.bots, shallowEqual);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteCall, setInviteCall] = useState<BridgeCall>();
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const [capability, setCapability] = useState<'allowed' | 'denied' | 'failed' | 'retrying'>();
+  const [attempt, setAttempt] = useState(0);
+  const call = actions.teamCall;
+  const discover = useMountedResource<HTMLSpanElement>(() => {
+    if (call === undefined) return;
+    const controller = new AbortController();
+    void loadGroupMemberPicker(call, channelId, '', controller.signal).then(
+      (picker) => {
+        if (!controller.signal.aborted)
+          setCapability(picker.canAddPeople || picker.canAddBots ? 'allowed' : 'denied');
+      },
+      () => {
+        if (!controller.signal.aborted) setCapability('failed');
+      },
+    );
+    return () => controller.abort();
+  }, [call, channelId, group?.updatedAt, attempt]);
   if (group?.id !== channelId || group.type !== 'group') return <></>;
   const pending =
     (group.invitations?.filter((item) => item.status === 'pending').length ?? 0) +
     (group.joinRequests?.filter((item) => item.status === 'pending').length ?? 0);
   return (
     <>
-      <AddPeopleAction channelId={channelId} actions={actions} t={t} />
-      <Tooltip label={t('group.invite')} side="bottom" delayMs={500}>
-        <IconButton
-          size="row"
-          tone="subtle"
-          aria-label={t('group.invite')}
-          aria-haspopup="dialog"
-          onClick={() => setInviteOpen(true)}
-        >
-          <Icon name="plus" size={16} />
-        </IconButton>
-      </Tooltip>
+      <span ref={discover} hidden />
+      {call && capability === 'allowed' ? (
+        <Tooltip label={t('groupMembers.add')} side="bottom" delayMs={500}>
+          <IconButton
+            size="row"
+            tone="subtle"
+            aria-label={t('groupMembers.add')}
+            aria-haspopup="dialog"
+            onClick={() => {
+              const bound = call.bindConnection ? call.bindConnection() : call;
+              if (bound) setInviteCall(() => bound);
+              else setCapability('failed');
+            }}
+          >
+            <Icon name="plus" size={16} />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+      {call && (capability === 'failed' || capability === 'retrying') ? (
+        <Tooltip label={t('groupMembers.retryLoad')} side="bottom" delayMs={500}>
+          <IconButton
+            size="row"
+            tone="subtle"
+            aria-label={t('groupMembers.retryLoad')}
+            aria-busy={capability === 'retrying'}
+            disabled={capability === 'retrying'}
+            onClick={() => {
+              setCapability('retrying');
+              setAttempt((value) => value + 1);
+            }}
+          >
+            <Icon name="refresh-cw" size={16} />
+          </IconButton>
+        </Tooltip>
+      ) : null}
       <Tooltip label={t('members.attention.title')} side="bottom" delayMs={500}>
         <IconButton
           size="row"
@@ -358,13 +411,13 @@ function MembersHeaderActionForChannel({
           ) : null}
         </IconButton>
       </Tooltip>
-      {inviteOpen ? (
-        <InviteMemberModal
-          group={group}
-          bots={bots}
+      {inviteCall && call ? (
+        <AddGroupMembersDialog
+          channelId={channelId}
+          call={inviteCall}
           actions={actions}
           t={t}
-          onClose={() => setInviteOpen(false)}
+          onClose={() => setInviteCall(undefined)}
         />
       ) : null}
       {attentionOpen ? (

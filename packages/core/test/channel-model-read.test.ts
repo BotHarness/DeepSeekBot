@@ -1,6 +1,6 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
@@ -123,6 +123,35 @@ const long: ChannelMessage = {
 };
 
 describe('bounded model Channel read and exact Inbox settlement', () => {
+  it.each([
+    { scope: 'channel', channelQueries: 1 },
+    { scope: 'joined', channelQueries: 2 },
+  ])('continues a budget-truncated $scope read without refetching the page', async (test) => {
+    await fixture(seed, async ({ tools, core, groupId }) => {
+      const query = vi.spyOn(core.channels, 'queryMessages');
+      const args = {
+        scope: test.scope,
+        ...(test.scope === 'channel' ? { channel_id: groupId } : {}),
+        text: 'needle',
+        limit: 3,
+      };
+      try {
+        const first = await call(tools, args);
+        expect(
+          first.messages.map((entry: { message: { id: string } }) => entry.message.id),
+        ).toEqual(['record-3']);
+        expect(first.omitted.count).toBe(2);
+        expect(query).toHaveBeenCalledTimes(test.channelQueries);
+        const second = await call(tools, { ...args, cursor: first.nextCursor });
+        expect(
+          second.messages.map((entry: { message: { id: string } }) => entry.message.id),
+        ).toEqual(['record-2']);
+      } finally {
+        query.mockRestore();
+      }
+    });
+  });
+
   it.each(['channel', 'joined'] as const)(
     'selects %s content before observing and preserves filter-bound continuation',
     async (scope) => {

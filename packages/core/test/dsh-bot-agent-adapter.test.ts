@@ -3740,8 +3740,9 @@ it('routes external Tools through the active owning Orchestrator without a local
         expect(typeof result).toBe('string');
         if (typeof result !== 'string') throw new Error('Expected serialized tool result');
         expect(JSON.parse(result)).toMatchObject({
-          status: 'provider-accepted',
+          status: 'committed',
           intentId: 'intent',
+          messageId: 'reply-1',
         });
       },
     },
@@ -3754,7 +3755,34 @@ it('routes external Tools through the active owning Orchestrator without a local
   });
   await adapter.runOrchestrator({
     sessionId: 'external-ada',
-    replyDestination: () => ({ kind: 'external' }),
+    replyDestination: (id) => ({
+      kind: 'external',
+      source: {
+        id,
+        body: 'Topic request',
+        at: BOT.createdAt,
+        platform: 'feishu',
+        accountName: 'Owned app',
+        conversationName: 'Team',
+        grantId: 'grant',
+        grantRevision: 1,
+        event: {
+          version: 1,
+          channel: 'feishu',
+          botId: BOT.slug,
+          fingerprint: 'fingerprint',
+          eventId: 'event-1',
+          messageId: 'request-1',
+          actor: { kind: 'user', id: 'sender-1' },
+          conversation: { kind: 'group', id: 'team-1' },
+          mentions: [],
+          mentionedAccount: true,
+          at: BOT.createdAt,
+          reply: { messageId: 'request-1', conversationId: 'team-1', actorId: 'sender-1' },
+          replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
+        },
+      },
+    }),
     resume: false,
     bot: BOT,
     inboundChannelId: undefined,
@@ -3822,6 +3850,7 @@ it('routes external Tools through the active owning Orchestrator without a local
           sourceEventId: id,
           text,
           state: 'provider-accepted',
+          receipt: { version: 1, messageId: 'reply-1', conversationId: 'team-1' },
           createdAt: BOT.createdAt,
         };
       },

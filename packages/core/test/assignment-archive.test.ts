@@ -342,24 +342,24 @@ describe('Human Assignment archive from the Sessions view', () => {
         methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: true }),
       ).resolves.toMatchObject({ ok: false });
       await f.settle(id);
-      const listed = () => {
-        const result = methods.sessions({ slug: 'ada' });
+      const listed = async () => {
+        const result = await methods.sessions({ slug: 'ada' });
         if (!result.ok) throw new Error('sessions failed');
         return result.value.sessions.find((session) => session.sessionId === id);
       };
-      expect(listed()).toMatchObject({
+      expect(await listed()).toMatchObject({
         assignmentReportState: 'waiting-human',
         assignmentTitle: 'Ship the release notes',
       });
-      expect(listed()?.assignmentArchived).toBeUndefined();
+      expect((await listed())?.assignmentArchived).toBeUndefined();
       await expect(
         methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: true }),
       ).resolves.toEqual({ ok: true, value: { archived: true } });
-      expect(listed()).toMatchObject({ assignmentArchived: true });
+      expect(await listed()).toMatchObject({ assignmentArchived: true });
       await expect(
         methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: false }),
       ).resolves.toEqual({ ok: true, value: { archived: false } });
-      expect(listed()?.assignmentArchived).toBeUndefined();
+      expect((await listed())?.assignmentArchived).toBeUndefined();
       expect(f.nativeCalls).toEqual([`archive:${id}`, `unarchive:${id}`]);
     } finally {
       await f.close();

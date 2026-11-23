@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../bridge/rpc-result.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { PartLibraryEntry } from '../../bots/part-library.js';
@@ -80,3 +81,52 @@ export function partLibraryImportImage(
 ): { entry: PartLibraryEntry } {
   return unwrap(methods.partLibraryImportImage({ data, slot, colors, name }));
 }
+
+export const avatarRpc = {
+  botAvatarSet(channelId: string, avatar: string | null): AdminResult<{ bot: PersonaBotDetail }> {
+    return botAvatarSet(this.methods, channelId, avatar);
+  },
+
+  partLibraryList(): { parts: PartLibraryEntry[] } {
+    return partLibraryList(this.methods);
+  },
+
+  partLibraryExport(id?: string, part?: unknown): { fileName: string; data: string } {
+    return partLibraryExport(this.methods, id, part);
+  },
+
+  partLibraryImport(data: string): {
+    added: PartLibraryEntry[];
+    refused: { name: string; reason: string }[];
+  } {
+    return partLibraryImport(this.methods, data);
+  },
+
+  partLibraryImportImage(
+    data: string,
+    slot: string,
+    colors: number,
+    name: string,
+  ): { entry: PartLibraryEntry } {
+    return partLibraryImportImage(this.methods, data, slot, colors, name);
+  },
+
+  partLibraryAdd(part: unknown, name: string, parent?: string): { entry: PartLibraryEntry } {
+    return partLibraryAdd(this.methods, part, name, parent);
+  },
+
+  botBannerSet(channelId: string, banner: unknown): AdminResult<{ bot: PersonaBotDetail }> {
+    return botBannerSet(this.methods, channelId, banner);
+  },
+
+  botAppearanceSet(channelId: string, recipe: unknown): AdminResult<{ bot: PersonaBotDetail }> {
+    return botAppearanceSet(this.methods, channelId, recipe);
+  },
+
+  botPrimaryColorSet(
+    channelId: string,
+    primaryColor: unknown,
+  ): AdminResult<{ bot: PersonaBotDetail }> {
+    return botPrimaryColorSet(this.methods, channelId, primaryColor);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

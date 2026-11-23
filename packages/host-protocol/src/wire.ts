@@ -1,4 +1,4 @@
-import type { TurnTarget } from './turn-target';
+import type { TurnTarget, SessionTurnModelSwitch } from './turn-target';
 import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
 import type { ChannelReplyPreviewMedia } from '../../core/src/channels/reply-preview';
@@ -73,8 +73,16 @@ export interface WireSkillInvocation {
   end: number;
 }
 
+export interface WireSessionLink {
+  sessionId: string;
+  kind: 'created' | 'sent';
+  title: string;
+}
+
 export interface ChannelWireMessage extends WireMessage {
+  sessionLinks?: readonly WireSessionLink[];
   turnTargets?: TurnTarget[];
+  turnModelSwitch?: SessionTurnModelSwitch;
   contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
@@ -216,7 +224,7 @@ export type ChannelNotification =
       kind: 'session-links';
       channelId: string;
       messageId: string;
-      sessionLinks: readonly { sessionId: string; kind: 'created' | 'sent'; title: string }[];
+      sessionLinks: readonly WireSessionLink[];
     }
   | {
       kind: 'draft-baseline';

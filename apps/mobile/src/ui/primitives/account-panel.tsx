@@ -1,12 +1,12 @@
 import { Fragment } from 'react';
 import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { ConnectionFailureActions } from './connection-failure-actions';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import type { PairingFailure } from '@botharness/host-client/pairing';
-import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { SettingsRow, SettingsSection } from './settings-row';
+import { SheetPage } from './sheet-page';
 import { StepBar } from './step-bar';
 import { Text } from './text';
 
@@ -45,13 +45,26 @@ export type AccountPairResult = PairingFailure | 'added';
 
 export function AccountPanel(props: AccountPanelProps) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const locked = props.loading || props.busy;
   const signedIn = props.email !== null && props.email !== false;
   const act = (action: () => void) => (locked ? undefined : action);
   const status = (row: AccountComputerRow) => (row.pairing ? t.pairAccount.pairing : row.detail);
+  const footer =
+    !props.managing && props.rows?.length ? (
+      <StepBar
+        primary={{
+          testID: 'account-add-selected',
+          label: props.selectedCount
+            ? t.pairAccount.addSelected(props.selectedCount)
+            : t.pairAccount.choose,
+          disabled: props.loading || !props.selectedCount,
+          busy: props.busy,
+          onPress: props.onAdd,
+        }}
+      />
+    ) : undefined;
   return (
-    <View style={{ flex: 1, backgroundColor: theme.layer.canvas.fill }}>
+    <SheetPage safeAreaFooter={footer}>
       <ScrollView
         testID="account-hosts"
         contentInsetAdjustmentBehavior="automatic"
@@ -165,19 +178,6 @@ export function AccountPanel(props: AccountPanelProps) {
           </Text>
         ) : null}
       </ScrollView>
-      {!props.managing && props.rows?.length ? (
-        <StepBar
-          primary={{
-            testID: 'account-add-selected',
-            label: props.selectedCount
-              ? t.pairAccount.addSelected(props.selectedCount)
-              : t.pairAccount.choose,
-            disabled: props.loading || !props.selectedCount,
-            busy: props.busy,
-            onPress: props.onAdd,
-          }}
-        />
-      ) : null}
-    </View>
+    </SheetPage>
   );
 }

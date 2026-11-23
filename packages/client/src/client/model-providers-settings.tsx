@@ -8,19 +8,22 @@ import { SubscriptionAccounts } from './subscription-accounts.js';
 import { useState, type ReactElement } from 'react';
 
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
-import type {
-  ModelProviderRemoval,
-  ModelProviderSave,
-  ModelProviderView,
-  ModelProvidersView,
+import {
+  loadModelProviders,
+  type ModelProviderRemoval,
+  type ModelProviderSave,
+  type ModelProviderView,
+  type ModelProvidersView,
 } from '@botharness/host-client/model-providers';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { ConfirmDialog, FormDialog, DangerTextButton } from './ds/form-dialog.js';
 import { Input } from './ds/input.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -139,21 +142,39 @@ export function ModelProviderSubscriptions({
               title={name}
               summary={engineStatus(status, brand, t)}
               trailing={
-                status?.installed === true &&
-                !status.available &&
-                status.reason !== 'host-not-local' ? (
-                  <Button
-                    variant="outline"
-                    disabled={engines.signingIn !== undefined}
-                    aria-label={
-                      engines.signingIn === key
-                        ? undefined
-                        : t('engine.signInLabel', { engine: name })
-                    }
-                    onClick={() => engines.signIn(id, accountId)}
-                  >
-                    {engines.signingIn === key ? t('engine.signingIn') : t('modelProviders.signIn')}
-                  </Button>
+                status.installed && !status.available && status.reason !== 'host-not-local' ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={engines.signingIn !== undefined}
+                      aria-label={
+                        engines.signingIn === key
+                          ? undefined
+                          : t('engine.signInLabel', { engine: name })
+                      }
+                      onClick={() => engines.signIn(id, accountId)}
+                    >
+                      {engines.signingIn === key && engines.deviceSignIn === undefined
+                        ? t('engine.signingIn')
+                        : t('modelProviders.signIn')}
+                    </Button>
+                    {id === 'codex' && engines.supportsDeviceSignIn ? (
+                      <Button
+                        variant="outline"
+                        disabled={engines.signingIn !== undefined}
+                        aria-label={t('modelProviders.deviceSignInLabel', { engine: name })}
+                        onClick={() => engines.signIn(id, accountId, 'device-auth')}
+                      >
+                        {t('modelProviders.deviceSignIn')}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : undefined
+              }
+              detail={
+                engines.deviceSignIn?.key === key &&
+                engines.deviceSignIn.progress.status !== 'completed' ? (
+                  <CodexDeviceSignIn engines={engines} t={t} />
                 ) : undefined
               }
             />
@@ -448,9 +469,7 @@ export function ModelProvidersSettings({
       );
     const load = async () => {
       try {
-        const result = await bridgeHost(call, request.signal).call<ModelProvidersView>(
-          'modelProviders',
-        );
+        const result = await loadModelProviders(bridgeHost(call, request.signal));
         if (request.signal.aborted) return;
         setView(result);
         setLoadFailed(false);
@@ -635,7 +654,7 @@ export function ModelProvidersSettings({
         ) : view.providers.length === 0 ? (
           <Note>{t('modelProviders.empty')}</Note>
         ) : (
-          <SidebarCardList label={t('modelProviders.apiKey')}>
+          <ListCard label={t('modelProviders.apiKey')}>
             {view.providers.map((provider) => {
               const names = readRoles
                 ? roles
@@ -643,7 +662,7 @@ export function ModelProvidersSettings({
                     .map((role) => roleLabel(t, role))
                 : [];
               return (
-                <SidebarCardRow
+                <ListCardItem
                   key={provider.id}
                   leading={
                     <ModelBrandIcon brand={providerBrand(provider.id, provider.name)} size={20} />
@@ -676,7 +695,7 @@ export function ModelProvidersSettings({
                 />
               );
             })}
-          </SidebarCardList>
+          </ListCard>
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}
       </SettingsSection>

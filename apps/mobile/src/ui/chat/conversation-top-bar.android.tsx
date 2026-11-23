@@ -1,6 +1,7 @@
 import {
   CircularProgressIndicator,
   Column,
+  DropdownMenu,
   Host,
   Icon,
   IconButton,
@@ -18,6 +19,7 @@ import {
   size,
   testID,
   weight,
+  width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
 import { useState } from 'react';
@@ -26,22 +28,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { composeIsland } from '../design/island-compose.android';
-import { materialIconButton, radius, space } from '../design/tokens';
+import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
+import { MaterialMenuGroup } from '../primitives/material-menu.android';
+import { MenuIcon } from '../primitives/menu-icon';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
-import { ModelBrandIcon } from './model-brand-icon';
-import { EngineBrandIcon } from './engine-brand-icon';
-
-const MODEL_LABEL_CHARS = 12;
-
-function clipModel(short: string): string {
-  return short.length <= MODEL_LABEL_CHARS ? short : `${short.slice(0, MODEL_LABEL_CHARS - 1)}…`;
-}
-
 export function ConversationTopBar({
+  variant,
   title,
   subtitle,
   bot,
@@ -49,11 +45,10 @@ export function ConversationTopBar({
   avatar,
   initial,
   connectionLabel,
-  model,
-  modelMount,
   onBack,
   onProfile,
   onCall,
+  menu,
   onHeight,
   selection,
 }: ConversationTopBarProps) {
@@ -61,14 +56,13 @@ export function ConversationTopBar({
   const insets = useSafeAreaInsets();
   const t = useStrings();
   const [height, setHeight] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const mark = materialIconButton.container;
   const islandHeight = Math.max(
     theme.touch,
     Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
   );
   const status = connectionLabel ?? subtitle;
-  const shownModel = connectionLabel === undefined ? model : undefined;
-  const modelIcon = theme.type.meta.line;
   const action = (
     id: string,
     label: string,
@@ -92,13 +86,12 @@ export function ConversationTopBar({
   const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
   return (
     <View
-      ref={modelMount}
       testID="android-chat-header"
       pointerEvents="box-none"
       onLayout={(event) => {
         const next = event.nativeEvent.layout.height;
         setHeight(next);
-        onHeight(next);
+        onHeight?.(next);
       }}
       style={{
         position: 'absolute',
@@ -186,14 +179,7 @@ export function ConversationTopBar({
                 ...islandLook,
                 testID('chat-identity'),
                 semantics({
-                  contentDescription: [
-                    title,
-                    shownModel?.name,
-                    shownModel?.external ? t.routingGroup.externalEngine : undefined,
-                    status,
-                  ]
-                    .filter(Boolean)
-                    .join(', '),
+                  contentDescription: [title, status].filter(Boolean).join(', '),
                 }),
               ]}
             >
@@ -202,23 +188,30 @@ export function ConversationTopBar({
                 horizontalArrangement={{ spacedBy: space.x3 }}
                 modifiers={[
                   nativeHeight(islandHeight),
-                  padding(space.x2, space.x2, space.x4, space.x2),
+                  padding(
+                    variant === 'session' ? space.x4 : space.x2,
+                    space.x2,
+                    space.x4,
+                    space.x2,
+                  ),
                 ]}
               >
-                <RNHostView modifiers={[size(mark, mark)]}>
-                  <View accessible={false} importantForAccessibility="no-hide-descendants">
-                    {bot === undefined ? (
-                      <GroupMark
-                        avatar={avatar}
-                        {...(initial === undefined ? {} : { initial })}
-                        size={mark}
-                        corner={radius.round}
-                      />
-                    ) : (
-                      <BotAvatar bot={bot} size={mark} ring={false} />
-                    )}
-                  </View>
-                </RNHostView>
+                {variant === 'session' ? null : (
+                  <RNHostView modifiers={[size(mark, mark)]}>
+                    <View accessible={false} importantForAccessibility="no-hide-descendants">
+                      {bot === undefined ? (
+                        <GroupMark
+                          avatar={avatar}
+                          {...(initial === undefined ? {} : { initial })}
+                          size={mark}
+                          corner={radius.round}
+                        />
+                      ) : (
+                        <BotAvatar bot={bot} size={mark} ring={false} />
+                      )}
+                    </View>
+                  </RNHostView>
+                )}
                 <Column modifiers={[weight(1)]}>
                   <Text
                     style={{ typography: 'titleMedium', fontWeight: 'bold' }}
@@ -241,41 +234,6 @@ export function ConversationTopBar({
                         >
                           <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
                         </RNHostView>
-                      )}
-                      {shownModel === undefined ? null : (
-                        <Row
-                          verticalAlignment="center"
-                          horizontalArrangement={{ spacedBy: space.x1 }}
-                          modifiers={[testID('chat-header-model')]}
-                        >
-                          <RNHostView modifiers={[size(modelIcon, modelIcon)]}>
-                            <View
-                              accessible={false}
-                              importantForAccessibility="no-hide-descendants"
-                            >
-                              {shownModel.external ? (
-                                <EngineBrandIcon
-                                  brand={shownModel.brand}
-                                  size={modelIcon}
-                                  color={theme.color.muted}
-                                />
-                              ) : (
-                                <ModelBrandIcon
-                                  brand={shownModel.brand}
-                                  size={modelIcon}
-                                  color={theme.color.muted}
-                                />
-                              )}
-                            </View>
-                          </RNHostView>
-                          <Text
-                            color={theme.color.muted}
-                            style={{ typography: 'bodySmall' }}
-                            maxLines={1}
-                          >
-                            {`${clipModel(shownModel.short)} ·`}
-                          </Text>
-                        </Row>
                       )}
                       <Text
                         modifiers={[weight(1)]}
@@ -300,7 +258,49 @@ export function ConversationTopBar({
                 )}
               </Row>
             </Surface>
-            {onCall === undefined && onProfile === undefined ? null : (
+            {menu !== undefined ? (
+              <DropdownMenu
+                expanded={menuOpen}
+                onDismissRequest={() => setMenuOpen(false)}
+                color="transparent"
+                shadowElevation={0}
+              >
+                <DropdownMenu.Trigger>
+                  <Surface {...island} modifiers={islandLook}>
+                    {action(
+                      menu.testID,
+                      menu.label,
+                      require('../../../assets/header/more-vert.xml'),
+                      () => setMenuOpen(true),
+                    )}
+                  </Surface>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Items>
+                  <Column modifiers={[width(materialMenu.width)]}>
+                    <MaterialMenuGroup
+                      items={menu.items.map((item) => ({
+                        key: item.testID,
+                        testID: item.testID,
+                        label: item.label,
+                        disabled: item.disabled === true,
+                        destructive: item.destructive === true,
+                        icon: (
+                          <MenuIcon
+                            icon={item.icon}
+                            color={item.destructive ? theme.color.danger : theme.color.fg}
+                            size={materialMenu.iconSize}
+                          />
+                        ),
+                        onPress: () => {
+                          setMenuOpen(false);
+                          item.run();
+                        },
+                      }))}
+                    />
+                  </Column>
+                </DropdownMenu.Items>
+              </DropdownMenu>
+            ) : onCall === undefined && onProfile === undefined ? null : (
               <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
                 <Row verticalAlignment="center">
                   {onCall === undefined

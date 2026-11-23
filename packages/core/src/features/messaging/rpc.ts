@@ -1,3 +1,5 @@
+import type { ExternalSource } from '../../messaging/inbound.js';
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrapAsync } from '../../bridge/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
 import type { SenderAccessInput } from '../../messaging/sender-access.js';
@@ -15,7 +17,6 @@ import type {
 } from '../../messaging/conversation-ingest.js';
 import type { ThreadReceptionInput } from '../../messaging/thread-policy.js';
 import type { GroupReceptionInput } from '../../messaging/group-policy.js';
-import type { ExternalSource } from '../../messaging/inbound.js';
 import type {
   MessagingSnapshot,
   MessagingGrant,
@@ -112,7 +113,7 @@ export function messagingSource(
   methods: MessagingBridgeMethods,
   slug: string,
   sourceEventId: string,
-): Promise<{ source: ExternalSource }> {
+) {
   return unwrapAsync(methods.messagingSource({ slug, sourceEventId }));
 }
 
@@ -319,3 +320,211 @@ export function channelMediaTarget(
     }),
   );
 }
+
+export const messagingRpcMethods = {
+  channelMediaTarget(
+    channelId: string,
+    sourceEventId: string,
+    attachmentId: string,
+  ): Promise<{ target: MemoryFileTarget }> {
+    return channelMediaTarget(this.methods, channelId, sourceEventId, attachmentId);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const channelMessagingRpc = {
+  messagingChannelTarget(
+    slug: string,
+    grantId: string,
+    channelId: string | null,
+  ): Promise<{ updated: true }> {
+    return messagingChannelTarget(this.methods, slug, grantId, channelId);
+  },
+
+  messagingThreadPolicy(
+    slug: string,
+    sourceEventId: string,
+    policy: ThreadReceptionInput,
+  ): Promise<{ updated: true }> {
+    return messagingThreadPolicy(this.methods, slug, sourceEventId, policy);
+  },
+
+  messagingGroupPolicy(
+    slug: string,
+    grantId: string,
+    policy: GroupReceptionInput,
+  ): Promise<{ updated: true }> {
+    return messagingGroupPolicy(this.methods, slug, grantId, policy);
+  },
+
+  messagingDefaults(platform?: MessagingDefaultsPlatform): Promise<MessagingDefaults> {
+    return messagingDefaults(this.methods, platform);
+  },
+
+  messagingDefaultsSet(input: MessagingDefaultsInput): Promise<MessagingDefaults> {
+    return messagingDefaultsSet(this.methods, input);
+  },
+
+  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot> {
+    return channelBridges(this.methods, channelId, mode);
+  },
+
+  channelIngests(channelId: string): Promise<ConversationIngestSnapshot> {
+    return channelIngests(this.methods, channelId);
+  },
+
+  channelIngest(channelId: string, input: ConversationIngestInput): Promise<{ updated: true }> {
+    return channelIngest(this.methods, channelId, input);
+  },
+
+  channelBridge(channelId: string, input: ChannelBridgeInput): Promise<{ updated: true }> {
+    return channelBridge(this.methods, channelId, input);
+  },
+
+  messagingReceive(slug: string, grantId: string, enabled: boolean): Promise<{ updated: true }> {
+    return messagingReceive(this.methods, slug, grantId, enabled);
+  },
+
+  messagingSource(slug: string, sourceEventId: string): Promise<{ source: ExternalSource }> {
+    return messagingSource(this.methods, slug, sourceEventId);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const messagingPolicyRpc = {
+  failureAlertsSet(
+    slug: string,
+    enabled: boolean,
+    expectedRevision: number,
+  ): Promise<{ updated: true }> {
+    return failureAlertsSet(this.methods, slug, enabled, expectedRevision);
+  },
+
+  failureAlertsTest(slug: string): Promise<{
+    delivery: import('../../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
+    return failureAlertsTest(this.methods, slug);
+  },
+
+  failureAlertsRetry(
+    slug: string,
+    id: string,
+  ): Promise<{
+    delivery: import('../../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
+    return failureAlertsRetry(this.methods, slug, id);
+  },
+
+  pairingReview(slug: string, input: PairingReviewInput): Promise<{ pairing: PairingRequest }> {
+    return pairingReview(this.methods, slug, input);
+  },
+
+  senderAccess(slug: string, input: SenderAccessInput): Promise<void> {
+    return senderAccess(this.methods, slug, input);
+  },
+
+  messagingIdentity(
+    slug: string,
+    input: MessagingIdentityInput,
+  ): Promise<{ identity: MessagingIdentity }> {
+    return messagingIdentity(this.methods, slug, input);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const messagingConnectionRpc = {
+  messagingApps(): Promise<MessagingAppsView> {
+    return messagingApps(this.methods);
+  },
+
+  messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot> {
+    return messagingSnapshot(this.methods, slug, mode);
+  },
+
+  messagingReachable(
+    slug: string,
+    bindingId: string,
+    cursor?: string,
+  ): Promise<import('../../messaging/provider.js').MessagingReachablePage> {
+    return messagingReachable(this.methods, slug, bindingId, cursor);
+  },
+
+  messagingPostRequest(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<{ intent: OutboxIntent | null }> {
+    return messagingPostRequest(this.methods, slug, bindingId, conversationId, requestId, text);
+  },
+
+  messagingPostConversation(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<{ intent: OutboxIntent }> {
+    return messagingPostConversation(
+      this.methods,
+      slug,
+      bindingId,
+      conversationId,
+      requestId,
+      text,
+    );
+  },
+
+  messagingPostLimit(
+    slug: string,
+    bindingId: string,
+    expectedRevision: number,
+    limit: number | null,
+  ): Promise<{ identity: MessagingIdentity }> {
+    return messagingPostLimit(this.methods, slug, bindingId, expectedRevision, limit);
+  },
+
+  messagingTargets(
+    providerId: string,
+    accountRef: string,
+  ): Promise<{ targets: MessagingTarget[] }> {
+    return messagingTargets(this.methods, providerId, accountRef);
+  },
+
+  messagingAuthorize(
+    botSlug: string,
+    providerId: string,
+    accountRef: string,
+    targetRef: string,
+    fingerprint: string,
+    targetDigest: string,
+  ): Promise<{ grant: MessagingGrant }> {
+    return messagingAuthorize(
+      this.methods,
+      botSlug,
+      providerId,
+      accountRef,
+      targetRef,
+      fingerprint,
+      targetDigest,
+    );
+  },
+
+  messagingRevoke(slug: string, grantId: string): Promise<{ revoked: true }> {
+    return messagingRevoke(this.methods, slug, grantId);
+  },
+
+  messagingConversation(
+    slug: string,
+    input: MessagingConversationInput,
+  ): Promise<{ updated: true }> {
+    return messagingConversation(this.methods, slug, input);
+  },
+
+  messagingSend(
+    slug: string,
+    grantId: string,
+    requestId: string,
+    text: string,
+  ): Promise<{ intent: OutboxIntent }> {
+    return messagingSend(this.methods, slug, grantId, requestId, text);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

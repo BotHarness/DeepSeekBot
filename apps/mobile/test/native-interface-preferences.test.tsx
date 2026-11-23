@@ -94,6 +94,8 @@ it('restores before showing content, updates native appearance and refreshes sys
     expect(JSON.parse(native.saved)).toEqual({
       language: 'en',
       appearance: 'system',
+      sessionsTab: false,
+      sessionSort: 'last-human-turn',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

@@ -1,7 +1,10 @@
 import { Host } from '@expo/ui';
-import { Button, RNHostView } from '@expo/ui/swift-ui';
+import { Button, HStack, RNHostView } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
+  accessibilityElement,
   accessibilityHint,
+  accessibilityIdentifier,
   accessibilityLabel,
   accessibilityValue,
   buttonStyle,
@@ -19,6 +22,24 @@ export function HeaderTitleButton(props: HeaderTitleButtonProps) {
   const t = useStrings();
   const style = typeof props.style === 'function' ? props.style({ pressed: false }) : props.style;
   const height = StyleSheet.flatten(style)?.minHeight;
+  if (props.kind === 'heading')
+    return (
+      <Host style={{ width: '100%', height }} colorScheme={theme.scheme}>
+        <HStack
+          modifiers={[
+            ...(glassHeader ? [glassEffect({ shape: 'capsule' })] : []),
+            accessibilityElement(),
+            accessibilityAddTraits(['isHeader']),
+            accessibilityLabel(props.accessibilityLabel),
+            ...(props.testID ? [accessibilityIdentifier(props.testID)] : []),
+          ]}
+        >
+          <RNHostView matchContents={{ vertical: true }} boundedByHost>
+            <View style={style}>{props.children}</View>
+          </RNHostView>
+        </HStack>
+      </Host>
+    );
   return (
     <Host style={{ width: '100%', height }} colorScheme={theme.scheme}>
       <Button

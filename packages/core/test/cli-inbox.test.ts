@@ -104,6 +104,52 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.text).toContain('host-query-unsupported');
   });
 
+  it('passes Session search, sort and source together and checks that the Host applied them', async () => {
+    const live = await host(echo);
+    const argv = [
+      'session-list',
+      '--search',
+      'budget',
+      '--sort',
+      'created',
+      '--source',
+      'bot:alpha',
+    ];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionList',
+        args: { search: 'budget', sort: 'created', source: 'bot:alpha', queryVersion: 1 },
+      },
+    ]);
+    const older = await host(() => ({ ok: true, value: { sessions: [] } }));
+    const result = await invoke(argv, older.url);
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('host-query-unsupported');
+    expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
+  });
+
+  it('lists Host Sessions and uses the existing commands for a native Session', async () => {
+    const live = await host(echo);
+    for (const argv of [
+      ['session-list'],
+      ['session-transcript', '--session', 'native-1'],
+      ['session-live', '--session', 'native-1', '--after', '3'],
+      ['session-send', 'native-1', '  Continue from here.  '],
+    ]) {
+      expect((await invoke(argv, live.url)).code).toBe(0);
+    }
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: {} },
+      { method: 'sessionTranscript', args: { slug: null, sessionId: 'native-1' } },
+      { method: 'sessionLive', args: { slug: null, sessionId: 'native-1', after: 3 } },
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: null, sessionId: 'native-1', text: '  Continue from here.  ' },
+      },
+    ]);
+  });
+
   it('sends raw text straight into the Orchestrator Session with session-send', async () => {
     const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
     const result = await invoke(
@@ -385,17 +431,46 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('reads, sets and clears a Session Model Choice through the Host', async () => {
+    const live = await host(echo);
+    const choice = { kind: 'engine', engine: 'codex', model: 'gpt-test' };
+    const args = ['session-model', 'ada', '--session', 'orch-1'];
+    expect((await invoke(args, live.url)).json).toMatchObject({
+      method: 'sessionModel',
+      args: { slug: 'ada', sessionId: 'orch-1' },
+    });
+    expect((await invoke([...args, '--set', JSON.stringify(choice)], live.url)).json).toMatchObject(
+      { method: 'sessionModel', args: { choice } },
+    );
+    expect((await invoke([...args, '--clear'], live.url)).json).toMatchObject({
+      method: 'sessionModel',
+      args: { choice: null },
+    });
+  });
+
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {
+    const currentTarget = {
+      kind: 'engine',
+      engine: 'codex',
+      account: 'ChatGPT Pro',
+      model: 'gpt-6-astra',
+    };
     const turnTargets = [
       { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
       { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
     ];
     const live = await host(() => ({
       ok: true,
-      value: { items: [{ kind: 'reply', text: 'Done', turnTargets }], omitted: 0, running: false },
+      value: {
+        currentTarget,
+        items: [{ kind: 'reply', text: 'Done', turnTargets }],
+        omitted: 0,
+        running: false,
+      },
     }));
     const result = await invoke(['session-transcript', 'ada', '--session', 'orch-1'], live.url);
     expect(result.code).toBe(0);
+    expect(result.json.currentTarget).toEqual(currentTarget);
     expect(result.json.items).toEqual([{ kind: 'reply', text: 'Done', turnTargets }]);
   });
 

@@ -9,7 +9,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { BROWSER_ADMISSION_PROTOCOL } from '../../../../deploy/private-relay/admission.mjs';
 import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
-import type { DevicePairing } from './pairing.js';
+import type { DevicePairing, Redemption } from './pairing.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LOCAL_VIDEO_PATH,
@@ -24,6 +24,7 @@ import {
 } from '../voice/call-contract.js';
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
+import { noisePeerHeaders } from './route-context.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -154,8 +155,15 @@ export function createEncryptedGateway(options: {
       deviceId: string | undefined,
       closed = false,
       admitted = false;
+    let channelHeaders: Record<string, string> = {};
+    let ownerSignInAttempted = false;
     let enrollmentOffer: { body: string; offer: string } | undefined;
     let detach: (() => void) | undefined;
+    let unwatchKey: (() => void) | undefined;
+    const stopWatchingKey = () => {
+      unwatchKey?.();
+      unwatchKey = undefined;
+    };
     const streams = new Map<string, WebSocket>();
     const requests = new Map<string, () => void>();
     let videoBinding: LocalVideoBinding | undefined;
@@ -225,6 +233,7 @@ export function createEncryptedGateway(options: {
       clearTimeout(deadline);
       clearInterval(keepalive);
       detach?.();
+      stopWatchingKey();
       channel.close();
       for (const stream of streams.values()) stream.terminate();
       for (const cancel of requests.values()) cancel();
@@ -265,6 +274,7 @@ export function createEncryptedGateway(options: {
       }
     };
     const refuse = (code: string) => {
+      stopWatchingKey();
       send({ type: 'refused', code });
       socket.close(1008, 'channel-refused');
       setTimeout(() => close('refused'), 100).unref();
@@ -595,6 +605,7 @@ export function createEncryptedGateway(options: {
           method,
           headers: {
             authorization: `Device ${credential!}`,
+            ...channelHeaders,
             ...appVersionHeader(input),
             'content-type':
               input['contentType'] === 'application/octet-stream'
@@ -642,18 +653,21 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
-        if (type === 'team-sign-in' && options.memberDevices) {
+        if ((type === 'team-sign-in' || type === 'owner-sign-in') && options.memberDevices) {
+          const ownerSignIn = type === 'owner-sign-in';
+          const reply = ownerSignIn ? 'owner-signed-in' : 'team-signed-in';
+          if (ownerSignIn && ownerSignInAttempted) return refuse('invalid-input');
+          if (ownerSignIn) ownerSignInAttempted = true;
           try {
-            const result = await options.memberDevices.signIn(
-              input['input'],
-              remoteAddress,
-              publicKey,
-            );
-            if (!closed) send({ type: 'team-signed-in', result: { ok: true, value: result } });
+            const result = ownerSignIn
+              ? await options.memberDevices.signInOwner(input['input'], remoteAddress, publicKey)
+              : await options.memberDevices.signIn(input['input'], remoteAddress, publicKey);
+            const sent = send({ type: reply, result: { ok: true, value: result } });
+            if (!sent && ownerSignIn) options.pairing.revoke(result.deviceId);
           } catch (error) {
             if (!closed)
               send({
-                type: 'team-signed-in',
+                type: reply,
                 result: {
                   ok: false,
                   code: error instanceof TeamError ? error.code : 'invalid-input',
@@ -672,6 +686,7 @@ export function createEncryptedGateway(options: {
           return;
         }
         if (type === 'pair') {
+          stopWatchingKey();
           let offer = field(input, 'offer');
           let accountAutoApprove = false;
           if (input['enrollment'] !== undefined) {
@@ -699,38 +714,58 @@ export function createEncryptedGateway(options: {
           if (!offer || offer.length > 128) throw new Error('channel-pair-invalid');
           const name = field(input, 'name'),
             verifier = field(input, 'verifier');
+          const pairRequest = { offer, publicKey, ...(verifier === undefined ? {} : { verifier }) };
+          const sendPaired = (paired: Extract<Redemption, { ok: true }>) => {
+            send({
+              type: 'paired',
+              host: paired.host,
+              deviceId: paired.device.id,
+              credential: paired.credential,
+              ...(paired.humanId === undefined
+                ? {}
+                : {
+                    humanId: paired.humanId,
+                    displayName: paired.displayName,
+                    mustChangePassword: paired.mustChangePassword,
+                  }),
+            });
+          };
+          const resumed = options.pairing.resumeKeyRedemption(pairRequest);
+          if (resumed) {
+            stopWatchingKey();
+            sendPaired(resumed);
+            return;
+          }
           const proposed = options.pairing.requestKey({
-            offer,
-            publicKey,
+            ...pairRequest,
             ...(name === undefined ? {} : { name }),
-            ...(verifier === undefined ? {} : { verifier }),
           });
           if (!proposed.ok) return refuse(proposed.code);
           if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
             options.log?.('account-device-approved');
-          const paired = options.pairing.redeem({
-            offer,
-            publicKey,
-            ...(verifier === undefined ? {} : { verifier }),
-          });
-          if (!paired.ok) {
-            if (paired.code === 'device-approval-required')
-              return send({ type: 'pair-pending', receipt: proposed.receipt });
-            return refuse(paired.code);
+          const redeem = (allowReconnect = false) => {
+            stopWatchingKey();
+            const paired = options.pairing.redeem({ ...pairRequest, allowReconnect });
+            if (!paired.ok) {
+              if (paired.code !== 'device-approval-required') refuse(paired.code);
+              return paired;
+            }
+            sendPaired(paired);
+            return paired;
+          };
+          const paired = redeem();
+          if (!paired.ok && paired.code === 'device-approval-required') {
+            if (!send({ type: 'pair-pending', receipt: proposed.receipt })) return;
+            unwatchKey = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
+              if (closed || admitted) return;
+              try {
+                if (event.state === 'approved') redeem(true);
+                else refuse(event.state === 'expired' ? 'offer-expired' : 'offer-invalid');
+              } catch {
+                close('invalid-frame');
+              }
+            });
           }
-          send({
-            type: 'paired',
-            host: paired.host,
-            deviceId: paired.device.id,
-            credential: paired.credential,
-            ...(paired.humanId === undefined
-              ? {}
-              : {
-                  humanId: paired.humanId,
-                  displayName: paired.displayName,
-                  mustChangePassword: paired.mustChangePassword,
-                }),
-          });
           return;
         }
         if (type !== 'admit') throw new Error('channel-admission-required');
@@ -740,6 +775,9 @@ export function createEncryptedGateway(options: {
           publicKey,
         );
         if (!admission.ok) return refuse(admission.code);
+        stopWatchingKey();
+        if (admission.device.enrollment === 'owner-password')
+          channelHeaders = noisePeerHeaders(publicKey);
         admitted = true;
         negotiating--;
         encrypted++;
@@ -769,7 +807,7 @@ export function createEncryptedGateway(options: {
         const stream = new WebSocket(
           `ws://127.0.0.1:${options.port()}/botharness-device/api/remote.mux`,
           {
-            headers: { authorization: `Device ${credential!}` },
+            headers: { authorization: `Device ${credential!}`, ...channelHeaders },
             maxPayload: BODY_LIMIT,
             perMessageDeflate: false,
             handshakeTimeout: DEADLINE,

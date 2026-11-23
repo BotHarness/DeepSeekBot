@@ -1,4 +1,10 @@
+import type { TypertResourceReaders } from '@deepseek-ai/dsh-typert-protocol';
+import { MEMBER_BOT_SESSION_ID_METHODS } from '../team/member-methods.js';
+
 const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
+const botSessionResources = Object.freeze({
+  session: () => undefined,
+} satisfies TypertResourceReaders<readonly unknown[]>);
 
 interface RemoteMethodDescriptor {
   readonly version: 1;
@@ -6,6 +12,7 @@ interface RemoteMethodDescriptor {
     readonly method: string;
     readonly mode?: 'stream';
     readonly invocation: { readonly kind: 'direct' };
+    readonly resources?: TypertResourceReaders<readonly unknown[]>;
   }[];
 }
 
@@ -13,7 +20,11 @@ export function markRemoteMethods(prototype: object, methods: readonly string[])
   const descriptor: RemoteMethodDescriptor = {
     version: 1,
     methods: methods.map((method) =>
-      Object.freeze({ method, invocation: Object.freeze({ kind: 'direct' }) }),
+      Object.freeze({
+        method,
+        invocation: Object.freeze({ kind: 'direct' }),
+        ...(MEMBER_BOT_SESSION_ID_METHODS.has(method) ? { resources: botSessionResources } : {}),
+      }),
     ),
   };
   Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {

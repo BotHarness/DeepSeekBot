@@ -1,187 +1,426 @@
 // @vitest-environment jsdom
-import { type Root } from 'react-dom/client';
-import { type ChannelSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return {
-    ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    ...dialogPrimitives(),
-  };
+  const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
+  return { ...shellPrimitives(), ...dialogPrimitives() };
 });
 
+import type { GroupMemberPickerResult } from '@botharness/host-protocol/group-members';
 import type { BridgeActions } from '../src/client/actions.js';
+import type { BridgeCall } from '../src/client/bridge.js';
 import { MembersHeaderAction } from '../src/client/group-member-controls.js';
+import { GroupMemberPicker, GroupMemberResults } from '../src/client/group-member-picker.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import { store, type BotSummary } from '../src/client/store.js';
+import { CreateChannelModal } from '../src/client/section-management.js';
+import { store, type ChannelSummary } from '../src/client/store.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
-
 const GROUP: ChannelSummary = {
   id: 'g-qa',
   type: 'group',
   name: 'QA',
-  members: ['ada'],
+  members: [],
   createdAt: AT,
   updatedAt: AT,
-  invitations: [
-    {
-      id: 'inv-1',
-      targetBotSlug: 'cy',
-      status: 'pending',
-    },
-  ] as never,
+};
+const choices: GroupMemberPickerResult = {
+  canAddPeople: true,
+  canAddBots: true,
+  people: [{ id: 'bob', displayName: 'Bob' }],
+  bots: [
+    { id: 'bob-bot', displayName: 'Bob Bot', requiresOwner: true, requiredHumanId: 'bob' },
+    { id: 'eve', displayName: 'Eve' },
+  ],
 };
 
-const bot = (slug: string, displayName: string, patch: Partial<BotSummary> = {}): BotSummary =>
-  ({
-    slug,
-    displayName,
-    roles: [],
-    aggregateState: 'idle',
-    workspaces: [],
-    createdAt: AT,
-    ...patch,
-  }) as BotSummary;
-
 let root: Root;
-let host: HTMLDivElement;
-let inviteGroupBot: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  host = document.createElement('div');
+  const host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  store.setRoster(
-    [
-      bot('ada', 'Ada'),
-      bot('bob', 'Bob'),
-      bot('cy', 'Cy'),
-      bot('dee', 'Dee', { paused: true }),
-      bot('eve', 'Eve'),
-      bot('protected-steward', 'Renamed Tob', {
-        tob: { defaultName: false, defaultAvatar: false },
-      }),
-    ],
-    [GROUP],
-  );
   store.setConversation({ channel: GROUP });
-  inviteGroupBot = vi.fn(async () => true);
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   store.setConversation({ channel: undefined });
-  store.setRoster([], []);
   document.body.replaceChildren();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
-async function openInvite(): Promise<void> {
+function memberRow(name: string): HTMLButtonElement {
+  const row = [...dialog().querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find(
+    (button) => button.getAttribute('aria-label')?.startsWith(name + ' · '),
+  );
+  if (!row) throw new Error('Missing choice ' + name);
+  return row;
+}
+
+async function renderExisting(call: BridgeCall): Promise<void> {
+  const actions = {
+    teamCall: call,
+    openChannel: vi.fn(async () => undefined),
+  } as unknown as BridgeActions;
   await act(async () =>
     root.render(
       createElement(MembersHeaderAction, {
         scope: 'channel',
         channelId: GROUP.id,
         botSlug: undefined,
-        actions: { inviteGroupBot } as unknown as BridgeActions,
+        actions,
         t,
       }),
     ),
   );
-  await act(async () => buttonNamed(t('group.invite'), document.body).click());
 }
 
-function options(): string[] {
-  return [...dialog().querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].map(
-    (button) => button.textContent ?? '',
+async function openExisting(call: BridgeCall): Promise<void> {
+  await renderExisting(call);
+  await act(async () => buttonNamed(t('groupMembers.add'), document.body).click());
+}
+
+const ok = (value: unknown) => ({ ok: true as const, value });
+const submit = async () => act(async () => dialog().querySelector('form')!.requestSubmit());
+const humanResult = 'Bob · ' + t('groupMembers.typeHuman') + ' · ';
+const botResult = (name: string) => name + ' · ' + t('groupMembers.typeBot') + ' · ';
+
+it('keeps selections across search and retries failed targets after a mixed result', async () => {
+  const calls = vi
+    .fn()
+    .mockResolvedValueOnce(
+      ok({
+        results: [
+          { kind: 'human', id: 'bob', status: 'joined' },
+          { kind: 'bot', id: 'bob-bot', status: 'pending' },
+          { kind: 'bot', id: 'eve', status: 'failed', code: 'bot-not-found' },
+        ],
+      }),
+    )
+    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'eve', status: 'joined' }] }));
+  const call: BridgeCall = async (method, input) => {
+    if (method === 'channelGroupMembersAdd') return calls(input);
+    if (input?.query === 'Eve') return ok({ ...choices, people: [], bots: choices.bots.slice(1) });
+    return ok(choices);
+  };
+  await openExisting(call);
+  expect(memberRow('Bob Bot').disabled).toBe(true);
+  const bob = memberRow('Bob');
+  await act(async () => {
+    bob.focus();
+    bob.click();
+  });
+  expect(document.activeElement).toBe(bob);
+  expect(memberRow('Bob Bot').disabled).toBe(false);
+  await act(async () => memberRow('Bob Bot').click());
+  await typeInto(fieldNamed(t('groupMembers.search')), 'Eve');
+  await act(async () => void vi.advanceTimersByTime(250));
+  expect(memberRow('Bob Bot').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => memberRow('Eve').click());
+  expect(dialog().textContent).toContain(t('groupMembers.history'));
+  await submit();
+
+  expect(dialog().textContent).toContain(humanResult + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Bob Bot') + t('members.pending'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.unavailable'));
+  await submit();
+  expect(calls).toHaveBeenLastCalledWith({
+    channelId: GROUP.id,
+    targets: [{ kind: 'bot', id: 'eve', operationKey: expect.any(String) }],
+  });
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
+});
+
+it('identifies outcomes for two members and a Bot with the same name', async () => {
+  await act(async () =>
+    root.render(
+      createElement(GroupMemberResults, {
+        busy: false,
+        t,
+        items: [
+          {
+            member: { kind: 'human', id: 'sam-1', displayName: 'Sam', username: 'sam1' },
+            target: { kind: 'human', id: 'sam-1', operationKey: 'sam-key-1' },
+            outcome: { kind: 'human', id: 'sam-1', status: 'joined' },
+          },
+          {
+            member: { kind: 'human', id: 'sam-2', displayName: 'Sam', username: 'sam2' },
+            target: { kind: 'human', id: 'sam-2', operationKey: 'sam-key-2' },
+            outcome: { kind: 'human', id: 'sam-2', status: 'failed', code: 'member-not-found' },
+          },
+          {
+            member: { kind: 'bot', id: 'sam', displayName: 'Sam' },
+            target: { kind: 'bot', id: 'sam', operationKey: 'sam-key-3' },
+            outcome: { kind: 'bot', id: 'sam', status: 'pending' },
+          },
+        ],
+      }),
+    ),
   );
-}
-
-it('lists only Bots that can be invited, filters them and invites the chosen one', async () => {
-  await openInvite();
-  expect(dialog().getAttribute('aria-label')).toBe(t('group.invite'));
-  expect(options()).toEqual(['Bob', 'Eve']);
-  expect(dialog().textContent).toContain(t('group.tobPrivateOnly'));
-  const submit = () =>
-    [...dialog().querySelectorAll<HTMLButtonElement>('button[type="submit"]')].at(0)!;
-  expect(submit().disabled).toBe(true);
-
-  await typeInto(fieldNamed(t('group.inviteSearch')), 'ev');
-  await act(async () => vi.advanceTimersByTime(250));
-  expect(options()).toEqual(['Eve']);
-  await typeInto(fieldNamed(t('group.inviteSearch')), 'zzz');
-  await act(async () => vi.advanceTimersByTime(250));
-  expect(dialog().textContent).toContain(t('group.inviteEmpty'));
-  await typeInto(fieldNamed(t('group.inviteSearch')), '');
-  await act(async () => vi.advanceTimersByTime(250));
-
-  await act(async () => buttonNamed('Eve', dialog()).click());
-  expect(buttonNamed('Eve', dialog()).getAttribute('aria-pressed')).toBe('true');
-  expect(submit().disabled).toBe(false);
-  await act(async () => submit().click());
-  expect(inviteGroupBot).toHaveBeenCalledWith(GROUP.id, 'eve');
-  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect([...document.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
+    ['Sam', t('groupMembers.typeHuman'), '@sam1', t('groupMembers.joined')].join(' · '),
+    ['Sam', t('groupMembers.typeHuman'), '@sam2', t('groupMembers.unavailable')].join(' · '),
+    botResult('Sam') + t('members.pending'),
+  ]);
 });
 
-it('keeps the dialog open with an error when the invitation fails', async () => {
-  inviteGroupBot.mockResolvedValue(false);
-  await openInvite();
-  await act(async () => buttonNamed('Bob', dialog()).click());
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(inviteGroupBot).toHaveBeenCalledWith(GROUP.id, 'bob');
-  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
-  await act(async () => buttonNamed(t('common.cancel'), dialog()).click());
-  expect(document.querySelector('[role="dialog"]')).toBeNull();
+it('mixes avatar rows and filters by type, name, or handle while keeping selected rows', async () => {
+  const onePhoto = 'data:image/png;base64,AA==';
+  const people = [
+    { id: 'bob', displayName: 'Bob', username: 'bob' },
+    { id: 'zoe', displayName: 'Zoe' },
+  ];
+  const call: BridgeCall = async (method, input) => {
+    if (method === 'humanAvatars')
+      return ok({ avatars: [{ humanId: 'bob', version: 'a'.repeat(16), avatar: onePhoto }] });
+    if (input.query === 'Eve') return ok({ ...choices, people: [], bots: choices.bots.slice(1) });
+    if (input.query === 'bob')
+      return ok({ ...choices, people: people.slice(0, 1), bots: choices.bots.slice(0, 1) });
+    return ok({ ...choices, people });
+  };
+  await openExisting(call);
+  const rows = () => [...dialog().querySelectorAll('button[aria-pressed]')];
+  expect(rows().map((row) => row.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
+    'Bob',
+    'Bob Bot',
+    'Eve',
+    'Zoe',
+  ]);
+  expect(dialog().querySelector('input[type="checkbox"]')).toBeNull();
+  expect(memberRow('Bob').querySelector('img')?.getAttribute('src')).toBe(onePhoto);
+  expect(memberRow('Eve').querySelector('[data-media="seeded"]')).not.toBeNull();
+  expect(memberRow('Bob').getAttribute('aria-label')).toContain(t('groupMembers.typeHuman'));
+  expect(memberRow('Eve').getAttribute('aria-label')).toBe('Eve · ' + t('groupMembers.typeBot'));
+
+  await act(async () => memberRow('Bob').click());
+  const search = fieldNamed(t('groupMembers.search'));
+  await typeInto(search, 'Bot: Eve');
+  await act(async () => void vi.advanceTimersByTime(250));
+  expect(rows()).toEqual([memberRow('Bob'), memberRow('Eve')]);
+  expect(memberRow('Bob').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => memberRow('Bob').click());
+  expect(rows()).toEqual([memberRow('Eve')]);
+
+  await typeInto(search, '@bob');
+  await act(async () => void vi.advanceTimersByTime(250));
+  expect(rows()).toEqual([memberRow('Bob'), memberRow('Bob Bot')]);
 });
 
-it('does not confuse an ordinary Bot named Tob with the protected identity', async () => {
-  store.setRoster([bot('ordinary', 'Tob')], [GROUP]);
-  await openInvite();
-  expect(options()).toEqual(['Tob']);
-  expect(dialog().textContent).not.toContain(t('group.tobPrivateOnly'));
-  await act(async () => buttonNamed('Tob', dialog()).click());
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(inviteGroupBot).toHaveBeenCalledWith(GROUP.id, 'ordinary');
+it.each(['connection', 'channel'] as const)(
+  'hides the old candidates while the new %s is loading',
+  async (source) => {
+    let resolveNext: ((value: Awaited<ReturnType<BridgeCall>>) => void) | undefined;
+    const next = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+      resolveNext = resolve;
+    });
+    const replacement: BridgeCall = () => next;
+    const original: BridgeCall = async (_method, args) =>
+      args.channelId === 'other-group' ? next : ok(choices);
+    const onChange = vi.fn();
+    const render = (call: BridgeCall, channelId: string) =>
+      act(async () =>
+        root.render(
+          createElement(GroupMemberPicker, {
+            call,
+            channelId,
+            selected: [],
+            onChange,
+            disabled: false,
+            t,
+          }),
+        ),
+      );
+
+    await render(original, GROUP.id);
+    expect(document.body.textContent).toContain('Eve');
+    await render(
+      source === 'connection' ? replacement : original,
+      source === 'channel' ? 'other-group' : GROUP.id,
+    );
+    expect(document.body.textContent).not.toContain('Eve');
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    await act(async () =>
+      resolveNext?.(
+        ok({ ...choices, people: [], bots: [{ id: 'new-bot', displayName: 'New Bot' }] }),
+      ),
+    );
+    const row = document.querySelector<HTMLButtonElement>('button[aria-pressed]');
+    expect(row?.textContent).toContain('New Bot');
+    await act(async () => row?.click());
+    expect(onChange).toHaveBeenCalledWith([{ kind: 'bot', id: 'new-bot', displayName: 'New Bot' }]);
+  },
+);
+
+it('keeps the original key for a target the Host could not confirm', async () => {
+  const add = vi
+    .fn()
+    .mockResolvedValueOnce(
+      ok({
+        results: [
+          { kind: 'human', id: 'bob', status: 'joined' },
+          { kind: 'bot', id: 'eve', status: 'failed', code: 'group-member-unconfirmed' },
+        ],
+      }),
+    )
+    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'eve', status: 'joined' }] }));
+  await openExisting(async (method, args) =>
+    method === 'channelGroupMembersAdd' ? add(args) : ok(choices),
+  );
+  await act(async () => memberRow('Bob').click());
+  await act(async () => memberRow('Eve').click());
+  await submit();
+  expect(dialog().textContent).toContain(humanResult + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.unconfirmed'));
+  await submit();
+  expect(add).toHaveBeenNthCalledWith(2, {
+    channelId: GROUP.id,
+    targets: [add.mock.calls[0]?.[0].targets[1]],
+  });
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
 });
 
-it('stops a selected Bot from being invited after it becomes unavailable', async () => {
-  await openInvite();
-  await act(async () => buttonNamed('Bob', dialog()).click());
-  await act(async () => store.setRoster([bot('bob', 'Bob', { paused: true })], [GROUP]));
-  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(inviteGroupBot).not.toHaveBeenCalled();
+it('keeps the same creation and invitation keys after ambiguous responses', async () => {
+  const add = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('interrupted'))
+    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'eve', status: 'joined' }] }));
+  const call: BridgeCall = async (method, input) =>
+    method === 'channelGroupMembersAdd' ? add(input) : ok(choices);
+  const create = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('create response lost'))
+    .mockResolvedValueOnce(GROUP);
+  await act(async () =>
+    root.render(
+      createElement(CreateChannelModal, {
+        t,
+        onCreate: (name, key, onDispatch) => {
+          onDispatch();
+          return create(name, key);
+        },
+        onCancel: vi.fn(),
+        members: { call, scope: 'local' },
+      }),
+    ),
+  );
+  await typeInto(fieldNamed(t('channel.name.label')), 'QA');
+  await act(async () => memberRow('Eve').click());
+  await submit();
+  expect(add).not.toHaveBeenCalled();
+  await submit();
+  expect(create.mock.calls).toEqual([create.mock.calls[0], create.mock.calls[0]]);
+  expect(dialog().textContent).toContain(t('groupMembers.unconfirmed'));
+  await submit();
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(add.mock.calls).toEqual([add.mock.calls[0], add.mock.calls[0]]);
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
 });
 
-it('clears the previous error while a retry is pending and shows it again only if the retry fails', async () => {
-  inviteGroupBot.mockResolvedValueOnce(false);
-  await openInvite();
-  await act(async () => buttonNamed('Bob', dialog()).click());
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
-
-  let settle: (ok: boolean) => void = () => undefined;
-  inviteGroupBot.mockReturnValueOnce(new Promise<boolean>((resolve) => (settle = resolve)));
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(dialog().querySelector('[role="alert"]')).toBeNull();
-
-  await act(async () => settle(false));
-  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+it('offers capability retry for malformed responses and hides the action on confirmed denial', async () => {
+  const result = vi
+    .fn()
+    .mockResolvedValueOnce(ok({ ...choices, people: null }))
+    .mockResolvedValueOnce(
+      ok({ ...choices, canAddPeople: false, canAddBots: false, people: [], bots: [] }),
+    );
+  await renderExisting(result);
+  const retry = buttonNamed(t('groupMembers.retryLoad'), document.body);
+  await act(async () => retry.click());
+  expect(result).toHaveBeenCalledTimes(2);
+  expect(document.querySelector('[aria-label="' + t('groupMembers.retryLoad') + '"]')).toBeNull();
+  expect(document.querySelector('[aria-label="' + t('groupMembers.add') + '"]')).toBeNull();
 });
 
-it('shows the error when the invitation request throws', async () => {
-  inviteGroupBot.mockRejectedValueOnce(new Error('bridge offline'));
-  await openInvite();
-  await act(async () => buttonNamed('Bob', dialog()).click());
-  await act(async () => dialog().querySelector('form')!.requestSubmit());
-  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
-  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+it('keeps search Enter in the picker and blocks an orphaned Bot until its Human is restored', async () => {
+  const add = vi.fn(async (_method: string, _args: Record<string, unknown>) =>
+    ok({
+      results: [
+        { kind: 'human', id: 'bob', status: 'joined' },
+        { kind: 'bot', id: 'bob-bot', status: 'pending' },
+      ],
+    }),
+  );
+  await openExisting(async (method, args) =>
+    method === 'channelGroupMembersAdd' ? add(method, args) : ok(choices),
+  );
+  await act(async () => memberRow('Bob').click());
+  await act(async () => memberRow('Bob Bot').click());
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  await act(async () => void fieldNamed(t('groupMembers.search')).dispatchEvent(enter));
+  expect(enter.defaultPrevented).toBe(true);
+  expect(add).not.toHaveBeenCalled();
+
+  await act(async () => memberRow('Bob').click());
+  expect(memberRow('Bob Bot').getAttribute('aria-pressed')).toBe('true');
+  expect(buttonNamed(t('groupMembers.submit'), dialog()).disabled).toBe(true);
+  await submit();
+  expect(add).not.toHaveBeenCalled();
+  await act(async () => memberRow('Bob').click());
+  await submit();
+  expect(add).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the creation target editable after rejection before dispatch', async () => {
+  const call: BridgeCall = async () => ok(choices);
+  const close = vi.fn();
+  const create = vi.fn();
+  const render = (scope: string) =>
+    act(async () =>
+      root.render(
+        createElement(CreateChannelModal, {
+          t,
+          members: { call, scope },
+          onCancel: close,
+          onCreate: async (name, key, onDispatch) => {
+            if (scope === 'offline') throw new Error('Host not ready');
+            onDispatch();
+            create(name, key);
+            return GROUP;
+          },
+        }),
+      ),
+    );
+  await render('offline');
+  await typeInto(fieldNamed(t('channel.name.label')), 'QA');
+  await submit();
+  await render('online');
+  expect(fieldNamed(t('channel.name.label')).disabled).toBe(false);
+  await submit();
+  expect(create).toHaveBeenCalledExactlyOnceWith('QA', expect.any(String));
+  expect(close).toHaveBeenCalledTimes(1);
+});
+
+it('clears the Host-scoped selection when the creation target changes', async () => {
+  const create = vi.fn(async () => GROUP);
+  const call: BridgeCall = async (method) => {
+    if (method !== 'channelGroupMemberPicker') throw new Error('Unexpected member operation');
+    return ok(choices);
+  };
+  const render = (scope: string) =>
+    act(async () =>
+      root.render(
+        createElement(CreateChannelModal, {
+          t,
+          onCreate: create,
+          onCancel: vi.fn(),
+          members: { call, scope },
+        }),
+      ),
+    );
+  await render('local');
+  await typeInto(fieldNamed(t('channel.name.label')), 'QA');
+  await act(async () => memberRow('Eve').click());
+  await render('other');
+  await render('local');
+  expect(memberRow('Eve').getAttribute('aria-pressed')).toBe('false');
+  expect(fieldNamed(t('channel.name.label')).value).toBe('QA');
+  await submit();
+  expect(create).toHaveBeenCalledTimes(1);
 });

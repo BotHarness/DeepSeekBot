@@ -1,29 +1,19 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState, type ReactNode } from 'react';
-import { ScrollView, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ReactNode } from 'react';
+import { View } from 'react-native';
 
 import {
   groupTimeline,
   laneLabel,
-  loadAssignmentTimeline,
   type AssignmentTimeline,
   type AssignmentTimelineEntry,
   type AssignmentTimelineLane,
   type AssignmentTimelineRound,
 } from '../../host/assignment-timeline';
-import { errorText } from '@botharness/host-client/bot-settings';
-import type { HostClient } from '@botharness/host-client/client';
-import { MethodRefused } from '@botharness/host-client/client';
-import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, rowGlyph, space } from '../design/tokens';
-import { SheetHeader } from '../primitives/sheet-header';
-import { SheetScreen } from '../primitives/sheet-screen';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { AssignmentActivityIcon, assignmentTone, StepMark, STEP_MARK } from './assignment-marks';
-import { SheetFailed, SheetLoading, SheetNote } from './sheet';
 
 function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
@@ -224,7 +214,15 @@ function Instruction({ text }: { text: string }) {
   );
 }
 
-export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline }) {
+export function AssignmentDetail({
+  timeline,
+  showTitle = true,
+  showAskInChat = true,
+}: {
+  timeline: AssignmentTimeline;
+  showTitle?: boolean;
+  showAskInChat?: boolean;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { assignment } = timeline;
@@ -250,9 +248,16 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
           {t.profileAssignmentState[assignment.activity]}
         </Text>
       </View>
-      <Text accessibilityRole="header" variant="title" selectable style={{ paddingTop: space.x3 }}>
-        {assignment.title}
-      </Text>
+      {showTitle ? (
+        <Text
+          accessibilityRole="header"
+          variant="title"
+          selectable
+          style={{ paddingTop: space.x3 }}
+        >
+          {assignment.title}
+        </Text>
+      ) : null}
       {assignment.description === undefined || assignment.description.trim() === '' ? null : (
         <Text tone="muted" selectable style={{ paddingTop: space.x2 }}>
           {assignment.description}
@@ -336,100 +341,16 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
           {t.assignmentDetail.olderSubagents(timeline.omittedSubagents)}
         </Text>
       )}
-      <Text
-        testID="assignment-ask-in-chat"
-        variant="meta"
-        tone="muted"
-        style={{ paddingTop: space.x5 }}
-      >
-        {t.assignmentDetail.askInChat}
-      </Text>
-    </View>
-  );
-}
-
-export function AssignmentScreenBody({
-  client,
-  slug,
-  sessionId,
-}: {
-  client: HostClient;
-  slug: string;
-  sessionId: string;
-}) {
-  const t = useStrings();
-  const insets = useSafeAreaInsets();
-  const [timeline, setTimeline] = useState<AssignmentTimeline>();
-  const [error, setError] = useState<string>();
-  const [attempt, setAttempt] = useState(0);
-  const router = useRouter();
-  useFocusEffect(
-    useCallback(() => {
-      let live = true;
-      void loadAssignmentTimeline(client, slug, sessionId).then(
-        (next) => {
-          if (!live) return;
-          setTimeline(next);
-          setError(undefined);
-        },
-        (cause: unknown) => {
-          if (!live) return;
-          setError(
-            cause instanceof MethodRefused && cause.code === 'not-found'
-              ? t.assignmentDetail.notFound
-              : errorText(cause),
-          );
-        },
-      );
-      return () => {
-        live = false;
-      };
-    }, [client, slug, sessionId, t, attempt]),
-  );
-  return (
-    <>
-      <SheetHeader
-        title={timeline?.assignment.title ?? t.assignmentDetail.title}
-        onClose={() => router.back()}
-      />
-      {timeline === undefined ? (
-        error === undefined ? (
-          <SheetLoading />
-        ) : (
-          <SheetFailed message={error} onRetry={() => setAttempt((value) => value + 1)} />
-        )
-      ) : (
-        <ScrollView
-          testID="assignment-detail"
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingTop: space.x3,
-            paddingBottom: insets.bottom + space.x6,
-          }}
+      {showAskInChat ? (
+        <Text
+          testID="assignment-ask-in-chat"
+          variant="meta"
+          tone="muted"
+          style={{ paddingTop: space.x5 }}
         >
-          <AssignmentDetail timeline={timeline} />
-        </ScrollView>
-      )}
-    </>
-  );
-}
-
-export function AssignmentScreen() {
-  const t = useStrings();
-  const { slug, id, session } = useLocalSearchParams<{
-    slug: string;
-    id: string;
-    session?: string;
-  }>();
-  const sessionId = session ?? id;
-  const { client } = useHostSession();
-  return (
-    <SheetScreen>
-      {client === undefined || slug === undefined || sessionId === undefined ? (
-        <SheetNote>{t.noBot}</SheetNote>
-      ) : (
-        <AssignmentScreenBody client={client} slug={slug} sessionId={sessionId} />
-      )}
-    </SheetScreen>
+          {t.assignmentDetail.askInChat}
+        </Text>
+      ) : null}
+    </View>
   );
 }

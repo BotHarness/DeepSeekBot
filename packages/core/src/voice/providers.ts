@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type WebSocket from 'ws';
-import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
+import { credentialKey } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import {
@@ -11,7 +11,6 @@ import {
   type VoiceCatalogItem,
   type VoiceCatalogPage,
 } from './catalog.js';
-import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
 import {
   MIMO_ASR_MAX_BASE64_BYTES,
   mimoAsrRequest,
@@ -31,474 +30,98 @@ import {
 } from './soniox.js';
 import {
   ASR_PRESETS,
-  asrPreset,
   TTS_PRESETS,
-  ttsPreset,
   uniqueProviderName,
   type AsrPreset,
-  type AsrWire,
   type TtsPreset,
   type TtsWire,
 } from './presets.js';
+import { audioExtension, chineseScript, silenceWav, sniffAudio } from './provider-audio.js';
+import {
+  anyView,
+  asrPresetOf,
+  asrView,
+  cleanText,
+  kindOf,
+  normalizeBaseUrl,
+  parseStored,
+  presetOf,
+  PROVIDER_ID,
+  view,
+} from './provider-config.js';
+import {
+  causeCode,
+  providerMessage,
+  readBounded,
+  statusError,
+  unreachableMessage,
+} from './provider-http.js';
+import {
+  resolveVoice,
+  withHostDefaults,
+  type VoiceBound,
+  type VoiceDefaults,
+  type VoiceResolution,
+  type VoiceResolveTarget,
+} from './provider-resolution.js';
+import {
+  MAX_ASR_AUDIO_BYTES,
+  MAX_TRANSCRIPT_CHARS,
+  MAX_TTS_AUDIO_BYTES,
+  MAX_TTS_INPUT_CHARS,
+  VoiceError,
+  type AsrProviderView,
+  type Credentials,
+  type ProviderHealth,
+  type StoredProvider,
+  type SynthesisResult,
+  type TranscriptionResult,
+  type TtsProviderInput,
+  type TtsProviderView,
+  type VoiceProviderKind,
+  type VoiceProvidersOptions,
+  type VoiceProviderView,
+  type VoiceSpeechThreshold,
+} from './provider-types.js';
 
-type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
+export { audioExtension, chineseScript, wavFromPcm16 } from './provider-audio.js';
+export { normalizeBaseUrl } from './provider-config.js';
+export { unreachableMessage } from './provider-http.js';
+export {
+  resolveVoice,
+  withHostDefaults,
+  type VoiceBound,
+  type VoiceDefaults,
+  type VoiceResolution,
+  type VoiceResolveSource,
+  type VoiceResolveState,
+  type VoiceResolveTarget,
+} from './provider-resolution.js';
+export {
+  MAX_ASR_AUDIO_BYTES,
+  MAX_TRANSCRIPT_CHARS,
+  MAX_TTS_AUDIO_BYTES,
+  MAX_TTS_INPUT_CHARS,
+  VoiceError,
+  type AsrProviderView,
+  type ProviderHealth,
+  type SynthesisResult,
+  type TranscriptionResult,
+  type TtsProviderInput,
+  type TtsProviderView,
+  type VoiceErrorCode,
+  type VoiceProviderKind,
+  type VoiceProvidersOptions,
+  type VoiceProviderView,
+  type VoiceSpeechThreshold,
+} from './provider-types.js';
 
-export const MAX_TTS_INPUT_CHARS = 4_000;
-export const MAX_TTS_AUDIO_BYTES = 10 * 1024 * 1024;
-export const MAX_ASR_AUDIO_BYTES = 8 * 1024 * 1024;
-export const MAX_TRANSCRIPT_CHARS = 4_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const CATALOG_TIMEOUT_MS = 8_000;
 const MAX_CATALOG_BODY_BYTES = 1024 * 1024;
 const MAX_PROVIDERS = 32;
-const PROVIDER_ID = /^(?:tts|asr)-[a-f0-9]{12}$/u;
 const LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
-
-export type VoiceProviderKind = 'tts' | 'asr';
-
-export interface VoiceSpeechThreshold {
-  dbfs: number;
-  custom: boolean;
-  defaultDbfs: number;
-  min: number;
-  max: number;
-}
-
-export interface VoiceDefaults {
-  tts: { providerId: string; voiceId?: string } | null;
-  asr: { providerId: string; language?: string } | null;
-}
 const HEALTH_TEXT = 'Hello.';
-
-export interface VoiceBound {
-  readonly asr?: { readonly providerId: string; readonly language?: string } | undefined;
-  readonly voice?:
-    | { readonly providerId: string; readonly voiceId?: string | undefined }
-    | undefined;
-}
-
-export type VoiceResolveState = 'ready' | 'off' | 'missing';
-
-export interface VoiceResolveTarget {
-  readonly bot?: VoiceBound | undefined;
-  readonly kind: VoiceProviderKind;
-  readonly providerId?: string | undefined;
-  readonly language?: string | undefined;
-  readonly fallback?: 'bound' | 'any' | undefined;
-}
-
-export interface VoiceResolution {
-  readonly providerId: string | null;
-  readonly language: string | undefined;
-  readonly voiceId: string | undefined;
-  readonly source: 'explicit' | 'bot' | 'default' | 'fallback' | 'none';
-  readonly state: VoiceResolveState;
-}
-
-export interface VoiceResolveSource {
-  has(id: string, kind: VoiceProviderKind): boolean;
-  defaults?(): VoiceDefaults;
-  listAsr?(): readonly { readonly id: string; readonly streaming: boolean }[];
-  localServiceOff?(id: string, kind: VoiceProviderKind): Promise<boolean>;
-}
-
-export function withHostDefaults<T extends VoiceBound>(
-  bot: T | undefined,
-  defaults: VoiceDefaults | undefined,
-): T | undefined {
-  if (bot === undefined || defaults === undefined) return bot;
-  if (bot.asr !== undefined && bot.voice !== undefined) return bot;
-  return {
-    ...bot,
-    ...(bot.asr === undefined && defaults.asr !== null ? { asr: defaults.asr } : {}),
-    ...(bot.voice === undefined && defaults.tts !== null ? { voice: defaults.tts } : {}),
-  };
-}
-
-export async function resolveVoice(
-  source: VoiceResolveSource,
-  target: VoiceResolveTarget,
-): Promise<VoiceResolution> {
-  const { kind } = target;
-  const pick = (): Omit<VoiceResolution, 'state'> & { found: boolean } => {
-    if (target.providerId !== undefined)
-      return {
-        providerId: target.providerId,
-        language: target.language,
-        voiceId: undefined,
-        source: 'explicit',
-        found: source.has(target.providerId, kind),
-      };
-    const defaults = source.defaults?.();
-    const own = kind === 'asr' ? target.bot?.asr : target.bot?.voice;
-    const fallback = kind === 'asr' ? defaults?.asr : defaults?.tts;
-    const bound = own ?? fallback ?? undefined;
-    if (bound !== undefined && (source.has(bound.providerId, kind) || target.fallback !== 'any'))
-      return {
-        providerId: bound.providerId,
-        language:
-          target.language ??
-          ('language' in bound ? (bound.language as string | undefined) : undefined),
-        voiceId: 'voiceId' in bound ? (bound.voiceId as string | undefined) : undefined,
-        source: own === undefined ? 'default' : 'bot',
-        found: source.has(bound.providerId, kind),
-      };
-    if (target.fallback === 'any' && kind === 'asr') {
-      const all = source.listAsr?.() ?? [];
-      const any = all.find((entry) => entry.streaming) ?? all[0];
-      if (any !== undefined)
-        return {
-          providerId: any.id,
-          language: target.language,
-          voiceId: undefined,
-          source: 'fallback',
-          found: true,
-        };
-    }
-    return {
-      providerId: null,
-      language: target.language,
-      voiceId: undefined,
-      source: 'none',
-      found: false,
-    };
-  };
-  const { found, ...picked } = pick();
-  if (!found || picked.providerId === null) return { ...picked, state: 'missing' };
-  const off = await (
-    source.localServiceOff?.(picked.providerId, kind) ?? Promise.resolve(false)
-  ).catch(() => false);
-  return { ...picked, state: off ? 'off' : 'ready' };
-}
-
-export type VoiceErrorCode =
-  | 'invalid-input'
-  | 'unknown-provider'
-  | 'provider-limit'
-  | 'credential-unavailable'
-  | 'key-required'
-  | 'voice-required'
-  | 'provider-unauthorized'
-  | 'provider-rate-limited'
-  | 'provider-rejected'
-  | 'provider-unavailable'
-  | 'provider-timeout'
-  | 'provider-bad-response'
-  | 'audio-too-large'
-  | 'wrong-provider-kind';
-
-export class VoiceError extends Error {
-  constructor(
-    readonly code: VoiceErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'VoiceError';
-  }
-}
-
-export interface TtsProviderView {
-  id: string;
-  kind: 'tts';
-  name: string;
-  preset: TtsPreset['id'];
-  wire: TtsWire;
-  baseUrl: string;
-  model?: string;
-  defaultVoice?: string;
-  keySet: boolean;
-  createdAt: string;
-}
-
-export interface AsrProviderView {
-  id: string;
-  kind: 'asr';
-  name: string;
-  preset: AsrPreset['id'];
-  wire: AsrWire;
-  streaming: boolean;
-  baseUrl: string;
-  model?: string;
-  language?: string;
-  keySet: boolean;
-  createdAt: string;
-}
-
-export type VoiceProviderView = TtsProviderView | AsrProviderView;
-
-export interface TtsProviderInput {
-  kind?: VoiceProviderKind;
-  preset: string;
-  name?: string;
-  baseUrl?: string;
-  model?: string;
-  defaultVoice?: string;
-  language?: string;
-  key?: string;
-}
-
-export interface TranscriptionResult {
-  text: string;
-  latencyMs: number;
-}
-
-export interface SynthesisResult {
-  audio: Uint8Array;
-  mime: string;
-  latencyMs: number;
-}
-
-export type ProviderHealth =
-  | {
-      ok: true;
-      providerId: string;
-      latencyMs: number;
-      bytes: number;
-      mime: string;
-    }
-  | { ok: false; providerId: string; code: VoiceErrorCode; message: string };
-
-interface StoredProvider {
-  id: string;
-  kind?: 'asr';
-  name: string;
-  preset: string;
-  baseUrl: string;
-  model?: string;
-  defaultVoice?: string;
-  language?: string;
-  credentialRevision?: string;
-  createdAt: string;
-}
-
-function kindOf(stored: StoredProvider): VoiceProviderKind {
-  return stored.kind === 'asr' ? 'asr' : 'tts';
-}
-
-function asrPresetOf(id: string): AsrPreset {
-  const preset = asrPreset(id);
-  if (preset === undefined)
-    throw new VoiceError(
-      'invalid-input',
-      `Unknown ASR preset ${JSON.stringify(id)}; use one of ${ASR_PRESETS.map((entry) => entry.id).join(', ')}.`,
-    );
-  return preset;
-}
-
-function presetOf(id: string): TtsPreset {
-  const preset = ttsPreset(id);
-  if (preset === undefined)
-    throw new VoiceError(
-      'invalid-input',
-      `Unknown TTS preset ${JSON.stringify(id)}; use one of ${TTS_PRESETS.map((entry) => entry.id).join(', ')}.`,
-    );
-  return preset;
-}
-
-function cleanText(value: unknown, field: string, max: number): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'string') throw new VoiceError('invalid-input', `${field} must be text.`);
-  const trimmed = value.trim();
-  if (trimmed === '') return undefined;
-  if (trimmed.length > max || /[\u0000-\u001f\u007f]/u.test(trimmed))
-    throw new VoiceError('invalid-input', `${field} is not valid.`);
-  return trimmed;
-}
-
-export function normalizeBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new VoiceError('invalid-input', 'Base URL must be an http(s) URL.');
-  }
-  if (
-    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
-    url.username !== '' ||
-    url.password !== '' ||
-    url.search !== '' ||
-    url.hash !== ''
-  )
-    throw new VoiceError(
-      'invalid-input',
-      'Base URL must be a plain http(s) URL without credentials or query.',
-    );
-  return url.href.replace(/\/+$/u, '');
-}
-
-function parseStored(body: string): StoredProvider | undefined {
-  try {
-    const value = JSON.parse(body) as Partial<StoredProvider>;
-    if (
-      typeof value.id !== 'string' ||
-      !PROVIDER_ID.test(value.id) ||
-      typeof value.name !== 'string' ||
-      typeof value.baseUrl !== 'string' ||
-      typeof value.createdAt !== 'string' ||
-      (value.kind !== undefined && value.kind !== 'asr') ||
-      value.id.startsWith(value.kind === 'asr' ? 'tts-' : 'asr-') ||
-      (value.kind === 'asr' ? asrPreset(String(value.preset)) : ttsPreset(String(value.preset))) ===
-        undefined
-    )
-      return undefined;
-    return value as StoredProvider;
-  } catch {
-    return undefined;
-  }
-}
-
-function asrView(stored: StoredProvider): AsrProviderView {
-  const preset = asrPresetOf(stored.preset);
-  return {
-    id: stored.id,
-    kind: 'asr',
-    name: stored.name,
-    preset: preset.id,
-    wire: preset.wire,
-    streaming: preset.capabilities.streaming,
-    baseUrl: stored.baseUrl,
-    ...(stored.model === undefined ? {} : { model: stored.model }),
-    ...(stored.language === undefined ? {} : { language: stored.language }),
-    keySet: stored.credentialRevision !== undefined,
-    createdAt: stored.createdAt,
-  };
-}
-
-function anyView(stored: StoredProvider): VoiceProviderView {
-  return kindOf(stored) === 'asr' ? asrView(stored) : view(stored);
-}
-
-function view(stored: StoredProvider): TtsProviderView {
-  const preset = presetOf(stored.preset);
-  return {
-    id: stored.id,
-    kind: 'tts',
-    name: stored.name,
-    preset: preset.id,
-    wire: preset.wire,
-    baseUrl: stored.baseUrl,
-    ...(stored.model === undefined ? {} : { model: stored.model }),
-    ...(stored.defaultVoice === undefined ? {} : { defaultVoice: stored.defaultVoice }),
-    keySet: stored.credentialRevision !== undefined,
-    createdAt: stored.createdAt,
-  };
-}
-
-function sniffAudio(bytes: Uint8Array, declared: string | null): string | undefined {
-  const ascii = (from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to));
-  if (bytes.length >= 3 && ascii(0, 3) === 'ID3') return 'audio/mpeg';
-  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0) return 'audio/mpeg';
-  if (bytes.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE') return 'audio/wav';
-  if (bytes.length >= 4 && ascii(0, 4) === 'OggS') return 'audio/ogg';
-  if (bytes.length >= 4 && ascii(0, 4) === 'fLaC') return 'audio/flac';
-  const type = declared?.split(';')[0]?.trim().toLowerCase();
-  if (type !== undefined && type.startsWith('audio/') && bytes.length > 0) return type;
-  return undefined;
-}
-
-async function readBounded(response: Response, max: number): Promise<Uint8Array> {
-  const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > max)
-    throw new VoiceError('audio-too-large', 'The provider returned more audio than allowed.');
-  if (response.body === null) return new Uint8Array();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-    size += chunk.byteLength;
-    if (size > max)
-      throw new VoiceError('audio-too-large', 'The provider returned too much audio.');
-    chunks.push(chunk);
-  }
-  const out = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return out;
-}
-
-async function providerMessage(response: Response, key: string | undefined): Promise<string> {
-  if (response.headers.get('content-type')?.toLowerCase().startsWith('text/html') === true) {
-    await response.body?.cancel().catch(() => undefined);
-    return `HTTP ${response.status}`;
-  }
-  let text = '';
-  try {
-    text = new TextDecoder().decode(await readBounded(response, 4_096));
-  } catch {
-    text = '';
-  }
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    const nested = parsed['error'] ?? parsed['detail'];
-    const candidate =
-      typeof parsed['message'] === 'string'
-        ? parsed['message']
-        : typeof nested === 'string'
-          ? nested
-          : typeof nested === 'object' && nested !== null
-            ? ((nested as Record<string, unknown>)['message'] ??
-              (nested as Record<string, unknown>)['status'])
-            : undefined;
-    if (typeof candidate === 'string') text = candidate;
-  } catch {}
-  let clean = text.replace(/\s+/gu, ' ').trim();
-  if (key !== undefined && key.length >= 4) clean = clean.split(key).join('[redacted]');
-  clean = clean.replace(/\b(sk|xi|fa)[-_][A-Za-z0-9_-]{8,}/gu, '[redacted]');
-  return clean.slice(0, 200) || `HTTP ${response.status}`;
-}
-
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '0.0.0.0']);
-
-function causeCode(error: unknown): string | undefined {
-  for (let current = error, depth = 0; current && depth < 4; depth += 1) {
-    const code = (current as { code?: unknown }).code;
-    if (typeof code === 'string') return code;
-    current = (current as { cause?: unknown }).cause;
-  }
-  return undefined;
-}
-
-export function unreachableMessage(baseUrl: string, error: unknown, preset?: string): string {
-  const url = new URL(baseUrl);
-  const code = causeCode(error);
-  if (preset === 'local' && LOOPBACK_HOSTS.has(url.hostname) && code === 'ECONNREFUSED')
-    return `The local speech service at ${url.origin} is not running. Start it on the Host computer (python ${LOCAL_VOICE_SCRIPT_NAME} start in its folder) and try again.`;
-  if (code === 'ECONNREFUSED')
-    return `Nothing is listening at ${url.origin}. Check that the speech service is running.`;
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN')
-    return `The provider host ${url.hostname} cannot be found.`;
-  return `The provider cannot be reached (${code ?? (error instanceof Error ? error.name : 'network error')}).`;
-}
-
-function statusError(status: number, detail: string): VoiceError {
-  if (status === 401 || status === 403)
-    return new VoiceError('provider-unauthorized', `The provider refused the key: ${detail}`);
-  if (status === 402 || status === 429)
-    return new VoiceError(
-      'provider-rate-limited',
-      `The provider is out of quota or rate limited: ${detail}`,
-    );
-  if (status >= 500)
-    return new VoiceError('provider-unavailable', `The provider failed: ${detail}`);
-  if (status === 404)
-    return new VoiceError(
-      'provider-rejected',
-      `The provider endpoint was not found: ${detail}. Check the preset and base URL.`,
-    );
-  return new VoiceError('provider-rejected', `The provider rejected the request: ${detail}`);
-}
-
-export interface VoiceProvidersOptions {
-  database: OperationalDatabaseModulePort;
-  credentials: () => Credentials | undefined;
-  fetch?: typeof fetch;
-  now?: () => Date;
-  timeoutMs?: number;
-  log?: (phase: string, fields: Record<string, string | number>) => void;
-  socket?: SonioxSocketFactory;
-}
 
 export class VoiceProviders {
   readonly #db: OperationalDatabaseModulePort;
@@ -1413,51 +1036,4 @@ export class VoiceProviders {
       };
     }
   }
-}
-
-export function audioExtension(mime: string): string {
-  return (
-    {
-      'audio/mpeg': 'mp3',
-      'audio/wav': 'wav',
-      'audio/ogg': 'ogg',
-      'audio/flac': 'flac',
-    }[mime] ?? 'audio'
-  );
-}
-
-export function chineseScript(language: string | undefined): string | undefined {
-  if (language === undefined || !/^zh(?:$|-)/iu.test(language)) return undefined;
-  return /^zh-(?:tw|hk|mo|hant)$/iu.test(language)
-    ? '以下是普通話的句子，使用繁體中文。'
-    : '以下是普通话的句子，使用简体中文。';
-}
-
-export function wavFromPcm16(samples: Int16Array, sampleRate: number): Uint8Array {
-  const out = new Uint8Array(44 + samples.byteLength);
-  const view = new DataView(out.buffer);
-  const ascii = (offset: number, text: string) => {
-    for (let index = 0; index < text.length; index += 1)
-      out[offset + index] = text.charCodeAt(index);
-  };
-  ascii(0, 'RIFF');
-  view.setUint32(4, 36 + samples.byteLength, true);
-  ascii(8, 'WAVE');
-  ascii(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  ascii(36, 'data');
-  view.setUint32(40, samples.byteLength, true);
-  for (let index = 0; index < samples.length; index += 1)
-    view.setInt16(44 + index * 2, samples[index]!, true);
-  return out;
-}
-
-function silenceWav(sampleRate: number, milliseconds: number): Uint8Array {
-  return wavFromPcm16(new Int16Array(Math.round((sampleRate * milliseconds) / 1000)), sampleRate);
 }

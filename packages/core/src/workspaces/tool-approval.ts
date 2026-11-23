@@ -1,9 +1,9 @@
-import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
+import type { ApprovalAuthority } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
 export type { ToolApprovalActor } from './tool-approval-actor.js';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -18,128 +18,34 @@ import {
   type ToolApprovalRule,
 } from './tool-approval-rules.js';
 import type { AssignmentApprovalWaitLease } from '../runtime/assignment-approval-capacity.js';
-import {
-  approvalSessionExcerpt,
-  reviewerCallInput,
-  type ApprovalExcerptLimits,
-  type ApprovalReview,
-  type ApprovalReviewRequest,
-  type ApprovalReviewResult,
-} from './approval-reviewer.js';
+import { reviewToolApproval } from '../features/approvals/tool-approval-review.js';
+import type {
+  AutoRejectionOverrideResult,
+  BotCreatePreview,
+  Pending,
+  ToolApprovalDecision,
+  ToolApprovalNotice,
+  ToolApprovalOrigin,
+  ToolApprovalOriginQuery,
+  ToolAutoApproval,
+  TrackedCall,
+} from '../features/approvals/tool-approval-types.js';
 import { requiresHumanDecision } from './approval-templates.js';
-import { decideToolApproval, toolEffects, type ToolEffects } from './tool-effects.js';
+import { decideToolApproval, toolEffects } from './tool-effects.js';
 
-export type ToolApprovalOriginQuery = {
-  sessionId: Agent['session']['id'];
-  callId: ToolExecution['callId'];
-};
-
-export type ToolApprovalOrigin = {
-  kind: 'turn' | 'direct';
-  channelId: string;
-};
-
-export interface BotCreatePreview {
-  memoryFolder: string;
-  defaultLocation: boolean;
-  avatar?: string;
-  avatarError?: string;
-}
-
-export type ToolApprovalReview =
-  | { kind: 'template-unavailable'; reason: string }
-  | { kind: 'review'; template: string; version: string; reason: string; fallback?: string };
-
-export interface ToolApprovalRequestCard {
-  effects?: ToolEffects;
-  approvalReview?: ToolApprovalReview;
-  opaque?: boolean;
-  decidedBy?: ApprovalDecider;
-  sessionId: string;
-  callId: string;
-  toolName: string;
-  role: 'orchestrator' | 'assignment';
-  cwd: string;
-  input: string;
-  externalDecision?: 'operation' | 'web-only' | 'each-use';
-  botCreatePreview?: BotCreatePreview;
-  allowAlways?: boolean;
-}
-
-export interface ToolApprovalNotice extends ToolApprovalRequestCard {
-  botSlug: string;
-  channelId: string;
-  groupName?: string;
-  messageId: string;
-  expiresAt: string;
-}
-
-export interface ToolApprovalDecision {
-  requestMessageId: string;
-  actor?: ToolApprovalActor;
-  decidedBy?: ApprovalDecider;
-  outcome:
-    | 'allowed-once'
-    | 'allowed-always-tool'
-    | 'allowed-always-exact'
-    | 'allowed-always-all'
-    | 'rejected';
-}
-
-export interface ToolAutoApproval {
-  template(botSlug: string): { name: string; text: string } | undefined;
-  templateInUse?(template: string): boolean;
-  review(request: ApprovalReviewRequest): Promise<ApprovalReviewResult>;
-  excerptLimits?(botSlug: string): ApprovalExcerptLimits;
-  log(entry: {
-    botSlug: string;
-    template: string;
-    templateVersion?: string;
-    toolName: string;
-    outcome: ApprovalReview['outcome'];
-    latencyMs: number;
-    model?: string;
-    reviewSession?: string;
-    fallback?: string;
-  }): void;
-}
-
-type TrackedCall = ToolApprovalRequestCard &
-  ToolApprovalOriginQuery & {
-    botSlug: string;
-    agent: Agent;
-    scopeKey: string;
-    automatic?: boolean;
-    requireExplicitApproval?: boolean;
-    humanReviewed?: boolean;
-    reviewerApproved?: boolean;
-    authorizationScope?: () => string;
-    rememberable?: boolean;
-    remembered?: boolean;
-    execution: ToolExecution;
-
-    authorized?: () => boolean;
-    device?: 'computer' | 'browser';
-  };
-type Pending = {
-  botSlug: string;
-  channelId: string;
-  resolve(outcome: ApprovalOutcome): void;
-  signal?: AbortSignal;
-  sessionId: string;
-  callId: string;
-  abort(): void;
-  deciding: boolean;
-  committed: boolean;
-  notice: ToolApprovalNotice;
-  timer: ReturnType<typeof setTimeout>;
-};
+export type {
+  AutoRejectionOverrideResult,
+  BotCreatePreview,
+  ToolApprovalDecision,
+  ToolApprovalNotice,
+  ToolApprovalOrigin,
+  ToolApprovalOriginQuery,
+  ToolApprovalRequestCard,
+  ToolApprovalReview,
+  ToolAutoApproval,
+} from '../features/approvals/tool-approval-types.js';
 
 const STOPPED_REQUEST_MEMORY = 500;
-
-export type AutoRejectionOverrideResult =
-  | { ok: true; message: ChannelMessage }
-  | { ok: false; code: 'not-rejected' | 'already-overridden' | 'unavailable' };
 
 function callKey(sessionId: string, callId: string): string {
   return sessionId + ':' + callId;
@@ -244,7 +150,11 @@ export class ChannelToolApproval {
     rememberable = false,
     device?: 'computer' | 'browser',
     botCreatePreview?: BotCreatePreview,
-    options?: { requireExplicitApproval?: boolean; authorizationScope?: () => string },
+    options?: {
+      requireExplicitApproval?: boolean;
+      authorizationScope?: () => string;
+      origin?: ToolApprovalOrigin;
+    },
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -262,7 +172,9 @@ export class ChannelToolApproval {
     if (scopeKey === undefined) return undefined;
     const key = callKey(agent.session.id, execution.callId);
     const effects = toolEffects(execution.name, execution.arguments);
+    const origin = options?.origin;
     const tracked: TrackedCall = {
+      ...(origin === undefined ? {} : { origin }),
       agent,
       botSlug: owner.botSlug,
       sessionId: agent.session.id,
@@ -386,7 +298,9 @@ export class ChannelToolApproval {
       return 'allowed-once';
     }
     const origin =
-      directOrigin ?? (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
+      directOrigin ??
+      tracked.origin ??
+      (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
     if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
       return 'unavailable';
     const originChannel = origin === undefined ? undefined : this.#channels.get(origin.channelId);
@@ -433,10 +347,18 @@ export class ChannelToolApproval {
       } catch {}
     }
     if (template !== undefined) {
-      const reviewed = await this.#review(tracked, template, channelId, {
-        signal: request.signal,
-        includeSessionHistory: origin?.kind !== 'direct',
-      });
+      const reviewed = await reviewToolApproval(
+        tracked,
+        template,
+        channelId,
+        { signal: request.signal, includeSessionHistory: origin?.kind !== 'direct' },
+        {
+          autoApproval: this.#autoApproval,
+          attention: this.#attention,
+          channels: this.#channels,
+          findTrackedCall: (sessionId, callId) => this.#tracked.get(callKey(sessionId, callId)),
+        },
+      );
       if (reviewed !== undefined) return reviewed;
       if (request.signal?.aborted) return 'cancelled';
     }
@@ -971,163 +893,6 @@ export class ChannelToolApproval {
 
   takeReviewRejection(_sessionId: string, _callId: string): string | undefined {
     return undefined;
-  }
-
-  async #review(
-    tracked: TrackedCall,
-    template: { name: string; text: string },
-    channelId: string,
-    options: { signal: AbortSignal | undefined; includeSessionHistory: boolean },
-  ): Promise<'allowed-once' | undefined> {
-    const { signal } = options;
-    const auto = this.#autoApproval;
-    if (auto === undefined) return undefined;
-    template = { ...template };
-    const templateVersion = createHash('sha256').update(template.text).digest('hex');
-    tracked.approvalReview = {
-      kind: 'review',
-      template: template.name,
-      version: templateVersion,
-      reason: 'Automatic review unavailable.',
-    };
-    const started = Date.now();
-    let model: string | undefined;
-    let reviewSession: string | undefined;
-    const log = (outcome: ApprovalReview['outcome'], fallback?: string) => {
-      try {
-        auto.log({
-          botSlug: tracked.botSlug,
-          template: template.name,
-          templateVersion,
-          toolName: tracked.toolName,
-          outcome,
-          latencyMs: Date.now() - started,
-          ...(model === undefined ? {} : { model }),
-          ...(reviewSession === undefined ? {} : { reviewSession }),
-          ...(fallback === undefined ? {} : { fallback }),
-        });
-      } catch {
-        try {
-          this.#attention?.warn('approval-review-log-failed');
-        } catch {}
-      }
-    };
-    const recordReview = async (
-      outcome: 'allowed' | 'ask-human',
-      reason: string,
-    ): Promise<boolean> => {
-      const key = callKey(tracked.sessionId, tracked.callId);
-      if (signal?.aborted || this.#tracked.get(key) !== tracked) return false;
-      const record: ChannelMessage = {
-        id: randomUUID(),
-        at: new Date().toISOString(),
-        author: { kind: 'system' },
-        body:
-          (outcome === 'allowed' ? 'Auto-approved by ' : 'Sent to Human by ') +
-          template.name +
-          ': ' +
-          reason,
-        toolAutoApproval: {
-          botSlug: tracked.botSlug,
-          sessionId: tracked.sessionId,
-          callId: tracked.callId,
-          toolName: tracked.toolName,
-          input: reviewerCallInput(tracked.toolName, tracked.input),
-          template: template.name,
-          templateVersion,
-          outcome,
-          reason,
-        },
-      };
-      try {
-        const appended = await this.#channels.appendMessage(
-          OWNER_HUMAN_CONTEXT,
-          channelId,
-          record,
-          undefined,
-          () => !signal?.aborted && this.#tracked.get(key) === tracked,
-        );
-        return appended !== undefined && !signal?.aborted && this.#tracked.get(key) === tracked;
-      } catch {
-        return false;
-      }
-    };
-    let review: ApprovalReviewResult;
-    try {
-      review = await auto.review({
-        botSlug: tracked.botSlug,
-        template: { ...template, version: templateVersion },
-        call: {
-          toolName: tracked.toolName,
-          input: reviewerCallInput(tracked.toolName, tracked.input),
-          cwd: tracked.cwd,
-          role: tracked.role,
-          channelId,
-          ...(tracked.device === undefined
-            ? {}
-            : { authorization: { device: tracked.device, sessionId: tracked.sessionId } }),
-        },
-        excerpt: approvalSessionExcerpt(
-          options.includeSessionHistory ? tracked.agent.session.snapshotEvents() : [],
-          tracked.callId,
-          auto.excerptLimits?.(tracked.botSlug),
-        ),
-        signal: signal ?? new AbortController().signal,
-      });
-    } catch (error) {
-      const failure = error as
-        | { code?: unknown; detail?: unknown; model?: unknown; sessionId?: unknown }
-        | undefined;
-      const code =
-        typeof failure?.code === 'string' &&
-        [
-          'no-model',
-          'model-unavailable',
-          'settings-invalid',
-          'llm-unavailable',
-          'timeout',
-          'model-error',
-          'unparseable',
-        ].includes(failure.code)
-          ? failure.code
-          : 'review-failed';
-      tracked.approvalReview = {
-        kind: 'review',
-        template: template.name,
-        version: templateVersion,
-        reason: 'Automatic review unavailable (' + code + ').',
-        fallback: code,
-      };
-      if (typeof failure?.model === 'string') model = failure.model;
-      if (typeof failure?.sessionId === 'string') reviewSession = failure.sessionId;
-      await recordReview('ask-human', tracked.approvalReview.reason);
-      log('ask-human', code);
-      return undefined;
-    }
-    model = review.model;
-    reviewSession = review.sessionId;
-    if (signal?.aborted) {
-      log('ask-human', 'cancelled');
-      return undefined;
-    }
-    if (review.outcome !== 'allow') {
-      tracked.approvalReview = {
-        kind: 'review',
-        template: template.name,
-        version: templateVersion,
-        reason: review.reason,
-      };
-      await recordReview('ask-human', review.reason);
-      log('ask-human');
-      return undefined;
-    }
-    if (!(await recordReview('allowed', review.reason))) {
-      log(review.outcome, 'record-unavailable');
-      return undefined;
-    }
-    log(review.outcome);
-    tracked.reviewerApproved = true;
-    return 'allowed-once';
   }
 
   rule(botSlug: string, ruleId: string): ToolApprovalRule | undefined {

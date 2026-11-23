@@ -77,3 +77,25 @@ export function EngineBrandIcon({
     </span>
   );
 }
+
+export function TargetBrandIcon({
+  brand,
+  external,
+  size,
+  externalLabel,
+}: {
+  brand: ModelBrand | undefined;
+  external: boolean;
+  size: number;
+  externalLabel?: string | undefined;
+}): ReactElement {
+  return external ? (
+    <EngineBrandIcon
+      brand={brand}
+      size={size}
+      {...(externalLabel === undefined ? {} : { label: externalLabel })}
+    />
+  ) : (
+    <ModelBrandIcon brand={brand} size={size} />
+  );
+}

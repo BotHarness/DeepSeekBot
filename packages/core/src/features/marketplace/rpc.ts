@@ -1,3 +1,5 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
+import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
   MarketplaceAvatar,
@@ -408,3 +410,297 @@ export async function marketplaceInstall(
 }> {
   return unwrapAsync(methods.marketplaceInstall({ id, reviewId, operationKey, source }));
 }
+
+export async function marketplaceAvatarMine(
+  methods: MarketplaceBridgeMethods,
+): Promise<{ avatars: MarketplaceAvatar[] }> {
+  return unwrapAsync(methods.marketplaceAvatarMine({}));
+}
+
+export async function marketplaceAvatarEdit(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  patch: MarketplaceAvatarEdit,
+): Promise<MarketplaceAvatar> {
+  return unwrapAsync(methods.marketplaceAvatarEdit({ id, ...patch }));
+}
+
+export async function marketplaceAvatarDelete(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+): Promise<{ deleted: true }> {
+  return unwrapAsync(methods.marketplaceAvatarDelete({ id }));
+}
+
+export const zipImportRpc = {
+  zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
+    return zipUploadBegin(this.methods, uploadKey, sha256, sizeBytes);
+  },
+
+  zipUploadChunk(
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    offset: number,
+    dataBase64: string,
+  ): BotZipUploadStatus {
+    return zipUploadChunk(this.methods, uploadKey, sha256, sizeBytes, offset, dataBase64);
+  },
+
+  zipUploadPreview(uploadKey: string, sha256: string, sizeBytes: number): BotZipPreview {
+    return zipUploadPreview(this.methods, uploadKey, sha256, sizeBytes);
+  },
+
+  zipImportLookup(
+    operationKey: string,
+    sha256: string,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return zipImportLookup(this.methods, operationKey, sha256, displayName, roles, description);
+  },
+
+  async zipImport(
+    operationKey: string,
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+  }> {
+    return zipImport(
+      this.methods,
+      operationKey,
+      uploadKey,
+      sha256,
+      sizeBytes,
+      displayName,
+      roles,
+      description,
+    );
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const marketplaceServiceRpc = {
+  async marketplaceList(query?: MarketplaceQuery): Promise<MarketplacePage> {
+    return marketplaceList(this.methods, query);
+  },
+
+  async marketplaceSubmit(url: string, altcha: string): Promise<{ bot: MarketplaceEntry }> {
+    return marketplaceSubmit(this.methods, url, altcha);
+  },
+
+  async marketplaceChallenge(): Promise<AltchaChallenge> {
+    return marketplaceChallenge(this.methods);
+  },
+
+  async marketplaceReport(
+    id: string,
+    altcha: string,
+    reason?: string,
+  ): Promise<{ received: true }> {
+    return marketplaceReport(this.methods, id, altcha, reason);
+  },
+
+  async marketplaceAvatarReport(
+    id: string,
+    altcha: string,
+    reason?: string,
+  ): Promise<{ received: true }> {
+    return marketplaceAvatarReport(this.methods, id, altcha, reason);
+  },
+
+  async marketplaceTopics(): Promise<MarketplaceTopic[]> {
+    return marketplaceTopics(this.methods);
+  },
+
+  async marketplaceSections(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ sections: MarketplaceSection[] }> {
+    return marketplaceSections(this.methods, lang);
+  },
+
+  async marketplaceDigests(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digests: MarketplaceDigestSummary[] }> {
+    return marketplaceDigests(this.methods, lang);
+  },
+
+  async marketplaceDigest(
+    day?: string,
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digest: MarketplaceDigest }> {
+    return marketplaceDigest(this.methods, day, lang);
+  },
+
+  async marketplaceAvatarList(
+    cursor?: string,
+    q?: string,
+    tag?: string,
+    sort?: MarketplaceAvatarRanking,
+  ): Promise<MarketplaceAvatarPage> {
+    return marketplaceAvatarList(this.methods, cursor, q, tag, sort);
+  },
+
+  async marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]> {
+    return marketplaceAvatarTags(this.methods);
+  },
+
+  async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
+    return marketplaceAvatarDetail(this.methods, id);
+  },
+
+  marketplaceAvatarApplyCandidates(): { bots: MarketplaceAvatarApplyCandidate[] } {
+    return marketplaceAvatarApplyCandidates(this.methods);
+  },
+
+  async marketplaceAvatarApply(
+    id: string,
+    bot: string,
+    operationKey?: string,
+  ): Promise<{ applied: true }> {
+    return marketplaceAvatarApply(this.methods, id, bot, operationKey);
+  },
+
+  marketplaceAvatarSource(bot: string): { image: string } {
+    return marketplaceAvatarSource(this.methods, bot);
+  },
+
+  async marketplaceAvatarPublish(
+    name: string,
+    image: string,
+    requestKey: string,
+    confirm: boolean,
+    description?: string,
+    tags?: string[],
+    expectedAuthorId?: string,
+  ): Promise<MarketplaceAvatar> {
+    return marketplaceAvatarPublish(
+      this.methods,
+      name,
+      image,
+      requestKey,
+      confirm,
+      description,
+      tags,
+      expectedAuthorId,
+    );
+  },
+
+  async marketplaceAvatarMine(): Promise<{ avatars: MarketplaceAvatar[] }> {
+    return marketplaceAvatarMine(this.methods);
+  },
+
+  async marketplaceAvatarEdit(
+    id: string,
+    patch: MarketplaceAvatarEdit,
+  ): Promise<MarketplaceAvatar> {
+    return marketplaceAvatarEdit(this.methods, id, patch);
+  },
+
+  async marketplaceAvatarDelete(id: string): Promise<{ deleted: true }> {
+    return marketplaceAvatarDelete(this.methods, id);
+  },
+
+  async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
+    return marketplaceDetail(this.methods, id, lang);
+  },
+
+  async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
+    return marketplaceFileView(this.methods, id, path);
+  },
+
+  async marketplaceAccount(): Promise<MarketplaceAccount> {
+    return marketplaceAccount(this.methods);
+  },
+
+  async marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms?: boolean,
+  ): Promise<MarketplaceAuthorAccount> {
+    return marketplaceAuthorSave(this.methods, displayName, acceptTerms);
+  },
+
+  async marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount> {
+    return marketplaceAuthorAvatarSet(this.methods, avatar);
+  },
+
+  marketplaceUploadPlan(slug: string): UploadPlan {
+    return marketplaceUploadPlan(this.methods, slug);
+  },
+
+  async marketplaceUpload(
+    slug: string,
+    displayName: string,
+    bio?: string,
+    tags?: string[],
+    replaces?: string,
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+    return marketplaceUpload(this.methods, slug, displayName, bio, tags, replaces);
+  },
+
+  async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
+    return marketplaceMine(this.methods, lang);
+  },
+
+  async marketplaceDelete(id: string): Promise<{ deleted: true }> {
+    return marketplaceDelete(this.methods, id);
+  },
+
+  async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
+    return marketplaceInstallReview(this.methods, id, lang);
+  },
+
+  shareDraftStart(slug: string): ShareDraftView {
+    return shareDraftStart(this.methods, slug);
+  },
+
+  shareDraftGet(slug: string): ShareDraftView {
+    return shareDraftGet(this.methods, slug);
+  },
+
+  shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
+    return shareDraftFile(this.methods, slug, path);
+  },
+
+  shareDraftDecide(
+    slug: string,
+    path: string,
+    decision: 'keep' | 'drop' | 'rewrite',
+    text?: string,
+  ): ShareDraftView {
+    return shareDraftDecide(this.methods, slug, path, decision, text);
+  },
+
+  shareDraftFinish(slug: string): ShareDraftView {
+    return shareDraftFinish(this.methods, slug);
+  },
+
+  shareDraftDiscard(slug: string): { discarded: boolean } {
+    return shareDraftDiscard(this.methods, slug);
+  },
+
+  async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
+    return shareDraftExport(this.methods, slug);
+  },
+
+  async marketplaceInstall(
+    id: string,
+    reviewId: string,
+    operationKey?: string,
+    source?: MarketplaceInstallSource,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+    listing: MarketplaceEntry;
+  }> {
+    return marketplaceInstall(this.methods, id, reviewId, operationKey, source);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

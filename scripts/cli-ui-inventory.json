@@ -85,6 +85,15 @@
       "issue": "#2097"
     },
     {
+      "id": "owner-password-sign-in",
+      "description": "Configure standalone Owner password sign-in and enroll a paired device through the authenticated encrypted channel.",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/owner-password-sign-in-settings.tsx:{title}"
+      ],
+      "commands": ["team-mode", "device-owner-sign-in"]
+    },
+    {
       "id": "device-pairing",
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
@@ -151,7 +160,7 @@
       "description": "Online backup export/inspection/recovery authorization/activation; existing offline portability does not cover the online UI.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
+        "route:packages/core/src/features/profile-storage/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
         "setting:packages/client/src/client/profile-backup.tsx:{t('backup.title')}"
       ],
       "commands": [
@@ -180,7 +189,7 @@
       "description": "Companion retention, speech sound and HTTP companion updates; no complete CLI mapping yet.",
       "scope": "Client / Bot",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:COMPANION_PATH",
+        "route:packages/core/src/features/appearance/plugin.ts:COMPANION_PATH",
         "setting:packages/client/src/client/window-companions-view.tsx:{t('companion.retention')}",
         "setting:packages/client/src/client/window-companions-view.tsx:{t('companion.speechSound')}",
         "storage:packages/client/src/client/window-companion.ts:setItem(this.key)",
@@ -515,7 +524,7 @@
       "description": "Schedule lock owner and updates.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/schedules-entry.tsx:{t('schedule.form.lock')}"
+        "setting:packages/client/src/client/features/schedules/schedules-entry.tsx:{t('schedule.form.lock')}"
       ],
       "commands": ["schedules", "schedule-update"]
     },
@@ -577,7 +586,7 @@
       "scope": "Host",
       "surfaces": [
         "route:packages/core/src/diagnostics/client-diagnostics.ts:CLIENT_DIAGNOSTICS_PATH",
-        "route:packages/core/src/plugin.ts:path in [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH]"
+        "route:packages/core/src/features/diagnostics/plugin.ts:path in [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH]"
       ],
       "issue": "#1690"
     },
@@ -602,8 +611,8 @@
       "description": "Bot Zip export and file-list inspection lack direct CLI; create --from-zip already covers import.",
       "scope": "Host",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:BOT_ZIP_EXPORT_PATH",
-        "route:packages/core/src/plugin.ts:BOT_ZIP_FILES_PATH"
+        "route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_EXPORT_PATH",
+        "route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_FILES_PATH"
       ],
       "issue": "#2089"
     },
@@ -611,21 +620,23 @@
       "id": "memory-image-preview",
       "description": "Version-bound standalone and document-relative Memory PNG/JPEG/GIF/WebP/safe-SVG transfer; --image-reference binds inline images to Markdown metadata from existing Memory commands.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:MEMORY_IMAGE_PATH"],
+      "surfaces": ["route:packages/core/src/features/memory/plugin.ts:MEMORY_IMAGE_PATH"],
       "commands": ["memory-image"]
     },
     {
       "id": "memory-download",
       "description": "Current Memory file download.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:MEMORY_FILE_DOWNLOAD_PATH"],
+      "surfaces": ["route:packages/core/src/features/memory/plugin.ts:MEMORY_FILE_DOWNLOAD_PATH"],
       "commands": ["memory-file"]
     },
     {
       "id": "attachments",
       "description": "Channel attachment upload lacks direct CLI parity; media-download covers the existing download route.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:CHANNEL_ATTACHMENT_UPLOAD_PATH"],
+      "surfaces": [
+        "route:packages/core/src/features/channel-files/plugin.ts:CHANNEL_ATTACHMENT_UPLOAD_PATH"
+      ],
       "issue": "#2090"
     },
     {
@@ -695,15 +706,15 @@
       "description": "A browser's own Remote Host pairings, selected Host tab, legacy-key migration and the icon and colour it shows for each Host (#2500).",
       "scope": "Client transport / transient state",
       "surfaces": [
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem('botharness.computers.v1')",
+        "storage:packages/client/src/client/features/environments/remote-host-credentials.ts:removeItem('botharness.computers.v1')",
         "storage:packages/client/src/client/remote-notifications.ts:removeItem(REMOTE_NOTIFICATION_KEY)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/features/environments/remote-host-credentials.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
         "storage:packages/client/src/client/environment-creation-target.ts:setItem(CREATION_HOST_STORAGE_KEY)",
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOST_RELEASE_STORAGE_KEY)",
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOST_RELEASE_STORAGE_KEY)"
+        "storage:packages/client/src/client/features/environments/remote-host-storage.ts:removeItem(oldKey)",
+        "storage:packages/client/src/client/features/environments/remote-host-storage.ts:setItem(key)",
+        "storage:packages/client/src/client/features/environments/remote-host-storage.ts:setItem(REMOTE_HOST_RELEASE_STORAGE_KEY)",
+        "storage:packages/client/src/client/features/environments/remote-host-storage.ts:removeItem(REMOTE_HOST_RELEASE_STORAGE_KEY)"
       ],
       "exemption": "Per-browser connections, local Forget automatic-enrollment choices, legacy-key migration, the tab filter and the automatic last-creation Host hint belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. The creation hint is not an independent setting; CLI create, group-create and roster commands already select their exact Host explicitly. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting, and keeps released credential handles the Host could not forget yet in a retry queue that the next start drains automatically. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway and relationships CLI: pair, unary calls, stream ticket, revoke, enrollment status, commit and exact-key cancellation.",
       "configurable": false
@@ -741,9 +752,9 @@
       "description": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
       "scope": "Client transport / transient state",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:BOT_AVATAR_PATH",
-        "route:packages/core/src/plugin.ts:BOT_BANNER_PATH",
-        "route:packages/core/src/plugin.ts:CHANNEL_STREAM_PATH"
+        "route:packages/core/src/features/avatars/plugin.ts:BOT_AVATAR_PATH",
+        "route:packages/core/src/features/avatars/plugin.ts:BOT_BANNER_PATH",
+        "route:packages/core/src/features/channels/plugin.ts:CHANNEL_STREAM_PATH"
       ],
       "exemption": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
       "configurable": false
@@ -998,7 +1009,7 @@
       "id": "voice-call",
       "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "surfaces": ["route:packages/core/src/features/voice/plugin.ts:VOICE_CALL_PATH"],
       "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
     },
     {
@@ -1021,14 +1032,16 @@
       "description": "Existing authenticated CLI path.",
       "scope": "Host",
       "commands": ["create"],
-      "surfaces": ["route:packages/core/src/plugin.ts:BOT_ZIP_IMPORT_PATH"]
+      "surfaces": ["route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_IMPORT_PATH"]
     },
     {
       "id": "attachment-download",
       "description": "Existing authenticated CLI path.",
       "scope": "Host",
       "commands": ["channel-media-download"],
-      "surfaces": ["route:packages/core/src/plugin.ts:CHANNEL_ATTACHMENT_PATH"]
+      "surfaces": [
+        "route:packages/core/src/features/channel-files/plugin.ts:CHANNEL_ATTACHMENT_PATH"
+      ]
     },
     {
       "id": "computer-client-confirmation",
@@ -1071,7 +1084,7 @@
       "description": "Device-local primary window preferences; Host relays exact Client requests without storing settings.",
       "scope": "Client / desktop primary window",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_CONTROL_PATH",
+        "route:packages/core/src/features/appearance/plugin.ts:WINDOW_ZOOM_CONTROL_PATH",
         "setting:packages/client/src/client/window-zoom-settings.tsx:{t('zoom.current')}",
         "setting:packages/client/src/client/window-zoom-settings.tsx:{t('zoom.default')}",
         "storage:packages/client/src/client/window-zoom.ts:setItem(WINDOW_ZOOM_KEY)"
@@ -1082,14 +1095,14 @@
       "id": "desktop-window-reveal",
       "description": "Host relaunches the Windows Desktop executable so the shell restores and focuses its running window, as a notification click does.",
       "scope": "Host / Windows Desktop window",
-      "surfaces": ["route:packages/core/src/plugin.ts:DESKTOP_WINDOW_PATH"],
+      "surfaces": ["route:packages/core/src/features/appearance/plugin.ts:DESKTOP_WINDOW_PATH"],
       "commands": ["desktop-window-reveal"]
     },
     {
       "id": "desktop-presence",
       "description": "Desktop Clients lease an active state on the Host; while any is active, reply pushes to phones wait until it lapses.",
       "scope": "Host / push delivery",
-      "surfaces": ["route:packages/core/src/plugin.ts:PRESENCE_PATH"],
+      "surfaces": ["route:packages/core/src/features/appearance/plugin.ts:PRESENCE_PATH"],
       "commands": ["presence-status", "presence-report"]
     },
     {
@@ -1097,7 +1110,7 @@
       "description": "The local Host lists subscription models and starts Codex or Claude Code sign-in from the Main and Task model pickers. Model Presets can store and restore a subscription model and effort for each role.",
       "scope": "Host / PersonaBot",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:ENGINES_PATH",
+        "route:packages/core/src/features/models/plugin.ts:ENGINES_PATH",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.accountEngine')}",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.name')}"
       ],
@@ -1125,7 +1138,7 @@
       "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
       "scope": "Host / desktop Profile",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_SETUP_PATH",
+        "route:packages/core/src/features/appearance/plugin.ts:WINDOW_ZOOM_SETUP_PATH",
         "setting:packages/client/src/client/window-zoom-setup.tsx:{t(action === 'enable' ? 'zoom.setup.enable' : 'zoom.setup.disable')}"
       ],
       "commands": [
@@ -1162,7 +1175,7 @@
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.zoom')}",
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.shuffle')}",
         "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
-        "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
+        "route:packages/core/src/features/appearance/plugin.ts:APPEARANCE_CONTROL_PATH",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialBlur')}",
         "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.clear')}",
         "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.reset')}",
@@ -1203,7 +1216,7 @@
       "description": "Single-message frozen evidence preview, local download and explicit private submission.",
       "scope": "Host diagnostics",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
+        "route:packages/core/src/features/diagnostics/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
       ],
       "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
     },
@@ -1218,9 +1231,9 @@
         "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
         "setting:packages/client/src/client/connection-hosts.tsx:{label}",
         "setting:packages/client/src/client/connection-hosts.tsx:\"Tobs Connect\"",
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem(item.key)",
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem(executionKey)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(CONNECTION_OPERATIONS_INDEX)"
+        "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(item.key)",
+        "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(executionKey)",
+        "storage:packages/client/src/client/features/environments/remote-host-operations.ts:setItem(CONNECTION_OPERATIONS_INDEX)"
       ],
       "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
     },

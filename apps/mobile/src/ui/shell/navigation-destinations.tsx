@@ -4,7 +4,7 @@ import { materialNavigationBar, navigationBar, radius } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
 import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
-import { ChatsIcon, ActivityIcon, SettingsIcon } from './icons';
+import { ChatsIcon, ActivityIcon, SettingsIcon, AssignmentSessionIcon } from './icons';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
@@ -14,21 +14,28 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
   return (
     <>
       {items.map((item) => {
-        const { focused, activity, settings, count: pending } = item;
-        const Icon = settings ? SettingsIcon : activity ? ActivityIcon : ChatsIcon;
+        const { focused, activity, settings, sessions, count: pending } = item;
+        const Icon = settings
+          ? SettingsIcon
+          : activity
+            ? ActivityIcon
+            : sessions
+              ? AssignmentSessionIcon
+              : ChatsIcon;
+        const label = settings
+          ? t.settings
+          : activity
+            ? t.activity
+            : sessions
+              ? t.hostSessions.title
+              : t.chats;
         return (
           <Pressable
             key={item.key}
-            testID={settings ? 'settings-button' : `tab-${item.key}`}
+            testID={settings ? 'settings-button' : sessions ? 'sessions-tab' : `tab-${item.key}`}
             accessibilityRole="tab"
             accessibilityLabel={
-              settings
-                ? t.settings
-                : activity && pending > 0
-                  ? `${t.activity}, ${badgeCount(pending)}`
-                  : activity
-                    ? t.activity
-                    : t.chats
+              activity && pending > 0 ? `${label}, ${badgeCount(pending)}` : label
             }
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
@@ -70,7 +77,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               </NavigationIcon>
             </View>
             <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
-              {settings ? t.settings : activity ? t.activity : t.chats}
+              {label}
             </Text>
           </Pressable>
         );

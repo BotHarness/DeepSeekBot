@@ -15,12 +15,15 @@ import { ChatBackground } from './chat-background';
 import { MAX_PICKED, fromClipboardImage } from '../../host/pick-files';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
+import {
+  ChatTimelineFrame,
+  chatStackOptions,
+  type useChatInitialScroll,
+} from './chat-timeline-chrome';
 import { Composer } from './composer';
-import { ComposerPillContext } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer } from './clipboard-image';
-import { EdgeFade } from './header-chrome';
 import { humanInitial } from '../shell/human-avatar-initial';
 import { floatingHeader, glassHeader, headerIslands } from './native-header';
 import type { usePullToCompose } from './pull-to-compose';
@@ -38,10 +41,9 @@ import { SkillSuggestions } from './skill-suggestions';
 import { replyable } from './message-bubble';
 import { copyMessage, shareText } from './message-menu';
 import type { useDesignTheme } from '../design/theme';
-import { edgeFade, island, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import type { MarkdownViewportContext } from '../markdown-viewport';
-import { KeyboardChatFrame } from '../primitives/keyboard-frame';
 import type { useStrings } from '../strings';
 import type { ContextType, Dispatch, SetStateAction } from 'react';
 import { renderConversationTimeline } from './conversation-timeline-layout';
@@ -94,8 +96,7 @@ export function renderConversation({
   markdownViewport,
   screenRef,
   ios,
-  openAtLatest,
-  openedAtLatest,
+  initialScroll,
   source,
   draftState,
   messageState,
@@ -138,8 +139,7 @@ export function renderConversation({
   markdownViewport: ContextType<typeof MarkdownViewportContext>;
   screenRef: (node: unknown) => void;
   ios: boolean;
-  openAtLatest: boolean;
-  openedAtLatest: boolean;
+  initialScroll: ReturnType<typeof useChatInitialScroll>;
   source: ReturnType<typeof useConversationSource>;
   draftState: ReturnType<typeof useConversationDraft>;
   messageState: ReturnType<typeof useConversationMessageState>;
@@ -194,7 +194,7 @@ export function renderConversation({
     setViewing,
     actionsFor,
     setActionsFor,
-    menuModels,
+    menuCatalog,
     selectionScope,
     sourceMessage,
     selectSource,
@@ -269,16 +269,12 @@ export function renderConversation({
     openProfile,
     swipeProfile,
     headerStatus,
-    headerModel,
     title,
     canOpenProfile,
     placeCall,
   } = profile;
   const { headerGap, headerActions, nativeHeaderRow, back, titleItem } = header;
   const { noticeView } = notice;
-  const listTop = android ? 0 : headerPadding;
-  const topFade = android ? 0 : floatingHeader ? headerPadding : headerOverlap;
-  const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
   const single =
     selected?.length === 1 ? visible.find((message) => message.id === selected[0]) : undefined;
@@ -309,16 +305,6 @@ export function renderConversation({
                 }
               : undefined,
         };
-  const bottomFade = (
-    <EdgeFade
-      edge="bottom"
-      height={composerCover + edgeFade.bottom}
-      cover={composerCover}
-      solid={android ? 0 : composerCover}
-      color={fadeColor}
-      {...(android ? { shape: island.fade } : {})}
-    />
-  );
   const replyBar =
     replyTarget === undefined ? undefined : (
       <ReplyBar message={replyTarget} botName={botName} onCancel={() => setReplying(undefined)} />
@@ -332,19 +318,7 @@ export function renderConversation({
             {paging === undefined && presentation === undefined ? (
               <Stack.Screen
                 options={{
-                  headerShown: !android,
-                  headerTransparent: ios || floatingHeader,
-                  headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
-                  headerShadowVisible: false,
-                  headerBackButtonDisplayMode: 'minimal',
-                  ...(glassHeader
-                    ? {
-                        scrollEdgeEffects: {
-                          top: 'automatic' as const,
-                          bottom: 'hidden' as const,
-                        },
-                      }
-                    : {}),
+                  ...chatStackOptions(theme.color.base),
                   ...(ios
                     ? {
                         title: '',
@@ -467,7 +441,7 @@ export function renderConversation({
               }
             >
               <ChatBackdrop style={{ flex: 1 }}>
-                <KeyboardChatFrame
+                <ChatTimelineFrame
                   onMount={screenRef}
                   backgroundColor={
                     background.kind === 'color' ? background.color : theme.color.base
@@ -477,9 +451,10 @@ export function renderConversation({
                       <ChatBackground choice={background} imageUri={backgroundImageUri} />
                     ) : undefined
                   }
-                  onComposerLayout={latest.onComposerLayout}
+                  latest={latest}
+                  nativeSpacer={nativeSpacer}
                   composer={
-                    <ComposerPillContext.Provider value={nativeSpacer ? latest.pill : undefined}>
+                    <>
                       {android ? noticeView : null}
                       {missingGroup ? null : pickedTools !== undefined ? (
                         android ? (
@@ -560,7 +535,7 @@ export function renderConversation({
                           onFocusChange={setTyping}
                         />
                       )}
-                    </ComposerPillContext.Provider>
+                    </>
                   }
                 >
                   {android ? null : noticeView}
@@ -588,13 +563,8 @@ export function renderConversation({
                       stackRoot,
                       pull,
                       markdownViewport,
-                      ios,
-                      openAtLatest,
-                      openedAtLatest,
-                      listTop,
-                      topFade,
+                      initialScroll,
                       fadeColor,
-                      bottomFade,
                       source,
                       scrollState,
                       timeline,
@@ -605,7 +575,7 @@ export function renderConversation({
                       profile,
                     })
                   )}
-                </KeyboardChatFrame>
+                </ChatTimelineFrame>
               </ChatBackdrop>
               {android ? (
                 <ConversationTopBar
@@ -622,8 +592,6 @@ export function renderConversation({
                   subtitle={headerStatus.label}
                   activeBots={headerStatus.bots}
                   connectionLabel={connectionLabel}
-                  model={dm ? headerModel.model : undefined}
-                  modelMount={dm ? headerModel.mount : undefined}
                   onBack={leave}
                   onProfile={canOpenProfile ? openProfile : undefined}
                   onCall={canOpenProfile ? placeCall : undefined}
@@ -688,7 +656,7 @@ export function renderConversation({
             />
             <MessageActions
               target={actionsFor}
-              catalog={menuModels}
+              catalog={menuCatalog}
               readOnly={botDm || !online}
               onClose={() => setActionsFor(undefined)}
               onReact={(message, emoji, active) => react(message.id, emoji, active)}

@@ -337,7 +337,9 @@ export function createOrchestratorCancellation(ports: OrchestratorCancellationPo
         timeoutMs: ports.stopSettleTimeoutMs,
       }),
     );
-    await ports.agents.abandonSession?.(sessionId).catch(() => undefined);
+    if (ports.agents.abandonSession === undefined)
+      throw new Error('Session stop timed out and abandonment is unavailable');
+    await ports.agents.abandonSession(sessionId);
   }
 
   async function cancelPendingDeliveries(
@@ -345,8 +347,8 @@ export function createOrchestratorCancellation(ports: OrchestratorCancellationPo
     orchestratorSessionId: string,
   ): Promise<number> {
     let cancelled = 0;
-    for (const [sessionId, owner] of [...ports.pendingDeliveries]) {
-      if (owner !== orchestratorSessionId) continue;
+    for (const sessionId of [...ports.pendingDeliveries.keys()]) {
+      if (ports.pendingDeliveries.get(sessionId) !== orchestratorSessionId) continue;
       ports.pendingDeliveries.delete(sessionId);
       try {
         await ports.stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');

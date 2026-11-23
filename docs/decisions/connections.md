@@ -65,6 +65,24 @@ Why: on Connect, TLS ends at Cloudflare's edge, and the Human rejected Cloudflar
 
 Enforced by: `packages/core/test/connect-noise.test.ts`, `connect-encrypted-gateway.test.ts`, `connect-channel.test.ts`, `connect-secret-route.test.ts`, `device-lan.test.ts`.
 
+### Remote Host password sign-in uses the same encrypted device channel on every route
+
+Accepted design for [#4896](https://github.com/BotHarness/DeepSeekBot/issues/4896). The first delivery covers standalone Owner sign-in over HTTPS in the desktop and Web Clients. [#4898](https://github.com/BotHarness/DeepSeekBot/issues/4898)
+
+Desktop, iOS, and Android can add a Remote Host with a Host-owned username and password. The Web Client shares the path when its existing Owner-authorized Add remote action is available. Clients verify a saved Host key or a fingerprint supplied over a trusted channel before submitting a password. For a first connection by address alone, the Human supplies a trusted HTTPS origin. The Client validates its certificate and uses that origin to establish initial trust in the Host key.
+
+A Host sign-in link or QR code supplies the route and fingerprint for first contact, including on an HTTP-only LAN. The Client can also use a fingerprint the Human verifies independently. A first-time HTTP address alone can discover a Host and requires proof of its identity before sign-in. A saved key mismatch ends the attempt before credential submission. Changing a route retains the Host identity and its pinned key.
+
+The Client and Host complete their authenticated Noise channel before exchanging credentials. Tailscale, Cloudflare Tunnel, Quick Tunnel, and other proxies can carry the channel if they forward it to the device gateway. The Host uses the same admission checks on every route. A sign-in link carries public Host discovery data and requires the Human's own credentials. The existing pairing QR continues to obtain approval on the Host.
+
+After authentication, the Host enrolls the exact Client device key with a revocable grant for that Human. The current Host Owner receives the same authority as an Owner-paired device. A Team member receives a member grant and completes any required first-password change before normal access. The Host records how it issued the device grant so the Host Owner can revoke password-enrolled Owner devices together when changing the password. See [Host password policy](team-mode.md#host-password-sign-in-and-team-mode).
+
+Password-enrolled Owner devices keep the Noise requirement on HTTPS, including Tailscale. Browser and Computer viewers need their own media and signaling support on the encrypted device channel. They remain available through direct Host access and the existing QR-paired Tailscale path.
+
+Why. The URL controls how a Client reaches the Host. The authenticated Host key controls which Host receives the password. This supports HTTP-only LANs and TLS-terminating relays with the same credential protection.
+
+Enforced by the [Remote Hosts verification journey](../../.agents/skills/verify-deepseekbot/features/remote-hosts.md#standalone-owner-password-sign-in-4898) and the remaining acceptance cases in [#4896](https://github.com/BotHarness/DeepSeekBot/issues/4896).
+
 ## 5. Tobs Connect: an account discovers Hosts; a managed tunnel carries ciphertext
 
 <a id="adr-0241"></a>

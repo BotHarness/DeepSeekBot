@@ -1,20 +1,31 @@
 // @vitest-environment jsdom
-import { act, createElement, useLayoutEffect, useState, type ReactElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement, useLayoutEffect, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { BotProfile } from '../src/host/bot-profile';
+import { type ProfileTab } from '../src/ui/chat/profile-tabs';
+import { t } from '../src/ui/strings';
+import { profileRootHeader, profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { Platform } from 'react-native';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
+import profileWire from './fixtures/profile-wire.json';
 
-const navigation = vi.hoisted(() => {
-  const listeners = new Set<(event: { data: { closing: boolean } }) => void>();
-  return {
-    listeners,
-    addListener(_event: string, listener: (event: { data: { closing: boolean } }) => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-});
+const { navigation, alert } = await vi.hoisted(() => import('./bot-profile-sheet-mocks'));
+
+import {
+  avatarNone,
+  BotProfileSheet,
+  actions,
+  bot,
+  button,
+  empty,
+  full,
+  headers,
+  render,
+  root,
+  unmountProfile,
+  week,
+} from './bot-profile-sheet-fixtures';
+
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
   useRouter: () => ({ back() {} }),
@@ -22,18 +33,22 @@ vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
 }));
 
-const alert = vi.hoisted(() => vi.fn());
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: (...args: unknown[]) => alert(...args) },
 }));
+
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
+
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+
 vi.mock('react-native-worklets', () => ({
   scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
     callback(...args),
 }));
+
 vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
+
 vi.mock('../src/ui/chat/header-chrome', () => ({
   HeaderCircleButton: ({
     label,
@@ -45,19 +60,28 @@ vi.mock('../src/ui/chat/header-chrome', () => ({
     onPress(): void;
   }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
 }));
+
+vi.mock('react-native-keyboard-controller', () => import('./keyboard-controller-shim'));
+
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+
 vi.mock('expo-image', () => ({ Image: () => null }));
+
 vi.mock('../src/ui/primitives/system-symbol', () => ({
   SystemSymbol: () => null,
 }));
+
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+
 vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
+
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
   ActivityIcon: () => null,
@@ -70,189 +94,34 @@ vi.mock('../src/ui/shell/icons', async () => ({
   PlusIcon: () => null,
 }));
 
-import type { BotProfile } from '../src/host/bot-profile';
-import { shiftDay, today as localToday, trailingDays } from '../src/host/usage-days';
-import type { ProfileActivity } from '@botharness/host-protocol/wire';
-import type { RosterBot } from '@botharness/host-client/client';
-import { BotProfilePage } from '../src/ui/chat/bot-profile';
-import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
-import { t } from '../src/ui/strings';
-import { profileRootHeader, profileScreenOptions } from '../src/ui/chat/profile-presentation';
-import { Platform } from 'react-native';
-import { resolveTheme } from '../src/ui/design/resolve-theme';
-import profileWire from './fixtures/profile-wire.json';
-
-type AlertButton = { text: string; onPress?: () => void };
-const pressAlert = (text: string) =>
-  act(async () =>
-    (alert.mock.calls.at(-1)![2] as AlertButton[]).find((entry) => entry.text === text)!.onPress!(),
-  );
-
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-let root: Root | undefined;
-let host: HTMLElement | undefined;
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  root = undefined;
-  vi.useRealTimers();
+afterEach(unmountProfile);
+
+it('opens the Bot name editor from the Profile heading', async () => {
+  const rename = vi.fn(async () => {});
+  const view = await render(
+    <BotProfileSheet
+      bot={bot}
+      channels={[]}
+      load={async () => new Promise<BotProfile>(() => {})}
+      actions={actions()}
+      avatar={{ pick: async () => undefined, save: async () => {} }}
+      rename={rename}
+    />,
+  );
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="profile-name-edit"]')!.click(),
+  );
+  expect(view.querySelector('[data-testid="bot-name-input"]')).not.toBeNull();
 });
 
-async function render(element: ReactElement, opened = true): Promise<HTMLElement> {
-  host = document.createElement('div');
-  document.body.append(host);
-  root = createRoot(host);
-  await act(async () => root!.render(element));
-  await act(async () => undefined);
-  if (opened)
-    await act(async () => {
-      for (const listener of navigation.listeners) listener({ data: { closing: false } });
-    });
-  return host;
-}
-
-const bot: RosterBot = {
-  slug: profileWire.bot.slug,
-  displayName: profileWire.bot.displayName,
-  roles: profileWire.bot.roles,
-  description: profileWire.bot.description,
-  computerAccess: false,
-  browserAccess: false,
-  state: 'idle',
-  paused: false,
-};
-
-const today = trailingDays(localToday(), 1)[0]!;
-const week: ProfileActivity = {
-  weeks: 1,
-  today,
-  events: [{ day: today, reason: 'human-dm', count: 4 }],
-  memoryCommits: [{ day: shiftDay(today, -2), count: 2 }],
-  tokens: [],
-  modelUsageRows: [
-    {
-      day: today,
-      purpose: 'orchestrator',
-      provider: 'opencode-go',
-      model: 'deepseek-v4',
-      inputTokens: 300_000,
-      outputTokens: 12_000,
-      cacheReadTokens: 8000,
-      cacheWriteTokens: 0,
-      totalTokens: 320_000,
-    },
-  ],
-  modelUsageStatus: 'ready',
-};
-
-const assignments = [
-  {
-    sessionId: 'assignment-1',
-    title: 'Summarise the week of papers',
-    description: 'Read this week’s papers and send a short digest.',
-    activity: 'working' as const,
-    latestReport: {
-      state: 'progress' as const,
-      summary: 'Read 3 of 5',
-      at: new Date().toISOString(),
-    },
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-const full: BotProfile = {
-  work: { status: 'ready', value: assignments },
-  memory: {
-    status: 'ready',
-    value: {
-      status: 'attached',
-      files: profileWire.rpc.memorySnapshot.snapshot.files,
-      pinned: [
-        { role: 'soul', path: 'SOUL.md', present: true },
-        { role: 'coreMemory', path: 'MEMORY.md', present: true },
-      ],
-    },
-  },
-  routines: {
-    status: 'ready',
-    value: profileWire.rpc.scheduleList.schedules as never,
-  },
-  files: {
-    status: 'ready',
-    value: profileWire.rpc.grants.grants.filter((grant) => !('revokedAt' in grant)),
-  },
-  activity: { status: 'ready', value: week },
-};
-
-const empty: BotProfile = {
-  work: { status: 'ready', value: [] },
-  memory: {
-    status: 'ready',
-    value: {
-      status: 'attached',
-      files: [],
-      pinned: [
-        { role: 'soul', path: 'SOUL.md', present: false },
-        { role: 'coreMemory', path: 'MEMORY.md', present: false },
-      ],
-    },
-  },
-  routines: { status: 'ready', value: [] },
-  files: { status: 'ready', value: [] },
-  activity: {
-    status: 'ready',
-    value: {
-      ...week,
-      events: [],
-      memoryCommits: [],
-      tokens: [],
-      modelUsageRows: [],
-    },
-  },
-};
-
-const actions = () => ({
-  onClose: vi.fn(),
-  onNotifications: vi.fn(),
-  onOpenMemory: vi.fn(),
-  onOpenActivity: vi.fn(),
-});
-const button = (view: HTMLElement, label: string) =>
-  [...view.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)].find(
-    (node) => node.closest('[hidden]') === null,
-  ) ?? null;
-function BotProfileSheet(
-  props: Omit<Parameters<typeof BotProfilePage>[0], 'tabMemory'> & {
-    tab?: ProfileTab;
-  },
-) {
-  const { tab = 'work', ...rest } = props;
-  const [memory] = useState(() => {
-    const created = createProfileTabMemory({
-      read: async () => undefined,
-      write() {},
-    });
-    created.remember('bot', tab);
-    return created;
-  });
-  return <BotProfilePage {...rest} tabMemory={memory} />;
-}
 const openTab = (view: HTMLElement, tab: ProfileTab) =>
   act(async () =>
     view.querySelector<HTMLButtonElement>(`[data-testid="profile-tab-${tab}"]`)!.click(),
   );
-const headers = (view: HTMLElement) =>
-  [...view.querySelectorAll('[role="header"]')]
-    .filter((node) => node.closest('[hidden]') === null)
-    .map((node) => node.textContent);
 
 describe('Bot profile page', () => {
-  const avatarNone = {
-    pick: async () => undefined,
-    save: async () => undefined,
-  };
-
   it('retains a loaded tab component and its edits when switching away and back', async () => {
     function EditableSettings() {
       const [value, setValue] = useState('');
@@ -272,7 +141,7 @@ describe('Bot profile page', () => {
         load={load}
         actions={actions()}
         avatar={avatarNone}
-        settings={<EditableSettings />}
+        settings={() => <EditableSettings />}
       />,
     );
     await openTab(view, 'settings');
@@ -317,11 +186,12 @@ describe('Bot profile page', () => {
     expect(avatar.save).toHaveBeenCalledTimes(2);
   });
 
-  it('saves a Tilties portrait from Bot settings without launching the photo picker', async () => {
-    const avatar = {
-      pick: vi.fn(async () => undefined),
-      save: vi.fn(async () => undefined),
-    };
+  it('previews a Profile Banner, retries the same crop, and restores the default from Settings', async () => {
+    const image = 'data:image/png;base64,preview';
+    const save = vi
+      .fn<(_image: string | null) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('save refused'))
+      .mockResolvedValue(undefined);
     const view = await render(
       <BotProfileSheet
         tab="settings"
@@ -329,24 +199,25 @@ describe('Bot profile page', () => {
         channels={[]}
         load={async () => empty}
         actions={actions()}
-        avatar={avatar}
+        avatar={{ pick: async () => undefined, save: async () => {} }}
+        banner={{ pick: async () => image, save }}
       />,
     );
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
+    const click = (id: string) =>
+      act(async () => view.querySelector<HTMLButtonElement>('[data-testid="' + id + '"]')!.click());
+    await click('profile-banner-edit');
+    expect(view.querySelector<HTMLButtonElement>('[data-testid="bot-banner-save"]')?.disabled).toBe(
+      true,
     );
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(36);
-    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    expect(view.querySelector('[data-testid^="tilties-collection-"]')).toBeNull();
-    expect(view.querySelector('[data-testid="tilties-avatar-star-rail-robin"]')).toBeNull();
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!
-        .click(),
-    );
-    expect(avatar.save).toHaveBeenCalledOnce();
-    expect(avatar.save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));
-    expect(avatar.pick).not.toHaveBeenCalled();
+    await click('bot-banner-pick');
+    expect(save).not.toHaveBeenCalled();
+    await click('bot-banner-save');
+    expect(view.querySelector('[role="alert"]')?.textContent).toContain(t.dialogFailed);
+    await click('bot-banner-save');
+    expect(save.mock.calls).toEqual([[image], [image]]);
+    await click('bot-banner-settings');
+    await click('bot-banner-restore');
+    expect(save).toHaveBeenLastCalledWith(null);
   });
 
   it('can remove a custom Bot avatar and recover from a failed save', async () => {
@@ -458,102 +329,6 @@ describe('Bot profile page', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {
-    const onOpenAssignment = vi.fn();
-    const view = await render(
-      <BotProfileSheet
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        actions={{ ...actions(), onOpenAssignment }}
-        avatar={avatarNone}
-      />,
-    );
-    const text = view.textContent ?? '';
-    expect(text).toContain(t.usageToday);
-    expect(text).toContain('Summarise the week of papers');
-    expect(text).toContain('Read this week’s papers and send a short digest.');
-    expect(text).not.toContain('Read 3 of 5');
-    const row = view.querySelector<HTMLButtonElement>(
-      '[data-testid="profile-assignment-assignment-1"]',
-    )!;
-    expect(row.getAttribute('aria-label')).toContain(t.profileAssignmentState.working);
-    await act(async () => row.click());
-    expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
-  });
-
-  it('starts Work with Working now and stops one Session or all of them', async () => {
-    const stopper = {
-      stopSession: vi.fn(async () => undefined),
-      stopBot: vi.fn(async () => undefined),
-    };
-    const running = {
-      ...bot,
-      state: 'working' as const,
-      sessions: [
-        {
-          id: 'orch',
-          role: 'orchestrator' as const,
-          state: 'thinking' as const,
-        },
-        { id: 'sub', role: 'subagent' as const, state: 'working' as const },
-        {
-          id: 'assignment-9',
-          role: 'assignment' as const,
-          name: 'Collect the papers',
-          state: 'working' as const,
-        },
-      ],
-    };
-    const view = await render(
-      <BotProfileSheet
-        bot={running}
-        channels={[]}
-        load={async () => full}
-        actions={actions()}
-        avatar={avatarNone}
-        stopper={stopper}
-      />,
-    );
-    const text = view.textContent ?? '';
-    expect(text.indexOf(t.workingNow)).toBeGreaterThanOrEqual(0);
-    expect(text.indexOf(t.workingNow)).toBeLessThan(text.indexOf(t.usageToday));
-    expect(text.indexOf(t.sessionOrchestrator)).toBeLessThan(text.indexOf('Collect the papers'));
-    expect(view.querySelector('[data-testid="working-session-sub"]')).toBeNull();
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="working-stop-assignment-9"]')!.click(),
-    );
-    await pressAlert(t.sessionStop);
-    expect(stopper.stopSession).toHaveBeenCalledWith(bot.slug, 'assignment-9');
-    expect(
-      view.querySelector('[data-testid="working-session-assignment-9"]')?.textContent,
-    ).toContain(t.sessionStopping);
-    expect(view.querySelector('[data-testid="working-stop-assignment-9-stopping"]')).not.toBeNull();
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>(`[data-testid="working-stop-all-${bot.slug}"]`)!
-        .click(),
-    );
-    await pressAlert(t.sessionStopAll);
-    expect(stopper.stopBot).toHaveBeenCalledWith(bot.slug);
-    expect(view.querySelector('[data-testid="working-stop-orch-stopping"]')).not.toBeNull();
-  });
-
-  it('shows no Working now while the Bot runs nothing', async () => {
-    const view = await render(
-      <BotProfileSheet
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        actions={actions()}
-        avatar={avatarNone}
-        stopper={{ stopSession: vi.fn(), stopBot: vi.fn() }}
-      />,
-    );
-    expect(view.textContent).not.toContain(t.workingNow);
-    expect(view.textContent).toContain(t.usageToday);
-  });
-
   it('places Permissions between the overview and the Bot settings', async () => {
     const view = await render(
       <BotProfileSheet
@@ -584,7 +359,7 @@ describe('Bot profile page', () => {
         channels={[]}
         initialProfile={full}
         load={() => request.promise}
-        settings={<span>Full settings</span>}
+        settings={() => <span>Full settings</span>}
         actions={actions()}
       />,
       false,
@@ -748,249 +523,6 @@ describe('Bot profile page', () => {
     await openTab(view, 'settings');
     await act(async () => button(view, t.profileNotifications)!.click());
     expect(handlers.onNotifications).toHaveBeenCalledTimes(1);
-  });
-
-  it('pins SOUL.md and MEMORY.md above a grid of the other Memory files', async () => {
-    const handlers = actions();
-    const view = await render(
-      <BotProfileSheet
-        tab="memory"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        actions={handlers}
-      />,
-    );
-    const entries = [...view.querySelectorAll('button')]
-      .map((node) => node.getAttribute('aria-label'))
-      .filter((label) => label !== null && !label.startsWith(t.avatarChange));
-    const memoryEntries = entries.filter((label) => !label!.startsWith(t.profileTabs.work));
-    expect(memoryEntries).toEqual(
-      expect.arrayContaining([
-        `SOUL.md, ${t.memoryPinned.soul}`,
-        `MEMORY.md, ${t.memoryPinned.coreMemory}`,
-        `.botharness, ${t.memoryItems(2)}`,
-        `notes, ${t.memoryItems(1)}`,
-        `.gitattributes, ${t.memoryKind.other}`,
-      ]),
-    );
-    expect(memoryEntries).not.toContain('SOUL.md');
-    expect(memoryEntries).not.toContain('MEMORY.md');
-    const grid = view.querySelector('[data-testid="memory-pinned"]')!;
-    expect(
-      grid.compareDocumentPosition(view.querySelector('[data-testid="memory-entry-notes"]')!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    await act(async () => button(view, `notes, ${t.memoryItems(1)}`)!.click());
-    await act(async () => button(view, `SOUL.md, ${t.memoryPinned.soul}`)!.click());
-    await act(async () => button(view, `MEMORY.md, ${t.memoryPinned.coreMemory}`)!.click());
-    expect(handlers.onOpenMemory.mock.calls).toEqual([
-      [{ kind: 'folder', name: 'notes', path: 'notes', count: 1 }],
-      [{ kind: 'file', name: 'SOUL.md', path: 'SOUL.md', role: 'soul' }],
-      [
-        {
-          kind: 'file',
-          name: 'MEMORY.md',
-          path: 'MEMORY.md',
-          role: 'coreMemory',
-        },
-      ],
-    ]);
-  });
-
-  it('switches Memory between Files and Changes, lists commits by day and pages older ones', async () => {
-    const handlers = { ...actions(), onOpenMemoryChange: vi.fn() };
-    const now = new Date();
-    const sha = (digit: string) => digit.repeat(40);
-    const memoryChanges = vi.fn(async (offset: number) =>
-      offset === 0
-        ? {
-            commits: [
-              {
-                sha: sha('a'),
-                subject: 'Remember the Thursday seminar',
-                authoredAt: now.toISOString(),
-                status: 'accepted' as const,
-              },
-              {
-                sha: sha('b'),
-                subject: 'Edit SOUL.md',
-                authoredAt: now.toISOString(),
-                status: 'pending' as const,
-              },
-            ],
-            hasMore: true,
-          }
-        : {
-            commits: [
-              {
-                sha: sha('c'),
-                subject: 'Initial Memory',
-                authoredAt: '2024-01-02T10:00:00.000Z',
-                status: 'accepted' as const,
-              },
-            ],
-            hasMore: false,
-          },
-    );
-    const view = await render(
-      <BotProfileSheet
-        tab="memory"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        memoryChanges={memoryChanges}
-        actions={handlers}
-      />,
-    );
-    const segment = (label: string) =>
-      view.querySelector<HTMLButtonElement>(
-        `[data-testid="memory-views"] [role="tab"][aria-label="${label}"]`,
-      )!;
-    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
-    expect(memoryChanges).not.toHaveBeenCalled();
-
-    await act(async () => segment(t.memoryViewChanges).click());
-    await act(async () => undefined);
-    expect(memoryChanges).toHaveBeenCalledWith(0);
-    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
-    expect(view.textContent).toContain(t.usageToday);
-    expect(view.textContent).toContain('Remember the Thursday seminar');
-    expect(view.textContent).toContain(t.memoryChangeStatus.pending);
-
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>(`[data-testid="memory-change-${sha('a')}"]`)!.click(),
-    );
-    expect(handlers.onOpenMemoryChange).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: sha('a') }),
-    );
-
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="memory-changes-more"]')!.click(),
-    );
-    await act(async () => undefined);
-    expect(memoryChanges).toHaveBeenLastCalledWith(2);
-    expect(view.textContent).toContain('Initial Memory');
-    expect(view.querySelector('[data-testid="memory-changes-more"]')).toBeNull();
-
-    await act(async () => segment(t.memoryViewFiles).click());
-    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
-  });
-
-  it('explains that Memory is not attached, and keeps missing pinned files closed', async () => {
-    const handlers = actions();
-    const view = await render(
-      <BotProfileSheet
-        tab="memory"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => ({
-          ...full,
-          memory: { status: 'ready', value: { status: 'unavailable' } },
-        })}
-        actions={handlers}
-      />,
-    );
-    expect(view.textContent).toContain(t.memoryNotAttached);
-    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
-
-    act(() => root?.unmount());
-    const missing = await render(
-      <BotProfileSheet
-        tab="memory"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => empty}
-        actions={handlers}
-      />,
-    );
-    expect(missing.textContent).toContain(t.profileEmpty.memory);
-    await act(async () => button(missing, `SOUL.md, ${t.memoryPinnedMissing}`)!.click());
-    expect(handlers.onOpenMemory).not.toHaveBeenCalled();
-  });
-
-  it('navigates routines and creation without mounting another sheet', async () => {
-    const onOpenRoutine = vi.fn();
-    const onNewRoutine = vi.fn();
-    const view = await render(
-      <BotProfileSheet
-        tab="routines"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        actions={{ ...actions(), onOpenRoutine, onNewRoutine }}
-      />,
-    );
-    const open = [...view.querySelectorAll('button')].find((node) =>
-      node.getAttribute('aria-label')?.startsWith(t.routineOpen('Morning digest')),
-    )!;
-    await act(async () => open.click());
-    expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
-    expect(headers(view)).toEqual(
-      expect.arrayContaining([t.profileTabs.routines, t.routineGroup.daily, t.routineGroup.other]),
-    );
-    expect(headers(view)).not.toContain(t.routineGroup.weekly);
-    expect(
-      view.querySelector('[data-testid="profile-routine-group-daily"]')?.textContent,
-    ).toContain('Morning digest');
-    expect(
-      view.querySelector('[data-testid="profile-routine-group-other"]')?.textContent,
-    ).toContain('Hourly check');
-    await act(async () => button(view, t.routineNew)!.click());
-    expect(onNewRoutine).toHaveBeenCalledTimes(1);
-    expect(view.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it('keeps routines read-only without a Host to change them', async () => {
-    const view = await render(
-      <BotProfileSheet
-        tab="routines"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => full}
-        actions={actions()}
-      />,
-    );
-    expect(button(view, t.routineNew)).toBeNull();
-    expect(view.textContent).toContain('Morning digest');
-    expect(headers(view)).not.toContain(t.profileTabs.routines);
-  });
-
-  it('runs a routine from its swipe action and reloads the list', async () => {
-    let loads = 0;
-    const routines = {
-      runNow: vi.fn(async () => ({}) as never),
-      setEnabled: vi.fn(async () => ({}) as never),
-      remove: vi.fn(async () => undefined),
-    };
-    const view = await render(
-      <BotProfileSheet
-        tab="routines"
-        avatar={avatarNone}
-        bot={bot}
-        channels={[]}
-        load={async () => {
-          loads += 1;
-          return full;
-        }}
-        actions={{ ...actions(), routines }}
-      />,
-    );
-    const before = loads;
-    const id = profileWire.rpc.scheduleList.schedules[0]!.id;
-    const run = view
-      .querySelector(`[data-testid="profile-routine-swipe-${id}"]`)!
-      .querySelector<HTMLButtonElement>('[data-testid="swipe-action-run"]')!;
-    await act(async () => run.click());
-    await act(async () => undefined);
-    expect(routines.runNow).toHaveBeenCalledWith(id);
-    expect(loads).toBe(before + 1);
   });
 
   it('shows the last 7 days first in Settings and opens the Activity screen', async () => {

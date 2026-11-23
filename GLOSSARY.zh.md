@@ -137,7 +137,7 @@ _避免使用_：desktop pet、Channel pin、另一个 bot
 _避免使用_：Channel pin、Channel membership、Agent Scope
 
 **Model Preset**：
-模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个 Orchestrator Model Choice，以及 Assignment 可选的 Model Choice（列出的集合或 Open Assignment Models）和默认值。应用时将方案复制给 PersonaBot；之后修改预设不会更新已应用的副本。它按身份引用 Routing Group，不复制其内容。
+模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个主模型（Orchestrator），以及一组有序的副模型选项（Assignment），其中一项为默认。每项可以有自己的默认推理强度。副模型列表为空时跟随主模型，主模型可以是单个模型或 Routing Group。旧预设仍可使用 Open Assignment Models。应用时将方案复制给 PersonaBot；之后编辑预设不会更新已应用的副本。预设按身份引用 Routing Group。
 _避免使用_：DSH Agent preset、SoulSnapshot
 
 **PersonaBot Model Plan**：
@@ -145,7 +145,7 @@ PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human
 _避免使用_：Soul、DSH Agent preset、model usage
 
 **Default Model Choice**：
-默认模型。Profile 范围内的一个 Model Choice（一条路由或一个 Routing Group）：没有自己 Orchestrator 选择的 PersonaBot 和所有继承的 Assignment 都用它。它不是 Model Preset。界面上 Orchestrator 的模型叫「主模型」，Assignment 的模型叫「副模型」。
+默认模型。Profile 中置顶的「默认」模型预设提供实际的 Model Choice。未保存独立方案的 PersonaBot 继承该预设；未单独设置副模型时，副模型跟随主模型。界面上 Orchestrator 的模型叫「主模型」，Assignment 的模型叫「副模型」。
 _避免使用_：全局预设、默认预设、裸用全局模型
 
 **Model Choice**：
@@ -1162,6 +1162,10 @@ _避免使用_：Computer、其它电脑、machine、server、peer
 **Paired Device**：
 持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它以唯一一个 Human ID 的身份读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
 _避免使用_：phone（指所有设备时）、session、Host
+
+**Host sign-in link**：
+界面中文为“Host 登录链接”。由 Host 生成的链接或二维码，提供账密登录所需的 Host 线路和身份指纹。Human 使用自己的 Member Credential 登录。
+_避免使用_：配对邀请、设备授权
 
 **Host Relationship**：
 两个 Host 之间持久且明确授权的双向关系，支持的 Client 据此取得各自独立的设备授权。它不同于账号注册、连接线路、单个设备授权或 Bot Collaboration Network 成员资格。

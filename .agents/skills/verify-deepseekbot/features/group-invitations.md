@@ -1,40 +1,48 @@
-# Group invitation candidates
+# Group member selection and invitations
 
 ## Sources
 
-- `packages/client/src/client/{group-member-controls,personabot-deletion}.tsx`
+- `packages/client/src/client/{environment-creation,section-management,group-member-controls,group-member-picker,personabot-deletion}.tsx`
+- `packages/core/src/features/channels/group-members.ts`
+- `packages/core/src/channels/runtime-access.ts`
+- `packages/core/src/channels/runtime-admission.ts`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
 
 ## Terms
 
 - Group invitation
 - Channel membership
+- DM
+- Team mode
+- Host Member
 - PersonaBot Deletion
 - Tob
 
 ## Sub-features
 
-- `eligible-candidates`: invitations exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's `tob` marker, not its name or slug.
-- `private-chat-guidance`: the dialog explains that Tob cannot join Groups and can be contacted privately.
-- `ordinary-invitation`: choosing an eligible Bot submits through the existing Channel owner and shows the canonical membership or pending invitation.
-- `live-selection`: if a selected Bot becomes unavailable while the dialog is open, submission is disabled and sends no invitation.
-- `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history; Group reads hide references that become invalid after startup without mutating storage or weakening the canonical revision fingerprint. Removing a legacy missing member through the existing member-removal command does not require a live Bot profile.
+- `desktop-create`: fill the name with no selections to create an empty Group. Select multiple Bot rows before creating a second Group to see an outcome for each Bot. Switching Hosts clears selected identities and keeps the name.
+- `desktop-existing`: Add members opens the same picker. Verify Humans and Bots share one list with avatars and type icons. Select a row, then search by name, username, or type. The first selection remains available to review and remove. On a failed capability read, use the retry control in the Members header. A confirmed denial hides the action.
+- `eligible-candidates`: invitation candidates exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's protected identity check. The existing Group dialog directs Humans to their DM with Tob.
+- `mixed-team-batch`: an authorized Human can add an eligible Host Member and invite their reachable Bot in one batch. Show the prerequisite when the Human is absent. The selected Human gets immediate private Channel and history access. A Bot joins or remains pending according to auto-accept.
+- `retry`: a target that becomes unavailable before submission has an individual failure result. Retry that result in the same Group. Replaying a submission with the original operation keys after an unconfirmed response produces no duplicate Group or invitation.
+- `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history. Group reads omit references that became invalid after startup. The existing member-removal command can remove a legacy missing reference.
 
 ## How to get to it (user POV)
 
-Enter Bot mode, open a Group, open Subpanel column if its Members panel is hidden, then choose Invite member. Search or select a Bot and confirm. Tob remains available through its private conversation.
+Enter Bot mode. Choose Create channel from the roster menu. For an existing Group, open its Members panel in the subpanel column and choose Add members. On mobile, use Invite member from the existing Group Info flow.
 
 ## Driving it with verify-app
 
-Launch a task-owned Host and run doctor. Seed a Group and an ordinary Bot through `botharness/channelCreate` and `botharness/create`; read `botharness/list` for the actual protected identity.
+Launch a task-owned Host and run doctor. Seed a Group and two ordinary Bots through `botharness/channelCreate` and `botharness/create`. Inspect `botharness/list` for the protected identity. Confirm accessible names from the ARIA snapshot.
 
-Use `shot --bot-mode --click-text <group-name> --click "Subpanel column" --click "Invite member"` after confirming the current accessible names and column visibility in the ARIA snapshot. Capture the dialog in light and dark. Require the protected identity to be absent, its private-chat guidance visible, and the ordinary Bot selectable. Confirm the ordinary invitation in the UI, then read `botharness/channelGet` for the same Group and require accepted membership (or a pending invitation if automatic acceptance is disabled).
-
-Rename the protected Tob and confirm it remains excluded; give an ordinary Bot the display name Tob and confirm it remains eligible. A direct `botharness/channelGroupInvite` targeting the protected identity must still refuse with `protected-bot` and leave membership unchanged. No model reply is needed.
+- In Create channel, fill the name, select two Bot rows and create. Read the resulting Group using `botharness/channelGet` and compare its members and invitations with the rows in the result dialog.
+- Open the seeded Group and its Members panel, then select Add members. Select one Bot, change the search, select another Bot, and submit. Save screenshots in light and dark. Verify protected Tob and current Bot members are absent. Repeat with Bot auto-accept disabled and require a pending result.
+- In both Desktop dialogs, focus Search members and press Enter after selecting a member. Verify the form stays open and the Host state stays unchanged until explicit submission. With a dependent Bot selected, deselect its Human owner and verify that submission is disabled until the owner is restored or the Bot is removed.
+- With Team mode on, use an authorized Human and a second active Host Member who owns a reachable Bot. Check the prerequisite from the Bot row, select the Human and Bot, confirm the history hint and submit. Verify the Human's Channel access and the Bot outcome through the Host. Repeat with a stale target and compare a confirmed partial result and retry with canonical membership and invitation state.
+- Compare CLI candidate and result projections with the UI for the same Host using `group-member-picker` and `group-members-add`. Exposing the member candidates without the corresponding Channel permission must be refused or omit that participant type. No model reply is needed for accepted invitations.
 
 ## Gotchas
 
 For #3635, create two disposable Groups containing the same ordinary Bot and a surviving peer. Delete the ordinary Bot with Memory retained through the existing confirmation flow. Read both Groups and require only the peer to remain, then remove the peer from each Group. Check the Members panel after refresh. Automated rollback/restart coverage is in `packages/core/test/personabot-deletion.test.ts`; passing those Core tests or online CLI checks alone does not establish Web, native or Human acceptance.
 
 ADR-0226 intentionally keeps Tob outside Groups. Fixing this picker must not remove the Host's protected-identity check. A generic management error in the old dialog is not evidence that Tob participation should be enabled. Web evidence does not qualify native Desktop differences.
-

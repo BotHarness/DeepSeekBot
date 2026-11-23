@@ -10,6 +10,7 @@ import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { RestingRoute } from '../models/route-rest.js';
 import {
   type ModelSwitch,
+  type MixedGroupPick,
   type SubscriptionRest,
   routingTargetRestKey,
   unavailableRoutingEngine,
@@ -470,6 +471,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     run: OrchestratorAgentRun,
     target: RoutingTarget,
     sourceEventId: string | undefined,
+    select: (attempted: ReadonlySet<string>) => Promise<MixedGroupPick | undefined>,
   ): Promise<void> {
     const { acceptNativeInput, ...initial } = run;
     const { bot, sessionId, inboundChannelId: channelId } = initial;
@@ -499,8 +501,9 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
           if (rest === undefined && !(target.kind === 'engine' && unavailableRoutingEngine(error)))
             throw error;
           ports.switchingRoutingGroups.add(bot.slug);
-          const next = await ports.groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
-          if (ports.closed() || ports.stoppedTurns.has(bot.slug)) return;
+          const next = await select(attempted);
+          if (ports.closed() || ports.stoppedTurns.has(bot.slug))
+            throw new Error('The Routing Group switch was cancelled', { cause: error });
           if (next?.kind === 'exhausted')
             throw new RouteRestingError(next.rests, next.subscription);
           if (next?.kind !== 'target') throw new RoutingGroupUnavailableError(error);
@@ -517,6 +520,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
             ...(rest === undefined
               ? current
               : mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded)),
+            switchReason: next.switchReason ?? rest?.reason ?? 'credential',
             ...(target.kind === 'route' && inputAccepted
               ? { continuingFromNativeRoute: true }
               : {}),
@@ -529,7 +533,8 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
             reason: rest?.reason ?? 'credential',
             ...(rest === undefined ? {} : { until: rest.until }),
           });
-          if (ports.closed() || ports.stoppedTurns.has(bot.slug)) return;
+          if (ports.closed() || ports.stoppedTurns.has(bot.slug))
+            throw new Error('The Routing Group switch was cancelled', { cause: error });
           ports.requireExecution?.(bot.slug);
           target = next.target;
         }

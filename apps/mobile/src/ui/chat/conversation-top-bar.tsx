@@ -1,8 +1,5 @@
-import type { RefCallback } from 'react';
-import type { ViewInstance } from 'react-native';
-
 import type { RosterBot } from '@botharness/host-client/client';
-import type { HeaderModel } from './composer-labels';
+import type { ChatHeaderMenu } from './chat-header-actions';
 
 export type HeaderSelection = {
   count: number;
@@ -12,6 +9,7 @@ export type HeaderSelection = {
 };
 
 export type ConversationTopBarProps = {
+  variant?: 'session';
   selection?: HeaderSelection | undefined;
   title: string;
   subtitle?: string | undefined;
@@ -20,12 +18,11 @@ export type ConversationTopBarProps = {
   avatar?: string | undefined;
   initial?: string | undefined;
   connectionLabel?: string | undefined;
-  model?: HeaderModel | undefined;
-  modelMount?: RefCallback<ViewInstance> | undefined;
   onBack(): void;
   onProfile?: (() => void) | undefined;
   onCall?: (() => void) | undefined;
-  onHeight(height: number): void;
+  menu?: ChatHeaderMenu | undefined;
+  onHeight?(height: number): void;
 };
 
 export function ConversationTopBar(_props: ConversationTopBarProps) {

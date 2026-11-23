@@ -411,6 +411,10 @@ export function InfoIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v6m0-10v1" />;
 }
 
+export function AssignmentSessionIcon(props: IconProps) {
+  return <Glyph {...props} d="M17 5H3m18 7H8m13 7H8M3 12v7" />;
+}
+
 export function WorkIcon(props: IconProps) {
   return (
     <Glyph

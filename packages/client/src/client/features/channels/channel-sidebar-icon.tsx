@@ -1,0 +1,961 @@
+/**
+ * Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
+ *
+ * Source: the matching lucide `dist/esm/icons/*.mjs` glyph data. Vendored at the
+ * stock 2-unit stroke without adding a `lucide-react` runtime dependency.
+ *
+ * ISC License
+ *
+ * Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+ * All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+ * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+
+import { createElement, type ReactElement } from 'react';
+import { sidebarActionGlyphs } from './sidebar-action-glyphs.js';
+
+const glyphs: Record<string, readonly [string, Record<string, string | number>][]> = {
+  ...sidebarActionGlyphs,
+  store: [
+    ['path', { d: 'M15 21v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5' }],
+    [
+      'path',
+      {
+        d: 'M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244',
+      },
+    ],
+    ['path', { d: 'M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05' }],
+  ],
+  house: [['path', { d: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z' }]],
+  search: [
+    ['path', { d: 'm21 21-4.34-4.34' }],
+    ['circle', { cx: '11', cy: '11', r: '8' }],
+  ],
+  hash: [
+    ['line', { x1: '4', x2: '20', y1: '9', y2: '9' }],
+    ['line', { x1: '4', x2: '20', y1: '15', y2: '15' }],
+    ['line', { x1: '10', x2: '8', y1: '3', y2: '21' }],
+    ['line', { x1: '16', x2: '14', y1: '3', y2: '21' }],
+  ],
+  'messages-circle': [
+    [
+      'path',
+      {
+        d: 'M19.95 10.05a7 7 0 011.412 7.872 1 1 0 00-.058.787l.675 2.089a1 1 0 01-1.236 1.168l-2.155-.631a1 1 0 00-.745.06 7 7 0 01-7.793-1.445',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M2.696 12.708a1 1 0 00-.058-.785 7 7 0 113.518 3.473 1 1 0 00-.744-.061l-2.155.63a1 1 0 01-1.236-1.167z',
+      },
+    ],
+  ],
+  'text-quote': [
+    ['path', { d: 'M17 5H3' }],
+    ['path', { d: 'M21 12H8' }],
+    ['path', { d: 'M21 19H8' }],
+    ['path', { d: 'M3 12v7' }],
+  ],
+  brain: [
+    ['path', { d: 'M12 18V5' }],
+    ['path', { d: 'M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4' }],
+    ['path', { d: 'M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5' }],
+    ['path', { d: 'M17.997 5.125a4 4 0 0 1 2.526 5.77' }],
+    ['path', { d: 'M18 18a4 4 0 0 0 2-7.464' }],
+    ['path', { d: 'M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517' }],
+    ['path', { d: 'M6 18a4 4 0 0 1-2-7.464' }],
+    ['path', { d: 'M6.003 5.125a4 4 0 0 0-2.526 5.77' }],
+  ],
+  file: [
+    [
+      'path',
+      {
+        d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z',
+      },
+    ],
+    ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
+  ],
+  terminal: [
+    ['path', { d: 'M12 19h8' }],
+    ['path', { d: 'm4 17 6-6-6-6' }],
+  ],
+  archive: [
+    ['rect', { width: '20', height: '5', x: '2', y: '3', rx: '1' }],
+    ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8' }],
+    ['path', { d: 'M10 12h4' }],
+  ],
+  'archive-restore': [
+    ['rect', { width: '20', height: '5', x: '2', y: '3', rx: '1' }],
+    ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h2' }],
+    ['path', { d: 'M20 8v11a2 2 0 0 1-2 2h-2' }],
+    ['path', { d: 'm9 15 3-3 3 3' }],
+    ['path', { d: 'M12 12v9' }],
+  ],
+  'alarm-clock': [
+    ['circle', { cx: '12', cy: '13', r: '8' }],
+    ['path', { d: 'M12 9v4l2 2' }],
+    ['path', { d: 'M5 3 2 6' }],
+    ['path', { d: 'm22 6-3-3' }],
+    ['path', { d: 'M6.38 18.7 4 21' }],
+    ['path', { d: 'M17.64 18.67 20 21' }],
+  ],
+  'bell-ring': [
+    ['path', { d: 'M10.268 21a2 2 0 0 0 3.464 0' }],
+    ['path', { d: 'M22 8c0-2.3-.8-4.3-2-6' }],
+    [
+      'path',
+      {
+        d: 'M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326',
+      },
+    ],
+    ['path', { d: 'M4 2C2.8 3.7 2 5.7 2 8' }],
+  ],
+  bell: [
+    ['path', { d: 'M10.268 21a2 2 0 0 0 3.464 0' }],
+    [
+      'path',
+      {
+        d: 'M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326',
+      },
+    ],
+  ],
+  'bell-off': [
+    ['path', { d: 'M10.268 21a2 2 0 0 0 3.464 0' }],
+    [
+      'path',
+      {
+        d: 'M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742',
+      },
+    ],
+    ['path', { d: 'm2 2 20 20' }],
+    ['path', { d: 'M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05' }],
+  ],
+  cpu: [
+    ['path', { d: 'M12 20v2' }],
+    ['path', { d: 'M12 2v2' }],
+    ['path', { d: 'M17 20v2' }],
+    ['path', { d: 'M17 2v2' }],
+    ['path', { d: 'M2 12h2' }],
+    ['path', { d: 'M2 17h2' }],
+    ['path', { d: 'M2 7h2' }],
+    ['path', { d: 'M20 12h2' }],
+    ['path', { d: 'M20 17h2' }],
+    ['path', { d: 'M20 7h2' }],
+    ['path', { d: 'M7 20v2' }],
+    ['path', { d: 'M7 2v2' }],
+    ['rect', { x: '4', y: '4', width: '16', height: '16', rx: '2' }],
+    ['rect', { x: '8', y: '8', width: '8', height: '8', rx: '1' }],
+  ],
+  'id-card': [
+    ['path', { d: 'M13 19a4 4 0 00-8 0' }],
+    ['path', { d: 'M16 10h2' }],
+    ['path', { d: 'M16 14h2' }],
+    ['circle', { cx: '9', cy: '12', r: '3' }],
+    ['rect', { x: '2', y: '5', width: '20', height: '14', rx: '2' }],
+  ],
+  plug: [
+    ['path', { d: 'M12 22v-5' }],
+    ['path', { d: 'M15 8V2' }],
+    [
+      'path',
+      {
+        d: 'M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z',
+      },
+    ],
+    ['path', { d: 'M9 8V2' }],
+  ],
+  ruler: [
+    [
+      'path',
+      {
+        d: 'M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z',
+      },
+    ],
+    ['path', { d: 'm14.5 12.5 2-2' }],
+    ['path', { d: 'm11.5 9.5 2-2' }],
+    ['path', { d: 'm8.5 6.5 2-2' }],
+    ['path', { d: 'm17.5 15.5 2-2' }],
+  ],
+  compass: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    [
+      'path',
+      {
+        d: 'm16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z',
+      },
+    ],
+  ],
+  gauge: [
+    ['path', { d: 'm12 14 4-4' }],
+    ['path', { d: 'M3.34 19a10 10 0 1 1 17.32 0' }],
+  ],
+  'user-check': [
+    ['path', { d: 'm16 11 2 2 4-4' }],
+    ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '9', cy: '7', r: '4' }],
+  ],
+  'shield-check': [
+    [
+      'path',
+      {
+        d: 'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z',
+      },
+    ],
+    ['path', { d: 'm9 12 2 2 4-4' }],
+  ],
+  upload: [
+    ['path', { d: 'M12 3v12' }],
+    ['path', { d: 'm17 8-5-5-5 5' }],
+    ['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }],
+  ],
+  package: [
+    [
+      'path',
+      {
+        d: 'M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z',
+      },
+    ],
+    ['path', { d: 'M12 22V12' }],
+    ['path', { d: 'M3.29 7 12 12l8.71-5' }],
+    ['path', { d: 'm7.5 4.27 9 5.15' }],
+  ],
+  plus: [
+    ['path', { d: 'M5 12h14' }],
+    ['path', { d: 'M12 5v14' }],
+  ],
+  user: [
+    ['path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '12', cy: '7', r: '4' }],
+  ],
+  'user-plus': [
+    ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '9', cy: '7', r: '4' }],
+    ['path', { d: 'M19 8v6' }],
+    ['path', { d: 'M22 11h-6' }],
+  ],
+  bot: [
+    ['path', { d: 'M12 8V4H8' }],
+    ['rect', { width: '16', height: '12', x: '4', y: '8', rx: '2' }],
+    ['path', { d: 'M2 14h2' }],
+    ['path', { d: 'M20 14h2' }],
+    ['path', { d: 'M15 13v2' }],
+    ['path', { d: 'M9 13v2' }],
+  ],
+  'list-checks': [
+    ['path', { d: 'M13 5h8' }],
+    ['path', { d: 'M13 12h8' }],
+    ['path', { d: 'M13 19h8' }],
+    ['path', { d: 'm3 17 2 2 4-4' }],
+    ['path', { d: 'm3 7 2 2 4-4' }],
+  ],
+  target: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['circle', { cx: '12', cy: '12', r: '6' }],
+    ['circle', { cx: '12', cy: '12', r: '2' }],
+  ],
+  palette: [
+    [
+      'path',
+      {
+        d: 'M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z',
+      },
+    ],
+    ['circle', { cx: '13.5', cy: '6.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '17.5', cy: '10.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '6.5', cy: '12.5', r: '.5', fill: 'currentColor' }],
+    ['circle', { cx: '8.5', cy: '7.5', r: '.5', fill: 'currentColor' }],
+  ],
+  'image-up': [
+    [
+      'path',
+      {
+        d: 'M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21',
+      },
+    ],
+    ['path', { d: 'm14 19.5 3-3 3 3' }],
+    ['path', { d: 'M17 22v-5.5' }],
+    ['circle', { cx: '9', cy: '9', r: '2' }],
+  ],
+  lock: [
+    ['rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }],
+    ['path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' }],
+  ],
+  play: [
+    [
+      'path',
+      {
+        d: 'M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z',
+      },
+    ],
+  ],
+  'lock-open': [
+    ['rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }],
+    ['path', { d: 'M7 11V7a5 5 0 0 1 9.9-1' }],
+  ],
+  eye: [
+    [
+      'path',
+      {
+        d: 'M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0',
+      },
+    ],
+    ['circle', { cx: '12', cy: '12', r: '3' }],
+  ],
+  'eye-off': [
+    [
+      'path',
+      {
+        d: 'M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49',
+      },
+    ],
+    ['path', { d: 'M14.084 14.158a3 3 0 0 1-4.242-4.242' }],
+    [
+      'path',
+      {
+        d: 'M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143',
+      },
+    ],
+    ['path', { d: 'm2 2 20 20' }],
+  ],
+  files: [
+    [
+      'path',
+      {
+        d: 'M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1',
+      },
+    ],
+  ],
+  'git-branch': [
+    [
+      'path',
+      {
+        d: 'M15 6a9 9 0 0 0-9 9V3',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '18',
+        cy: '6',
+        r: '3',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '6',
+        cy: '18',
+        r: '3',
+      },
+    ],
+  ],
+  'messages-square': [
+    [
+      'path',
+      {
+        d: 'M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1',
+      },
+    ],
+  ],
+  inbox: [
+    [
+      'polyline',
+      {
+        points: '22 12 16 12 14 15 10 15 8 12 2 12',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+      },
+    ],
+  ],
+  'folder-key': [
+    [
+      'path',
+      {
+        d: 'M13 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v1.36',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M19 12v6',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M19 14h2',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '19',
+        cy: '20',
+        r: '2',
+      },
+    ],
+  ],
+  users: [
+    [
+      'path',
+      {
+        d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M16 3.128a4 4 0 0 1 0 7.744',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M22 21v-2a4 4 0 0 0-3-3.87',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '9',
+        cy: '7',
+        r: '4',
+      },
+    ],
+  ],
+  'settings-2': [
+    [
+      'path',
+      {
+        d: 'M14 17H5',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M19 7h-9',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '17',
+        cy: '17',
+        r: '3',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '7',
+        cy: '7',
+        r: '3',
+      },
+    ],
+  ],
+  settings: [
+    [
+      'path',
+      {
+        d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915',
+      },
+    ],
+    [
+      'circle',
+      {
+        cx: '12',
+        cy: '12',
+        r: '3',
+      },
+    ],
+  ],
+  monitor: [
+    [
+      'rect',
+      {
+        width: '20',
+        height: '14',
+        x: '2',
+        y: '3',
+        rx: '2',
+      },
+    ],
+    [
+      'line',
+      {
+        x1: '8',
+        x2: '16',
+        y1: '21',
+        y2: '21',
+      },
+    ],
+    [
+      'line',
+      {
+        x1: '12',
+        x2: '12',
+        y1: '17',
+        y2: '21',
+      },
+    ],
+  ],
+  globe: [
+    [
+      'circle',
+      {
+        cx: '12',
+        cy: '12',
+        r: '10',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M2 12h20',
+      },
+    ],
+  ],
+  'panel-right': [
+    [
+      'rect',
+      {
+        width: '18',
+        height: '18',
+        x: '3',
+        y: '3',
+        rx: '2',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M15 3v18',
+      },
+    ],
+  ],
+  'panels-top-left': [
+    [
+      'rect',
+      {
+        width: '18',
+        height: '18',
+        x: '3',
+        y: '3',
+        rx: '2',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M3 9h18',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M9 21V9',
+      },
+    ],
+  ],
+  'grip-vertical': [
+    ['circle', { cx: '9', cy: '12', r: '1' }],
+    ['circle', { cx: '9', cy: '5', r: '1' }],
+    ['circle', { cx: '9', cy: '19', r: '1' }],
+    ['circle', { cx: '15', cy: '12', r: '1' }],
+    ['circle', { cx: '15', cy: '5', r: '1' }],
+    ['circle', { cx: '15', cy: '19', r: '1' }],
+  ],
+  star: [
+    [
+      'path',
+      {
+        d: 'M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z',
+      },
+    ],
+  ],
+  copy: [
+    ['rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }],
+    ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],
+  ],
+  'ellipsis-vertical': [
+    ['circle', { cx: '12', cy: '12', r: '1' }],
+    ['circle', { cx: '12', cy: '5', r: '1' }],
+    ['circle', { cx: '12', cy: '19', r: '1' }],
+  ],
+  'external-link': [
+    ['path', { d: 'M15 3h6v6' }],
+    ['path', { d: 'M10 14 21 3' }],
+    ['path', { d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }],
+  ],
+  sun: [
+    ['circle', { cx: '12', cy: '12', r: '4' }],
+    ['path', { d: 'M12 2v2' }],
+    ['path', { d: 'M12 20v2' }],
+    ['path', { d: 'm4.93 4.93 1.41 1.41' }],
+    ['path', { d: 'm17.66 17.66 1.41 1.41' }],
+    ['path', { d: 'M2 12h2' }],
+    ['path', { d: 'M20 12h2' }],
+    ['path', { d: 'm6.34 17.66-1.41 1.41' }],
+    ['path', { d: 'm19.07 4.93-1.41 1.41' }],
+  ],
+  moon: [
+    [
+      'path',
+      {
+        d: 'M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401',
+      },
+    ],
+  ],
+  crop: [
+    ['path', { d: 'M6 2v14a2 2 0 0 0 2 2h14' }],
+    ['path', { d: 'M18 22V8a2 2 0 0 0-2-2H2' }],
+  ],
+  ban: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['path', { d: 'M4.929 4.929 19.07 19.071' }],
+  ],
+  x: [
+    ['path', { d: 'M18 6 6 18' }],
+    ['path', { d: 'm6 6 12 12' }],
+  ],
+  trash: [
+    ['path', { d: 'M3 6h18' }],
+    ['path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }],
+    ['path', { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' }],
+    ['path', { d: 'M10 11v6' }],
+    ['path', { d: 'M14 11v6' }],
+  ],
+  'message-square': [
+    [
+      'path',
+      {
+        d: 'M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z',
+      },
+    ],
+  ],
+  keyboard: [
+    ['path', { d: 'M10 8h.01' }],
+    ['path', { d: 'M12 12h.01' }],
+    ['path', { d: 'M14 8h.01' }],
+    ['path', { d: 'M16 12h.01' }],
+    ['path', { d: 'M18 8h.01' }],
+    ['path', { d: 'M6 8h.01' }],
+    ['path', { d: 'M7 16h10' }],
+    ['path', { d: 'M8 12h.01' }],
+    ['rect', { width: '20', height: '16', x: '2', y: '4', rx: '2' }],
+  ],
+  smartphone: [
+    ['rect', { width: '14', height: '20', x: '5', y: '2', rx: '2', ry: '2' }],
+    ['path', { d: 'M12 18h.01' }],
+  ],
+  'sliders-horizontal': [
+    ['path', { d: 'M10 5H3' }],
+    ['path', { d: 'M12 19H3' }],
+    ['path', { d: 'M14 3v4' }],
+    ['path', { d: 'M16 17v4' }],
+    ['path', { d: 'M21 12h-9' }],
+    ['path', { d: 'M21 19h-5' }],
+    ['path', { d: 'M21 5h-7' }],
+    ['path', { d: 'M8 10v4' }],
+    ['path', { d: 'M8 12H3' }],
+  ],
+  info: [
+    ['circle', { cx: '12', cy: '12', r: '10' }],
+    ['path', { d: 'M12 16v-4' }],
+    ['path', { d: 'M12 8h.01' }],
+  ],
+  puzzle: [
+    [
+      'path',
+      {
+        d: 'M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z',
+      },
+    ],
+  ],
+  check: [
+    [
+      'path',
+      {
+        d: 'M20 6 9 17l-5-5',
+      },
+    ],
+  ],
+  laptop: [
+    [
+      'path',
+      {
+        d: 'M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z',
+      },
+    ],
+    ['path', { d: 'M20.054 15.987H3.946' }],
+  ],
+  server: [
+    ['rect', { width: '20', height: '8', x: '2', y: '2', rx: '2', ry: '2' }],
+    ['rect', { width: '20', height: '8', x: '2', y: '14', rx: '2', ry: '2' }],
+    ['line', { x1: '6', x2: '6.01', y1: '6', y2: '6' }],
+    ['line', { x1: '6', x2: '6.01', y1: '18', y2: '18' }],
+  ],
+  building: [
+    ['path', { d: 'M12 10h.01' }],
+    ['path', { d: 'M12 14h.01' }],
+    ['path', { d: 'M12 6h.01' }],
+    ['path', { d: 'M16 10h.01' }],
+    ['path', { d: 'M16 14h.01' }],
+    ['path', { d: 'M16 6h.01' }],
+    ['path', { d: 'M8 10h.01' }],
+    ['path', { d: 'M8 14h.01' }],
+    ['path', { d: 'M8 6h.01' }],
+    ['path', { d: 'M9 22v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3' }],
+    ['rect', { x: '4', y: '2', width: '16', height: '20', rx: '2' }],
+  ],
+  briefcase: [
+    ['path', { d: 'M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16' }],
+    ['rect', { width: '20', height: '14', x: '2', y: '6', rx: '2' }],
+  ],
+  'flask-conical': [
+    [
+      'path',
+      {
+        d: 'M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2',
+      },
+    ],
+    ['path', { d: 'M6.453 15h11.094' }],
+    ['path', { d: 'M8.5 2h7' }],
+  ],
+  'gamepad-2': [
+    ['line', { x1: '6', x2: '10', y1: '11', y2: '11' }],
+    ['line', { x1: '8', x2: '8', y1: '9', y2: '13' }],
+    ['line', { x1: '15', x2: '15.01', y1: '12', y2: '12' }],
+    ['line', { x1: '18', x2: '18.01', y1: '10', y2: '10' }],
+    [
+      'path',
+      {
+        d: 'M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z',
+      },
+    ],
+  ],
+  paintbrush: [
+    ['path', { d: 'm14.622 17.897-10.68-2.913' }],
+    [
+      'path',
+      {
+        d: 'M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15',
+      },
+    ],
+  ],
+  'audio-lines': [
+    ['path', { d: 'M2 10v3' }],
+    ['path', { d: 'M6 6v11' }],
+    ['path', { d: 'M10 3v18' }],
+    ['path', { d: 'M14 8v7' }],
+    ['path', { d: 'M18 5v13' }],
+    ['path', { d: 'M22 10v3' }],
+  ],
+  'book-open': [
+    ['path', { d: 'M12 5v16' }],
+    [
+      'path',
+      {
+        d: 'M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z',
+      },
+    ],
+  ],
+  zap: [
+    [
+      'path',
+      {
+        d: 'M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z',
+      },
+    ],
+  ],
+  heart: [
+    [
+      'path',
+      {
+        d: 'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5',
+      },
+    ],
+  ],
+  leaf: [
+    [
+      'path',
+      {
+        d: 'M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20',
+      },
+    ],
+    ['path', { d: 'M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13' }],
+  ],
+  phone: [
+    [
+      'path',
+      {
+        d: 'M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384',
+      },
+    ],
+  ],
+  video: [
+    ['path', { d: 'm16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5' }],
+    ['rect', { x: '2', y: '6', width: '14', height: '12', rx: '2' }],
+  ],
+  'video-off': [
+    ['path', { d: 'M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196' }],
+    ['path', { d: 'M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2' }],
+    ['path', { d: 'm2 2 20 20' }],
+  ],
+  'phone-off': [
+    [
+      'path',
+      {
+        d: 'M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272',
+      },
+    ],
+    ['path', { d: 'M22 2 2 22' }],
+    [
+      'path',
+      {
+        d: 'M4.76 13.582A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 .244.473',
+      },
+    ],
+  ],
+  mic: [
+    ['path', { d: 'M12 19v3' }],
+    ['path', { d: 'M19 10v2a7 7 0 0 1-14 0v-2' }],
+    ['rect', { x: '9', y: '2', width: '6', height: '13', rx: '3' }],
+  ],
+  'mic-off': [
+    ['path', { d: 'M12 19v3' }],
+    ['path', { d: 'M15 9.34V5a3 3 0 0 0-5.68-1.33' }],
+    ['path', { d: 'M16.95 16.95A7 7 0 0 1 5 12v-2' }],
+    ['path', { d: 'M18.89 13.23A7 7 0 0 0 19 12v-2' }],
+    ['path', { d: 'm2 2 20 20' }],
+    ['path', { d: 'M9 9v3a3 3 0 0 0 5.12 2.12' }],
+  ],
+  tv: [
+    ['path', { d: 'm17 2-5 5-5-5' }],
+    ['rect', { width: '20', height: '15', x: '2', y: '7', rx: '2' }],
+  ],
+};
+
+export const ASSIGNMENT_SESSION_ICON = 'text-quote';
+
+function glyph(name: string): readonly [string, Record<string, string | number>][] {
+  return Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
+}
+
+export function channelSidebarIconElement(
+  document: Document,
+  name: string,
+  size: number,
+): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': 2,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  }))
+    svg.setAttribute(key, String(value));
+  for (const [tag, attributes] of glyph(name)) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+    svg.append(node);
+  }
+  return svg;
+}
+
+export function channelSidebarIconMask(name: string): string {
+  const body = glyph(name)
+    .map(
+      ([tag, attributes]) =>
+        `<${tag} ${Object.entries(attributes)
+          .map(([key, value]) => `${key}='${String(value)}'`)
+          .join(' ')}/>`,
+    )
+    .join('');
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${body}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+export function ChannelSidebarIcon({
+  name = 'panels-top-left',
+  size = 16,
+  filled = false,
+  strokeWidth = 2,
+  className,
+}: {
+  name?: string | undefined;
+  size?: number | string;
+  filled?: boolean;
+  strokeWidth?: number;
+  className?: string | undefined;
+}): ReactElement {
+  const nodes = glyph(name);
+  return (
+    <svg
+      className={className}
+      data-icon={name}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {nodes.map(([tag, attributes], index) => createElement(tag, { ...attributes, key: index }))}
+    </svg>
+  );
+}

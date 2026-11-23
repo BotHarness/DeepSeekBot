@@ -32,6 +32,7 @@ import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
+import { useSessionsTab } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';
@@ -50,6 +51,7 @@ export function BottomNavigation() {
 
 function NavigationLayout() {
   const t = useStrings();
+  const sessionsTab = useSessionsTab();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
@@ -71,7 +73,9 @@ function NavigationLayout() {
           space.x5,
       );
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
-  const reserved = size + bottom + space.x5;
+  const separateCreation = Platform.OS === 'ios' && sessionsTab && theme.largeText;
+  const reserved =
+    size + bottom + space.x5 + (separateCreation ? navigationBar.height + space.x3 : 0);
   const quickActions = useQuickActionRouting();
   const profileSetup = useProfileSetupPrompt();
   return (
@@ -88,6 +92,8 @@ function NavigationLayout() {
                 size={size}
                 bottom={bottom}
                 onNativeHeight={setNativeHeight}
+                sessionsTab={sessionsTab}
+                separateCreation={separateCreation}
               />
             )}
             screenOptions={{
@@ -97,6 +103,10 @@ function NavigationLayout() {
           >
             <Tabs.Screen name="(home)" options={{ title: t.chats }} />
             <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+            <Tabs.Screen
+              name="(sessions)"
+              options={sessionsTab ? { title: t.hostSessions.title } : { href: null }}
+            />
             <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
           </Tabs>
         </View>
@@ -106,6 +116,8 @@ function NavigationLayout() {
 }
 
 type NavigationBarLayout = TabBarProps & {
+  sessionsTab: boolean;
+  separateCreation: boolean;
   size: number;
   bottom: number;
   onNativeHeight(height: number): void;
@@ -123,6 +135,8 @@ function ScopedNavigationBar({
   size,
   bottom,
   onNativeHeight,
+  sessionsTab,
+  separateCreation,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const t = useStrings();
@@ -209,22 +223,25 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
-  const items: NavigationDestination[] = state.routes.map((route) => ({
-    key: route.key,
-    focused: route.key === currentKey,
-    activity: route.name === '(activity)',
-    settings: route.name === '(settings)',
-    count: route.name === '(activity)' ? pending : 0,
-    onPress: () => {
-      const event = emitter.emit({
-        type: 'tabPress',
-        target: route.key,
-        canPreventDefault: true,
-      });
-      if (!event.defaultPrevented) selectTab(route.key);
-    },
-    onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
-  }));
+  const items: NavigationDestination[] = state.routes
+    .filter((route) => sessionsTab || route.name !== '(sessions)')
+    .map((route) => ({
+      key: route.key,
+      focused: route.key === currentKey,
+      activity: route.name === '(activity)',
+      settings: route.name === '(settings)',
+      sessions: route.name === '(sessions)',
+      count: route.name === '(activity)' ? pending : 0,
+      onPress: () => {
+        const event = emitter.emit({
+          type: 'tabPress',
+          target: route.key,
+          canPreventDefault: true,
+        });
+        if (!event.defaultPrevented) selectTab(route.key);
+      },
+      onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
+    }));
   const fabBottom = size + bottom + fab.margin;
   const creatable =
     creationMenuItems({ scope, targets, nativeChannelForm: Platform.OS === 'android' }).length > 0;
@@ -284,15 +301,18 @@ function ScopedNavigationBar({
             left: insets.left + space.x5,
             right: insets.right + space.x5,
             bottom,
-            flexDirection: 'row',
-            alignItems: 'flex-end',
+            flexDirection: separateCreation ? 'column' : 'row',
+            alignItems: separateCreation ? 'stretch' : 'flex-end',
             gap: space.x3,
           },
         ]}
       >
+        {separateCreation && creatable ? (
+          <View style={{ alignSelf: 'flex-end' }}>{create(navigationBar.height)}</View>
+        ) : null}
         <View
           style={{
-            flex: 1,
+            flex: separateCreation ? undefined : 1,
             height: size,
             flexDirection: 'row',
             padding: space.x2,
@@ -302,7 +322,7 @@ function ScopedNavigationBar({
           <NavigationMaterial />
           <NavigationDestinations items={items} />
         </View>
-        {create(navigationBar.height)}
+        {separateCreation ? null : create(navigationBar.height)}
       </View>
     </>
   );

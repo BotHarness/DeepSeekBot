@@ -30,6 +30,7 @@ import { createRouteRests } from '../../src/models/route-rest.js';
 import type { RoutingGroupMember } from '../../src/models/routing-groups.js';
 import { createCore } from '../../src/plugin.js';
 import { createDshBotAgentAdapter } from '../../src/runtime/dsh-bot-agent-adapter.js';
+import { sessionModelChoices } from '../../src/runtime/session-model-choices.js';
 import { readTurnTargets } from '../../src/runtime/turn-targets.js';
 import { engineWorkspaceMode } from '../../src/workspaces/grant-execution.js';
 import { FakeAgentHost } from '../dsh-agent-host-fixture.js';
@@ -318,7 +319,7 @@ export function setup(options: {
   const routeRests = createRouteRests({ now: () => clock.now });
   const groupFallback = createGroupFallback({
     plan: (slug) => core.registry.get(slug)?.modelPlan,
-    inheritedGroup: (): string | undefined => core.routingGroups.defaultGroup().groupId,
+    inheritedGroup: (): string | undefined => core.modelPresets.get('default')?.orchestratorGroupId,
     routes: (id): (typeof API)[] => core.routingGroups.routes(id),
     engines: {
       targets: (id) => core.routingGroups.targets(id),
@@ -370,7 +371,7 @@ export function setup(options: {
       }),
       restingUntil: (route) => routeRests.restingUntil(route),
       engineRestingUntil: (engine, accountId) => host.limit(engine, accountId)?.until,
-      inherited: () => core.routingGroups.defaultGroup().groupId,
+      inherited: () => core.modelPresets.get('default')?.orchestratorGroupId,
     },
   });
   options.nativeRuntime?.ctx.on(
@@ -401,7 +402,7 @@ export function setup(options: {
     name: 'Fallback',
     members: options.nativeFirst ? [nativeMember, ...members] : [...members, nativeMember],
   });
-  if (options.inherited) core.routingGroups.setDefaultGroup(group.id, 0);
+  if (options.inherited) core.modelPresets.migrateDefault({ main: API, groupId: group.id });
   else expect(core.registry.customizeModelPlan('ada', API, 0, group.id).ok).toBe(true);
   const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   async function message(id: string, body: string, onAdmitted?: () => void) {
@@ -430,6 +431,9 @@ export function setup(options: {
     native,
     clock,
     routeRests,
+    sessionModels: sessionModelChoices(
+      attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+    ),
     prepareModelRoute,
     replies,
     memoryDirectory,
@@ -457,6 +461,9 @@ export function setup(options: {
           events,
           segments,
           messages: reopened.channels.readMessages(channel.id),
+          override: sessionModelChoices(
+            attachOperationalModule(reopened.operationalDatabase, 'bot-runtime'),
+          ).get(id),
           current: reopened.runtime.currentTurnTarget?.('ada'),
           transcript: summarizeSessionTranscript({ sessionId: id, events, segments }).items,
         };

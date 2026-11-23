@@ -12,7 +12,6 @@ import { ChannelTitle } from './channel-title';
 import { ChatHeaderRow } from './chat-header-row';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
-import { useHeaderModel } from './use-header-model';
 import { runningSessionCount } from '../../host/session-stop';
 import { HeaderActionGroup, HeaderBackButton, titleChipFill } from './header-chrome';
 import {
@@ -23,7 +22,6 @@ import {
   headerControlHeight,
 } from './native-header';
 import { swipeEntry } from '../shell/swipe-entry';
-import { useHeaderModelPreferences } from '../../host/native-header-model';
 import { pressTint, type useDesignTheme } from '../design/theme';
 import { glassPress, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -145,8 +143,8 @@ export function useConversationProfile({
   };
   const pairChip = (press: (() => void) | undefined) => (
     <HeaderTitleButton
+      kind="button"
       testID="channel-details-chip"
-      accessibilityRole="button"
       accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
       android_ripple={{ color: pressTint(theme.color.fg), borderless: false }}
       accessibilityState={{ busy: connectionLabel !== undefined }}
@@ -212,21 +210,10 @@ export function useConversationProfile({
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
-  const showHeaderModel = useHeaderModelPreferences().enabled;
-  const headerModel = useHeaderModel(
-    dm && showHeaderModel && saved !== undefined && !hostRefused && !missing ? client : undefined,
-    slug,
-    focused,
-    bot === undefined
-      ? undefined
-      : `${bot.state}:${bot.latestMessageId ?? ''}:${profileOpen ? 'profile' : 'chat'}`,
-  );
   const title = dm ? (
     <ChatTitle
       bot={bot}
       connectionLabel={connectionLabel}
-      model={headerModel.model}
-      modelMount={headerModel.mount}
       fallback={slug ?? ''}
       onPress={openProfile}
     />
@@ -274,7 +261,6 @@ export function useConversationProfile({
     openProfile,
     swipeProfile,
     headerStatus,
-    headerModel,
     title,
     canOpenProfile,
     placeCall,
@@ -340,28 +326,31 @@ export function conversationHeader({
       <ChatHeaderRow
         title={title}
         back={{ label: t.back, testID: 'chat-back-button', onPress: leave }}
-        actions={[
-          ...(placeCall === undefined
-            ? []
-            : [
-                {
-                  icon: 'call' as const,
-                  label: t.call.button,
-                  testID: 'chat-call-button',
-                  onPress: placeCall,
-                },
-              ]),
-          ...(canOpenProfile
-            ? [
-                {
-                  icon: 'more' as const,
-                  label: t.openProfile,
-                  testID: 'chat-profile-button',
-                  onPress: openProfile,
-                },
-              ]
-            : []),
-        ]}
+        controls={{
+          kind: 'actions',
+          actions: [
+            ...(placeCall === undefined
+              ? []
+              : [
+                  {
+                    icon: 'call' as const,
+                    label: t.call.button,
+                    testID: 'chat-call-button',
+                    onPress: placeCall,
+                  },
+                ]),
+            ...(canOpenProfile
+              ? [
+                  {
+                    icon: 'more' as const,
+                    label: t.openProfile,
+                    testID: 'chat-profile-button',
+                    onPress: openProfile,
+                  },
+                ]
+              : []),
+          ],
+        }}
       />
     ) : null;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;

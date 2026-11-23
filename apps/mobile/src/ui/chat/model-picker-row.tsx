@@ -1,4 +1,4 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   modelCatalogGroupMemberLabels,
@@ -17,7 +17,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
-import { EngineBrandIcon } from './engine-brand-icon';
+import { ModelTargetIcon } from './model-target-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { shortModelName } from './model-route-text';
 import { SHEET_GROUP } from './sheet';
@@ -88,7 +88,13 @@ export function ModelEnginePickerRow({
       {...actions}
       selected={selected}
       on={SHEET_GROUP}
-      leading={<EngineBrandIcon brand={row.brand} color={theme.color.fg} />}
+      leading={
+        <ModelTargetIcon
+          target={{ brand: row.brand, external: true }}
+          size={theme.type.title.line}
+          color={theme.color.fg}
+        />
+      }
       trailing={
         isDefault || selected ? (
           <View
@@ -140,33 +146,40 @@ export function ModelGroupPickerRow({
   front,
   currentTarget,
   models,
+  engines,
   groups,
   usable,
   showCount,
-  note,
   ...actions
 }: RowActions & {
   group: ModelCatalogGroup;
   front: ModelCatalogEntry | undefined;
   currentTarget?: TurnTarget | undefined;
   models: readonly ModelCatalogEntry[];
+  engines?: TurnTargetCatalog['engines'];
   groups: readonly ModelCatalogGroup[];
   usable: boolean;
   showCount: boolean;
-  note?: string | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const restful = group.restingUntil;
   const color = usable ? theme.color.fg : theme.color.muted;
-  const members = modelCatalogGroupMemberLabels(group, models, groups, t.routingGroup.engineRow);
+  const members = modelCatalogGroupMemberLabels(
+    group,
+    models,
+    groups,
+    t.routingGroup.engineRow,
+    engines,
+  );
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
-  const executed = currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, models);
+  const executed =
+    currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, { models, engines });
   const current =
     executed !== undefined
-      ? t.modelSettings.groupCurrent(executed.name)
+      ? t.modelSettings.groupCurrent(executed.short)
       : restful !== undefined
         ? restingLabel(restful)
         : front === undefined
@@ -178,18 +191,15 @@ export function ModelGroupPickerRow({
       on={SHEET_GROUP}
       accessibilityLabel={[
         group.name,
-        current,
+        executed === undefined ? current : t.modelSettings.groupCurrent(executed.name),
         executed?.external ? t.routingGroup.externalEngine : undefined,
         ...members,
-        note,
       ]
         .filter(Boolean)
         .join(', ')}
       leading={
-        executed?.external ? (
-          <EngineBrandIcon brand={executed.brand} color={color} />
-        ) : executed !== undefined ? (
-          <ModelBrandIcon brand={executed.brand} size={theme.type.title.line} color={color} />
+        executed !== undefined ? (
+          <ModelTargetIcon target={executed} size={theme.type.title.line} color={color} />
         ) : front === undefined || restful !== undefined ? (
           <RowIcon name="model" size={theme.type.title.line} color={color} />
         ) : (
@@ -208,7 +218,6 @@ export function ModelGroupPickerRow({
           : restful === undefined
             ? frontLabel
             : restingLabel(restful),
-        ...(note === undefined ? [] : [note]),
       ].join(' · ')}
       tone={usable ? 'fg' : 'muted'}
     />

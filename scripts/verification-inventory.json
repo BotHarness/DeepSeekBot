@@ -102,7 +102,7 @@
     {
       "id": "connect.account-recovery",
       "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
-      "source": "packages/core/src/devices/connect-account.ts",
+      "source": "packages/core/src/features/environments/connect-account.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
       "task": 3567,
       "gap": "Controlled WorkOS/relay fixtures qualify Host/Client behavior, not production account or Cloudflare availability."
@@ -403,7 +403,7 @@
     {
       "id": "desktop.personabot.create",
       "label": "Create PersonaBot, Memory and DM; retain identity after restart",
-      "source": "packages/core/src/bots/registry.ts",
+      "source": "packages/core/src/features/personabots/registry-creation.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
       "task": 1967,
       "gap": null
@@ -579,7 +579,7 @@
     {
       "id": "desktop.inbox.requests",
       "label": "Act on tool approval, question, grant or Assignment reply; preserve independent requests",
-      "source": "packages/client/src/client/activity-list-view.tsx",
+      "source": "packages/client/src/client/features/activity/activity-list-view.tsx",
       "guide": null,
       "task": 1974,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -683,7 +683,7 @@
     {
       "id": "desktop.channel.purge",
       "label": "Preview/cancel/confirm purge and retain unselected/shared attachments",
-      "source": "packages/core/src/channels/store.ts",
+      "source": "packages/core/src/purge/owner.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -1043,6 +1043,14 @@
       "source": "apps/mobile/src/ui/chat/composer.tsx",
       "task": 2566,
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.session-detail",
+      "label": "Open a Bot Session from its profile or linked message, read the transcript and continue with a model choice",
+      "source": "apps/mobile/src/ui/chat/session-detail-screen.tsx",
+      "task": 4559,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-session-detail.md",
+      "gap": "Android and physical device interactions require the native QA lanes."
     },
     {
       "id": "phone.channel-files",
@@ -2446,17 +2454,17 @@
       "path": "scripts/e2e-tob-home.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged. Review follow-up for #4860: The configure and approval steps use the current Default model control, rich-text composer and approval card. Classification unchanged. The configure check seeds a distinct Default route and verifies that the save advances its revision.",
       "task": 3092,
-      "sha256": "91aa78116cfc04bb11e19e088b13412883e9aae8dab466b9f4cb8e224317d9fb"
+      "sha256": "a43fbf1e4807ef49545b87ac6e9ea290b3213f3f3bf8b81f0d6219163fe9230e"
     },
     {
       "path": "scripts/e2e-tob-model-runtime.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged. Review follow-up for #4860: The model approval step uses the current approval card and checks the catalog model label in Model settings. Classification unchanged. The approval check verifies the selected Orchestrator option by the saved provider and model IDs.",
       "task": 3092,
-      "sha256": "99da3a74c1c6e80482409faaf5c08bb52dca6fb7f2a599347d7dd09196c2f783"
+      "sha256": "10df15075b1ca3a9324af84682634745594735c9b6da8050ced4f6d9c8f6d918"
     },
     {
       "path": "scripts/e2e-tob-bot-management.mjs",
@@ -2617,6 +2625,14 @@
       "reason": "Real pinned Dockview dependency fixture for zoomed persistent overlay allocation and horizontal/vertical splitter movement; not a DSH/native acceptance journey.",
       "task": 2268,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-windows-caption-strip.mjs",
+      "sha256": "2670592910759b681918269379dd6e7086c55301ce938d0ae6cb62dbb5e6281d",
+      "category": "mapped",
+      "reason": "Checks the Windows caption strip in Session and Bot mode on a real isolated Host in Chromium with simulated Windows chrome. A Bot-only negative control distinguishes caption drag from rail controls and Session drag.",
+      "task": 4873,
+      "behaviors": ["desktop.bot-mode.dock"]
     },
     {
       "path": "scripts/e2e-workspace-chrome.mjs",
@@ -2798,9 +2814,9 @@
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
       "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice.",
       "task": 4197,
-      "sha256": "5a7832243f2a2f96a2ce80cb201f1e9196a7f36f16ff63f27fd2fa4ee0eb0549"
+      "sha256": "26abaad645c4b11a2b57cd87f6b642b0840c4271a4673d2b511b9d7ec17326a0"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

@@ -12,6 +12,7 @@ export async function approveTobCliOperation(options: {
   operation: TobCliWriteProposal;
   signal: AbortSignal;
   authorize: () => void;
+  approvalChannelId?: string | undefined;
   approval: ApprovalService | undefined;
   channelApproval: ChannelToolApproval | undefined;
   fullAccess: () => boolean;
@@ -60,6 +61,9 @@ export async function approveTobCliOperation(options: {
   };
   const untrack = channelApproval?.track(call, 'operation', false, undefined, undefined, {
     requireExplicitApproval,
+    ...(options.approvalChannelId === undefined
+      ? {}
+      : { origin: { kind: 'turn', channelId: options.approvalChannelId } }),
   });
   if (!untrack || !approval || !channelApproval) {
     untrack?.();

@@ -20,6 +20,7 @@ import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
 import { pickFiles, type PickedFile } from '../src/host/pick-files';
 
+vi.mock('../src/ui/chat/turn-model-switch', () => ({ TurnModelSwitchMarker: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -286,6 +287,7 @@ vi.mock('../src/host/host-session', async () => {
       saved: { hostId: state.hostId },
     }),
     useHostSnapshot: () => state.host,
+    useInbox: () => ({ status: 'idle' }),
     useConversation: () => stream.conversation,
     useChannelConversation: () => undefined,
     useConversationTimelineSnapshot: () =>
@@ -297,9 +299,6 @@ vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
-}));
-vi.mock('../src/host/native-header-model', () => ({
-  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
 }));
 vi.mock('../src/host/native-send-jump', () => ({
   sendJumpPreferences: {

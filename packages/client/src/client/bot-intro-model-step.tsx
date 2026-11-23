@@ -1,17 +1,25 @@
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
-import type { ModelProvidersView } from '@botharness/host-client/model-providers';
+import {
+  loadModelProviders,
+  type ModelProvidersView,
+} from '@botharness/host-client/model-providers';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { Button } from './ds/button.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { bridgeHost, type BridgeCall } from './bridge.js';
-import { engineModelKey, useSubscriptionEngines } from './engine-choice.js';
+import {
+  engineApi,
+  engineLoginActions,
+  engineModelKey,
+  useSubscriptionEngines,
+} from './engine-choice.js';
 import { engineName } from './session-engine.js';
 import { engineMenuItems } from './model-menu.js';
 import { ModelBrandIcon } from './model-brand.js';
 import { AddModelProvider, ModelProviderSubscriptions } from './model-providers-settings.js';
 import { canManageModelProviders } from './team-bridge.js';
-import { useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
+import { useMemo, useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelCatalogView, type ModelRouteView } from './bridge.js';
@@ -19,6 +27,7 @@ import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { space as tobsSpace } from './ds/tobs.stylex.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { ModelPicker } from './model-picker.js';
 import { refreshTeamMode, useTeamModeRead } from './team-state.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -114,7 +123,11 @@ export function ModelStep({
   const [retryingViewer, setRetryingViewer] = useState(false);
   const owner = call === undefined ? !member : viewer?.owner;
   const canConnect = canManageModelProviders(viewer);
-  const engines = useSubscriptionEngines(viewer?.owner === true);
+  const loginApi = useMemo(
+    () => (call === undefined ? engineApi : { ...engineApi, ...engineLoginActions(call) }),
+    [call],
+  );
+  const engines = useSubscriptionEngines(viewer?.owner === true, loginApi, true, true);
   const [catalog, setCatalog] = useState<ModelCatalogView>();
   const [planned, setPlanned] = useState<string>();
   const [connection, setConnection] = useState<'key' | 'subscription'>();
@@ -417,7 +430,14 @@ export function ModelStep({
                 ? undefined
                 : {
                     choice: engineChoice,
-                    items: engineMenuItems(availableEngines, engines.models, engines.signingIn, t),
+                    items: engineMenuItems(
+                      availableEngines,
+                      engines.models,
+                      engines.signingIn,
+                      t,
+                      true,
+                      engines.supportsDeviceSignIn,
+                    ),
                     models: engines.models,
                     onChange: (choice) =>
                       setDraft((previous) => ({ ...previous, subscription: choice })),
@@ -486,6 +506,7 @@ export function ModelStep({
               />
             </div>
           ) : null}
+          <CodexDeviceSignIn engines={engines} t={t} />
           {engines.loadFailed ? (
             <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
               {t('engine.loadFailed')}
@@ -590,18 +611,16 @@ function InlineModelProvider({
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
     const request = new AbortController();
-    void bridgeHost(call, request.signal)
-      .call<ModelProvidersView>('modelProviders')
-      .then(
-        (result) => {
-          if (request.signal.aborted) return;
-          setView(result);
-          setRefreshing(false);
-        },
-        () => {
-          if (!request.signal.aborted) setFailed(true);
-        },
-      );
+    void loadModelProviders(bridgeHost(call, request.signal)).then(
+      (result) => {
+        if (request.signal.aborted) return;
+        setView(result);
+        setRefreshing(false);
+      },
+      () => {
+        if (!request.signal.aborted) setFailed(true);
+      },
+    );
     return () => request.abort();
   }, [call, retry]);
   return (

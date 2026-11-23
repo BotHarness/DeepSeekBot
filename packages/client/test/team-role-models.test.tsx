@@ -21,7 +21,11 @@ it('shows a retryable error when subscription accounts fail to load', async () =
         ? { ok: false, error: { code: 'unavailable', message: 'down', details: {} } }
         : {
             ok: true,
-            value: { accounts: [{ id: 'codex-work', engine: 'codex', name: 'Work' }] },
+            value: {
+              accounts: [{ id: 'codex-work', engine: 'codex', name: 'Work' }],
+              engines: [],
+              selections: [],
+            },
           };
     if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
     if (method === 'modelCatalog') return { ok: true, value: { models: [] } };

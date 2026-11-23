@@ -138,7 +138,7 @@ The Human-selected Channel scope for a Window Companion's PersonaBot-authored me
 _Avoid_: Channel pin, Channel membership, Agent Scope
 
 **Model Preset**:
-A reusable, deployment-local Human-authored model plan for PersonaBots: one Orchestrator Model Choice, plus the Assignment Model Choices (a listed set or Open Assignment Models) with a default. Applying it copies the plan to a PersonaBot; later preset edits do not update that copy. It references Routing Groups by identity rather than copying them.
+A reusable, deployment-local Human-authored model plan for PersonaBots: one main (Orchestrator) Model Choice and an ordered list of sub (Assignment) Model Choices with one default. Each listed choice carries its own default reasoning effort when applicable. An empty sub list follows main, whether main is a model or a Routing Group. A legacy preset can still opt into Open Assignment Models. Applying a preset copies the plan to a PersonaBot; later edits do not update that copy. Routing Groups are referenced by identity.
 _Avoid_: DSH Agent preset, SoulSnapshot
 
 **PersonaBot Model Plan**:
@@ -146,8 +146,8 @@ The PersonaBot-local snapshot of a Model Preset or Human custom choices that gov
 _Avoid_: Soul, DSH Agent preset, model usage
 
 **Default Model Choice**:
-The Profile-wide Model Choice, an exact route or a Routing Group, used by a PersonaBot without its own Orchestrator choice and by every Assignment that inherits. It is not a Model Preset.
-_Avoid_: global preset, default preset, global model (bare)
+The effective Model Choice from the Profile’s pinned **Default Model Preset**. PersonaBots without an independent plan follow that preset. Its Assignment choice follows its Orchestrator choice until a Human sets an Assignment choice.
+_Avoid_: global model (bare)
 
 **Model Choice**:
 What a Human or an Orchestrator picks wherever a model is chosen: either one provider, model and reasoning effort route, or one Routing Group.
@@ -1163,6 +1163,10 @@ _Avoid_: Computer, other computer, machine, server, peer
 **Paired Device**:
 A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host as exactly one Human ID but never hosts PersonaBots or relays another Host.
 _Avoid_: phone (for all devices), session, Host
+
+**Host sign-in link**:
+A Host-generated link or QR code that supplies the Host route and identity fingerprint for password sign-in. The Human supplies their own Member Credential.
+_Avoid_: pairing offer, device grant
 
 **Host Relationship**:
 A durable, explicitly authorized bidirectional relationship between two Hosts from which supported Clients obtain their own independent device grants. It is distinct from account registration, a connection route, an individual device grant and Bot Collaboration Network membership.

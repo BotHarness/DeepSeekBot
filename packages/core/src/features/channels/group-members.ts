@@ -1,0 +1,208 @@
+import { z } from 'zod';
+import {
+  GROUP_MEMBER_UNCONFIRMED,
+  type GroupBotCandidate,
+  type GroupMemberOutcome,
+  type GroupMemberPickerResult,
+  type GroupMembersAddResult,
+} from '@botharness/host-protocol/group-members';
+import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import type { HumanContext } from '../../humans/context.js';
+import { isValidSlug } from '../../bots/slug.js';
+import { TeamError } from '../../team/error.js';
+import type { ChannelsManagementAdapterMethods } from './management-methods.js';
+
+const id = z.string().trim().min(1).max(200);
+const pickerInput = z.object({
+  channelId: id.optional(),
+  query: z.string().trim().max(200).default(''),
+});
+const operationKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u);
+const targetsInput = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('human'), id, operationKey }),
+  z.object({ kind: z.literal('bot'), id: id.refine(isValidSlug), operationKey }),
+]);
+const addInput = z.object({ channelId: id, targets: z.array(targetsInput).min(1).max(100) });
+const missingGroup = (): BridgeResult<never> => ({
+  ok: false,
+  error: { code: 'channel-not-found', message: 'Group Channel unavailable' },
+});
+
+export interface GroupMemberMethods {
+  channelGroupMemberPicker(payload: unknown): BridgeResult<GroupMemberPickerResult>;
+  channelGroupMembersAdd(payload: unknown): BridgeResult<GroupMembersAddResult>;
+}
+
+export function createGroupMemberMethods({
+  human,
+  deps: { channels, registry, team, tob, warn },
+  invite,
+}: {
+  human: HumanContext;
+  deps: Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'team' | 'tob' | 'warn'>;
+  invite: ChannelsManagementAdapterMethods['channelGroupInvite'];
+}): GroupMemberMethods {
+  const can = (channelId: string, policy: 'addBots' | 'addMembers') => {
+    try {
+      team?.channelAccess.requirePolicy(human, channelId, policy);
+      return true;
+    } catch (error) {
+      if (error instanceof TeamError) return false;
+      throw error;
+    }
+  };
+
+  const group = (id: string) => {
+    const channel = channels.get(id);
+    if (channel?.type !== 'group' || channel.deletedAt) return undefined;
+    if (
+      team &&
+      !team.channelAccess.canRead(human, id, true) &&
+      !(team.enabled() && can(id, 'addMembers'))
+    )
+      return undefined;
+    return channel;
+  };
+
+  const failure = (
+    channelId: string,
+    identity: Pick<GroupMemberOutcome, 'kind' | 'id'>,
+    error: unknown,
+  ): GroupMemberOutcome => {
+    if (error instanceof TeamError) return { ...identity, status: 'failed', code: error.code };
+    try {
+      const name = error instanceof Error ? error.name : typeof error;
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      warn?.(
+        `botharness.group_members_add.unconfirmed ${JSON.stringify({
+          channelId,
+          targetKind: identity.kind,
+          targetId: identity.id,
+          errorType: /^(?:Error|TypeError|RangeError|SyntaxError|AggregateError)$/u.test(name)
+            ? name
+            : error instanceof Error
+              ? 'Error'
+              : 'non-error',
+          errorCode:
+            typeof code === 'string' &&
+            /^(?:ERR_SQLITE_ERROR|SQLITE_[A-Z_]{1,40}|EACCES|EPERM|ENOENT|ENOSPC|EBUSY|EIO)$/u.test(
+              code,
+            )
+              ? code
+              : undefined,
+        })}`,
+      );
+    } catch {}
+    return { ...identity, status: 'failed', code: GROUP_MEMBER_UNCONFIRMED };
+  };
+
+  return {
+    channelGroupMemberPicker(payload) {
+      const parsed = pickerInput.safeParse(payload);
+      if (!parsed.success) return invalidInput('Invalid Group member search');
+      const { channelId, query } = parsed.data;
+      const channel = channelId === undefined ? undefined : group(channelId);
+      if (channelId !== undefined && !channel) return missingGroup();
+      if (channelId === undefined) team?.roles.require(human, 'channels.create');
+      const canAddBots = channelId === undefined || can(channelId, 'addBots');
+      const canAddPeople =
+        team?.enabled() === true && (channelId === undefined || can(channelId, 'addMembers'));
+      const people =
+        canAddPeople && team
+          ? (channelId === undefined
+              ? team.channelAccess.createMemberCandidates(human, query)
+              : team.channelAccess.memberCandidates(human, channelId, query)
+            ).map(({ humanId, displayName, username }) => ({
+              id: humanId,
+              displayName,
+              ...(username === null ? {} : { username }),
+            }))
+          : [];
+      const bots: GroupBotCandidate[] = [];
+      const match = query.toLowerCase();
+      if (canAddBots) {
+        const pending = new Set(
+          channel?.invitations
+            ?.filter((invite) => invite.status === 'pending')
+            .map((invite) => invite.targetBotSlug),
+        );
+        const members = new Set(channel?.members);
+        for (const bot of registry.list()) {
+          if (
+            bot.paused ||
+            tob?.isTob(bot.slug) ||
+            members.has(bot.slug) ||
+            pending.has(bot.slug) ||
+            (!bot.displayName.toLowerCase().includes(match) && !bot.slug.includes(match))
+          )
+            continue;
+          const access = team?.bots.groupInvitationCandidate(human, bot.slug, channelId);
+          if (team && !access) continue;
+          const candidate = { id: bot.slug, displayName: bot.displayName };
+          bots.push(
+            access?.requiredHumanId === undefined
+              ? candidate
+              : {
+                  ...candidate,
+                  requiresOwner: true,
+                  ...(canAddPeople ? { requiredHumanId: access.requiredHumanId } : {}),
+                },
+          );
+          if (bots.length === 100) break;
+        }
+      }
+      return { ok: true, value: { canAddPeople, canAddBots, people, bots } };
+    },
+    channelGroupMembersAdd(payload) {
+      const parsed = addInput.safeParse(payload);
+      if (!parsed.success) return invalidInput('Choose between 1 and 100 Group member targets');
+      const { channelId, targets } = parsed.data;
+      if (new Set(targets.map(({ kind, id }) => kind + ':' + id)).size !== targets.length)
+        return invalidInput('Each Group member target must be unique');
+      if (!group(channelId)) return missingGroup();
+      const results: GroupMemberOutcome[] = [];
+      for (const target of targets) {
+        if (target.kind !== 'human') continue;
+        const identity = { kind: target.kind, id: target.id };
+        try {
+          if (!team?.enabled()) throw new TeamError('team-mode-off');
+          team.channelAccess.addMember(human, channelId, {
+            humanId: target.id,
+            operationKey: target.operationKey,
+          });
+          results.push({ ...identity, status: 'joined' });
+        } catch (error) {
+          results.push(failure(channelId, identity, error));
+        }
+      }
+      for (const target of targets) {
+        if (target.kind !== 'bot') continue;
+        const identity = { kind: target.kind, id: target.id };
+        try {
+          const invited = invite({
+            channelId,
+            botSlug: target.id,
+            operationKey: target.operationKey,
+          });
+          if (!invited.ok) {
+            results.push({ ...identity, status: 'failed', code: invited.error.code });
+            continue;
+          }
+          const invitationId =
+            'invitation' in invited.value ? invited.value.invitation?.id : undefined;
+          const channel = channels.get(channelId);
+          const invitation = channel?.invitations?.find((entry) => entry.id === invitationId);
+          if (invitation?.status === 'accepted' && channel?.members.includes(target.id))
+            results.push({ ...identity, status: 'joined' });
+          else if (invitation?.status === 'pending')
+            results.push({ ...identity, status: 'pending' });
+          else results.push({ ...identity, status: 'failed', code: 'group-invite-unavailable' });
+        } catch (error) {
+          results.push(failure(channelId, identity, error));
+        }
+      }
+      return { ok: true, value: { results } };
+    },
+  };
+}

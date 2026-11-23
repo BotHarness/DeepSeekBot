@@ -1,9 +1,14 @@
+import * as memberAuth from './member-auth.js';
+import type { MemberAuthHost } from './member-auth.js';
+import * as memberLifecycle from './member-lifecycle.js';
+import type { MemberLifecycleHost } from './member-lifecycle.js';
+import { credentialPasswordJson, fields, memberSchema, type TeamMember } from './member-auth.js';
+export type { TeamMember } from './member-auth.js';
 import { audienceContains, type BotVisibility } from './bot-contract.js';
 import { TeamBots } from './bots.js';
 import { SpeakerPolicy } from './speaker-policy.js';
 import { TeamPrivateContent } from './private-content.js';
 import type { ConfinementStatus } from '../execution/linux-confinement.js';
-import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
 import type { WorkspaceSpaces } from '../workspaces/spaces.js';
 import { TeamApprovals } from './approvals.js';
 import type { UsageProjection } from '../usage/usage.js';
@@ -15,20 +20,14 @@ import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
 import { TeamError } from './error.js';
 export { TeamError } from './error.js';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
 import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol';
-import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
+import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
-import {
-  DUMMY_PASSWORD_HASH,
-  hashPassword,
-  passwordHashSchema,
-  strongPassword,
-  verifyPassword,
-} from './password.js';
+import { hashPassword, passwordHashSchema, verifyPassword } from './password.js';
 import { SignInRateLimit } from './rate-limit.js';
 import { memberUrls } from './member-urls.js';
 
@@ -44,18 +43,6 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-const memberSchema = z.object({
-  humanId: z.string(),
-  username: z.string(),
-  displayName: z.string(),
-  status: z.enum(['active', 'suspended', 'deactivated']),
-  mustChangePassword: z.coerce.boolean(),
-  createdAt: z.string(),
-  owner: z.coerce.boolean(),
-  roleIds: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
-  deviceCount: z.number().int().nonnegative(),
-});
-export type TeamMember = z.infer<typeof memberSchema>;
 export interface TeamModeView {
   isolation: 'trial' | 'enforced';
   confinement?: ConfinementStatus;
@@ -77,32 +64,17 @@ export interface TeamModeView {
     owner: boolean;
   };
 }
-const fields = `h.human_id AS humanId, COALESCE(c.username, 'owner') AS username,
-  h.display_name AS displayName, h.status, COALESCE(c.must_change, 0) AS mustChangePassword,
-  h.created_at AS createdAt, h.human_id = (SELECT owner_human_id FROM team_settings) AS owner,
-  (SELECT json_group_array(role_id) FROM (SELECT role_id FROM human_roles WHERE human_id = h.human_id ORDER BY role_id)) AS roleIds,
-  (SELECT COUNT(*) FROM member_grants g WHERE g.human_id = h.human_id AND g.revoked_at IS NULL) +
-  (SELECT COUNT(*) FROM paired_devices d WHERE d.human_id = h.human_id AND d.revoked_at IS NULL) AS deviceCount`;
+
 const credentialPasswordSchema = passwordHashSchema.extend({
   ownerIssuerHumanId: z.string().min(1).optional(),
 });
-function credentialPasswordJson(
-  hash: z.infer<typeof passwordHashSchema>,
-  ownerIssuerHumanId?: string,
-): string {
-  return JSON.stringify(ownerIssuerHumanId === undefined ? hash : { ...hash, ownerIssuerHumanId });
-}
+
 const credentialSchema = z.object({
+  username: z.string(),
   password_json: z.string(),
   history_json: z.string(),
   must_change: z.coerce.boolean(),
 });
-const grantSchema = z.object({
-  grant_id: z.string(),
-  human_id: z.string(),
-  last_seen_at: z.string(),
-});
-const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export class TeamService {
   readonly bots: TeamBots;
@@ -223,6 +195,85 @@ export class TeamService {
   private readonly ensureTob: ((human: HumanContext) => Promise<unknown>) | undefined;
   private readonly now: () => number;
   private readonly log: (phase: string, facts: Record<string, string | number | boolean>) => void;
+
+  readonly #memberOperations = this.#createMemberOperations();
+
+  #createMemberOperations(): MemberAuthHost & MemberLifecycleHost {
+    const service = this;
+    return {
+      accessChanged: (...args) => service.accessChanged(...args),
+      active: (...args) => service.active(...args),
+      admit: (...args) => service.admit(...args),
+      assertRevocationAvailable: (...args) => service.assertRevocationAvailable(...args),
+      byUsername: (...args) => service.byUsername(...args),
+      changePassword: (...args) => service.changePassword(...args),
+      createGrant: (...args) => service.createGrant(...args),
+      credential: (...args) => service.credential(...args),
+      get db() {
+        return service.db;
+      },
+      device: (...args) => service.device(...args),
+      deviceGrantResult: (...args) => service.deviceGrantResult(...args),
+      disposePeers: (...args) => service.disposePeers(...args),
+      get ensureTob() {
+        return service.ensureTob?.bind(service);
+      },
+      invalidate: (...args) => service.invalidate(...args),
+      isOwner: (...args) => service.isOwner(...args),
+      get limiter() {
+        return service.limiter;
+      },
+      log: (...args) => service.log(...args),
+      manageTarget: (...args) => service.manageTarget(...args),
+      member: (...args) => service.member(...args),
+      memberDevices: (...args) => service.memberDevices(...args),
+      now: (...args) => service.now(...args),
+      ownedBots: (...args) => service.ownedBots(...args),
+      owner: (...args) => service.owner(...args),
+      pairedIds: (...args) => service.pairedIds(...args),
+      get pairing() {
+        return service.pairing;
+      },
+      passwordAttempt: (...args) => service.passwordAttempt(...args),
+      get passwordCaller() {
+        return service.passwordCaller;
+      },
+      get peerFactory() {
+        return service.peerFactory?.bind(service);
+      },
+      get peers() {
+        return service.peers;
+      },
+      get privateAccess() {
+        return service.privateAccess;
+      },
+      get purge() {
+        return service.purge;
+      },
+      purgeTarget: (...args) => service.purgeTarget(...args),
+      resolve: (...args) => service.resolve(...args),
+      revoke: (...args) => service.revoke(...args),
+      revokeMember: (...args) => service.revokeMember(...args),
+      get roles() {
+        return service.roles;
+      },
+      settings: (...args) => service.settings(...args),
+      get settleBotPreparations() {
+        return service.settleBotPreparations?.bind(service);
+      },
+      get spaceProvider() {
+        return service.spaceProvider?.bind(service);
+      },
+      get spaces() {
+        return service.spaces;
+      },
+      get stopBots() {
+        return service.stopBots?.bind(service);
+      },
+      transferPreview: (...args) => service.transferPreview(...args),
+      withPasswordCaller: (...args) => service.withPasswordCaller(...args),
+    };
+  }
 
   constructor(
     private readonly db: OperationalDatabaseModulePort,
@@ -426,7 +477,7 @@ export class TeamService {
     const row = this.db.read((db) =>
       db
         .prepare(
-          'SELECT password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
+          'SELECT username, password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
         )
         .get(humanId),
     );
@@ -434,6 +485,7 @@ export class TeamService {
     const parsed = credentialSchema.parse(row);
     const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
+      username: parsed.username,
       hash: passwordHashSchema.parse(password),
       ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
@@ -492,6 +544,17 @@ export class TeamService {
   private owner(human: HumanContext): void {
     if (!this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+  }
+
+  ownerPasswordSignIn(human: HumanContext) {
+    return memberAuth.ownerPasswordSignIn.call(this.#memberOperations, human);
+  }
+
+  ownerPasswordSignInSet(
+    human: HumanContext,
+    input: Parameters<typeof memberAuth.ownerPasswordSignInSet>[1],
+  ) {
+    return memberAuth.ownerPasswordSignInSet.call(this.#memberOperations, human, input);
   }
 
   async setMode(human: HumanContext, enabled: boolean): Promise<TeamModeView> {
@@ -555,31 +618,10 @@ export class TeamService {
     password: string,
     current?: string,
   ): Promise<TeamModeView> {
-    this.owner(human);
-    const previous = this.credential(human.humanId);
-    if (previous && !(await verifyPassword(current ?? '', previous.hash)))
-      throw new TeamError('credentials-invalid');
-    this.owner(human);
-    if (!strongPassword(password)) throw new TeamError('password-weak');
-    const hash = await hashPassword(password);
-    this.owner(human);
-    if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
-      throw new TeamError('credentials-invalid');
-    this.db.transaction(
-      (db) => {
-        if (previous)
-          db.prepare(
-            'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
-          ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
-        else
-          db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
-            human.humanId,
-            credentialPasswordJson(hash, human.humanId),
-          );
-      },
-      ['team'],
-    );
-    this.invalidate();
+    await memberAuth.setOwnerPassword.call(this.#memberOperations, human, password, {
+      kind: 'settings',
+      current,
+    });
     return this.mode(human);
   }
 
@@ -632,377 +674,109 @@ export class TeamService {
   }
 
   private byUsername(username: string): TeamMember | undefined {
-    const row = this.db.read((db) =>
-      db
-        .prepare(
-          `SELECT ${fields} FROM humans h JOIN member_credentials c USING(human_id) WHERE c.username = ?`,
-        )
-        .get(username),
-    );
-    return row === undefined ? undefined : memberSchema.parse(row);
+    return memberAuth.byUsername.call(this.#memberOperations, username);
   }
 
   private active(member: TeamMember | undefined): asserts member is TeamMember {
-    if (!member) throw new TeamError('credentials-invalid');
-    if (!member.owner && !this.settings().enabled) throw new TeamError('team-mode-off');
-    if (member.status !== 'active') throw new TeamError('member-suspended');
+    return memberAuth.active.call(this.#memberOperations, member);
   }
 
   private passwordAttempt(username: string, ip?: string): void {
-    const retry = this.limiter.admit(username, ip);
-    if (retry) throw new TeamError('rate-limited', retry);
+    return memberAuth.passwordAttempt.call(this.#memberOperations, username, ip);
   }
 
-  async signIn(
+  signIn(
     username: string,
     password: string,
     ip: string,
     device?: { kind: 'paired-device'; name: string; publicKey?: string },
   ): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
-    if (!this.settings().enabled) throw new TeamError('team-mode-off');
-    this.passwordAttempt(username, ip);
-    const member = this.byUsername(username);
-    const credential = member ? this.credential(member.humanId) : undefined;
-    const valid = await verifyPassword(password, credential?.hash ?? DUMMY_PASSWORD_HASH);
-    if (!valid || !member) throw new TeamError('credentials-invalid');
-    if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
-      throw new TeamError('credentials-invalid');
-    this.active(this.member(member.humanId));
-    this.spaceProvider?.().ensureAccount(member.humanId);
-    if (member.owner) await this.ensureTob?.(humanContext(member.humanId));
-    if (this.credential(member.humanId)?.hash.hash !== credential?.hash.hash)
-      throw new TeamError('credentials-invalid');
-    this.active(this.member(member.humanId));
-    return { ...this.createGrant(member, device), member };
+    return memberAuth.signIn.call(this.#memberOperations, username, password, ip, device);
+  }
+
+  signInOwnerDevice<T>(
+    username: string,
+    password: string,
+    ip: string,
+    issue: (humanId: string) => T,
+  ): Promise<T> {
+    return (memberAuth.signInOwnerDevice<T>).call(
+      this.#memberOperations,
+      username,
+      password,
+      ip,
+      issue,
+    );
   }
 
   private createGrant(
     member: TeamMember,
     device?: { kind: 'paired-device'; name: string; publicKey?: string },
   ): { token: string; peer: PeerScope } {
-    this.active(this.member(member.humanId));
-    if (!this.peerFactory) throw new TeamError('unavailable');
-    const token = randomBytes(32).toString('base64url');
-    const grantId = randomUUID();
-    const at = new Date(this.now()).toISOString();
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare(
-            'INSERT INTO member_grants(grant_id, token_hash, human_id, created_at, last_seen_at, revoked_at, kind, device_name, public_key) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)',
-          )
-          .run(
-            grantId,
-            tokenHash(token),
-            member.humanId,
-            at,
-            at,
-            device?.kind ?? 'browser-session',
-            device?.name ?? null,
-            device?.publicKey ?? null,
-          ),
-      ['team'],
-    );
-    try {
-      const peer = this.peerFactory({
-        kind: 'botharness-member',
-        humanId: member.humanId,
-        grantId,
-      });
-      this.peers.set(grantId, peer);
-      this.log('grant-created', { initiator: 'sign-in', humanId: member.humanId, grantId });
-      this.invalidate();
-      return { token, peer };
-    } catch (error) {
-      this.db.transaction(
-        (db) =>
-          db.prepare('UPDATE member_grants SET revoked_at = ? WHERE grant_id = ?').run(at, grantId),
-        ['team'],
-      );
-      this.invalidate();
-      throw error;
-    }
+    return memberAuth.createGrant.call(this.#memberOperations, member, device);
   }
 
   createDeviceGrant(humanId: string, name: string, publicKey?: string) {
-    const member = this.member(humanId);
-    this.active(member);
-    if (member.mustChangePassword) throw new TeamError('password-change-required');
-    return this.deviceGrantResult(
-      this.createGrant(member, {
-        kind: 'paired-device',
-        name,
-        ...(publicKey === undefined ? {} : { publicKey }),
-      }),
-      member,
-    );
+    return memberAuth.createDeviceGrant.call(this.#memberOperations, humanId, name, publicKey);
   }
 
   deviceGrantResult(grant: { token: string; peer: PeerScope }, member: TeamMember) {
-    if (grant.peer.principal.kind !== 'botharness-member') throw new TeamError('forbidden');
-    return {
-      deviceId: grant.peer.principal.grantId,
-      credential: `member.${grant.token}`,
-      humanId: member.humanId,
-      displayName: member.displayName,
-      mustChangePassword: member.mustChangePassword,
-    };
+    return memberAuth.deviceGrantResult.call(this.#memberOperations, grant, member);
   }
 
   admitDevice(authorization: string | undefined, publicKey?: string): PeerScope | undefined {
-    if (publicKey !== undefined && !/^[a-f0-9]{64}$/u.test(publicKey)) return undefined;
-    const match = /^Device member\.([A-Za-z0-9_-]{43})$/u.exec(authorization ?? '');
-    if (!match) return undefined;
-    const row = z
-      .object({ public_key: z.string().nullable() })
-      .optional()
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(
-              "SELECT public_key FROM member_grants WHERE token_hash = ? AND kind = 'paired-device' AND revoked_at IS NULL",
-            )
-            .get(tokenHash(match[1]!)),
-        ),
-      );
-    if (
-      !row ||
-      (publicKey !== undefined && row.public_key !== null && row.public_key !== publicKey)
-    )
-      return undefined;
-    const peer = this.admit(match[1]!);
-    if (peer && publicKey !== undefined && row.public_key === null)
-      this.db.transaction(
-        (db) =>
-          db
-            .prepare(
-              'UPDATE member_grants SET public_key = ? WHERE token_hash = ? AND public_key IS NULL',
-            )
-            .run(publicKey, tokenHash(match[1]!)),
-        ['team'],
-      );
-    return peer;
+    return memberAuth.admitDevice.call(this.#memberOperations, authorization, publicKey);
   }
 
   deviceRefusal(authorization: string | undefined): 'sign-in-required' | 'member-suspended' {
-    const match = /^Device member\.([A-Za-z0-9_-]{43})$/u.exec(authorization ?? '');
-    if (!match) return 'sign-in-required';
-    const row = z
-      .object({ status: z.string() })
-      .optional()
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(
-              "SELECT h.status FROM member_grants g JOIN humans h ON h.human_id = g.human_id WHERE g.token_hash = ? AND g.kind = 'paired-device'",
-            )
-            .get(tokenHash(match[1]!)),
-        ),
-      );
-    return row !== undefined && row.status !== 'active' ? 'member-suspended' : 'sign-in-required';
+    return memberAuth.deviceRefusal.call(this.#memberOperations, authorization);
   }
 
   device(deviceId: string) {
-    const row = z
-      .object({
-        grant_id: z.string(),
-        human_id: z.string(),
-        device_name: z.string(),
-        created_at: z.string(),
-        last_seen_at: z.string(),
-      })
-      .optional()
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(
-              "SELECT grant_id, human_id, device_name, created_at, last_seen_at FROM member_grants WHERE grant_id = ? AND kind = 'paired-device' AND revoked_at IS NULL",
-            )
-            .get(deviceId),
-        ),
-      );
-    if (
-      !row ||
-      !this.resolve({ kind: 'botharness-member', humanId: row.human_id, grantId: row.grant_id })
-    )
-      return undefined;
-    return {
-      id: row.grant_id,
-      humanId: row.human_id,
-      name: row.device_name,
-      pairedAt: row.created_at,
-      lastSeenAt: row.last_seen_at,
-    };
+    return memberAuth.device.call(this.#memberOperations, deviceId);
   }
 
   attachDeviceStream(deviceId: string, close: () => void): () => void {
-    const peer = this.peers.get(deviceId);
-    if (!peer || peer.signal.aborted || !this.device(deviceId)) {
-      close();
-      return () => {};
-    }
-    peer.signal.addEventListener('abort', close, { once: true });
-    return () => peer.signal.removeEventListener('abort', close);
+    return memberAuth.attachDeviceStream.call(this.#memberOperations, deviceId, close);
   }
 
   resolve(principal: Principal): HumanContext | undefined {
-    if (principal.kind !== 'botharness-member') return undefined;
-    const row = this.db.read((db) =>
-      db
-        .prepare(
-          'SELECT grant_id, human_id FROM member_grants WHERE grant_id = ? AND human_id = ? AND revoked_at IS NULL',
-        )
-        .get(principal.grantId, principal.humanId),
-    );
-    if (!row) return undefined;
-    const member = this.member(principal.humanId);
-    try {
-      this.active(member);
-    } catch {
-      return undefined;
-    }
-    return humanContext(principal.humanId);
+    return memberAuth.resolve.call(this.#memberOperations, principal);
   }
 
   admit(token: string): PeerScope | undefined {
-    if (!/^[A-Za-z0-9_-]{43}$/u.test(token)) return undefined;
-    const raw = this.db.read((db) =>
-      db
-        .prepare(
-          'SELECT grant_id, human_id, last_seen_at FROM member_grants WHERE token_hash = ? AND revoked_at IS NULL',
-        )
-        .get(tokenHash(token)),
-    );
-    if (!raw) return undefined;
-    const grant = grantSchema.parse(raw);
-    const principal: MemberPrincipal = {
-      kind: 'botharness-member',
-      humanId: grant.human_id,
-      grantId: grant.grant_id,
-    };
-    if (!this.resolve(principal)) return undefined;
-    let peer = this.peers.get(grant.grant_id);
-    if (!peer || peer.signal.aborted) {
-      if (!this.peerFactory) return undefined;
-      peer = this.peerFactory(principal);
-      this.peers.set(grant.grant_id, peer);
-    }
-    if (Date.parse(grant.last_seen_at) <= this.now() - 60_000)
-      this.db.transaction((db) =>
-        db
-          .prepare('UPDATE member_grants SET last_seen_at = ? WHERE grant_id = ?')
-          .run(new Date(this.now()).toISOString(), grant.grant_id),
-      );
-    return peer;
+    return memberAuth.admit.call(this.#memberOperations, token);
   }
 
   assertCall(principal: Principal | undefined, method: string): void {
-    if (principal?.kind !== 'botharness-member') return;
-    if (!this.resolve(principal)) throw new TeamError('credentials-invalid');
-    if (
-      this.member(principal.humanId)?.mustChangePassword &&
-      !['teamMode', 'memberPasswordChange'].includes(method)
-    )
-      throw new TeamError('password-change-required');
+    return memberAuth.assertCall.call(this.#memberOperations, principal, method);
   }
 
-  async revoke(grantId: string): Promise<void> {
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare(
-            'UPDATE member_grants SET revoked_at = COALESCE(revoked_at, ?) WHERE grant_id = ?',
-          )
-          .run(new Date(this.now()).toISOString(), grantId),
-      ['team'],
-    );
-    this.invalidate();
-    const peer = this.peers.get(grantId);
-    this.peers.delete(grantId);
-    await peer?.dispose();
-    this.log('grant-revoked', { initiator: 'host', grantId });
+  revoke(grantId: string): Promise<void> {
+    return memberAuth.revoke.call(this.#memberOperations, grantId);
   }
 
-  async suspend(human: HumanContext, humanId: string): Promise<void> {
-    this.owner(human);
-    if (humanId === human.humanId) throw new TeamError('forbidden');
-    this.db.transaction(
-      (db) => {
-        db.prepare(`UPDATE humans SET status = 'suspended' WHERE human_id = ?`).run(humanId);
-        db.prepare(
-          'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL',
-        ).run(new Date(this.now()).toISOString(), humanId);
-      },
-      ['team'],
-    );
-    this.invalidate();
-    await this.disposePeers(humanId);
+  suspend(human: HumanContext, humanId: string): Promise<void> {
+    return memberLifecycle.suspend.call(this.#memberOperations, human, humanId);
   }
 
-  async asMember<T>(username: string, run: (peer: PeerScope) => Promise<T>): Promise<T> {
-    const member = this.byUsername(username);
-    this.active(member);
-    const { peer } = this.createGrant(member);
-    if (peer.principal.kind !== 'botharness-member') throw new TeamError('forbidden');
-    try {
-      return await run(peer);
-    } finally {
-      await this.revoke(peer.principal.grantId);
-    }
+  asMember<T>(username: string, run: (peer: PeerScope) => Promise<T>): Promise<T> {
+    return (memberAuth.asMember<T>).call(this.#memberOperations, username, run);
   }
 
-  async changePassword(
+  changePassword(
     human: HumanContext,
     current: string,
     next: string,
     signOutOthers = true,
   ): Promise<null> {
-    const caller = this.passwordCaller.getStore();
-    const assertCaller = () => {
-      if (caller && this.resolve(caller.principal)?.humanId !== human.humanId)
-        throw new TeamError('credentials-invalid');
-    };
-    assertCaller();
-    const member = this.member(human.humanId);
-    if (!member) throw new TeamError('credentials-invalid');
-    this.passwordAttempt(member.username, caller?.ip);
-    const previous = this.credential(human.humanId);
-    if (!previous || !(await verifyPassword(current, previous.hash)))
-      throw new TeamError('credentials-invalid');
-    if (!strongPassword(next)) throw new TeamError('password-weak');
-    for (const hash of [previous.hash, ...previous.history])
-      if (await verifyPassword(next, hash)) throw new TeamError('password-reused');
-    const hash = await hashPassword(next);
-    if (this.credential(human.humanId)?.hash.hash !== previous.hash.hash)
-      throw new TeamError('credentials-invalid');
-    assertCaller();
-    const keepGrant = caller?.principal.grantId;
-    const revokeOthers = previous.mustChange || signOutOthers;
-    if (revokeOthers) this.assertRevocationAvailable([member], keepGrant);
-    this.db.transaction(
-      (db) => {
-        db.prepare(
-          'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 0 WHERE human_id = ?',
-        ).run(
-          credentialPasswordJson(hash, previous.ownerIssuerHumanId),
-          JSON.stringify([previous.hash, ...previous.history]),
-          human.humanId,
-        );
-        if (revokeOthers)
-          db.prepare(
-            'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL AND (? IS NULL OR grant_id != ?)',
-          ).run(
-            new Date(this.now()).toISOString(),
-            human.humanId,
-            keepGrant ?? null,
-            keepGrant ?? null,
-          );
-      },
-      ['team'],
+    return memberAuth.changePassword.call(
+      this.#memberOperations,
+      human,
+      current,
+      next,
+      signOutOthers,
     );
-    this.invalidate();
-    if (revokeOthers) await this.revokeMember(human.humanId, keepGrant);
-    return null;
   }
 
   withPasswordCaller<T>(
@@ -1010,59 +784,28 @@ export class TeamService {
     ip: string | undefined,
     run: () => Promise<T>,
   ): Promise<T> {
-    const current = this.passwordCaller.getStore();
-    const inheritedIp =
-      current?.principal.grantId === principal.grantId &&
-      current.principal.humanId === principal.humanId
-        ? current.ip
-        : undefined;
-    return this.passwordCaller.run({ principal, ip: ip ?? inheritedIp }, run);
+    return (memberAuth.withPasswordCaller<T>).call(this.#memberOperations, principal, ip, run);
   }
 
-  async changeWebPassword(
+  changeWebPassword(
     principal: Principal,
     current: string,
     next: string,
     ip: string,
     signOutOthers = true,
   ): Promise<null> {
-    const human = this.resolve(principal);
-    const member = human ? this.member(human.humanId) : undefined;
-    if (!human || !member || principal.kind !== 'botharness-member')
-      throw new TeamError('credentials-invalid');
-    return this.withPasswordCaller(principal, ip, () =>
-      this.changePassword(human, current, next, signOutOthers),
+    return memberAuth.changeWebPassword.call(
+      this.#memberOperations,
+      principal,
+      current,
+      next,
+      ip,
+      signOutOthers,
     );
   }
 
-  async resetPassword(human: HumanContext, humanId: string): Promise<{ initialPassword: string }> {
-    this.manageTarget(human, humanId);
-    if (!this.member(humanId) || !this.credential(humanId)) throw new TeamError('member-not-found');
-    this.assertRevocationAvailable([this.manageTarget(human, humanId)]);
-    const initialPassword = randomBytes(18).toString('base64url');
-    const hash = await hashPassword(initialPassword);
-    this.manageTarget(human, humanId);
-    this.assertRevocationAvailable([this.manageTarget(human, humanId)]);
-    const previous = this.credential(humanId);
-    if (!this.member(humanId) || !previous) throw new TeamError('member-not-found');
-    this.db.transaction(
-      (db) => {
-        db.prepare(
-          'UPDATE member_credentials SET password_json = ?, history_json = ?, must_change = 1 WHERE human_id = ?',
-        ).run(
-          credentialPasswordJson(hash, this.isOwner(human) ? human.humanId : undefined),
-          JSON.stringify([previous.hash, ...previous.history]),
-          humanId,
-        );
-        db.prepare(
-          'UPDATE member_grants SET revoked_at = ? WHERE human_id = ? AND revoked_at IS NULL',
-        ).run(new Date(this.now()).toISOString(), humanId);
-      },
-      ['team'],
-    );
-    this.invalidate();
-    await this.revokeMember(humanId);
-    return { initialPassword };
+  resetPassword(human: HumanContext, humanId: string): Promise<{ initialPassword: string }> {
+    return memberAuth.resetPassword.call(this.#memberOperations, human, humanId);
   }
 
   private manageTarget(human: HumanContext, humanId: string): TeamMember {
@@ -1085,116 +828,35 @@ export class TeamService {
   }
 
   private pairedIds(humanId: string, keepGrant?: string): string[] {
-    return this.db
-      .read((db) =>
-        db
-          .prepare(`SELECT device_id FROM paired_devices
-      WHERE human_id = ? AND revoked_at IS NULL AND device_id <> ?`)
-          .all(humanId, keepGrant ?? ''),
-      )
-      .map((row) => String(row.device_id));
+    return memberLifecycle.pairedIds.call(this.#memberOperations, humanId, keepGrant);
   }
 
   private assertRevocationAvailable(members: readonly TeamMember[], keepGrant?: string): void {
-    if (!this.pairing && members.some((member) => this.pairedIds(member.humanId, keepGrant).length))
-      throw new TeamError('unavailable');
+    return memberLifecycle.assertRevocationAvailable.call(
+      this.#memberOperations,
+      members,
+      keepGrant,
+    );
   }
 
-  private async revokeMember(humanId: string, keepGrant?: string): Promise<void> {
-    const ids = this.pairedIds(humanId, keepGrant);
-    if (ids.length && !this.pairing) throw new TeamError('unavailable');
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare(`UPDATE member_grants SET revoked_at = ?
-      WHERE human_id = ? AND revoked_at IS NULL AND grant_id <> ?`)
-          .run(new Date(this.now()).toISOString(), humanId, keepGrant ?? ''),
-      ['team'],
-    );
-    for (const id of ids) this.pairing?.revoke(id);
-    this.invalidate();
-    await this.disposePeers(humanId, keepGrant);
+  private revokeMember(humanId: string, keepGrant?: string): Promise<void> {
+    return memberLifecycle.revokeMember.call(this.#memberOperations, humanId, keepGrant);
   }
 
-  async deactivate(human: HumanContext, humanId: string): Promise<null> {
-    const member = this.manageTarget(human, humanId);
-    this.assertRevocationAvailable([member]);
-    this.db.transaction(
-      (db) => {
-        db.prepare("UPDATE humans SET status = 'deactivated' WHERE human_id = ?").run(humanId);
-        db.prepare('DELETE FROM team_mode_suspensions WHERE human_id = ?').run(humanId);
-      },
-      ['team'],
-    );
-    await this.revokeMember(humanId);
-    await this.settleBotPreparations?.(humanId);
-    await this.stopBots?.(this.ownedBots(humanId).map((bot) => bot.slug));
-    this.log('member-deactivated', { initiator: human.humanId, humanId });
-    return null;
+  deactivate(human: HumanContext, humanId: string): Promise<null> {
+    return memberLifecycle.deactivate.call(this.#memberOperations, human, humanId);
   }
 
-  async reactivate(human: HumanContext, humanId: string): Promise<null> {
-    const member = this.manageTarget(human, humanId);
-    if (!this.settings().enabled) throw new TeamError('team-mode-off');
-    this.assertRevocationAvailable([member]);
-    await this.revokeMember(humanId);
-    this.manageTarget(human, humanId);
-    if (!this.settings().enabled) throw new TeamError('team-mode-off');
-    this.db.transaction(
-      (db) => {
-        db.prepare("UPDATE humans SET status = 'active' WHERE human_id = ?").run(humanId);
-        db.prepare('DELETE FROM team_mode_suspensions WHERE human_id = ?').run(humanId);
-        db.prepare(channelRoleMembershipEntrySql('human')).run(
-          new Date(this.now()).toISOString(),
-          humanId,
-        );
-      },
-      ['team'],
-    );
-    this.invalidate();
-    return null;
+  reactivate(human: HumanContext, humanId: string): Promise<null> {
+    return memberLifecycle.reactivate.call(this.#memberOperations, human, humanId);
   }
 
   private ownedBots(humanId: string, transferable = false) {
-    return z.array(z.object({ slug: z.string(), displayName: z.string() })).parse(
-      this.db.read((db) =>
-        db
-          .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName FROM persona_bots b
-        WHERE b.owner_human_id = ?
-        ${transferable ? 'AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug) AND NOT EXISTS (SELECT 1 FROM tob_identity t JOIN team_settings s ON s.owner_human_id = t.human_id WHERE t.bot_slug = b.slug)' : ''}
-        ORDER BY b.slug`)
-          .all(humanId),
-      ),
-    );
+    return memberLifecycle.ownedBots.call(this.#memberOperations, humanId, transferable);
   }
 
   transferPreview(human: HumanContext, humanId: string) {
-    this.manageTarget(human, humanId);
-    const channels = z.array(z.object({ channelId: z.string(), name: z.string() })).parse(
-      this.db.read((db) =>
-        db
-          .prepare(`SELECT channel_id AS channelId,
-        json_extract(record_json, '$.name') AS name FROM channel_records
-        WHERE json_extract(record_json, '$.type') = 'group'
-        AND owner_human_id = ?
-        ORDER BY channel_id`)
-          .all(humanId),
-      ),
-    );
-    const bots = this.ownedBots(humanId, true);
-    return {
-      channels,
-      bots,
-      ...(this.spaceProvider
-        ? {
-            space: {
-              spaceId: 'spaces/' + humanId,
-              files: accountSpaceFiles(this.spaces.home, humanId),
-              memories: bots.map((bot) => ({ slug: bot.slug })),
-            },
-          }
-        : {}),
-    };
+    return memberLifecycle.transferPreview.call(this.#memberOperations, human, humanId);
   }
 
   async setBotVisibility(
@@ -1215,153 +877,31 @@ export class TeamService {
       : action();
   }
 
-  async transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {
-    if (human.caller === 'bot')
-      throw new TeamError('permission-required', undefined, { permission: 'members.manage' });
-    this.manageTarget(human, humanId);
-    const target = this.member(toHumanId);
-    if (!target) throw new TeamError('member-not-found');
-    if (target.humanId === humanId || (!target.owner && target.status !== 'active'))
-      throw new TeamError('transfer-target-invalid');
-    this.manageTarget(human, humanId);
-    if (!this.isOwner(human)) this.roles.requireManagementTarget(human, toHumanId);
-    const currentTarget = this.member(toHumanId);
-    if (!currentTarget || (!currentTarget.owner && currentTarget.status !== 'active'))
-      throw new TeamError('transfer-target-invalid');
-    const preview = this.transferPreview(human, humanId);
-    if (this.spaceProvider) {
-      this.spaces.ensureAccount(humanId);
-      this.spaces.ensureAccount(toHumanId);
-    }
-    const spaceTransfer = this.spaceProvider
-      ? prepareSpaceTransfer(
-          this.db,
-          this.spaces.home,
-          humanId,
-          toHumanId,
-          preview.bots.map((bot) => bot.slug),
-        )
-      : undefined;
-    const transferred = JSON.stringify(preview.channels.map((channel) => channel.channelId));
-    try {
-      this.db.transaction(
-        (db) => {
-          for (const bot of preview.bots)
-            this.privateAccess.recordBotAction(
-              human,
-              { ...bot, ownerHumanId: humanId },
-              'transfer',
-              db,
-            );
-          spaceTransfer?.commit(db);
-          db.prepare(`UPDATE channel_records SET record_json = json_set(record_json, '$.dmHumanId', ?)
-          WHERE json_extract(record_json, '$.type') = 'dm'
-            AND json_extract(record_json, '$.dmHumanId') IS NULL
-            AND json_extract(record_json, '$.botSlug') IN (
-              SELECT slug FROM persona_bots WHERE owner_human_id = ?
-                AND slug IN (SELECT value FROM json_each(?)))`).run(
-            humanId,
-            humanId,
-            JSON.stringify(preview.bots.map((bot) => bot.slug)),
-          );
-          db.prepare(`UPDATE persona_bots SET owner_human_id = ?, body = json_set(body, '$.ownerHumanId', ?)
-          WHERE slug IN (SELECT value FROM json_each(?)) AND owner_human_id = ?`).run(
-            toHumanId,
-            toHumanId,
-            JSON.stringify(preview.bots.map((bot) => bot.slug)),
-            humanId,
-          );
-          db.prepare(`UPDATE channel_records SET owner_human_id = ?, record_json = json_set(record_json, '$.ownerHumanId', ?)
-        WHERE json_extract(record_json, '$.type') = 'group'
-        AND owner_human_id = ?`).run(toHumanId, toHumanId, humanId);
-          db.prepare(`INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at)
-        SELECT channel_id, ?, ?, 1, ? FROM channel_records
-        WHERE channel_id IN (SELECT value FROM json_each(?))
-          OR (json_extract(record_json, '$.type') = 'group' AND EXISTS
-            (SELECT 1 FROM json_each(record_json, '$.members') m
-              WHERE m.value IN (SELECT value FROM json_each(?))))
-        ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`).run(
-            toHumanId,
-            target.displayName,
-            new Date(this.now()).toISOString(),
-            transferred,
-            JSON.stringify(preview.bots.map((bot) => bot.slug)),
-          );
-        },
-        [
-          'team',
-          'channel',
-          'bot-registry',
-          'bot-ownership',
-          'workspace-spaces',
-          'workspace-grants',
-          'private-audit',
-        ],
-      );
-    } catch (error) {
-      if (error instanceof OperationalDatabaseError && error.code === 'post-commit-interrupted') {
-        await Promise.allSettled([
-          Promise.resolve().then(() => this.pairing?.closeStreams?.()),
-          this.disposePeers(),
-          Promise.resolve().then(() => this.stopBots?.(preview.bots.map((bot) => bot.slug))),
-        ]);
-      } else {
-        spaceTransfer?.rollback();
-        if (error instanceof OperationalDatabaseError && error.cause instanceof TeamError)
-          throw error.cause;
-      }
-      throw error;
-    }
-    this.accessChanged(true);
-    await this.stopBots?.(preview.bots.map((bot) => bot.slug));
-    spaceTransfer?.finish();
-    return null;
+  transfer(human: HumanContext, humanId: string, toHumanId: string): Promise<null> {
+    return memberLifecycle.transfer.call(this.#memberOperations, human, humanId, toHumanId);
   }
 
   private purgeTarget(human: HumanContext, humanId: string): TeamMember {
-    const member = this.manageTarget(human, humanId);
-    if (member.status !== 'deactivated') throw new TeamError('member-active');
-    const owned = this.transferPreview(human, humanId);
-    if (owned.channels.length) throw new TeamError('transfer-required');
-    if (!this.purge) throw new TeamError('unavailable');
-    return member;
+    return memberLifecycle.purgeTarget.call(this.#memberOperations, human, humanId);
   }
 
   purgePreview(human: HumanContext, humanId: string) {
-    this.purgeTarget(human, humanId);
-    return this.purge!.memberPreview(human, humanId);
+    return memberLifecycle.purgePreview.call(this.#memberOperations, human, humanId);
   }
 
-  async purgeConfirm(
+  purgeConfirm(
     human: HumanContext,
     humanId: string,
     token: string,
     username: string,
   ): Promise<null> {
-    if (human.caller === 'bot')
-      throw new TeamError('permission-required', undefined, { permission: 'members.manage' });
-    this.roles.requireManagementTarget(human, humanId);
-    if (
-      !this.member(humanId) &&
-      this.db.read((db) =>
-        db.prepare('SELECT 1 FROM deleted_humans WHERE human_id = ?').get(humanId),
-      )
-    )
-      throw new TeamError('purge-token-invalid');
-    const member = this.purgeTarget(human, humanId);
-    if (username !== member.username) throw new TeamError('purge-token-invalid');
-    for (const bot of this.ownedBots(humanId))
-      this.privateAccess.recordBotAction(
-        human,
-        { ...bot, ownerHumanId: humanId },
-        'memberPurgeConfirm',
-      );
-    await this.settleBotPreparations?.(humanId);
-    this.purge!.memberConfirm(human, humanId, token);
-    await this.purge!.memberSettled(humanId);
-    this.invalidate();
-    this.log('member-purged', { initiator: human.humanId, humanId });
-    return null;
+    return memberLifecycle.purgeConfirm.call(
+      this.#memberOperations,
+      human,
+      humanId,
+      token,
+      username,
+    );
   }
 
   setPublic(human: HumanContext, channelId: string, value: boolean): null {
@@ -1371,55 +911,11 @@ export class TeamService {
   }
 
   memberDevices(human: HumanContext, humanId: string, currentGrantId?: string) {
-    if (human.humanId !== humanId) this.roles.require(human, 'members.manage');
-    return z
-      .array(
-        z.object({
-          grantId: z.string(),
-          label: z.string(),
-          kind: z.enum(['browser', 'paired-device']),
-          createdAt: z.string(),
-          lastSeenAt: z.string(),
-          current: z.coerce.boolean(),
-        }),
-      )
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(`
-      SELECT grant_id AS grantId, COALESCE(device_name, '') AS label,
-        CASE kind WHEN 'paired-device' THEN 'paired-device' ELSE 'browser' END AS kind,
-        created_at AS createdAt,
-        last_seen_at AS lastSeenAt, grant_id = ? AS current FROM member_grants
-        WHERE human_id = ? AND revoked_at IS NULL
-      UNION ALL
-      SELECT device_id AS grantId, name AS label, 'paired-device' AS kind, paired_at AS createdAt,
-        COALESCE(last_seen_at, paired_at) AS lastSeenAt, device_id = ? AS current FROM paired_devices
-        WHERE human_id = ? AND revoked_at IS NULL
-      ORDER BY createdAt, grantId`)
-            .all(currentGrantId ?? '', humanId, currentGrantId ?? '', humanId),
-        ),
-      );
+    return memberAuth.memberDevices.call(this.#memberOperations, human, humanId, currentGrantId);
   }
 
-  async memberDeviceRevoke(human: HumanContext, humanId: string, grantId: string): Promise<null> {
-    if (human.humanId !== humanId) this.roles.require(human, 'members.manage');
-    const device = this.memberDevices(human, humanId).find((entry) => entry.grantId === grantId);
-    if (!device) throw new TeamError('device-not-found');
-    if (
-      this.db.read((db) =>
-        db
-          .prepare('SELECT 1 FROM member_grants WHERE grant_id = ? AND human_id = ?')
-          .get(grantId, humanId),
-      )
-    )
-      await this.revoke(grantId);
-    else {
-      if (!this.pairing) throw new TeamError('unavailable');
-      this.pairing.revoke(grantId);
-      this.invalidate();
-    }
-    return null;
+  memberDeviceRevoke(human: HumanContext, humanId: string, grantId: string): Promise<null> {
+    return memberAuth.memberDeviceRevoke.call(this.#memberOperations, human, humanId, grantId);
   }
 
   async transferOwner(human: HumanContext, humanId: string, password: string): Promise<null> {
@@ -1473,31 +969,7 @@ export class TeamService {
     return this.channelAccess.canRead(human, channelId, true);
   }
 
-  async disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
-    const disposals: Promise<void>[] = [];
-    for (const [id, peer] of this.peers) {
-      if (id === keepGrant) continue;
-      if (
-        humanId &&
-        peer.principal.kind === 'botharness-member' &&
-        peer.principal.humanId !== humanId
-      )
-        continue;
-      this.peers.delete(id);
-      try {
-        disposals.push(peer.dispose());
-      } catch (error) {
-        disposals.push(
-          Promise.reject(
-            error instanceof Error ? error : new Error(String(error), { cause: error }),
-          ),
-        );
-      }
-    }
-    const settled = await Promise.allSettled(disposals);
-    const failure = settled.find((result) => result.status === 'rejected');
-    if (failure?.status === 'rejected') throw failure.reason;
-    if (disposals.length)
-      this.log('peers-disposed', { initiator: 'host', count: disposals.length });
+  disposePeers(humanId?: string, keepGrant?: string): Promise<void> {
+    return memberAuth.disposePeers.call(this.#memberOperations, humanId, keepGrant);
   }
 }

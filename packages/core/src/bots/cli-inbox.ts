@@ -1,3 +1,5 @@
+import { sessionModelChoice } from '@botharness/host-protocol/session-model';
+import { isHostSessionFilter, isHostSessionSort } from '@botharness/host-protocol/host-sessions';
 import {
   readHumanAttention,
   dismissHumanAttention,
@@ -66,6 +68,11 @@ export const INBOX_COMMANDS = [
       "read the goal and current to-do list of up to 30 of a Bot's root Sessions (--session a,b)",
   },
   {
+    command: 'session-model',
+    description:
+      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice',
+  },
+  {
     command: 'session-transcript',
     description: "read a root Session's history, with reply targets and public tool steps",
   },
@@ -81,6 +88,10 @@ export const INBOX_COMMANDS = [
   },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
+  {
+    command: 'session-list',
+    description: 'list accessible root Sessions on the Host (--search, --sort, --source)',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -90,8 +101,7 @@ export const INBOX_COMMANDS = [
   },
   {
     command: 'session-send',
-    description:
-      "send a message straight into a Bot's current Orchestrator Session, without posting it in a Channel",
+    description: "continue a native Session or a Bot's current Orchestrator Session directly",
   },
   {
     command: 'bot-stop',
@@ -124,6 +134,7 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  set?: string;
   notifications?: boolean;
   category?: string;
   'watch-seconds'?: string;
@@ -297,7 +308,9 @@ export async function runInboxCommand(
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
-      'Update the Host to use Activity search, unread filtering and mention ordering.',
+      call.method === 'sessionList'
+        ? 'Update the Host to search, sort and filter Sessions.'
+        : 'Update the Host to use Activity search, unread filtering and mention ordering.',
     );
   if (call.method === 'privateMcpServerEnable' && result['accepted'] !== true)
     throw new CliLiveError(
@@ -517,15 +530,68 @@ function prepare(
         usage('--session must list 1 to 30 comma-separated Session ids.');
       return { method: 'sessionProgress', args: { slug, sessionIds } };
     }
+    case 'session-model': {
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
+      const sessionId = required(values.session, 'session', command);
+      if (values.set !== undefined && values.clear === true)
+        usage('session-model accepts one of --set and --clear.');
+      if (values.clear === true)
+        return { method: 'sessionModel', args: { slug, sessionId, choice: null } };
+      if (values.set === undefined) return { method: 'sessionModel', args: { slug, sessionId } };
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(values.set);
+      } catch {
+        usage('session-model --set needs Model Choice JSON.');
+      }
+      const choice = sessionModelChoice(parsed);
+      if (choice === undefined)
+        usage('session-model --set needs a model, engine or Routing Group choice.');
+      return { method: 'sessionModel', args: { slug, sessionId, choice } };
+    }
+    case 'session-list': {
+      positionals(command, rest, 0, '');
+      const { search, sort, source } = values;
+      if (sort !== undefined && !isHostSessionSort(sort))
+        usage('session-list --sort must be last-human-turn, created, or last-activity.');
+      if (source !== undefined && !isHostSessionFilter(source))
+        usage('session-list --source must be all, native, or bot:<slug>.');
+      return {
+        method: 'sessionList',
+        args: {
+          ...(search === undefined ? {} : { search }),
+          ...(sort === undefined ? {} : { sort }),
+          ...(source === undefined ? {} : { source }),
+          ...(search === undefined && sort === undefined && source === undefined
+            ? {}
+            : { queryVersion: 1 }),
+        },
+      };
+    }
     case 'session-transcript': {
-      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
       return {
         method: 'sessionTranscript',
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
     case 'session-live': {
-      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
       const after = values.after === undefined ? undefined : Number(values.after);
       if (after !== undefined && !Number.isSafeInteger(after))
         usage('session-live --after needs an integer revision.');
@@ -600,6 +666,15 @@ function prepare(
       };
     }
     case 'session-send': {
+      if (rest.length === 2) {
+        const [sessionId] = positionals(
+          command,
+          rest,
+          2,
+          'a native Session id and the message text',
+        );
+        return { method: 'sessionMessageSend', args: { botSlug: null, sessionId, text: rest[1] } };
+      }
       const [botSlug, sessionId] = positionals(
         command,
         rest,

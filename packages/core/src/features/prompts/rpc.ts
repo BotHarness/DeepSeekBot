@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { PromptPreset } from '../../prompts/prompt-presets.js';
 import type {
@@ -6,6 +7,7 @@ import type {
   PromptLimitView,
   PromptPartView,
 } from './methods.js';
+import type { PromptsAdapterMethods } from './methods.js';
 
 export function botSystemPrompt(
   methods: PromptBridgeMethods,
@@ -96,3 +98,91 @@ export function botPromptSet(
     }),
   );
 }
+
+export function botTurnInput(
+  methods: PromptsAdapterMethods,
+  slug: string,
+  sessionId?: string,
+  turns?: number,
+): Promise<{
+  slug: string;
+  sessionId: string;
+  turns: import('../../runtime/prompt-inspection.js').TurnInputView[];
+}> {
+  return unwrapAsync(
+    methods.botTurnInput({
+      slug,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(turns === undefined ? {} : { turns }),
+    }),
+  );
+}
+
+export const promptInspectionRpc = {
+  botSystemPrompt(
+    slug: string,
+  ): Promise<import('../../runtime/prompt-inspection.js').BotSystemPromptView> {
+    return botSystemPrompt(this.methods, slug);
+  },
+
+  botTurnInput(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../../runtime/prompt-inspection.js').TurnInputView[];
+  }> {
+    return botTurnInput(this.methods, slug, sessionId, turns);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const promptPresetRpc = {
+  promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
+    return promptParts(this.methods);
+  },
+
+  promptPresets(): { presets: PromptPreset[]; globalPresetId: string | null } {
+    return promptPresets(this.methods);
+  },
+
+  promptPresetCreate(
+    name: string,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return promptPresetCreate(this.methods, name, parts, limits);
+  },
+
+  promptPresetUpdate(
+    id: string,
+    name?: string,
+    parts?: Record<string, unknown>,
+    expectedRevision?: number,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return promptPresetUpdate(this.methods, id, name, parts, expectedRevision, limits);
+  },
+
+  promptPresetDelete(id: string): { id: string; clearedBots: string[] } {
+    return promptPresetDelete(this.methods, id);
+  },
+
+  promptGlobalSet(presetId: string | null): { presetId: string | null } {
+    return promptGlobalSet(this.methods, presetId);
+  },
+
+  botPrompt(slug: string): BotPromptView {
+    return botPrompt(this.methods, slug);
+  },
+
+  botPromptSet(
+    slug: string,
+    presetId?: string | null,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): BotPromptView {
+    return botPromptSet(this.methods, slug, presetId, parts, limits);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

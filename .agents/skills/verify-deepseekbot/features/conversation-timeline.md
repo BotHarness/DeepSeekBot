@@ -7,6 +7,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 ## Sources
 
 - `packages/client/src/client/timeline-*.{ts,tsx}`
+- `packages/client/src/client/features/channels/{conversation-pane.tsx,conversation-selection.ts,conversation-timeline.tsx,timeline-scroll.ts}`
 - `packages/core/src/channels/timeline.ts`
 - `scripts/{foreground-timeline-scroll,perf-*timeline*}.mjs`
 

@@ -17,6 +17,7 @@ export interface HostIdentity {
 export interface PairedDevice {
   id: string;
   name: string;
+  enrollment?: 'owner-password';
   humanId?: string;
   publicKey?: string;
   pairedAt: string;
@@ -44,11 +45,14 @@ export type OfferStatus =
   | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
   | { receipt: string; state: 'unknown' };
 
+type SettledOfferStatus = Exclude<OfferStatus, { state: 'pending' | 'unknown' }>;
+
 export type OfferRefusal =
   | 'offer-invalid'
   | 'offer-expired'
   | 'device-approval-required'
   | 'relationship-inactive';
+export type KeyWatchEvent = { state: 'approved' } | Exclude<OfferStatus, { state: 'pending' }>;
 export type DeviceRefusal =
   | 'device-credential-missing'
   | 'device-unknown'
@@ -68,11 +72,14 @@ export type Redemption =
     }
   | { ok: false; code: OfferRefusal };
 
+type SuccessfulRedemption = Extract<Redemption, { ok: true }>;
+
 export type Admission = { ok: true; device: PairedDevice } | { ok: false; code: DeviceRefusal };
 
 export type DevicePairingEvent =
   | { phase: 'offer-created' | 'offer-expired' | 'offer-refused' }
   | { phase: 'offer-redeemed' | 'device-admitted'; deviceId: string }
+  | { phase: 'owner-password-enrolled'; deviceId: string }
   | { phase: 'device-refused'; code: DeviceRefusal; deviceId?: string }
   | { phase: 'device-revoked'; deviceId: string; closedStreams: number };
 
@@ -102,7 +109,18 @@ export interface DevicePairing {
     name?: string;
     verifier?: string;
     publicKey?: string;
+    allowReconnect?: boolean;
   }): Redemption;
+  resumeKeyRedemption(input: {
+    offer: string;
+    publicKey: string;
+    verifier?: string;
+  }): SuccessfulRedemption | undefined;
+  issueOwnerPasswordDevice(input: {
+    humanId: string;
+    name: string;
+    publicKey: string;
+  }): { deviceId: string; credential: string } | undefined;
   requestKey(input: {
     offer: string;
     publicKey: string;
@@ -111,9 +129,14 @@ export interface DevicePairing {
   }): { ok: true; receipt: string } | { ok: false; code: OfferRefusal };
   pendingKeys(): PendingDeviceKey[];
   approveKey(receipt: string, publicKey: string): boolean;
+  watchKey(
+    receipt: string,
+    publicKey: string,
+    listener: (event: KeyWatchEvent) => void,
+  ): () => void;
   cancelRelationshipOffers(relationshipId: string, publicKey: string): number;
   admitKey(authorization: string | undefined, publicKey: string): Admission;
-  admit(authorization: string | undefined): Admission;
+  admit(authorization: string | undefined, noisePublicKey?: string): Admission;
   check(deviceId: string): Admission;
   acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
@@ -156,6 +179,7 @@ interface Row {
   name: string;
   secret_hash: string;
   public_key: string | null;
+  enrollment?: 'owner-password' | null;
   paired_at: string;
   last_seen_at: string | null;
   feed_read_at: string | null;
@@ -172,6 +196,7 @@ function device(row: Row): PairedDevice {
     id: row.device_id,
     name: row.name,
     pairedAt: row.paired_at,
+    ...(row.enrollment === 'owner-password' ? { enrollment: row.enrollment } : {}),
     ...(row.public_key === null ? {} : { publicKey: row.public_key }),
     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at }),
     ...(row.feed_read_at == null ? {} : { feedReadAt: row.feed_read_at }),
@@ -209,7 +234,20 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       relationshipId?: string;
     }
   >();
-  const settled = new Map<string, OfferStatus>();
+  const settled = new Map<string, SettledOfferStatus>();
+  const keyWatches = new Map<
+    string,
+    { listeners: Set<(event: KeyWatchEvent) => void>; timer?: ReturnType<typeof setTimeout> }
+  >();
+  const unconfirmedKeyRedemptions = new Map<
+    string,
+    { expiresAt: number; publicKey: string; verifierHash?: string; result: SuccessfulRedemption }
+  >();
+  const forgetRedemption = (deviceId: string): void => {
+    for (const [key, entry] of unconfirmedKeyRedemptions)
+      if (entry.result.device.id === deviceId) unconfirmedKeyRedemptions.delete(key);
+    if (unconfirmedKeyRedemptions.size === 0 && options.onChange === undefined) stopOfferExpiry();
+  };
   const streams = new Map<string, Set<() => void>>();
   let expiry: ReturnType<typeof setTimeout> | undefined;
 
@@ -218,8 +256,14 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     expiry = undefined;
   };
   const scheduleOfferExpiry = (): void => {
-    if (expiry !== undefined || options.onChange === undefined || offers.size === 0) return;
-    const next = Math.min(...Array.from(offers.values(), (offer) => offer.expiresAt));
+    if (expiry !== undefined) return;
+    const next = Math.min(
+      ...(options.onChange === undefined
+        ? []
+        : Array.from(offers.values(), (offer) => offer.expiresAt)),
+      ...Array.from(unconfirmedKeyRedemptions.values(), (entry) => entry.expiresAt),
+    );
+    if (!Number.isFinite(next)) return;
     expiry = setTimeout(
       () => {
         expiry = undefined;
@@ -239,13 +283,25 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   ): void => {
     settled.delete(receipt);
     while (settled.size >= MAX_SETTLED_OFFERS) settled.delete(settled.keys().next().value!);
-    settled.set(receipt, { receipt, ...outcome, settledAt: iso(now()) });
+    const status = { receipt, ...outcome, settledAt: iso(now()) };
+    settled.set(receipt, status);
+    const watch = keyWatches.get(receipt);
+    if (watch) {
+      keyWatches.delete(receipt);
+      clearTimeout(watch.timer);
+      const listeners = [...watch.listeners];
+      watch.listeners.clear();
+      for (const listener of listeners) listener(status);
+    }
   };
 
   const sweep = (): void => {
+    const instant = now();
+    for (const [key, entry] of unconfirmedKeyRedemptions)
+      if (entry.expiresAt <= instant) unconfirmedKeyRedemptions.delete(key);
     let swept = false;
     for (const [key, { expiresAt, receipt }] of offers)
-      if (expiresAt <= now()) {
+      if (expiresAt <= instant) {
         offers.delete(key);
         settle(receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
@@ -335,9 +391,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       while (offers.size >= MAX_OPEN_OFFERS) {
         const oldest = offers.keys().next().value!;
         const displaced = offers.get(oldest)!;
-        settle(displaced.receipt, { state: 'superseded' });
         displacedKey ||= displaced.publicKey !== undefined;
         offers.delete(oldest);
+        settle(displaced.receipt, { state: 'superseded' });
       }
       const offer = token(24);
       const receipt = token(9);
@@ -356,13 +412,15 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     clearOffers() {
+      unconfirmedKeyRedemptions.clear();
+      stopOfferExpiry();
       if (offers.size === 0) return;
-      for (const open of offers.values()) {
+      const pending = [...offers.values()];
+      offers.clear();
+      for (const open of pending) {
         settle(open.receipt, { state: 'superseded' });
         record({ phase: 'offer-refused' });
       }
-      offers.clear();
-      stopOfferExpiry();
       changed();
     },
 
@@ -445,14 +503,55 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           open.publicKey === publicKey &&
           /^[0-9a-f]{64}$/u.test(publicKey)
         ) {
-          if (open.approved !== true) {
-            open.approved = true;
-            changed();
+          if (open.approved === true) return true;
+          open.approved = true;
+          const watch = keyWatches.get(receipt);
+          if (watch) {
+            for (const listener of [...watch.listeners]) {
+              if (!watch.listeners.delete(listener)) continue;
+              if (watch.listeners.size === 0) {
+                keyWatches.delete(receipt);
+                clearTimeout(watch.timer);
+              }
+              listener({ state: 'approved' });
+            }
           }
+          changed();
           return true;
         }
       }
       return false;
+    },
+
+    watchKey(receipt, publicKey, listener) {
+      sweep();
+      const open = [...offers.values()].find((offer) => offer.receipt === receipt);
+      if (!open || open.publicKey !== publicKey) {
+        listener(settled.get(receipt) ?? { receipt, state: 'unknown' });
+        return () => {};
+      }
+      if (open.approved) {
+        listener({ state: 'approved' });
+        return () => {};
+      }
+      let watch = keyWatches.get(receipt);
+      if (!watch) {
+        watch = { listeners: new Set() };
+        if (options.onChange === undefined) {
+          watch.timer = setTimeout(sweep, Math.max(1, open.expiresAt - now()));
+          watch.timer.unref();
+        }
+        keyWatches.set(receipt, watch);
+      }
+      const notify = (event: KeyWatchEvent) => listener(event);
+      watch.listeners.add(notify);
+      return () => {
+        watch.listeners.delete(notify);
+        if (keyWatches.get(receipt) === watch && watch.listeners.size === 0) {
+          keyWatches.delete(receipt);
+          clearTimeout(watch.timer);
+        }
+      };
     },
     cancelRelationshipOffers(relationshipId, publicKey) {
       let cancelled = 0;
@@ -467,16 +566,25 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     admitKey(authorization, publicKey) {
-      if (authorization?.startsWith('Device member.')) {
-        const member = options.members?.admit(authorization, publicKey);
-        return member
-          ? { ok: true, device: member }
-          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
-      }
-      const admitted = this.admit(authorization);
-      if (!admitted.ok) return admitted;
-      if (admitted.device.publicKey !== publicKey) return { ok: false, code: 'device-unknown' };
+      const admitted = this.admit(authorization, publicKey);
+      if (admitted.ok) forgetRedemption(admitted.device.id);
       return admitted;
+    },
+
+    resumeKeyRedemption(input) {
+      sweep();
+      const entry = unconfirmedKeyRedemptions.get(digest(input.offer).toString('hex'));
+      if (
+        !entry ||
+        entry.publicKey !== input.publicKey ||
+        (entry.verifierHash !== undefined &&
+          (input.verifier === undefined ||
+            !timingSafeEqual(digest(input.verifier), Buffer.from(entry.verifierHash, 'base64url'))))
+      )
+        return undefined;
+      const current = row(entry.result.device.id);
+      if (!current || !active(current).ok) return undefined;
+      return entry.result;
     },
 
     redeem(input) {
@@ -587,10 +695,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         record({ phase: 'offer-refused' });
         return { ok: false, code: 'relationship-inactive' };
       }
-      settle(open.receipt, { state: 'redeemed', deviceId: id });
-      record({ phase: 'offer-redeemed', deviceId: id });
-      options.onPaired?.({ id, name, pairedAt });
-      return {
+      const result: SuccessfulRedemption = {
         ok: true,
         device: {
           id,
@@ -601,11 +706,60 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         credential: `${id}.${secret}`,
         host: host(),
       };
+      if (
+        input.allowReconnect &&
+        input.publicKey !== undefined &&
+        open.relationshipId === undefined
+      ) {
+        while (unconfirmedKeyRedemptions.size >= MAX_SETTLED_OFFERS)
+          unconfirmedKeyRedemptions.delete(unconfirmedKeyRedemptions.keys().next().value!);
+        unconfirmedKeyRedemptions.set(key, {
+          expiresAt: open.expiresAt,
+          publicKey: input.publicKey,
+          ...(open.verifierHash === undefined ? {} : { verifierHash: open.verifierHash }),
+          result,
+        });
+        scheduleOfferExpiry();
+      }
+      settle(open.receipt, { state: 'redeemed', deviceId: id });
+      record({ phase: 'offer-redeemed', deviceId: id });
+      options.onPaired?.({ id, name, pairedAt });
+      return result;
     },
 
-    admit(authorization) {
+    issueOwnerPasswordDevice(input) {
+      if (input.humanId !== ownerHumanId() || !/^[a-f0-9]{64}$/u.test(input.publicKey))
+        return undefined;
+      const id = token(16);
+      const secret = token(32);
+      const pairedAt = iso(now());
+      const name = deviceName(input.name);
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              `INSERT INTO paired_devices
+                (device_id, name, secret_hash, paired_at, public_key, human_id, enrollment)
+               VALUES (?, ?, ?, ?, ?, ?, 'owner-password')`,
+            )
+            .run(
+              id,
+              name,
+              digest(secret).toString('hex'),
+              pairedAt,
+              input.publicKey,
+              input.humanId,
+            ),
+        ['paired-devices'],
+      );
+      record({ phase: 'owner-password-enrolled', deviceId: id });
+      options.onPaired?.({ id, name, pairedAt, enrollment: 'owner-password' });
+      return { deviceId: id, credential: `${id}.${secret}` };
+    },
+
+    admit(authorization, noisePublicKey) {
       if (authorization?.startsWith('Device member.')) {
-        const member = options.members?.admit(authorization);
+        const member = options.members?.admit(authorization, noisePublicKey);
         return member
           ? { ok: true, device: member }
           : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
@@ -620,7 +774,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const presented = digest(match[2]!);
       if (
         current === undefined ||
-        !timingSafeEqual(presented, Buffer.from(current.secret_hash, 'hex'))
+        !timingSafeEqual(presented, Buffer.from(current.secret_hash, 'hex')) ||
+        ((noisePublicKey !== undefined || current.enrollment === 'owner-password') &&
+          (noisePublicKey === undefined || current.public_key !== noisePublicKey))
       ) {
         record({ phase: 'device-refused', code: 'device-unknown' });
         return { ok: false, code: 'device-unknown' };
@@ -667,6 +823,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     revoke(deviceId) {
+      forgetRedemption(deviceId);
       const known = row(deviceId) !== undefined;
       const changed = database.transaction(
         (connection) =>

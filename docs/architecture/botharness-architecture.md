@@ -312,6 +312,10 @@ Model Preset 的当前模板存储由 Profile SQLite 的 owning module 管理，
 
 Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，PersonaBot 保存独立 Model Plan 快照，后续模板编辑不传播到已应用的 Bot。Plan 固定 Orchestrator 的 provider／model／reasoning effort，并定义 Assignment 可用的精确模型、各模型允许及默认的 effort 和默认模型。Host 在每个执行入口按当前 Plan 验证选择，而 DSH SessionEvent 记录实际调用：Orchestrator 的变更在当前 Turn 结束后生效，已有 Assignment 保留当前路由，之后的显式切换按最新 Plan 校验；新建 DSH Subagent 默认继承仍获允许的父路由，否则选当前 Assignment 默认并告知父 Agent。可选的开放模式允许 Assignment 和 Subagent 的显式选择使用 Bot 所有者角色允许、且提供方凭据有效的任何目录模型（#4416）。不可用或有歧义的路由停止请求，交由 Human 修复，不静默回退。Model Preset 与 Model Plan 可进入保持身份的 Profile Backup，不进入 SoulSnapshot 或 PersonaBot Export（ADR-0027、ADR-0093，#488）。
 
+Host 启动时将 DSH 旧默认模型及 Routing Group 引用迁入置顶的 Default Model Preset（`id=default`），写入预设和清除旧 Routing Group 引用在同一 SQLite 事务完成。该 ID 用于固定排序和拒绝删除，用户自建的同名预设保留。没有独立方案的 Bot 在执行时解析当前 Default；没有设过副模型时继承主模型及其 Routing Group 或订阅账号。DSH 原生 Agent 的设置仍由 DSH 管理，BotHarness 只在迁移时读取。迁移前可对旧 Host 运行 `deepseekbot model-default --migration-dry-run`。
+
+每个预设以 `sub: { choices, default }` 保存有序的副模型和默认项（[#4860 S2 的决策](../adr/0361-model-presets-store-one-sub-choice-list.md)）。`choices` 可以混合 API 模型、订阅引擎账号模型与路由组。订阅引擎项保存账号、模型和所选推理强度，也可作为默认项；空列表配 `default: null` 表示跟随主模型。迁移按预设 ID 回填 `sub`，不改 revision，将旧的 Assignment 订阅引擎迁移为默认项，并保留旧字段供现有 Client 使用。独立 Bot 的已应用快照不会被迁移后的预设编辑覆盖。Orchestrator 通过 `list_assignment_models` 读取权限过滤后的列表与默认项，`create_assignment` 在建 Session 前校验选择、强度和角色授权；路由组按组内顺序处理配额，单个 API 模型或订阅账号达到限额时拒绝创建 Assignment。此变更不接入时间线、消息渲染或读取热路径；Host 在列出或创建 Assignment 时读取有限的预设列表，迁移只执行一次。
+
 快捷模型／effort 切换只修改此 PersonaBot 的 Orchestrator，并在下一 Turn 生效；DM 不猜测某个 Assignment 作为目标。Model Plan 可以同时省略 `assignmentDefault` 与 `assignmentModels`，表示任务继续继承 Profile 全局模型；既有固定任务配置不变。Registry 的 `modelPlanCustomize` 用 revision 校验创建或修改这种独立配置，Web、移动端和 CLI 共用该 Host 操作。已有 Assignment 仅使用自己保留的路由；没有保留路由时继续继承全局，不补用后来出现的 Bot 任务默认值。完整模型设置显示继承状态，选择完整模板或任务模型才建立固定任务策略（[ADR-0218](../decisions/sessions.md#adr-0218)，#2000）。
 
 当前命名模板保存在 `botharness.db` 的 `model_presets` 表（#883，取代 #498 初始 JSON 存储），应用后的独立快照及修订号保存在 owning Registry 的 SQLite 记录中（#884），后续模板修改不会自动替换。Profile 经现有 Host Bridge 读取 DSH 当前注册的 provider、model 与 effort 能力，并在创建及应用时校验确切路由；Orchestrator 的 Agent-scoped Model Selection 在每个新 Turn 前读取最新快照，不修改 DSH 部署默认值。DSH 请求头仍是实际调用路由的事实来源（#498）。
@@ -413,6 +417,8 @@ sequenceDiagram
 ```
 
 Source Event 是内容唯一权威；Channel 和 Inbox 都只保存关系。Reply 使用可信 Reply Route 自动选择来源 provider；主动发布属于 Service Action，需要 Provider Capability，以及该 Bot 对应用可触达会话的会话条目，或作为后备的 Human 保存目标 Service Grant。SQLite 事务只覆盖本地事实；外部副作用使用 Outbox Intent、幂等标识和有界 reconciliation，不宣称 exactly-once。不可证明的结果进入 `unknown-outcome`，由 Human 处理。
+
+QQ 群回复能力按原会话和 Source Event 查询。Messaging 复用实际回复的授权选择，检查当前 Grant、Identity 和 Provider 回复路径。查询不写入 Outbox。发送时由原路径再次检查授权和回复窗口，查询结果只代表当时状态。
 
 Wake Policy 决定何时让 Orchestrator 看见新 attention：当前 step 完成后的安全边界、当前 turn 结束后，或 idle 时启动新 turn。普通外部消息不打断正在执行的 model/tool step；只有 DSH 明确支持且策略授权的控制路径才能 steer。就绪的 attention 按回合收割：忙碌期间新到的事件只把就绪集合置脏，当前回合结束（即空闲）时由一次 harvest turn 消费全部就绪项；主动 steer 只用于直接 @ 与 DM（ADR-0077）。
 
@@ -658,6 +664,12 @@ The application-defined `ConnectionsDialog` presents pairing and device manageme
 
 托管 Connect 在既有路由列表增加 Cloudflare Tunnel。WorkOS 与中继只负责发现 Host、签发绑定账号和 verifier 的配对请求；它们不能授予设备权限。依照 [ADR-0244](../decisions/connections.md#adr-0244)，手机或可信本机浏览器先独立核对 Host 指纹，再由 Host 批准准确的设备公钥。Connect origin 只开放公开身份元数据及加密通道，不接受明文应用调用。大陆可达性、原生设备和实际云端发布分别验收。
 
+#### Remote Host 账密登录（已接受设计，逐片交付）
+
+桌面、iOS 和 Android 在添加 Remote Host 时共用 Host 身份验证与账密登录流程。应用定义的 Team Service 持有 Host 登录策略和 Member Credential。客户端根据已固定的公钥、独立核对的指纹、Host 登录链接或可信 HTTPS 来源验证 Host，再通过设备网关的 Noise 通道提交账密。Cloudflare Tunnel、Tailscale 和内网 HTTP 都可承载这条通道。
+
+Host 按当前 Human 身份签发与客户端设备公钥绑定的 Paired Device 授权。设备授权由现有设备模块持有，并记录签发方式，供 Owner 改密时选择性撤销。Team mode 自动开启账密登录。Team mode 关闭后，Host 根据独立的 Owner 设置决定是否接收新的 Owner 账密登录。见[连接决策](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route)和 [Team mode 决策](../decisions/team-mode.md#host-password-sign-in-and-team-mode)。
+
 ### 手机推送
 
 [ADR-0202](../decisions/mobile.md#adr-0202)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Activity 的投影，不另设通知权威。Activity 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，预览最多 140 个 UTF-16 代码单元，含截断省略号）；私密输入请求不含内容（[ADR-0213](../decisions/mobile.md#adr-0213)）。数据字段包含路由标识、显示文字及适用的发送者和审批元数据。由 Android 原生模块呈现的通知也从数据字段读取标题、正文和角标。角标表示该 Host 的未处理 Human 操作数。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
@@ -682,7 +694,15 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
 
+DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
+
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
+
+[Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
+
+Orchestrator、Assignment 和替代引擎的生命周期位于 `runtime/dsh-bot-agent-adapter-*` 模块。Adapter state 持有唯一的原生 Agent handle 表。替代引擎 Session 继续由 Engine Host 管理，Assignment 工具通过类型化输入使用现有运行时接口。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).
 
@@ -833,6 +853,8 @@ Assignment Request 的 `context-update`、`next-step`、`next-turn` 分别映射
 Web 的选中 Channel、Roster 与 Activity 消费在每个文档内共用一个受认证的 EventSource；既有 `/api/botharness/stream` 在选中 Channel 时携带 `channelId`／`after` 与 `roster=1`／`activity=1`，从 owning Channel live hub 组合原有 Channel revision 流、roster 通知、撤销基线与同一 Activity Projection 的有界快照。没有选中 Channel 时复用 roster／Activity 流。各逻辑消费者独立清理，最后一个离开时关闭物理流；Channel 选择变化调整查询，替换构造失败保留健康旧流，Host 合成 adapter 断开时取消两个原流读取者；重连错误清除可回放 Activity 基线，迟到消费者保持 stale 与 HTTP 恢复直到新快照到达。慢消费者只保留当前 Activity 更新，背压时跳过心跳；Channel revision／回放和 Owner 认证不改变。这是过程内传输复用，不创建新的 Activity 或内容权威（[#1451](https://github.com/BotHarness/DeepSeekBot/issues/1451)）。
 
 DSH 失败的 `turn/end` 仍是执行事实权威；BotHarness 在所属 Orchestrator 或 Assignment 回合结束并判定失败后，由 Host 向对应 PersonaBot DM 提交一条带 role、Session ID、错误码、可用 HTTP status、简短错误详情和事项上下文的 application-defined failure notice。该消息是面向 Human 的持久通知，不把 SessionEvent 全文或工具日志复制成第二套执行历史；Client 把它渲染成可读的失败卡，刷新后从 Channel authority 恢复。Orchestrator 的 Human Source Event 仍依原有 retry/reconciliation 语义处理，失败通知不等于完成该 Source Event。
+
+The application-defined Host Sessions interface uses the existing Typert / API Gateway service. The DSH Session Controller provides the root inventory, last Human prompt projection, passive history and prompt admission. BotHarness joins the inventory to durable Session ownership and applies Team authority on the Host. Native requests require a Human Owner and an unowned root; Bot-owned requests keep the existing Bot Session checks. The shared Session detail uses the existing live SessionEvent and assistant stream projection. The phone switch is device-local and the inventory loads when the Sessions tab is focused. This adds no work to the default Chats journey. The inventory uses one DSH list request and batches titles for authorized rows that need them. [#4932](https://github.com/BotHarness/DeepSeekBot/issues/4932)
 
 DSH SessionEvent 是 durable execution authority；BotHarness 不复制 tool call 或 assistant output 为第二套 Session fact。explicit Session Ownership 把 Session 归属到 PersonaBot 及 `orchestrator` / `assignment` root role，PersonaBot module 再把这些事实与 live liveness 折叠成一个可重建的 Activity Projection。Browser 首先经 Typert/API Gateway 查询 projection，随后消费带单调 revision 的 live update；revision 断档时重新查询，而不是由 Client 自己推导状态。
 
@@ -1579,7 +1601,7 @@ Managed Tailscale publishing belongs to the same device-access Plugin lifecycle.
 
 The cloudflared-only origin accepts `/botharness-device/channel` and refuses legacy application HTTP, stream tickets and WebView paths. The shared phone/browser Host client carries unary RPCs, logical `remote.mux`, uploads, downloads, avatars, private input and push registration inside ciphertext. The encrypted adapter forwards to the existing Device Gateway on loopback; native DSH Typert/API Gateway remains the sole dispatcher. Loopback/Tailscale retain their contract. Legacy Connect pairings without pins fail closed and must be paired again; no failure clears a pin or retries plaintext through Connect.
 
-Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser/Computer viewers are explicitly unavailable on Connect pending their own media/signaling qualification; the Host and Tailscale remain available. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
+Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser and Computer viewers are available through direct Host access and QR-paired Tailscale. Connect and password-enrolled Tailscale use the encrypted device channel, where viewers require separate media and signaling qualification. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
 
 [ADR-0244](../decisions/connections.md#adr-0244) is approved. Its implementation, protocol vectors, runtime evidence, native acceptance, independent security review and deployment are separate gates; a green source test is not proof of a real phone through Cloudflare. The [Track A audit](../research/2026-10-22-connect-secret-safety-audit.md) remains historical evidence for the interim refusal.
 
@@ -1748,7 +1770,9 @@ The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, u
 
 The Model providers section and CLI share application-defined Typert operations guarded by the Host Owner or an explicit `modelSources.manage` grant. The built-in Admin role excludes that permission, and only the Owner can grant it through a custom role ([team-mode ADR](../decisions/team-mode.md)). Native DSH Settings owns provider routes and their revisions. Native Credentials owns the key under a route-specific reference. The Client observes a permission-scoped Cordis Event projection and re-reads the provider snapshot. The existing model catalog and unified picker resolve the same DSH route IDs.
 
-The Host Default Model Choice, Routing Group writes and Model Preset writes require `models.configure`. These shared choices affect every Bot and can incur provider charges. The built-in Admin includes this permission by default. The Bot Settings sections, Typert calls and online CLI share the Host permission check. Members can read shared choices, and applying a preset still follows the Bot's management and model-use rules. Deleting a preset removes the Host entry and leaves each Bot's applied Model Plan in place.
+The Host Default Model Choice, Routing Group writes and Model Preset writes require `models.configure`. These shared choices affect every Bot and can incur provider charges. The built-in Admin includes this permission by default. The Bot Settings sections, Typert calls and online CLI share the Host permission check. Members can read shared choices, and applying a preset still follows the Bot's management and model-use rules. Deleting a user preset removes the Host entry and leaves each Bot's applied Model Plan in place. The Host refuses to delete the pinned Default preset.
+
+根 Session 的模型选择覆盖项存储在 Host 运行数据库。会话输入框和在线 CLI 使用相同的 Host 方法，检查 API 模型、订阅引擎账号及路由组成员的授权。执行时在每轮开始读取覆盖项，本轮继续使用已读取的选择。清除覆盖项后恢复配置的路由。会话记录根据实际执行的 TurnTarget 记录标记模型切换。
 
 The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped password resets, other-device sign-out, reversible mode suspension, deactivation/reactivation, group ownership transfer and permanent member deletion through Content Purge. Shared messages keep anonymous deleted-Human authorship; M2 private Bots and Tob participate in transfer, stop and Content Purge Memory erasure; shared roots and member mobile carriers retain their own qualification gates.
 
@@ -1761,6 +1785,8 @@ The Team usage and Role model policy runtime is described in [M10 Host and CLI l
 [M13 Host and CLI logic](team-mode-m13-runtime.md) supersedes M2's per-Human Tob and M3's default Member grants: only the current Host Owner has a Tob, Member grants exactly `dm.humans`, and Bot creation uses `bots.createPrivate` / `bots.createPublic`. Existing member Tobs retain their records, Memory and DMs as ordinary private Bots. Member `tobHome` succeeds with `{ available: false }`; onboarding allocates nothing and omits Bot/Channel identifiers. The migration preserves customized roles, maps legacy creation grants, and keeps no-Bot usage/offboarding paths valid. Integrated M6 startup relocation follows legacy Workspace registrations on the Bot and active Grants rather than the retired member Tob identity; canonical Memory ownership and account-space file containment survive upgrade and transfer. Grant-based Git/ZIP/Marketplace imports bind ownership, upload sessions and receipts to the caller and retain M6 account containment. Legacy Workspace Grant relocation preserves each relative subpath and write flag. Owner transfer retires the demoted Owner's Tob identity atomically, leaving the former Tob private and allowing a fresh Tob on later promotion. The separate Client/mobile surfaces retain their own acceptance checks.
 
 The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. M12 wraps the Linux Sandbox Service’s `confine` call. Team status and invitations report `enforced` only when both filesystem and network confinement are available. Otherwise they report `trial`.
+
+Desktop uses one member picker for Group creation and subsequent member management. Candidate reads use the selected Host and the caller's creation or Channel permissions. Submitting a batch uses the existing Host bridge and canonical membership and invitation owners. The Host applies explicitly selected Humans first, then evaluates the Bot invitations against the resulting Channel access. The Team membership owner records each Human addition with its receipt in the same transaction and checks access again on replay. Bot invitations use the Channel management receipts. The batch reports an outcome for each target, including an unconfirmed code when it encounters an unexpected error. An unconfirmed target can be retried with its original operation key against the same Channel.
 
 ### Team mode M7 runtime access
 
@@ -1818,6 +1844,8 @@ E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请�
 
 The application-defined CLI declaration table in `bots/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
 
+The Tob broker admits each new request against the Shell's accepted Human DM sources. Before sending a prepared write to Channel Tool Approval, it captures those sources and the approval DM for that proposal. Additional Inbox sources can steer the turn while the write is pending. The broker continues the same operation only while its original sources, Session owner, turn and execution remain live, and the operation still passes its exact approval, target and revision checks. See [Tob CLI authority](../decisions/tob.md#adr-0224).
+
 CLI flag declarations live in the data-only `bots/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
 
 ### Model-free Tob CLI admission
@@ -1842,6 +1870,8 @@ Expo 移动端复用 Web 的 `skill-refs` 解析、`rankSkillEntries` 排序与 
 
 PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在 **Subscription Engine** 上：Human 本机上未修改的官方 agent CLI（首批 Claude Code、Codex；ChatGPT 订阅是用 Codex 自己的 `codex login` 登录的 Codex，token 留在 CLI 内），使用 Human 自己的订阅登录，由 Host 驱动。只在本地 Host 提供，Cloud 与 VPS 不提供。
 
+Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号的独立 Codex 目录中启动官方设备码登录进程。短期登录码和进度只保存在 Host 内存中，由具备模型提供商管理权限的 CLI 和 Client 调用方读取或取消。Codex 保存凭据，Host 在进程成功退出后刷新账号状态。
+
 - **订阅账号**：Host 在 `engines.json` 保存 Codex 和 Claude Code 的账号 ID、名称与 Bot 专用目录。默认账号 `codex-default` 和 `claude` 沿用原来的目录，旧模型选择、模型预设、路由组成员和原生线程继续指向各自的默认账号。Host Owner 或有 `modelSources.manage` 的 Human 可修改账号、启动登录，并向正在请求授权码的 Claude Code 登录进程发送授权码。登录进程按账号管理，授权码仅经进程标准输入传递。写入检查账号列表版本。仍被引用的账号不能移除，账号目录在设置提交后删除。额度、模型列表和原生线程按账号隔离，切换账号以当前 DSH Session 的上下文开新线程。
 - **模型选择**：本机 Host 的主模型和任务模型选择器各有订阅分组，提供该引擎的模型、推理强度及登录入口。模型预设可为任一角色保存引擎选择；应用预设时，Host 先验证订阅模型，再更新 Bot 的 DSH Model Plan 与两种角色的引擎设置。未保存引擎选择的角色切回预设中的 DSH 路由。
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
@@ -1855,4 +1885,5 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。额度切换如果需要新线程，会沿用这条 Session 上下文路径，无需写入重建通知。切换时释放上一引擎进程并清除其空闲计时。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **混合路由组**：本地 Host 的 BotRuntime 在 Orchestrator 轮次开始时按组内顺序选择就绪的 DSH 路由或订阅引擎。引擎额度休息时间沿用 EngineHost 的持久化额度记录。目标报告额度用尽后，BotRuntime 保持当前准入，在同一个 DSH Session 按顺序切换到尚未尝试的就绪目标。继续时使用已持久化的工具调用与结果，并根据已提交的回复记录拦截重复发送。全组都在休息时，Channel 才显示组的额度卡片。显式引擎选择优先。Assignment 支持混合路由组的 API 与引擎执行；Subagent 使用已授权 Routing Group 的 API 路由投影。新 Orchestrator Session 记录 Bot 的 Memory 目录供 DSH Agent 恢复，引擎进程仍在隔离工作目录运行。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
+- **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

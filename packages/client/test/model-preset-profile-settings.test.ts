@@ -59,7 +59,7 @@ function remoteOwner() {
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
     modelCatalog: { list: async () => catalog, validate: () => validate() },
-    defaultModel: { currentSelection: () => route, saveSelection: async () => {} },
+    defaultModel: { currentSelection: () => route },
   });
   const methods = new Map<string, (payload: unknown) => unknown>([
     ['modelCatalog', bridge.modelCatalog],
@@ -142,6 +142,10 @@ describe('Model Presets Settings', () => {
           actions: {
             modelCatalog: async () => ({ models: catalog }),
             routingGroups: async () => ({ groups: [], rests: [] }),
+            routingGroupEngines: async () => [],
+            createRoutingGroup: vi.fn(),
+            updateRoutingGroup: vi.fn(),
+            deleteRoutingGroup: vi.fn(),
           },
           t: translate,
         }),
@@ -170,20 +174,26 @@ describe('Model Presets Settings', () => {
     await act(async () => button('Create preset').click());
     await typeInto(fieldNamed('Preset name', dialog()), 'Third');
     await choose('Main model', 'pro', 'Pro');
-    await choose('Task model', 'k2', 'Kimi K2');
+    await choose('Add a task model', 'k2', 'Kimi K2');
     await act(async () => button('Save').click());
     expect(host.textContent).toContain('Third');
     expect(host.textContent).toContain('Kimi K2 · Moonshot');
 
     await act(async () => buttonNamed('Edit preset “Third”').click());
     await typeInto(fieldNamed('Preset name', dialog()), 'Renamed');
-    await act(async () => button('Advanced').click());
-    await choose('Add an allowed model', 'flash', 'Flash');
+    await choose('Add a task model', 'flash', 'Flash');
     await act(async () => button('Save').click());
     expect(
       owner.core.modelPresets.list().find((preset) => preset.name === 'Renamed'),
     ).toMatchObject({
       assignmentModels: expect.arrayContaining([expect.objectContaining({ model: 'flash' })]),
+      sub: {
+        choices: [
+          expect.objectContaining({ kind: 'model', model: 'k2' }),
+          expect.objectContaining({ kind: 'model', model: 'flash' }),
+        ],
+        default: { kind: 'model', provider: 'kimi', model: 'k2' },
+      },
     });
 
     await act(async () => buttonNamed('Delete preset “First”').click());

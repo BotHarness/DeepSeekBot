@@ -90,7 +90,7 @@ Slack adapter 当前最多使用一张原生 table、两张原生 chart；具体
 - interface 是 test surface：无模型的同一份报告 fixture，必须能经实际显示 seam 测试；不只测 JSON parser。
 - 时机：第二个 adapter 有真实需求时再提取共享 seam；目前不建立“全平台 UI 编排框架”。
 
-源码定位：`packages/core/src/channels/channel.ts:290`、`packages/core/src/channels/sqlite-store.ts:647`、`packages/client/src/client/channel-message-body.tsx:462`、`apps/mobile/src/host/conversation.ts:302`、`apps/mobile/src/ui/chat/conversation-screen.tsx:265`。沿用 ADR-0037 的事实 / placement 分离。
+源码定位：`packages/core/src/channels/channel-message-types.ts`、`packages/core/src/channels/sqlite-store.ts:647`、`packages/client/src/client/channel-message-body.tsx:462`、`apps/mobile/src/host/conversation.ts:302`、`apps/mobile/src/ui/chat/conversation-screen.tsx:265`。沿用 ADR-0037 的事实 / placement 分离。
 
 ### B. 将生成内容与真实操作能力分开
 

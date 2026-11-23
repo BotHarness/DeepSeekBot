@@ -10,6 +10,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createUsageProjection } from '../src/usage/usage.js';
+import { createModelPresetStore } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import type { ModelCatalogEntry } from '../src/models/catalog.js';
 
@@ -64,6 +65,7 @@ export function teamModelFixture() {
     states: createBotStateTracker(),
     roster: createTestRosterStore({ database: db }),
     modelCatalog: catalog,
+    modelPresets: createModelPresetStore({ rootDir: root, database: db }),
     routingGroups: createRoutingGroupStore({ database: db }),
   };
   const methods = createBridgeMethods(member, deps);

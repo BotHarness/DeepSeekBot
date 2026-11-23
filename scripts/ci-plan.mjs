@@ -104,6 +104,12 @@ export const RULES = [
     AUTH,
   ),
   related(
+    'packages/core/src/features/environments/connect-account*.ts',
+    'Host Connect account lifecycle and authorization',
+    true,
+    AUTH,
+  ),
+  related(
     'packages/*/src/{auth,password-auth,email-code}.ts',
     'Service authentication and email-code sign-in',
     false,
@@ -121,10 +127,34 @@ export const RULES = [
     true,
     AUTH,
   ),
+  related(
+    'packages/core/src/features/{appearance,channel-files,channels,diagnostics,profile-storage,release}/{methods,rpc,management-methods,send-methods}.ts',
+    'Channel and settings bridge authorization',
+    true,
+    AUTH,
+  ),
+  related(
+    'packages/core/src/features/{humans,marketplace,memory,prompts,sessions,takeover,tob,usage,workspaces}/{methods,rpc}.ts',
+    'Other extracted Host bridge authorization',
+    true,
+    AUTH,
+  ),
   related('packages/host-protocol/src/**', 'Connect pairing and wire protocol', false, PROTOCOL),
   related(
     'packages/core/src/{**/*-contract.ts,live-activity/contract.ts,bridge/methods.ts,bridge/rpc.ts}',
     'Host bridge methods and contract sources',
+    true,
+    PROTOCOL,
+  ),
+  related(
+    'packages/core/src/features/{appearance,channel-files,channels,diagnostics,profile-storage,release}/{methods,rpc,management-methods,send-methods}.ts',
+    'Channel and settings bridge protocol',
+    true,
+    PROTOCOL,
+  ),
+  related(
+    'packages/core/src/features/{humans,marketplace,memory,prompts,sessions,takeover,tob,usage,workspaces}/{methods,rpc}.ts',
+    'Other extracted Host bridge protocol',
     true,
     PROTOCOL,
   ),

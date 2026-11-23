@@ -82,6 +82,20 @@ export function createMemberDevices(options: {
       });
       return { ...options.team.deviceGrantResult(signed, signed.member), host: identity };
     },
+    async signInOwner(input: unknown, ip: string, publicKey: string) {
+      const parsed = deviceSignInSchema.parse(input);
+      const identity = await host();
+      if (parsed.fingerprint !== identity.fingerprint) throw new TeamError('fingerprint-mismatch');
+      return options.team.signInOwnerDevice(parsed.username, parsed.password, ip, (humanId) => {
+        const issued = options.pairing.issueOwnerPasswordDevice({
+          humanId,
+          name: parsed.deviceName,
+          publicKey,
+        });
+        if (!issued) throw new TeamError('credentials-invalid');
+        return { ...issued, host: identity };
+      });
+    },
   };
 }
 export type MemberDevices = ReturnType<typeof createMemberDevices>;

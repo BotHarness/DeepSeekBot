@@ -10,6 +10,7 @@ export interface PrivateAdmission {
 export interface HostEncryption {
   privateRelay?: PrivateAdmission;
   loopback?: 'encrypted';
+  required?: true;
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
   deviceKey: string;

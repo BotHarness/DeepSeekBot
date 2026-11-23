@@ -107,6 +107,7 @@ export function SessionLinkRail({
         own.length > 1 ? (
           <ChipButton
             key="toggle"
+            filled
             data-session-links-toggle=""
             aria-expanded={!folded}
             onClick={() => setExpanded(!expanded)}
@@ -118,15 +119,18 @@ export function SessionLinkRail({
           ? []
           : own.map((link) => {
               const row = rows.find((entry) => entry.sessionId === link.sessionId);
+              const title =
+                row !== undefined && row.title !== link.sessionId ? row.title : link.title;
               return (
                 <span key={link.sessionId} {...stylex.props(styles.row)}>
                   <ChipButton
+                    filled
                     data-session-link={link.sessionId}
                     icon={<ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />}
                     disabled={open === undefined}
-                    onClick={() => open?.(botSlug, link.sessionId, row?.title ?? link.title)}
+                    onClick={() => open?.(botSlug, link.sessionId, title)}
                     title={own.length === 1 ? label : undefined}
-                    label={row?.title ?? link.title}
+                    label={title}
                   />
                   {row?.needs === undefined ? null : (
                     <span {...stylex.props(styles.needs)}>{t(`sessions.needs.${row.needs}`)}</span>

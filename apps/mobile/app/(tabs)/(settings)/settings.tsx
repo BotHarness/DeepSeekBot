@@ -14,7 +14,6 @@ import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings
 import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
 import { SendJumpSetting } from '../../../src/ui/shell/send-jump-setting';
-import { HeaderModelSetting } from '../../../src/ui/shell/header-model-setting';
 import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
 import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
@@ -49,7 +48,6 @@ export default function SettingsScreen() {
         statistics={<StatisticsSettings />}
         messageDisplay={<MessageDisplaySetting />}
         sendJump={<SendJumpSetting />}
-        headerModel={<HeaderModelSetting />}
         activityCount={<ActivityCountLink />}
         hapticFeedback={<HapticFeedbackSetting />}
         deliveryReceipts={<DeliveryReceiptSetting />}
@@ -70,6 +68,7 @@ export default function SettingsScreen() {
           onAppIcon: () => router.push('/settings/app-icon'),
           onNotifications: () => router.push('/settings/notifications'),
           onStorage: () => router.push('/settings/storage'),
+          onModelProviders: () => router.push('/settings/model-providers'),
           onModels: () => router.push('/settings/models'),
           onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,
