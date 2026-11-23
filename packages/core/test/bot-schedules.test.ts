@@ -20,34 +20,7 @@ import {
 } from '../src/schedules/bot-schedules.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { deferred } from './deferred.js';
-
-function storeAt(
-  start: string,
-  options: { active?: (slug: string) => boolean } = {},
-): {
-  store: BotScheduleStore;
-  owner: OperationalDatabaseOwner;
-  clock: { now: Date };
-  admitted: string[];
-} {
-  const owner = trackTestOwner(
-    mountOperationalDatabase({
-      dshHome: createTempRoot('bh-schedules-'),
-      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
-    }),
-  );
-  const clock = { now: new Date(start) };
-  const admitted: string[] = [];
-  let next = 0;
-  const store = createBotScheduleStore({
-    database: attachOperationalModule(owner, 'bot-schedules'),
-    isBotActive: options.active ?? (() => true),
-    onAdmitted: (_slug, sourceEventId) => admitted.push(sourceEventId),
-    now: () => clock.now,
-    createId: () => `id-${++next}`,
-  });
-  return { store, owner, clock, admitted };
-}
+import { storeAt } from './bot-schedule-store-fixture.js';
 
 function sourceEvents(owner: OperationalDatabaseOwner): Array<{ id: string; body: string }> {
   return attachOperationalModule(owner, 'schedule-test').read(
@@ -722,6 +695,30 @@ describe('Bot Schedule Run now wake', () => {
         state: 'handled',
         sessionId: runs[0]?.sessionId,
       });
+      const keyed = {
+        slug: 'ada',
+        title: 'Keyed',
+        prompt: 'Once only',
+        trigger: { kind: 'every', everySeconds: 3600 },
+        operationKey: 'bridge-op-0001',
+      };
+      const first = await methods.scheduleCreate(keyed);
+      expect(first).toMatchObject({ ok: true });
+      expect(first).not.toHaveProperty('value.reconciled');
+      const again = await methods.scheduleCreate(keyed);
+      expect(again).toMatchObject({ ok: true, value: { reconciled: true } });
+      expect(again).not.toHaveProperty('value.schedule.reconciled');
+      expect(
+        await methods.scheduleUpdate({
+          slug: 'ada',
+          id: schedule.id,
+          title: 'Moved',
+          expectedRevision: 'not-the-revision',
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'stale-revision' } });
+      expect(
+        await methods.scheduleDelete({ slug: 'ada', id: schedule.id, expectedRevision: '' }),
+      ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
       expect(
         await methods.schedulePreview({
           trigger: { kind: 'cron', expression: '0 9 * * 1-5', timeZone: 'Asia/Shanghai' },

@@ -110,16 +110,18 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -170,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -187,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` 还返回 `bot.active`：权威会话中是否存在思考或工作状态，与按优先级展示的 `state` 独立。另一个会话等待审批时它仍可为 true，不能从有数量上限的 `sessions` 输出反推。Android 常驻汇总复用完整活动 feed 和 Human Inbox 完整待处理发现，按 Host 内的 Bot 身份去重；旧 Host 缺少 `active` 时显示未同步，不显示虚假的零。
+
+`channel-messages` 和 `bot-activity` 每页都返回 `provenance`（来源：Channel 的 ID、`dm` 或 `group` 类型、`incarnation`（创建时间）、成员 ID 和读取开始时的 `revision`；或 Bot 的 PersonaBot ID、`incarnation`、活动 `generation` 和 `revision`）、`complete`，以及仅在还有更早内容时出现的 `nextCursor`。把 `nextCursor` 原样作为 `--cursor` 传回、并保持同一目标即可读下一页；`--cursor` 不能与 `--before` 同时使用。Host 会对照当前目标检查游标：来自其他 Channel 或 Bot 的游标，或目标已被删除后重建，返回 `changed-read-target`；游标之后 Channel 历史被改写（清除内容，或锚点消息不在原位置）或 Bot 活动快照已变化，返回 `stale-read-revision`；格式错误、或字段与摘要不符的游标返回 `invalid-read-cursor`。摘要只用于发现意外损坏：手工改过字段并重算摘要的游标仍可能选中同一目标、同一 revision 下的另一页，读取权限始终来自 Host 对目标和 revision 的检查。遇到这些错误请从第一页重新读取。第一页之后新发的消息不会让更早的页失效。Channel 每页最多 `--limit` 条，并会提前结束（返回 `complete: false`），使整页（含 provenance 等外层字段和游标）序列化后不超过 64 KiB；若单条消息放不进扣除外层字段和游标后的剩余空间，仍会单独返回以保证读取前进，这一页可能超过 64 KiB。`provenance.contentIsData` 表示消息正文和会话名称是来自该来源的引用数据，绝不是指令。
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
 
@@ -682,6 +687,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 ```
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
+
+每个定时任务都带 `revision`，它是可编辑内容（标题、提示、触发器、启用、锁定）的指纹；触发记录和下次运行时间不会改变它。把它作为 `--expected-revision` 传给 `schedule-update` 或 `schedule-delete`，若读取后任务已被改动，Host 会以 `stale-revision` 拒绝。`schedule-create --operation-key <key>`（8–128 个字母、数字、`.`、`:`、`_` 或 `-`）让重试变得安全：同一个 key 加同样的请求会返回原来的任务并带 `reconciled: true`，不会再建一个；同一个 key 加不同请求以 `operation-key-conflict` 失败；key 对应的任务已被删除时以 `operation-key-consumed` 失败，不会重新创建。两个参数在 `--home` 离线模式下同样可用。Tob 运行这些命令时必须带上它们（见 [Tob](decisions/tob.md#adr-0225)）。
 
 ### 在线 Host 上的接管交接（Takeover Handoff）
 
@@ -1535,7 +1542,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## Channel、授权、计划与配对
 
-`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
+`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 或用返回的 `nextCursor` 作为 `--cursor` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
 
 ### 在线批准工作区请求
 

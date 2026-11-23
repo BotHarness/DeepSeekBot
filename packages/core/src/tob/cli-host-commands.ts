@@ -25,6 +25,24 @@ const REFUSED_COMMANDS = new Set([
   'browser-borrow-pair',
   'browser-daily-grant',
 ]);
+const TOB_SCHEDULE_GUARDS: Readonly<Record<string, { option: string; message: string }>> = {
+  'schedule-create': {
+    option: '--operation-key',
+    message:
+      'Tob must pass --operation-key to schedule-create; after an uncertain outcome, retry with the same key to reconcile instead of creating a second schedule.',
+  },
+  'schedule-update': {
+    option: '--expected-revision',
+    message:
+      'Tob must pass --expected-revision to schedule-update; read the revision from schedules first.',
+  },
+  'schedule-delete': {
+    option: '--expected-revision',
+    message:
+      'Tob must pass --expected-revision to schedule-delete; read the revision from schedules first.',
+  },
+};
+
 const MAX_ARGS = 256;
 const MAX_ARG_BYTES = 64 * 1024;
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -157,6 +175,9 @@ export function classifyTobHostCli(argv: readonly string[]): { command: string; 
   if (command === undefined || command.startsWith('-')) throw new TobError('invalid-request');
   if (REFUSED_COMMANDS.has(command) || REFUSED_OPTIONS.some((name) => hasOption(argv, name)))
     throw new TobError('cli-command-refused');
+  const scheduleGuard = TOB_SCHEDULE_GUARDS[canonicalCliCommandName(command)];
+  if (scheduleGuard !== undefined && !hasOption(argv, scheduleGuard.option))
+    throw new TobCliCommandError('usage', scheduleGuard.message);
   if (command === 'settings-set' || hasOption(argv, '--migration-dry-run')) {
     let parsed: ReturnType<typeof parseBotCliArgs>;
     try {

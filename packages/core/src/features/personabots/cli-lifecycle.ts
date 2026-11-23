@@ -4,6 +4,11 @@ import { TeamRoles } from '../../team/roles.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { join } from 'node:path';
 import { dmChannelId } from '../../channels/channel.js';
+import {
+  readChannelMessagePage,
+  type ChannelMessagePage,
+} from '../../channels/read-continuation.js';
+import { ReadContinuationError } from '../../channels/read-cursor.js';
 import { createBotPairing } from '../../messaging/pairing.js';
 import { attachOperationalModule } from '../../database/owner.js';
 import {
@@ -248,7 +253,7 @@ export function runChannelMessages(
   id: string,
   values: CreateValues,
   io: BotCreateCliIo,
-): { channel: { id: string }; messages: unknown[] } {
+): { channel: { id: string }; messages: unknown[] } & Omit<ChannelMessagePage, 'messages'> {
   const channelId = id.trim();
   if (channelId.length === 0) throw usageError('channel-messages needs exactly one channel id.');
   const rawLimit = trimmed(values.limit);
@@ -260,20 +265,29 @@ export function runChannelMessages(
     limit = Number(rawLimit);
   }
   const before = trimmed(values.before);
+  const cursor = trimmed(values.cursor);
+  if (cursor !== undefined && before !== undefined)
+    throw usageError('--cursor and --before are mutually exclusive.');
   const dshHome = resolveHome(values, io);
   const { owner, registry } = openRegistry(dshHome);
   try {
     const channels = openChannels(dshHome, owner, registry);
-    if (channels.get(channelId) === undefined) {
-      throw new CliFailure('unknown-channel', `Unknown channel: ${channelId}`, 1);
-    }
-    return {
-      channel: { id: channelId },
-      messages: channels.readMessages(channelId, {
+    let page: ChannelMessagePage | undefined;
+    try {
+      page = readChannelMessagePage(channels, channelId, {
         ...(limit === undefined ? {} : { limit }),
         ...(before === undefined ? {} : { before }),
-      }),
-    };
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+    } catch (error) {
+      if (error instanceof ReadContinuationError)
+        throw new CliFailure(error.code, error.message, 1);
+      throw error;
+    }
+    if (page === undefined) {
+      throw new CliFailure('unknown-channel', `Unknown channel: ${channelId}`, 1);
+    }
+    return { channel: { id: channelId }, ...page };
   } finally {
     owner.close();
   }

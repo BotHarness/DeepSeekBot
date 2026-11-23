@@ -1,5 +1,8 @@
 export { SCHEDULE_OPTIONS } from './cli-option-spec.js';
-import type { BotScheduleTrigger } from '../schedules/bot-schedules.js';
+import {
+  validBotScheduleOperationKey,
+  type BotScheduleTrigger,
+} from '../schedules/bot-schedules.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const SCHEDULE_COMMANDS = [
@@ -35,6 +38,8 @@ export interface ScheduleValues {
   locked?: boolean;
   unlocked?: boolean;
   confirm?: boolean;
+  'operation-key'?: string;
+  'expected-revision'?: string;
 }
 
 type Fail = (message: string) => Error;
@@ -105,6 +110,31 @@ export function scheduleToggleFromFlags(
   return undefined;
 }
 
+export function scheduleOperationKeyFromFlags(
+  values: ScheduleValues,
+  fail: Fail,
+): string | undefined {
+  const raw = values['operation-key'];
+  if (raw === undefined) return undefined;
+  if (!validBotScheduleOperationKey(raw))
+    throw fail(
+      '--operation-key must be 8–128 letters, digits, dots, colons, underscores or hyphens.',
+    );
+  return raw;
+}
+
+export function scheduleExpectedRevisionFromFlags(
+  values: ScheduleValues,
+  fail: Fail,
+): string | undefined {
+  const raw = values['expected-revision'];
+  if (raw === undefined) return undefined;
+  const revision = raw.trim();
+  if (revision.length === 0)
+    throw fail('--expected-revision must be the revision shown by schedules.');
+  return revision;
+}
+
 function usage(message: string): CliLiveError {
   return new CliLiveError('usage', message);
 }
@@ -129,6 +159,14 @@ export function prepareScheduleCommand(
   const slug = rest.length === 1 ? rest[0]!.trim() : '';
   if (slug.length === 0) throw usage(`${command} needs exactly one bot id.`);
   if (command === 'schedules') return { method: 'scheduleList', args: { slug } };
+  if (command !== 'schedule-create' && values['operation-key'] !== undefined)
+    throw usage('--operation-key is supported only for schedule-create.');
+  if (
+    command !== 'schedule-update' &&
+    command !== 'schedule-delete' &&
+    values['expected-revision'] !== undefined
+  )
+    throw usage('--expected-revision is supported only for schedule-update and schedule-delete.');
   if (command === 'schedule-create') {
     const title = trimmed(values.title);
     const prompt = trimmed(values.prompt);
@@ -138,6 +176,7 @@ export function prepareScheduleCommand(
     if (trigger === undefined) throw usage('schedule-create needs a trigger flag.');
     const enabled = scheduleToggleFromFlags(values, 'enabled', 'disabled', usage);
     const locked = scheduleToggleFromFlags(values, 'locked', 'unlocked', usage);
+    const operationKey = scheduleOperationKeyFromFlags(values, usage);
     return {
       method: 'scheduleCreate',
       args: {
@@ -149,11 +188,14 @@ export function prepareScheduleCommand(
           ...(enabled === undefined ? {} : { enabled }),
           ...(locked === undefined ? {} : { locked }),
         },
+        ...(operationKey === undefined ? {} : { operationKey }),
       },
     };
   }
   const id = trimmed(values.sid);
   if (id === undefined) throw usage(`--sid is required for ${command}.`);
+  const expectedRevision = scheduleExpectedRevisionFromFlags(values, usage);
+  const revisionArg = expectedRevision === undefined ? {} : { expectedRevision };
   if (command === 'schedule-update') {
     const title = trimmed(values.title);
     const prompt = trimmed(values.prompt);
@@ -169,12 +211,12 @@ export function prepareScheduleCommand(
     };
     if (Object.keys(change).length === 0)
       throw usage('schedule-update needs at least one change flag.');
-    return { method: 'scheduleUpdate', args: { slug, id, change } };
+    return { method: 'scheduleUpdate', args: { slug, id, change, ...revisionArg } };
   }
   if (command === 'schedule-delete') {
     if (values.confirm !== true)
       throw usage('schedule-delete removes the schedule and its history. Pass --confirm.');
-    return { method: 'scheduleDelete', args: { slug, id } };
+    return { method: 'scheduleDelete', args: { slug, id, ...revisionArg } };
   }
   if (command === 'schedule-history') return { method: 'scheduleHistory', args: { slug, id } };
   return { method: 'scheduleRunNow', args: { slug, id } };

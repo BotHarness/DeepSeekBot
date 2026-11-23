@@ -4,6 +4,7 @@ import {
   type ChannelLiveFrame,
   type DraftDelivery,
 } from '../../channels/live.js';
+import type { ChannelMessagePage } from '../../channels/read-continuation.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BridgeLive } from '../../bridge/rpc.js';
 import type { HumanContext } from '../../humans/context.js';
@@ -281,8 +282,16 @@ export function channelMessages(
   channelId: string,
   before?: string,
   limit?: number,
-): { messages: ChannelMessage[]; revision: number } {
-  return unwrap(methods.channelMessages({ channelId, before, limit }));
+  cursor?: string,
+): ChannelMessagePage {
+  return unwrap(
+    methods.channelMessages({
+      channelId,
+      before,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
 }
 
 export function channelTimeline(
@@ -696,8 +705,9 @@ export const channelHistoryRpc = {
     channelId: string,
     before?: string,
     limit?: number,
-  ): { messages: ChannelMessage[]; revision: number } {
-    return channelMessages(this.methods, channelId, before, limit);
+    cursor?: string,
+  ): ChannelMessagePage {
+    return channelMessages(this.methods, channelId, before, limit, cursor);
   },
 
   channelTimeline(

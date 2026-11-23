@@ -66,6 +66,7 @@
           "enabled": true,
           "creator": "human",
           "locked": false,
+          "revision": "4f1c2a9e8b7d6c5a3e2f0001",
           "nextRunAt": "2026-10-15T00:00:00.000Z",
           "createdAt": "2026-10-14T14:04:57.748Z",
           "updatedAt": "2026-10-14T14:04:57.748Z"
@@ -82,6 +83,7 @@
           "enabled": true,
           "creator": "human",
           "locked": false,
+          "revision": "4f1c2a9e8b7d6c5a3e2f0002",
           "nextRunAt": "2026-10-14T15:04:58.269Z",
           "createdAt": "2026-10-14T14:04:58.269Z",
           "updatedAt": "2026-10-14T14:04:58.269Z"
