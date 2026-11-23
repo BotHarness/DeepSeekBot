@@ -22,7 +22,6 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   font: () => ({}),
   lineLimit: () => ({}),
   dynamicTypeSize: () => ({}),
-  accessibilityHidden: () => ({}),
   foregroundStyle: () => ({}),
   frame: (options: Record<string, unknown>) => ({ $type: 'frame', ...options }),
   monospacedDigit: () => ({}),

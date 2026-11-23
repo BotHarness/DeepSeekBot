@@ -1,8 +1,7 @@
-import { Button, Host, HStack, Image, Popover, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   accessibilityElement,
-  accessibilityHidden,
   accessibilityLabel,
   background,
   buttonStyle,
@@ -17,7 +16,7 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { navigationBar, space } from '../design/tokens';
@@ -62,7 +61,6 @@ export function NavigationDestinations({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const [peek, setPeek] = useState<string>();
   const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
   return (
     <Host key={theme.scheme} style={{ flex: 1 }} colorScheme={theme.scheme}>
@@ -76,7 +74,7 @@ export function NavigationDestinations({
         {items.map((item) => {
           const label = navigationLabel(t, item);
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
-          const button = (
+          const tab = (
             <Button
               key={item.key}
               testID={
@@ -98,11 +96,8 @@ export function NavigationDestinations({
                           })
                         : background(theme.layer.raised.pressed, shapes.capsule()),
                     ]
-                  : []),
-                onLongPressGesture(() => {
-                  item.onLongPress();
-                  if (!labels) setPeek(item.key);
-                }),
+                  : [background(navigationBar.hitFill, shapes.capsule())]),
+                onLongPressGesture(item.onLongPress),
                 frame({ maxWidth: Infinity, maxHeight: Infinity }),
                 accessibilityElement('ignore'),
                 accessibilityLabel(accessibility),
@@ -149,16 +144,15 @@ export function NavigationDestinations({
             </Button>
           );
           return labels ? (
-            button
+            tab
           ) : (
             <LabelPeek
               key={item.key}
               label={label}
               symbol={symbolFor(item)}
-              shown={peek === item.key}
-              onDismiss={() => setPeek(undefined)}
+              onSelect={item.onPress}
             >
-              {button}
+              {tab}
             </LabelPeek>
           );
         })}
@@ -170,43 +164,20 @@ export function NavigationDestinations({
 function LabelPeek({
   label,
   symbol,
-  shown,
-  onDismiss,
+  onSelect,
   children,
 }: {
   label: string;
   symbol: TabSymbol;
-  shown: boolean;
-  onDismiss(): void;
+  onSelect(): void;
   children: ReactNode;
 }) {
   return (
-    <Popover
-      isPresented={shown}
-      onIsPresentedChange={(presented) => {
-        if (!presented) onDismiss();
-      }}
-      attachmentAnchor="top"
-      arrowEdge="bottom"
-      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}
-    >
-      <Popover.Trigger>{children}</Popover.Trigger>
-      <Popover.Content>
-        <VStack
-          spacing={space.x3}
-          modifiers={[
-            padding({ all: space.x5 }),
-            accessibilityElement('ignore'),
-            accessibilityLabel(label),
-          ]}
-        >
-          <Image
-            systemName={symbol}
-            modifiers={[font({ textStyle: 'largeTitle' }), accessibilityHidden(true)]}
-          />
-          <Text modifiers={[font({ textStyle: 'title2', weight: 'semibold' })]}>{label}</Text>
-        </VStack>
-      </Popover.Content>
-    </Popover>
+    <ContextMenu modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+      <ContextMenu.Trigger>{children}</ContextMenu.Trigger>
+      <ContextMenu.Items>
+        <Button label={label} systemImage={symbol} onPress={onSelect} />
+      </ContextMenu.Items>
+    </ContextMenu>
   );
 }
