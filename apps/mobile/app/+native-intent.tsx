@@ -7,8 +7,10 @@ import { isConnectOAuthCallback } from '@botharness/host-client/connect-account'
 import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { isSharePath } from '../src/ui/share/share-path';
 import { teamInvitationRoute } from '@botharness/host-client/connect-input';
-export async function redirectSystemPath({ path }: { path: string; initial: boolean }) {
+import { deliverPairingLink } from '../src/host/pairing-deep-link';
+export async function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   if (isConnectOAuthCallback(path)) return null;
+  if (!initial && deliverPairingLink(path)) return null;
   if (isSharePath(path)) return '/share';
   const team = teamInvitationRoute(path);
   if (team !== undefined) return team;

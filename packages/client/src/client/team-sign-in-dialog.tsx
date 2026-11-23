@@ -70,6 +70,7 @@ export function TeamSignInDialog({
   target,
   continuation,
   onPasswordChanged,
+  onStartError,
   onDone,
   onClose,
   inline = false,
@@ -77,6 +78,7 @@ export function TeamSignInDialog({
   t,
 }: {
   readonly onPasswordChanged?: () => void;
+  readonly onStartError?: (message: string) => void;
   readonly onDone: (hostId: string, hostName: string) => void;
   readonly onClose: () => void;
   readonly inline?: boolean;
@@ -108,7 +110,11 @@ export function TeamSignInDialog({
         if (result.ok) {
           started = result.value;
           setFlow(result.value);
-        } else setStartError(teamSignInErrorText(t, result.code, result.retryAfterSeconds));
+        } else {
+          const message = teamSignInErrorText(t, result.code, result.retryAfterSeconds);
+          if (onStartError === undefined) setStartError(message);
+          else onStartError(message);
+        }
       });
     return () => {
       controller.abort();

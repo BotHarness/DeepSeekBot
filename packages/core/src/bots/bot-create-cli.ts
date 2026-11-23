@@ -333,8 +333,9 @@ export async function runBotCreateCli(
       throw usageError('--from-bot only applies to marketplace-avatar-publish.');
     if (
       values['operation-key'] !== undefined &&
-      (!online ||
+      ((!online && command !== 'schedule-create') ||
         ![
+          'schedule-create',
           'create',
           'create-status',
           'group-create',
@@ -345,7 +346,7 @@ export async function runBotCreateCli(
         ].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation or status, Marketplace install, Avatar publish or apply, group creation or group invitation.',
+        '--operation-key is supported only for schedule-create, online Bot creation or status, Marketplace install, Avatar publish or apply, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&

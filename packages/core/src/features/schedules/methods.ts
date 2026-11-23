@@ -23,7 +23,7 @@ export interface SchedulesBridgeDeps {
 
 export interface SchedulesBridgeMethods {
   scheduleList(payload: unknown): BridgeResult<{ schedules: BotSchedule[] }>;
-  scheduleCreate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
+  scheduleCreate(payload: unknown): BridgeResult<{ schedule: BotSchedule; reconciled?: true }>;
   scheduleUpdate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
   scheduleDelete(payload: unknown): BridgeResult<{ removed: boolean }>;
   scheduleHistory(payload: unknown): BridgeResult<{ firings: BotScheduleFiring[] }>;
@@ -52,6 +52,12 @@ function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
   if (source['kind'] === 'once' && typeof source['date'] === 'string')
     return { kind: 'once', date: source['date'], time, timeZone };
   return undefined;
+}
+
+function optionalString(source: Record<string, unknown>, key: string): string | false | undefined {
+  const value = source[key];
+  if (value === undefined) return undefined;
+  return typeof value === 'string' && value.length > 0 ? value : false;
 }
 
 function scheduleFailure(error: unknown): BridgeResult<never> {
@@ -91,25 +97,25 @@ export function createSchedulesBridgeMethods(
         (source['locked'] !== undefined && typeof source['locked'] !== 'boolean')
       )
         return invalidInput('title, prompt and a valid trigger are required');
+      const operationKey = optionalString(source, 'operationKey');
+      if (operationKey === false) return invalidInput('operationKey must be a non-empty string');
       try {
+        const { reconciled, ...schedule } = deps.schedules.create(
+          slug,
+          {
+            title: source['title'],
+            prompt: source['prompt'],
+            trigger,
+            ...(source['enabled'] === undefined ? {} : { enabled: source['enabled'] as boolean }),
+            ...(source['locked'] === undefined ? {} : { locked: source['locked'] as boolean }),
+          },
+          'human',
+          human.humanId,
+          operationKey === undefined ? undefined : { operationKey },
+        );
         return {
           ok: true,
-          value: {
-            schedule: deps.schedules.create(
-              slug,
-              {
-                title: source['title'],
-                prompt: source['prompt'],
-                trigger,
-                ...(source['enabled'] === undefined
-                  ? {}
-                  : { enabled: source['enabled'] as boolean }),
-                ...(source['locked'] === undefined ? {} : { locked: source['locked'] as boolean }),
-              },
-              'human',
-              human.humanId,
-            ),
-          },
+          value: { schedule, ...(reconciled === true ? { reconciled } : {}) },
         };
       } catch (error) {
         return scheduleFailure(error);
@@ -123,6 +129,9 @@ export function createSchedulesBridgeMethods(
         return invalidInput('slug and id are required');
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
+      const expectedRevision = optionalString(source, 'expectedRevision');
+      if (expectedRevision === false)
+        return invalidInput('expectedRevision must be a non-empty string');
       const change: BotScheduleChange = {};
       if (source['title'] !== undefined) {
         if (typeof source['title'] !== 'string') return invalidInput('title must be a string');
@@ -150,7 +159,9 @@ export function createSchedulesBridgeMethods(
       try {
         return {
           ok: true,
-          value: { schedule: deps.schedules.update(slug, id, change, 'human') },
+          value: {
+            schedule: deps.schedules.update(slug, id, change, 'human', expectedRevision),
+          },
         };
       } catch (error) {
         return scheduleFailure(error);
@@ -158,15 +169,19 @@ export function createSchedulesBridgeMethods(
     },
     scheduleDelete(payload) {
       const slug = asSlug(payload);
-      const id = asObject(payload)['id'];
+      const source = asObject(payload);
+      const id = source['id'];
       if (slug === undefined || typeof id !== 'string')
         return invalidInput('slug and id are required');
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
+      const expectedRevision = optionalString(source, 'expectedRevision');
+      if (expectedRevision === false)
+        return invalidInput('expectedRevision must be a non-empty string');
       try {
         return {
           ok: true,
-          value: { removed: deps.schedules.remove(slug, id, 'human') },
+          value: { removed: deps.schedules.remove(slug, id, 'human', expectedRevision) },
         };
       } catch (error) {
         return scheduleFailure(error);

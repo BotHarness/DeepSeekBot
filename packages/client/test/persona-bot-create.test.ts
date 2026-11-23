@@ -175,23 +175,23 @@ async function submit(host: HTMLElement) {
 }
 
 describe('built-in avatar selection', () => {
-  it('creates the Bot with the displayed Tilties portrait after shuffling', async () => {
+  it('creates the Bot with the displayed Tilties portrait and leaves Shuffle to Customize', async () => {
     await withForm(async (host, create) => {
       await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
       const preview = () =>
         document.querySelector('[data-create-avatar-preview] img')?.getAttribute('src');
       await choose(host, '头像风格', 'tilties');
-      const first = preview();
-      expect(first).toMatch(/^data:image\/webp;base64,/u);
-      await act(async () => buttonNamed('随机', document.body).click());
-      expect(create).not.toHaveBeenCalled();
-      const shuffled = preview();
-      expect(shuffled).toMatch(/^data:image\/webp;base64,/u);
-      expect(shuffled).not.toBe(first);
+      const portrait = preview();
+      expect(portrait).toMatch(/^data:image\/webp;base64,/u);
+      expect(
+        [...document.body.querySelectorAll('button')].some(
+          (button) => button.textContent?.trim() === '随机',
+        ),
+      ).toBe(false);
       await submit(host);
       expect(create).toHaveBeenCalledOnce();
       expect(create).toHaveBeenCalledWith(
-        { displayName: 'Ada', roles: [], persona: '', avatar: shuffled },
+        { displayName: 'Ada', roles: [], persona: '', avatar: portrait },
         undefined,
       );
     });

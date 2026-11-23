@@ -509,6 +509,10 @@ export function AddRemoteHostDialog({
           target={team}
           inline={inline}
           footerContainer={footerContainer}
+          onStartError={(message) => {
+            setTeam(undefined);
+            setError(message);
+          }}
           onClose={onClose}
           onDone={() => onClose()}
           t={t}

@@ -17,9 +17,10 @@ import { useDelayedSearch } from './delayed-search.js';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { TextField } from './ds/field.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
-import { accent, edge, ink, radius, size, space, style } from './ds/tobs.stylex.js';
+import { accent, ink, radius, size, space, style } from './ds/tobs.stylex.js';
 import { addGroupMembers, groupMemberKey, loadGroupMemberPicker } from './group-member-bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -29,36 +30,20 @@ const styles = stylex.create({
   results: {
     display: 'flex',
     flexDirection: 'column',
-    gap: space.x1,
+    gap: space.x2,
     overflowY: 'auto',
-    maxHeight: `calc(${style.controlHeight} * 8)`,
+    maxHeight: `calc(${style.controlHeight} * 9)`,
     minWidth: 0,
-    padding: space.x2,
+    paddingBlock: space.x1,
   },
+  section: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
   heading: {
     color: ink.secondary,
     fontSize: style.textUiSize,
     lineHeight: style.textUiLine,
+    fontWeight: 400,
     margin: 0,
-  },
-  row: {
-    width: '100%',
-    minHeight: size.rowLarge,
-    height: 'auto',
-    justifyContent: 'flex-start',
-    gap: space.x3,
-    paddingBlock: space.x2,
     paddingInline: space.x3,
-    textAlign: 'start',
-    whiteSpace: 'normal',
-    outlineOffset: `calc(-1 * ${edge.focusOffset})`,
-  },
-  rowSelected: {
-    backgroundColor: {
-      default: style.choiceSelectedFill,
-      ':hover:enabled': style.choiceSelectedFill,
-    },
-    color: style.choiceSelectedInk,
   },
   portrait: {
     display: 'inline-flex',
@@ -75,11 +60,6 @@ const styles = stylex.create({
     color: accent.onContainer,
   },
   photo: { width: '100%', height: '100%', objectFit: 'cover' },
-  identity: { flex: 1, minWidth: 0, overflowWrap: 'anywhere' },
-  name: { display: 'inline-flex', alignItems: 'center', gap: space.x1, maxWidth: '100%' },
-  detail: { display: 'block', color: ink.secondary, fontWeight: 400 },
-  kind: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
-  botKindGlyph: { width: style.textUiSize, height: style.textUiSize },
   mark: {
     display: 'inline-flex',
     justifyContent: 'center',
@@ -242,52 +222,59 @@ export function GroupMemberPicker({
     const identity = memberIdentity(row, kindLabel);
     const photo =
       row.kind === 'human' && photos?.call === call ? photos.images.get(row.id) : undefined;
+    const summary = [
+      handle ? '@' + handle : undefined,
+      ownerNeeded ? t('groupMembers.requiresOwner') : undefined,
+    ]
+      .filter(Boolean)
+      .join(' · ');
     return (
-      <Button
+      <ListCardItem
         key={key}
-        type="button"
-        aria-label={ownerNeeded ? identity + ' · ' + t('groupMembers.requiresOwner') : identity}
-        aria-pressed={pressed}
-        disabled={disabled || (!pressed && (ownerNeeded || selected.length >= 100))}
-        xstyle={[styles.row, pressed && styles.rowSelected]}
-        onClick={() =>
-          onChange(
-            pressed ? selected.filter((item) => groupMemberKey(item) !== key) : [...selected, row],
-          )
-        }
-      >
-        <span
-          aria-hidden="true"
-          {...stylex.props(styles.portrait, row.kind === 'human' && styles.humanPortrait)}
-        >
-          {row.kind === 'bot' ? (
-            (botPortrait?.(row, portraitSize) ?? <LocalBotPortrait bot={row} />)
-          ) : photo ? (
-            <img src={photo} alt="" draggable={false} {...stylex.props(styles.photo)} />
-          ) : (
-            Array.from(row.displayName.trim())[0]?.toUpperCase()
-          )}
-        </span>
-        <span {...stylex.props(styles.identity)}>
-          <span {...stylex.props(styles.name)}>
-            <span>{row.displayName}</span>
-            <span title={kindLabel} aria-hidden="true" {...stylex.props(styles.kind)}>
-              {row.kind === 'human' ? (
-                <Icon name="user" />
-              ) : (
-                <Icon name="bot" className={stylex.props(styles.botKindGlyph).className ?? ''} />
-              )}
-            </span>
+        data={{ 'data-group-member': key }}
+        action={{
+          label: ownerNeeded ? identity + ' · ' + t('groupMembers.requiresOwner') : identity,
+          pressed,
+          disabled: disabled || (!pressed && (ownerNeeded || selected.length >= 100)),
+          onClick: () =>
+            onChange(
+              pressed
+                ? selected.filter((item) => groupMemberKey(item) !== key)
+                : [...selected, row],
+            ),
+        }}
+        leading={
+          <span
+            aria-hidden="true"
+            {...stylex.props(styles.portrait, row.kind === 'human' && styles.humanPortrait)}
+          >
+            {row.kind === 'bot' ? (
+              (botPortrait?.(row, portraitSize) ?? <LocalBotPortrait bot={row} />)
+            ) : photo ? (
+              <img src={photo} alt="" draggable={false} {...stylex.props(styles.photo)} />
+            ) : (
+              Array.from(row.displayName.trim())[0]?.toUpperCase()
+            )}
           </span>
-          {handle ? <span {...stylex.props(styles.detail)}>@{handle}</span> : null}
-          {ownerNeeded ? (
-            <span {...stylex.props(styles.detail)}>{t('groupMembers.requiresOwner')}</span>
-          ) : null}
-        </span>
-        <span aria-hidden="true" {...stylex.props(styles.mark)}>
-          {pressed ? <Icon name="check" /> : null}
-        </span>
-      </Button>
+        }
+        title={row.displayName}
+        {...(summary ? { summary } : {})}
+        trailing={
+          <span aria-hidden="true" {...stylex.props(styles.mark)}>
+            {pressed ? <Icon name="check" /> : null}
+          </span>
+        }
+      />
+    );
+  };
+  const section = (id: 'bots' | 'people', rows: readonly PickedGroupMember[]) => {
+    if (rows.length === 0) return null;
+    const label = t(id === 'bots' ? 'groupMembers.sectionBots' : 'groupMembers.sectionPeople');
+    return (
+      <div key={id} data-group-member-section={id} {...stylex.props(styles.section)}>
+        <h3 {...stylex.props(styles.heading)}>{label}</h3>
+        <ListCard label={label}>{rows.map(selection)}</ListCard>
+      </div>
     );
   };
   return (
@@ -309,7 +296,6 @@ export function GroupMemberPicker({
             {t('groupMembers.selected', { count: selected.length })}
           </p>
         ) : null}
-        {outsideSearch.map(selection)}
         {current && 'failed' in current ? (
           <ReadFailure
             disabled={disabled}
@@ -322,7 +308,14 @@ export function GroupMemberPicker({
             {t('groupMembers.loadFailed')}
           </ReadFailure>
         ) : null}
-        {matching.map(selection)}
+        {section(
+          'bots',
+          [...outsideSearch, ...matching].filter((row) => row.kind === 'bot'),
+        )}
+        {section(
+          'people',
+          [...outsideSearch, ...matching].filter((row) => row.kind === 'human'),
+        )}
         {candidates && matching.length === 0 ? <Note>{t('groupMembers.empty')}</Note> : null}
       </div>
       {channelId !== undefined && selected.some((row) => row.kind === 'human') ? (

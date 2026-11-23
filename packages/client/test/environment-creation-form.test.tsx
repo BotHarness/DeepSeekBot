@@ -3,7 +3,7 @@ import { type ReactNode } from 'react';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HostClient } from '@botharness/host-client/client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 import type { BridgeCall } from '../src/client/bridge.js';
 
 const fixture = vi.hoisted(() => ({
@@ -305,6 +305,8 @@ it.each(['member', 'admin'])(
         sectionId: undefined,
         operationKey: expect.any(String),
         scopedCall: localCall,
+        members: [],
+        humanIds: [],
       });
       expect(fixture.call).not.toHaveBeenCalled();
       expect(close).toHaveBeenCalledOnce();
@@ -458,6 +460,76 @@ it('keeps a local Channel retry available when a previously selected remote Clie
   expect(fixture.call.mock.calls).toEqual([['channelGroupMemberPicker', { query: '' }]]);
   expect(close).toHaveBeenCalledOnce();
 });
+
+it.each(['local', 'remote'] as const)(
+  'lets the %s group selection change after a definitive refusal and starts a new operation',
+  async (target) => {
+    const picker = {
+      canAddPeople: true,
+      canAddBots: true,
+      people: [{ id: 'bob', displayName: 'Bob' }],
+      bots: [],
+    };
+    const refusal = { code: 'member-not-found', message: 'Member not found', details: {} };
+    const requests: Record<string, unknown>[] = [];
+    const recordRequest = (input: Record<string, unknown>) => {
+      requests.push(input);
+      if (requests.length === 3) throw new Error('reply lost');
+    };
+    const call: BridgeCall = async (method, input) => {
+      if (method === 'channelGroupMemberPicker') return { ok: true, value: picker };
+      if (method !== 'channelCreate') throw new Error(`Unexpected local method ${method}`);
+      recordRequest(input);
+      return { ok: false, error: refusal };
+    };
+    fixture.call.mockImplementation(async (method, input) => {
+      if (method === 'channelGroupMemberPicker') return picker;
+      if (method !== 'channelCreate' || !input) throw new Error(`Unexpected method ${method}`);
+      recordRequest(input);
+      throw new MethodRefused(refusal.code, refusal.message);
+    });
+    if (target === 'local') {
+      rememberCreationHost(localStorage, { id: 'local-a', name: 'Local A', online: true });
+    }
+    await act(async () =>
+      root.render(
+        createElement(EnvironmentCreation, {
+          request: { kind: 'channel' },
+          scope: 'all',
+          actions: createActions(call, createStore()),
+          t: zhTranslate,
+          onClose: close,
+        }),
+      ),
+    );
+    const bob = () => {
+      const row = document.querySelector<HTMLButtonElement>('button[aria-label^="Bob · "]');
+      if (!row) throw new Error('Missing Bob');
+      return row;
+    };
+    const create = () => buttonNamed(zhTranslate('common.create'));
+    await typeInto(fieldNamed(zhTranslate('channel.name.label')), 'QA');
+    await act(async () => bob().click());
+    await act(async () => create().click());
+    expect(requests[0]).toMatchObject({ name: 'QA', humanIds: ['bob'] });
+    expect(bob().disabled).toBe(false);
+    await act(async () => create().click());
+    expect(requests[1]).toEqual(requests[0]);
+    await act(async () => bob().click());
+    await act(async () => create().click());
+    expect(requests[2]).toMatchObject({
+      name: 'QA',
+      members: [],
+      operationKey: expect.any(String),
+    });
+    expect(requests[2]).not.toHaveProperty('humanIds');
+    expect(requests[2]?.['operationKey']).not.toBe(requests[0]?.['operationKey']);
+    expect(bob().disabled).toBe(true);
+    await act(async () => buttonNamed(zhTranslate('environment.create.retry')).click());
+    expect(requests[3]).toEqual(requests[2]);
+    expect(bob().disabled).toBe(true);
+  },
+);
 
 const renderSections = async () =>
   act(async () =>

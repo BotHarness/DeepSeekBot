@@ -98,6 +98,7 @@ export function parseSchedule(value: unknown): BotSchedule {
     enabled: schedule['enabled'],
     creator: schedule['creator'],
     locked: schedule['locked'],
+    revision: text(schedule['revision']) ? schedule['revision'] : '',
     ...(text(schedule['nextRunAt']) ? { nextRunAt: schedule['nextRunAt'] } : {}),
     ...(schedule['lastFiring'] === undefined
       ? {}

@@ -528,6 +528,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     saveGenuiView: genui.saveGenuiView,
     appendMessageOnce: appender.appendMessageOnce,
     readMessages: placements.methods.readMessages,
+    messagePosition: placements.methods.messagePosition,
+    historyEpoch: placements.methods.historyEpoch,
     queryMessages: search.queryMessages,
     readTimeline: placements.methods.readTimeline,
     searchHumanMessages: search.searchHumanMessages,

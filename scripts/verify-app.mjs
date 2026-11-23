@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { diagnosticVerdict, readClientDiagnostics } from './dev-client-diagnostics.mjs';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { request as httpRequest } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -220,24 +221,48 @@ async function freePort() {
   return port;
 }
 
+function postFresh(url, headers, body) {
+  return new Promise((done, fail) => {
+    const request = httpRequest(
+      url,
+      { method: 'POST', agent: false, headers, signal: AbortSignal.timeout(60_000) },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () =>
+          done({ status: response.statusCode, body: Buffer.concat(chunks).toString('utf8') }),
+        );
+        response.on('error', fail);
+      },
+    );
+    request.on('error', fail);
+    request.end(body);
+  });
+}
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function rpc(instance, endpoint, args = {}) {
-  const origin = new URL(instance.url).origin;
-  const response = await fetch(`${origin}/api/${endpoint}`, {
-    method: 'POST',
-    signal: AbortSignal.timeout(60_000),
-    headers: {
+  const response = await postFresh(
+    `${new URL(instance.url).origin}/api/${endpoint}`,
+    {
       'content-type': 'application/json',
-      connection: 'close',
       cookie: cookieFor(instance.home),
     },
-    body: JSON.stringify({
+    JSON.stringify({
       type: 'client-request',
       rpcId: `verify-${Date.now()}`,
       method: endpoint,
       payload: { args },
     }),
-  });
-  const envelope = await response.json().catch(() => undefined);
+  );
+  const envelope = parseJson(response.body);
   if (response.status !== 200 || envelope?.result?.ok !== true) {
     const code = envelope?.result?.error?.code ?? 'invalid-response';
     const message = envelope?.result?.error?.message;
