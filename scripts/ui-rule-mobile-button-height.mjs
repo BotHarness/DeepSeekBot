@@ -20,10 +20,17 @@ function modifierCalls(opening) {
       (entry) => entry.isJSXAttribute() && entry.get('name').isJSXIdentifier({ name: 'modifiers' }),
     );
   const value = attribute?.get('value');
-  const list = value?.isJSXExpressionContainer() ? value.get('expression') : undefined;
+  const list = resolveList(value?.isJSXExpressionContainer() ? value.get('expression') : undefined);
   return list?.isArrayExpression()
     ? list.get('elements').filter((entry) => entry.isCallExpression())
     : [];
+}
+
+function resolveList(path) {
+  if (!path?.isIdentifier()) return path;
+  const binding = path.scope.getBinding(path.node.name);
+  const init = binding?.constant && binding.path.isVariableDeclarator() && binding.path.get('init');
+  return init?.node ? resolveList(init) : path;
 }
 
 export function mobileFixedButtonHeight(file, ast) {

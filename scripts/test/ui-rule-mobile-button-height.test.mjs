@@ -10,14 +10,17 @@ describe('mobile Compose button height', () => {
     const found = check(`
       import { Button, OutlinedButton as Secondary } from '@expo/ui/jetpack-compose';
       import { height as fixedHeight, size, weight } from '@expo/ui/jetpack-compose/modifiers';
+      const tall = [fixedHeight(56)];
       const example = <>
         <Button modifiers={[weight(1), fixedHeight(56)]} onClick={next} />
         <Secondary modifiers={[size(120, 48)]} onClick={back} />
+        <Button modifiers={tall} onClick={next} />
       </>;
     `);
     expect(found.map(({ rule, text, line }) => [rule, text, line])).toEqual([
-      ['fixedButtonHeight', 'Button', 5],
-      ['fixedButtonHeight', 'OutlinedButton', 6],
+      ['fixedButtonHeight', 'Button', 6],
+      ['fixedButtonHeight', 'OutlinedButton', 7],
+      ['fixedButtonHeight', 'Button', 8],
     ]);
     expect(compare(found, {}).problems).toEqual([expect.stringContaining('minimum height')]);
   });
@@ -28,7 +31,9 @@ describe('mobile Compose button height', () => {
         import { Button, IconButton } from '@expo/ui/jetpack-compose';
         import { defaultMinSize, size } from '@expo/ui/jetpack-compose/modifiers';
         import { Button as NativeButton } from 'react-native';
+        const grow = [defaultMinSize({ minHeight: 56 })];
         const example = <>
+          <Button modifiers={grow} onClick={next} />
           <Button modifiers={[defaultMinSize({ minHeight: 56 })]} onClick={next} />
           <IconButton modifiers={[size(48, 48)]} onClick={back} />
           <NativeButton title="Next" onPress={next} />
