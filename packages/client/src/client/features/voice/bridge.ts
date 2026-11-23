@@ -16,6 +16,10 @@ import type {
   VoiceCatalogItem,
   VoiceCatalogPage,
 } from '../../voice-bridge.js';
+import type {
+  VoiceRequestTemplate,
+  VoiceTemplateValidation,
+} from '@botharness/host-protocol/voice-request-template';
 
 export interface VoiceProviderAddInput {
   kind?: 'tts' | 'asr';
@@ -26,6 +30,7 @@ export interface VoiceProviderAddInput {
   model?: string;
   defaultVoice?: string;
   key?: string;
+  template?: VoiceRequestTemplate;
 }
 
 export function createVoiceBridge(
@@ -191,6 +196,55 @@ export function createVoiceBridge(
     return provider(view['provider'], 'voiceProviderAdd');
   }
 
+  function templateOf(value: unknown, method: string): VoiceRequestTemplate {
+    const template = record(value, method);
+    if (typeof template['url'] !== 'string' || typeof template['method'] !== 'string')
+      throw new Error(`invalid ${method} response`);
+    return template as unknown as VoiceRequestTemplate;
+  }
+
+  async function validateVoiceTemplate(
+    call: BridgeCall,
+    kind: 'tts' | 'asr',
+    template: unknown,
+  ): Promise<VoiceTemplateValidation> {
+    const method = 'voiceTemplateValidate';
+    const view = await unwrap(call, method, { kind, template });
+    if (view['valid'] === true)
+      return { valid: true, template: templateOf(view['template'], method) };
+    if (view['valid'] !== false || !Array.isArray(view['errors']))
+      throw new Error(`invalid ${method} response`);
+    return {
+      valid: false,
+      errors: view['errors'].map((entry) => {
+        const error = record(entry, method);
+        return {
+          path: typeof error['path'] === 'string' ? error['path'] : '',
+          message: typeof error['message'] === 'string' ? error['message'] : '',
+        };
+      }),
+    };
+  }
+
+  async function voiceProviderTemplate(
+    call: BridgeCall,
+    id: string,
+  ): Promise<VoiceRequestTemplate> {
+    const method = 'voiceProviderTemplate';
+    const view = await unwrap(call, method, { id });
+    return templateOf(view['template'], method);
+  }
+
+  async function setVoiceProviderTemplate(
+    call: BridgeCall,
+    id: string,
+    template: VoiceRequestTemplate,
+  ): Promise<TtsProviderView> {
+    const method = 'voiceProviderTemplateSet';
+    const view = await unwrap(call, method, { id, template });
+    return provider(view['provider'], method);
+  }
+
   async function removeVoiceProvider(call: BridgeCall, id: string): Promise<string[]> {
     const view = await unwrap(call, 'voiceProviderRemove', { id });
     return Array.isArray(view['clearedBots'])
@@ -274,6 +328,9 @@ export function createVoiceBridge(
     browseVoiceCatalog,
     importSharedVoice,
     addVoiceProvider,
+    validateVoiceTemplate,
+    voiceProviderTemplate,
+    setVoiceProviderTemplate,
     removeVoiceProvider,
     testVoiceProvider,
     synthesizeVoice,
