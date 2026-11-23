@@ -4,6 +4,7 @@
 
 - `packages/core/src/features/models/runtime-session-group.ts`
 - `packages/core/src/features/models/plugin.ts`
+- `packages/core/test/model-routing-plugin.test.ts`
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
 - `packages/core/src/models/routing-group-engine-options.ts`
 - `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter,dsh-bot-agent-adapter-*}.ts`
@@ -53,6 +54,8 @@ Run the replay first to verify continuation with a completed tool result, dedupl
 ```sh
 pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts
 ```
+
+Run `model-routing-plugin.test.ts` to verify two runtime cases. Revoking a member's engine account grant makes the whole Assignment Routing Group unavailable. A long provider rate limit records a rest for a Bot that inherits its Routing Group from the Default Model Preset.
 
 For an isolated Host check, create an engine-first group and assign it through `model-plan-customize <bot> --orchestrator-group <id>`. Send a DM. After an engine limit, check the reset in `deepseekbot engine status` and the switch notice in `deepseekbot channel-timeline <channel>`. The original DM gets one reply in the same Session without another Human message. When every target is resting, open the DM and check the card's earliest reset against `turnStop.rests[0].until`. Use a replay transport when the live subscription cannot produce the intended quota case.
 

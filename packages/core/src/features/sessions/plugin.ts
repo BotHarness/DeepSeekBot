@@ -381,6 +381,7 @@ export function mountLifecycle(
     agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
     dshSessions: DshSessionStore;
     openAssignmentRoutes: ReturnType<typeof models.createCatalog>['openAssignmentRoutes'];
+    effectivePlan: ReturnType<typeof models.createCatalog>['routingDefaults']['effectivePlan'];
   },
 ) {
   const {
@@ -394,6 +395,7 @@ export function mountLifecycle(
     agentAdapter,
     dshSessions,
     openAssignmentRoutes,
+    effectivePlan,
   } = deps;
   ctx.on(
     'session/event',
@@ -438,6 +440,7 @@ export function mountLifecycle(
         agent,
         () => config.subagent,
         openAssignmentRoutes,
+        effectivePlan,
       );
       if (routing !== undefined) await routing;
     },
