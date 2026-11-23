@@ -16,7 +16,9 @@ Each PersonaBot has at most one Orchestrator root Session, which owns its Inbox,
 
 Why: DSH continuable Subagents copy the parent's cwd and preset, are fenced from generic resume, are capped per tree and are orphaned by a parent fork, so Assignments must be roots. DSH's Session metadata is a closed contract and live handles vanish on restart, so ownership needs its own table. A cwd match picks the wrong Bot when several share a Workspace.
 
-If DSH has no saved Orchestrator Session to archive, the Host reserves a replacement root in Session Ownership before running the mutation. The reservation is hidden from Session selection until the mutation returns successfully. An unsuccessful mutation keeps its original error. Startup deletes any uncommitted reservations, including ones the previous Host could not discard. Reserving first catches ownership write failures before moving Memory. Hiding the reservation protects future turns even when SQLite refuses the cleanup. `memory-move.test.ts` covers a failed Memory update followed by a failed discard.
+If DSH has no saved Orchestrator Session to archive, the Host reserves a replacement before running the mutation. The reservation lives outside Session Ownership because nothing needs to resolve it before publication. Publication inserts the ownership row and removes the reservation in one transaction. A failed mutation keeps its original error even if discard fails.
+
+A successful Memory move returns the new location even if publication fails twice. The next turn can claim a fresh Session at the current Memory location. On startup, the Host publishes a pending replacement if its destination matches current Memory, the path differs from the original, and no newer root exists. It discards the other reservations. Matching an unchanged working directory alone cannot prove the mutation succeeded. `memory-move.test.ts` covers both failure paths and restart outcomes.
 
 Enforced by: `session-ownership-boundary.test.ts` (only `sessions/ownership.ts` writes `session_ownership`), `session-ownership.test.ts`.
 

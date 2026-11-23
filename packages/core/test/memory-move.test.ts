@@ -233,7 +233,7 @@ describe('Memory move', () => {
       const first = f.runs[0]!.sessionId;
       const before = f.core.registry.memoryDirFor('ada')!;
       const location = createTempRoot('botharness-memory-claim-failed-');
-      vi.spyOn(f.core.ownership, 'claim').mockImplementationOnce(() => {
+      vi.spyOn(f.core.ownership, 'reserveOrchestratorReplacement').mockImplementationOnce(() => {
         throw new Error('Replacement claim failed');
       });
       await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
@@ -274,7 +274,7 @@ describe('Memory move', () => {
       const location = createTempRoot('botharness-memory-discard-failed-');
       const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
       database.transaction((db) =>
-        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON session_ownership
+        db.exec(`CREATE TRIGGER fail_orchestrator_discard BEFORE DELETE ON pending_orchestrator_replacements
                  BEGIN SELECT RAISE(ABORT, 'Replacement discard failed'); END`),
       );
       vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementationOnce(() => {
@@ -290,13 +290,27 @@ describe('Memory move', () => {
       expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
       await f.send();
       expect(f.runs[1]).toMatchObject({ sessionId: first, resume: true });
+      const unchangedCwdFailure = new Error('Replacement mutation failed without moving Memory');
+      await expect(
+        f.core.runtime.replaceOrchestrator!('ada', () => {
+          throw unchangedCwdFailure;
+        }),
+      ).rejects.toBe(unchangedCwdFailure);
       expect(
         database.read((db) =>
           db
-            .prepare('SELECT cwd_reference FROM session_ownership WHERE session_id <> ?')
-            .all(first),
+            .prepare(
+              'SELECT cwd_reference FROM pending_orchestrator_replacements WHERE bot_slug = ?',
+            )
+            .all('ada'),
         ),
-      ).toEqual([{ cwd_reference: join(location, 'ada') }]);
+      ).toEqual(
+        expect.arrayContaining([
+          { cwd_reference: join(location, 'ada') },
+          { cwd_reference: before },
+        ]),
+      );
+      expect(f.core.ownership.list().map((root) => root.sessionId)).toEqual([first]);
       database.transaction((db) => db.exec('DROP TRIGGER fail_orchestrator_discard'));
     } finally {
       await f.close();
@@ -307,9 +321,102 @@ describe('Memory move', () => {
       expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
       expect(
         attachOperationalModule(reopened.operationalDatabase, 'memory-move-test').read((db) =>
-          db.prepare('SELECT session_id FROM session_ownership WHERE bot_slug = ?').all('ada'),
+          db
+            .prepare('SELECT session_id FROM pending_orchestrator_replacements WHERE bot_slug = ?')
+            .all('ada'),
         ),
-      ).toEqual([{ session_id: first }]);
+      ).toEqual([]);
+      expect(reopened.ownership.list().map((root) => root.sessionId)).toEqual([first]);
+    } finally {
+      await reopened.runtime.close();
+      reopened.operationalDatabase.close();
+    }
+  });
+
+  it('reports the applied Memory move and keeps new turns off the old cwd when replacement publication fails', async () => {
+    const f = await fixture({ unsaved: true });
+    let freshSessionId: string | undefined;
+    try {
+      await f.send();
+      const first = f.runs[0]!.sessionId;
+      const oldMemory = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-publish-failed-');
+      const memoryDir = join(location, 'ada');
+      const publish = vi
+        .spyOn(f.core.ownership, 'commitOrchestratorReplacement')
+        .mockImplementation(() => {
+          throw new Error('Replacement publication failed');
+        });
+
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toEqual({
+        ok: true,
+        value: { memoryDir, moved: true },
+      });
+      expect(publish).toHaveBeenCalledTimes(2);
+      expect(existsSync(oldMemory)).toBe(false);
+      expect(inspectMemoryRepository({ memoryDir }).state).toBe('ready');
+      expect(f.core.registry.memoryDirFor('ada')).toBe(memoryDir);
+      expect(f.core.runtime.currentOrchestratorSessionId?.('ada')).not.toBe(first);
+
+      await f.send();
+      freshSessionId = f.runs[1]!.sessionId;
+      expect(freshSessionId).not.toBe(first);
+      expect(f.core.ownership.resolve(freshSessionId)?.cwdReference).toBe(memoryDir);
+    } finally {
+      await f.close();
+    }
+    const reopened = createCore({ dshHome: f.home });
+    try {
+      expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBe(freshSessionId);
+    } finally {
+      await reopened.runtime.close();
+      reopened.operationalDatabase.close();
+    }
+  });
+
+  it('publishes the pending replacement on startup when Memory reached its destination', async () => {
+    const f = await fixture({ unsaved: true });
+    const location = createTempRoot('botharness-memory-publish-recovery-');
+    const memoryDir = join(location, 'ada');
+    let replacementId: string | undefined;
+    try {
+      await f.send();
+      const first = f.runs[0]!.sessionId;
+      const database = attachOperationalModule(f.core.operationalDatabase, 'memory-move-test');
+      database.transaction((db) =>
+        db.exec(`CREATE TRIGGER fail_orchestrator_publication BEFORE DELETE ON pending_orchestrator_replacements
+                 BEGIN SELECT RAISE(ABORT, 'Replacement publication failed'); END`),
+      );
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toEqual({
+        ok: true,
+        value: { memoryDir, moved: true },
+      });
+      expect(f.core.registry.memoryDirFor('ada')).toBe(memoryDir);
+      const pending = database.read((db) =>
+        db
+          .prepare('SELECT session_id FROM pending_orchestrator_replacements WHERE bot_slug = ?')
+          .get('ada'),
+      );
+      if (typeof pending?.session_id !== 'string') throw new Error('Missing pending replacement');
+      replacementId = pending.session_id;
+      expect(f.core.ownership.resolve(replacementId)).toBeUndefined();
+      expect(
+        f.core.ownership.rootsFor('ada', 'orchestrator').map((root) => root.sessionId),
+      ).toEqual([first]);
+      database.transaction((db) => db.exec('DROP TRIGGER fail_orchestrator_publication'));
+    } finally {
+      await f.close();
+    }
+
+    const reopened = createCore({ dshHome: f.home });
+    try {
+      expect(reopened.runtime.currentOrchestratorSessionId?.('ada')).toBe(replacementId);
+      expect(reopened.ownership.resolve(replacementId!)?.cwdReference).toBe(memoryDir);
+      expect(
+        attachOperationalModule(reopened.operationalDatabase, 'memory-move-test').read((db) =>
+          db.prepare('SELECT session_id FROM pending_orchestrator_replacements').all(),
+        ),
+      ).toEqual([]);
     } finally {
       await reopened.runtime.close();
       reopened.operationalDatabase.close();

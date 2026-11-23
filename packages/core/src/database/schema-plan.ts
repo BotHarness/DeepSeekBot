@@ -4183,17 +4183,21 @@ const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
   },
 };
 
-const ORCHESTRATOR_REPLACEMENT_PENDING_MIGRATION: SchemaMigration = {
-  id: 'orchestrator-replacement-pending',
+const PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION: SchemaMigration = {
+  id: 'pending-orchestrator-replacements',
   module: 'session-ownership',
-  description: 'Keep uncommitted Orchestrator replacements out of Session selection',
+  description: 'Store Orchestrator reservations separately from committed Session ownership',
   migrate(database) {
     database.exec(`
-      ALTER TABLE session_ownership ADD COLUMN replacement_pending INTEGER NOT NULL DEFAULT 0
-        CHECK (replacement_pending = 0 OR (replacement_pending = 1
-          AND root_role = 'orchestrator' AND provenance = 'created' AND parent_session_id IS NULL));
-      CREATE INDEX session_ownership_pending_replacements ON session_ownership (session_id)
-        WHERE replacement_pending = 1;
+      CREATE TABLE pending_orchestrator_replacements (
+        session_id TEXT PRIMARY KEY NOT NULL,
+        bot_slug TEXT NOT NULL,
+        cwd_reference TEXT,
+        previous_cwd_reference TEXT,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX pending_orchestrator_replacements_bot
+        ON pending_orchestrator_replacements (bot_slug, created_at DESC, session_id);
     `);
   },
 };
@@ -4381,5 +4385,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MODEL_PRESET_SUB_ENGINE_MIGRATION,
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
-  ORCHESTRATOR_REPLACEMENT_PENDING_MIGRATION,
+  PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION,
 ]);

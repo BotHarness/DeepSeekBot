@@ -700,7 +700,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 
-Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。 DSH 未保存旧 Orchestrator Session 时，Session Ownership 先保留待提交的替换记录。变更成功后记录才可被选为当前 Session。Host 启动时清理未提交记录。
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。 DSH 未保存旧 Orchestrator Session 时，Host 先在独立表中保留替换记录。变更成功后，Host 在同一事务写入 Session Ownership 并删除预留记录。Memory 已迁移时，即使发布失败也会返回新路径，后续回合只选用与当前 Memory 路径匹配的 Session。Host 启动时发布符合当前 Memory 位置且尚未被更新 Session 取代的迁移记录，并清理其余预留记录。
 
 [Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
 
