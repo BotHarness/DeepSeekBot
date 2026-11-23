@@ -9,6 +9,14 @@ import { createTempRoot } from './helpers.js';
 import type { TobSettingsProvider } from '../src/tob/service.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 function settings() {
   let value = 8,
     revision = 0;
@@ -834,6 +842,87 @@ describe('authenticated model-free Tob CLI DM admission', () => {
       expect(messages.some((message) => message.includes('Wait for my answer.'))).toBe(true);
     } finally {
       release();
+      await f.close();
+    }
+  });
+
+  it('preserves CLI output when cancellation arrives during settlement', async () => {
+    const reported = deferred<void>();
+    const settlement = deferred<void>();
+    const output = { exitCode: 0, stdout: '{"templates":[]}', stderr: '' };
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      run.tobCliTurn.complete(output);
+      reported.resolve();
+      await settlement.promise;
+      run.tobCliTurn.signal.throwIfAborted();
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      await reported.promise;
+      expect(await bridge.tobCli({ action: 'cancel', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'running' },
+      });
+      settlement.resolve();
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'completed', cancelRequested: false, result: output },
+      });
+      expect(
+        f.core.channels.humanSendStatus?.(started.value.channelId, started.value.messageId)
+          ?.progress,
+      ).toMatchObject({ state: 'completed', terminal: true });
+    } finally {
+      settlement.resolve();
+      await f.close();
+    }
+  });
+
+  it('settles as cancelled when cancellation arrives while the CLI command is still running', async () => {
+    const running = deferred<AbortSignal>();
+    const command = deferred<void>();
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      running.resolve(run.tobCliTurn.signal);
+      await command.promise;
+      run.tobCliTurn.complete({ exitCode: 0, stdout: '{"templates":[]}', stderr: '' });
+      run.tobCliTurn.signal.throwIfAborted();
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      const signal = await running.promise;
+      expect(await bridge.tobCli({ action: 'cancel', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'running', cancelRequested: true },
+      });
+      expect(signal.aborted).toBe(true);
+      command.resolve();
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toEqual({
+        ok: true,
+        value: {
+          id: started.value.id,
+          channelId: started.value.channelId,
+          messageId: started.value.messageId,
+          state: 'cancelled',
+          cancelRequested: true,
+          code: 'operation-cancelled',
+        },
+      });
+    } finally {
+      command.resolve();
       await f.close();
     }
   });
