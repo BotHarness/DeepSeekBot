@@ -226,12 +226,24 @@ export function parseShortcutBindings(raw: string | null | undefined): ShortcutB
   const result: Record<ShortcutActionId, ShortcutBinding | null> = {
     ...DEFAULT_SHORTCUT_BINDINGS,
   };
-  for (const action of SHORTCUT_ACTION_IDS) if (custom[action] === null) result[action] = null;
+  const customised: ShortcutActionId[] = [];
   for (const action of SHORTCUT_ACTION_IDS) {
     const value = custom[action];
-    if (!isBinding(value)) continue;
-    const binding = { code: value.code, mod: value.mod, alt: value.alt, shift: value.shift };
-    if (shortcutBindingProblem(result, action, binding) === undefined) result[action] = binding;
+    if (value === null) result[action] = null;
+    else if (isBinding(value)) {
+      result[action] = { code: value.code, mod: value.mod, alt: value.alt, shift: value.shift };
+      customised.push(action);
+    }
+  }
+  for (const action of customised) {
+    const binding = result[action];
+    if (binding !== null && shortcutBindingProblem(result, action, binding) !== undefined)
+      result[action] = null;
+  }
+  for (const action of customised) {
+    const fallback = DEFAULT_SHORTCUT_BINDINGS[action];
+    if (result[action] === null && shortcutBindingProblem(result, action, fallback) === undefined)
+      result[action] = fallback;
   }
   return result;
 }
@@ -289,6 +301,7 @@ export class ShortcutBindings {
   }
 
   refresh(): ShortcutBindingMap {
+    if (this.#storage === undefined) return this.#bindings;
     let raw: string | null = null;
     try {
       raw = this.#storage?.getItem(SHORTCUT_BINDINGS_KEY) ?? null;

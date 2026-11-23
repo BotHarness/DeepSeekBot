@@ -887,14 +887,23 @@ describe('Home command opens the Tob DM', () => {
     ).rejects.toMatchObject({
       code: 'client-settings-revision-conflict',
     });
+    const beforeSwitch = new Map(values);
     await act(async () => {
       await run({ global: { mode: 'advanced' } }, after.revision);
     });
     await settle();
     expect(ws.layoutMode().mode).toBe('advanced');
+    const viaCli = JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!).layout;
     expect((await run(undefined)).channels['dm-ada']).toEqual(after.channels['dm-ada']);
     act(() => root.unmount());
     await expect(run(undefined)).rejects.toMatchObject({ code: 'client-settings-unavailable' });
     root = createRoot(host);
+    values = beforeSwitch;
+    const viaUi = mountWorkspace();
+    await viaUi.render();
+    await viaUi.selectChannel({ id: 'dm-bob', type: 'dm', botSlug: 'bob' });
+    act(() => viaUi.layoutMode().setMode('advanced'));
+    await settle();
+    expect(viaCli).toEqual(JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!).layout);
   });
 });

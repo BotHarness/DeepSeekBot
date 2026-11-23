@@ -2606,10 +2606,11 @@ export function ChannelDock({
         updateHiddenControls(rail.hidden);
         for (const id of hiding) close(id);
       }
+      const switching = global !== undefined && global.mode !== simpleRef.current.mode;
       if (global) {
         const previous = simpleRef.current;
         setSimpleLayout({ ...global, mode: previous.mode });
-        if (global.mode !== previous.mode) setMode(global.mode);
+        if (switching) setMode(global.mode);
         else if (api && isSimple()) {
           if (global.sideColumn !== previous.sideColumn) showSimpleView(api, global.sideColumn);
           sideSizedAt.current = 0;
@@ -2617,7 +2618,7 @@ export function ChannelDock({
         }
         if (api) reportOpen(api);
       }
-      if (api) save(api);
+      if (api && !switching) save(api);
     },
   });
   const [stable] = useState(() => ({

@@ -28,6 +28,30 @@ const patch = fc.oneof(
 );
 
 describe('remote shortcut writes', () => {
+  it('keeps a binding freed by an earlier write after a reload', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (name: string) => values.get(name) ?? null,
+      setItem: (name: string, value: string) => void values.set(name, value),
+    };
+    const bindings = new ShortcutBindings(storage, () => false);
+    const domain = shortcutSettingsDomain(bindings);
+    const write = (next: unknown) =>
+      domain.write(next, {
+        expectedRevision: (domain.read() as ShortcutSettingsSnapshot).revision,
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        signal: new AbortController().signal,
+        assertLive: () => {},
+      });
+    const altK = bindings.binding('quick-switcher')!;
+    write({
+      action: 'quick-switcher',
+      binding: { code: 'KeyJ', mod: false, alt: true, shift: false },
+    });
+    write({ action: 'bot-mode', binding: altK });
+    expect(new ShortcutBindings(storage, () => false).binding('bot-mode')).toEqual(altK);
+  });
+
   it('never leave two actions on the same binding, and a reload sees the same map', () => {
     fc.assert(
       fc.property(fc.array(patch, { maxLength: 30 }), (patches) => {
@@ -49,6 +73,7 @@ describe('remote shortcut writes', () => {
             });
           } catch (error) {
             if (!(error instanceof ClientSettingsError)) throw error;
+            expect(error.code).not.toBe('client-settings-storage-unavailable');
           }
           const set = SHORTCUT_ACTION_IDS.map((id) => bindings.binding(id)).filter(
             (value): value is ShortcutBinding => value !== null,
