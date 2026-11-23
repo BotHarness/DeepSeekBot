@@ -170,6 +170,8 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     restoreHuman: (human, input) => requireAcceptance().restoreHuman(human, input),
     saveHuman: (human, input) => requireAcceptance().saveHuman(human, input),
     restoreCommitHuman: (human, input) => requireAcceptance().restoreCommitHuman(human, input),
+    reviewHumanSave: (input) => requireAcceptance().reviewHumanSave(input),
+    reviewHumanRestore: (input) => requireAcceptance().reviewHumanRestore(input),
     nameVersionHuman: (input) => requireAcceptance().nameVersionHuman(input),
     versions: (botSlug) => requireAcceptance().versions(botSlug),
     removeVersionNameHuman: (input) => requireAcceptance().removeVersionNameHuman(input),

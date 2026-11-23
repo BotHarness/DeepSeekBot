@@ -13,6 +13,7 @@ import { parseAgentDiagnostics, TOB_DIAGNOSTIC_COMMAND_USAGE } from './cli-diagn
 import { parseAgentShareDraft, TOB_SHARE_DRAFT_COMMAND_USAGE } from './cli-share-draft.js';
 import { parseAgentVoice, TOB_AGENT_VOICE_COMMAND_USAGE } from './cli-agent-voice.js';
 import { parseAgentMemoryLease, TOB_MEMORY_LEASE_COMMAND_USAGE } from './cli-agent-memory-lease.js';
+import { parseAgentMemory, TOB_AGENT_MEMORY_COMMAND_USAGE } from './cli-agent-memory.js';
 
 export interface AgentManagementInvocation {
   command: string;
@@ -27,6 +28,7 @@ export const TOB_AGENT_COMMAND_USAGE: Readonly<Record<string, string>> = {
   ...TOB_DIAGNOSTIC_COMMAND_USAGE,
   ...TOB_AGENT_VOICE_COMMAND_USAGE,
   ...TOB_MEMORY_LEASE_COMMAND_USAGE,
+  ...TOB_AGENT_MEMORY_COMMAND_USAGE,
   list: 'deepseekbot list',
   'model-catalog': 'deepseekbot model-catalog',
   'model-plan': 'deepseekbot model-plan <bot-slug>',
@@ -228,6 +230,8 @@ export async function parseAgentManagement(
   if (draft) return draft;
   const voice = parseAgentVoice(command, rest, values);
   if (voice) return voice;
+  const memory = await parseAgentMemory(command, rest, values, io);
+  if (memory) return memory;
   const diagnostics = parseAgentDiagnostics(command, rest, values);
   if (diagnostics) return diagnostics;
   const lease = parseAgentMemoryLease(command, rest, values);

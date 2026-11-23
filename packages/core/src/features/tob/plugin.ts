@@ -5,6 +5,10 @@ import { humanContext } from '../../humans/context.js';
 import { TOB_CHANNEL_CAPABILITIES } from '../../tob/cli-channel-operations.js';
 import { TOB_BOT_CREATE_CAPABILITIES } from '../../tob/cli-bot-create.js';
 import { TOB_BOT_PROFILE_CAPABILITIES } from '../../tob/cli-bot-profile-operations.js';
+import {
+  createTobMemoryEditOperations,
+  TOB_MEMORY_EDIT_CAPABILITIES,
+} from '../../tob/cli-memory-edit-operations.js';
 import { TOB_DIAGNOSTIC_CAPABILITIES } from '../../tob/cli-diagnostic-operations.js';
 import { authorizeTobBotTargets, TOB_HOST_CLI_CAPABILITY } from '../../tob/cli-host-commands.js';
 import { TOB_SHARE_DRAFT_CAPABILITIES } from '../../tob/cli-share-draft-operations.js';
@@ -172,6 +176,12 @@ export function mountOperations(
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  const tobMemoryEditOperations = createTobMemoryEditOperations({
+    registry: core.registry,
+    memory: () => core.memory,
+    human: () => core.team.ownerContext(),
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
   });
@@ -226,6 +236,7 @@ export function mountOperations(
     tobMemoryLeases,
     tobBotCreationOperations,
     tobBotProfileOperations,
+    tobMemoryEditOperations,
     tobShareDraftOperations,
     tobDiagnosticOperations,
     tobHostCliOperations,
@@ -292,6 +303,7 @@ export function createOrchestratorFileSetup(
             const memberOperations = memberTob
               ? createMemberTobOperations({
                   human,
+                  memory: () => deps.core.memory,
                   bridge: deps.invocationBridgeMethods(human),
                   registry: privateBotRegistry(deps.core.registry, human),
                   creations: privateBotCreations(deps.core.creations, human),
@@ -365,6 +377,7 @@ export function createOrchestratorFileSetup(
                   (await deps.tobSettingsOperations.tobMaintenanceOperations(command, args)) ??
                   (await deps.tobOperations.tobBotCreationOperations(command, args)) ??
                   (await deps.tobOperations.tobBotProfileOperations(command, args)) ??
+                  (await deps.tobOperations.tobMemoryEditOperations(command, args)) ??
                   (await deps.tobOperations.tobShareDraftOperations(command, args)) ??
                   (await deps.tobOperations.tobDiagnosticOperations(command, args)) ??
                   (await deps.tobOperations.tobChannelOperations(command, args)) ??
@@ -399,6 +412,7 @@ export function createOrchestratorFileSetup(
                     ...TOB_BOT_CREATE_CAPABILITIES,
                     ...TOB_BOT_PROFILE_CAPABILITIES,
                     ...TOB_MEMORY_LEASE_CAPABILITIES,
+                    ...TOB_MEMORY_EDIT_CAPABILITIES,
                     TOB_HOST_CLI_CAPABILITY,
                   ]
                 : [
@@ -406,6 +420,7 @@ export function createOrchestratorFileSetup(
                     ...TOB_MAINTENANCE_CAPABILITIES,
                     ...TOB_BOT_CREATE_CAPABILITIES,
                     ...TOB_BOT_PROFILE_CAPABILITIES,
+                    ...TOB_MEMORY_EDIT_CAPABILITIES,
                     ...TOB_SHARE_DRAFT_CAPABILITIES,
                     ...TOB_DIAGNOSTIC_CAPABILITIES,
                     ...TOB_CHANNEL_CAPABILITIES,

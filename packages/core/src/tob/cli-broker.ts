@@ -8,6 +8,7 @@ import { TobCliCommandError, TOB_HOST_CLI_ERROR_CODES } from './cli-host-command
 import { SHARE_DRAFT_ERROR_CODES } from './cli-share-draft-operations.js';
 import { TOB_VOICE_ERROR_CODES } from './cli-voice-operations.js';
 import { TOB_MEMORY_LEASE_ERROR_CODES } from './memory-lease.js';
+import { TOB_MEMORY_EDIT_ERROR_CODES } from './cli-memory-edit-operations.js';
 import type {
   PrepareTobOperation,
   TobCliCapability,
@@ -27,7 +28,7 @@ const IMAGE_COMMANDS = new Set([
   'bot-appearance-set',
   'group-avatar-set',
 ]);
-const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide', 'cli']);
+const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide', 'cli', 'memory-save']);
 const CODES = new Set([
   'bot-not-found',
   'permission-required',
@@ -36,6 +37,7 @@ const CODES = new Set([
   ...SHARE_DRAFT_ERROR_CODES,
   ...TOB_VOICE_ERROR_CODES,
   ...TOB_MEMORY_LEASE_ERROR_CODES,
+  ...TOB_MEMORY_EDIT_ERROR_CODES,
   'tob-authority-required',
   'human-dm-required',
   'stale-setting',

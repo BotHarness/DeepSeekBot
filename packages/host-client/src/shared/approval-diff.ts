@@ -66,6 +66,28 @@ export function diffLines(before: string, after: string): ApprovalDiffLine[] {
   return [...head, ...middle, ...tail];
 }
 
+export function unifiedDiffLines(diff: string): ApprovalDiffLine[] {
+  const lines: ApprovalDiffLine[] = [];
+  let header = true;
+  for (const line of diff.split('\n')) {
+    if (line === '' || line.startsWith('\\')) continue;
+    if (line.startsWith('diff --git ')) {
+      header = true;
+      lines.push({ kind: 'context', text: line });
+    } else if (line.startsWith('@@')) {
+      header = false;
+      lines.push({ kind: 'context', text: line });
+    } else if (header) {
+      if (!/^(?:--- |\+\+\+ |index )/u.test(line)) lines.push({ kind: 'context', text: line });
+    } else
+      lines.push({
+        kind: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'remove' : 'context',
+        text: line.slice(1),
+      });
+  }
+  return lines;
+}
+
 function change(path: string, lines: ApprovalDiffLine[]): ApprovalFileChange {
   return {
     path,
@@ -107,6 +129,24 @@ export function approvalFileChange(
 ): ApprovalFileChange | undefined {
   const args = parseArgs(input);
   if (args === undefined) return undefined;
+  if (toolName === 'deepseekbot memory-save' || toolName === 'deepseekbot memory-restore-commit') {
+    const patch = args['patch'];
+    const target = text(args['target']);
+    if (typeof patch !== 'object' || patch === null || target === undefined) return undefined;
+    const fields = patch as Record<string, unknown>;
+    const diff = text(fields['diff']);
+    const base = text(fields['expectedHead'])?.slice(0, 7);
+    const path = text(fields['path']);
+    const sha = text(fields['sha'])?.slice(0, 7);
+    if (diff === undefined || base === undefined) return undefined;
+    if (toolName === 'deepseekbot memory-save')
+      return path === undefined
+        ? undefined
+        : change(`${target} · ${path} @ ${base}`, unifiedDiffLines(diff));
+    return sha === undefined
+      ? undefined
+      : change(`${target} · ${base} → ${sha}`, unifiedDiffLines(diff));
+  }
   if (toolName === 'write') {
     const path = text(args['file_path']);
     const content = text(args['content']);
