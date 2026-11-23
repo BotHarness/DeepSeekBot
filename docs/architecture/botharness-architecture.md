@@ -604,7 +604,7 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0280](../decisions/calls.md#adr-0280)：`VoiceProviders` 负责 TTS Provider（预设、端点、模型、默认音色存在运营库 `voice_providers` 表，密钥只在凭据存储）及其健康检查。PersonaBot 可选的 `voice` 绑定指定一个 provider 和音色。`bot_send_message` 带 `voice: true` 时先提交文字，再通过绑定合成朗读文本，把音频作为普通附件挂到同一条消息上，记录 `voice` 状态（`pending`、`ready`、`failed`）并发布 `channel/voice`。失败不会撤回文字。桌面端和 iOS 把语音附件显示为文字上方的语音条。
 
-小米 MiMo 预设通过独立的协议适配调用 Chat Completions。适配负责生成合成请求并解码响应里的音频。凭据读取、请求超时、音频大小限制和健康检查仍由 `VoiceProviders` 管理。
+[ADR-0363](../adr/0363-voice-http-request-templates.md)：OpenAI 兼容、Fish Audio、ElevenLabs 和小米 MiMo 的非实时 HTTP 请求统一通过声明式模板引擎构造及提取结果。`custom` 可存储 JSON、multipart 或结构化 SSML 模板；不含模板的旧配置保持 OpenAI 兼容行为。Host Owner 通过 Bridge 或 CLI 验证、读取和修改模板，密钥由凭据存储单独提供。`VoiceProviders` 管理超时、大小上限和健康检查，音频 URL 仅额外下载一次且不转发密钥。目录查询、账户写入与 Soniox 等实时协议保留厂商适配。
 
 [ADR-0362](../adr/0362-voice-catalog-discovery-is-host-owned.md)：语音目录由 `VoiceProviders` 查询。厂商适配负责认证、模型能力筛选、音色来源和分页。添加表单可以用草稿密钥查询该厂商的官方端点，保存服务时才通过凭据存储写入密钥。公开音色需要写入外部账户时，由 Human 单独确认，并使用账户返回的音色 ID。MiMo ASR 复用同一厂商的 Chat Completions 协议，通过现有的批量转写路径处理 WAV 和 MP3。
 

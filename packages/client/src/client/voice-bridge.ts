@@ -18,6 +18,10 @@ export type {
   VoiceCatalogItem,
   VoiceCatalogPage,
 } from '@botharness/host-protocol/voice-catalog';
+export type {
+  VoiceRequestTemplate,
+  VoiceTemplateValidation,
+} from '@botharness/host-protocol/voice-request-template';
 
 export type {
   AsrPreset as AsrPresetView,
@@ -38,6 +42,9 @@ export const {
   browseVoiceCatalog,
   importSharedVoice,
   addVoiceProvider,
+  validateVoiceTemplate,
+  voiceProviderTemplate,
+  setVoiceProviderTemplate,
   removeVoiceProvider,
   testVoiceProvider,
   synthesizeVoice,
