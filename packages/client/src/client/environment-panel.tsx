@@ -418,7 +418,11 @@ function memberRoute(host: SavedHost): string | undefined {
 function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement {
   const snapshot = useRemoteHosts();
   const [team, setTeam] = useState<TeamSignInTarget>();
-  const [switching, setSwitching] = useState<{ route: string; username: string }>();
+  const [switching, setSwitching] = useState<{
+    route: string;
+    username: string;
+    error?: string;
+  }>();
   const [signingOut, setSigningOut] = useState<SavedHost>();
   const actions = (host: SavedHost, connection: ConnectionState): MemberActions | undefined => {
     const route = memberRoute(host);
@@ -514,12 +518,26 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
       {team === undefined ? null : (
         <TeamSignInDialog
           target={team}
-          onClose={() => setTeam(undefined)}
-          onDone={() => setTeam(undefined)}
+          {...(switching === undefined
+            ? {}
+            : {
+                onStartError: (message: string) => {
+                  setTeam(undefined);
+                  setSwitching({ ...switching, error: message });
+                },
+              })}
+          onClose={() => {
+            setTeam(undefined);
+            setSwitching(undefined);
+          }}
+          onDone={() => {
+            setTeam(undefined);
+            setSwitching(undefined);
+          }}
           t={t}
         />
       )}
-      {switching === undefined ? null : (
+      {switching === undefined || team !== undefined ? null : (
         <FormDialog
           title={t('environment.switchAccount')}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
@@ -527,20 +545,20 @@ function OwnerEnvironmentPanel({ t }: { t: BotHarnessTranslate }): ReactElement 
           submitDisabled={switching.username.trim() === ''}
           onCancel={() => setSwitching(undefined)}
           onClose={() => setSwitching(undefined)}
+          error={switching.error}
           onSubmit={() => {
             setTeam({
               kind: 'address',
               route: switching.route,
               username: switching.username.trim(),
             });
-            setSwitching(undefined);
           }}
         >
           <TextField
             label={t('teamSignIn.username')}
             autoComplete="username"
             value={switching.username}
-            onChange={(value) => setSwitching({ ...switching, username: value })}
+            onChange={(value) => setSwitching({ route: switching.route, username: value })}
             initialFocus
           />
         </FormDialog>
