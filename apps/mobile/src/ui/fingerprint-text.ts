@@ -9,10 +9,10 @@ export function fingerprintText(fingerprint: string): string {
   return fingerprintGroups(fingerprint).join(' ');
 }
 
-export function fingerprintRows(fingerprint: string): string[] {
+export function fingerprintRows(fingerprint: string, groupsPerRow = GROUPS_PER_ROW): string[] {
   const groups = fingerprintGroups(fingerprint);
   const rows: string[] = [];
-  for (let start = 0; start < groups.length; start += GROUPS_PER_ROW)
-    rows.push(groups.slice(start, start + GROUPS_PER_ROW).join(' '));
+  for (let start = 0; start < groups.length; start += groupsPerRow)
+    rows.push(groups.slice(start, start + groupsPerRow).join(' '));
   return rows;
 }
