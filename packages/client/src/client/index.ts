@@ -90,6 +90,7 @@ import {
 } from './channel-sidebar-builtins.js';
 import { webShortcutBlocked, webModalOpen, webShortcutHelpQuestion } from './channel-shortcuts.js';
 import { ShortcutBindings } from './shortcut-bindings.js';
+import { shortcutSettingsDomain } from './shortcut-settings-control.js';
 import { mountSettingsShortcut } from './settings-shortcut.js';
 import {
   browserNotificationApi,
@@ -352,6 +353,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
+  if (!member)
+    ctx.effect(() =>
+      clientSettings.register('shortcuts', shortcutSettingsDomain(shortcutBindings)),
+    );
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
       {

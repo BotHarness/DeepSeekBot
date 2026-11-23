@@ -173,8 +173,11 @@ export function shortcutEntryKeys(
   if (entry.id === 'newline') return [SEND_KEY_COMBOS[sendKey].newline];
   const fixed = entry.keys ?? [];
   if (entry.action === undefined) return fixed;
-  const binding = bindings?.binding(entry.action) ?? DEFAULT_SHORTCUT_BINDINGS[entry.action];
-  return [...fixed, bindingKeys(binding)];
+  const binding =
+    bindings === undefined
+      ? DEFAULT_SHORTCUT_BINDINGS[entry.action]
+      : bindings.binding(entry.action);
+  return binding === null ? fixed : [...fixed, bindingKeys(binding)];
 }
 
 export class ShortcutHelp {

@@ -26,7 +26,7 @@ export function RailSearchButton({
   return (
     <Tooltip
       label={label}
-      shortcutKeys={binding === undefined ? undefined : bindingKeys(binding)}
+      shortcutKeys={binding === undefined || binding === null ? undefined : bindingKeys(binding)}
       side="right"
       portal
     >
