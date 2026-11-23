@@ -5,9 +5,9 @@ import { CliLiveError } from './cli-live-error.js';
 
 export const TOB_AGENT_MEMORY_COMMAND_USAGE: Readonly<Record<string, string>> = {
   'memory-save':
-    'deepseekbot memory-save <bot-slug> --path <file> (--body <text> | --body-stdin) --expected-head <observed Memory head sha> [--edit-id <id>]; read the file and head first with memory-file; repeat the same --edit-id and body to read back an uncertain save',
+    'deepseekbot memory-save <bot-id> --path <file> (--body <text> | --body-stdin) --expected-head <observed Memory head sha> [--edit-id <id>]; read the file and head first with memory-file; repeat the same --edit-id and body to read back an uncertain save',
   'memory-restore-commit':
-    'deepseekbot memory-restore-commit <bot-slug> --sha <commit> --expected-head <observed Memory head sha> [--restore-id <uuid>] [--name <version name for the current state>]; repeat the same --restore-id to read back an uncertain restore',
+    'deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <observed Memory head sha> [--restore-id <uuid>] [--name <version name for the current state>]; repeat the same --restore-id to read back an uncertain restore',
 };
 
 const OPTIONS: Readonly<Record<string, readonly string[]>> = {

@@ -608,7 +608,17 @@ describe('Tool approval file diff', () => {
           },
         }),
       ),
-    ).toMatchObject({ path: 'research · aaaaaaa → bbbbbbb', added: 1, removed: 1 });
+    ).toMatchObject({
+      path: 'research · aaaaaaa → bbbbbbb',
+      added: 1,
+      removed: 1,
+      lines: [
+        { kind: 'context', text: 'diff --git a/n.md b/n.md' },
+        { kind: 'context', text: '@@ -1 +1 @@' },
+        { kind: 'remove', text: 'second' },
+        { kind: 'add', text: 'first' },
+      ],
+    });
   });
 
   it('renders the diff and folds long input', async () => {

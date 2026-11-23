@@ -1,3 +1,4 @@
+import { parseMemoryDiff } from './memory-diff-model';
 export type ApprovalDiffLine = { kind: 'context' | 'add' | 'remove'; text: string };
 
 export interface ApprovalFileChange {
@@ -67,25 +68,19 @@ export function diffLines(before: string, after: string): ApprovalDiffLine[] {
 }
 
 export function unifiedDiffLines(diff: string): ApprovalDiffLine[] {
-  const lines: ApprovalDiffLine[] = [];
-  let header = true;
-  for (const line of diff.split('\n')) {
-    if (line === '' || line.startsWith('\\')) continue;
-    if (line.startsWith('diff --git ')) {
-      header = true;
-      lines.push({ kind: 'context', text: line });
-    } else if (line.startsWith('@@')) {
-      header = false;
-      lines.push({ kind: 'context', text: line });
-    } else if (header) {
-      if (!/^(?:--- |\+\+\+ |index )/u.test(line)) lines.push({ kind: 'context', text: line });
-    } else
-      lines.push({
-        kind: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'remove' : 'context',
-        text: line.slice(1),
-      });
-  }
-  return lines;
+  return diff.split(/^(?=diff --git )/mu).flatMap((section) => {
+    const header = section.startsWith('diff --git ') ? section.slice(0, section.indexOf('\n')) : '';
+    const model = parseMemoryDiff(section);
+    return [
+      ...(header === '' ? [] : [{ kind: 'context' as const, text: header }]),
+      ...(model.binary ? [{ kind: 'context' as const, text: 'Binary file changed' }] : []),
+      ...model.lines.map((line) =>
+        line.kind === 'add' || line.kind === 'remove'
+          ? { kind: line.kind, text: line.text }
+          : { kind: 'context' as const, text: line.text },
+      ),
+    ];
+  });
 }
 
 function change(path: string, lines: ApprovalDiffLine[]): ApprovalFileChange {

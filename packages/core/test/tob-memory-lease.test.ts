@@ -186,6 +186,20 @@ describe('Tob Assignment read-only Memory lease', () => {
     expect(footer.length).toBeLessThanOrEqual(1200);
   });
 
+  it('keeps the last read revision when a later read has none', () => {
+    const f = fixture();
+    f.grant(['ada']);
+    const leases = createTobMemoryLeases({
+      ...f.deps,
+      memory: () => ({ ...f.deps.memory(), history: () => [] }),
+    });
+    leases.read({ assignmentSessionId: 'asg-1', bot: 'ada', kind: 'snapshot' });
+    leases.read({ assignmentSessionId: 'asg-1', bot: 'ada', kind: 'history' });
+    expect(leases.active('asg-1')?.bots).toEqual([
+      { slug: 'ada', status: 'read', revision: HEAD_ADA, reads: 2 },
+    ]);
+  });
+
   it('refuses writes, unlisted targets and commands outside the lease', () => {
     const f = fixture();
     f.grant(['ada']);

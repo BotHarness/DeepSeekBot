@@ -3,13 +3,13 @@ import { CliLiveError } from './cli-live-error.js';
 
 export const TOB_MEMORY_LEASE_COMMAND_USAGE: Readonly<Record<string, string>> = {
   'assignment-memory-lease':
-    'deepseekbot assignment-memory-lease <assignment-session-id> <bot-slug> [<bot-slug>...] --operation-key <stable key for this request>; the Assignment then reads with deepseekbot memory-snapshot|memory-file|memory-history|memory-diff <bot-slug>',
+    'deepseekbot assignment-memory-lease <assignment-session-id> <bot-id> [<bot-id>...] --operation-key <stable key for this request>; the Assignment then reads with deepseekbot memory-snapshot|memory-file|memory-history|memory-diff <bot-id>',
   'assignment-memory-leases': 'deepseekbot assignment-memory-leases [<assignment-session-id>]',
   'assignment-memory-revoke': 'deepseekbot assignment-memory-revoke <lease-id> [--reason <text>]',
-  'memory-snapshot': 'deepseekbot memory-snapshot <bot-slug>',
-  'memory-file': 'deepseekbot memory-file <bot-slug> --path <file>',
-  'memory-history': 'deepseekbot memory-history <bot-slug> [--limit <1-50>]',
-  'memory-diff': 'deepseekbot memory-diff <bot-slug> --sha <commit>',
+  'memory-snapshot': 'deepseekbot memory-snapshot <bot-id>',
+  'memory-file': 'deepseekbot memory-file <bot-id> --path <file>',
+  'memory-history': 'deepseekbot memory-history <bot-id> [--limit <1-50>]',
+  'memory-diff': 'deepseekbot memory-diff <bot-id> --sha <commit>',
 };
 
 const OPTIONS: Readonly<Record<string, readonly string[]>> = {

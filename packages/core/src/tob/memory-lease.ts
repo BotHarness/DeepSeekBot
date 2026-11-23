@@ -274,7 +274,7 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
           | 'unread'
           | 'refused',
         reads: ok.length,
-        revision: ok.at(-1)?.revision ?? null,
+        revision: ok.findLast((read) => read.revision !== null)?.revision ?? null,
       };
     });
     const complete =

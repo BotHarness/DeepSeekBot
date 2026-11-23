@@ -1857,14 +1857,14 @@ Scoped `release-install` and `release-restart` require explicit `--confirm` and 
 
 ```bash
 # Tob's Orchestrator, in its Human DM turn
-deepseekbot assignment-memory-lease <assignment-session-id> <bot-slug> <bot-slug> --operation-key <key>
+deepseekbot assignment-memory-lease <assignment-session-id> <bot-id> <bot-id> --operation-key <key>
 deepseekbot assignment-memory-leases [<assignment-session-id>]
 deepseekbot assignment-memory-revoke <lease-id> [--reason <text>]
 # Inside that Tob Assignment's Shell
-deepseekbot memory-snapshot <bot-slug>
-deepseekbot memory-file <bot-slug> --path <file>
-deepseekbot memory-history <bot-slug> [--limit <1-50>]
-deepseekbot memory-diff <bot-slug> --sha <commit>
+deepseekbot memory-snapshot <bot-id>
+deepseekbot memory-file <bot-id> --path <file>
+deepseekbot memory-history <bot-id> [--limit <1-50>]
+deepseekbot memory-diff <bot-id> --sha <commit>
 deepseekbot assignment-memory-leases
 ```
 
