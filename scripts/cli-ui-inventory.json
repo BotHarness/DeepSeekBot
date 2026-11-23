@@ -1344,6 +1344,13 @@
       ],
       "exemption": "These rows report load state, an empty list or a load error; they are not settings. The apps, platform defaults and paired devices they describe are covered by their existing CLI commands.",
       "configurable": false
+    },
+    {
+      "id": "group-member-selection",
+      "description": "Choosing Bots and Host members for a new or existing group in the two-section member picker.",
+      "scope": "Local Host",
+      "surfaces": ["setting:packages/client/src/client/group-member-picker.tsx:{row.displayName}"],
+      "commands": ["group-member-picker", "group-create", "group-members-add"]
     }
   ]
 }
