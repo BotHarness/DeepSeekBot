@@ -467,6 +467,7 @@ export const BOT_CLI_OPTIONS = {
   cursor: { type: 'string' },
   state: { type: 'string' },
   'confirmation-stdin': { type: 'boolean' },
+  'confirmation-file': { type: 'string' },
   grant: { type: 'string' },
   enabled: { type: 'boolean' },
   disabled: { type: 'boolean' },

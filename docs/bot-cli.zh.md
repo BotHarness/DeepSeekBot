@@ -2112,13 +2112,13 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --sessio
 `profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；不导出凭证存储，但聊天和 Memory 中仍可能含有秘密。
 
 ```bash
-tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
-tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-preview --host http://127.0.0.1:31967 --out confirmation.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-file confirmation.json --out environment.botharness-backup
 tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
 tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
 ```
 
-导出消费当前预览 token，不覆盖已有文件。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
+预览只输出需要审阅的数量与警告，从不输出导出确认凭据。`--out` 把审阅过的预览连同确认凭据写入一个以 0600 权限新建的文件，stdout 只给出 `confirmation: {path}`；不带 `--out` 时 `confirmation` 为 `null`。导出通过 `--confirmation-file` 读取该文件（或用 `--confirmation-stdin` 传入同样的 JSON），确认凭据只能使用一次，且不覆盖已有文件；环境已变化或重复使用确认凭据时以 `preview-stale` 拒绝。Tob 走同一路径，确认凭据不会出现在它的结果、审批卡片或 Session 日志中：不带 `--out` 的预览是读取，带 `--out` 的预览、导出、检查和恢复都会先向 Human 显示审批卡片。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
 
 继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`core-contract-invalid` 表示需要具备有效核心声明的完整备份；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
 
