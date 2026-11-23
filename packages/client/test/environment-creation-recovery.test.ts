@@ -58,6 +58,36 @@ describe('creation outcome recovery', () => {
     expect(call.mock.calls[0]).toEqual(call.mock.calls[1]);
   });
 
+  it('sends initial Bots and humanIds in channelCreate and replays them unchanged', async () => {
+    let lose = true;
+    const call = vi.fn(async (_method: string, args?: Record<string, unknown>) => {
+      if (lose) {
+        lose = false;
+        throw new Error('reply lost');
+      }
+      return {
+        channel: { id: 'mixed', type: 'group', name: 'Mixed', members: ['ada'] },
+        receipt: { operationKey: args?.operationKey, channelId: 'mixed', status: 'completed' },
+      };
+    });
+    const owner = remoteCreationOwner({
+      hostId: 'remote-b',
+      client: { call, refresh: async () => {} },
+      current: () => true,
+      open: vi.fn(),
+      key: () => 'mixed-operation',
+    });
+    await expect(
+      owner.channel('Mixed', undefined, undefined, { members: ['ada'], humanIds: ['h-ann'] }),
+    ).rejects.toThrow('reply lost');
+    await owner.channel('Mixed', undefined, undefined, { members: [], humanIds: [] });
+    expect(call.mock.calls[0]).toEqual([
+      'channelCreate',
+      { name: 'Mixed', members: ['ada'], humanIds: ['h-ann'], operationKey: 'mixed-operation' },
+    ]);
+    expect(call.mock.calls[1]).toEqual(call.mock.calls[0]);
+  });
+
   it('keeps the Bot operation identity after a lost response and refuses a replacement Client', async () => {
     let current = true;
     const call = vi.fn<HostClient['call']>().mockRejectedValueOnce(new Error('reply lost'));

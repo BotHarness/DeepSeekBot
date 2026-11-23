@@ -4,7 +4,7 @@ import {
 } from '@botharness/host-client/connection-diagnostic';
 import Constants from 'expo-constants';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
 import type { AccountOwner } from '@botharness/host-client/account-owner';
@@ -26,7 +26,9 @@ function deviceName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
 }
 
-export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: boolean } = {}) {
+export function usePairing(
+  options: { stayOnPage?: boolean; preventDuplicates?: boolean; deferLeave?: () => boolean } = {},
+) {
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const setupHost = useRef<string | undefined>(undefined);
@@ -169,7 +171,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       signal: operation.signal,
     });
     pending.current = undefined;
-    if (!result.ok || operation.signal.aborted || options.stayOnPage) {
+    const stayOnPage = options.stayOnPage || options.deferLeave?.();
+    if (!result.ok || operation.signal.aborted || stayOnPage) {
       setBusy(false);
       setFingerprint(undefined);
     }
@@ -189,7 +192,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         });
       return result.code;
     }
-    if (!options.stayOnPage) {
+    if (!stayOnPage) {
       setPaired(true);
       leave();
     }
@@ -202,6 +205,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     } catch {}
     if (!opened) router.dismissTo('/');
   };
+  const abort = useCallback(() => pending.current?.abort(), []);
 
   return {
     finishSetup,
@@ -224,6 +228,6 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     forget: () => {
       handled.current = undefined;
     },
-    abort: () => pending.current?.abort(),
+    abort,
   };
 }

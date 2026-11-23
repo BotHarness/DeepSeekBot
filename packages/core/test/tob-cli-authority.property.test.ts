@@ -39,7 +39,8 @@ function classify(args: readonly string[]): { write: boolean } | 'refused' | 'in
     return classifyTobHostCli(args);
   } catch (error) {
     if (typeof error !== 'object' || error === null || !('code' in error)) throw error;
-    if (error.code === 'cli-command-refused') return 'refused';
+    if (error.code === 'cli-command-refused' || error.code === 'cli-command-failed')
+      return 'refused';
     if (error.code === 'invalid-request') return 'invalid';
     throw error;
   }

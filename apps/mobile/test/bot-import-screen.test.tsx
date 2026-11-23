@@ -159,10 +159,10 @@ vi.mock('../src/ui/shell/creation-avatar', () => ({
       createElement(
         'button',
         {
-          'data-testid': 'create-bot-avatar-shuffle',
+          'data-testid': 'create-bot-avatar-pixel',
           onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
         },
-        'shuffle',
+        'pixel',
       ),
       createElement(
         'button',

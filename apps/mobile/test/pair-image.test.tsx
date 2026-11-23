@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -10,12 +10,6 @@ vi.mock('../src/ui/primitives/keyboard-form', async () => ({
   KeyboardFormScroll: (await import('./react-native-shim')).ScrollView,
 }));
 const native = vi.hoisted(() => ({ pick: vi.fn(), scan: vi.fn() }));
-const navigation = vi.hoisted(
-  (): {
-    focus: (() => () => void) | undefined;
-    blur: (() => void) | undefined;
-  } => ({ focus: undefined, blur: undefined }),
-);
 vi.mock('expo-camera', () => ({
   Camera: { scanFromURLAsync: native.scan },
   CameraView: () => null,
@@ -29,13 +23,12 @@ vi.mock('expo-device', () => ({ osVersion: '18.2' }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
 vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: native.pick }));
 const router = vi.hoisted(() => ({ push: vi.fn() }));
+const params = vi.hoisted<{ p: string | undefined }>(() => ({ p: undefined }));
 vi.mock('expo-router', () => ({
   useRouter: () => router,
   Stack: { Screen: () => null },
-  useLocalSearchParams: () => ({}),
-  useFocusEffect: (focus: () => () => void) => {
-    navigation.focus = focus;
-  },
+  useLocalSearchParams: () => params,
+  useFocusEffect: (focus: () => void | (() => void)) => useLayoutEffect(focus, [focus]),
 }));
 const pairing = vi.hoisted(() => ({
   busy: false,
@@ -48,10 +41,20 @@ const pairing = vi.hoisted(() => ({
   abort: vi.fn(),
   forget: vi.fn(),
 }));
-vi.mock('../src/ui/shell/use-pairing', () => ({ usePairing: () => pairing }));
+const pairingOptions = vi.hoisted<{ deferLeave: (() => boolean) | undefined }>(() => ({
+  deferLeave: undefined,
+}));
+vi.mock('../src/ui/shell/use-pairing', () => ({
+  usePairing: (options?: { deferLeave?: () => boolean }) => {
+    pairingOptions.deferLeave = options?.deferLeave;
+    return pairing;
+  },
+}));
 vi.mock('../src/ui/shell/pairing-verification', () => ({ PairingVerification: () => null }));
+vi.mock('expo-secure-store', () => ({}));
 
 import PairScreen from '../app/pair/tailscale';
+import { redirectSystemPath } from '../app/+native-intent';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -59,6 +62,7 @@ let root: Root | undefined;
 let host: HTMLDivElement;
 
 beforeEach(() => {
+  vi.stubGlobal('__DEV__', false);
   native.pick.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///qr.png' }] });
   native.scan.mockResolvedValue([{ data: 'deepseekbot://pair?p=example' }]);
   pairing.pair.mockResolvedValue(undefined);
@@ -69,14 +73,14 @@ beforeEach(() => {
 afterEach(async () => {
   await leave();
   host.remove();
-  navigation.focus = undefined;
+  params.p = undefined;
+  pairing.busy = false;
   vi.resetAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function leave() {
   await act(async () => {
-    navigation.blur?.();
-    navigation.blur = undefined;
     root?.unmount();
     root = undefined;
   });
@@ -84,9 +88,6 @@ async function leave() {
 
 async function choose() {
   await act(async () => root!.render(<PairScreen />));
-  await act(async () => {
-    navigation.blur = navigation.focus!();
-  });
   await act(async () =>
     host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click(),
   );
@@ -97,6 +98,62 @@ it('pairs from a local QR image without camera permission', async () => {
   expect(native.scan).toHaveBeenCalledWith('file:///qr.png', ['qr']);
   expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=example', 'image');
   expect(host.textContent).toContain(t.allowCamera);
+});
+
+it('pairs each distinct deep-link route parameter while the Pair screen stays focused', async () => {
+  const open = async (p: string) => {
+    params.p = p;
+    await act(async () => root!.render(<PairScreen />));
+  };
+
+  await open('first');
+  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=first', 'deep_link');
+  await open('second');
+  expect(pairing.pair).toHaveBeenNthCalledWith(2, 'deepseekbot://pair?p=second', 'deep_link');
+  await open('second');
+  await open('first');
+  expect(pairing.pair).toHaveBeenCalledTimes(2);
+  expect(pairing.abort).not.toHaveBeenCalled();
+});
+
+it('queues distinct warm pairing links until the active attempt settles', async () => {
+  const first = 'deepseekbot://pair?p=first';
+  const second = 'deepseekbot-dev://pair?p=second';
+  const third = 'deepseekbot://pair?p=third';
+  const activeAttempt = Promise.withResolvers<undefined>();
+  pairing.pair.mockReturnValueOnce(activeAttempt.promise);
+  await act(async () => root!.render(<PairScreen />));
+
+  expect(await redirectSystemPath({ path: first, initial: true })).toBe(first);
+  await act(async () => {
+    expect(await redirectSystemPath({ path: first, initial: false })).toBeNull();
+  });
+  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith(first, 'deep_link');
+
+  pairing.busy = true;
+  await act(async () => root!.render(<PairScreen />));
+  await act(async () => {
+    for (const path of [second, third, second, first]) {
+      expect(await redirectSystemPath({ path, initial: false })).toBeNull();
+    }
+  });
+  expect(pairing.pair).toHaveBeenCalledTimes(1);
+  expect(pairingOptions.deferLeave?.()).toBe(true);
+
+  pairing.busy = false;
+  await act(async () => {
+    root!.render(<PairScreen />);
+    activeAttempt.resolve(undefined);
+  });
+  expect(pairing.pair.mock.calls).toEqual([
+    [first, 'deep_link'],
+    ['deepseekbot://pair?p=second', 'deep_link'],
+    [third, 'deep_link'],
+  ]);
+  expect(pairingOptions.deferLeave?.()).toBe(false);
+  expect(pairing.abort).not.toHaveBeenCalled();
+  await leave();
+  expect(await redirectSystemPath({ path: second, initial: false })).toBe(second);
 });
 
 it('cancels the picker without starting pairing or showing an error', async () => {
@@ -186,9 +243,6 @@ it('opens member sign-in when the chosen image holds an invitation', async () =>
 
 it('opens Host sign-in when a Host address is pasted', async () => {
   await act(async () => root!.render(<PairScreen />));
-  await act(async () => {
-    navigation.blur = navigation.focus!();
-  });
   const input = host.querySelector<HTMLTextAreaElement>('[data-testid="pair-link-input"]')!;
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
   await act(async () => {
@@ -207,9 +261,6 @@ it('opens Host sign-in when a Host address is pasted', async () => {
 
 it('asks for a name on this phone only after a pairing link is pasted', async () => {
   await act(async () => root!.render(<PairScreen />));
-  await act(async () => {
-    navigation.blur = navigation.focus!();
-  });
   const named = () => host.querySelector(`[aria-label="${t.connectionName}"]`) !== null;
   const input = host.querySelector<HTMLTextAreaElement>('[data-testid="pair-link-input"]')!;
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;

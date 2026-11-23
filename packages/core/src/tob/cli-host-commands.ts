@@ -15,7 +15,34 @@ import type { PrepareTobOperation, TobCliCapability } from './cli-operations.js'
 import { TobError } from './service.js';
 
 const REFUSED_OPTIONS = ['--host', '--token-file', '--home', '--as', '--administration'];
-const REFUSED_COMMANDS = new Set(['ssh-tunnel', 'voice-local-kit', 'audit', 'private', 'tob-cli']);
+const REFUSED_COMMANDS = new Set([
+  'ssh-tunnel',
+  'voice-local-kit',
+  'audit',
+  'private',
+  'tob-cli',
+  'browser-profile-pair',
+  'browser-borrow-pair',
+  'browser-daily-grant',
+]);
+const TOB_SCHEDULE_GUARDS: Readonly<Record<string, { option: string; message: string }>> = {
+  'schedule-create': {
+    option: '--operation-key',
+    message:
+      'Tob must pass --operation-key to schedule-create; after an uncertain outcome, retry with the same key to reconcile instead of creating a second schedule.',
+  },
+  'schedule-update': {
+    option: '--expected-revision',
+    message:
+      'Tob must pass --expected-revision to schedule-update; read the revision from schedules first.',
+  },
+  'schedule-delete': {
+    option: '--expected-revision',
+    message:
+      'Tob must pass --expected-revision to schedule-delete; read the revision from schedules first.',
+  },
+};
+
 const MAX_ARGS = 256;
 const MAX_ARG_BYTES = 64 * 1024;
 const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -28,7 +55,11 @@ export const TOB_HOST_CLI_CAPABILITY: TobCliCapability = {
   write: true,
 };
 
-export const TOB_HOST_CLI_ERROR_CODES = ['cli-command-failed', 'cli-command-refused'] as const;
+export const TOB_HOST_CLI_ERROR_CODES = [
+  'cli-command-failed',
+  'cli-command-refused',
+  'self-escalation-refused',
+] as const;
 
 export class TobCliCommandError extends TobError {
   constructor(
@@ -98,12 +129,18 @@ export function authorizeTobBotTargets(
   }
 }
 
+function widensAuthority(argv: readonly string[]): boolean {
+  const effects = cliEffects(argv);
+  return effects === undefined || effects.authority === 'management';
+}
+
 export function authorizeTobHostCli(
   argv: readonly string[],
   deps: {
     registry: Pick<PersonaBotRegistry, 'getHistorical'>;
     channels: Pick<ChannelStore, 'get'>;
     human: HumanContext;
+    isTob?: (slug: string) => boolean;
   },
 ): void {
   if (argv[0] === 'members') {
@@ -115,10 +152,22 @@ export function authorizeTobHostCli(
     }
     if (action === 'transfer' || action === 'purge') throw new TobError('permission-required');
   }
-  for (const token of argv.slice(1)) {
-    const value = token.includes('=') ? token.slice(token.indexOf('=') + 1) : token;
-    authorizeTobBotTargets({ slug: value }, deps);
-  }
+  const values = argv
+    .slice(1)
+    .map((token) => (token.includes('=') ? token.slice(token.indexOf('=') + 1) : token).trim());
+  const isTob = deps.isTob;
+  const namesTob = (value: string): boolean => {
+    if (isTob === undefined) return false;
+    if (isTob(value)) return true;
+    const channel = deps.channels.get(value);
+    return channel?.type === 'dm' && channel.members.length === 1 && isTob(channel.members[0]!);
+  };
+  if (values.some(namesTob) && widensAuthority(argv))
+    throw new TobCliCommandError(
+      'self-escalation-refused',
+      'Tob cannot change its own grants, access, approval policy or pending approvals. Ask the Human to make this change in Bot settings or run the command themselves.',
+    );
+  for (const value of values) authorizeTobBotTargets({ slug: value }, deps);
 }
 
 export function classifyTobHostCli(argv: readonly string[]): { command: string; write: boolean } {
@@ -126,6 +175,9 @@ export function classifyTobHostCli(argv: readonly string[]): { command: string; 
   if (command === undefined || command.startsWith('-')) throw new TobError('invalid-request');
   if (REFUSED_COMMANDS.has(command) || REFUSED_OPTIONS.some((name) => hasOption(argv, name)))
     throw new TobError('cli-command-refused');
+  const scheduleGuard = TOB_SCHEDULE_GUARDS[canonicalCliCommandName(command)];
+  if (scheduleGuard !== undefined && !hasOption(argv, scheduleGuard.option))
+    throw new TobCliCommandError('usage', scheduleGuard.message);
   if (command === 'settings-set' || hasOption(argv, '--migration-dry-run')) {
     let parsed: ReturnType<typeof parseBotCliArgs>;
     try {

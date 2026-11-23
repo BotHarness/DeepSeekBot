@@ -188,14 +188,18 @@ it('mixes avatar rows and filters by type, name, or handle while keeping selecte
   await openExisting(call);
   const rows = () => [...dialog().querySelectorAll('button[aria-pressed]')];
   expect(rows().map((row) => row.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
-    'Bob',
     'Bob Bot',
     'Eve',
+    'Bob',
     'Zoe',
   ]);
+  expect(
+    [...dialog().querySelectorAll('[data-group-member-section] h3')].map((h) => h.textContent),
+  ).toEqual([t('groupMembers.sectionBots'), t('groupMembers.sectionPeople')]);
   expect(dialog().querySelector('input[type="checkbox"]')).toBeNull();
-  expect(memberRow('Bob').querySelector('img')?.getAttribute('src')).toBe(onePhoto);
-  expect(memberRow('Eve').querySelector('[data-media="seeded"]')).not.toBeNull();
+  const tile = (name: string) => memberRow(name).closest('li')!;
+  expect(tile('Bob').querySelector('img')?.getAttribute('src')).toBe(onePhoto);
+  expect(tile('Eve').querySelector('[data-media="seeded"]')).not.toBeNull();
   expect(memberRow('Bob').getAttribute('aria-label')).toContain(t('groupMembers.typeHuman'));
   expect(memberRow('Eve').getAttribute('aria-label')).toBe('Eve · ' + t('groupMembers.typeBot'));
 
@@ -203,14 +207,14 @@ it('mixes avatar rows and filters by type, name, or handle while keeping selecte
   const search = fieldNamed(t('groupMembers.search'));
   await typeInto(search, 'Bot: Eve');
   await act(async () => void vi.advanceTimersByTime(250));
-  expect(rows()).toEqual([memberRow('Bob'), memberRow('Eve')]);
+  expect(rows()).toEqual([memberRow('Eve'), memberRow('Bob')]);
   expect(memberRow('Bob').getAttribute('aria-pressed')).toBe('true');
   await act(async () => memberRow('Bob').click());
   expect(rows()).toEqual([memberRow('Eve')]);
 
   await typeInto(search, '@bob');
   await act(async () => void vi.advanceTimersByTime(250));
-  expect(rows()).toEqual([memberRow('Bob'), memberRow('Bob Bot')]);
+  expect(rows()).toEqual([memberRow('Bob Bot'), memberRow('Bob')]);
 });
 
 it.each(['connection', 'channel'] as const)(
@@ -252,7 +256,7 @@ it.each(['connection', 'channel'] as const)(
       ),
     );
     const row = document.querySelector<HTMLButtonElement>('button[aria-pressed]');
-    expect(row?.textContent).toContain('New Bot');
+    expect(row?.getAttribute('aria-label')).toContain('New Bot');
     await act(async () => row?.click());
     expect(onChange).toHaveBeenCalledWith([{ kind: 'bot', id: 'new-bot', displayName: 'New Bot' }]);
   },
@@ -286,11 +290,11 @@ it('keeps the original key for a target the Host could not confirm', async () =>
   expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
 });
 
-it('keeps the same creation and invitation keys after ambiguous responses', async () => {
+it('creates with people and direct Bots, then invites owner-gated Bots with stable keys', async () => {
   const add = vi
     .fn()
     .mockRejectedValueOnce(new Error('interrupted'))
-    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'eve', status: 'joined' }] }));
+    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'bob-bot', status: 'pending' }] }));
   const call: BridgeCall = async (method, input) =>
     method === 'channelGroupMembersAdd' ? add(input) : ok(choices);
   const create = vi
@@ -301,9 +305,9 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
     root.render(
       createElement(CreateChannelModal, {
         t,
-        onCreate: (name, key, onDispatch) => {
+        onCreate: (name, key, onDispatch, initial) => {
           onDispatch();
-          return create(name, key);
+          return create(name, key, initial);
         },
         onCancel: vi.fn(),
         members: { call, scope: 'local' },
@@ -311,16 +315,23 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
     ),
   );
   await typeInto(fieldNamed(t('channel.name.label')), 'QA');
+  expect(memberRow('Bob Bot').disabled).toBe(true);
   await act(async () => memberRow('Eve').click());
+  await act(async () => memberRow('Bob').click());
+  await act(async () => memberRow('Bob Bot').click());
   await submit();
+  expect(create.mock.calls[0]?.[2]).toEqual({ members: ['eve'], humanIds: ['bob'] });
   expect(add).not.toHaveBeenCalled();
   await submit();
   expect(create.mock.calls).toEqual([create.mock.calls[0], create.mock.calls[0]]);
+  expect(add.mock.calls[0]?.[0].targets.map((target: { id: string }) => target.id)).toEqual([
+    'bob-bot',
+  ]);
   expect(dialog().textContent).toContain(t('groupMembers.unconfirmed'));
   await submit();
   expect(create).toHaveBeenCalledTimes(2);
   expect(add.mock.calls).toEqual([add.mock.calls[0], add.mock.calls[0]]);
-  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Bob Bot') + t('members.pending'));
 });
 
 it('offers capability retry for malformed responses and hides the action on confirmed denial', async () => {

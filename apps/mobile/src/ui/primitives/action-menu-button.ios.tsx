@@ -3,6 +3,7 @@ import {
   accessibilityIdentifier,
   accessibilityLabel,
   disabled as disabledModifier,
+  dynamicTypeSize,
   font,
   foregroundStyle,
   frame,
@@ -35,6 +36,7 @@ export function ActionMenuButton({
             systemName="ellipsis"
             modifiers={[
               font({ textStyle: 'title3' }),
+              dynamicTypeSize({ max: 'xxxLarge' }),
               foregroundStyle(theme.color.muted),
               frame({ width: theme.touch, height: theme.touch }),
             ]}

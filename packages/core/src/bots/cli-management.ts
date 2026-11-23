@@ -29,6 +29,8 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { readBotActivityPage } from './cli-activity-page.js';
+import { ReadContinuationError } from '../channels/read-cursor.js';
 import {
   assignmentModelsMode,
   presetEngineFlags,
@@ -374,22 +376,20 @@ export async function runOnlineManagement(
     return { sessions: sorted.slice(0, limit), total: sorted.length };
   }
   if (command === 'bot-activity') {
-    await rpc('get', { slug });
-    const result = await rpc<PersonaBotActivitySnapshot>('activitySnapshot', {});
-    const bot = result.bots.find((bot) => bot.slug === slug);
-    return {
-      generation: result.generation,
-      revision: result.revision,
-      bot:
-        bot === undefined
-          ? null
-          : {
-              ...bot,
-              ...(bot.sessions === undefined
-                ? {}
-                : { sessions: bot.sessions.slice(0, limit), sessionCount: bot.sessions.length }),
-            },
-    };
+    const detail = await rpc<{ bot?: { createdAt?: unknown } }>('get', { slug });
+    const snapshot = await rpc<PersonaBotActivitySnapshot>('activitySnapshot', {});
+    try {
+      return readBotActivityPage({
+        slug: slug!,
+        incarnation: typeof detail?.bot?.createdAt === 'string' ? detail.bot.createdAt : '',
+        snapshot,
+        limit,
+        ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+      });
+    } catch (error) {
+      if (error instanceof ReadContinuationError) throw new CliLiveError(error.code, error.message);
+      throw error;
+    }
   }
   if (command === 'create-status' && create !== undefined)
     return rpc(create.source.kind === 'git' ? 'botImportLookup' : 'createLookup', {

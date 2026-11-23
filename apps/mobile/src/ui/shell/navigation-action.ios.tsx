@@ -3,6 +3,7 @@ import {
   accessibilityLabel,
   buttonBorderShape,
   buttonStyle,
+  dynamicTypeSize,
   font,
   foregroundStyle,
   frame,
@@ -41,6 +42,7 @@ function NavigationCloseAction({ size, label, onPress }: NavigationActionProps) 
           systemName="xmark"
           modifiers={[
             font({ textStyle: 'title2' }),
+            dynamicTypeSize({ max: 'xxxLarge' }),
             frame({ width: size - space.x5, height: size - space.x5 }),
           ]}
         />

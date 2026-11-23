@@ -476,6 +476,8 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return record;
     },
     createGroup(human: HumanContext, input) {
+      if (input.humanIds?.length)
+        throw new Error('Initial Host members require the operational Channel store');
       const id = input.id ?? nextGroupId(input.name);
       if (!isValidChannelId(id) || read(id) !== undefined)
         throw new Error('Group Channel identity is unavailable');
@@ -720,6 +722,11 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         .reverse()
         .map((message) => projectReply(message, byId));
     },
+    messagePosition(id, messageId) {
+      const index = readValidMessages(id).findIndex((message) => message.id === messageId);
+      return index === -1 ? undefined : index + 1;
+    },
+    historyEpoch: () => 0,
     latestBotActivity(human: HumanContext) {
       const result = new Map<string, number>();
       for (const channel of this.list()) {

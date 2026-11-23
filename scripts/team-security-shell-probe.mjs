@@ -18,61 +18,97 @@ const SOCKET_REFUSALS = [
   'ETIMEDOUT',
 ];
 
-export function buildShellIsolationProbe({ foreignFiles, account, own, outside, port }) {
-  const fixture = {
-    foreignFiles,
-    accountDir: dirname(account),
-    accountName: basename(account),
-    own,
-    outside,
-    port: Number(port),
-  };
-  return `const { readFileSync, readdirSync, writeFileSync } = require('node:fs');
-const { createConnection } = require('node:net');
-const { foreignFiles, accountDir, accountName, own, outside, port } = ${JSON.stringify(fixture)};
-
-function status(operation) {
-  try { return operation(); }
-  catch (error) { return error.code ?? 'unknown-error'; }
+function quoteFor(value, platform) {
+  const path = platform === 'win32' ? String(value).replaceAll('\\', '/') : String(value);
+  return `'${path.replaceAll("'", `'\\''`)}'`;
 }
 
-function loopbackStatus() {
-  return new Promise((resolve) => {
-    const socket = createConnection({ host: '127.0.0.1', port });
-    const finish = (result) => {
-      socket.destroy();
-      resolve(result);
-    };
-    socket.once('connect', () => finish('connected'));
-    socket.once('error', (error) => finish(error.code ?? 'unknown-error'));
-    socket.setTimeout(1000, () => finish('ETIMEDOUT'));
-  });
+export function buildShellIsolationProbe(
+  { foreignFiles, account, own, outside, port },
+  platform = process.platform,
+) {
+  const bashQuote = (value) => quoteFor(value, platform);
+  return `export LC_ALL=C
+own=${bashQuote(own)}
+outside=${bashQuote(outside)}
+account_dir=${bashQuote(dirname(account))}
+account_name=${bashQuote(basename(account))}
+foreign=(${foreignFiles.map(bashQuote).join(' ')})
+port=${Number(port)}
+
+code() {
+  case "$1" in
+    *'Permission denied'*) echo EACCES ;;
+    *'No such file'*) echo ENOENT ;;
+    *'Not a directory'*) echo ENOTDIR ;;
+    *'Operation not permitted'*) echo EPERM ;;
+    *'Read-only file system'*) echo EROFS ;;
+    *'File exists'*|*'cannot overwrite existing file'*) echo EEXIST ;;
+    *'Connection refused'*) echo ECONNREFUSED ;;
+    *'No route to host'*) echo EHOSTUNREACH ;;
+    *'Network is unreachable'*) echo ENETUNREACH ;;
+    *'timed out'*) echo ETIMEDOUT ;;
+    *) echo unknown-error ;;
+  esac
 }
 
-async function run() {
-  const ownWrite = status(() => {
-    writeFileSync(own, 'OWN_OK', { flag: 'wx' });
-    return readFileSync(own, 'utf8') === 'OWN_OK' ? 'ok' : 'mismatch';
-  });
-  const reads = foreignFiles.map((file) => status(() => {
-    readFileSync(file);
-    return 'ok';
-  }));
-  const discovery = status(() => readdirSync(accountDir).includes(accountName) ? 'listed' : 'hidden');
-  const outsideWrite = status(() => {
-    writeFileSync(outside, 'B2 QA fixture', { flag: 'wx' });
-    return 'ok';
-  });
-  const secretEnv = Object.keys(process.env).filter((name) =>
-    /API_?KEY|TOKEN|SECRET|PASSWORD|DSH_/u.test(name)).length;
-  const hostApi = await loopbackStatus();
-  console.log('${RESULT_PREFIX}' + JSON.stringify({ ownWrite, reads, discovery, outsideWrite, secretEnv, hostApi }));
+write_new() {
+  local error
+  if error=$( (set -C; printf '%s' "$2" > "$1") 2>&1 ); then echo ok; else code "$error"; fi
 }
 
-run().catch((error) => {
-  console.error(error.code ?? error.name);
-  process.exitCode = 1;
-});
+own_write=$(write_new "$own" OWN_OK)
+if [ "$own_write" = ok ]; then
+  if [ "$(cat -- "$own" 2>/dev/null)" != OWN_OK ]; then own_write=mismatch; fi
+fi
+
+reads=''
+for file in "\${foreign[@]}"; do
+  if error=$(cat -- "$file" 2>&1 >/dev/null); then result=ok; else result=$(code "$error"); fi
+  reads="$reads\${reads:+,}\\"$result\\""
+done
+
+if listing=$(ls -A -- "$account_dir" 2>&1); then
+  discovery=hidden
+  while IFS= read -r name; do
+    if [ "$name" = "$account_name" ]; then discovery=listed; fi
+  done <<< "$listing"
+else
+  discovery=$(code "$listing")
+fi
+
+outside_write=$(write_new "$outside" 'B2 QA fixture')
+
+secret_env=0
+for name in $(compgen -e); do
+  if [[ $name =~ (API_?KEY|TOKEN|SECRET|PASSWORD|DSH_) ]]; then secret_env=$((secret_env + 1)); fi
+done
+
+connect_log="$own.connect"
+bash -c 'exec 3<>"/dev/tcp/127.0.0.1/$0"' "$port" > "$connect_log" 2>&1 &
+connect_pid=$!
+waited=0
+while kill -0 "$connect_pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
+  sleep 0.1
+  waited=$((waited + 1))
+done
+if kill -0 "$connect_pid" 2>/dev/null; then
+  kill "$connect_pid" 2>/dev/null
+  wait "$connect_pid" 2>/dev/null
+  status=124
+else
+  wait "$connect_pid"
+  status=$?
+fi
+error=$(cat -- "$connect_log" 2>/dev/null)
+rm -f -- "$connect_log"
+if [ "$status" -eq 0 ]; then host_api=connected
+elif [ "$status" -eq 124 ]; then host_api=ETIMEDOUT
+else host_api=$(code "$error")
+fi
+
+printf '${RESULT_PREFIX}{"ownWrite":"%s","reads":[%s],"discovery":"%s","outsideWrite":"%s","secretEnv":%d,"hostApi":"%s"}\\n' \\
+  "$own_write" "$reads" "$discovery" "$outside_write" "$secret_env" "$host_api"
 `;
 }
 

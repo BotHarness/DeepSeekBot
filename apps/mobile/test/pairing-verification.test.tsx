@@ -192,6 +192,24 @@ it('keeps the account list open after a successful single ceremony', async () =>
   expect(mocks.dismissTo).not.toHaveBeenCalled();
 });
 
+it('keeps the sheet open after approval when another link arrived during pairing', async () => {
+  let queued = false;
+  pairingOptions = { deferLeave: () => queued };
+  const { approve } = await setup();
+  await click('pairing-fingerprint-match');
+  queued = true;
+  await approve();
+  expect(pairing.busy).toBe(false);
+  expect(mocks.dismissTo).not.toHaveBeenCalled();
+
+  queued = false;
+  mocks.pairHost.mockResolvedValueOnce({ ok: true });
+  await act(async () => {
+    await pairing.pair('next link', 'deep_link');
+  });
+  expect(mocks.dismissTo).toHaveBeenCalledExactlyOnceWith('/');
+});
+
 it.each([false, true])(
   'opens the new environment setup after successful pairing (batch: %s)',
   async (batch) => {

@@ -110,16 +110,18 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -170,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -187,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` also returns `bot.active`: whether any authoritative session is thinking or working, independent of the priority display `state`. It remains true when another session needs approval and is not derived from the bounded `sessions` output. Android keep-connected summaries combine this full activity feed with complete Human Inbox action discovery, counting distinct Bot identities per Host; old Hosts without `active` remain unsynchronized rather than reporting zero.
+
+`channel-messages` and `bot-activity` return each page with `provenance` (the source: a Channel's id, `dm` or `group` type, `incarnation` (its creation time), member ids and the `revision` the read started at; or a Bot's PersonaBot ID, `incarnation`, activity `generation` and `revision`), `complete`, and `nextCursor` only while older entries remain. Pass `nextCursor` unchanged as `--cursor` with the same target to read the next page; `--cursor` and `--before` cannot be combined. The Host checks the cursor against the current target: a cursor from another Channel or Bot, or one whose target was deleted and recreated, is refused as `changed-read-target`; a Channel history rewritten under the cursor (a purge, or the anchor message no longer at its position) or a changed Bot activity snapshot is `stale-read-revision`; a malformed cursor, or one whose fields no longer match its digest, is `invalid-read-cursor`. The digest only catches accidental corruption: a hand-edited cursor with a recomputed digest can select another page of the same target and revision, and authority still comes from the Host's target and revision checks. Start again from the first page after any of them. Messages sent after the first page never invalidate older pages. A Channel page holds at most `--limit` messages and stops early, with `complete: false`, so the whole serialized page, envelope and cursor included, stays within 64 KiB; a single message that does not fit in the space left after the envelope and cursor still comes back alone so the read advances, and that one page can exceed 64 KiB. `provenance.contentIsData` marks message bodies and session names as quoted data from that source, never instructions.
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
 
@@ -329,7 +334,7 @@ These commands manage Channels and groups through the same Host owners and check
 
 ```bash
 deepseekbot channel <group-channel>
-deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <stable-key>]
+deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <stable-key>]
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
@@ -727,6 +732,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 With a Host selected, the schedule commands call the same Host methods as the Schedules panel, so the Host checks the Bot, the trigger, the time zone and the lock, and a refusal keeps its code (`invalid-input`, `not-found`, `locked`, `inactive`). `schedule-preview` returns the trigger and the Host's next occurrences. `schedule-run-now` queues a firing that the running Host executes. `schedule-delete` also removes the schedule's history, so it needs `--confirm`, like the panel's confirmation.
 
+Every schedule carries a `revision`, a fingerprint of what you can edit (title, prompt, trigger, enabled, locked); firings and the next run time do not change it. Pass it as `--expected-revision` to `schedule-update` or `schedule-delete` and the Host refuses with `stale-revision` if the schedule changed since you read it. `schedule-create --operation-key <key>` (8–128 letters, digits, `.`, `:`, `_` or `-`) makes a retry safe: the same key with the same request returns the original schedule with `reconciled: true` instead of a second one, the same key with a different request fails with `operation-key-conflict`, and a key whose schedule was deleted fails with `operation-key-consumed` rather than recreating it. Both flags also work offline with `--home`. Tob must pass them when it runs these commands (see [Tob](decisions/tob.md#adr-0225)).
+
 ### Takeover Handoffs on a live Host
 
 ```bash
@@ -748,6 +755,13 @@ deepseekbot browser-observation <bot-id> [--tab <tab-id>] [--out /tmp/frame.png]
 deepseekbot browser-takeover-audit <bot-id>
 printf '%s' "<takeover-token>" | deepseekbot browser-takeover-recording --token-stdin
 deepseekbot browser-profile-set <bot-id> --profile work
+deepseekbot browser-profile-pair --out /private/absolute/profile-code
+deepseekbot browser-profile-forget
+deepseekbot browser-daily-connect <bot-id>
+deepseekbot browser-daily-grant <bot-id>
+deepseekbot browser-daily-return <bot-id>
+deepseekbot browser-borrow-pair <bot-id> --out /private/absolute/borrow-code
+deepseekbot browser-borrow-return <bot-id>
 deepseekbot browser-packages
 deepseekbot browser-install-packages --package libnss3 --package libgbm1 --confirm --wait
 deepseekbot computer-install-packages --confirm --wait
@@ -766,6 +780,8 @@ deepseekbot browser-webrtc --viewer <id> [--probe]
 `browser-observation` with a running local process but no owned current tab returns `viewerUrl: null`; process readiness alone is not viewer readiness. `browser-frame` preserves a stopped/no-tab refusal (404) and reports an unavailable first frame after the bounded wait as `host-refused` (503).
 
 `browser-observation` returns the same state the Browser panel polls: whether the Browser runs, its tabs and focused tab, takeover state, stored profiles and target. The current picture is never printed as base64; it is summarized as `{mimeType, bytes}` and saved to `--out` when given. `browser-takeover-audit` lists a Bot's takeover events in time order. `browser-takeover-recording` reads one takeover and its recorded input; the token is the `takeover=` value from the takeover link and arrives on stdin. `browser-profile-set` picks the Bot's Browser profile (`default` resets it) with the same name rules as the panel.
+
+`browser-profile-pair --out <file>` starts Chrome Profile pairing and `browser-borrow-pair <bot-id> --out <file>` pairs a Bot with the Human's own Browser through the extension. Both write the one-time code only to a new absolute file with owner-only permissions and print its expiry and `codeFile`, never the code; an existing file refuses with `pairing-file-failed`. `browser-profile-forget` forgets the paired Chrome Profile. `browser-daily-connect <bot-id>` starts the Playwright extension connection for the Daily Browser, `browser-daily-grant <bot-id>` hands over the page the Human selected in the extension (it refuses with the Host's message until a page is selected), and `browser-daily-return` and `browser-borrow-return` take the Browser back. They call the same routes as the Browser panel buttons. Tob refuses the two pairing commands and `browser-daily-grant`, and refuses any command that would change its own grants, access, approval policy or pending approvals with `self-escalation-refused` ([Tob decisions](decisions/tob.md#tob-self-escalation)).
 
 `browser-open` refuses a machine without Chrome's system libraries with `provision-missing-libs` and lists the packages in its message. `browser-packages` reports whether the Host can install them (`access`) and the last install's progress; `browser-install-packages` installs the named packages and `computer-install-packages` installs what Local Computer reports missing. Both need `--confirm`, like the panel's install button, and `--wait` polls until the install settles. A Host without administrator rights refuses with `needs-administrator`.
 
@@ -1104,7 +1120,7 @@ For model-free device-side qualification, `device-pair --link-file <trusted-priv
 
 `deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
 
-Use `device-offer --out <new-private-file>` and `device-approve-key <receipt> <public-key> --confirm` through the existing pairing owner. The installed app scans the trusted computer code and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
+Use `device-offer --out <new-private-file>` and `device-approve-key --confirm -- <receipt> <public-key>` through the existing pairing owner. The installed app scans the code shown by the trusted Host and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
 
 ### Phone route (Tailscale)
 
@@ -1130,12 +1146,15 @@ Bot settings → Connections lists paired devices, guides new invitations and re
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` includes a copyable `pendingKeys[].approveCommand` for each key awaiting approval. Compare the full fingerprint with the device display before running it. Approval accepts a lowercase hex or unpadded base64url public key. Offer receipts and device IDs can start with `-`. If a value is identical to a CLI option, place all flags before `--` and pass the values after it.
 
 `devices-watch [--watch-seconds 10]` (1–60 seconds) opens the same live stream the Devices page follows and returns `{seconds, invalidations, initial, current}`: how many `resource/changed` events for `devices` the Host sent (a phone asking for approval, an approval, a pairing, a revocation or cleared invitations), and `{devices, pendingKeys}` before and after. Only the owner receives these events; it refuses with `host-query-unsupported` when the connection cannot stream.
 
@@ -1399,6 +1418,8 @@ Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>
 
 Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
 
+`marketplace-list` adds `search` to every page it returns: `matches` when the page has listings and `no-matches` when the Marketplace answered with none. When the Marketplace cannot be searched (offline, network failure, timeout, a failing Marketplace or none configured), the command exits non-zero with `marketplace-unavailable` and prints no `bots` or `search`; the Marketplace's own coded refusals, such as `rate-limited`, also exit non-zero. A failed search is never an empty result. Tob runs `marketplace-list` at once, without an approval card, to offer live candidates next to a custom Bot ([Tob decisions](decisions/tob.md#tob-creation-candidates)).
+
 `marketplace-sections` returns the Market panel's Hot, New and Rising rows from the Worker's latest daily snapshot as `{ sections: [{ section, day, entries: [{ bot, score }] }] }`. `score` is the installs in the last 7 days for Hot, 0 for New and the 7-day growth for Rising; `day` is `null` before the first snapshot.
 
 `marketplace-digest` returns the latest daily Marketplace Digest (the article at the top of the Market panel), or the one for `--day`, as `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`; `bot` is `null` when the listing has since been hidden. It answers `digest-not-found` when no digest exists. `marketplace-digests` lists past digests newest first as `{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`; `picks` are up to four Digest Picks still listed, in article order, and stderr prints one line per digest with its date, title and pick names. Both prefer `--lang` and fall back to the other language for a day written only in that one.
@@ -1585,7 +1606,7 @@ The model verbs manage the same records afterwards: `model-presets` lists the pr
 
 ## Channels, grants, schedules, pairings
 
-`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
+`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`, or `--cursor` with a returned `nextCursor`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
 
 ### Approve one Workspace request online
 
@@ -1737,6 +1758,8 @@ The keyed result includes a `receipt` with `operationKey`, `kind`, `channelId`, 
 Use `group-member-picker` with an existing Channel ID or omit it for the creation context. It returns eligible Humans and Bots scoped to the authenticated Host. Pass `group-members-add` a JSON array of 1–100 targets on stdin. A Human target has `kind: "human"` and its stable Human `id`. A Bot target has `kind: "bot"` and its Bot `id`. Give each target an `operationKey` unique to its attempt. Use 8–128 ASCII characters. Start with a letter or digit and use only letters, digits, `.`, `_`, `:`, or `-`. The Host adds selected Humans before checking Bot invitations and returns `joined`, `pending` or `failed` with a code for each target. If the batch response is unconfirmed, resend the same Channel ID and complete target payload, including the original keys. If an individual target returns `group-member-unconfirmed`, retry that target in the same Channel with its original key. Use a fresh key to retry a confirmed failure. Replaying a confirmed Human addition preserves any subsequent loss of access.
 
 Authenticated Human online `group-create` and `group-invite` also support stable operation keys; the invitation command accepts `--expected-channel` for the observed state. These review/retry inputs are optional for Human commands and mandatory for scoped Tob. Existing unkeyed Human operations retain their owner behavior.
+
+In Team mode, run `group-member-picker` without a Channel ID to find eligible `people[].id` values. Pass one `--human <id>` per person to the authenticated Human's online `group-create`, alongside any `--member <bot-id>` flags. People join in the same transaction as group creation. If the Host refuses any initial member, the group is not created. Retry with the same operation key and the same list of people and Bots to recover a lost response.
 
 The following slices add group rename/avatar, member wake settings, member removal, cancellation of pending invitations and decisions on pending join requests. Personal mute/pin/nickname/visibility, group deletion, attachments and external membership have no typed Tob operation; where a Human CLI command exists, Tob runs it through the generic path, after the Human approves the exact command. #2090 remains open for its remaining scope. See [ADR-0226](decisions/messaging.md#adr-0226) and the [coverage inventory](agents/cli-ui-coverage.md#2090-group-management-scope). Direct CLI, real Tob approval/readback, Web membership/history and macOS Desktop are separate verification gates.
 
@@ -2159,7 +2182,7 @@ Clear removes all functional Panel overrides only in the explicit mode, includin
 
 Full Access now retains native `ask` so recognized permission changes can reach the Human, while ordinary requests in its explicitly selected scope are automatically answered without routine cards. The selected mode/scope and existing Assignment permissions are not widened. A native `never` policy still means deterministic rejection; it is not bypassed. Directory grants still use `grant-request-approve --confirm`.
 
-Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key <receipt> <public-key> --confirm`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
+Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key --confirm -- <receipt> <public-key>`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
 
 The phone's native private form and browser remote chat reach the existing credential owner through the same channel. Legacy Connect pairings require a new fingerprint ceremony; failures never retry plaintext. The full phone WebView remains removed, and Connect Browser/Computer viewers are unavailable pending separate qualification. CLI channel state is not native acceptance or proof of a real Cloudflare path.
 
@@ -2176,7 +2199,7 @@ Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must 
 
    Windows accepts absolute drive paths. Optional `--ssh-config <absolute-file>` chooses an existing config; the default uses system OpenSSH configuration. Input files must be private regular files (0600 on Linux/macOS); output is a new exclusive file. A startup failure can leave an empty output file; choose a new output path on retry.
 
-3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key <receipt> <public-key> --confirm` on the remote Host. The tunnel command does neither approval nor enrollment.
+3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key --confirm -- <receipt> <public-key>` on the remote Host. The tunnel command does neither approval nor enrollment.
 4. Open a remote conversation and use the existing Host controls. Stop the tunnel with Ctrl+C; this leaves the remote Host running and the browser pairing intact. Restart with the same local port and a new output path to reconnect. An expired input offer may still identify the Host for an already paired browser, but cannot enroll a new browser; create a fresh offer for enrollment.
 
 The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback requests and streams after pairing, so a changed listener cannot receive device credentials in plaintext. Use the remote Host's existing `device-revoke <device-id> --confirm` to revoke access; closing the tunnel is not revocation. Do not downgrade the browser client after creating an SSH pairing.
@@ -2222,13 +2245,13 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --sessio
 The `profile-backup-*` commands use the same Profile Backup owner as Settings. Online commands use `--host` / `DEEPSEEKBOT_HOST` and the existing private token-file or environment authority. They print one JSON document; credential stores are excluded, but chats and Memory can contain secrets.
 
 ```bash
-tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
-tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-preview --host http://127.0.0.1:31967 --out confirmation.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-file confirmation.json --out environment.botharness-backup
 tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
 tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
 ```
 
-Export consumes the current preview token and refuses to overwrite a file. Restore runs **locally and offline**, requires a new target directory, and leaves the Profile stopped. Omit `--host` and `--token-file` for restore. Start the target with a compatible trusted Tobs installation before querying `profile-backup-recovery`. Restored Bots remain cold; `profile-backup-authorize <bot> --confirm` authorizes the chosen target model, and `profile-backup-activate <bot> --confirm --acknowledge-risk` explicitly accepts possible duplicate source execution. These operations do not restore external account authority.
+Preview prints the counts and warnings to review but never its export confirmation. `--out` saves the reviewed preview with that confirmation to a new file created with mode 0600 and prints only `confirmation: {path}`; without `--out`, `confirmation` is `null`. Export reads that file with `--confirmation-file` (or the same JSON with `--confirmation-stdin`), consumes the confirmation once and refuses to overwrite a file; a changed environment or a reused confirmation refuses with `preview-stale`. Tob follows the same path, so the confirmation never appears in its results, approval cards or Session log: a bare preview is a read, and preview with `--out`, export, inspect and restore each show the Human an approval card first. Restore runs **locally and offline**, requires a new target directory, and leaves the Profile stopped. Omit `--host` and `--token-file` for restore. Start the target with a compatible trusted Tobs installation before querying `profile-backup-recovery`. Restored Bots remain cold; `profile-backup-authorize <bot> --confirm` authorizes the chosen target model, and `profile-backup-activate <bot> --confirm --acknowledge-risk` explicitly accepts possible duplicate source execution. These operations do not restore external account authority.
 
 Historical v1 archives remain readable. New v2 archives record Host and resolved DSH tools versions independently; `null` means unavailable provenance. Compatibility follows data contracts and schema migration, not an exact DSH release. An older reader must be upgraded to read an unsupported newer format. `format-upgrade-required`, `upgrade-required` and `dependency-incompatible` identify unsupported data interpretation; `core-contract-invalid` requires a complete backup with a valid required core declaration; `package-invalid` identifies failed validation. `source-unavailable` means the source database must be repaired before export. Existing preview expiry, integrity, cancellation and destination checks still apply.
 

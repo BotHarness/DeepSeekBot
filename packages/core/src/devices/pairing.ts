@@ -188,7 +188,12 @@ interface Row {
 
 const CREDENTIAL = /^Device ([A-Za-z0-9_-]{16,64})\.([A-Za-z0-9_-]{32,128})$/u;
 
-const token = (bytes: number): string => randomBytes(bytes).toString('base64url');
+const token = (bytes: number): string => {
+  for (;;) {
+    const value = randomBytes(bytes).toString('base64url');
+    if (!value.startsWith('-')) return value;
+  }
+};
 const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
 
 function device(row: Row): PairedDevice {

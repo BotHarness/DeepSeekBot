@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, useImperativeHandle, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { Dimensions } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ChannelActivity } from '@botharness/host-client/channel-activity';
@@ -48,7 +49,9 @@ vi.mock('react-native', async () => ({
   },
 }));
 vi.mock('../src/ui/bot-avatar', () => ({
-  BotAvatar: ({ bot }: { bot: { slug: string } }) => <span data-avatar={bot.slug} />,
+  BotAvatar: ({ bot, size }: { bot: { slug: string }; size: number }) => (
+    <span data-avatar={bot.slug} data-size={size} />
+  ),
 }));
 vi.mock('../src/ui/chat/speaker-row', () => ({ SPEAKER_AVATAR: 32 }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
@@ -108,6 +111,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
 });
 function render(activity: ChannelActivity = post, dmSlug?: string) {
   act(() =>
@@ -169,6 +173,17 @@ describe('activity row layout and interaction', () => {
     const button = container.querySelector('button')!;
     expect(button.children[0]?.querySelector('[data-avatar]')).not.toBeNull();
     expect(button.children[1]?.hasAttribute('data-icon')).toBe(true);
+  });
+
+  it('keeps the group activity avatar inside the speaker gutter at accessibility sizes', () => {
+    vi.spyOn(Dimensions, 'get').mockReturnValue({
+      width: 390,
+      height: 844,
+      scale: 3,
+      fontScale: 3,
+    });
+    render();
+    expect(container.querySelector('[data-avatar="ada"]')?.getAttribute('data-size')).toBe('32');
   });
 
   it('hides the current Bot avatar in its DM but shows the recipient for a Bot DM action', () => {

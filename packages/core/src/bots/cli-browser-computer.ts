@@ -1,5 +1,13 @@
 export { BROWSER_COMPUTER_OPTIONS } from './cli-option-spec.js';
-import { createReadStream, createWriteStream, statSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  createReadStream,
+  createWriteStream,
+  openSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -31,6 +39,36 @@ export const BROWSER_COMPUTER_COMMANDS = [
   {
     command: 'browser-profile-set',
     description: "pick a Bot's Browser profile (--profile <name> or default)",
+  },
+  {
+    command: 'browser-profile-pair',
+    description:
+      'start Chrome Profile pairing and save the one-time code to a private file (--out, new file)',
+  },
+  {
+    command: 'browser-profile-forget',
+    description: 'forget the paired Chrome Profile so Bots can no longer reach it',
+  },
+  {
+    command: 'browser-daily-connect',
+    description: "connect a Bot to the Human's Daily Browser through the Playwright extension",
+  },
+  {
+    command: 'browser-daily-grant',
+    description: 'hand the page selected in the Playwright extension to the Bot',
+  },
+  {
+    command: 'browser-daily-return',
+    description: "take the Human's Daily Browser back from a Bot",
+  },
+  {
+    command: 'browser-borrow-pair',
+    description:
+      "pair a Bot with the Human's own Browser and save the one-time code to a private file (--out)",
+  },
+  {
+    command: 'browser-borrow-return',
+    description: "take the Human's borrowed Browser back from a Bot",
   },
   {
     command: 'browser-packages',
@@ -103,7 +141,13 @@ const BOT_COMMANDS: readonly Command[] = [
   'browser-observation',
   'browser-takeover-audit',
   'browser-profile-set',
+  'browser-daily-connect',
+  'browser-daily-grant',
+  'browser-daily-return',
+  'browser-borrow-pair',
+  'browser-borrow-return',
 ];
+const PAIRING_COMMANDS: readonly Command[] = ['browser-profile-pair', 'browser-borrow-pair'];
 const FILE_COMMANDS: readonly Command[] = ['computer-upload', 'computer-import'];
 const CONFIRMED: readonly Command[] = [
   'computer-open-permission-settings',
@@ -239,6 +283,10 @@ export async function runBrowserComputerCommand(
     usage(
       'browser-webrtc needs --viewer <id>, the id in the Container Browser viewer path /botharness-browser/viewer/<id>/.',
     );
+  if (PAIRING_COMMANDS.includes(command) && values.out === undefined)
+    usage(
+      `${command} writes the one-time pairing code only to a file. Pass --out with a new absolute path.`,
+    );
   if (command === 'browser-profile-set' && !values.profile?.trim())
     usage('browser-profile-set requires --profile <name> or --profile default.');
   const packages = (values.package ?? []).map((name) => name.trim()).filter(Boolean);
@@ -323,6 +371,45 @@ export async function runBrowserComputerCommand(
       return json(query('/api/browser/takeover/recording', { token }));
     case 'browser-profile-set':
       return host.rpc('browserProfileSet', { slug: target, profile: values.profile!.trim() });
+    case 'browser-profile-forget':
+      return json('/api/browser/profile/forget', {});
+    case 'browser-daily-connect':
+    case 'browser-daily-grant':
+    case 'browser-daily-return':
+      return json(`/api/browser/daily/${command.slice('browser-daily-'.length)}`, {
+        slug: target,
+      });
+    case 'browser-borrow-return':
+      return json('/api/browser/borrow/return', { slug: target });
+    case 'browser-profile-pair':
+    case 'browser-borrow-pair': {
+      let file: number;
+      try {
+        file = openSync(values.out!, 'wx', 0o600);
+      } catch {
+        throw new CliLiveError(
+          'pairing-file-failed',
+          'The pairing code could not be saved. Use a new writable absolute file.',
+        );
+      }
+      try {
+        const { code, ...paired } = await json(
+          command === 'browser-profile-pair'
+            ? '/api/browser/profile/pair'
+            : '/api/browser/borrow/pair',
+          command === 'browser-profile-pair' ? {} : { slug: target },
+        );
+        if (typeof code !== 'string')
+          throw new CliLiveError('host-protocol-error', 'The Host returned no pairing code.');
+        writeFileSync(file, code);
+        return { ...paired, codeFile: values.out };
+      } catch (error) {
+        rmSync(values.out!, { force: true });
+        throw error;
+      } finally {
+        closeSync(file);
+      }
+    }
     case 'browser-packages':
       return json('/api/browser/install-packages');
     case 'browser-install-packages':
