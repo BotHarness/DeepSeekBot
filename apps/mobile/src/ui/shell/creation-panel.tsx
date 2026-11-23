@@ -40,12 +40,14 @@ export type CreationPanelControls = {
   firstAction: React.RefObject<ComponentRef<typeof Pressable> | null>;
 };
 
-const fast = spring.spatial.fast;
+const omega = (2 * Math.PI) / creationCard.morphResponse;
 const morph =
   Platform.OS === 'ios'
     ? {
-        ...fast,
-        damping: 2 * Math.sqrt(fast.stiffness * fast.mass),
+        ...spring.spatial.fast,
+        mass: 1,
+        stiffness: omega ** 2,
+        damping: 2 * omega,
         overshootClamping: true,
       }
     : { ...spring.release, overshootClamping: true };
