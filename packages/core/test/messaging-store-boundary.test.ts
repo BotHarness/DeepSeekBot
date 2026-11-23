@@ -20,6 +20,7 @@ const MESSAGING_TABLE_WRITERS = [
   'features/assignments/events.ts',
   'features/assignments/reporting.ts',
   'features/messaging/events.ts',
+  'features/sessions/runtime-orchestrator-turns.ts',
   'messaging/channel-target.ts',
   'messaging/conversation-ingest.ts',
   'messaging/feedback.ts',
