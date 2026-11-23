@@ -3,6 +3,7 @@ import {
   createBotScheduleStore,
   previewBotScheduleTrigger,
   type BotSchedule,
+  type BotScheduleCreated,
   type BotScheduleFiring,
   type BotScheduleTrigger,
 } from '../../schedules/bot-schedules.js';
@@ -12,7 +13,12 @@ import { TeamRoles } from '../../team/roles.js';
 import { createGrants } from '../workspaces/plugin.js';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import { scheduleToggleFromFlags, scheduleTriggerFromFlags } from '../../bots/cli-schedules.js';
+import {
+  scheduleExpectedRevisionFromFlags,
+  scheduleOperationKeyFromFlags,
+  scheduleToggleFromFlags,
+  scheduleTriggerFromFlags,
+} from '../../bots/cli-schedules.js';
 import type { BotCreateCliIo, CreateValues } from './cli-types.js';
 import { CliFailure, usageError } from './cli-errors.js';
 import { trimmed, resolveHome, openRegistry, requireBotRecord } from './cli-offline.js';
@@ -169,9 +175,10 @@ export function runScheduleCreate(
   id: string,
   values: CreateValues,
   io: BotCreateCliIo,
-): { bot: { id: string; name: string }; schedule: BotSchedule } {
+): { bot: { id: string; name: string }; schedule: BotSchedule; reconciled?: true } {
   const slug = id.trim();
   if (slug.length === 0) throw usageError('schedule-create needs exactly one bot id.');
+  const operationKey = scheduleOperationKeyFromFlags(values, usageError);
   const title = trimmed(values.title);
   const prompt = trimmed(values.prompt);
   if (title === undefined || prompt === undefined) {
@@ -186,7 +193,7 @@ export function runScheduleCreate(
   try {
     const record = requireBotRecord(registry, slug);
     try {
-      const schedule = openSchedules(owner, registry).create(
+      const created: BotScheduleCreated = openSchedules(owner, registry).create(
         record.slug,
         {
           title,
@@ -196,9 +203,18 @@ export function runScheduleCreate(
           ...(locked === undefined ? {} : { locked }),
         },
         'human',
+        undefined,
+        operationKey === undefined ? undefined : { operationKey },
       );
-      io.stderr(`tobs: created schedule ${schedule.id} for ${record.slug}`);
-      return { bot: memoryBot(record), schedule };
+      const { reconciled, ...schedule } = created;
+      io.stderr(
+        `tobs: ${reconciled === true ? 'reconciled' : 'created'} schedule ${schedule.id} for ${record.slug}`,
+      );
+      return {
+        bot: memoryBot(record),
+        schedule,
+        ...(reconciled === true ? { reconciled } : {}),
+      };
     } catch (error) {
       scheduleFailure(error);
     }
@@ -216,6 +232,7 @@ export function runScheduleUpdate(
   if (slug.length === 0) throw usageError('schedule-update needs exactly one bot id.');
   const scheduleId = trimmed(values.sid);
   if (scheduleId === undefined) throw usageError('--sid is required for schedule-update.');
+  const expectedRevision = scheduleExpectedRevisionFromFlags(values, usageError);
   const title = trimmed(values.title);
   const prompt = trimmed(values.prompt);
   const trigger = parseTrigger(values);
@@ -246,6 +263,7 @@ export function runScheduleUpdate(
           ...(locked === undefined ? {} : { locked }),
         },
         'human',
+        expectedRevision,
       );
       io.stderr(`tobs: updated schedule ${scheduleId} for ${record.slug}`);
       return { bot: memoryBot(record), schedule };
@@ -266,12 +284,18 @@ export function runScheduleDelete(
   if (slug.length === 0) throw usageError('schedule-delete needs exactly one bot id.');
   const scheduleId = trimmed(values.sid);
   if (scheduleId === undefined) throw usageError('--sid is required for schedule-delete.');
+  const expectedRevision = scheduleExpectedRevisionFromFlags(values, usageError);
   const dshHome = resolveHome(values, io);
   const { owner, registry } = openRegistry(dshHome);
   try {
     const record = requireBotRecord(registry, slug);
     try {
-      const removed = openSchedules(owner, registry).remove(record.slug, scheduleId, 'human');
+      const removed = openSchedules(owner, registry).remove(
+        record.slug,
+        scheduleId,
+        'human',
+        expectedRevision,
+      );
       io.stderr(`tobs: deleted schedule ${scheduleId} for ${record.slug}`);
       return { bot: memoryBot(record), removed };
     } catch (error) {

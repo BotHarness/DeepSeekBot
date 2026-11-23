@@ -3,6 +3,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { RESOURCE_CHANGED_EVENT, parseResourceChange } from '../channels/resource-events.js';
 import { watchRoster } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
+import { DEVICE_PUBLIC_KEY_BASE64URL, PAIRING_RECEIPT } from './cli-options.js';
 import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 
 export const DEVICES_COMMANDS = [
@@ -11,7 +12,10 @@ export const DEVICES_COMMANDS = [
     description:
       'list nearby Hosts; admit <host-id> <public-key> or revoke <host-id> with --confirm',
   },
-  { command: 'device-requests', description: 'list pending exact-key device approval requests' },
+  {
+    command: 'device-requests',
+    description: 'list pending exact-key device requests with copyable approval commands',
+  },
   {
     command: 'device-lan',
     description: 'enable --confirm or disable encrypted LAN access and nearby Host discovery',
@@ -19,7 +23,7 @@ export const DEVICES_COMMANDS = [
   {
     command: 'device-approve-key',
     description:
-      'approve <receipt> <device-public-key> after fingerprint comparison (needs --confirm)',
+      'approve --confirm -- <receipt> <device-public-key> after fingerprint comparison (hex or base64url key)',
   },
   {
     command: 'devices',
@@ -46,9 +50,19 @@ export const DEVICES_COMMANDS = [
 ] as const;
 
 const DEVICES = '/api/botharness/devices';
+const HEX_PUBLIC_KEY = /^[0-9a-f]{64}$/u;
 
 const absolute = (value: string): boolean =>
   value.startsWith('/') || /^[A-Za-z]:[\\/]/u.test(value);
+
+function decode(bytes: Uint8Array): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof value === 'object' && value !== null && !Array.isArray(value))
+      return value as Record<string, unknown>;
+  } catch {}
+  throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
+}
 
 export function isDevicesCommand(command: string): boolean {
   return DEVICES_COMMANDS.some((entry) => entry.command === command);
@@ -123,7 +137,7 @@ export async function runDevicesCommand(
       takes === 0
         ? `${command} takes no arguments.`
         : command === 'device-approve-key'
-          ? 'device-approve-key takes <receipt> <public-key> --confirm.'
+          ? 'device-approve-key takes --confirm -- <receipt> <public-key>.'
           : `${command} takes exactly one ${command === 'device-revoke' ? '<device-id>' : '<receipt>'}.`,
     );
   if (values.out !== undefined && command !== 'device-offer')
@@ -156,26 +170,25 @@ export async function runDevicesCommand(
       'confirm-required',
       'device-revoke signs the device out at once and it must pair again. Pass --confirm.',
     );
-  if (
-    command === 'device-approve-key' &&
-    (values.confirm !== true || !/^[0-9a-f]{64}$/u.test(rest[1] ?? ''))
-  )
-    throw new CliLiveError(
-      'key-confirmation-required',
-      'Compare the device fingerprint, then pass <receipt> <public-key> --confirm.',
+  if (command === 'device-approve-key') {
+    const [receipt, key = ''] = rest;
+    const publicKey = DEVICE_PUBLIC_KEY_BASE64URL.test(key)
+      ? Buffer.from(key, 'base64url').toString('hex')
+      : key;
+    if (values.confirm !== true || !HEX_PUBLIC_KEY.test(publicKey))
+      throw new CliLiveError(
+        'key-confirmation-required',
+        'Compare the device fingerprint, then pass --confirm -- <receipt> <public-key>.',
+      );
+    const host = await connect();
+    return decode(
+      (await host.http(`${DEVICES}/approve-key`, { receipt, publicKey, confirm: true })).bytes,
     );
+  }
   const seconds = Number(values['watch-seconds'] ?? 10);
   if (command === 'devices-watch' && (!Number.isInteger(seconds) || seconds < 1 || seconds > 60))
     throw new CliLiveError('usage', '--watch-seconds must be 1–60.');
   const host = await connect();
-  const decode = (bytes: Uint8Array): Record<string, unknown> => {
-    try {
-      const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-      if (typeof value === 'object' && value !== null && !Array.isArray(value))
-        return value as Record<string, unknown>;
-    } catch {}
-    throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
-  };
   if (command === 'devices-watch') {
     if (!host.stream)
       throw new CliLiveError(
@@ -207,10 +220,23 @@ export async function runDevicesCommand(
             typeof entry !== 'object' ||
             !('publicKey' in entry) ||
             typeof entry.publicKey !== 'string' ||
-            !/^[0-9a-f]{64}$/u.test(entry.publicKey)
+            !HEX_PUBLIC_KEY.test(entry.publicKey)
           )
             return entry;
-          return { ...entry, fingerprint: noiseFingerprint(Buffer.from(entry.publicKey, 'hex')) };
+          return {
+            ...entry,
+            fingerprint: noiseFingerprint(Buffer.from(entry.publicKey, 'hex')),
+            ...(command === 'device-requests' &&
+            'approved' in entry &&
+            entry.approved === false &&
+            'receipt' in entry &&
+            typeof entry.receipt === 'string' &&
+            PAIRING_RECEIPT.test(entry.receipt)
+              ? {
+                  approveCommand: `deepseekbot device-approve-key --confirm -- ${entry.receipt} ${entry.publicKey}`,
+                }
+              : {}),
+          };
         })
       : pending;
     if (command === 'device-requests') return { pendingKeys };
@@ -235,16 +261,6 @@ export async function runDevicesCommand(
     return decode(
       (await host.http(`${DEVICES}/lan`, { action: rest[0], confirm: values.confirm === true }))
         .bytes,
-    );
-  if (command === 'device-approve-key')
-    return decode(
-      (
-        await host.http(`${DEVICES}/approve-key`, {
-          receipt: rest[0],
-          publicKey: rest[1],
-          confirm: true,
-        })
-      ).bytes,
     );
   if (command === 'device-offer-status')
     return decode((await host.http(`${DEVICES}/offer-status`, { receipt: rest[0] })).bytes);

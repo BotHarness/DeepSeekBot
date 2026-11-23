@@ -41,6 +41,13 @@ export async function runVoiceProviderGate(s, { as }, check) {
     workerData: { m15VoiceRequests: requests.buffer },
     stdout: true,
   });
+  const owner = (args, input) => s.cli(args, { input });
+  const fixtures = new Set();
+  const trackFixture = ({ provider }) => {
+    if (typeof provider?.id === 'string') fixtures.add(provider.id);
+    return provider;
+  };
+  let before;
   try {
     const [port] = await Promise.race([
       once(worker.stdout, 'data'),
@@ -53,7 +60,6 @@ export async function runVoiceProviderGate(s, { as }, check) {
       const json = JSON.stringify(value);
       return [TEST_KEY, HEADER_VALUE, HEADER_NAME, origin].some((marker) => json.includes(marker));
     };
-    const owner = (args, input) => s.cli(args, { input });
     const refused = (label, args, input) => {
       const result = s.cli(args, { as, input, allowFail: true });
       check(
@@ -61,8 +67,9 @@ export async function runVoiceProviderGate(s, { as }, check) {
         result?.error?.code === 'remote-access/denied' && !disclosesFixture(result),
         result?.error?.code,
       );
+      return result;
     };
-    const before = owner(['voice-providers']);
+    before = owner(['voice-providers']);
     for (const kind of ['tts', 'asr']) {
       const template = {
         version: 1,
@@ -85,8 +92,8 @@ export async function runVoiceProviderGate(s, { as }, check) {
       check(`Owner validates ${kind} template`, owner(validate).valid === true);
 
       const add = ['voice-provider-add', 'custom', '--kind', kind, ...templateFile, '--key-stdin'];
-      refused(`${kind} custom provider add`, add, TEST_KEY);
-      const { provider } = owner(add, TEST_KEY);
+      trackFixture(refused(`${kind} custom provider add`, add, TEST_KEY));
+      const provider = trackFixture(owner(add, TEST_KEY));
       check(
         `Owner adds ${kind} custom provider`,
         provider?.hasTemplate === true && provider.keySet === true,
@@ -139,25 +146,37 @@ export async function runVoiceProviderGate(s, { as }, check) {
       const remove = ['voice-provider-remove', id];
       refused(`${kind} provider remove`, remove);
       check(`Owner removes ${kind} provider`, owner(remove).provider?.id === id);
-      const priorDefault = before.defaults[kind];
-      if (priorDefault !== null) {
-        const restore = ['voice-default-set', kind, priorDefault.providerId];
-        if (priorDefault.voiceId !== undefined) restore.push('--voice', priorDefault.voiceId);
-        if (priorDefault.language !== undefined) restore.push('--language', priorDefault.language);
-        owner(restore);
-      }
+      fixtures.delete(id);
     }
 
     const addPreset = ['voice-provider-add', 'local'];
-    refused('preset provider add', addPreset);
-    const { provider } = owner(addPreset);
+    trackFixture(refused('preset provider add', addPreset));
+    const provider = trackFixture(owner(addPreset));
     check('Owner adds a preset provider', provider?.preset === 'local');
     owner(['voice-provider-remove', provider.id]);
-    check(
-      'Voice providers and defaults restored',
-      isDeepStrictEqual(owner(['voice-providers']), before),
-    );
+    fixtures.delete(provider.id);
   } finally {
-    await worker.terminate();
+    try {
+      if (before !== undefined) {
+        for (const id of fixtures) s.cli(['voice-provider-remove', id], { allowFail: true });
+        const current = owner(['voice-defaults']).defaults;
+        for (const kind of ['tts', 'asr']) {
+          const prior = before.defaults[kind];
+          if (isDeepStrictEqual(current[kind], prior)) continue;
+          const restore = ['voice-default-set', kind, prior?.providerId ?? 'off'];
+          if (prior?.voiceId !== undefined) restore.push('--voice', prior.voiceId);
+          if (prior?.language !== undefined) restore.push('--language', prior.language);
+          s.cli(restore, { allowFail: true });
+        }
+        check(
+          'Voice providers and defaults restored',
+          isDeepStrictEqual(owner(['voice-providers']), before),
+        );
+      }
+    } catch (error) {
+      check('Voice provider cleanup completed', false, error?.message ?? String(error));
+    } finally {
+      await worker.terminate();
+    }
   }
 }

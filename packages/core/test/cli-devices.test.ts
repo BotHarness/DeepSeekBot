@@ -1,14 +1,99 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { runDevicesCommand } from '../src/bots/cli-devices.js';
+import { parseBotCliArgs } from '../src/bots/cli-options.js';
 
 const reply = (value: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(value)),
 });
 
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
+const DASH_RECEIPT = '--1234567890';
+const DASH_DEVICE_ID = '-e0123456789012345678A';
+const HEX_PUBLIC_KEY = `fb${'ff'.repeat(31)}`;
+const DASH_PUBLIC_KEY = Buffer.from(HEX_PUBLIC_KEY, 'hex').toString('base64url');
 
 describe('devices CLI', () => {
+  it('approves a leading-dash receipt and base64url key with the trailing confirmation flag', async () => {
+    const http = vi.fn(async () => reply({ approved: true }));
+    const { values, positionals } = parseBotCliArgs([
+      'device-approve-key',
+      DASH_RECEIPT,
+      DASH_PUBLIC_KEY,
+      '--confirm',
+    ]);
+    await expect(
+      runDevicesCommand(positionals[0]!, positionals.slice(1), values, async () => ({ http })),
+    ).resolves.toEqual({ approved: true });
+    expect(http).toHaveBeenCalledWith('/api/botharness/devices/approve-key', {
+      receipt: DASH_RECEIPT,
+      publicKey: HEX_PUBLIC_KEY,
+      confirm: true,
+    });
+  });
+
+  it.each([
+    ['device-offer-status', '-e1234567890', '/api/botharness/devices/offer-status', 'receipt'],
+    ['device-revoke', DASH_DEVICE_ID, '/api/botharness/devices/revoke', 'deviceId'],
+  ])('passes leading-dash identifiers through %s', async (command, id, path, field) => {
+    const args = command === 'device-revoke' ? ['--confirm', command, id] : [command, id];
+    const { values, positionals } = parseBotCliArgs(args);
+    const http = vi.fn(async () => reply({}));
+    await runDevicesCommand(positionals[0]!, positionals.slice(1), values, async () => ({ http }));
+    expect(http).toHaveBeenCalledWith(path, { [field]: id });
+  });
+
+  it.each([
+    ['bot-lan', 'revoke', '--12345678901234'],
+    ['connection-host', '--12345678901234', 'revoke-device', DASH_DEVICE_ID],
+  ])('preserves leading-dash pairing identifiers for %s', (...args) => {
+    const parsed = parseBotCliArgs([...args, '--confirm']);
+    expect(parsed.positionals).toEqual(args);
+    expect(parsed.values.confirm).toBe(true);
+  });
+
+  it.each(['--unknown', '-e'])('rejects unknown option %s for device approval', (option) => {
+    expect(() =>
+      parseBotCliArgs(['device-approve-key', DASH_RECEIPT, HEX_PUBLIC_KEY, '--confirm', option]),
+    ).toThrow(`Unknown option '${option}'`);
+  });
+
+  it('treats a known flag as an option until the argument separator', () => {
+    const args = ['device-offer-status', '--body-stdin'];
+    expect(parseBotCliArgs(args).positionals).toEqual(['device-offer-status']);
+    expect(parseBotCliArgs(['device-offer-status', '--', '--body-stdin']).positionals).toEqual(
+      args,
+    );
+  });
+
+  it('round-trips the copyable approval command from device-requests', async () => {
+    const pending = {
+      receipt: DASH_RECEIPT,
+      publicKey: HEX_PUBLIC_KEY,
+      name: 'CLI device',
+      approved: false,
+    };
+    const http = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ pendingKeys: [pending] }))
+      .mockResolvedValueOnce(reply({ approved: true }));
+    const output = await runDevicesCommand('device-requests', [], {}, async () => ({ http }));
+    const approveCommand = `deepseekbot device-approve-key --confirm -- ${DASH_RECEIPT} ${HEX_PUBLIC_KEY}`;
+    expect(output).toMatchObject({ pendingKeys: [{ ...pending, approveCommand }] });
+    const { pendingKeys } = output as { pendingKeys: Array<{ approveCommand: string }> };
+    const { values, positionals } = parseBotCliArgs(
+      pendingKeys[0]!.approveCommand.split(' ').slice(1),
+    );
+    await expect(
+      runDevicesCommand(positionals[0]!, positionals.slice(1), values, async () => ({ http })),
+    ).resolves.toEqual({ approved: true });
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/approve-key', {
+      receipt: DASH_RECEIPT,
+      publicKey: HEX_PUBLIC_KEY,
+      confirm: true,
+    });
+  });
+
   it('counts only device changes the Host announces while watching', async () => {
     const http = vi.fn(async () => reply({ devices: [{ id: 'd1' }], pendingKeys: [] }));
     const encoder = new TextEncoder();

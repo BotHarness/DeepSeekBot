@@ -124,12 +124,20 @@ export interface CreateChannelGroupInput {
   id?: string;
   name: string;
   members: string[];
+  humanIds?: string[];
   ownerBotSlug?: string;
 }
 
 export interface ChannelStore {
   requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
   bindHumanAccess?(access: {
+    addInitialMembers?(
+      db: import('node:sqlite').DatabaseSync,
+      human: HumanContext,
+      channelId: string,
+      humanIds: readonly string[],
+      joinedAt: string,
+    ): (() => void) | undefined;
     requireBotJoin?(slug: string, channelId: string): void;
     requireBotPost?(slug: string, channel: ChannelRecord): void;
     requireDm?(human: HumanContext, slug: string): void;
@@ -328,6 +336,8 @@ export interface ChannelStore {
     answer: AskUserQuestionAnswer,
   ): Promise<ChannelMessage | undefined>;
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
+  messagePosition(id: string, messageId: string): number | undefined;
+  historyEpoch(id: string): number;
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
   searchHumanMessages?(
     human: HumanContext,

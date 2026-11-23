@@ -86,6 +86,7 @@ export interface LiveValues
   refresh?: boolean;
   'previous-value'?: string;
   member?: string[];
+  human?: string[];
   'operation-key'?: string;
   app?: string;
   bot?: string;

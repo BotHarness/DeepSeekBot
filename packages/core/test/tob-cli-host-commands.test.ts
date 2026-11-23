@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startTobCliBroker, type TobCliBroker } from '../src/tob/cli-broker.js';
 import {
+  authorizeTobHostCli,
   classifyTobHostCli,
   createTobHostCliOperations,
   spawnHostCli,
@@ -11,6 +12,9 @@ import {
   type TobHostCliRunner,
 } from '../src/tob/cli-host-commands.js';
 import { TobError } from '../src/tob/service.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
+import type { ChannelRecord } from '../src/channels/channel.js';
 
 const brokers: TobCliBroker[] = [];
 afterEach(async () => {
@@ -90,6 +94,57 @@ describe('Tob runs any Human CLI command on the Host', () => {
     ).toMatchObject({ ok: false, error: { code: 'unsupported-setting' } });
     expect(f.approve).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('refuses schedule writes without an operation key or expected revision before any approval card', async () => {
+    const run = vi.fn<TobHostCliRunner>(async () => ({ exitCode: 0, stdout: '{}' }));
+    const f = await host(run);
+    for (const argv of [
+      ['schedule-create', 'tob', '--title', 'T', '--prompt', 'P', '--every', '3600'],
+      ['schedule-update', 'tob', '--sid', 's1', '--title', 'T'],
+      ['schedule-delete', 'tob', '--sid', 's1', '--confirm'],
+    ]) {
+      const refused = await f.invoke({ argv });
+      expect(refused).toMatchObject({ ok: false, error: { code: 'usage' } });
+      expect(JSON.stringify(refused)).toMatch(/--(operation-key|expected-revision)/u);
+    }
+    expect(f.approve).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('retries a keyed schedule creation after an uncertain outcome with the same command', async () => {
+    let attempts = 0;
+    const run = vi.fn<TobHostCliRunner>(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('connection reset');
+      return { exitCode: 0, stdout: '{"schedule":{"id":"s1"},"reconciled":true}' };
+    });
+    const f = await host(run);
+    const argv = [
+      'schedule-create',
+      'tob',
+      '--title',
+      'T',
+      '--prompt',
+      'P',
+      '--every',
+      '3600',
+      '--operation-key=tob-op-0001',
+    ];
+    expect(await f.invoke({ argv })).toMatchObject({
+      ok: false,
+      error: { code: 'operation-outcome-uncertain' },
+    });
+    expect(await f.invoke({ argv })).toEqual({
+      ok: true,
+      value: { schedule: { id: 's1' }, reconciled: true },
+    });
+    expect(classifyTobHostCli(['schedule-update', 'tob', '--expected-revision', 'r1'])).toEqual({
+      command: 'schedule-update',
+      write: true,
+    });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(f.approve).toHaveBeenCalledTimes(2);
   });
 
   it('runs a read at once without an approval card', async () => {
@@ -225,4 +280,41 @@ it('does not admit write-capable read command families as broker reads', () => {
   expect(classifyTobHostCli(['channels']).write).toBe(false);
   expect(classifyTobHostCli(['channels', 'not-a-supported-action']).write).toBe(true);
   expect(classifyTobHostCli(['channels', '--unknown-option']).write).toBe(true);
+});
+
+it('keeps cursor continuation of content reads a broker read and still refuses foreign Bot DMs', () => {
+  for (const argv of [
+    ['channel-messages', 'dm-ada', '--cursor', 'eyJ2IjoxfQ'],
+    ['channel-messages', 'dm-ada', '--limit', '20', '--cursor=eyJ2IjoxfQ'],
+    ['bot-activity', 'ada', '--cursor', 'eyJ2IjoxfQ'],
+  ])
+    expect(classifyTobHostCli(argv)).toMatchObject({ write: false });
+  const bots: Record<string, Pick<PersonaBotRecord, 'slug' | 'ownerHumanId'>> = {
+    ada: { slug: 'ada' },
+    eve: { slug: 'eve', ownerHumanId: 'someone-else' },
+  };
+  const channels: Record<string, Pick<ChannelRecord, 'id' | 'type' | 'members'>> = {
+    'dm-ada': { id: 'dm-ada', type: 'dm', members: ['ada'] },
+    'dm-eve': { id: 'dm-eve', type: 'dm', members: ['eve'] },
+  };
+  const deps = {
+    registry: {
+      getHistorical: (slug: string) => bots[slug] as PersonaBotRecord | undefined,
+    },
+    channels: {
+      get: (id: string) => channels[id] as ChannelRecord | undefined,
+    },
+    human: OWNER_HUMAN_CONTEXT,
+  };
+  expect(() =>
+    authorizeTobHostCli(['channel-messages', 'dm-ada', '--cursor', 'eyJ2IjoxfQ'], deps),
+  ).not.toThrow();
+  for (const argv of [
+    ['channel-messages', 'dm-eve', '--cursor', 'eyJ2IjoxfQ'],
+    ['channel-messages', 'dm-ada', '--cursor', 'dm-eve'],
+    ['bot-activity', 'eve', '--cursor', 'eyJ2IjoxfQ'],
+  ])
+    expect(() => authorizeTobHostCli(argv, deps)).toThrow(
+      expect.objectContaining({ code: 'permission-required' }),
+    );
 });
