@@ -1120,7 +1120,7 @@ For model-free device-side qualification, `device-pair --link-file <trusted-priv
 
 `deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
 
-Use `device-offer --out <new-private-file>` and `device-approve-key <receipt> <public-key> --confirm` through the existing pairing owner. The installed app scans the trusted computer code and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
+Use `device-offer --out <new-private-file>` and `device-approve-key --confirm -- <receipt> <public-key>` through the existing pairing owner. The installed app scans the code shown by the trusted Host and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
 
 ### Phone route (Tailscale)
 
@@ -1146,12 +1146,15 @@ Bot settings → Connections lists paired devices, guides new invitations and re
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` includes a copyable `pendingKeys[].approveCommand` for each key awaiting approval. Compare the full fingerprint with the device display before running it. Approval accepts a lowercase hex or unpadded base64url public key. Offer receipts and device IDs can start with `-`. If a value is identical to a CLI option, place all flags before `--` and pass the values after it.
 
 `devices-watch [--watch-seconds 10]` (1–60 seconds) opens the same live stream the Devices page follows and returns `{seconds, invalidations, initial, current}`: how many `resource/changed` events for `devices` the Host sent (a phone asking for approval, an approval, a pairing, a revocation or cleared invitations), and `{devices, pendingKeys}` before and after. Only the owner receives these events; it refuses with `host-query-unsupported` when the connection cannot stream.
 
@@ -2179,7 +2182,7 @@ Clear removes all functional Panel overrides only in the explicit mode, includin
 
 Full Access now retains native `ask` so recognized permission changes can reach the Human, while ordinary requests in its explicitly selected scope are automatically answered without routine cards. The selected mode/scope and existing Assignment permissions are not widened. A native `never` policy still means deterministic rejection; it is not bypassed. Directory grants still use `grant-request-approve --confirm`.
 
-Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key <receipt> <public-key> --confirm`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
+Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key --confirm -- <receipt> <public-key>`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
 
 The phone's native private form and browser remote chat reach the existing credential owner through the same channel. Legacy Connect pairings require a new fingerprint ceremony; failures never retry plaintext. The full phone WebView remains removed, and Connect Browser/Computer viewers are unavailable pending separate qualification. CLI channel state is not native acceptance or proof of a real Cloudflare path.
 
@@ -2196,7 +2199,7 @@ Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must 
 
    Windows accepts absolute drive paths. Optional `--ssh-config <absolute-file>` chooses an existing config; the default uses system OpenSSH configuration. Input files must be private regular files (0600 on Linux/macOS); output is a new exclusive file. A startup failure can leave an empty output file; choose a new output path on retry.
 
-3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key <receipt> <public-key> --confirm` on the remote Host. The tunnel command does neither approval nor enrollment.
+3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key --confirm -- <receipt> <public-key>` on the remote Host. The tunnel command does neither approval nor enrollment.
 4. Open a remote conversation and use the existing Host controls. Stop the tunnel with Ctrl+C; this leaves the remote Host running and the browser pairing intact. Restart with the same local port and a new output path to reconnect. An expired input offer may still identify the Host for an already paired browser, but cannot enroll a new browser; create a fresh offer for enrollment.
 
 The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback requests and streams after pairing, so a changed listener cannot receive device credentials in plaintext. Use the remote Host's existing `device-revoke <device-id> --confirm` to revoke access; closing the tunnel is not revocation. Do not downgrade the browser client after creating an SSH pairing.
