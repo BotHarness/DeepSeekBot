@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { createAppearanceControl } from '../src/appearance/control.js';
-import { runClientSettings } from '../src/bots/cli-client-settings.js';
+import { CLIENT_SETTINGS_COMMANDS, runClientSettings } from '../src/bots/cli-client-settings.js';
 import { CliLiveError } from '../src/bots/cli-live-error.js';
 import { CLI_EFFECTS } from '../src/bots/cli-effects.js';
 
@@ -114,7 +114,7 @@ it('sends reads without a revision and writes with the exact patch, revision and
   });
 });
 
-it('refuses ambiguous targets and flags, and reports a lost write as unknown', async () => {
+it('refuses ambiguous targets and flags with the patch shape, and reports a lost write as unknown', async () => {
   const connect = async () => ({
     http: async () => {
       throw new CliLiveError('appearance-client-timeout', 'timeout');
@@ -131,6 +131,9 @@ it('refuses ambiguous targets and flags, and reports a lost write as unknown', a
       runClientSettings(command, [], values, {}, connect, expiresAt),
     ).rejects.toMatchObject({ code: 'usage' });
   await expect(
+    runClientSettings('client-shortcuts-set', [], { 'client-id': 'c1' }, {}, connect, expiresAt),
+  ).rejects.toMatchObject({ code: 'usage', message: expect.stringContaining('"reset":true') });
+  await expect(
     runClientSettings(
       'client-shortcuts-set',
       [],
@@ -139,7 +142,10 @@ it('refuses ambiguous targets and flags, and reports a lost write as unknown', a
       connect,
       expiresAt,
     ),
-  ).rejects.toMatchObject({ code: 'invalid-input' });
+  ).rejects.toMatchObject({
+    code: 'invalid-input',
+    message: expect.stringContaining('"binding":{"code":"KeyJ"'),
+  });
   await expect(
     runClientSettings(
       'client-shortcuts-set',
@@ -176,4 +182,13 @@ it('lets Tob read without a card and puts every write behind approval', () => {
       effects: { changes: 'reversible' },
     });
   }
+});
+
+it('tells a caller the patch shape before any write is attempted', () => {
+  const described = Object.fromEntries(
+    CLIENT_SETTINGS_COMMANDS.map(({ command, description }) => [command, description]),
+  );
+  expect(described['client-shortcuts-set']).toContain('{"action":"<id>","reset":true}');
+  expect(described['client-preferences-set']).toContain('"theme":"system|light|dark"');
+  expect(described['client-layout-set']).toContain('"direction":"left|right|above|below"');
 });

@@ -181,8 +181,11 @@ describe('shortcut settings write', () => {
       { action: 'help', binding: { ...ctrlJ, code: '' } },
       { action: 'help', binding: { ...ctrlJ, code: 'ShiftLeft' } },
       { action: 'help', binding: { ...ctrlJ, mod: 'yes' } },
-    ])
-      expect(refusal(() => write(patch)).code).toBe('client-settings-invalid-input');
+    ]) {
+      const { code, message } = refusal(() => write(patch));
+      expect(code).toBe('client-settings-invalid-input');
+      expect(message).toContain('binding:{code, mod, alt, shift}');
+    }
     expect(read()).toEqual(before);
   });
 

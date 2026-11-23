@@ -38,8 +38,10 @@ type ShortcutPatch =
 
 const BINDING_KEYS = ['alt', 'code', 'mod', 'shift'];
 
-function invalid(): ClientSettingsError {
-  return new ClientSettingsError('client-settings-invalid-input');
+function invalid(
+  message = 'client-settings-invalid-input: send {action, binding:{code, mod, alt, shift}}, {action, binding:null} or {action, reset:true}',
+): ClientSettingsError {
+  return new ClientSettingsError('client-settings-invalid-input', message);
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {

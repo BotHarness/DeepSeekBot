@@ -7,6 +7,15 @@ const DOMAINS = {
 } as const;
 type Domain = keyof typeof DOMAINS;
 
+const PATCHES: Record<Domain, string> = {
+  preferences:
+    'any of {"theme":"system|light|dark","locale":"<locale.available id>","notifications":{"enabled":true|false}}',
+  layout:
+    'any of {"global":{...},"rail":{...}} with keys from client-layout-get, plus {"channel":{"id":"<channel id>","open":true|false,"direction":"left|right|above|below","ratio":0.2-0.8}}',
+  shortcuts:
+    'one action: {"action":"<id>","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}, {"action":"<id>","binding":null} or {"action":"<id>","reset":true}',
+};
+
 export const CLIENT_SETTINGS_COMMANDS = (Object.keys(DOMAINS) as Domain[]).flatMap((domain) => [
   {
     command: `client-${domain}-get` as const,
@@ -14,7 +23,7 @@ export const CLIENT_SETTINGS_COMMANDS = (Object.keys(DOMAINS) as Domain[]).flatM
   },
   {
     command: `client-${domain}-set` as const,
-    description: `write --patch-stdin ${DOMAINS[domain]} to an explicit --client-id with --expected-revision`,
+    description: `write ${DOMAINS[domain]} to an explicit --client-id with --expected-revision; --patch-stdin takes ${PATCHES[domain]}`,
   },
 ]);
 
@@ -51,7 +60,7 @@ export async function runClientSettings(
     throw new CliLiveError(
       'usage',
       target.write
-        ? `${command} needs --patch-stdin and --expected-revision from client-${target.domain}-get.`
+        ? `${command} needs --expected-revision from client-${target.domain}-get and --patch-stdin with ${PATCHES[target.domain]}.`
         : `${command} is read-only; use client-${target.domain}-set to write.`,
     );
   const check = () => {
@@ -64,10 +73,13 @@ export async function runClientSettings(
     try {
       patch = JSON.parse((await io.readStdin?.()) ?? '');
     } catch {
-      throw new CliLiveError('invalid-input', 'Invalid JSON patch on stdin.');
+      throw new CliLiveError(
+        'invalid-input',
+        `Invalid JSON on stdin; send ${PATCHES[target.domain]}.`,
+      );
     }
     if (typeof patch !== 'object' || patch === null || Array.isArray(patch))
-      throw new CliLiveError('invalid-input', 'The patch must be a JSON object.');
+      throw new CliLiveError('invalid-input', `The patch must be ${PATCHES[target.domain]}.`);
   }
   check();
   const host = await connect();

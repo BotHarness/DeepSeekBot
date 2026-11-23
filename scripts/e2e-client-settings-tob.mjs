@@ -143,15 +143,25 @@ try {
     { timeout: natural ? 240000 : 60000 },
   );
   await shot(page, '01-tob-approval-card');
-  await page.evaluate(() =>
-    [...document.querySelectorAll('button')]
-      .find((b) => b.textContent.trim() === 'Allow once' && b.offsetParent && !b.disabled)
-      .click(),
-  );
-  const approvedAt = Date.now();
+  const approve = () =>
+    page.evaluate(() => {
+      const button = [...document.querySelectorAll('button')].find(
+        (b) => b.textContent.trim() === 'Allow once' && b.offsetParent && !b.disabled,
+      );
+      button?.click();
+      return button !== undefined;
+    });
+  await approve();
+  let approvals = 1;
+  let approvedAt = Date.now();
   const channel = (await ok('channels')).channels.find((c) => c.name === 'Tob').id;
   for (let i = 0; i < (natural ? 60 : 20); i++) {
     await sleep(natural ? 4000 : 1000);
+    if (natural && approvals < 4 && (await approve())) {
+      approvals += 1;
+      approvedAt = Date.now();
+      continue;
+    }
     const [last] = (await ok('channel-messages', [channel, '--limit', '1'])).messages;
     const settled =
       last.author.kind === 'bot' &&
@@ -159,6 +169,7 @@ try {
       !/approval|批准/u.test(last.body ?? '');
     if (settled) break;
   }
+  steps.push({ approvals });
   const after = await ok('client-shortcuts-get', ['--client-id', client]);
   assert.deepEqual(after.actions.find((x) => x.id === 'quick-switcher').binding, altU);
   await page.evaluate(() => {
