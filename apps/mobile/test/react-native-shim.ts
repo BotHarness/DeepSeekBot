@@ -13,6 +13,7 @@ function a11y(props: Props): Record<string, unknown> {
       : { 'aria-label': props['accessibilityLabel'] }),
     ...(state['checked'] === undefined ? {} : { 'aria-checked': String(state['checked']) }),
     ...(state['selected'] === undefined ? {} : { 'aria-selected': String(state['selected']) }),
+    ...(state['expanded'] === undefined ? {} : { 'aria-expanded': String(state['expanded']) }),
   };
 }
 
@@ -52,6 +53,7 @@ export const Pressable = (props: Props) =>
     {
       ...a11y(props),
       type: 'button',
+      ref: props['ref'],
       disabled: props['disabled'] === true,
       'data-rest-style':
         typeof props['style'] === 'function'
