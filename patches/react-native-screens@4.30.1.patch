@@ -18,3 +18,121 @@ index 049fd22427b2bde17fd7ca59b8de65d0ee07b4b5..823761854d72d07112d4461b812f6f9b
        return;
      }
  
+diff --git a/android/src/main/java/com/swmansion/rnscreens/Screen.kt b/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+index 2f2133b..84ca124 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/Screen.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+@@ -67,6 +67,7 @@ class Screen(
+     var replaceAnimation = ReplaceAnimation.POP
+     var stackAnimation = StackAnimation.DEFAULT
+     var isGestureEnabled = true
++    var preventNativeDismiss = false
+     var screenOrientation: Int? = null
+         private set
+     var screenId: String? = null
+diff --git a/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt b/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
+index 10b64cf..48e920e 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt
+@@ -34,6 +34,7 @@ import com.swmansion.rnscreens.bottomsheet.DimmingViewManager
+ import com.swmansion.rnscreens.bottomsheet.SheetDelegate
+ import com.swmansion.rnscreens.bottomsheet.usesFormSheetPresentation
+ import com.swmansion.rnscreens.events.ScreenDismissedEvent
++import com.swmansion.rnscreens.events.ScreenNativeDismissCancelledEvent
+ import com.swmansion.rnscreens.ext.recycle
+ import com.swmansion.rnscreens.stack.views.ScreensCoordinatorLayout
+ import com.swmansion.rnscreens.utils.DeviceUtils
+@@ -175,9 +176,15 @@ class ScreenStackFragment :
+         if (!this.isRemoving || !this.isDetached) {
+             val reactContext = screen.reactContext
+             val surfaceId = UIManagerHelper.getSurfaceId(reactContext)
++            val event =
++                if (screen.preventNativeDismiss) {
++                    ScreenNativeDismissCancelledEvent(surfaceId, screen.id)
++                } else {
++                    ScreenDismissedEvent(surfaceId, screen.id)
++                }
+             UIManagerHelper
+                 .getEventDispatcherForReactTag(reactContext, screen.id)
+-                ?.dispatchEvent(ScreenDismissedEvent(surfaceId, screen.id))
++                ?.dispatchEvent(event)
+         }
+     }
+ 
+diff --git a/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt b/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
+index df9e242..fae4f42 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/ScreenViewManager.kt
+@@ -18,6 +18,7 @@ import com.swmansion.rnscreens.events.HeaderHeightChangeEvent
+ import com.swmansion.rnscreens.events.ScreenAppearEvent
+ import com.swmansion.rnscreens.events.ScreenDisappearEvent
+ import com.swmansion.rnscreens.events.ScreenDismissedEvent
++import com.swmansion.rnscreens.events.ScreenNativeDismissCancelledEvent
+ import com.swmansion.rnscreens.events.ScreenTransitionProgressEvent
+ import com.swmansion.rnscreens.events.ScreenWillAppearEvent
+ import com.swmansion.rnscreens.events.ScreenWillDisappearEvent
+@@ -291,7 +292,9 @@ open class ScreenViewManager :
+     override fun setPreventNativeDismiss(
+         view: Screen?,
+         value: Boolean,
+-    ) = Unit
++    ) {
++        view?.preventNativeDismiss = value
++    }
+ 
+     override fun setSwipeDirection(
+         view: Screen?,
+@@ -395,6 +398,7 @@ open class ScreenViewManager :
+     override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
+         mutableMapOf(
+             ScreenDismissedEvent.EVENT_NAME to hashMapOf("registrationName" to "onDismissed"),
++            ScreenNativeDismissCancelledEvent.EVENT_NAME to hashMapOf("registrationName" to "onNativeDismissCancelled"),
+             ScreenWillAppearEvent.EVENT_NAME to hashMapOf("registrationName" to "onWillAppear"),
+             ScreenAppearEvent.EVENT_NAME to hashMapOf("registrationName" to "onAppear"),
+             ScreenWillDisappearEvent.EVENT_NAME to hashMapOf("registrationName" to "onWillDisappear"),
+diff --git a/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt b/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
+index 8004079..45a14bf 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/bottomsheet/SheetDelegate.kt
+@@ -103,6 +103,12 @@ class SheetDelegate(
+     }
+ 
+     private fun onSheetStateChanged(newState: Int) {
++        if (shouldDismissSheetInState(newState) && screen.preventNativeDismiss) {
++            sheetBehavior?.state = lastStableState
++            stackFragment.dismissSelf()
++            return
++        }
++
+         val isStable = SheetUtils.isStateStable(newState)
+ 
+         if (isStable) {
+diff --git a/android/src/main/java/com/swmansion/rnscreens/events/ScreenNativeDismissCancelledEvent.kt b/android/src/main/java/com/swmansion/rnscreens/events/ScreenNativeDismissCancelledEvent.kt
+new file mode 100644
+index 0000000..6f48a28
+--- /dev/null
++++ b/android/src/main/java/com/swmansion/rnscreens/events/ScreenNativeDismissCancelledEvent.kt
+@@ -0,0 +1,23 @@
++package com.swmansion.rnscreens.events
++
++import com.facebook.react.bridge.Arguments
++import com.facebook.react.bridge.WritableMap
++import com.facebook.react.uimanager.events.Event
++
++class ScreenNativeDismissCancelledEvent(
++    surfaceId: Int,
++    viewId: Int,
++) : Event<ScreenNativeDismissCancelledEvent>(surfaceId, viewId) {
++    override fun getEventName() = EVENT_NAME
++
++    override fun getCoalescingKey(): Short = 0
++
++    override fun getEventData(): WritableMap? =
++        Arguments.createMap().apply {
++            putInt("dismissCount", 1)
++        }
++
++    companion object {
++        const val EVENT_NAME = "topNativeDismissCancelled"
++    }
++}

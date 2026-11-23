@@ -963,6 +963,22 @@ async function answer(text: string) {
   );
 }
 
+it('keeps the sheet and its draft open when the person chooses Keep Editing', async () => {
+  fixture.body = <CreateBotScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  await press('create-bot-next');
+  fixture.params = { flow: 'blank', step: '1' };
+  fixture.body = <CreateBotStepScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  await type(t.botCreation.name, 'Mira');
+  const repeat = vi.fn();
+  await act(async () => fixture.onPrevented?.({ repeat }));
+  await answer(t.creationDraft.edit);
+  expect(repeat).not.toHaveBeenCalled();
+  expect(fixture.prevented.at(-1)).toBe(true);
+  expect(controller.getSnapshot().record).toMatchObject({ draft: { displayName: 'Mira' } });
+});
+
 it('asks before a started Bot draft leaves the sheet and discards or keeps it', async () => {
   fixture.body = <CreateBotScreen />;
   await act(async () => root.render(<CreationFlowLayout />));
