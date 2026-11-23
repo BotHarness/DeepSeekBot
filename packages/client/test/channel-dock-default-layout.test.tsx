@@ -20,7 +20,8 @@ afterAll(async () => environment?.teardown(globalThis));
 type GridNode = SerializedDockview['grid']['root'];
 
 function panelGroups(node: GridNode): string[][] {
-  return node.type === 'branch' ? node.data.flatMap(panelGroups) : [node.data.views];
+  const { data } = node;
+  return Array.isArray(data) ? data.flatMap(panelGroups) : [data.views];
 }
 
 async function defaultLayout(mode: 'legacy' | 'simple' | 'advanced') {
