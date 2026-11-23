@@ -24,6 +24,7 @@ import {
   type OrchestratorAgentRun,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
+import { deferred } from './deferred.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { createWorkspaceGrantStore } from '../src/workspaces/grants.js';
 import { OrchestratorWorkingDirectoryError } from '../src/runtime/orchestrator-working-directory.js';
@@ -118,6 +119,50 @@ function sourceEvents(owner: OperationalDatabaseOwner): Array<{
     side_effect_started_at: string | null;
   }>;
 }
+
+it('reports unavailable External Messaging when replying to a retained Bridge source', async () => {
+  const home = createTempRoot('botharness-unavailable-bridge-reply-');
+  const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+  registry.create({ slug: 'ada', displayName: 'Ada' });
+  const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const destination = deferred<unknown>();
+  const runtime = createBotRuntime({
+    database: owner,
+    registry,
+    channels,
+    now: FIXED_NOW,
+    agents: {
+      async runOrchestrator(run) {
+        try {
+          destination.resolve(run.replyDestination?.('retained-bridge'));
+        } catch (error) {
+          destination.resolve(error);
+        }
+      },
+      async runAssignment() {},
+      requestAssignment: () => ({ delivery: 'steer' }),
+      async close() {},
+    },
+  });
+  try {
+    attachOperationalModule(owner, 'retained-bridge-test').transaction((db) =>
+      db
+        .prepare(`INSERT INTO source_events (source_event_id, source_kind, bot_slug, body, created_at)
+        VALUES ('retained-bridge', 'bridge-message', 'ada', 'Earlier message', ?)`)
+        .run(FIXED_NOW().toISOString()),
+    );
+    await admit(runtime, { channelId: dm.id, messageId: 'reply-request', body: 'Reply' });
+    expect(await destination.promise).toMatchObject({
+      code: 'unavailable-destination',
+      message: 'External messaging is unavailable.',
+    });
+  } finally {
+    await runtime.close();
+    owner.close();
+  }
+});
 
 it('publishes failed Orchestrator and Assignment turns into the owning DM', async () => {
   const home = createTempRoot('botharness-turn-failure-');

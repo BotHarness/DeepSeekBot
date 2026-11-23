@@ -1,11 +1,14 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { afterEach, expect, it } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
+import type { CoreOptions } from '../src/plugin-types.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { sessionDirectBody } from '../src/runtime/session-direct-message.js';
 import { createTempRoot } from './helpers.js';
+import { deferred } from './deferred.js';
 
 const cores: BotHarnessCore[] = [];
 afterEach(async () => {
@@ -28,17 +31,18 @@ async function until(check: () => boolean, ms = 5_000): Promise<void> {
 async function fixture(
   orchestrate: (run: OrchestratorAgentRun, index: number) => Promise<void>,
   autoContinueDelaysMs: readonly number[] = [60_000, 180_000],
+  readTurnProgress: CoreOptions['readTurnProgress'] = async () => ({
+    completedSteps: 3,
+    lastTool: 'bash',
+    unknownTools: ['bash'],
+  }),
 ) {
   const runs: OrchestratorAgentRun[] = [];
   const archived = new Set<string>();
   const core = createCore({
     dshHome: createTempRoot('bh-turn-continue-'),
     autoContinueDelaysMs,
-    readTurnProgress: async () => ({
-      completedSteps: 3,
-      lastTool: 'bash',
-      unknownTools: ['bash'],
-    }),
+    readTurnProgress,
     agents: {
       runOrchestrator: async (run) => {
         runs.push(run);
@@ -79,8 +83,9 @@ async function fixture(
       body,
     });
     if (!admission.admitted) throw new Error(admission.reason);
-    await admission.settled.catch(() => undefined);
+    const error = await admission.settled.catch((error: unknown) => error);
     await core.runtime.whenIdle();
+    return error;
   };
   await send('human-request', 'Migrate the whole repo');
   const failures = () =>
@@ -246,6 +251,102 @@ it('refuses to continue in a Session that was replaced', async () => {
     }),
   ).rejects.toMatchObject({ code: 'session-changed' });
   expect(fx.runs).toHaveLength(1);
+});
+
+it('preserves the turn error and retries when the failure card cannot be written', async () => {
+  const failure = new Error('TIMEOUT: provider did not answer');
+  const fx = await fixture(
+    async (_run, index) => {
+      if (index === 2) throw failure;
+    },
+    [20],
+  );
+  const appendMessage = fx.core.channels.appendMessage;
+  const append = vi
+    .spyOn(fx.core.channels, 'appendMessage')
+    .mockImplementation((human, channelId, message) => {
+      if (message.sessionFailure) return Promise.reject(new Error('Failure card unavailable'));
+      return appendMessage(human, channelId, message);
+    });
+  try {
+    expect(await fx.send('failed', 'Please retry this')).toBe(failure);
+    await until(() => fx.runs.length === 3);
+    expect(fx.runs[2]?.message).toContain('Please retry this');
+  } finally {
+    append.mockRestore();
+  }
+});
+
+it('cancels an older automatic continuation when a newer DM is admitted during failure reporting', async () => {
+  const readingProgress = deferred<void>();
+  const finishProgress = deferred<void>();
+  const fx = await fixture(
+    async (_run, index) => {
+      if (index === 2) throw new Error('TIMEOUT: provider did not answer');
+    },
+    [5_000],
+    async () => {
+      readingProgress.resolve();
+      await finishProgress.promise;
+      return undefined;
+    },
+  );
+  const failed = fx.send('failed', 'Old request');
+  try {
+    await readingProgress.promise;
+    const message = {
+      id: 'newer',
+      at: new Date().toISOString(),
+      author: { kind: 'human' as const },
+      body: 'New request',
+    };
+    await fx.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fx.dm.id, message);
+    const newer = fx.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: fx.dm.id,
+      messageId: message.id,
+      body: message.body,
+    });
+    if (!newer.admitted) throw new Error(newer.reason);
+    finishProgress.resolve();
+    const [error] = await Promise.all([failed, newer.settled]);
+    await fx.core.runtime.whenIdle();
+    expect(error).toMatchObject({ message: 'TIMEOUT: provider did not answer' });
+    await expect(
+      fx.core.runtime.stopTurn!('ada', {
+        channelId: fx.dm.id,
+        autoContinueFor: 'failed',
+      }),
+    ).resolves.toBeUndefined();
+    expect(fx.failures()[0]?.sessionFailure?.autoContinue).toBeUndefined();
+    expect(fx.runs).toHaveLength(3);
+    expect(fx.runs[2]?.message).toContain('New request');
+  } finally {
+    finishProgress.resolve();
+    await failed;
+  }
+});
+
+it('clears active Orchestrator metadata when the Memory source lookup fails', async () => {
+  const fx = await fixture(async () => {});
+  const sessionId = fx.runs[0]!.sessionId;
+  const prepare = DatabaseSync.prototype.prepare;
+  const failure = new Error('Memory source lookup failed');
+  const sql = vi.spyOn(DatabaseSync.prototype, 'prepare').mockImplementation(function (
+    this: DatabaseSync,
+    query,
+  ) {
+    if (query.includes('SELECT e.source_kind, EXISTS (') && query.includes('AS ordinary'))
+      throw failure;
+    return prepare.call(this, query);
+  });
+  try {
+    expect(await fx.send('failed-before-run', 'Remember this')).toBe(failure);
+    expect(fx.core.runtime.activeSessionModel!(sessionId)).toBeUndefined();
+    expect(fx.core.runtime.askChannel?.(sessionId)).toBeUndefined();
+    expect(fx.runs).toHaveLength(1);
+  } finally {
+    sql.mockRestore();
+  }
 });
 
 it('re-arms a waiting automatic continuation after the Host restarts', async () => {
