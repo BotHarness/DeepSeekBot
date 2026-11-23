@@ -1,17 +1,11 @@
 // @vitest-environment jsdom
-import { resourceEvents } from './resource-events-fixture.js';
 import { mountAppearanceFixture } from './appearance-fixture.js';
 import { type ReactNode } from 'react';
-import { type BotHarnessTranslate } from '../src/client/locale.js';
-import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
-import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
-
 import { createActions, type BridgeActions } from '../src/client/actions.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { attachmentReferenceText } from '../src/client/attachment-refs.js';
@@ -23,189 +17,11 @@ import {
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
-import { en, zhTranslate } from '../src/client/locale.js';
-import { toolApprovalText } from '../src/client/approval-text.js';
-import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
+import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
-import { initialGenuiView, parseGenuiReport } from '../../core/src/channels/genui.js';
-import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
-import {
-  initialGenuiDocumentState,
-  parseGenuiDocument,
-} from '../../core/src/channels/genui-document.js';
 
-const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
-vi.mock('../src/client/genui-document-runtime.js', () => ({
-  loadGenuiDocumentRuntime: runtime.load,
-}));
-const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMountOptions) => {
-  const frame = document.createElement('iframe');
-  frame.title = options.document.title;
-  frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
-  container.append(frame);
-  return {
-    ready: Promise.resolve(),
-    restore: vi.fn(),
-    theme: vi.fn(),
-    textScale: vi.fn(),
-    dispose: vi.fn(() => frame.remove()),
-  };
-});
-
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
-  FileTypeIcon: ({ path }: { path: string }) =>
-    createElement('span', { 'data-file-type-icon': path }),
-  ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  fileSizeText: (bytes: number) =>
-    bytes >= 1048576
-      ? `${(bytes / 1048576).toFixed(1)}MB`
-      : bytes >= 1024
-        ? `${(bytes / 1024).toFixed(1)}KB`
-        : `${bytes}B`,
-
-  MarkdownText: vi.fn(() => null),
-  MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
-  useMarkdownDelegate: () => ({}),
-
-  StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
-}));
-
-describe('GenUI ordinary message integration', () => {
-  it.each(['dm', 'group'] as const)(
-    'retains the summary and enables Host view reads only in a Web DM: %s',
-    async (type) => {
-      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-      const previous = store.getSnapshot().conversation;
-      const channel = {
-        id: `${type}-genui`,
-        type,
-        name: 'GenUI',
-        members: ['ada'],
-        createdAt: '2026-11-07T00:00:00Z',
-        updatedAt: '2026-11-07T00:00:00Z',
-      };
-      const message: ChannelMessage = {
-        id: 'report-integration',
-        at: channel.createdAt,
-        author: { kind: 'bot', slug: 'ada' },
-        body: 'Always readable report summary',
-        format: 'text',
-        genui: parseGenuiReport(comparisonReport),
-      };
-      store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
-      const call = vi.fn(async () => ({
-        ok: true as const,
-        value: { version: 0, state: initialGenuiView() },
-      }));
-      const container = document.createElement('div');
-      document.body.append(container);
-      const root = createRoot(container);
-      try {
-        await act(async () =>
-          root.render(
-            createElement(ChannelMessageBody, {
-              message,
-              channelId: channel.id,
-              actions: createActions(call, store),
-              t: zhTranslate,
-            }),
-          ),
-        );
-        expect(container.textContent).toContain(message.body);
-        expect(container.querySelector('table')).not.toBeNull();
-        if (type === 'dm') {
-          expect(call).toHaveBeenCalledTimes(1);
-          expect(call).toHaveBeenCalledWith(
-            'channelGenuiView',
-            { channelId: channel.id, messageId: message.id },
-            undefined,
-          );
-        } else {
-          expect(call).not.toHaveBeenCalled();
-          expect(container.querySelector('input')).toBeNull();
-        }
-      } finally {
-        await act(async () => root.unmount());
-        container.remove();
-        store.setConversation(previous);
-      }
-    },
-  );
-});
-
-it.each(['dm', 'group'] as const)(
-  'mounts the shared v2 runtime beside the readable summary in %s',
-  async (type) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const previous = store.getSnapshot().conversation;
-    const channel = {
-      id: `${type}-document`,
-      type,
-      name: 'Synthetic document',
-      members: ['ada'],
-      createdAt: '2026-11-08T00:00:00Z',
-      updatedAt: '2026-11-08T00:00:00Z',
-    };
-    const genui = parseGenuiDocument({
-      version: 2,
-      snapshotId: 'document-1',
-      title: 'Synthetic document',
-      observedAt: channel.createdAt,
-      html: '<p>Synthetic</p>',
-      stateContract: { version: 1, fields: { expanded: { type: 'boolean', initial: false } } },
-    });
-    const message: ChannelMessage = {
-      id: 'document-message',
-      at: channel.createdAt,
-      author: { kind: 'bot', slug: 'ada' },
-      body: 'Always readable document summary',
-      format: 'text',
-      genui,
-    };
-    store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
-    const call = vi.fn(async () => ({
-      ok: true as const,
-      value: { version: 0, state: initialGenuiDocumentState(genui) },
-    }));
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    try {
-      await act(async () =>
-        root.render(
-          createElement(ChannelMessageBody, {
-            message,
-            channelId: channel.id,
-            actions: createActions(call, store),
-            t: zhTranslate,
-          }),
-        ),
-      );
-      expect(container.textContent).toContain(message.body);
-      expect(runtime.load).toHaveBeenCalledTimes(1);
-      expect(mountDocument).toHaveBeenCalledTimes(1);
-      expect(mountDocument).toHaveBeenCalledWith(
-        expect.any(HTMLElement),
-        expect.objectContaining({ document: genui, state: initialGenuiDocumentState(genui) }),
-      );
-      expect(container.querySelector('iframe')?.title).toBe(genui.title);
-      if (type === 'dm')
-        expect(call).toHaveBeenCalledWith(
-          'channelGenuiView',
-          { channelId: channel.id, messageId: message.id },
-          undefined,
-        );
-      else {
-        expect(call).not.toHaveBeenCalled();
-        expect(container.textContent).not.toContain('保存我的视图');
-      }
-    } finally {
-      await act(async () => root.unmount());
-      expect(mountDocument.mock.results[0]?.value.dispose).toHaveBeenCalledTimes(1);
-      container.remove();
-      store.setConversation(previous);
-    }
-  },
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
+  (await import('./support/channel-message-body-primitives.js')).mockMessagePrimitives(),
 );
 
 it('maintains the DM session without retrying a failed message', async () => {
@@ -310,9 +126,6 @@ function render(
 
 beforeEach(() => {
   vi.mocked(MarkdownText).mockClear();
-  runtime.load.mockReset();
-  runtime.load.mockResolvedValue({ mountGenuiDocument: mountDocument });
-  mountDocument.mockClear();
 });
 
 describe('Channel message body', () => {
@@ -948,128 +761,6 @@ describe('Channel message body', () => {
   });
 });
 
-describe('Tool approval card', () => {
-  it('keeps an accepted decision visible while capacity is unavailable, then clears the wait on execution', async () => {
-    vi.useFakeTimers();
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    const live = resourceEvents();
-    const toolApprovalState = vi
-      .fn()
-      .mockResolvedValueOnce({ status: 'expired', execution: 'waiting-capacity' })
-      .mockRejectedValueOnce(new Error('read timed out'))
-      .mockResolvedValue({ status: 'expired', execution: 'running' });
-    const actions = { toolApprovalState } as unknown as BridgeActions;
-    const message: ChannelMessage = {
-      id: 'approval-capacity',
-      at: '2026-10-09T00:00:00Z',
-      author: { kind: 'bot', slug: 'ada' },
-      body: 'Approve bash',
-      toolApprovalRequest: {
-        sessionId: 'original',
-        callId: 'call',
-        role: 'assignment',
-        toolName: 'bash',
-        cwd: '/qa',
-        input: '{}',
-      },
-    };
-    try {
-      await act(async () =>
-        root.render(
-          createElement(ChannelMessageBody, {
-            message,
-            actions,
-            t: zhTranslate,
-            toolApprovalDecision: 'allowed-once',
-          }),
-        ),
-      );
-      expect(container.textContent).toContain('终端 · 已允许');
-      expect(container.textContent).toContain('等待运行名额');
-      const selected = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
-        (button) => button.textContent === '允许这次',
-      )!;
-      expect(selected.disabled).toBe(true);
-      expect(selected.getAttribute('aria-pressed')).toBe('true');
-      const change = {
-        resource: 'tool-approval',
-        channelId: 'dm-ada',
-        messageId: message.id,
-      } as const;
-      await act(async () => vi.advanceTimersByTimeAsync(9000));
-      expect(toolApprovalState).toHaveBeenCalledTimes(1);
-      await act(async () => {
-        live.emit(change);
-        await vi.advanceTimersByTimeAsync(25);
-      });
-      expect(container.textContent).toContain('等待运行名额');
-      await act(async () => {
-        live.emit(change);
-        await vi.advanceTimersByTimeAsync(25);
-      });
-      expect(container.textContent).not.toContain('等待运行名额');
-      expect(container.textContent).toContain('终端 · 已允许');
-      expect(toolApprovalState).toHaveBeenCalledTimes(3);
-    } finally {
-      live.dispose();
-      await act(async () => root.unmount());
-      container.remove();
-      vi.useRealTimers();
-    }
-  });
-
-  it('removes approval actions immediately when a Workspace Grant change expires the request', async () => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    const toolApprovalStatus = vi
-      .fn()
-      .mockResolvedValueOnce('pending')
-      .mockResolvedValueOnce('expired');
-    const actions = { toolApprovalStatus } as unknown as BridgeActions;
-    const message: ChannelMessage = {
-      id: 'approval-1',
-      at: '2026-09-25T00:00:00.000Z',
-      author: { kind: 'bot', slug: 'ada' },
-      body: 'Approve bash',
-      toolApprovalRequest: {
-        sessionId: 'assignment-1',
-        callId: 'call-1',
-        toolName: 'bash',
-        role: 'assignment',
-        cwd: '/tmp/project',
-        input: '{"command":"pwd"}',
-      },
-    };
-    try {
-      await act(async () => {
-        root.render(
-          createElement(ChannelMessageBody, {
-            message,
-            t: zhTranslate,
-            actions,
-          }),
-        );
-      });
-      expect(container.textContent).toContain('允许这次');
-      await act(async () => {
-        publishWorkspaceGrantChange('ada', actions);
-        await new Promise((resolve) => setTimeout(resolve, 30));
-      });
-      expect(toolApprovalStatus).toHaveBeenCalledTimes(2);
-      expect(container.textContent).not.toContain('允许这次');
-      expect(container.textContent).toContain('终端 · 已过期');
-    } finally {
-      await act(async () => root.unmount());
-      container.remove();
-    }
-  });
-});
-
 it('renders current names for historical typed IDs without changing plain text or saved offsets', () => {
   const message: ChannelMessage = {
     id: 'history',
@@ -1129,59 +820,4 @@ it('renders a purged welcome as a tombstone before considering onboarding action
   expect(html).toContain(zhTranslate('purge.purged'));
   expect(html).not.toContain('data-onboarding-welcome');
   expect(html).not.toContain('<button');
-});
-
-describe('Tool approval text follows the UI locale (#1293)', () => {
-  const enTranslate: BotHarnessTranslate = (key, params) => {
-    const value: unknown = Reflect.get(en, key);
-    const text = typeof value === 'string' ? value : key;
-    return text.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? `{${name}}`));
-  };
-  const request: ChannelMessage = {
-    id: 'approval',
-    at: '2026-10-09T00:00:00.000Z',
-    author: { kind: 'bot', slug: 'ada' },
-    body: '请求批准执行 bash',
-    toolApprovalRequest: {
-      sessionId: 's1',
-      callId: 'c1',
-      toolName: 'bash',
-      role: 'orchestrator',
-      cwd: '/work',
-      input: '{}',
-      externalDecision: 'operation',
-    },
-  } as ChannelMessage;
-  const decision = (outcome: NonNullable<ChannelMessage['toolApprovalDecision']>['outcome']) =>
-    ({
-      id: 'decision-' + outcome,
-      at: '2026-10-09T00:00:01.000Z',
-      author: { kind: 'human' },
-      body: '已拒绝这一次工具调用',
-      replyTo: 'approval',
-      toolApprovalDecision: { requestMessageId: 'approval', outcome },
-    }) as ChannelMessage;
-
-  it('derives request and decision text from structured fields, not the stored body', () => {
-    expect(toolApprovalText(request, enTranslate)).toBe('Requests approval to run bash');
-    expect(toolApprovalText(decision('rejected'), enTranslate)).toBe('This call was rejected');
-    expect(toolApprovalText(decision('allowed-once'), enTranslate)).toBe('This call was approved');
-    expect(toolApprovalText(decision('allowed-always-all'), enTranslate)).toBe(
-      'Allowed this time and saved your choice',
-    );
-    expect(toolApprovalText(decision('rejected'), zhTranslate)).toBe('已拒绝这一次调用');
-    expect(toolApprovalText({}, enTranslate)).toBeUndefined();
-  });
-
-  it('renders a decision bubble in English without the Host body', () => {
-    const html = renderToStaticMarkup(
-      createElement(ChannelMessageBody, {
-        message: decision('rejected'),
-        channelId: 'dm-ada',
-        t: enTranslate,
-      }),
-    );
-    expect(html).toContain('This call was rejected');
-    expect(html).not.toMatch(/[\u4e00-\u9fff]/u);
-  });
 });
