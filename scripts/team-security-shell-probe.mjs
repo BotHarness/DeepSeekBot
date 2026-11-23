@@ -18,12 +18,18 @@ const SOCKET_REFUSALS = [
   'ETIMEDOUT',
 ];
 
-function bashQuote(value) {
-  return `'${String(value).replaceAll('\\', '/').replaceAll("'", `'\\''`)}'`;
+function quoteFor(value, platform) {
+  const path = platform === 'win32' ? String(value).replaceAll('\\', '/') : String(value);
+  return `'${path.replaceAll("'", `'\\''`)}'`;
 }
 
-export function buildShellIsolationProbe({ foreignFiles, account, own, outside, port }) {
-  return `own=${bashQuote(own)}
+export function buildShellIsolationProbe(
+  { foreignFiles, account, own, outside, port },
+  platform = process.platform,
+) {
+  const bashQuote = (value) => quoteFor(value, platform);
+  return `export LC_ALL=C
+own=${bashQuote(own)}
 outside=${bashQuote(outside)}
 account_dir=${bashQuote(dirname(account))}
 account_name=${bashQuote(basename(account))}
@@ -78,14 +84,24 @@ for name in $(compgen -e); do
   if [[ $name =~ (API_?KEY|TOKEN|SECRET|PASSWORD|DSH_) ]]; then secret_env=$((secret_env + 1)); fi
 done
 
-connect='exec 3<>"/dev/tcp/127.0.0.1/$0"'
-if command -v timeout >/dev/null 2>&1; then
-  error=$(timeout 1 bash -c "$connect" "$port" 2>&1)
-  status=$?
+connect_log="$own.connect"
+bash -c 'exec 3<>"/dev/tcp/127.0.0.1/$0"' "$port" > "$connect_log" 2>&1 &
+connect_pid=$!
+waited=0
+while kill -0 "$connect_pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
+  sleep 0.1
+  waited=$((waited + 1))
+done
+if kill -0 "$connect_pid" 2>/dev/null; then
+  kill "$connect_pid" 2>/dev/null
+  wait "$connect_pid" 2>/dev/null
+  status=124
 else
-  error=$(bash -c "$connect" "$port" 2>&1)
+  wait "$connect_pid"
   status=$?
 fi
+error=$(cat -- "$connect_log" 2>/dev/null)
+rm -f -- "$connect_log"
 if [ "$status" -eq 0 ]; then host_api=connected
 elif [ "$status" -eq 124 ]; then host_api=ETIMEDOUT
 else host_api=$(code "$error")
