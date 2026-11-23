@@ -2053,6 +2053,26 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
 手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。
 
+## 指定 Client 的设置
+
+`client-preferences-*`、`client-layout-*` 和 `client-shortcuts-*` 通过与界面相同的设置来源，修改一个指定 Web 或桌面 Client 自己的设置。先运行 `appearance-clients`，再传入一个 `--client-id`；刷新或重启后 Client 会换新 id，请重新列出，不要沿用旧 id。每个 `-get` 返回设置和 `revision`。每个 `-set` 需要这个 `--expected-revision`，并从标准输入读取 JSON 补丁（`--patch-stdin`），成功后返回最新读取结果：
+
+```sh
+deepseekbot appearance-clients
+deepseekbot client-preferences-get --client-id <id>
+echo '{"theme":"dark"}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-shortcuts-get --client-id <id>
+echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-layout-get --client-id <id>
+echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+```
+
+- **偏好。** 补丁可包含 `theme`（`system`、`light`、`dark`）、`locale`（`locale.available` 中的 id）和 `notifications: {"enabled": true|false}`。主题和通知只保存在这个 Client。语言是 DSH 的语言选择，DSH 对整个 Host 保存它，所以读取结果标为 `scope: "host"`，这个 Host 的所有 Client 都会跟着变。命令不会弹出浏览器或系统的权限请求：开启通知时，若 Human 尚未在该 Client 允许，返回 `notification-permission-pending`；若 Client 已屏蔽，返回 `notification-permission-denied`；没有通知 API 时返回 `notification-unsupported`。这些情况下不会保存任何内容。
+- **快捷键。** 读取结果列出每个稳定的操作 id，以及它当前的 `binding`（已停用时为 `null`）、`default`、是否 `custom`、显示用的 `text`、Client 的 `platform` 和 `reserved` 按键。补丁只改一个操作：`{"action","binding":{code,mod,alt,shift}}` 设置，`{"action","binding":null}` 停用，`{"action","reset":true}` 恢复默认。按键已被其他操作占用时返回 `shortcut-conflict`，并在消息中写出占用者，绝不会从对方那里抢走。其他情况分别返回 `shortcut-reserved`、`shortcut-needs-modifier` 和 `shortcut-action-unknown`。停用快速切换后不会退回旧的 Cmd/Ctrl+K。
+- **布局。** Client 处于 Bot 模式时可用。读取结果包含 `activeChannelId`、`global`（`mode`、`sideColumn`、`channelsWidth`、`column`）、`rail`（`order`、`hidden`）和已保存的各 Channel 工作区布局 `channels`。补丁可包含 `global`、`rail` 和一个 `channel`（`id`，以及 `open`、`direction`（`left`/`right`/`above`/`below`）、`ratio`（0.2–0.8）中的任意项）。修改非当前 Channel 不会切换过去，也不会改动其他 Channel 和已收起的面板。未知 Channel 返回 `layout-channel-unknown`。Channel 分屏树、成员面板、间距和各面板高度暂未覆盖。
+
+版本号不同时返回 `client-settings-revision-conflict`，请重新读取后再试。Client 没有挂载对应设置来源时（例如不在 Bot 模式下改布局）返回 `client-settings-unavailable`。目标相关的拒绝沿用中继的：`appearance-client-stale`、`appearance-client-unavailable`、`appearance-client-busy` 和 `appearance-client-timeout`。写入回复丢失时，CLI 返回 `client-settings-outcome-unknown`：请先读取同一个 Client 再决定是否重试。三个 `-get` 命令在 Tob 的只读清单中；每个 `-set` 都会先给 Human 显示审批卡。参见[指定 Client 控制](decisions/client-control.md)。
+
 ## 从电脑建立 SSH 隧道
 
 在使用浏览器的电脑上运行 `ssh-tunnel`。Linux Host 必须已运行；先用普通终端验证 SSH alias 的主机密钥和密钥／agent 登录。此命令使用批处理认证，遇到密码提示或未知、变化的 SSH 主机密钥会拒绝，不会安装或启动远端 Host。电脑上需运行支持“添加远程”的新版 Host 浏览器客户端；旧客户端会拒绝版本 2 的隧道链接。
