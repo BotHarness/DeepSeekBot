@@ -187,6 +187,13 @@ it('switches to another member account on a saved Host by username, behind the s
       setter.call(input, ' carol ');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
+    const labels = [...element.querySelectorAll('*')]
+      .filter((node) => node.children.length === 0)
+      .map((node) => node.textContent);
+    expect(labels).toContain(t.teamSignIn.username);
+    expect(labels).toContain(t.teamSignIn.password);
+    for (const field of element.querySelectorAll('textarea, input'))
+      expect(field.getAttribute('placeholder')).toBeNull();
     await signIn(element);
     expect(signInTeamDevice).toHaveBeenCalledWith(
       expect.objectContaining({
