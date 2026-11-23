@@ -5,6 +5,7 @@
 - `packages/core/src/features/profile-storage/plugin.ts`
 - `packages/core/src/portability/**`
 - `packages/core/src/bots/cli-profile-backup.ts`
+- `packages/core/test/tob-cli-profile-backup.test.ts`
 - `packages/core/src/*/backup.ts`
 - `packages/core/src/*/profile-restore.ts`
 - `packages/client/src/client/profile-backup.tsx`
@@ -37,7 +38,7 @@ Restore uses the displayed local `tobs profile-backup-restore` command with a ne
 
 Launch a uniquely named isolated Host from this worktree and run doctor. Preserve its private instance metadata and resource record. Use the observed accessible names for Settings navigation; capture preview counts and a successfully inspected download, then capture a damaged-file refusal in the import area. Repeat the visible checks in English/Chinese and light/dark themes. Read console and Client diagnostic evidence after each drive.
 
-Use the same Host authority through the CLI: `profile-backup-preview`; pipe its JSON to `profile-backup-export --confirmation-stdin --out <new-file>`; then `profile-backup-inspect --file <file>`. Restore locally with `profile-backup-restore --file <file> --new-home <new-directory> --confirm`. The target must not exist. Use `profile-backup-recovery` after starting the target to verify cold readiness, and ordinary Bot/history/Memory reads to verify persistence.
+Use the same Host authority through the CLI: `profile-backup-preview --out <new-confirmation-file>`; then `profile-backup-export --confirmation-file <that-file> --out <new-file>`; then `profile-backup-inspect --file <file>`. Restore locally with `profile-backup-restore --file <file> --new-home <new-directory> --confirm`. The target must not exist. Use `profile-backup-recovery` after starting the target to verify cold readiness, and ordinary Bot/history/Memory reads to verify persistence.
 
 Qualify isolated DSH 0.2.1-rc.2 and rc.3 and restore an archive from one on the other. Retain the actual producer facts and public data observations. The fixed v1 fixture is separately exercised by the Profile Backup regression tests; a synthetic version string is not runtime qualification. No model reply is needed for backup and cold-restore proof.
 

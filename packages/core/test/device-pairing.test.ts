@@ -450,6 +450,17 @@ describe('Device Pairing', () => {
     });
   });
 
+  it('never issues a receipt or device id that a CLI would read as an option', () => {
+    const host = fixture().open();
+    for (let index = 0; index < 1000; index += 1)
+      expect(host.pairing.createOffer().receipt).not.toMatch(/^-/u);
+    for (let index = 0; index < 300; index += 1) {
+      const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+      if (!paired.ok) throw new Error('pairing failed');
+      expect(paired.device.id).not.toMatch(/^-/u);
+    }
+  });
+
   it('reports what became of an offer by its receipt without the offer itself', () => {
     const f = fixture();
     let host = f.open();
