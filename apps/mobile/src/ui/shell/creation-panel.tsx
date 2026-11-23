@@ -55,7 +55,7 @@ export function CreationPanel({
   const reduced = useSystemReducedMotion();
   const android = Platform.OS === 'android';
   const width = Math.min(
-    fab.menuWidth,
+    fab.menuWidth * Math.max(1, theme.fontScale),
     viewport.width - insets.left - insets.right - fab.margin * 2,
   );
   const maxHeight = viewport.height - bottom - insets.top - space.x4;
