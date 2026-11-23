@@ -114,6 +114,7 @@ export const materialIconButton = {
 } as const;
 export const fab = {
   size: 56,
+  glyphMaxScale: 1.353,
   radius: 16,
   margin: 16,
   elevation: 6,

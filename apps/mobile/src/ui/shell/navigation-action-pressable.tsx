@@ -1,6 +1,6 @@
 import type { ComponentRef, Ref } from 'react';
 import { Platform, Pressable, View } from 'react-native';
-import { pressTint, useDesignTheme } from '../design/theme';
+import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { fab, radius } from '../design/tokens';
 import { CloseIcon, PlusIcon } from './icons';
 import { NavigationMaterial } from './navigation-material';
@@ -15,6 +15,11 @@ export type NavigationActionProps = {
   testID?: string;
   onPress(): void;
 };
+
+export function fabGlyphSize(theme: DesignTheme): number {
+  const scale = Platform.OS === 'android' ? 1 : Math.min(theme.fontScale, fab.glyphMaxScale);
+  return theme.type.title.line * scale;
+}
 
 export function NavigationActionPressable({
   size,
@@ -57,7 +62,7 @@ export function NavigationActionPressable({
       })}
     >
       {!close && !androidFab ? <NavigationMaterial circle /> : null}
-      <Icon color={theme.color.fg} size={theme.type.title.line * (close ? 1 : theme.fontScale)} />
+      <Icon color={theme.color.fg} size={close ? theme.type.title.line : fabGlyphSize(theme)} />
     </Pressable>
   );
   return close ? (
