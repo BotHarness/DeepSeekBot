@@ -276,47 +276,58 @@ it.each(['feishu', 'slack', 'weixin', 'discord'] as const)(
   },
 );
 
-it('refuses a Bridge destination write when the turn stops during file acquisition', async () => {
-  let finishDownload!: () => void;
-  const downloadGate = new Promise<void>((resolve) => {
-    finishDownload = resolve;
-  });
-  let saved: string | undefined;
-  let grantId = '';
-  const fx = await fixture(async (run) => {
-    const id = fx.core.attention.list({ botSlug: 'ada' }).items[0]!.id;
-    try {
-      await run.externalMessaging!.saveFile({
-        sourceEventId: id,
-        attachmentId: attachment.id,
-        grantId,
-        destinationPath: 'work.zip',
+it('refuses a Bridge destination write when the turn stops during acquisition or transfer', async () => {
+  for (const stage of ['acquisition', 'destination transfer']) {
+    let finishDownload!: () => void;
+    const downloadGate = new Promise<void>((resolve) => {
+      finishDownload = resolve;
+    });
+    const pauseDownload = vi.fn(() => downloadGate);
+    let saved: string | undefined;
+    let grantId = '';
+    const fx = await fixture(async (run) => {
+      const id = fx.core.attention.list({ botSlug: 'ada' }).items[0]!.id;
+      try {
+        await run.externalMessaging!.saveFile({
+          sourceEventId: id,
+          attachmentId: attachment.id,
+          grantId,
+          destinationPath: 'work.zip',
+        });
+        saved = 'written';
+      } catch (error) {
+        saved = String(error);
+      }
+    });
+    if (stage === 'acquisition') {
+      fx.download.mockImplementation(async function* () {
+        await pauseDownload();
+        yield Buffer.from('original bytes');
       });
-      saved = 'written';
-    } catch (error) {
-      saved = String(error);
+    } else {
+      const download = fx.core.attachments.download.bind(fx.core.attachments);
+      vi.spyOn(fx.core.attachments, 'download').mockImplementationOnce(async (...args) => {
+        await pauseDownload();
+        return download(...args);
+      });
     }
-  });
-  fx.download.mockImplementation(async function* () {
-    await downloadGate;
-    yield Buffer.from('original bytes');
-  });
-  grantId = (await fx.core.grants.create('ada', 'project')).id;
-  fx.core.grants.setOrchestratorWrite('ada', grantId, true);
-  const turn = fx.source();
-  try {
-    await vi.waitFor(() => expect(fx.download).toHaveBeenCalledTimes(1));
-    const stop = fx.core.runtime.stopSession!(
-      'ada',
-      fx.core.runtime.currentOrchestratorSessionId!('ada')!,
-    );
-    finishDownload();
-    await Promise.all([stop, turn]);
-  } finally {
-    finishDownload();
+    grantId = (await fx.core.grants.create('ada', 'project')).id;
+    fx.core.grants.setOrchestratorWrite('ada', grantId, true);
+    const turn = fx.source();
+    try {
+      await vi.waitFor(() => expect(pauseDownload).toHaveBeenCalledTimes(1));
+      const stop = fx.core.runtime.stopSession!(
+        'ada',
+        fx.core.runtime.currentOrchestratorSessionId!('ada')!,
+      );
+      finishDownload();
+      await Promise.all([stop, turn]);
+    } finally {
+      finishDownload();
+    }
+    expect(saved, stage).toContain('The Human stopped this Session');
+    expect(existsSync(join(fx.project, 'work.zip')), stage).toBe(false);
   }
-  expect(saved).toContain('The Human stopped this Session');
-  expect(existsSync(join(fx.project, 'work.zip'))).toBe(false);
 });
 
 it('receipt and restart use the same file identity without fetching again; missing originals fail instead of reappearing', async () => {

@@ -286,6 +286,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
                   grants: ports.grants,
                   attachments: ports.attachments,
                   source: () => {
+                    turn.requireSideEffectAccess();
                     if (!ports.externalMessaging!.inbound.available(bot.slug, input.sourceEventId))
                       throw new Error('Bridge file source is unavailable');
                     return ports.attachments!.current(ref);
