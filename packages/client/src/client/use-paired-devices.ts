@@ -51,7 +51,7 @@ export function quickRoute(snapshot: DevicesSnapshot | undefined) {
   );
 }
 
-function quickReady(snapshot: DevicesSnapshot): boolean {
+export function quickReady(snapshot: DevicesSnapshot): boolean {
   const quick = quickRoute(snapshot);
   return (
     quick?.state === 'connected' &&
@@ -106,10 +106,6 @@ export function usePairedDevices({
   const [copied, setCopied] = useState(false);
   const [showTailscale, setShowTailscale] = useState(false);
   const [manage, setManage] = useState(false);
-  const [advancedDisclosure, setAdvancedDisclosure] = useState<{
-    active: boolean;
-    open: boolean;
-  }>();
   const [lanDetails, setLanDetails] = useState(false);
   type Setup =
     | 'app'
@@ -117,6 +113,7 @@ export function usePairedDevices({
     | 'privateRelay'
     | 'closed'
     | 'quick'
+    | 'quickStart'
     | 'method'
     | 'lan'
     | 'tailscale'
@@ -496,8 +493,6 @@ export function usePairedDevices({
     setShowTailscale,
     manage,
     setManage,
-    advancedDisclosure,
-    setAdvancedDisclosure,
     lanDetails,
     setLanDetails,
     setup,

@@ -100,6 +100,7 @@
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/connect-health`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
         "setting:packages/client/src/client/connection-methods.tsx:{method.title}",
+        "setting:packages/client/src/client/private-tunnel-settings.tsx:{t(modeTitle(route.mode))}",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
@@ -137,6 +138,7 @@
       "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
       "scope": "Profile",
       "surfaces": [
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{ host.current ? `${host.name} · ${t('devices.connect.thisComputer')}` : host.name }",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.thisComputer')}",
         "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],
@@ -1328,8 +1330,7 @@
         "setting:packages/client/src/client/im-apps-section.tsx:{t('imApps.empty')}",
         "setting:packages/client/src/client/im-apps-section.tsx:{<span role=\"status\">{t('imApps.loadFailed')}</span>}",
         "setting:packages/client/src/client/messaging-defaults-settings.tsx:{<Note tone=\"danger\">{error}</Note>}",
-        "setting:packages/client/src/client/messaging-defaults-settings.tsx:{error ? <Note tone=\"danger\">{error}</Note> : t('im.loading')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{ snapshot === undefined ? t( readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading', ) : t('devices.list.empty') }"
+        "setting:packages/client/src/client/messaging-defaults-settings.tsx:{error ? <Note tone=\"danger\">{error}</Note> : t('im.loading')}"
       ],
       "exemption": "These rows report load state, an empty list or a load error; they are not settings. The apps, platform defaults and paired devices they describe are covered by their existing CLI commands.",
       "configurable": false

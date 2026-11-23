@@ -3,7 +3,9 @@ import { useCallback, useRef, useState, type ReactElement, type ReactNode } from
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { StatusBlock, StatusStack } from './ds/status-block.js';
+import { StatusStack } from './ds/status-block.js';
+import { Icon } from './ds/icon.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { Note } from './ds/note.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -206,63 +208,71 @@ export function ConnectAccountHosts({
             <Note>{t('devices.connect.noComputers')}</Note>
           ) : null}
         </SettingsRow>
-        {hosts?.map((host) => (
-          <StatusBlock
-            key={host.id}
-            title={host.current ? `${host.name} · ${t('devices.connect.thisComputer')}` : host.name}
-            icon={host.current ? 'monitor' : 'server'}
-            tone={host.current ? 'accent' : 'neutral'}
-            body={host.hostname}
-            data={{ 'data-account-host-current': String(host.current) }}
-            action={
-              host.current && !allowCurrentSignOut ? (
-                <span>{t('devices.connect.thisComputer')}</span>
-              ) : (
-                <Button
-                  variant="outline"
-                  disabled={busy !== undefined || listState !== 'fresh'}
-                  aria-label={t(
-                    host.sessionKnown
-                      ? 'devices.connect.signOutNamed'
-                      : 'devices.connect.removeNamed',
-                    { name: host.name },
-                  )}
-                  onClick={() => {
-                    setActionError(false);
-                    setConfirm(host);
-                  }}
-                >
-                  {busy === host.id
-                    ? t('devices.connect.computerBusy')
-                    : t(
+        {hosts?.length ? (
+          <ListCard label={t('devices.connect.computers')}>
+            {hosts.map((host) => (
+              <ListCardItem
+                key={host.id}
+                title={
+                  host.current ? `${host.name} · ${t('devices.connect.thisComputer')}` : host.name
+                }
+                leading={<Icon name={host.current ? 'monitor' : 'server'} />}
+                summary={host.hostname}
+                data={{ 'data-account-host-current': String(host.current) }}
+                trailing={
+                  host.current && !allowCurrentSignOut ? (
+                    <span>{t('devices.connect.thisComputer')}</span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      disabled={busy !== undefined || listState !== 'fresh'}
+                      aria-label={t(
                         host.sessionKnown
-                          ? 'devices.connect.signOut'
-                          : 'devices.connect.removeComputer',
+                          ? 'devices.connect.signOutNamed'
+                          : 'devices.connect.removeNamed',
+                        { name: host.name },
                       )}
-                </Button>
-              )
-            }
-          >
-            <Note>
-              {t(
-                host.connected === undefined
-                  ? 'devices.connect.computerUnknown'
-                  : host.connected
-                    ? 'devices.connect.computerOnline'
-                    : 'devices.connect.computerOffline',
-              )}
-            </Note>
-            <Note>
-              {t('devices.connect.computerLinked', {
-                when: new Date(host.createdAt).toLocaleString(),
-              })}
-            </Note>
-            {details?.(host)}
-            {!host.sessionKnown ? (
-              <Note tone="warning">{t('devices.connect.legacyComputer')}</Note>
-            ) : null}
-          </StatusBlock>
-        ))}
+                      onClick={() => {
+                        setActionError(false);
+                        setConfirm(host);
+                      }}
+                    >
+                      {busy === host.id
+                        ? t('devices.connect.computerBusy')
+                        : t(
+                            host.sessionKnown
+                              ? 'devices.connect.signOut'
+                              : 'devices.connect.removeComputer',
+                          )}
+                    </Button>
+                  )
+                }
+                detail={
+                  <>
+                    <Note>
+                      {t(
+                        host.connected === undefined
+                          ? 'devices.connect.computerUnknown'
+                          : host.connected
+                            ? 'devices.connect.computerOnline'
+                            : 'devices.connect.computerOffline',
+                      )}
+                    </Note>
+                    <Note>
+                      {t('devices.connect.computerLinked', {
+                        when: new Date(host.createdAt).toLocaleString(),
+                      })}
+                    </Note>
+                    {details?.(host)}
+                    {!host.sessionKnown ? (
+                      <Note tone="warning">{t('devices.connect.legacyComputer')}</Note>
+                    ) : null}
+                  </>
+                }
+              />
+            ))}
+          </ListCard>
+        ) : null}
         {allowCurrentSignOut && (listState !== 'fresh' || !hosts?.some((host) => host.current)) ? (
           <SettingsRow
             title={t('devices.connect.thisComputer')}

@@ -24,6 +24,8 @@ import { StatusDisclosure, StatusHeading, StatusStack } from './ds/status-block.
 import { LanBotSettings } from './lan-bot-settings.js';
 import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { Note } from './ds/note.js';
+import { Icon } from './ds/icon.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { ConnectionProgress } from './connection-progress.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PanelDialog } from './ds/panel-dialog.js';
@@ -95,14 +97,6 @@ export type PairingView =
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
-  pageBar: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: space.x3,
-  },
-  pageSpacer: { flexGrow: 1 },
   pairing: {
     display: 'flex',
     flexDirection: 'column',
@@ -202,8 +196,6 @@ export function PairedDevicesSettings({
     setLanDetails,
     setup,
     setSetup,
-    tunnelStep,
-    setTunnelStep,
     preparingRelationshipRoute,
     reviewing,
     setReviewing,
@@ -302,13 +294,11 @@ export function PairedDevicesSettings({
         variant="outline"
         icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
         onClick={() =>
-          setup === 'private' && tunnelStep !== 'choose'
-            ? setTunnelStep('choose')
-            : setSetup(
-                page || setup === 'method' || setup === 'app' || setup === 'quick'
-                  ? 'closed'
-                  : 'method',
-              )
+          setSetup(
+            page || setup === 'method' || setup === 'app' || setup === 'quick'
+              ? 'closed'
+              : 'method',
+          )
         }
       >
         {t('connections.back')}
@@ -325,6 +315,9 @@ export function PairedDevicesSettings({
       </Button>
     ) : undefined;
   const overview = !standalone || (setup === 'closed' && (page || !pairing) && !reviewing);
+  const pageBackMount = useMountedResource<HTMLDivElement>((node) => {
+    node.querySelector('button')?.focus();
+  }, []);
   const address =
     ready && ownerPasswordSignInCall ? (
       <PhonePairingAddress
@@ -463,6 +456,77 @@ export function PairedDevicesSettings({
       </div>
     </ConnectionPanel>
   );
+  const accountComputers =
+    signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
+      <ConnectAccountHosts
+        t={t}
+        account={signIn}
+        reloadSnapshot={load}
+        refreshOn={
+          snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
+            ? snapshot.connect.health.checkedAt
+            : undefined
+        }
+        allowCurrentSignOut
+        details={(host) => <AccountHostConnectionDetails host={host} t={t} />}
+      />
+    ) : null;
+  const pairedDevices = (
+    <StatusStack title={t('devices.list.title')}>
+      <ListCard label={t('devices.list.title')}>
+        {devices.length === 0 ? (
+          <ListCardItem
+            title={
+              snapshot === undefined
+                ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
+                : t('devices.list.empty')
+            }
+          />
+        ) : (
+          devices.map((device) => (
+            <ListCardItem
+              key={device.id}
+              title={device.name}
+              data={{
+                'data-paired-device': device.id,
+                'data-revoked': device.revokedAt === undefined ? undefined : '',
+                'data-new-device': fresh(device) ? '' : undefined,
+              }}
+              leading={<Icon name="smartphone" />}
+              summary={[
+                t('devices.list.paired', {
+                  when: formatRelativeTime(Date.parse(device.pairedAt), now, t),
+                }),
+                device.revokedAt !== undefined
+                  ? t('devices.list.revoked', {
+                      when: formatRelativeTime(Date.parse(device.revokedAt), now, t),
+                    })
+                  : device.lastSeenAt !== undefined
+                    ? t('devices.list.lastSeen', {
+                        when: formatRelativeTime(Date.parse(device.lastSeenAt), now, t),
+                      })
+                    : t('devices.list.neverSeen'),
+                ...(fresh(device) ? [t('devices.list.new')] : []),
+              ].join(' · ')}
+              trailing={
+                device.revokedAt === undefined ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy === device.id}
+                    onClick={() => void revoke(device)}
+                  >
+                    {t('devices.list.revoke')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ))
+        )}
+      </ListCard>
+      {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
+    </StatusStack>
+  );
   const content = (
     <div ref={mount} data-paired-devices="" {...stylex.props(page && styles.page)}>
       {page && overview && ready && !pairing ? <div ref={readyMount} /> : null}
@@ -507,7 +571,25 @@ export function PairedDevicesSettings({
       ) : null}
       {standalone && section === 'devices' && overview ? (
         <>
-          {page ? <ConnectionMethods t={t} state={state} /> : null}
+          {page ? (
+            <>
+              <ConnectionMethods t={t} state={state} />
+              <StatusStack
+                title={t('connections.manage.existing')}
+                data={{ 'data-connections-management': '' }}
+              >
+                <ConnectionMethods management t={t} state={state} />
+                {pairedDevices}
+                {accountComputers ?? (
+                  <StatusStack title={t('devices.connect.computers')}>
+                    <ListCard label={t('devices.connect.computers')}>
+                      <ListCardItem title={t('connections.accountSignInRequired')} />
+                    </ListCard>
+                  </StatusStack>
+                )}
+              </StatusStack>
+            </>
+          ) : null}
           {snapshot?.pendingKeys?.some((item) => !item.approved) ? (
             <SettingsRow
               title={t('connections.pending')}
@@ -581,18 +663,7 @@ export function PairedDevicesSettings({
                       reloadSnapshot={load}
                       fresh={freshSnapshot}
                     />
-                    <ConnectAccountHosts
-                      t={t}
-                      account={signIn}
-                      reloadSnapshot={load}
-                      refreshOn={
-                        snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
-                          ? snapshot.connect.health.checkedAt
-                          : undefined
-                      }
-                      allowCurrentSignOut
-                      details={(host) => <AccountHostConnectionDetails host={host} t={t} />}
-                    />
+                    {accountComputers}
                   </StatusStack>
                 ) : null}
               </>
@@ -676,74 +747,13 @@ export function PairedDevicesSettings({
           }}
         />
       ) : null}
-      {section === 'devices' && overview ? (
-        <SettingsSection title={t('devices.list.title')}>
-          {devices.length === 0 ? (
-            <SettingsRow
-              title={
-                snapshot === undefined
-                  ? t(
-                      readState === 'stale'
-                        ? 'devices.connection.unchecked'
-                        : 'devices.list.loading',
-                    )
-                  : t('devices.list.empty')
-              }
-            />
-          ) : (
-            devices.map((device) => (
-              <SettingsRow
-                key={device.id}
-                title={device.name}
-                data={{
-                  'data-paired-device': device.id,
-                  'data-revoked': device.revokedAt === undefined ? undefined : '',
-                  'data-new-device': fresh(device) ? '' : undefined,
-                }}
-                description={[
-                  t('devices.list.paired', {
-                    when: formatRelativeTime(Date.parse(device.pairedAt), now, t),
-                  }),
-                  device.revokedAt !== undefined
-                    ? t('devices.list.revoked', {
-                        when: formatRelativeTime(Date.parse(device.revokedAt), now, t),
-                      })
-                    : device.lastSeenAt !== undefined
-                      ? t('devices.list.lastSeen', {
-                          when: formatRelativeTime(Date.parse(device.lastSeenAt), now, t),
-                        })
-                      : t('devices.list.neverSeen'),
-                  ...(fresh(device) ? [t('devices.list.new')] : []),
-                ].join(' · ')}
-                control={
-                  device.revokedAt === undefined ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy === device.id}
-                      onClick={() => void revoke(device)}
-                    >
-                      {t('devices.list.revoke')}
-                    </Button>
-                  ) : undefined
-                }
-              />
-            ))
-          )}
-          {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-        </SettingsSection>
-      ) : null}
+      {!page && section === 'devices' && overview ? pairedDevices : null}
       {page && overview && !ready && ownerPasswordSignInCall ? (
         <OwnerPasswordSignInSettings call={ownerPasswordSignInCall} t={t} />
       ) : null}
       {!page && pairing ? pairingPanel : null}
     </div>
   );
-  const footer = overview ? (
-    <Button variant="primary" icon={<ChannelSidebarIcon name="plus" size={16} />} onClick={begin}>
-      {t('connections.add')}
-    </Button>
-  ) : undefined;
   const back = overview
     ? undefined
     : (pairingBack ??
@@ -763,14 +773,8 @@ export function PairedDevicesSettings({
   if (page)
     return (
       <div {...stylex.props(styles.page)} data-connections-page="">
+        {back === undefined ? null : <div ref={pageBackMount}>{back}</div>}
         {content}
-        {back === undefined && footer === undefined ? null : (
-          <div {...stylex.props(styles.pageBar)}>
-            {back}
-            <span {...stylex.props(styles.pageSpacer)} />
-            {footer}
-          </div>
-        )}
       </div>
     );
   return standalone ? (
