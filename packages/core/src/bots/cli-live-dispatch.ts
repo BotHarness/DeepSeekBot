@@ -28,6 +28,7 @@ import {
   BROWSER_NOTIFICATION_COMMANDS,
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
+import { isClientSettingsCommand, runClientSettings } from './cli-client-settings.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { runDoctor } from './cli-doctor.js';
@@ -141,6 +142,19 @@ export async function runLiveCli(
     const expiresAt = Date.now() + duration;
     const signal = AbortSignal.timeout(duration);
     return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
+  if (isClientSettingsCommand(command)) {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runClientSettings(
+      command,
+      rest,
+      values,
+      io,
+      () => connectLiveHost(values, io, signal),
+      expiresAt,
+    );
   }
   if (command === 'device-activity') return runDeviceActivity(rest, values, io);
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);

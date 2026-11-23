@@ -9,6 +9,7 @@ import { Appearance, AppearanceError, object } from './appearance.js';
 import { remoteHosts } from './remote-hosts.js';
 import { createConnectionControl } from './connection-control.js';
 import { isConnectionManagement, manageConnections } from './connection-management.js';
+import { ClientSettingsError, clientSettings } from './client-settings-control.js';
 
 export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper): () => void {
   const abort = new AbortController();
@@ -65,6 +66,11 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
               result = isConnectionManagement(command.connection)
                 ? await manageConnections(remoteHosts(), command.connection, request)
                 : connections.execute(command.connection, request);
+            } else if (command.settings !== undefined) {
+              result = await clientSettings.execute(command.settings, command.expectedRevision, {
+                expiresAt: command.expiresAt,
+                signal: abort.signal,
+              });
             } else if (command.hostLook !== undefined) {
               const looks = hostLooks();
               await looks.ready;
@@ -131,12 +137,15 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
             }
           } catch (error) {
             result = {
-              error: {
-                code:
-                  error instanceof AppearanceError || error instanceof WallpaperError
-                    ? error.code
-                    : 'appearance-client-failed',
-              },
+              error:
+                error instanceof ClientSettingsError
+                  ? { code: error.code, message: error.message }
+                  : {
+                      code:
+                        error instanceof AppearanceError || error instanceof WallpaperError
+                          ? error.code
+                          : 'appearance-client-failed',
+                    },
             };
           }
           if (abort.signal.aborted) {
@@ -148,6 +157,7 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           }
           if (
             (command.notifications !== undefined ||
+              command.settings !== undefined ||
               command.hostLook !== undefined ||
               command.connection !== undefined) &&
             typeof command.expiresAt === 'number' &&

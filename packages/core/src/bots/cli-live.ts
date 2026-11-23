@@ -12,6 +12,7 @@ import { RELATIONSHIP_COMMANDS } from './cli-relationships.js';
 import { DEVICE_CLIENT_COMMANDS } from './cli-device-client.js';
 import { DEVICE_NOTIFICATION_COMMANDS } from './cli-device-notifications.js';
 import { BROWSER_NOTIFICATION_COMMANDS } from './cli-browser-notifications.js';
+import { CLIENT_SETTINGS_COMMANDS } from './cli-client-settings.js';
 import { FEEDBACK_COMMANDS } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS } from './cli-diagnostic-logs.js';
 import { DOCTOR_COMMANDS } from './cli-doctor.js';
@@ -48,6 +49,7 @@ export const LIVE_COMMANDS = [
   ...GENUI_COMMANDS,
   ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
+  ...CLIENT_SETTINGS_COMMANDS,
   ...CONNECTION_COMMANDS,
   ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
