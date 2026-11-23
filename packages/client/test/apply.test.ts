@@ -426,7 +426,6 @@ describe('client apply', () => {
       open: true,
       sectionId: 'companions',
       pairPhone: false,
-      joinComputer: false,
     });
 
     botSettings.close();
@@ -436,7 +435,6 @@ describe('client apply', () => {
       open: true,
       sectionId: 'data-privacy',
       pairPhone: false,
-      joinComputer: false,
     });
 
     botSettings.close();
