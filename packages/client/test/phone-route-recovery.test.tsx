@@ -319,9 +319,10 @@ it('failed QR creation gives an in-dialog retry action', async () => {
   ).toBe(true);
 });
 
-async function mountStandalone() {
+async function openTailscaleSetup() {
   vi.useFakeTimers();
-  await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} standalone />));
+  await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} standalone page />));
+  await act(async () => button('Tailscale')?.click());
 }
 
 function managedIngress(memberSignIn: 'managed-tls' | 'untrusted', ready = true) {
@@ -343,23 +344,18 @@ it.each(['managed-tls', 'untrusted'] as const)(
   'shows whether Team members can sign in through the %s Tailscale route',
   async (memberSignIn) => {
     snapshot = managedIngress(memberSignIn);
-    await mountStandalone();
-    const status = document.body.querySelector(`[data-member-sign-in="${memberSignIn}"]`);
-    expect(status?.textContent).toBe(
-      zhTranslate(
-        memberSignIn === 'managed-tls'
-          ? 'devices.tailscale.memberSignIn.trusted'
-          : 'devices.tailscale.memberSignIn.untrusted',
-      ),
-    );
-    expect(document.body.querySelectorAll('[data-member-sign-in]')).toHaveLength(1);
+    await openTailscaleSetup();
+    const trusted = zhTranslate('devices.tailscale.memberSignIn.trusted');
+    const untrusted = zhTranslate('devices.tailscale.memberSignIn.untrusted');
+    const content = document.body.textContent;
+    expect(content).toContain(memberSignIn === 'managed-tls' ? trusted : untrusted);
+    expect(content).not.toContain(memberSignIn === 'managed-tls' ? untrusted : trusted);
   },
 );
 
 it('labels the Host port from the loopback route, not the managed ingress port', async () => {
   snapshot = managedIngress('untrusted', false);
-  await mountStandalone();
-  await act(async () => button(zhTranslate('privateTunnel.panel.manage'))?.click());
+  await openTailscaleSetup();
   const label = zhTranslate('devices.route.step.publish.title', { port: '4100' });
   expect(document.body.textContent).toContain(label);
   expect(document.body.textContent).not.toContain(

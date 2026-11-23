@@ -77,6 +77,9 @@ export function renderPairedDeviceSetup({
     startQuick,
     setError,
   } = state;
+  const tailscaleMemberSignIn = routes?.routes.find(
+    (route) => route.kind === 'tailscale' && route.ready,
+  )?.memberSignIn;
   return (
     <ConnectionPanel
       inline={standalone}
@@ -253,7 +256,17 @@ export function renderPairedDeviceSetup({
                   </Button>
                 }
                 data={{ 'data-tailscale-setup': 'ready' }}
-              />
+              >
+                {tailscaleMemberSignIn ? (
+                  <Note tone={tailscaleMemberSignIn === 'managed-tls' ? 'success' : 'warning'}>
+                    {t(
+                      tailscaleMemberSignIn === 'managed-tls'
+                        ? 'devices.tailscale.memberSignIn.trusted'
+                        : 'devices.tailscale.memberSignIn.untrusted',
+                    )}
+                  </Note>
+                ) : null}
+              </StatusBlock>
             ) : (
               <StatusBlock
                 icon="shield-check"
