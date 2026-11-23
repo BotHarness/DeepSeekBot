@@ -2,6 +2,7 @@ import { Stack, router, useLocalSearchParams, useFocusEffect } from 'expo-router
 import { useCallback, useRef, useState } from 'react';
 import { AppState, Keyboard, Platform, View } from 'react-native';
 import { channelCreation, useChannelCreation } from '../../host/native-channel-creation';
+import { channelPeoplePending, selectedChannelPeople } from '../../host/channel-creation';
 import { hostSession, useHostAvailability, useHostSession } from '../../host/host-session';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
@@ -125,7 +126,8 @@ export function CreateChannelScreen() {
     !state.loaded ||
     state.busy ||
     state.loading ||
-    (record.kind === 'draft' && (!!state.error || state.peopleStatus === 'loading')) ||
+    (record.kind === 'draft' && !!state.error) ||
+    channelPeoplePending(state) ||
     !record.name.trim() ||
     !hosts.some((host) => host.hostId === record.hostId);
   const hostName = (id: string) => {
@@ -144,13 +146,11 @@ export function CreateChannelScreen() {
         label: bot.displayName,
         remove: () => channelCreation.toggle(bot.slug),
       })),
-    ...state.people
-      .filter((person) => humanIds.includes(person.id))
-      .map((person) => ({
-        key: `person-${person.id}`,
-        label: person.displayName,
-        remove: () => channelCreation.togglePerson(person.id),
-      })),
+    ...selectedChannelPeople(state).map((person) => ({
+      key: `person-${person.id}`,
+      label: person.displayName,
+      remove: () => channelCreation.togglePerson(person.id),
+    })),
   ];
   const error = state.error
     ? ['unknown-bot', 'archived-bot', 'protected-bot', 'member-not-found'].includes(state.error)
@@ -260,7 +260,9 @@ export function CreateChannelScreen() {
                   title={t.botCreation.retry}
                   onPress={() => void channelCreation.refresh()}
                 />
-              ) : state.candidates.length === 0 && state.peopleStatus === 'off' ? (
+              ) : state.candidates.length === 0 &&
+                state.peopleStatus === 'off' &&
+                humanIds.length === 0 ? (
                 <SettingsRow on={SHEET_GROUP} title={t.channelCreation.empty} tone="muted" />
               ) : (
                 <SettingsRow

@@ -63,16 +63,18 @@ export function localCreationOwner(
       initial?: GroupInitialMembers,
     ) {
       binding?.call.assertCurrent?.();
-      channelInput ??= { name, operationKey: binding?.operationKey ?? key(), ...initial };
+      const input = binding
+        ? { name, operationKey: binding.operationKey, ...initial }
+        : (channelInput ??= { name, operationKey: key(), ...initial });
       if (!channelReceipt) {
         lifecycle.submitted();
         channelReceipt = await actions.createGroup({
-          name: channelInput.name,
+          name: input.name,
           sectionId,
-          operationKey: channelInput.operationKey,
+          operationKey: input.operationKey,
           scopedCall: binding?.call,
-          members: channelInput.members,
-          humanIds: channelInput.humanIds,
+          members: input.members,
+          humanIds: input.humanIds,
         });
         if (channelReceipt) lifecycle.committed();
       }
@@ -161,13 +163,16 @@ export function remoteCreationOwner({
     ) {
       check();
       if (!channelReceipt) {
-        channelInput ??= { name, operationKey: operationKey ?? key(), ...initial };
+        const input =
+          operationKey === undefined
+            ? (channelInput ??= { name, operationKey: key(), ...initial })
+            : { name, operationKey, ...initial };
         submitted();
         channelReceipt = await createGroupChannel(call, {
-          name: channelInput.name,
-          members: [...(channelInput.members ?? [])],
-          ...(channelInput.humanIds?.length ? { humanIds: [...channelInput.humanIds] } : {}),
-          operationKey: channelInput.operationKey,
+          name: input.name,
+          members: [...(input.members ?? [])],
+          ...(input.humanIds?.length ? { humanIds: [...input.humanIds] } : {}),
+          operationKey: input.operationKey,
         });
         committed();
       }

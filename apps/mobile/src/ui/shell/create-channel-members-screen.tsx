@@ -1,5 +1,10 @@
 import { SectionList, View } from 'react-native';
-import type { ChannelCandidate, PersonCandidate } from '../../host/channel-creation';
+import {
+  MAX_INITIAL_CHANNEL_PEOPLE,
+  selectedChannelPeople,
+  type ChannelCandidate,
+  type PersonCandidate,
+} from '../../host/channel-creation';
 import { channelCreation, useChannelCreation } from '../../host/native-channel-creation';
 import { BotPortrait } from '../bot-avatar';
 import { SHEET_GROUP } from '../chat/sheet';
@@ -27,6 +32,8 @@ export function CreateChannelMembersScreen() {
   const editable = state.loaded && record.kind === 'draft' && !state.busy && !state.loading;
   const draft = record.kind === 'draft' && !!record.hostId;
   const humanIds = record.humanIds ?? [];
+  const canSelectPeople =
+    state.peopleStatus === 'ready' && humanIds.length < MAX_INITIAL_CHANNEL_PEOPLE;
   const bots: Row[] = draft
     ? state.candidates.length > 0
       ? state.candidates.map((bot) => ({ kind: 'bot', bot }))
@@ -34,16 +41,21 @@ export function CreateChannelMembersScreen() {
         ? []
         : [{ kind: 'status', status: 'bots-empty' }]
     : [];
-  const people: Row[] =
-    !draft || state.peopleStatus === 'off'
-      ? []
-      : state.peopleStatus === 'loading'
-        ? [{ kind: 'status', status: 'people-loading' }]
-        : state.peopleStatus === 'error'
-          ? [{ kind: 'status', status: 'people-error' }]
-          : state.people.length === 0
-            ? [{ kind: 'status', status: 'people-empty' }]
-            : state.people.map((person) => ({ kind: 'person', person }));
+  const people: Row[] = [];
+  if (draft) {
+    const available =
+      state.peopleStatus === 'ready' || state.peopleStatus === 'loading' ? state.people : [];
+    const visibleIds = new Set(available.map((person) => person.id));
+    for (const person of available) people.push({ kind: 'person', person });
+    for (const person of selectedChannelPeople(state)) {
+      if (!visibleIds.has(person.id)) people.push({ kind: 'person', person });
+    }
+    if (state.peopleStatus === 'loading') people.push({ kind: 'status', status: 'people-loading' });
+    if (state.peopleStatus === 'error' || (state.peopleStatus === 'off' && humanIds.length > 0))
+      people.push({ kind: 'status', status: 'people-error' });
+    if (state.peopleStatus === 'ready' && people.length === 0)
+      people.push({ kind: 'status', status: 'people-empty' });
+  }
   const sections = [
     ...(bots.length > 0 ? [{ key: 'bots', title: t.channelCreation.bots, data: bots }] : []),
     ...(people.length > 0
@@ -157,7 +169,7 @@ export function CreateChannelMembersScreen() {
               selected={checked}
               control={checked ? { kind: 'check' } : undefined}
               onPress={
-                editable && record.kind === 'draft'
+                editable && (checked || canSelectPeople)
                   ? () => channelCreation.togglePerson(item.person.id)
                   : undefined
               }

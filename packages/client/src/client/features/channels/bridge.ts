@@ -4,6 +4,7 @@ import { parseBotSummary } from '../../bridge.js';
 import { parseRemoteChannelMetadata } from '../environments/bridge.js';
 import {
   asRecord,
+  BridgeCallError,
   bridgeHost,
   stringArray,
   unwrap,
@@ -304,6 +305,8 @@ export async function openDmChannel(
   return presentChannel(await channels.openBotDm(bridgeHost(call, signal), { slug, displayName }));
 }
 
+export class GroupCreationRejected extends BridgeCallError {}
+
 export async function createGroupChannel(
   call: BridgeCall,
   name: string | channels.GroupChannelCreateArgs,
@@ -314,7 +317,23 @@ export async function createGroupChannel(
     typeof name === 'string'
       ? { name, members: [], ...(operationKey === undefined ? {} : { operationKey }) }
       : name;
-  const channel = await channels.createGroupChannel(bridgeHost(call, signal), input);
+  const channel = await channels
+    .createGroupChannel(bridgeHost(call, signal), input)
+    .catch((error: unknown) => {
+      if (
+        error instanceof BridgeCallError &&
+        [
+          'unknown-bot',
+          'archived-bot',
+          'protected-bot',
+          'invalid-input',
+          'member-not-found',
+          'team-mode-off',
+        ].includes(error.code)
+      )
+        throw new GroupCreationRejected(error.code, error.message, error.details);
+      throw error;
+    });
   return presentChannel(channel);
 }
 

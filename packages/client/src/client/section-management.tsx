@@ -7,6 +7,7 @@ import { type MenuEntry, type MenuItem } from './ds/menu.js';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import { BridgeCallError, errorMessage, type BridgeCall } from './bridge.js';
+import { GroupCreationRejected } from './features/channels/bridge.js';
 import {
   GroupMemberPicker,
   GroupMemberResults,
@@ -306,6 +307,7 @@ export interface CreateChannelModalProps {
     onDispatch: () => void,
     initial: GroupInitialMembers,
   ) => Promise<ChannelSummary | void>;
+  onCreateRejected?: () => void;
   onMembersChanged?: ((channel: ChannelSummary) => void) | undefined;
 }
 
@@ -339,6 +341,7 @@ export function CreateChannelModal({
   t,
   onCancel,
   onCreate,
+  onCreateRejected,
   onMembersChanged,
 }: CreateChannelModalProps): ReactElement {
   const [draft, setDraft] = useState('');
@@ -361,8 +364,12 @@ export function CreateChannelModal({
   if (!sameHost && !submittedHere) setSelection({ scope, call: pickerCall, members: [] });
   const bindingChanged = submittedHere && !sameHost;
   const selected = bindingChanged ? [] : selection.members;
-  const createKey = useRef<string>();
-  const createPlan = useRef<ReturnType<typeof splitInitialMembers>>();
+  const attempt = useRef<{
+    key: string;
+    name: string;
+    selection: typeof selection;
+    plan: ReturnType<typeof splitInitialMembers>;
+  }>();
   const created = useRef<ChannelSummary>();
   const batch = useGroupMemberBatch();
   const trimmed = draft.trim();
@@ -384,16 +391,18 @@ export function CreateChannelModal({
     setCreating(true);
     setError(undefined);
     const run = async () => {
-      const plan = createPlan.current ?? splitInitialMembers(members ? selected : []);
+      const previous = attempt.current;
+      const retry =
+        previous?.name === trimmed && previous.selection === selection ? previous : undefined;
+      const plan = retry?.plan ?? splitInitialMembers(members ? selected : []);
       if (!created.current) {
-        const operationKey = createKey.current ?? crypto.randomUUID();
+        const operationKey = retry?.key ?? crypto.randomUUID();
         created.current =
           (await onCreate(
             trimmed,
             operationKey,
             () => {
-              createKey.current = operationKey;
-              createPlan.current = plan;
+              attempt.current = { key: operationKey, name: trimmed, selection, plan };
               setSubmittedHere(true);
             },
             plan.initial,
@@ -413,6 +422,10 @@ export function CreateChannelModal({
       },
       (cause: unknown) => {
         pending.current = false;
+        if (!submittedHere && !submitted && cause instanceof GroupCreationRejected) {
+          setSubmittedHere(false);
+          onCreateRejected?.();
+        }
         setError(
           cause instanceof BridgeCallError && cause.code === 'connection-host-changed'
             ? t('environment.create.changed')

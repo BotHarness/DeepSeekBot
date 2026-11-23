@@ -335,6 +335,7 @@ function OwnerEnvironmentCreation({
         committed={committed}
         submitted={submitted}
         onCancel={onClose}
+        onCreateRejected={() => setSubmitted(false)}
         onCreate={async (name, operationKey, onDispatch, initial) => {
           const remote = owner();
           if (!pickerCall) throw new Error(t('environment.create.offline'));

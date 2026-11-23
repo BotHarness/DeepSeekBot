@@ -11,6 +11,7 @@ const fixture = vi.hoisted(() => ({
   switchTo: vi.fn(async () => true),
   fail: false,
   peopleFail: false,
+  peopleGate: undefined as Promise<void> | undefined,
   header: undefined as undefined | (() => ReactNode),
   screens: [] as { name?: string; options: { title?: string; headerRight?(): ReactNode } }[],
   prevented: [] as boolean[],
@@ -36,6 +37,7 @@ const controller = createChannelCreation({
       })),
     ],
     people: async (hostId) => {
+      await fixture.peopleGate;
       if (fixture.peopleFail) throw new Error('unreachable');
       return [
         { id: `${hostId}-ann`, displayName: `${hostId} Ann`, username: 'ann' },
@@ -356,6 +358,47 @@ it('shows loading, retry and empty states for people without blocking Bots', asy
   await act(async () => member(t.channelCreation.peopleRetry).click());
   expect(member('A Ann').getAttribute('aria-checked')).toBe('false');
   await act(async () => controller.reset());
+});
+
+it('keeps the checked People row visible during refresh and disables Create when refresh fails', async () => {
+  await controller.reset();
+  mountRoots();
+  await act(async () => root.render(<CreateChannelScreen />));
+  await act(async () => {
+    await controller.selectHost('A');
+    controller.rename('Design team');
+  });
+  await showMembers(true);
+  await act(async () => member('A Ann').click());
+  expect((await save()).disabled).toBe(false);
+
+  const { promise, resolve } = Promise.withResolvers<void>();
+  fixture.peopleGate = promise;
+  fixture.peopleFail = true;
+  let refresh: Promise<void> | undefined;
+  try {
+    await act(async () => {
+      refresh = controller.refresh();
+    });
+    expect(member('A Ann').getAttribute('aria-checked')).toBe('true');
+    expect(membersElement.textContent).toContain(t.channelCreation.peopleLoading);
+    expect((await save()).disabled).toBe(true);
+    await act(async () => {
+      resolve();
+      await refresh;
+    });
+    expect((await save()).disabled).toBe(true);
+    await act(async () => member('A Ann').click());
+    expect((await save()).disabled).toBe(false);
+  } finally {
+    resolve();
+    fixture.peopleGate = undefined;
+    fixture.peopleFail = false;
+    await act(async () => {
+      await refresh;
+      await controller.reset();
+    });
+  }
 });
 
 it('presents New Group as a sheet stack and asks before discarding a started draft', async () => {
