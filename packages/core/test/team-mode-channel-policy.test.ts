@@ -242,6 +242,74 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     });
   });
 
+  it('creates one group with a Bot and an active Host member and replays the original receipt', async () => {
+    const f = await enabledFixture();
+    f.registry.create({ slug: 'initial-bot', displayName: 'Initial Bot' });
+    const methods = f.methods(owner);
+    const input = {
+      name: 'Project crew',
+      members: ['initial-bot'],
+      humanIds: [f.human.humanId],
+      operationKey: 'create-project-crew',
+    };
+    const created = methods.channelCreate(input);
+    expect(created).toMatchObject({
+      ok: true,
+      value: {
+        receipt: { operationKey: input.operationKey, status: 'completed' },
+        wakePolicies: [{ botSlug: 'initial-bot' }],
+      },
+    });
+    if (!created.ok) throw new Error(created.error.code);
+    const channelId = created.value.channel.id;
+    expect(f.methods(f.human).channelGet({ channelId })).toMatchObject({
+      ok: true,
+      value: {
+        channel: {
+          members: ['initial-bot'],
+          humanMembers: expect.arrayContaining([{ humanId: f.human.humanId, displayName: 'Bob' }]),
+        },
+      },
+    });
+    expect(methods.channelCreate(input)).toEqual(created);
+    expect(f.channels.list().filter((channel) => channel.name === input.name)).toHaveLength(1);
+    expect(methods.channelCreate({ ...input, humanIds: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'operation-key-conflict' },
+    });
+  });
+
+  it('refuses an initial member that the existing invite flow also refuses', async () => {
+    const f = await enabledFixture();
+    const methods = f.methods(owner);
+    const group = f.channels.createGroup(owner, { name: 'Existing group', members: [] });
+    const inactive = await f.team.createMember(owner, 'inactive', 'Inactive');
+    const humanId = inactive.member.humanId;
+    await f.team.suspend(owner, humanId);
+    expect(
+      methods.channelGroupMembersAdd({
+        channelId: group.id,
+        targets: [{ kind: 'human', id: humanId, operationKey: 'invite-inactive-member' }],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        results: [{ kind: 'human', id: humanId, status: 'failed', code: 'member-not-found' }],
+      },
+    });
+    const input = {
+      name: 'Refused group',
+      members: [],
+      humanIds: [f.human.humanId, humanId],
+      operationKey: 'create-refused-group',
+    };
+    expect(methods.channelCreate(input)).toMatchObject({
+      ok: false,
+      error: { code: 'member-not-found' },
+    });
+    expect(f.channels.list().map((channel) => channel.name)).not.toContain(input.name);
+  });
+
   it('opens one Human DM per pair, permits files and denies every other Human including Owner', async () => {
     const f = await enabledFixture();
     const alice = await f.team.createMember(owner, 'm4alice', 'Alice');

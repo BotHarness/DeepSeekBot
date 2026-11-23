@@ -329,7 +329,7 @@ These commands manage Channels and groups through the same Host owners and check
 
 ```bash
 deepseekbot channel <group-channel>
-deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <stable-key>]
+deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <stable-key>]
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
@@ -1737,6 +1737,8 @@ The keyed result includes a `receipt` with `operationKey`, `kind`, `channelId`, 
 Use `group-member-picker` with an existing Channel ID or omit it for the creation context. It returns eligible Humans and Bots scoped to the authenticated Host. Pass `group-members-add` a JSON array of 1–100 targets on stdin. A Human target has `kind: "human"` and its stable Human `id`. A Bot target has `kind: "bot"` and its Bot `id`. Give each target an `operationKey` unique to its attempt. Use 8–128 ASCII characters. Start with a letter or digit and use only letters, digits, `.`, `_`, `:`, or `-`. The Host adds selected Humans before checking Bot invitations and returns `joined`, `pending` or `failed` with a code for each target. If the batch response is unconfirmed, resend the same Channel ID and complete target payload, including the original keys. If an individual target returns `group-member-unconfirmed`, retry that target in the same Channel with its original key. Use a fresh key to retry a confirmed failure. Replaying a confirmed Human addition preserves any subsequent loss of access.
 
 Authenticated Human online `group-create` and `group-invite` also support stable operation keys; the invitation command accepts `--expected-channel` for the observed state. These review/retry inputs are optional for Human commands and mandatory for scoped Tob. Existing unkeyed Human operations retain their owner behavior.
+
+In Team mode, run `group-member-picker` without a Channel ID to find eligible `people[].id` values. Pass one `--human <id>` per person to the authenticated Human's online `group-create`, alongside any `--member <bot-id>` flags. People join in the same transaction as group creation. If the Host refuses any initial member, the group is not created. Retry with the same operation key and the same list of people and Bots to recover a lost response.
 
 The following slices add group rename/avatar, member wake settings, member removal, cancellation of pending invitations and decisions on pending join requests. Personal mute/pin/nickname/visibility, group deletion, attachments and external membership have no typed Tob operation; where a Human CLI command exists, Tob runs it through the generic path, after the Human approves the exact command. #2090 remains open for its remaining scope. See [ADR-0226](decisions/messaging.md#adr-0226) and the [coverage inventory](agents/cli-ui-coverage.md#2090-group-management-scope). Direct CLI, real Tob approval/readback, Web membership/history and macOS Desktop are separate verification gates.
 

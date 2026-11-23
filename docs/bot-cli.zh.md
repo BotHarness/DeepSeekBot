@@ -320,7 +320,7 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 ```bash
 deepseekbot channel <group-channel>
-deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <stable-key>]
+deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <stable-key>]
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
@@ -1676,6 +1676,8 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 用 `group-member-picker` 查询可选成员。传入频道 ID 查询现有群，省略 ID 查询建群候选。结果仅包含当前认证 Host 上可选的团队成员和 Bot。用 `group-members-add` 从 stdin 读取包含 1–100 个目标的 JSON 数组。团队成员用 `kind: "human"` 和稳定 Human `id`，Bot 用 `kind: "bot"` 和 Bot `id`。每个目标都带上本次尝试的唯一 `operationKey`。使用 8–128 个 ASCII 字符，以字母或数字开头，其余字符只允许字母、数字、`.`、`_`、`:` 或 `-`。Host 先添加团队成员，再检查 Bot 邀请，并为每项返回 `joined`、`pending` 或带错误码的 `failed`。整个批次的响应未确认时，使用原频道 ID 和包含原 key 的完整目标数据重试。单项目标返回 `group-member-unconfirmed` 时，在原频道用原 key 重试该项。重试已确认失败的目标时使用新 key。重放已确认的团队成员添加时，保留随后发生的访问撤销。
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
+
+在 Team 模式下，运行不带频道 ID 的 `group-member-picker`，从 `people[].id` 读取可邀请的团队成员 ID。已认证的 Human 可以在在线 `group-create` 中为每个人传入一个 `--human <id>`，同时用 `--member <bot-id>` 添加 Bot。建群和初始团队成员的加入在同一事务中完成。任何初始成员被拒绝，都会导致建群失败。响应丢失时，使用同一 operation key 和两份原始成员列表重试。
 
 后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理没有类型化的 Tob 操作；已有 Human CLI 命令的，Tob 通过通用路径运行，须先由 Human 批准完整命令。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](decisions/messaging.md#adr-0226) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
 

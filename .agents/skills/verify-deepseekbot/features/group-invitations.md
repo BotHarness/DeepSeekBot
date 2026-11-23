@@ -4,6 +4,8 @@
 
 - `packages/client/src/client/{environment-creation,section-management,group-member-controls,group-member-picker,personabot-deletion}.tsx`
 - `packages/core/src/features/channels/group-members.ts`
+- `packages/core/src/channels/management.ts`
+- `apps/mobile/src/host/channel-creation-transport.ts`
 - `packages/core/src/channels/runtime-access.ts`
 - `packages/core/src/channels/runtime-admission.ts`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
@@ -24,6 +26,7 @@
 - `desktop-existing`: Add members opens the same picker. Verify Humans and Bots share one list with avatars and type icons. Select a row, then search by name, username, or type. The first selection remains available to review and remove. On a failed capability read, use the retry control in the Members header. A confirmed denial hides the action.
 - `eligible-candidates`: invitation candidates exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's protected identity check. The existing Group dialog directs Humans to their DM with Tob.
 - `mixed-team-batch`: an authorized Human can add an eligible Host Member and invite their reachable Bot in one batch. Show the prerequisite when the Human is absent. The selected Human gets immediate private Channel and history access. A Bot joins or remains pending according to auto-accept.
+- `mixed-team-create`: the authenticated Human can create a Group with eligible Host Members and Bots. Selected people can read the Group immediately. A refused target rolls back the Group and initial memberships. A keyed retry returns the same Group ID.
 - `retry`: a target that becomes unavailable before submission has an individual failure result. Retry that result in the same Group. Replaying a submission with the original operation keys after an unconfirmed response produces no duplicate Group or invitation.
 - `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history. Group reads omit references that became invalid after startup. The existing member-removal command can remove a legacy missing reference.
 
@@ -40,6 +43,7 @@ Launch a task-owned Host and run doctor. Seed a Group and two ordinary Bots thro
 - In both Desktop dialogs, focus Search members and press Enter after selecting a member. Verify the form stays open and the Host state stays unchanged until explicit submission. With a dependent Bot selected, deselect its Human owner and verify that submission is disabled until the owner is restored or the Bot is removed.
 - With Team mode on, use an authorized Human and a second active Host Member who owns a reachable Bot. Check the prerequisite from the Bot row, select the Human and Bot, confirm the history hint and submit. Verify the Human's Channel access and the Bot outcome through the Host. Repeat with a stale target and compare a confirmed partial result and retry with canonical membership and invitation state.
 - Compare CLI candidate and result projections with the UI for the same Host using `group-member-picker` and `group-members-add`. Exposing the member candidates without the corresponding Channel permission must be refused or omit that participant type. No model reply is needed for accepted invitations.
+- On a Team Host, use `group-member-picker` without a Channel ID. Pass a returned person and an eligible Bot to `group-create --human <id> --member <slug> --operation-key <key>`. Read `channel <id>` as the creator and as the added person. Repeat the creation with the same payload and key and check the ID. Try a new creation with a suspended member and verify it is refused and absent from the Channel list.
 
 ## Gotchas
 

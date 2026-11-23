@@ -124,12 +124,20 @@ export interface CreateChannelGroupInput {
   id?: string;
   name: string;
   members: string[];
+  humanIds?: string[];
   ownerBotSlug?: string;
 }
 
 export interface ChannelStore {
   requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
   bindHumanAccess?(access: {
+    addInitialMembers?(
+      db: import('node:sqlite').DatabaseSync,
+      human: HumanContext,
+      channelId: string,
+      humanIds: readonly string[],
+      joinedAt: string,
+    ): void;
     requireBotJoin?(slug: string, channelId: string): void;
     requireBotPost?(slug: string, channel: ChannelRecord): void;
     requireDm?(human: HumanContext, slug: string): void;

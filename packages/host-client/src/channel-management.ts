@@ -147,9 +147,16 @@ export async function openBotDm(
   return requiredChannel(answer['channel'], 'channelDm');
 }
 
+export interface GroupChannelCreateArgs {
+  name: string;
+  members: readonly string[];
+  humanIds?: readonly string[];
+  operationKey?: string;
+}
+
 export async function createGroupChannel(
   host: HostCall,
-  args: { name: string; members: readonly string[]; operationKey?: string },
+  args: GroupChannelCreateArgs,
 ): Promise<ChannelListItem> {
   const answer = answerRecord(await host.call('channelCreate', args), 'channelCreate');
   const channel = requiredChannel(answer['channel'], 'channelCreate');
