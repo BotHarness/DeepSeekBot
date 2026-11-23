@@ -257,7 +257,7 @@ export function renderPairedDeviceSetup({
             <ChoiceButton
               title={t('connections.phone.scan')}
               description={t('connections.phone.recommended')}
-              leading={<Icon name="qr-code" />}
+              leading={<Icon name="smartphone" />}
               disabled={!ready}
               onClick={() => void createOffer()}
             />

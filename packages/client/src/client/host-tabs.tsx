@@ -103,6 +103,7 @@ const styles = stylex.create({
     fontWeight: text.strong,
     textAlign: 'center',
   },
+  entry: { display: 'flex', flexDirection: 'column', gap: space.x3 },
   status: {
     margin: 0,
     paddingBlock: space.x2,
@@ -532,13 +533,13 @@ export function AddRemoteHostDialog({
         </div>
         <ChoiceButton
           title={t('remoteHosts.address.password')}
-          leading={<ChannelSidebarIcon name="key-round" />}
+          leading={<ChannelSidebarIcon name="lock" />}
           onClick={() => setAddress({ kind: 'password', discovery })}
           data={{ 'data-modal-autofocus': '' }}
         />
         <ChoiceButton
           title={t('remoteHosts.address.approve')}
-          leading={<ChannelSidebarIcon name="scan-line" />}
+          leading={<ChannelSidebarIcon name="monitor" />}
           onClick={showPairingCode}
         />
         <AddressFingerprint discovery={discovery} t={t} />
@@ -608,7 +609,7 @@ export function AddRemoteHostDialog({
         ) : attempt?.saved && failed ? (
           <div role="status">{t('connections.savedOffline', { name: attempt.hostName ?? '' })}</div>
         ) : !attempt || failed ? (
-          <>
+          <div {...stylex.props(styles.entry)}>
             <TextField
               label={t(
                 address?.kind === 'pairing-code'
@@ -653,15 +654,17 @@ export function AddRemoteHostDialog({
                   });
               }}
             />
-            <Button
-              variant="outline"
-              disabled={busy}
-              icon={<ChannelSidebarIcon name="image" size={16} />}
-              onClick={() => imageInput.current?.click()}
-            >
-              {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
-            </Button>
-          </>
+            <div>
+              <Button
+                variant="outline"
+                disabled={busy}
+                icon={<ChannelSidebarIcon name="image" size={16} />}
+                onClick={() => imageInput.current?.click()}
+              >
+                {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div role="status">{t('connections.reading')}</div>
         )}

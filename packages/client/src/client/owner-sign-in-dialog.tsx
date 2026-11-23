@@ -38,7 +38,7 @@ export function AddressFingerprint({
   const [open, setOpen] = useState(false);
   return (
     <StatusDisclosure
-      icon="fingerprint"
+      icon="shield"
       title={t('connect.fingerprint')}
       open={open}
       onToggle={() => setOpen(!open)}
@@ -157,7 +157,10 @@ export function AddressPasswordSignInDialog({
           onClose={onClose}
           onSubmit={submit}
         >
-          <Note>{discovery.route}</Note>
+          <div>
+            {inline ? <strong>{discovery.host.name}</strong> : null}
+            <Note>{discovery.route}</Note>
+          </div>
           <TextField
             label={t('teamSignIn.username')}
             autoComplete="username"
