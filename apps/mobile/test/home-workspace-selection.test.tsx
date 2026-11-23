@@ -439,7 +439,7 @@ describe('Search in the Chats header', () => {
       routes: ['https://studio.tailnet-example.ts.net'],
       credential: transport.credential,
       carrier: transport.carrier,
-      backoff: () => 5,
+      backoff: () => 1_000,
     });
     hostState.live = client;
     client.start();
