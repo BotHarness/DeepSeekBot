@@ -45,6 +45,11 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const largeTextFallback = {
+  minScale: 1.4,
+  radius: radius.lg,
+} as const;
+
 export const alertOverlay = {
   maxHeightFraction: 0.5,
   swipeStart: 12,
