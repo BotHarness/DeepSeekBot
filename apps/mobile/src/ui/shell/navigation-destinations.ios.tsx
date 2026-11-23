@@ -9,8 +9,6 @@ import {
   foregroundStyle,
   frame,
   glassEffect,
-  lineLimit,
-  minimumScaleFactor,
   monospacedDigit,
   onLongPressGesture,
   padding,
@@ -18,7 +16,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { Platform } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { navigationBar, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
@@ -112,15 +110,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                     modifiers={[font({ textStyle: 'title2' })]}
                   />
                 )}
-                <Text
-                  modifiers={[
-                    font({ textStyle: 'caption2' }),
-                    lineLimit(1),
-                    minimumScaleFactor(navigationBar.labelMinScale),
-                  ]}
-                >
-                  {label}
-                </Text>
+                <Text modifiers={[font({ textStyle: 'caption2' })]}>{label}</Text>
               </VStack>
             </Button>
           );

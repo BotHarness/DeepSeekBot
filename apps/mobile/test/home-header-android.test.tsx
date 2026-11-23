@@ -150,6 +150,16 @@ describe('Android Chats header', () => {
     expect(Number.parseFloat(bar.style.height)).toBe(56 + 24 * (scale - 1) + 8);
   });
 
+  it('keeps actions reachable on a separate row at large text sizes', () => {
+    const readDirection = () =>
+      header(false).querySelector<HTMLElement>('[data-testid="home-header"]')?.style.flexDirection;
+    device.fontScale = 1;
+    expect(readDirection()).toBe('row');
+    device.fontScale = 2;
+    expect(readDirection()).toBe('column');
+    expect(header(false).querySelectorAll('[data-symbol]')).toHaveLength(2);
+  });
+
   it.each([1, 1.5, 2])(
     'reserves the native search height before opening at font scale %s',
     (fontScale) => {

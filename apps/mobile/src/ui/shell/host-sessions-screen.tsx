@@ -227,7 +227,7 @@ function HostSessionsList({
           )
         }
         actions={
-          searchOpen ? undefined : (
+          searchOpen || (!canQuery && (android || !canCreate)) ? undefined : (
             <>
               {canQuery ? (
                 <>
