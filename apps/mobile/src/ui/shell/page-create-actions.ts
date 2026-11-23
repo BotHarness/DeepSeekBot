@@ -5,7 +5,7 @@ export function canCreateNativeSession(host: SavedHost | null | undefined): bool
   return host != null && savedHostIdentity(host).kind === 'owner';
 }
 
-export function androidTabCreateAction(
+export function tabCreateAction(
   route: string | undefined,
   sessionsEnabled: boolean,
   host: SavedHost | null | undefined,

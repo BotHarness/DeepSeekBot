@@ -60,6 +60,22 @@ vi.mock('expo-router/js-tabs', () => ({
     { Screen: () => null },
   ),
 }));
+vi.mock('../src/ui/shell/creation-panel', () => ({
+  CreationPanel: ({
+    children,
+    onDismiss,
+  }: {
+    children(controls: {
+      dismiss(action?: () => void): void;
+      firstAction: { current: null };
+    }): ReactNode;
+    onDismiss(action?: () => void): void;
+  }) => (
+    <section role="dialog">
+      {children({ dismiss: onDismiss, firstAction: { current: null } })}
+    </section>
+  ),
+}));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
@@ -171,10 +187,9 @@ it.each(['ios', 'android'])(
       for (const index of [0, 1, 2, 3]) {
         fixture.index = index;
         await act(async () => root.render(<BottomNavigation />));
-        expect(Boolean(chatsCreate())).toBe(platform === 'android' && index === 0);
-        expect(Boolean(sessionCreate())).toBe(platform === 'android' && index === 2);
+        expect(Boolean(chatsCreate())).toBe(index === 0);
+        expect(Boolean(sessionCreate())).toBe(index === 2);
       }
-      if (platform !== 'android') return;
 
       fixture.index = 2;
       await act(async () => root.render(<BottomNavigation />));

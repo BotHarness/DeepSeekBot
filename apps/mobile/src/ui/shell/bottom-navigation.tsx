@@ -15,7 +15,7 @@ import { fab, materialNavigationBar, navigationBar, radius, space } from '../des
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
 import { ChatsCreate } from './chats-create';
-import { androidTabCreateAction, openNewSession } from './page-create-actions';
+import { tabCreateAction, openNewSession } from './page-create-actions';
 import { SessionCreateFab } from './session-create-fab';
 import { FloatingTabInset } from './floating-tab-inset';
 import { useSessionsTab } from '../interface-preferences';
@@ -129,7 +129,7 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const { saved, client } = useHostSession();
-  const create = androidTabCreateAction(
+  const create = tabCreateAction(
     state.routes[state.index]?.name,
     sessionsTab,
     client ? saved : undefined,
@@ -154,60 +154,41 @@ function ScopedNavigationBar({
       onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
     }));
   const fabBottom = size + bottom + fab.margin;
-  if (Platform.OS === 'android')
-    return (
-      <>
-        <View
-          onLayout={({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height)}
-          pointerEvents="box-none"
-          style={[
-            {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom,
-              backgroundColor: theme.layer.raised.fill,
-            },
-          ]}
-        >
-          <NavigationDestinations items={items} />
-        </View>
-        {create ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              {
-                position: 'absolute',
-                right: insets.right + fab.margin,
-                bottom: fabBottom,
-              },
-            ]}
-          >
-            {create === 'chats' ? (
-              <ChatsCreate scope={scope} size={fab.size} />
-            ) : (
-              <SessionCreateFab onPress={openNewSession} />
-            )}
-          </View>
-        ) : null}
-      </>
-    );
+  const android = Platform.OS === 'android';
   return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: 'absolute',
-        left: insets.left + space.x5,
-        right: insets.right + space.x5,
-        bottom,
-        height: size,
-        flexDirection: 'row',
-        padding: space.x2,
-        borderRadius: radius.round,
-      }}
-    >
-      <NavigationMaterial />
-      <NavigationDestinations items={items} />
-    </View>
+    <>
+      <View
+        onLayout={
+          android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
+        }
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: android ? 0 : insets.left + space.x5,
+          right: android ? 0 : insets.right + space.x5,
+          bottom,
+          height: android ? undefined : size,
+          flexDirection: android ? undefined : 'row',
+          padding: android ? undefined : space.x2,
+          borderRadius: android ? undefined : radius.round,
+          backgroundColor: android ? theme.layer.raised.fill : undefined,
+        }}
+      >
+        {!android ? <NavigationMaterial /> : null}
+        <NavigationDestinations items={items} />
+      </View>
+      {create ? (
+        <View
+          pointerEvents="box-none"
+          style={{ position: 'absolute', right: insets.right + fab.margin, bottom: fabBottom }}
+        >
+          {create === 'chats' ? (
+            <ChatsCreate scope={scope} bottom={fabBottom} />
+          ) : (
+            <SessionCreateFab onPress={openNewSession} />
+          )}
+        </View>
+      ) : null}
+    </>
   );
 }

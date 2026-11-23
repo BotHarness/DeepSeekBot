@@ -18,6 +18,7 @@ import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
 import { FixedToolbar } from './fixed-toolbar';
 import { TabPageHeader } from './tab-page-header';
+import { TabNativeHeader, type TabHeaderSearch } from './tab-native-header';
 
 export function HomeHeader({
   environment,
@@ -26,7 +27,7 @@ export function HomeHeader({
   actions,
   search,
   bar,
-  barActions,
+  nativeSearch,
   onWorkspaces,
   children,
 }: {
@@ -36,7 +37,7 @@ export function HomeHeader({
   actions?: ReactNode;
   search?: ReactNode;
   bar?: ReactNode;
-  barActions?: ReactNode;
+  nativeSearch?: TabHeaderSearch | undefined;
   onWorkspaces?: (() => void) | undefined;
   children: ReactNode;
 }) {
@@ -46,6 +47,7 @@ export function HomeHeader({
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();
   const insets = useSafeAreaInsets();
+  const native = Platform.OS === 'ios' && nativeSearch !== undefined;
   const android = Platform.OS === 'android';
   const searchBar = android && bar !== undefined;
   const minimumHeight = searchBar
@@ -117,7 +119,23 @@ export function HomeHeader({
       )}
     </Pressable>
   );
-  const header = searchBar ? (
+  const header = native ? (
+    <>
+      <TabNativeHeader
+        title={title}
+        leading={theme.largeText ? null : location}
+        search={nativeSearch}
+      />
+      {theme.largeText ? (
+        <View
+          testID="home-header"
+          style={{ paddingHorizontal: space.x5, paddingVertical: space.x2 }}
+        >
+          {location}
+        </View>
+      ) : null}
+    </>
+  ) : searchBar ? (
     <View
       testID="home-header"
       onLayout={measure}
@@ -133,7 +151,6 @@ export function HomeHeader({
       <View ref={chip} style={{ flex: 1 }}>
         {bar}
       </View>
-      {barActions}
     </View>
   ) : (
     <TabPageHeader

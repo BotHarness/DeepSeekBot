@@ -25,14 +25,16 @@ import { HeaderAction } from './header-action';
 import { HeaderSearch } from './header-search';
 import { HostSessionOptionsSheet, type SessionOptionGroup } from './host-session-options';
 import { HostSessionOptionsButton } from './host-session-options-button';
-import { canCreateNativeSession, openNewSession } from './page-create-actions';
+import { canCreateNativeSession } from './page-create-actions';
 import { TabPageHeader } from './tab-page-header';
+import { TabNativeHeader } from './tab-native-header';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
 
 export function HostSessionsScreen() {
   const enabled = useSessionsTab();
   const { client, saved } = useHostSession();
   const t = useStrings().hostSessions;
+  const nativeHeader = Platform.OS === 'ios';
   if (!enabled) return <Redirect href="/" />;
   if (client && saved)
     return (
@@ -45,8 +47,14 @@ export function HostSessionsScreen() {
     );
   return (
     <>
-      <Stack.Screen options={{ title: t.title, headerShown: false }} />
-      <TabPageHeader testID="host-sessions-header" leading={<SessionsTitle />} />
+      {nativeHeader ? (
+        <TabNativeHeader title={t.title} leading={<SessionsTitle />} />
+      ) : (
+        <>
+          <Stack.Screen options={{ title: t.title, headerShown: false }} />
+          <TabPageHeader testID="host-sessions-header" leading={<SessionsTitle />} />
+        </>
+      )}
       <Text tone="muted" style={{ padding: space.x5 }}>
         {t.offline}
       </Text>
@@ -74,7 +82,8 @@ function HostSessionsList({
 }) {
   const router = useRouter();
   const t = useStrings().hostSessions;
-  const android = Platform.OS === 'android';
+  const nativeHeader = Platform.OS === 'ios';
+  const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
   const sort = useSessionSort();
   const [source, setSource] = useState<HostSessionFilter>('all');
@@ -209,35 +218,89 @@ function HostSessionsList({
   };
   return (
     <>
-      <Stack.Screen options={{ title: t.title, headerShown: false }} />
-      <TabPageHeader
-        testID="host-sessions-header"
-        leading={
-          searchOpen ? (
-            <HeaderSearch
-              testID="host-sessions-query"
-              value={draft}
-              placeholder={t.search}
-              maxLength={HOST_SESSION_SEARCH_MAX}
-              onChangeText={changeSearch}
-              onFocusChange={(focused) => {
-                if (!focused && Platform.OS === 'ios') setSearchOpen(false);
-              }}
-              onSubmitEditing={(text) => {
-                changeSearch(text, true);
-                Keyboard.dismiss();
-                setSearchOpen(false);
-              }}
-              onClose={() => setSearchOpen(false)}
-            />
-          ) : (
-            <SessionsTitle />
-          )
-        }
-        actions={
-          searchOpen || (!canQuery && (android || !canCreate)) ? undefined : (
-            <>
-              {canQuery ? (
+      {nativeHeader ? (
+        <>
+          <TabNativeHeader
+            title={t.title}
+            leading={theme.largeText ? null : <SessionsTitle />}
+            search={
+              canQuery
+                ? {
+                    placeholder: t.search,
+                    label: t.search,
+                    onChange: (text) => changeSearch(text.slice(0, HOST_SESSION_SEARCH_MAX)),
+                    onCancel: () => changeSearch(''),
+                    onSubmit: (text) => {
+                      changeSearch(text.slice(0, HOST_SESSION_SEARCH_MAX), true);
+                      Keyboard.dismiss();
+                    },
+                  }
+                : undefined
+            }
+            items={
+              canQuery
+                ? [
+                    {
+                      type: 'menu',
+                      label: t.options,
+                      accessibilityLabel: t.options,
+                      identifier: 'host-sessions-options',
+                      icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
+                      sharesBackground: true,
+                      ...(optionsActive ? { tintColor: theme.color.accent } : {}),
+                      menu: {
+                        items: groups.map((group) => ({
+                          type: 'submenu',
+                          inline: true,
+                          label: group.label,
+                          items: group.choices.map((choice) => ({
+                            type: 'action',
+                            label: choice.label,
+                            state: choice.id === group.selected ? 'on' : 'off',
+                            onPress: choice.select,
+                          })),
+                        })),
+                      },
+                    },
+                  ]
+                : undefined
+            }
+          />
+          {theme.largeText ? (
+            <View
+              testID="host-sessions-header"
+              style={{ paddingHorizontal: space.x5, paddingVertical: space.x2 }}
+            >
+              <SessionsTitle />
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <Stack.Screen options={{ title: t.title, headerShown: false }} />
+          <TabPageHeader
+            testID="host-sessions-header"
+            leading={
+              searchOpen ? (
+                <HeaderSearch
+                  testID="host-sessions-query"
+                  value={draft}
+                  placeholder={t.search}
+                  maxLength={HOST_SESSION_SEARCH_MAX}
+                  onChangeText={changeSearch}
+                  onSubmitEditing={(text) => {
+                    changeSearch(text, true);
+                    Keyboard.dismiss();
+                    setSearchOpen(false);
+                  }}
+                  onClose={() => setSearchOpen(false)}
+                />
+              ) : (
+                <SessionsTitle />
+              )
+            }
+            actions={
+              !searchOpen && canQuery ? (
                 <>
                   <HeaderAction
                     icon="search"
@@ -252,19 +315,11 @@ function HostSessionsList({
                     onOpen={() => setOptionsOpen(true)}
                   />
                 </>
-              ) : null}
-              {!android && canCreate ? (
-                <HeaderAction
-                  icon="add"
-                  label={t.create}
-                  testID="session-create-button"
-                  onPress={openNewSession}
-                />
-              ) : null}
-            </>
-          )
-        }
-      />
+              ) : undefined
+            }
+          />
+        </>
+      )}
       <FlatList
         testID="host-sessions-list"
         automaticallyAdjustContentInsets={false}
@@ -272,7 +327,7 @@ function HostSessionsList({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: space.x4,
-          paddingBottom: bottom + (android && canCreate ? fab.size : 0),
+          paddingBottom: bottom + (canCreate ? fab.size : 0),
         }}
         data={rows}
         keyExtractor={(row) => row.sessionId}

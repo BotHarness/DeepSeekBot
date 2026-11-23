@@ -43,7 +43,7 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
-import { searchAppBar, space } from '../../../src/ui/design/tokens';
+import { fab, searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -54,7 +54,6 @@ import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
-import { ChatsCreate } from '../../../src/ui/shell/chats-create';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
@@ -229,19 +228,6 @@ const HomeContent = memo(function HomeContent({
   );
   const tobHref = tobModeHref(tobHostId, tobComputers);
   const pullFocused = useIsFocused();
-  const tobAction =
-    tobHostId === undefined ? null : (
-      <HeaderAction
-        icon="tob"
-        label={t.openTobMode}
-        testID="tob-mode-button"
-        onPress={() => {
-          if (tobHref === undefined) return;
-          recordFeature('tob:mode_open', {});
-          router.push(tobHref);
-        }}
-      />
-    );
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -588,7 +574,7 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      {screen}
+      {Platform.OS === 'ios' ? null : screen}
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
@@ -615,9 +601,22 @@ const HomeContent = memo(function HomeContent({
               />
             ) : undefined
           }
-          barActions={searchFocused ? null : tobAction}
+          nativeSearch={{
+            placeholder: t.searchPlaceholder,
+            onChange: onQuery,
+            onFocus: () => {
+              setSearching(true);
+              setSearchFocused(true);
+            },
+            onBlur: () => setSearchFocused(false),
+            onCancel: () => {
+              setQuery('');
+              setSearchFocused(false);
+              setSearching(false);
+            },
+          }}
           search={
-            Platform.OS !== 'android' && searching ? (
+            Platform.OS === 'web' && searching ? (
               <HeaderSearch
                 value={query}
                 placeholder={t.searchPlaceholder}
@@ -634,18 +633,12 @@ const HomeContent = memo(function HomeContent({
             ) : undefined
           }
           actions={
-            <>
-              <HeaderAction
-                icon="search"
-                label={t.openSearch}
-                testID="search-button"
-                onPress={() => setSearching(true)}
-              />
-              {tobAction}
-              {Platform.OS !== 'android' ? (
-                <ChatsCreate scope={effectiveFilter} size={theme.touch} />
-              ) : null}
-            </>
+            <HeaderAction
+              icon="search"
+              label={t.openSearch}
+              testID="search-button"
+              onPress={() => setSearching(true)}
+            />
           }
         >
           <LastChatSwipe
@@ -685,7 +678,7 @@ const HomeContent = memo(function HomeContent({
                   {...pull}
                   renderScrollComponent={renderKeyboardFormScroll}
                   scrollEventThrottle={1}
-                  contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
+                  contentContainerStyle={{ paddingBottom: bottom + fab.size + space.x6 }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   data={listItems}
