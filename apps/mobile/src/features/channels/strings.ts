@@ -6,6 +6,7 @@ export const en = {
   channelOpening: 'Opening conversation…',
   channelOpeningFailed: 'Could not open the conversation. Check the connection and try again.',
   channelOpeningNotReady: 'Conversations are still loading. Try opening again.',
+  emptyTeamChannels: 'No channels yet. The Owner or an admin can create one.',
   channelCreation: {
     chooseBots: 'Choose Bots',
     selected: (count: number) => `${count} selected`,
@@ -203,6 +204,7 @@ export const zh: typeof en = {
   channelOpening: '正在打开会话…',
   channelOpeningFailed: '打开会话失败，检查连接后重试。',
   channelOpeningNotReady: `会话还在加载，稍后再${tapVerb.zh}一次。`,
+  emptyTeamChannels: '暂无频道，所有者或管理员可以创建。',
   channelCreation: {
     chooseBots: '选择 Bot',
     selected: (count: number) => `已选择 ${count} 个`,

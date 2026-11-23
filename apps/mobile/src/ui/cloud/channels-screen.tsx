@@ -114,6 +114,10 @@ function ChannelWorkspace({
     insets = useSafeAreaInsets();
   const row = snapshot.rows.find((r) => r.config.instanceId === instanceId);
   const allowed = !!row?.hasSession && !!row.sessionUserId;
+  const canCreateChannel =
+    !guest &&
+    row?.organization?.organizationId === organizationId &&
+    row.organization.role === 'owner';
   const [channels, setChannels] = useState<CloudChannel[]>();
   const [channelCursor, setChannelCursor] = useState<string | null>(null);
   const [channel, setChannel] = useState<CloudChannel>();
@@ -392,7 +396,7 @@ function ChannelWorkspace({
             </>
           ) : !channelId ? (
             <>
-              {!guest && row.organization?.role === 'owner' && (
+              {canCreateChannel && (
                 <View style={box}>
                   <TextField
                     accessibilityLabel={t.cloudChannels.name}
@@ -468,7 +472,9 @@ function ChannelWorkspace({
               ? t.cloudChannels.noMessages
               : guest
                 ? t.cloudGuests.empty
-                : t.cloudChannels.empty}
+                : canCreateChannel
+                  ? t.cloudChannels.empty
+                  : t.cloudChannels.emptyMember}
           </Text>
         ) : undefined
       }

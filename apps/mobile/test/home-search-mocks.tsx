@@ -1,5 +1,6 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { HostClient, RosterView } from '@botharness/host-client/client';
+import type { HostMemberIdentity } from '@botharness/host-client/member-identity';
 import { vi, type Mock } from 'vitest';
 import type { CloudClient, CloudRow } from '../src/cloud/client';
 import type {
@@ -30,6 +31,7 @@ export const { cloudState, directoryState, hostState, menus, rowProps } = {
     unread: false,
     hostId: 'h1',
     live: undefined as HostClient | undefined,
+    member: undefined as HostMemberIdentity | undefined,
     activityItems: [] as HumanAttentionItem[],
   },
   cloudState: {
@@ -176,7 +178,7 @@ export function mockHostSession() {
         ? []
         : [
             {
-              saved: { hostId: hostState.hostId, hostName: 'studio' },
+              saved: { hostId: hostState.hostId, hostName: 'studio', member: hostState.member },
               client: hostState.live ?? activityClient,
               inbox: { refresh: async () => {} },
               snapshot: hostState.live
@@ -195,7 +197,9 @@ export function mockHostSession() {
           ],
     quietChannels: { get: () => [] },
     useHostSession: () => ({
-      saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
+      saved: hostState.removed
+        ? null
+        : { hostId: hostState.hostId, hostName: 'studio', member: hostState.member },
       client: hostState.live ?? (hostState.actions ? { call, refresh } : undefined),
       inbox: undefined,
     }),

@@ -70,6 +70,7 @@ export function resetHomeState() {
   vi.unstubAllGlobals();
   hostState.live?.stop();
   hostState.live = undefined;
+  hostState.member = undefined;
   hostState.connecting = false;
   hostState.removed = false;
   hostState.color = undefined;
