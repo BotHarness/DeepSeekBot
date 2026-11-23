@@ -73,6 +73,27 @@ describe('Bot Schedule operation keys and revisions', () => {
     expect(store.list('ada')).toHaveLength(1);
   });
 
+  it('treats a daily time that differs only in seconds as a different request and revision', () => {
+    const { store } = storeAt('2026-10-06T00:00:00.000Z');
+    const daily = (time: string) =>
+      ({
+        title: 'Standup',
+        prompt: 'Post the standup',
+        trigger: { kind: 'daily', time, timeZone: 'Asia/Tokyo' },
+      }) as const;
+    const first = store.create('ada', daily('09:00:10'), 'human', undefined, {
+      operationKey: 'tob-op-daily',
+    });
+    expect(() =>
+      store.create('ada', daily('09:00:50'), 'human', undefined, { operationKey: 'tob-op-daily' }),
+    ).toThrow(expect.objectContaining({ code: 'operation-key-conflict' }));
+    const edited = store.update('ada', first.id, { trigger: daily('09:00:50').trigger }, 'human');
+    expect(edited.revision).not.toBe(first.revision);
+    expect(() => store.update('ada', first.id, { title: 'Late' }, 'human', first.revision)).toThrow(
+      expect.objectContaining({ code: 'stale-revision' }),
+    );
+  });
+
   it('reconciles at the enabled limit without counting the original twice', () => {
     const { store } = storeAt('2026-10-06T00:00:00.000Z');
     for (let index = 1; index < BOT_SCHEDULE_ENABLED_LIMIT; index += 1)

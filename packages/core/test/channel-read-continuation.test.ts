@@ -178,6 +178,29 @@ describe('channelMessages continuation on the Host method', () => {
     expect(page.nextCursor).toBeDefined();
     expect(Buffer.byteLength(JSON.stringify(page), 'utf8')).toBeLessThanOrEqual(maxBytes);
   });
+
+  it('returns a message larger than the byte cap alone so the read still advances', async () => {
+    const { channels } = setup();
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await seed(channels, dm.id, ['m1']);
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+      id: 'big',
+      at: '2026-11-01T00:00:00.000Z',
+      author: { kind: 'human' },
+      body: 'x'.repeat(16 * 1024),
+    });
+    const maxBytes = 8 * 1024;
+    const first = readChannelMessagePage(channels, dm.id, { limit: 2, maxBytes })!;
+    expect(first.messages.map((message) => message.id)).toEqual(['big']);
+    expect(first.complete).toBe(false);
+    const second = readChannelMessagePage(channels, dm.id, {
+      limit: 2,
+      maxBytes,
+      cursor: first.nextCursor!,
+    })!;
+    expect(second.messages.map((message) => message.id)).toEqual(['m1']);
+    expect(second.complete).toBe(true);
+  });
 });
 
 describe('channel continuation on the operational store', () => {

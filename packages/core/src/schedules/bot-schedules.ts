@@ -324,11 +324,30 @@ function digest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function exactTriggerOf(record: StoredRecord): unknown {
+  switch (record.kind) {
+    case 'daily':
+      return { kind: 'daily', time: localTime(record.time), timeZone: record.timeZone };
+    case 'weekly':
+      return {
+        kind: 'weekly',
+        time: localTime(record.time),
+        timeZone: record.timeZone,
+        weekdays: [...record.weekdays],
+      };
+    case 'at':
+      return { kind: 'once', ...record.local, at: record.scheduledAt };
+    case 'every':
+    case 'cron':
+      return triggerOf(record);
+  }
+}
+
 function scheduleRevision(row: ScheduleRow, record: StoredRecord): string {
   return digest({
     title: record.title,
     prompt: record.prompt,
-    trigger: triggerOf(record),
+    trigger: exactTriggerOf(record),
     enabled: row.enabled === 1,
     locked: row.locked === 1,
   }).slice(0, 24);
@@ -695,7 +714,7 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
                 time: localTime(input.trigger.time),
                 timeZone: input.trigger.timeZone,
               }
-            : triggerOf(record!),
+            : exactTriggerOf(record!),
         enabled,
         locked,
       });
