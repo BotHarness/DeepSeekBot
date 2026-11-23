@@ -107,6 +107,8 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
         style={({ pressed }) => ({
           width: fab.size,
           height: fab.size,
+          minWidth: theme.touch,
+          minHeight: theme.touch,
           borderRadius: android ? fab.radius : radius.round,
           alignItems: 'center',
           justifyContent: 'center',
