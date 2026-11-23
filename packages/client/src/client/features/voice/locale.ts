@@ -1,4 +1,23 @@
 export const zh = {
+  'voice.catalog.search': '搜索{label}',
+  'voice.catalog.empty': '没有匹配项',
+  'voice.catalog.filters': '音色来源',
+  'voice.catalog.available': '可用音色',
+  'voice.catalog.public': '公开音色库',
+  'voice.catalog.enterKey': '填写 API Key 后可查供应商目录。',
+  'voice.catalog.loading': '正在查询供应商…',
+  'voice.catalog.failed': '无法查询。检查 API Key 或重试。',
+  'voice.catalog.retry': '重试',
+  'voice.catalog.more': '加载更多',
+  'voice.catalog.narrow': '缩小搜索范围以查看更多结果。',
+  'voice.catalog.importRequired': '需添加到账户',
+  'voice.catalog.preview': '试听',
+  'voice.catalog.stopPreview': '停止试听',
+  'voice.catalog.previewFailed': '无法播放试听。',
+  'voice.catalog.importTitle': '添加「{name}」音色？',
+  'voice.catalog.importDescription': '此音色会添加到 API Key 对应的账户，并选为本服务的默认音色。',
+  'voice.catalog.importConfirm': '添加到账户',
+  'voice.catalog.importFailed': '未能确认添加结果。重试前先检查账户可用音色。',
   'voice.providers.title': '语音合成（TTS）',
   'voice.providers.description':
     'Bot 用这些语音服务把回复读出来。密钥只保存在本机 Host，不会再显示。',
@@ -174,6 +193,27 @@ export const zh = {
 } as const;
 
 export const en = {
+  'voice.catalog.search': 'Search {label}',
+  'voice.catalog.empty': 'No matches',
+  'voice.catalog.filters': 'Voice source',
+  'voice.catalog.available': 'Available voices',
+  'voice.catalog.public': 'Public voice library',
+  'voice.catalog.enterKey': 'Enter an API key to browse the provider catalog.',
+  'voice.catalog.loading': 'Looking up options…',
+  'voice.catalog.failed': 'Couldn’t load options. Check the API key or try again.',
+  'voice.catalog.retry': 'Try again',
+  'voice.catalog.more': 'Load more',
+  'voice.catalog.narrow': 'Narrow your search to see more results.',
+  'voice.catalog.importRequired': 'Requires adding to account',
+  'voice.catalog.preview': 'Play sample',
+  'voice.catalog.stopPreview': 'Stop sample',
+  'voice.catalog.previewFailed': 'Couldn’t play the sample.',
+  'voice.catalog.importTitle': 'Add {name}?',
+  'voice.catalog.importDescription':
+    'This adds the voice to the account for this API key and selects it as the default for this service.',
+  'voice.catalog.importConfirm': 'Add to account',
+  'voice.catalog.importFailed':
+    'Couldn’t confirm the result. Check your available voices before trying again.',
   'voice.providers.title': 'Speech synthesis (TTS)',
   'voice.providers.description':
     'Bots read replies aloud through these services. Keys stay on this Host and are never shown again.',

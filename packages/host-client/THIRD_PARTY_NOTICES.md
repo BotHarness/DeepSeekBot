@@ -7,7 +7,7 @@ This package vendors the following third-party material.
 - Package: `@lobehub/icons-static-svg` 1.103.0
 - License: MIT
 - Source: <https://github.com/lobehub/lobe-icons>
-- Used for: model family and provider logos in `packages/host-client/src/shared/model-brand-icons.ts` (SVG paths vendored as source), drawn by the desktop Client header chip and the mobile chat header. The logos are trademarks of their owners and identify their model families or providers.
+- Used for: model family and provider logos in `packages/host-client/src/shared/model-brand-icons.ts` (SVG paths vendored as source), drawn by the desktop Client header chip, speech settings pickers and mobile chat header. The logos are trademarks of their owners and identify their model families or providers. The Soniox mark comes from the [Soniox brand resources](https://soniox.com/brand).
 
 ```
 MIT License

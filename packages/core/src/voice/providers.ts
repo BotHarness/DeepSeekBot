@@ -3,6 +3,15 @@ import type WebSocket from 'ws';
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import type {
+  VoiceCatalogImportInput,
+  VoiceCatalogInput,
+  VoiceCatalogItem,
+  VoiceCatalogPage,
+} from './catalog.js';
+import { asrHttpRequest } from './provider-asr-request.js';
+import { fetchVoiceCatalog, importCatalogVoice } from './provider-catalog.js';
+import { mimoTranscript, mimoTtsRequest, mimoTtsResponse } from './mimo.js';
 import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.js';
 import {
   warmSoniox,
@@ -19,6 +28,7 @@ import {
   uniqueProviderName,
   type AsrPreset,
   type TtsPreset,
+  type TtsWire,
 } from './presets.js';
 import { audioExtension, chineseScript, silenceWav, sniffAudio } from './provider-audio.js';
 import {
@@ -131,6 +141,14 @@ export class VoiceProviders {
 
   asrPresets(): readonly AsrPreset[] {
     return ASR_PRESETS;
+  }
+
+  catalog(input: VoiceCatalogInput): Promise<VoiceCatalogPage> {
+    return fetchVoiceCatalog({ fetch: this.#fetch, timeoutMs: this.#timeoutMs }, input);
+  }
+
+  importVoice(input: VoiceCatalogImportInput): Promise<VoiceCatalogItem> {
+    return importCatalogVoice({ fetch: this.#fetch, timeoutMs: this.#timeoutMs }, input);
   }
 
   #stored(id: string, kind?: VoiceProviderKind): StoredProvider {
@@ -468,12 +486,14 @@ export class VoiceProviders {
   }
 
   #request(
+    wire: TtsWire,
     stored: StoredProvider,
     key: string | undefined,
     text: string,
     voice: string | undefined,
   ): { url: string; init: RequestInit } {
-    const wire = presetOf(stored.preset).wire;
+    if (wire === 'mimo')
+      return mimoTtsRequest({ baseUrl: stored.baseUrl, model: stored.model, voice, key, text });
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -536,7 +556,9 @@ export class VoiceProviders {
       throw new VoiceError('invalid-input', `Text must be 1–${MAX_TTS_INPUT_CHARS} characters.`);
     const voice = input.voiceId?.trim() || stored.defaultVoice;
     const key = await this.#key(stored);
-    const { url, init } = this.#request(stored, key, text, voice);
+    const wire = presetOf(stored.preset).wire;
+    const { url, init } = this.#request(wire, stored, key, text, voice);
+    const decoder = wire === 'mimo' ? mimoTtsResponse : undefined;
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
@@ -563,9 +585,12 @@ export class VoiceProviders {
       });
       throw failure;
     }
-    let audio: Uint8Array;
+    let body: Uint8Array;
     try {
-      audio = await readBounded(response, MAX_TTS_AUDIO_BYTES);
+      body = await readBounded(
+        response,
+        decoder?.maxBodyBytes(MAX_TTS_AUDIO_BYTES) ?? MAX_TTS_AUDIO_BYTES,
+      );
     } catch (error) {
       if (error instanceof VoiceError) throw error;
       input.signal?.throwIfAborted();
@@ -574,7 +599,15 @@ export class VoiceProviders {
         'The provider stopped while sending audio.',
       );
     }
-    const mime = sniffAudio(audio, response.headers.get('content-type'));
+    const audio = decoder === undefined ? body : decoder.decode(body);
+    if (audio === undefined)
+      throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
+    if (audio.byteLength > MAX_TTS_AUDIO_BYTES)
+      throw new VoiceError('audio-too-large', 'The provider returned too much audio.');
+    const mime = sniffAudio(
+      audio,
+      decoder === undefined ? response.headers.get('content-type') : null,
+    );
     if (mime === undefined)
       throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
     const latencyMs = Math.round(performance.now() - started);
@@ -603,31 +636,22 @@ export class VoiceProviders {
     if (language !== undefined && !LANGUAGE.test(language))
       throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
     const key = await this.#key(stored);
-    if (asrPresetOf(stored.preset).wire === 'soniox')
+    const wire = asrPresetOf(stored.preset).wire;
+    if (wire === 'soniox')
       return this.#sonioxFile(stored, key, input.audio, language, input.signal);
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob([input.audio as Uint8Array<ArrayBuffer>], { type: mime }),
-      `speech.${audioExtension(mime)}`,
-    );
-    form.append('model', stored.model ?? 'whisper-1');
-    form.append('response_format', 'json');
-    if (language !== undefined) form.append('language', language.split('-')[0]!);
-    const script = chineseScript(language);
-    if (script !== undefined) form.append('prompt', script);
+    const { url, init } = asrHttpRequest(wire, {
+      stored,
+      key,
+      audio: input.audio,
+      mime,
+      language,
+    });
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
     let response: Response;
     try {
-      response = await this.#fetch(`${stored.baseUrl}/audio/transcriptions`, {
-        method: 'POST',
-        headers: key === undefined ? {} : { Authorization: `Bearer ${key}` },
-        body: form,
-        signal,
-        redirect: 'error',
-      });
+      response = await this.#fetch(url, { ...init, signal, redirect: 'error' });
     } catch (error) {
       input.signal?.throwIfAborted();
       const code = timeout.aborted ? 'provider-timeout' : 'provider-unavailable';
@@ -657,7 +681,11 @@ export class VoiceProviders {
       throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
     }
     const raw =
-      typeof body === 'object' && body !== null ? (body as Record<string, unknown>)['text'] : '';
+      wire === 'mimo'
+        ? mimoTranscript(body)
+        : typeof body === 'object' && body !== null && 'text' in body
+          ? body.text
+          : undefined;
     if (typeof raw !== 'string')
       throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
     const text = raw

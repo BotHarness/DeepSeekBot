@@ -25,9 +25,15 @@ import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MessageAudio } from './message-audio.js';
+import { providerBrand, type ModelBrand } from './model-brand.js';
+import { VoiceCatalogPicker, type VoicePickerCatalog } from './voice-catalog-picker.js';
 import { VoiceMicTest } from './voice-mic-test.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { VoiceProviderHealthView, VoiceProvidersView } from './voice-bridge.js';
+import type {
+  VoiceCatalogCollection,
+  VoiceProviderHealthView,
+  VoiceProvidersView,
+} from './voice-bridge.js';
 import {
   choiceValues,
   chosenValue,
@@ -56,6 +62,8 @@ type VoiceActions = Pick<
   BridgeActions,
   | 'voiceProviders'
   | 'addVoiceProvider'
+  | 'browseVoiceCatalog'
+  | 'importSharedVoice'
   | 'removeVoiceProvider'
   | 'testVoiceProvider'
   | 'synthesizeVoice'
@@ -89,6 +97,7 @@ interface PresetRow {
   readonly models?: readonly string[];
   readonly defaultVoice?: string;
   readonly voices?: readonly { readonly id: string; readonly name: string }[];
+  readonly catalogs?: readonly VoiceCatalogCollection[];
 }
 
 interface Draft {
@@ -137,6 +146,8 @@ function ChoiceField({
   names,
   state,
   placeholder,
+  brand,
+  catalog,
   t,
   onChange,
 }: {
@@ -146,6 +157,8 @@ function ChoiceField({
   names?: Readonly<Record<string, string>>;
   state: Choice;
   placeholder?: string | undefined;
+  brand: ModelBrand | undefined;
+  catalog?: VoicePickerCatalog | undefined;
   t: BotHarnessTranslate;
   onChange: (next: Choice) => void;
 }): ReactElement {
@@ -160,23 +173,33 @@ function ChoiceField({
       onChange={(text) => onChange({ choice: CUSTOM_CHOICE, custom: text })}
     />
   );
-  if (values.length === 0) return custom;
+  if (values.length === 0 && catalog === undefined) return custom;
   return (
     <>
       <Field label={label} group>
         {() => (
-          <Select
+          <VoiceCatalogPicker
             label={label}
             value={state.choice}
-            align="start"
+            valueLabel={state.catalogName}
+            brand={brand}
+            catalog={catalog}
             options={[
               ...values.map((value) => ({
-                value,
-                label: names?.[value] ?? value,
+                id: value,
+                name: names?.[value] ?? value,
+                brand,
               })),
-              { value: CUSTOM_CHOICE, label: t('voice.choice.custom') },
+              { id: CUSTOM_CHOICE, name: t('voice.choice.custom'), brand: undefined },
             ]}
-            onChange={(choice) => onChange({ ...state, choice })}
+            t={t}
+            onChange={(item, fromCatalog) =>
+              onChange({
+                choice: item.id,
+                custom: state.custom,
+                ...(fromCatalog ? { catalogName: item.name } : {}),
+              })
+            }
           />
         )}
       </Field>
@@ -545,6 +568,24 @@ export function VoiceProviderSettings({
   };
   const needsUrl = draft !== undefined && preset?.baseUrl === undefined;
   const needsKey = preset?.keyRequired === true;
+  const catalogFor = (collection: 'models' | 'account'): VoicePickerCatalog | undefined => {
+    if (
+      draft === undefined ||
+      preset?.catalogs === undefined ||
+      !preset.catalogs.includes(collection)
+    )
+      return undefined;
+    return {
+      preset: draft.preset,
+      key: draft.key,
+      kind: draft.kind,
+      collection,
+      collections: preset.catalogs,
+      browse: actions.browseVoiceCatalog,
+      importVoice: actions.importSharedVoice,
+    };
+  };
+  const brand = providerBrand(draft?.preset);
   const suggestedName =
     draft === undefined || view === undefined
       ? undefined
@@ -592,18 +633,20 @@ export function VoiceProviderSettings({
           onSubmit={submit}
         >
           <FieldStack>
-            <Select
+            <VoiceCatalogPicker
               label={t('voice.provider.preset')}
               value={draft.preset}
               options={presetsOf(view, draft.kind).map((entry) => ({
-                value: entry.id,
-                label: entry.name,
+                id: entry.id,
+                name: entry.name,
+                brand: providerBrand(entry.id),
               }))}
+              t={t}
               onChange={(next) =>
                 setDraft(
                   emptyDraft(
                     draft.kind,
-                    presetsOf(view, draft.kind).find((entry) => entry.id === next),
+                    presetsOf(view, draft.kind).find((entry) => entry.id === next.id),
                   ),
                 )
               }
@@ -638,6 +681,24 @@ export function VoiceProviderSettings({
                 onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
               />
             ) : null}
+            <TextField
+              label={needsKey ? t('voice.provider.key') : t('voice.provider.keyOptional')}
+              hint={t('voice.provider.keyHint')}
+              value={draft.key}
+              type="password"
+              monospace
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(key) => {
+                const defaults = emptyDraft(draft.kind, preset);
+                setDraft({
+                  ...draft,
+                  key,
+                  model: draft.model.catalogName === undefined ? draft.model : defaults.model,
+                  voice: draft.voice.catalogName === undefined ? draft.voice : defaults.voice,
+                });
+              }}
+            />
             <ChoiceField
               label={t('voice.provider.model')}
               customLabel={
@@ -648,8 +709,16 @@ export function VoiceProviderSettings({
               values={choiceValues(preset?.models ?? [], preset?.defaultModel)}
               state={draft.model}
               placeholder={preset?.defaultModel}
+              brand={brand}
+              catalog={catalogFor('models')}
               t={t}
-              onChange={(model) => setDraft({ ...draft, model })}
+              onChange={(model) =>
+                setDraft((current) =>
+                  current?.preset === draft.preset && current.key === draft.key
+                    ? { ...current, model }
+                    : current,
+                )
+              }
             />
             {draft.kind === 'tts' ? (
               <ChoiceField
@@ -668,20 +737,18 @@ export function VoiceProviderSettings({
                 )}
                 state={draft.voice}
                 placeholder={preset?.defaultVoice}
+                brand={brand}
+                catalog={catalogFor('account')}
                 t={t}
-                onChange={(voice) => setDraft({ ...draft, voice })}
+                onChange={(voice) =>
+                  setDraft((current) =>
+                    current?.preset === draft.preset && current.key === draft.key
+                      ? { ...current, voice }
+                      : current,
+                  )
+                }
               />
             ) : null}
-            <TextField
-              label={needsKey ? t('voice.provider.key') : t('voice.provider.keyOptional')}
-              hint={t('voice.provider.keyHint')}
-              value={draft.key}
-              type="password"
-              monospace
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(key) => setDraft({ ...draft, key })}
-            />
           </FieldStack>
         </FormDialog>
       )}
