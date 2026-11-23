@@ -305,6 +305,8 @@ it.each(['member', 'admin'])(
         sectionId: undefined,
         operationKey: expect.any(String),
         scopedCall: localCall,
+        members: [],
+        humanIds: [],
       });
       expect(fixture.call).not.toHaveBeenCalled();
       expect(close).toHaveBeenCalledOnce();

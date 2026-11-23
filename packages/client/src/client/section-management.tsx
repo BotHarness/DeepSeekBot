@@ -304,8 +304,29 @@ export interface CreateChannelModalProps {
     name: string,
     operationKey: string,
     onDispatch: () => void,
+    initial: GroupInitialMembers,
   ) => Promise<ChannelSummary | void>;
   onMembersChanged?: ((channel: ChannelSummary) => void) | undefined;
+}
+
+export interface GroupInitialMembers {
+  members: string[];
+  humanIds: string[];
+}
+
+export function splitInitialMembers(selected: readonly PickedGroupMember[]): {
+  initial: GroupInitialMembers;
+  later: PickedGroupMember[];
+} {
+  return {
+    initial: {
+      members: selected
+        .filter((row) => row.kind === 'bot' && !row.requiresOwner)
+        .map((row) => row.id),
+      humanIds: selected.filter((row) => row.kind === 'human').map((row) => row.id),
+    },
+    later: selected.filter((row) => row.kind === 'bot' && row.requiresOwner === true),
+  };
 }
 
 export function CreateChannelModal({
@@ -341,6 +362,7 @@ export function CreateChannelModal({
   const bindingChanged = submittedHere && !sameHost;
   const selected = bindingChanged ? [] : selection.members;
   const createKey = useRef<string>();
+  const createPlan = useRef<ReturnType<typeof splitInitialMembers>>();
   const created = useRef<ChannelSummary>();
   const batch = useGroupMemberBatch();
   const trimmed = draft.trim();
@@ -362,19 +384,26 @@ export function CreateChannelModal({
     setCreating(true);
     setError(undefined);
     const run = async () => {
+      const plan = createPlan.current ?? splitInitialMembers(members ? selected : []);
       if (!created.current) {
         const operationKey = createKey.current ?? crypto.randomUUID();
         created.current =
-          (await onCreate(trimmed, operationKey, () => {
-            createKey.current = operationKey;
-            setSubmittedHere(true);
-          })) ?? undefined;
+          (await onCreate(
+            trimmed,
+            operationKey,
+            () => {
+              createKey.current = operationKey;
+              createPlan.current = plan;
+              setSubmittedHere(true);
+            },
+            plan.initial,
+          )) ?? undefined;
       }
-      if (!members || selected.length === 0 || !created.current) {
+      if (!members || plan.later.length === 0 || !created.current) {
         if (created.current) onCancel();
         return;
       }
-      await batch.apply(members.call, created.current.id, selected);
+      await batch.apply(members.call, created.current.id, plan.later);
       onMembersChanged?.(created.current);
     };
     void run().then(

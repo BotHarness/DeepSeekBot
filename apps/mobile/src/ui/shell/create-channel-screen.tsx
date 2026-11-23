@@ -125,7 +125,7 @@ export function CreateChannelScreen() {
     !state.loaded ||
     state.busy ||
     state.loading ||
-    (record.kind === 'draft' && !!state.error) ||
+    (record.kind === 'draft' && (!!state.error || state.peopleStatus === 'loading')) ||
     !record.name.trim() ||
     !hosts.some((host) => host.hostId === record.hostId);
   const hostName = (id: string) => {
@@ -134,9 +134,26 @@ export function CreateChannelScreen() {
       ? shownHostName(hostLooks.look(host.hostId), host.hostName)
       : t.botCreation.targetUnavailable;
   };
-  const selected = state.candidates.filter((bot) => record.members.includes(bot.slug));
+  const humanIds = record.humanIds ?? [];
+  const selectedCount = record.members.length + humanIds.length;
+  const selected = [
+    ...state.candidates
+      .filter((bot) => record.members.includes(bot.slug))
+      .map((bot) => ({
+        key: `bot-${bot.slug}`,
+        label: bot.displayName,
+        remove: () => channelCreation.toggle(bot.slug),
+      })),
+    ...state.people
+      .filter((person) => humanIds.includes(person.id))
+      .map((person) => ({
+        key: `person-${person.id}`,
+        label: person.displayName,
+        remove: () => channelCreation.togglePerson(person.id),
+      })),
+  ];
   const error = state.error
-    ? ['unknown-bot', 'archived-bot', 'protected-bot'].includes(state.error)
+    ? ['unknown-bot', 'archived-bot', 'protected-bot', 'member-not-found'].includes(state.error)
       ? record.kind === 'draft'
         ? t.channelCreation.membersChanged
         : t.channelCreation.retained
@@ -225,17 +242,13 @@ export function CreateChannelScreen() {
               returnKeyType="done"
               onChangeText={channelCreation.rename}
             />
-            <SettingsSection
-              title={t.channelCreation.members}
-              footer={t.channelCreation.membersFooter}
-              on={SHEET_GROUP}
-            >
+            <SettingsSection title={t.channelCreation.members} on={SHEET_GROUP}>
               {!record.hostId ? (
                 <SettingsRow on={SHEET_GROUP} title={t.channelCreation.chooseHost} tone="muted" />
               ) : state.loading ? (
                 <SettingsRow
                   on={SHEET_GROUP}
-                  title={t.channelCreation.chooseBots}
+                  title={t.channelCreation.chooseMembers}
                   control={{ kind: 'busy' }}
                 />
               ) : state.error ? (
@@ -245,22 +258,22 @@ export function CreateChannelScreen() {
                   title={t.botCreation.retry}
                   onPress={() => void channelCreation.refresh()}
                 />
-              ) : state.candidates.length === 0 ? (
+              ) : state.candidates.length === 0 && state.peopleStatus === 'off' ? (
                 <SettingsRow on={SHEET_GROUP} title={t.channelCreation.empty} tone="muted" />
               ) : (
                 <SettingsRow
                   on={SHEET_GROUP}
-                  testID="create-channel-choose-bots"
-                  title={t.channelCreation.chooseBots}
+                  testID="create-channel-choose-members"
+                  title={t.channelCreation.chooseMembers}
                   {...(theme.largeText
                     ? {
-                        detail: t.channelCreation.selected(record.members.length),
+                        detail: t.channelCreation.selected(selectedCount),
                         control: { kind: 'chevron' as const },
                       }
                     : {
                         control: {
                           kind: 'value' as const,
-                          text: t.channelCreation.selected(record.members.length),
+                          text: t.channelCreation.selected(selectedCount),
                           chevron: true,
                         },
                       })}
@@ -281,14 +294,14 @@ export function CreateChannelScreen() {
                     padding: space.x4,
                   }}
                 >
-                  {selected.map((bot) => (
+                  {selected.map((chip) => (
                     <Chip
-                      key={bot.slug}
-                      testID={`create-channel-chip-${bot.slug}`}
-                      label={bot.displayName}
+                      key={chip.key}
+                      testID={`create-channel-chip-${chip.key}`}
+                      label={chip.label}
                       selected
                       disabled={state.busy}
-                      onPress={() => channelCreation.toggle(bot.slug)}
+                      onPress={chip.remove}
                     />
                   ))}
                 </View>
@@ -315,7 +328,7 @@ export function CreateChannelScreen() {
             <SettingsRow
               on={SHEET_GROUP}
               title={t.channelCreation.members}
-              detail={t.channelCreation.selected(record.members.length)}
+              detail={t.channelCreation.selected(selectedCount)}
             />
             <SettingsRow
               on={SHEET_GROUP}

@@ -11,6 +11,7 @@ import {
   BridgeCallError,
 } from './bridge.js';
 import type { ChannelSummary } from './store.js';
+import type { GroupInitialMembers } from './section-management.js';
 import type { BridgeActions } from './actions.js';
 import { hostBridgeCall } from './host-bridge-call.js';
 
@@ -31,7 +32,9 @@ export function localCreationOwner(
 ) {
   let botInput: CreatePersonaBotInput | undefined;
   let botReceipt: CreatedBot | undefined;
-  let channelInput: { name: string; operationKey: string } | undefined;
+  let channelInput:
+    | ({ name: string; operationKey: string } & Partial<GroupInitialMembers>)
+    | undefined;
   let channelReceipt: ChannelSummary | undefined;
   return {
     call: actions.teamCall,
@@ -57,9 +60,10 @@ export function localCreationOwner(
       name: string,
       sectionId?: string,
       binding?: { operationKey: string; call: BridgeCall },
+      initial?: GroupInitialMembers,
     ) {
       binding?.call.assertCurrent?.();
-      channelInput ??= { name, operationKey: binding?.operationKey ?? key() };
+      channelInput ??= { name, operationKey: binding?.operationKey ?? key(), ...initial };
       if (!channelReceipt) {
         lifecycle.submitted();
         channelReceipt = await actions.createGroup({
@@ -67,6 +71,8 @@ export function localCreationOwner(
           sectionId,
           operationKey: channelInput.operationKey,
           scopedCall: binding?.call,
+          members: channelInput.members,
+          humanIds: channelInput.humanIds,
         });
         if (channelReceipt) lifecycle.committed();
       }
@@ -110,7 +116,9 @@ export function remoteCreationOwner({
   let botReceipt: CreatedBot | undefined;
   let botInput: CreatePersonaBotInput | undefined;
   let channelReceipt: ChannelSummary | undefined;
-  let channelInput: { name: string; operationKey: string } | undefined;
+  let channelInput:
+    | ({ name: string; operationKey: string } & Partial<GroupInitialMembers>)
+    | undefined;
   let dmId: string | undefined;
   const openBot = async (created: CreatedBot, sectionId?: string): Promise<void> => {
     dmId ??= (await openDmChannel(call, created.slug, created.displayName)).id;
@@ -145,17 +153,22 @@ export function remoteCreationOwner({
       if (botReceipt.httpsFallback === undefined) await openBot(botReceipt, sectionId);
       return botReceipt;
     },
-    async channel(name: string, sectionId?: string, operationKey?: string) {
+    async channel(
+      name: string,
+      sectionId?: string,
+      operationKey?: string,
+      initial?: GroupInitialMembers,
+    ) {
       check();
       if (!channelReceipt) {
-        channelInput ??= { name, operationKey: operationKey ?? key() };
+        channelInput ??= { name, operationKey: operationKey ?? key(), ...initial };
         submitted();
-        channelReceipt = await createGroupChannel(
-          call,
-          channelInput.name,
-          undefined,
-          channelInput.operationKey,
-        );
+        channelReceipt = await createGroupChannel(call, {
+          name: channelInput.name,
+          members: [...(channelInput.members ?? [])],
+          ...(channelInput.humanIds?.length ? { humanIds: [...channelInput.humanIds] } : {}),
+          operationKey: channelInput.operationKey,
+        });
         committed();
       }
       if (sectionId) await assignRosterChannel(call, channelReceipt.id, sectionId);

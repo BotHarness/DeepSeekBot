@@ -24,6 +24,8 @@ export interface ChannelActions {
     sectionId?: string | undefined;
     operationKey?: string | undefined;
     scopedCall?: BridgeCall | undefined;
+    members?: readonly string[] | undefined;
+    humanIds?: readonly string[] | undefined;
   }): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -53,8 +55,13 @@ export function createChannelActions(
   openChannelById: ReturnType<typeof createConversationActions>['openChannelById'],
 ) {
   return {
-    async createGroup({ name, sectionId, operationKey, scopedCall = call }) {
-      const channel = await createGroupChannel(scopedCall, name, undefined, operationKey);
+    async createGroup({ name, sectionId, operationKey, scopedCall = call, members, humanIds }) {
+      const channel = await createGroupChannel(scopedCall, {
+        name,
+        members: [...(members ?? [])],
+        ...(humanIds?.length ? { humanIds: [...humanIds] } : {}),
+        ...(operationKey === undefined ? {} : { operationKey }),
+      });
       scopedCall.assertCurrent?.();
       clientStore.upsertChannel(channel);
       await placeCreatedChannelFirst(channel.id, sectionId, scopedCall);

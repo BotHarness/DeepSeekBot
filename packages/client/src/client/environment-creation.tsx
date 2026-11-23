@@ -101,11 +101,17 @@ function MemberChannelCreation({
       members={memberCall && { scope: 'member-host', call: memberCall }}
       targetUnavailable={!memberCall}
       onCancel={onClose}
-      onCreate={async (name, key, onDispatch) => {
+      onCreate={async (name, key, onDispatch, initial) => {
         if (!memberCall) throw new Error(t('environment.create.offline'));
         memberCall.assertCurrent?.();
         onDispatch();
-        return actions.createGroup({ name, sectionId, operationKey: key, scopedCall: memberCall });
+        return actions.createGroup({
+          name,
+          sectionId,
+          operationKey: key,
+          scopedCall: memberCall,
+          ...initial,
+        });
       }}
       onMembersChanged={(channel) => {
         if (memberCall)
@@ -329,7 +335,7 @@ function OwnerEnvironmentCreation({
         committed={committed}
         submitted={submitted}
         onCancel={onClose}
-        onCreate={async (name, operationKey, onDispatch) => {
+        onCreate={async (name, operationKey, onDispatch, initial) => {
           const remote = owner();
           if (!pickerCall) throw new Error(t('environment.create.offline'));
           pickerCall.assertCurrent?.();
@@ -337,11 +343,18 @@ function OwnerEnvironmentCreation({
           try {
             onDispatch();
             if (!remote)
-              return await localOwner.createGroup(name, request.sectionId, {
-                call: pickerCall,
-                operationKey,
-              });
-            return await remoteOwner(remote).channel(name, request.sectionId, operationKey);
+              return await localOwner.createGroup(
+                name,
+                request.sectionId,
+                { call: pickerCall, operationKey },
+                initial,
+              );
+            return await remoteOwner(remote).channel(
+              name,
+              request.sectionId,
+              operationKey,
+              initial,
+            );
           } finally {
             setBusy(false);
           }

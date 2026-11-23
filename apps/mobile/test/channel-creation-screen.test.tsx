@@ -10,6 +10,7 @@ const fixture = vi.hoisted(() => ({
   replace: vi.fn(),
   switchTo: vi.fn(async () => true),
   fail: false,
+  peopleFail: false,
   header: undefined as undefined | (() => ReactNode),
   screens: [] as { name?: string; options: { title?: string; headerRight?(): ReactNode } }[],
   prevented: [] as boolean[],
@@ -34,6 +35,13 @@ const controller = createChannelCreation({
         displayName: `${hostId} Scroll ${index}`,
       })),
     ],
+    people: async (hostId) => {
+      if (fixture.peopleFail) throw new Error('unreachable');
+      return [
+        { id: `${hostId}-ann`, displayName: `${hostId} Ann`, username: 'ann' },
+        { id: `${hostId}-cy`, displayName: `${hostId} Cy` },
+      ];
+    },
     create: async (operation) => {
       creations.push(structuredClone(operation));
       if (fixture.fail) throw new Error('unreachable');
@@ -190,6 +198,10 @@ vi.mock('../src/ui/primitives/sheet-save-button', () => ({
     disabled: boolean;
   }) => createElement('button', { onClick: onPress, disabled, 'data-testid': 'save' }, label),
 }));
+vi.mock('../src/ui/shell/account-avatar', () => ({
+  AccountAvatar: ({ name }: { name: string }) =>
+    createElement('img', { alt: '', 'data-person': name }),
+}));
 vi.mock('../src/ui/bot-avatar', () => ({
   BotPortrait: ({ bot }: { bot: ChannelCandidate }) =>
     createElement('img', { alt: '', 'data-bot': bot.slug, src: bot.avatarSource?.uri }),
@@ -239,7 +251,7 @@ async function save() {
   return headerElement.querySelector<HTMLButtonElement>('[data-testid="save"]')!;
 }
 
-it('chooses an Environment, a name and several Bots in the sheet and opens the new Group', async () => {
+it('chooses an Environment, a name, Bots and people in the sheet and opens the new Group', async () => {
   await controller.ready;
   mountRoots();
   await act(async () => root.render(<CreateChannelScreen />));
@@ -248,27 +260,42 @@ it('chooses an Environment, a name and several Bots in the sheet and opens the n
   expect(element.textContent).toContain(t.channelCreation.chooseHost);
   expect(button(`Laptop`).textContent).toContain(t.hostOnline);
   await act(async () => button('Laptop').click());
-  await act(async () => button(t.channelCreation.chooseBots).click());
+  await act(async () => button(t.channelCreation.chooseMembers).click());
   expect(fixture.push).toHaveBeenLastCalledWith('/create-channel/members');
   await showMembers(true);
   expect(membersElement.querySelector('img[data-bot="ada"]')?.getAttribute('src')).toBe(
     'https://a.ts.net/avatar/ada',
   );
   expect(membersElement.textContent).toContain('A Scroll 21');
+  expect([...membersElement.querySelectorAll('h2')].map((h) => h.textContent)).toEqual([
+    t.channelCreation.bots,
+    t.channelCreation.people,
+  ]);
+  expect(membersElement.textContent).not.toContain('Invite people');
   await act(async () => member('A Ada').click());
   await act(async () => member('A Bo').click());
+  await act(async () => member('A Ann').click());
   expect(member('A Ada').getAttribute('aria-checked')).toBe('true');
-  expect(membersElement.textContent).toContain(t.channelCreation.selected(2));
+  expect(member('A Ann').getAttribute('aria-checked')).toBe('true');
+  expect(member('A Cy').getAttribute('aria-checked')).toBe('false');
+  expect(member('A Ann').textContent).toContain('@ann');
+  expect(membersElement.textContent).toContain(t.channelCreation.selected(3));
   expect(controller.getSnapshot().record.members).toEqual(['ada', 'bo']);
+  expect(controller.getSnapshot().record.humanIds).toEqual(['A-ann']);
   await showMembers(false);
-  expect(element.textContent).toContain(t.channelCreation.selected(2));
-  expect(element.querySelector('[data-testid="create-channel-chip-ada"]')?.textContent).toBe(
-    'A Ada',
-  );
+  expect(element.textContent).toContain(t.channelCreation.selected(3));
+  expect(
+    [...element.querySelectorAll('[data-testid^="create-channel-chip-"]')].map(
+      (chip) => chip.textContent,
+    ),
+  ).toEqual(['A Ada', 'A Bo', 'A Ann']);
   await act(async () =>
-    element.querySelector<HTMLButtonElement>('[data-testid="create-channel-chip-ada"]')!.click(),
+    element
+      .querySelector<HTMLButtonElement>('[data-testid="create-channel-chip-bot-ada"]')!
+      .click(),
   );
   expect(controller.getSnapshot().record.members).toEqual(['bo']);
+  expect(controller.getSnapshot().record.humanIds).toEqual(['A-ann']);
   const input = element.querySelector('input');
   if (!input) throw new Error('Missing name');
   await act(async () => {
@@ -277,6 +304,7 @@ it('chooses an Environment, a name and several Bots in the sheet and opens the n
   });
   await act(async () => button('Desktop').click());
   expect(controller.getSnapshot().record.members).toEqual([]);
+  expect(controller.getSnapshot().record.humanIds).toBeUndefined();
   expect(element.textContent).toContain(t.channelCreation.reset);
   expect(input.value).toBe('Design team');
   await showMembers(true);
@@ -284,7 +312,12 @@ it('chooses an Environment, a name and several Bots in the sheet and opens the n
   await act(async () => member('B Ada').click());
   await act(async () => member('B Bo').click());
   await act(async () => member('B Scroll 3').click());
+  expect(member('B Ann').getAttribute('aria-checked')).toBe('false');
+  await act(async () => member('B Cy').click());
   await showMembers(false);
+  expect(
+    element.querySelector('[data-testid="create-channel-chip-person-B-cy"]')?.textContent,
+  ).toBe('B Cy');
   expect(creations).toEqual([]);
   fixture.fail = true;
   const pending = await save();
@@ -299,12 +332,30 @@ it('chooses an Environment, a name and several Bots in the sheet and opens the n
     hostId: 'B',
     name: 'Design team',
     members: ['ada', 'bo', 'scroll-3'],
+    humanIds: ['B-cy'],
   });
   expect(fixture.switchTo).toHaveBeenCalledWith('B');
   expect(fixture.replace).toHaveBeenCalledWith({
     pathname: '/channel/[id]',
     params: { id: 'group-team', hostId: 'B' },
   });
+});
+
+it('shows loading, retry and empty states for people without blocking Bots', async () => {
+  await controller.reset();
+  fixture.peopleFail = true;
+  mountRoots();
+  await act(async () => root.render(<CreateChannelScreen />));
+  await act(async () => controller.selectHost('A'));
+  await showMembers(true);
+  expect(member('A Ada').disabled).toBe(false);
+  expect(member(t.channelCreation.peopleRetry).textContent).toContain(
+    t.channelCreation.peopleFailed,
+  );
+  fixture.peopleFail = false;
+  await act(async () => member(t.channelCreation.peopleRetry).click());
+  expect(member('A Ann').getAttribute('aria-checked')).toBe('false');
+  await act(async () => controller.reset());
 });
 
 it('presents New Group as a sheet stack and asks before discarding a started draft', async () => {
