@@ -28,6 +28,7 @@ vi.mock('expo', () => ({
     (props: {
       items: { key: string; label: string; path: string }[];
       expanded: boolean;
+      direct?: boolean;
       available: boolean;
       label: string;
       closeLabel: string;
@@ -36,7 +37,7 @@ vi.mock('expo', () => ({
     }) =>
       createElement(
         'section',
-        { 'data-expanded': String(props.expanded) },
+        { 'data-expanded': String(props.expanded), 'data-direct': String(props.direct === true) },
         createElement('button', {
           'aria-label': props.expanded ? props.closeLabel : props.label,
           onClick: () =>
@@ -61,6 +62,7 @@ vi.mock('expo', () => ({
 }));
 
 import { CreationMenuButton } from '../src/ui/shell/creation-menu-button.android';
+import { SessionCreateFab } from '../src/ui/shell/session-create-fab.android';
 import { creationTargets } from '../src/host/creation-targets';
 import { computerEnvironmentKey } from '../src/host/conversation-environments';
 import { haptic } from '../src/ui/haptics';
@@ -80,10 +82,7 @@ function render(scope = 'all', busy = false) {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  const targets = creationTargets({ hostId: 'mac', name: 'Mac' }, []).map((target) => ({
-    ...target,
-    channelCreation: false,
-  }));
+  const targets = creationTargets({ hostId: 'mac', name: 'Mac' }, []);
   act(() =>
     root.render(
       <CreationMenuButton scope={scope} targets={targets} size={56} busy={busy} onPick={pick} />,
@@ -103,22 +102,26 @@ function click(label: string) {
 it('opens the native FAB menu and closes it before going to the scoped destination', () => {
   render(computerEnvironmentKey('mac'));
   for (const [label, action] of [
-    [t.botCreation.blank, 'bot'],
-    [t.botCreation.fromZip, 'zip'],
-    [t.marketplace.browse, 'marketplace'],
-    [t.botCreation.fromGit, 'git'],
+    [t.chatsCreate.blank, 'bot'],
+    [t.chatsCreate.zip, 'zip'],
+    [t.chatsCreate.marketplace, 'marketplace'],
+    [t.chatsCreate.git, 'git'],
   ]) {
     click(t.createHere);
-    expect(items()).toEqual([t.botCreation.blank, t.botCreation.importBot, t.marketplace.browse]);
+    expect(items()).toEqual([t.chatsCreate.group, t.botCreation.title]);
     expect(
       [...host.querySelectorAll('[data-menu-item]')].every((item) =>
         item.getAttribute('data-path'),
       ),
     ).toBe(true);
-    if (action === 'zip' || action === 'git') {
-      click(t.botCreation.importBot);
-      expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
-    }
+    click(t.botCreation.title);
+    expect(items()).toEqual([
+      t.back,
+      t.chatsCreate.blank,
+      t.chatsCreate.marketplace,
+      t.chatsCreate.zip,
+      t.chatsCreate.git,
+    ]);
     click(label!);
     expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
     expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
@@ -129,10 +132,11 @@ it('opens the native FAB menu and closes it before going to the scoped destinati
 it('keeps All explicit and joins without a Computer', () => {
   render();
   click(t.createHere);
-  click(t.botCreation.blank);
+  click(t.botCreation.title);
+  click(t.chatsCreate.blank);
   expect(pick).toHaveBeenLastCalledWith('bot', undefined);
   click(t.createHere);
-  click(t.cloudJoin.title);
+  click(t.chatsCreate.join);
   expect(pick).toHaveBeenLastCalledWith('join', undefined);
 });
 
@@ -157,16 +161,22 @@ it('blocks the toggle while preparation is pending', () => {
   expect(haptic).not.toHaveBeenCalled();
 });
 
-it('returns from the import choices before closing on system Back without selecting a source', () => {
+it('returns from the Bot creation choices before closing on system Back without selecting a source', () => {
   render();
   click(t.createHere);
-  click(t.botCreation.importBot);
-  expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
+  click(t.botCreation.title);
+  expect(items()).toEqual([
+    t.back,
+    t.chatsCreate.blank,
+    t.chatsCreate.marketplace,
+    t.chatsCreate.zip,
+    t.chatsCreate.git,
+  ]);
   expect(pick).not.toHaveBeenCalled();
   act(() => void back.handlers[0]!());
   expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('true');
-  expect(items()).toContain(t.botCreation.importBot);
-  expect(items()).not.toContain(t.botCreation.fromZip);
+  expect(items()).toContain(t.botCreation.title);
+  expect(items()).not.toContain(t.chatsCreate.zip);
   act(() => void back.handlers[0]!());
   expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
   expect(pick).not.toHaveBeenCalled();
@@ -175,25 +185,39 @@ it('returns from the import choices before closing on system Back without select
 it('returns through the submenu Back row and cancels through Close without importing', () => {
   render();
   click(t.createHere);
-  click(t.botCreation.importBot);
+  click(t.botCreation.title);
   click(t.back);
-  expect(items()).toContain(t.botCreation.importBot);
-  click(t.botCreation.importBot);
+  expect(items()).toContain(t.botCreation.title);
+  click(t.botCreation.title);
   click(t.close);
   expect(pick).not.toHaveBeenCalled();
   click(t.createHere);
-  expect(items()).toContain(t.botCreation.importBot);
+  expect(items()).toContain(t.botCreation.title);
 });
 
 it('keeps All import choices destination-free until the existing import flow chooses a Computer', () => {
   render();
   for (const [label, action] of [
-    [t.botCreation.fromZip, 'zip'],
-    [t.botCreation.fromGit, 'git'],
+    [t.chatsCreate.zip, 'zip'],
+    [t.chatsCreate.git, 'git'],
   ]) {
     click(t.createHere);
-    click(t.botCreation.importBot);
+    click(t.botCreation.title);
     click(label!);
     expect(pick).toHaveBeenLastCalledWith(action, undefined);
   }
+});
+
+it('uses the native FAB in direct mode for Sessions', () => {
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  const open = vi.fn();
+  act(() => root.render(<SessionCreateFab onPress={open} />));
+  expect(host.querySelector('section')?.getAttribute('data-direct')).toBe('true');
+  click(t.hostSessions.create);
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
+  expect(items()).toEqual([]);
+  expect(back.handlers).toHaveLength(0);
 });
