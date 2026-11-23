@@ -309,6 +309,34 @@ describe('template presence in provider lists', () => {
 });
 
 describe('editing a custom request', () => {
+  it('keeps unsaved edits when the parent passes a new actions object', async () => {
+    const voiceProviderTemplate = vi.fn(async () => TEMPLATE);
+    const dialog = (actions: object) =>
+      createElement(TemplateEditDialog, {
+        provider: { id: 'p1', name: 'Speaker' },
+        kind: 'tts',
+        actions: actions as never,
+        t: zhTranslate,
+        onCancel: vi.fn(),
+        onSaved: vi.fn(),
+      });
+    const methods = {
+      validateVoiceTemplate: vi.fn(),
+      voiceProviderTemplate,
+      setVoiceProviderTemplate: vi.fn(),
+    };
+    await render(dialog({ ...methods }));
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-voice-template-url]')).not.toBeNull(),
+    );
+    type('[data-voice-template-url]', 'https://tts.example/edited');
+    await act(async () => root!.render(dialog({ ...methods })));
+    expect(voiceProviderTemplate).toHaveBeenCalledTimes(1);
+    expect((document.querySelector('[data-voice-template-url]') as HTMLInputElement).value).toBe(
+      'https://tts.example/edited',
+    );
+  });
+
   it('loads the stored template, shows header auth fields and saves through the template setter', async () => {
     const setVoiceProviderTemplate = vi.fn(async () => ({}));
     const onSaved = vi.fn();

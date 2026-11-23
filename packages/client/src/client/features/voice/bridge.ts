@@ -167,9 +167,27 @@ export function createVoiceBridge(
     );
   }
 
+  function kindOf(value: unknown, kinds: readonly string[]): boolean {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const kind = (value as Record<string, unknown>)['kind'];
+    return typeof kind === 'string' && kinds.includes(kind);
+  }
+
   function templateOf(value: unknown, method: string): VoiceRequestTemplate {
     const template = record(value, method);
-    if (typeof template['url'] !== 'string' || typeof template['method'] !== 'string')
+    const headers = template['headers'];
+    if (
+      template['version'] !== 1 ||
+      typeof template['url'] !== 'string' ||
+      (template['method'] !== 'POST' && template['method'] !== 'GET') ||
+      typeof headers !== 'object' ||
+      headers === null ||
+      Array.isArray(headers) ||
+      Object.values(headers).some((entry) => typeof entry !== 'string') ||
+      !kindOf(template['auth'], ['none', 'bearer', 'header', 'query']) ||
+      !kindOf(template['body'], ['none', 'json', 'ssml', 'multipart']) ||
+      !kindOf(template['result'], ['audio', 'base64', 'hex', 'url', 'text'])
+    )
       throw new Error(`invalid ${method} response`);
     return template as unknown as VoiceRequestTemplate;
   }
