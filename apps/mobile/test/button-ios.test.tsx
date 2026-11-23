@@ -55,6 +55,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
         'data-testid': testID,
         'data-role': role,
         'data-style': find('buttonStyle'),
+        'data-border-shape': find('borderShape'),
         'data-size': find('controlSize'),
         'data-tint': find('tint'),
         'aria-label': find('label'),
@@ -101,6 +102,9 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityHidden: () => ({ hidden: true }),
   accessibilityLabel: (label: string) => ({ label }),
   accessibilityValue: (value: string) => ({ value }),
+  buttonBorderShape: (shape: string, cornerRadius?: number) => ({
+    borderShape: cornerRadius === undefined ? shape : `${shape}:${cornerRadius}`,
+  }),
   buttonStyle: (buttonStyle: string) => ({ buttonStyle }),
   contentShape: (contentShape: string) => ({ contentShape }),
   controlSize: (controlSize: string) => ({ controlSize }),
@@ -266,6 +270,34 @@ it.each([
     expect(content.querySelector('i')?.dataset.symbol).toBe('arrow.clockwise');
   },
 );
+
+it.each([
+  [1, 'capsule', 'glassProminent'],
+  [1.353, 'capsule', 'glassProminent'],
+  [1.647, 'roundedRectangle:16', 'borderedProminent'],
+  [3.571, 'roundedRectangle:16', 'borderedProminent'],
+] as const)(
+  'at text scale %s shapes a filled button as %s with the %s style',
+  async (fontScale, shape, style) => {
+    glass.on = true;
+    vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+    const host = await render(<Button label="Continue" tone="primary" onPress={() => {}} />);
+    const button = host.querySelector('button')!;
+    expect(button.dataset.borderShape).toBe(shape);
+    expect(button.dataset.style).toBe(style);
+  },
+);
+
+it('keeps a borderless text button without a border shape at accessibility sizes', async () => {
+  vi.spyOn(Dimensions, 'get').mockReturnValue({
+    width: 390,
+    height: 844,
+    scale: 3,
+    fontScale: 3.571,
+  });
+  const host = await render(<Button label="Skip" variant="text" onPress={() => {}} />);
+  expect(host.querySelector('button')!.dataset.borderShape).toBeUndefined();
+});
 
 it('keeps a disabled selected result visible and exposes the native selected trait', async () => {
   const onPress = vi.fn();
