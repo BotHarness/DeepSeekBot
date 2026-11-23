@@ -50,6 +50,7 @@ import type { createAssignmentReporting } from './reporting.js';
 import {
   isArchivedRow,
   permissionFromRow,
+  readAssignmentTarget,
   saveAssignmentTarget,
   storedAssignmentTarget,
 } from './runtime-records.js';
@@ -312,6 +313,13 @@ export function createAssignmentIntake(ports: AssignmentIntakePorts) {
     const refusal = ports.assignmentCapacityRefusal('created');
     if (refusal !== undefined) return refusal;
     const sessionId = ports.createSessionId();
+    const serializedTarget =
+      directTarget !== undefined
+        ? JSON.stringify(directTarget)
+        : target === undefined
+          ? null
+          : saveAssignmentTarget(target);
+    readAssignmentTarget(serializedTarget, sessionId);
     const createdAt = ports.now().toISOString();
     ports.database.transaction(
       (database) => {
@@ -364,11 +372,7 @@ export function createAssignmentIntake(ports: AssignmentIntakePorts) {
             permission.mode,
             permission.approval,
             permission.presetRevision,
-            directTarget !== undefined
-              ? JSON.stringify(directTarget)
-              : target === undefined
-                ? null
-                : saveAssignmentTarget(target),
+            serializedTarget,
             modelGroupId ?? null,
             modelGroupId === undefined ? null : (input.modelGroupEffort ?? null),
             input.mode ?? null,

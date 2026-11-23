@@ -32,8 +32,15 @@ export function permissionFromRow(row: AssignmentRow): AssignmentPermissionSnaps
 }
 
 export function storedAssignmentTarget(row: AssignmentRow): RoutingTarget | ModelRoute | undefined {
-  if (row.model_route_json === null) return undefined;
-  const target: unknown = JSON.parse(row.model_route_json);
+  return readAssignmentTarget(row.model_route_json, row.session_id);
+}
+
+export function readAssignmentTarget(
+  serialized: string | null,
+  sessionId: string,
+): RoutingTarget | ModelRoute | undefined {
+  if (serialized === null) return undefined;
+  const target: unknown = JSON.parse(serialized);
   if (isModelRoute(target)) return target;
   if (
     typeof target === 'object' &&
@@ -50,7 +57,7 @@ export function storedAssignmentTarget(row: AssignmentRow): RoutingTarget | Mode
     if (typeof effort === 'string' && effort.trim() !== '')
       return presetSubEngineTarget({ ...target, effort });
   }
-  throw new Error(`Invalid Assignment model route: ${row.session_id}`);
+  throw new Error(`Invalid Assignment model route: ${sessionId}`);
 }
 
 export function assignmentTargetFromRow(row: AssignmentRow): RoutingTarget | undefined {
