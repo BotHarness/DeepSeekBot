@@ -511,6 +511,22 @@ describe('Group profile', () => {
     expect(view.querySelector('[data-testid="profile-tab-content-settings"]')).not.toBeNull();
   });
 
+  it.each([
+    [1, false],
+    [1.353, false],
+    [1.647, true],
+    [3.571, true],
+  ] as const)(
+    'at text scale %s puts the identity in the scrolling header: %s',
+    async (fontScale, scrolls) => {
+      device.fontScale = fontScale;
+      const view = await render(<GroupProfilePage {...sheet({})} />);
+      const identity = view.querySelector('[data-testid="profile-identity"]');
+      expect(identity).not.toBeNull();
+      expect(identity!.closest('[data-testid="collapsible-header"]') !== null).toBe(scrolls);
+    },
+  );
+
   it('falls back to Members when the remembered tab is not a group tab', async () => {
     const view = await render(<GroupProfilePage {...sheet({}, 'routines')} />);
     expect(view.querySelector('[data-testid="profile-tab-content-members"]')).not.toBeNull();
