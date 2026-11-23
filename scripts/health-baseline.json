@@ -12,7 +12,6 @@
     "packages/computer/test/docker-provider.test.ts",
     "packages/connect-relay/test/connect-relay.test.ts",
     "packages/core/src/database/schema-plan.ts",
-    "packages/core/src/runtime/bot-runtime.ts",
     "packages/core/test/bot-pairing.test.ts",
     "packages/core/test/bot-runtime.test.ts",
     "packages/core/test/bridge-methods.test.ts",

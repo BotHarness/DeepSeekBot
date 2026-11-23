@@ -688,7 +688,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 ## 5 · Orchestrator 与 Assignment control plane
 
-应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
+应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。Runtime composition 依原顺序初始化 feature 模块，完成后由 Runtime lifecycle 执行启动恢复。参见[共享内核](feature-map.md#shared-kernel)。
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 

@@ -19,6 +19,8 @@ const MESSAGING_TABLE_WRITERS = [
   'features/activity/runtime-admissions.ts',
   'features/assignments/events.ts',
   'features/assignments/reporting.ts',
+  'features/assignments/runtime-lifecycle.ts',
+  'features/memory/runtime-changes.ts',
   'features/messaging/events.ts',
   'features/sessions/runtime-orchestrator-turns.ts',
   'messaging/channel-target.ts',

@@ -408,11 +408,11 @@ The full target, implementation observations and #4203/E3 specification differen
 
 ## 5 · Orchestrator and Assignment control plane
 
-The application-defined Bot runtime owns each PersonaBot’s turn queue and shares it with the Orchestrator scheduling, cancellation and continuation modules. The modules use the existing Session Ownership authority and DSH Agent adapter. See the [shared kernel](feature-map.md#shared-kernel).
+The application-defined Bot runtime owns each PersonaBot’s turn queue and shares it with the Orchestrator scheduling, cancellation and continuation modules. The modules use the existing Session Ownership authority and DSH Agent adapter. Runtime composition initializes the feature modules in order, and Runtime lifecycle runs startup recovery after composition. See the [shared kernel](feature-map.md#shared-kernel).
 
 DM and Group admission, causal sending, and Group digests use shared Channel and Runtime kernel modules behind the same Bot Runtime Service. They use the Runtime’s live turn state and existing Channel Store and admission transactions.
 
-Channel tools, Human input binding, direct Bot tools, and Tob CLI requests also use ports supplied by the Bot Runtime Service. It owns the live turn state, inbox-ignore writes, and direct-tool Source Event writes. See the [shared kernel](feature-map.md#shared-kernel).
+Channel tools, Human input binding, direct Bot tools, and Tob CLI requests also use ports supplied by the Bot Runtime Service. The Runtime owns the live turn state and direct-tool Source Event writes. Activity records Inbox ignore writes through the Runtime's database port. See the [shared kernel](feature-map.md#shared-kernel).
 
 [Assignment intake, execution, and routing](feature-map.md#assignments-and-subagents) and [Inbox harvest](feature-map.md#activity-and-attention) run behind that Service and use its existing Session ownership, live state, and database ports.
 

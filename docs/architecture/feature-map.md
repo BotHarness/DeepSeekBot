@@ -320,7 +320,9 @@ Feature ingress calls the Bot Runtime Service. The shared [Channel admission](..
 
 The Bot Runtime uses the same ports for [Channel tool access](../../packages/core/src/channels/runtime-access.ts), [Human input binding](../../packages/core/src/features/approvals/runtime-inputs.ts), [direct Bot tools](../../packages/core/src/features/sessions/direct-tools.ts), and [Tob CLI requests](../../packages/core/src/features/tob/cli-runtime.ts). Calls between public runtime entry points return through the service methods. The Runtime owns the live turn state and direct-tool Source Event writes.
 
-[Assignment runtime modules](#assignments-and-subagents) and [Inbox harvest](#activity-and-attention) use the same Service entry points and share the live state and Operational Database port held by Bot Runtime.
+[Bot Runtime](../../packages/core/src/runtime/bot-runtime.ts) exposes the Service and wires its public calls back through the instance. [Runtime composition](../../packages/core/src/runtime/bot-runtime-features.ts) initializes the feature modules in order and shares the live maps and queues from [Runtime state](../../packages/core/src/runtime/bot-runtime-state.ts). [Runtime lifecycle](../../packages/core/src/runtime/bot-runtime-lifecycle.ts) runs startup recovery after composition and drains the runtime during shutdown.
+
+[Assignment tool access](../../packages/core/src/features/assignments/runtime-access.ts), [Assignment stop and approval capacity](../../packages/core/src/features/assignments/runtime-lifecycle.ts), [native Orchestrator step preparation](../../packages/core/src/features/sessions/native-orchestrator-step.ts), and [Memory changes](../../packages/core/src/features/memory/runtime-changes.ts) share those ports with [Inbox harvest](#activity-and-attention). The Channel kernel owns [turn membership checks](../../packages/core/src/channels/runtime-membership.ts) and [quoted message context](../../packages/core/src/channels/runtime-quotes.ts).
 
 ## DSH construct map
 

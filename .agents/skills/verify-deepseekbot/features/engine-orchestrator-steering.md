@@ -2,6 +2,9 @@
 
 ## Sources
 
+- `packages/core/src/runtime/bot-runtime-features.ts`
+- `packages/core/src/channels/runtime-membership.ts`
+- `packages/core/src/channels/runtime-quotes.ts`
 - `packages/core/src/engines/assignment-steering.ts`
 - `packages/core/src/engines/engine-gateway.ts`
 - `packages/core/src/engines/engine-host.ts`

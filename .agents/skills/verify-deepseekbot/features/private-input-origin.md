@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/runtime/bot-runtime-features.ts`
 - `packages/core/src/features/approvals/runtime-inputs.ts`
 - `packages/core/src/features/sessions/direct-tools.ts`
 - `packages/core/src/credentials/{im-origin,private-inputs,private-input-account-operations,private-input-types}.ts`
