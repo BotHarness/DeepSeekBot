@@ -2439,6 +2439,8 @@ deepseekbot voice-provider-test <provider-id>
 
 ASR 的验证和创建加上 `--kind asr`，测试用 `voice-transcribe --provider <id> --file /absolute/speech.wav`。编辑只替换模板，保留密钥、模型、音色和语言。创建时密钥仅通过 `--key-stdin` 写入凭据存储，不能放进模板常量。认证使用 `auth: {kind: "bearer"}`、`{kind: "header", name: "X-API-Key", prefix: "Token "}`、`{kind: "query", name: "key"}` 或 `{kind: "none"}`。
 
+团队成员可用 `voice-providers` 查看服务及其绑定。已配置模板的服务显示 `hasTemplate: true`，列表隐藏端点、模板、请求头和密钥值。团队成员执行模板命令或管理语音服务时会收到 `permission-required`。
+
 ```json
 {
   "version": 1,

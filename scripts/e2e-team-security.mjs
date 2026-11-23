@@ -17,6 +17,7 @@ import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
+import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
 import {
   buildShellIsolationProbe,
   checkShellIsolationProbe,
@@ -954,6 +955,9 @@ export async function main(argv = process.argv.slice(2)) {
       runEngineAccountGrantGate(s, fx, check),
     );
     await define('C6', 'Native Session access', (check) => runHostSessionGate(s, fx, check));
+    await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
+      runVoiceProviderGate(s, { as: fx.users.bob }, check),
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;
