@@ -40,18 +40,6 @@ export type CreationPanelControls = {
   firstAction: React.RefObject<ComponentRef<typeof Pressable> | null>;
 };
 
-const omega = (2 * Math.PI) / creationCard.morphResponse;
-const morph =
-  Platform.OS === 'ios'
-    ? {
-        ...spring.spatial.fast,
-        mass: 1,
-        stiffness: omega ** 2,
-        damping: 2 * omega,
-        overshootClamping: true,
-      }
-    : { ...spring.release, overshootClamping: true };
-
 export function CreationPanel({
   bottom,
   onDismiss,
@@ -128,7 +116,7 @@ export function CreationPanel({
           { duration: creationCard.fadeDuration, reduceMotion: ReduceMotion.Never },
           complete,
         )
-      : withSpring(next, morph, complete);
+      : withSpring(next, { ...spring.morph, overshootClamping: true }, complete);
   };
   const show = (measuredHeight: number) => {
     if (entered.current || closing.current || !shown.current || measuredHeight <= 0) return;
