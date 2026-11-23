@@ -4,29 +4,21 @@ import { Field, TextAreaField, TextField } from '../../ds/field.js';
 import { SegmentedControl } from '../../ds/segmented.js';
 import { Select } from '../../ds/select.js';
 import type { BotHarnessTranslate } from '../../locale.js';
-import type {
-  VoiceRequestTemplate,
-  VoiceTemplateValidation,
-} from '@botharness/host-protocol/voice-request-template';
+import type { VoiceTemplateValidation } from '@botharness/host-protocol/voice-request-template';
 import {
-  ASR_PLACEHOLDERS,
-  buildTemplate,
-  templateErrors,
-  TTS_PLACEHOLDERS,
-  type AuthKind,
-  type BodyKind,
-  type ResultKind,
+  checkTemplate as checkDraft,
+  placeholdersFor,
+  TEMPLATE_AUTH_KINDS as AUTH_KINDS,
+  TEMPLATE_BODY_KINDS as BODY_KINDS,
+  TTS_RESULT_KINDS as TTS_RESULTS,
+  type TemplateCheck,
   type TemplateDraft,
   type TemplateErrors,
   type TemplateKind,
-} from './template-draft.js';
-import { examplesFor } from './template-examples.js';
+} from '@botharness/host-client/shared/voice-template-draft';
+import { BLANK_EXAMPLE, examplesFor } from '@botharness/host-client/shared/voice-template-examples';
 
-export const BLANK_EXAMPLE = 'blank';
-
-const AUTH_KINDS: readonly AuthKind[] = ['bearer', 'header', 'query', 'none'];
-const BODY_KINDS: readonly BodyKind[] = ['json', 'ssml', 'multipart', 'none'];
-const TTS_RESULTS: readonly Exclude<ResultKind, 'text'>[] = ['audio', 'base64', 'hex', 'url'];
+export { BLANK_EXAMPLE };
 
 export interface TemplateExamplePicker {
   readonly value: string;
@@ -52,7 +44,7 @@ export function TemplateFields({
 }): ReactElement {
   const id = useId();
   const set = (patch: Partial<TemplateDraft>) => onChange({ ...draft, ...patch });
-  const placeholders = (kind === 'tts' ? TTS_PLACEHOLDERS : ASR_PLACEHOLDERS).join(' ');
+  const placeholders = placeholdersFor(kind).join(' ');
   return (
     <>
       {example === undefined ? null : (
@@ -237,23 +229,14 @@ export function TemplateFields({
   );
 }
 
-export type TemplateCheck =
-  | { readonly ok: true; readonly template: VoiceRequestTemplate }
-  | { readonly ok: false; readonly errors: TemplateErrors };
-
 export async function checkTemplate(
   validate: (kind: TemplateKind, template: unknown) => Promise<VoiceTemplateValidation>,
   kind: TemplateKind,
   draft: TemplateDraft,
   t: BotHarnessTranslate,
 ): Promise<TemplateCheck> {
-  const built = buildTemplate(draft, {
+  return checkDraft(validate, kind, draft, {
     invalidJson: t('voice.template.invalidJson'),
     expectObject: t('voice.template.expectObject'),
   });
-  if (!built.ok) return built;
-  const result = await validate(kind, built.template);
-  return result.valid
-    ? { ok: true, template: result.template }
-    : { ok: false, errors: templateErrors(result.errors) };
 }

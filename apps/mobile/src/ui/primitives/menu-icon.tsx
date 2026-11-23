@@ -5,6 +5,7 @@ import { SystemSymbol } from './system-symbol';
 
 const symbols = {
   delete: { ios: 'trash', android: 'delete' },
+  edit: { ios: 'pencil', android: 'edit' },
   settings: { ios: 'gearshape', android: 'settings' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   connection: { ios: 'network', android: 'hub' },

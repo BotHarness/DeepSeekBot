@@ -30,8 +30,8 @@ import {
   draftFromTemplate,
   fieldOf,
   templateErrors,
-} from '../src/client/features/voice/template-draft.js';
-import { TEMPLATE_EXAMPLES } from '../src/client/features/voice/template-examples.js';
+} from '@botharness/host-client/shared/voice-template-draft';
+import { TEMPLATE_EXAMPLES } from '@botharness/host-client/shared/voice-template-examples';
 import type { VoiceRequestTemplate } from '@botharness/host-protocol/voice-request-template';
 
 const MESSAGES = { invalidJson: 'bad json', expectObject: 'need object' };

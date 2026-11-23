@@ -31,13 +31,11 @@ import type {
   VoiceProvidersView,
 } from './voice-bridge.js';
 import { TemplateEditDialog } from './features/voice/template-edit-dialog.js';
-import {
-  blankDraft,
-  draftFromTemplate,
-  type TemplateDraft,
-  type TemplateErrors,
-} from './features/voice/template-draft.js';
-import { examplesFor } from './features/voice/template-examples.js';
+import type {
+  TemplateDraft,
+  TemplateErrors,
+} from '@botharness/host-client/shared/voice-template-draft';
+import { exampleStart } from '@botharness/host-client/shared/voice-template-examples';
 import { BLANK_EXAMPLE, checkTemplate, TemplateFields } from './features/voice/template-form.js';
 import { useTeamMember } from './team-state.js';
 import {
@@ -131,17 +129,17 @@ function providersOf(view: VoiceProvidersView, kind: Kind): readonly ProviderRow
 }
 
 function templateDraft(kind: Kind, example: string): Draft {
-  const found = examplesFor(kind).find((entry) => entry.id === example);
+  const start = exampleStart(kind, example);
   return {
     kind,
     preset: TEMPLATE_PRESET,
     name: '',
     baseUrl: '',
-    model: { choice: CUSTOM_CHOICE, custom: found?.model ?? '' },
-    voice: { choice: CUSTOM_CHOICE, custom: found?.voice ?? '' },
+    model: { choice: CUSTOM_CHOICE, custom: start.model },
+    voice: { choice: CUSTOM_CHOICE, custom: start.voice },
     key: '',
-    template: found === undefined ? blankDraft(kind) : draftFromTemplate(found.template),
-    example: found?.id ?? BLANK_EXAMPLE,
+    template: start.template,
+    example: start.example,
   };
 }
 
