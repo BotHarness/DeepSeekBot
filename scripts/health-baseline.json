@@ -1,7 +1,5 @@
 {
   "long-files": [
-    "packages/browser/test/browser-tools.test.ts",
-    "packages/browser/test/runtime.test.ts",
     "packages/client/src/client/channel-dock.tsx",
     "packages/client/test/activity-list-keyboard-batch.test.ts",
     "packages/client/test/approval-template-library.test.ts",
@@ -9,8 +7,6 @@
     "packages/client/test/channel-dock.test.tsx",
     "packages/client/test/channel-message-body.test.ts",
     "packages/client/test/external-identity-list.test.ts",
-    "packages/computer/test/docker-provider.test.ts",
-    "packages/connect-relay/test/connect-relay.test.ts",
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/runtime/bot-runtime.ts",
     "packages/core/test/bot-pairing.test.ts",
