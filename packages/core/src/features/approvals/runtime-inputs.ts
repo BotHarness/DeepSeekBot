@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelStore } from '../../channels/store.js';
@@ -22,7 +23,7 @@ interface RuntimeInputPorts {
   database: OperationalDatabaseModulePort;
   enqueue: ReturnType<typeof createOrchestratorScheduling>['enqueue'];
   externalMessaging: OutboundMessaging | undefined;
-  markSideEffectStarted: (sourceEventId: string) => void;
+  markSideEffectStarted: (sourceEventId: string, database?: DatabaseSync) => void;
   nativeQuestionAvailable: NonNullable<BotRuntime['nativeQuestionAvailable']>;
   ownership: SessionOwnership;
   recoverNativeQuestionInput: NonNullable<BotRuntime['recoverNativeQuestionInput']>;
@@ -35,7 +36,7 @@ interface RuntimeInputPorts {
     body: string,
     inboxUnits: InboxUnit[],
     coordinateBranchSwitch: boolean,
-    markAttemptSideEffect: () => void,
+    markAttemptSideEffect: (database?: DatabaseSync) => void,
     reportEventIds: readonly string[],
     wakeEventIds: readonly string[],
     acceptNativeInput: () => boolean,
@@ -228,7 +229,7 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
       channelId,
       sourceEventId,
       [...(sources ?? [])],
-      () => ports.markSideEffectStarted(sourceEventId),
+      (database) => ports.markSideEffectStarted(sourceEventId, database),
     );
   }
 
@@ -300,7 +301,7 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
     channelId: string,
     sourceEventId: string,
     sourceIds: readonly string[],
-    markAttemptSideEffect: () => void,
+    markAttemptSideEffect: (database?: DatabaseSync) => void,
     input: { kind: 'source-event' } | { kind: 'recovered-question'; holdsCard(): boolean } = {
       kind: 'source-event',
     },

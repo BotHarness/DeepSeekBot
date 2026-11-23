@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 
-import { createChannelStore } from '../src/channels/store.js';
+import { createChannelStore, MAX_MESSAGE_PAGE } from '../src/channels/store.js';
 import {
   attachOperationalModule,
   mountOperationalDatabase,
@@ -721,6 +721,72 @@ describe('Bot runtime tracer bullet', () => {
 
     await runtime.close();
     owner.close();
+  });
+
+  it('finds the newest joined search matches beyond the first ascending store page', async () => {
+    const home = createTempRoot('botharness-joined-search-');
+    const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+    const [firstGroup, laterGroup] = ['History A', 'History B']
+      .map((name) => channels.createGroup(OWNER_HUMAN_CONTEXT, { name, members: ['ada'] }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    for (let index = 0; index <= MAX_MESSAGE_PAGE; index++) {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, laterGroup!.id, {
+        id: `match-${index}`,
+        at: new Date(FIXED_NOW().getTime() + index * 1000).toISOString(),
+        author: { kind: 'human' },
+        body: 'needle',
+      });
+    }
+    for (const index of [1, 2]) {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, firstGroup!.id, {
+        id: `prior-${index}`,
+        at: new Date(FIXED_NOW().getTime() + MAX_MESSAGE_PAGE * 1000 - index).toISOString(),
+        author: { kind: 'human' },
+        body: 'needle',
+      });
+    }
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const trigger = {
+      id: 'trigger',
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'human' as const },
+      body: 'Search history',
+    };
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, trigger);
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const matches: string[] = [];
+    const runtime = createBotRuntime({
+      database: owner,
+      grants: createTestWorkspaceGrants(owner, home),
+      registry,
+      channels,
+      agents: {
+        runOrchestrator: async ({ channels }) => {
+          const query = { scope: 'joined', text: 'needle', ascending: true, limit: 1 } as const;
+          const first = channels.query(query);
+          if (first.nextCursor === undefined) throw new Error('Expected a joined continuation');
+          const second = channels.query({ ...query, cursor: first.nextCursor });
+          matches.push(...[...first.messages, ...second.messages].map(({ message }) => message.id));
+        },
+        runAssignment: async () => undefined,
+        requestAssignment: () => ({
+          delivery: 'followup' as const,
+          accepted: Promise.resolve(),
+          done: Promise.resolve(),
+        }),
+        close: async () => undefined,
+      },
+      now: FIXED_NOW,
+    });
+    try {
+      await admit(runtime, { channelId: dm.id, messageId: trigger.id, body: trigger.body });
+      expect(matches).toEqual([`match-${MAX_MESSAGE_PAGE}`, 'prior-1']);
+    } finally {
+      await runtime.close();
+      owner.close();
+    }
   });
 
   it('rejects Channel read, search, and send outside the trusted PersonaBot membership', async () => {

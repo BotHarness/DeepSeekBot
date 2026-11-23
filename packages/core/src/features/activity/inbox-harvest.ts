@@ -106,6 +106,7 @@ interface InboxHarvestPorts {
     botSlug: string,
     sourceEventIds: string[],
     recordInTurn?: boolean,
+    transaction?: DatabaseSync,
   ) => void;
   markReportsHandled: (sourceEventIds: string[], botSlug?: string, sessionId?: string) => void;
   messagingEvents: Pick<ReturnType<typeof createMessagingEvents>, 'collectExternalRows'>;
@@ -152,7 +153,7 @@ interface InboxHarvestPorts {
     body: string,
     inboxUnits: InboxUnit[],
     coordinateBranchSwitch?: boolean,
-    markAttemptSideEffect?: () => void,
+    markAttemptSideEffect?: (database?: DatabaseSync) => void,
     reportEventIds?: readonly string[],
     wakeEventIds?: readonly string[],
     acceptNativeInput?: () => boolean,
@@ -287,7 +288,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
           [preamble, ...sections].filter((part): part is string => part !== undefined).join('\n\n'),
           collected.units,
           collected.eventIds.length > 0,
-          () => ports.markAdmissionsSideEffect(botSlug, includedIds),
+          (database) => ports.markAdmissionsSideEffect(botSlug, includedIds, true, database),
           collected.eventIds,
           [...new Set([...includedIds, ...collected.eventIds])],
         );
