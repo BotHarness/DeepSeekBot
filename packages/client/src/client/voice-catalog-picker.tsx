@@ -10,7 +10,7 @@ import { ink } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon, type ModelBrand } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
-import { CUSTOM_CHOICE } from './voice-options.js';
+import { CATALOG_MAX_RESULTS, CUSTOM_CHOICE, mergeCatalogItems } from './voice-options.js';
 import type {
   VoiceCatalogCollection,
   VoiceCatalogInput,
@@ -30,7 +30,7 @@ const styles = stylex.create({
   arrow: { flexShrink: 0, color: ink.secondary },
 });
 
-const MAX_RESULTS = 200;
+const MAX_RESULTS = CATALOG_MAX_RESULTS;
 const SEARCH_DELAY_MS = 300;
 
 export interface VoicePickerOption {
@@ -227,10 +227,7 @@ function VoiceCatalogPanel({
         if (controller.signal.aborted) return;
         setPage((old) => {
           const prefix = cursor === undefined ? [] : (old?.items ?? []);
-          const merged = [
-            ...new Map([...prefix, ...result.items].map((item) => [item.id, item])).values(),
-          ];
-          const items = collection === 'models' ? merged : merged.slice(0, MAX_RESULTS);
+          const items = mergeCatalogItems(prefix, result.items, collection);
           return result.nextCursor === undefined
             ? { items }
             : { items, nextCursor: result.nextCursor };

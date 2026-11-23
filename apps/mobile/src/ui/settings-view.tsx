@@ -20,6 +20,7 @@ export interface SettingsActions {
   onStorage(): void;
   onModelProviders(): void;
   onModels(): void;
+  onVoice?: (() => void) | undefined;
   onPrompts(): void;
   onCopyVersion(text: string): void;
 }
@@ -67,6 +68,17 @@ export function SettingsView({
           testID="settings-model-providers"
           onPress={actions.onModelProviders}
         />
+        {actions.onVoice === undefined ? null : (
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.voiceSettings.title}
+            icon="voice"
+            detail={t.voiceSettings.rowHint}
+            disclosure
+            testID="settings-voice"
+            onPress={actions.onVoice}
+          />
+        )}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.modelConfig.title}

@@ -513,6 +513,14 @@
       "gap": null
     },
     {
+      "id": "phone.voice-settings",
+      "label": "Add, test and remove TTS/ASR Voice Providers, browse catalogs with samples and set defaults on the phone",
+      "source": "apps/mobile/src/ui/voice/voice-settings-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-voice-settings.md",
+      "task": 5026,
+      "gap": null
+    },
+    {
       "id": "phone.usage",
       "label": "Read usage totals, ranges, breakdowns and Memory changes",
       "source": "apps/mobile/src/ui/chat/bot-profile.tsx",
