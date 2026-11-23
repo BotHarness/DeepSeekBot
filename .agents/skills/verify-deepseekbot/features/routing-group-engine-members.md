@@ -2,7 +2,6 @@
 
 ## Sources
 
-- `packages/core/src/runtime/bot-runtime-features.ts`
 - `packages/core/src/features/models/runtime-session-group.ts`
 - `packages/core/src/features/models/plugin.ts`
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
