@@ -601,7 +601,7 @@ export interface OrchestratorServiceTurn {
   sessionId: string;
   channelId: string | undefined;
   sourceEventId: string | undefined;
-  markSideEffect: () => void;
+  markSideEffect: (database?: DatabaseSync) => void;
   readAdmissions: Set<string>;
   importedFiles: Map<string, ChannelAttachmentRef>;
   turnSources: ReadonlySet<string>;
@@ -2102,29 +2102,33 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[], recordInTurn = true): void {
+  #markAdmissionsSideEffect(
+    botSlug: string,
+    sourceEventIds: string[],
+    recordInTurn = true,
+    transaction?: DatabaseSync,
+  ): void {
     if (sourceEventIds.length === 0) return;
     if (recordInTurn) {
       const turn = this.#turnSources.get(botSlug);
       if (turn !== undefined) for (const id of sourceEventIds) turn.eventIds.add(id);
     }
-    this.#database.transaction(
-      (database) => {
-        for (const id of sourceEventIds) {
-          requireSourceEffects(database, id, botSlug);
-          database
-            .prepare(
-              `
+    const record = (database: DatabaseSync): void => {
+      for (const id of sourceEventIds) {
+        requireSourceEffects(database, id, botSlug);
+        database
+          .prepare(
+            `
           UPDATE inbox_admissions
              SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
            WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
         `,
-            )
-            .run(this.#now().toISOString(), id, botSlug);
-        }
-      },
-      ['bot-inbox'],
-    );
+          )
+          .run(this.#now().toISOString(), id, botSlug);
+      }
+    };
+    if (transaction === undefined) this.#database.transaction(record, ['bot-inbox']);
+    else record(transaction);
   }
 
   #interruptedDmNotice(botSlug: string, channelId: string | undefined): string {
@@ -3197,8 +3201,8 @@ class BotRuntimeImplementation implements BotRuntime {
     body: string,
     inboxUnits: InboxUnit[],
     coordinateBranchSwitch = false,
-    markAttemptSideEffect: () => void = () => {
-      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId);
+    markAttemptSideEffect: (database?: DatabaseSync) => void = (database) => {
+      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId, database);
     },
     reportEventIds: readonly string[] = [],
     wakeEventIds: readonly string[] = sourceEventId === undefined ? [] : [sourceEventId],
@@ -3286,15 +3290,15 @@ class BotRuntimeImplementation implements BotRuntime {
     let memoryEventIds: string[] = [];
     let preserveObservation = false;
     const importedFiles = new Map<string, ChannelAttachmentRef>();
-    const markSideEffect = (): void => {
+    const markSideEffect = (database?: DatabaseSync): void => {
       this.#requireTurnAccess(bot.slug, new Set([...turnSources, ...readAdmissions]));
       if (this.#stoppedTurns.has(bot.slug)) throw new Error(SESSION_STOPPED_REFUSAL);
       this.#database.read((db) => {
         for (const id of new Set([...turnSources, ...readAdmissions]))
           requireSourceEffects(db, id, bot.slug);
       });
-      this.#markReportSideEffects([...reportEventIds, ...memoryEventIds], bot.slug);
-      markAttemptSideEffect();
+      this.#markReportSideEffects([...reportEventIds, ...memoryEventIds], bot.slug, database);
+      markAttemptSideEffect(database);
     };
     try {
       const ids = [...new Set(wakeEventIds)];
@@ -4181,29 +4185,29 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
-  #markSideEffectStarted(sourceEventId: string): void {
-    this.#database.transaction(
-      (database) => {
-        requireSourceContent(database, sourceEventId);
-        database
-          .prepare(
-            `UPDATE source_events
+  #markSideEffectStarted(sourceEventId: string, transaction?: DatabaseSync): void {
+    const record = (database: DatabaseSync): void => {
+      requireSourceContent(database, sourceEventId);
+      database
+        .prepare(
+          `UPDATE source_events
                 SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
               WHERE source_event_id = ? AND attempt_state = 'running'`,
-          )
-          .run(this.#now().toISOString(), sourceEventId);
-        database
-          .prepare(
-            `
+        )
+        .run(this.#now().toISOString(), sourceEventId);
+      database
+        .prepare(
+          `
           UPDATE inbox_admissions
              SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
            WHERE source_event_id = ? AND attempt_state = 'running'
         `,
-          )
-          .run(this.#now().toISOString(), sourceEventId);
-      },
-      ['source-event', 'bot-inbox'],
-    );
+        )
+        .run(this.#now().toISOString(), sourceEventId);
+    };
+    if (transaction === undefined)
+      this.#database.transaction(record, ['source-event', 'bot-inbox']);
+    else record(transaction);
   }
 
   #markSourceEventFailed(sourceEventId: string): void {
@@ -4518,7 +4522,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const row = database
           .prepare(
             `
-                SELECT a.source_event_id, a.attempt_state, a.observed_at, a.ignored_at
+                SELECT a.source_event_id, a.reason, a.attempt_state, a.observed_at, a.ignored_at
                   FROM inbox_admissions a
                   JOIN source_events e ON e.source_event_id = a.source_event_id
                  WHERE a.bot_slug = ? AND e.channel_id = ? AND e.message_id = ?
@@ -4527,6 +4531,7 @@ class BotRuntimeImplementation implements BotRuntime {
           .get(botSlug, channelId, messageId) as
           | {
               source_event_id: string;
+              reason: string;
               attempt_state: string;
               observed_at: string | null;
               ignored_at: string | null;
@@ -4583,13 +4588,23 @@ class BotRuntimeImplementation implements BotRuntime {
             row.source_event_id,
             botSlug,
           );
+        if (row.reason === 'human-dm') {
+          database
+            .prepare(
+              `UPDATE source_events
+                  SET handled_at = COALESCE(handled_at, ?), attempt_state = 'handled'
+                WHERE source_event_id = ? AND bot_slug = ? AND source_kind = 'human-message'
+                  AND attempt_state IN ('pending', 'retryable', 'running')`,
+            )
+            .run(ignoredAt, row.source_event_id, botSlug);
+        }
         return {
           sourceEventId: row.source_event_id,
           ignoredAt,
           alreadyIgnored: false,
         };
       },
-      ['bot-inbox'],
+      ['source-event', 'bot-inbox'],
     );
     if ('error' in decision) throw new Error(decision.error);
     this.#channels.admissionChanged?.(channelId, messageId);
@@ -5192,24 +5207,28 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  #markReportSideEffects(sourceEventIds: readonly string[], botSlug: string): void {
+  #markReportSideEffects(
+    sourceEventIds: readonly string[],
+    botSlug: string,
+    transaction?: DatabaseSync,
+  ): void {
     if (sourceEventIds.length === 0) return;
     const placeholders = sourceEventIds.map(() => '?').join(', ');
-    this.#database.transaction(
-      (database) =>
-        database
-          .prepare(
-            `
+    const record = (database: DatabaseSync): void => {
+      database
+        .prepare(
+          `
             UPDATE inbox_admissions
                SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
              WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'group-mention', 'group-ordinary', 'human-dm')
                AND attempt_state = 'running'
                AND source_event_id IN (${placeholders})
           `,
-          )
-          .run(this.#now().toISOString(), botSlug, ...sourceEventIds),
-      ['bot-inbox'],
-    );
+        )
+        .run(this.#now().toISOString(), botSlug, ...sourceEventIds);
+    };
+    if (transaction === undefined) this.#database.transaction(record, ['bot-inbox']);
+    else record(transaction);
   }
 
   #setObserved(sourceEventIds: string[], at: string | null, botSlug?: string): void {
