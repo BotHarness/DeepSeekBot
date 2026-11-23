@@ -142,7 +142,7 @@ export function authorizeTobHostCli(
     if (isTob === undefined) return false;
     if (isTob(value)) return true;
     const channel = deps.channels.get(value);
-    return channel?.type === 'dm' && channel.members.some(isTob);
+    return channel?.type === 'dm' && channel.members.length === 1 && isTob(channel.members[0]!);
   };
   if (values.some(namesTob) && widensAuthority(argv))
     throw new TobCliCommandError(

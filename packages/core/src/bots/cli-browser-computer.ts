@@ -1,5 +1,13 @@
 export { BROWSER_COMPUTER_OPTIONS } from './cli-option-spec.js';
-import { createReadStream, createWriteStream, statSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  createReadStream,
+  createWriteStream,
+  openSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -375,23 +383,32 @@ export async function runBrowserComputerCommand(
       return json('/api/browser/borrow/return', { slug: target });
     case 'browser-profile-pair':
     case 'browser-borrow-pair': {
-      const { code, ...paired } = await json(
-        command === 'browser-profile-pair'
-          ? '/api/browser/profile/pair'
-          : '/api/browser/borrow/pair',
-        command === 'browser-profile-pair' ? {} : { slug: target },
-      );
-      if (typeof code !== 'string')
-        throw new CliLiveError('host-protocol-error', 'The Host returned no pairing code.');
+      let file: number;
       try {
-        writeFileSync(values.out!, code, { mode: 0o600, flag: 'wx' });
+        file = openSync(values.out!, 'wx', 0o600);
       } catch {
         throw new CliLiveError(
           'pairing-file-failed',
           'The pairing code could not be saved. Use a new writable absolute file.',
         );
       }
-      return { ...paired, codeFile: values.out };
+      try {
+        const { code, ...paired } = await json(
+          command === 'browser-profile-pair'
+            ? '/api/browser/profile/pair'
+            : '/api/browser/borrow/pair',
+          command === 'browser-profile-pair' ? {} : { slug: target },
+        );
+        if (typeof code !== 'string')
+          throw new CliLiveError('host-protocol-error', 'The Host returned no pairing code.');
+        writeFileSync(file, code);
+        return { ...paired, codeFile: values.out };
+      } catch (error) {
+        rmSync(values.out!, { force: true });
+        throw error;
+      } finally {
+        closeSync(file);
+      }
     }
     case 'browser-packages':
       return json('/api/browser/install-packages');

@@ -16,7 +16,11 @@ const deps = {
   registry: { getHistorical: () => undefined },
   channels: {
     get: (id: string) =>
-      id === 'dm-tob' ? ({ type: 'dm', members: ['tob'] } as never) : undefined,
+      id === 'dm-tob'
+        ? ({ type: 'dm', members: ['tob'] } as never)
+        : id === 'dm-tob-ada'
+          ? ({ type: 'dm', members: ['tob', 'ada'] } as never)
+          : undefined,
   },
   human: humanContext('owner'),
   isTob: (slug: string) => slug === 'tob',
@@ -91,6 +95,15 @@ describe('Tob grant, approval policy and Browser commands', () => {
       patch: { argv: ['approval-template-set', 'ada', 'routine'] },
     });
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a Bot DM between Tob and a colleague as the colleague, not Tob', () => {
+    expect(() =>
+      authorizeTobHostCli(
+        ['tool-approval-decide', 'dm-tob-ada', '--message-id', 'm-1', '--outcome', 'rejected'],
+        deps,
+      ),
+    ).not.toThrow();
   });
 
   it('still reads Tob and edits its ordinary profile through the usual path', () => {

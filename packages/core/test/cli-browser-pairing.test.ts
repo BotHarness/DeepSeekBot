@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -122,6 +122,18 @@ describe('Browser pairing, Daily Browser and borrowed Browser commands', () => {
     expect(taken.json['error']).toMatchObject({ code: 'pairing-file-failed' });
     expect(taken.out).not.toContain('K7Q-PAIR');
     expect(readFileSync(file, 'utf8')).toBe('old');
+    expect(live.calls).toEqual([]);
+  });
+
+  it('removes the private file when the Host refuses the pairing', async () => {
+    const live = await host(() => ({
+      status: 409,
+      json: { ok: false, error: 'Chrome Profile pairing unavailable' },
+    }));
+    const file = join(scratch(), 'code');
+    const result = await invoke(['browser-profile-pair', '--out', file], live.url);
+    expect(result.json['error']).toMatchObject({ code: 'host-refused' });
+    expect(existsSync(file)).toBe(false);
   });
 
   it('keeps the Host refusal message for a Daily Browser grant before a page is selected', async () => {
