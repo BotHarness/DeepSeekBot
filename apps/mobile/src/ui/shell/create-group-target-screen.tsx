@@ -54,7 +54,7 @@ export function CreateGroupTargetScreen() {
         {error ? <Text accessibilityRole="alert">{error}</Text> : null}
         <CreationRow
           testID="create-group-computer"
-          label={t.computers}
+          label={t.environments}
           icon={<ComputerIcon color={theme.color.fg} size={iconSize} />}
           disabled={busy}
           onPress={() => router.replace({ pathname: '/create-channel', params: { entry: 'all' } })}

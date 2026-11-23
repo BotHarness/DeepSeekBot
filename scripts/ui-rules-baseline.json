@@ -1512,7 +1512,6 @@
     "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
     "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
     "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"],
-    "apps/mobile/src/ui/shell/navigation-action.tsx": ["Pressable"]
+    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"]
   }
 }

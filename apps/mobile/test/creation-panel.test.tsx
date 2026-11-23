@@ -114,6 +114,9 @@ it.each([undefined, 'mac'])(
   async (hostId) => {
     await withCard(hostId ? computerEnvironmentKey(hostId) : 'all', async (host, press) => {
       const dialog = () => host.querySelector('[role="dialog"]');
+      const trigger = host.querySelector<HTMLButtonElement>('[data-testid="chats-create-fab"]')!;
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      expect(trigger.disabled).toBe(true);
       await press('bot');
       expect(dialog()?.querySelector('[data-testid="chats-create-sources-list"]')).not.toBeNull();
       expect(fixture.push).not.toHaveBeenCalled();
@@ -135,6 +138,8 @@ it.each([undefined, 'mac'])(
           params: hostId ? { entry: 'host', hostId } : { entry: 'all' },
         });
         expect(dialog()).toBeNull();
+        expect(trigger.getAttribute('aria-expanded')).toBe('false');
+        expect(trigger.disabled).toBe(false);
       }
     });
   },

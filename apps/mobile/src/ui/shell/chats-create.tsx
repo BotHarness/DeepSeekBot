@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState, type ComponentRef } from 'react';
-import { AccessibilityInfo, Platform, Pressable } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 import { cloudError } from '../../cloud/client';
 import { cloudAvailable } from '../../cloud/available';
 import { targetsFor, type CreationTarget } from '../../host/creation-targets';
-import { pressTint, useDesignTheme } from '../design/theme';
-import { fab, radius } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { fab } from '../design/tokens';
 import { haptic } from '../haptics';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
@@ -23,7 +23,7 @@ import {
   PlusIcon,
   ShareIcon,
 } from './icons';
-import { NavigationMaterial } from './navigation-material';
+import { NavigationAction } from './navigation-action';
 import { openCloudCreation } from './open-cloud-creation';
 import { useCreationTargets } from './use-creation-targets';
 
@@ -35,7 +35,7 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const opening = useRef(false);
-  const trigger = useRef<ComponentRef<typeof Pressable>>(null);
+  const trigger = useRef<ComponentRef<typeof NavigationAction>>(null);
   const generation = useRef(0);
   useFocusEffect(
     useCallback(
@@ -77,7 +77,6 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
     }
   };
   if (!actions.bot && !actions.group && !actions.invite && !actions.join) return null;
-  const android = Platform.OS === 'android';
   const iconSize = theme.type.title.line * theme.fontScale;
   const botTarget = scope === 'all' ? undefined : targetsFor('bot', scope, targets)[0];
   const botHostId = botTarget?.kind === 'computer' ? botTarget.hostId : undefined;
@@ -90,36 +89,20 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
   ] as const;
   return (
     <>
-      <Pressable
+      <NavigationAction
         ref={trigger}
         testID="chats-create-fab"
-        accessibilityRole="button"
-        accessibilityLabel={t.createHere}
-        accessibilityState={{ disabled: busy, expanded: open }}
-        disabled={busy || open}
+        label={t.createHere}
+        size={fab.size}
+        disabled={busy}
+        expanded={open}
         onPress={() => {
           if (opening.current) return;
           opening.current = true;
           haptic('menu');
           setOpen(true);
         }}
-        android_ripple={{ color: pressTint(theme.color.accent) }}
-        style={({ pressed }) => ({
-          width: fab.size,
-          height: fab.size,
-          minWidth: theme.touch,
-          minHeight: theme.touch,
-          borderRadius: android ? fab.radius : radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: android ? theme.layer.raised.chosen : undefined,
-          elevation: android ? fab.elevation : undefined,
-          opacity: open ? 0 : pressed ? 0.7 : 1,
-        })}
-      >
-        {!android ? <NavigationMaterial circle /> : null}
-        <PlusIcon color={theme.color.fg} size={iconSize} />
-      </Pressable>
+      />
       {open ? (
         <CreationPanel
           bottom={bottom}
