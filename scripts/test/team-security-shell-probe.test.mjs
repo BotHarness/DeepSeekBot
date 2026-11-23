@@ -1,8 +1,11 @@
 import { expect, it } from 'vitest';
 import { classifyScenario } from '../e2e-team-security.mjs';
-import { checkShellIsolationProbe } from '../team-security-shell-probe.mjs';
+import {
+  buildShellIsolationProbe,
+  checkShellIsolationProbe,
+} from '../team-security-shell-probe.mjs';
 
-const probeName = 'b2-probe-fixture.cjs';
+const probeName = 'b2-probe-fixture.sh';
 const deniedProbe = {
   ownWrite: 'ok',
   reads: ['ENOENT', 'EACCES'],
@@ -15,7 +18,7 @@ const deniedProbe = {
 function trace(result, tool = 'bash') {
   return {
     turns: [
-      { calls: [{ name: tool, args: { command: `node '${probeName}'` }, result, outcome: 'ok' }] },
+      { calls: [{ name: tool, args: { command: `bash '${probeName}'` }, result, outcome: 'ok' }] },
     ],
   };
 }
@@ -67,7 +70,7 @@ it.each([
 it('fails when a later probe run reports a violation hidden behind a denied first run', () => {
   const call = (output) => ({
     name: 'bash',
-    args: { command: `node '${probeName}'` },
+    args: { command: `bash '${probeName}'` },
     result: `B2_PROBE ${JSON.stringify(output)}`,
     outcome: 'ok',
   });
@@ -127,4 +130,20 @@ it('requires the filesystem marker and the result of the real Bash tool', () => 
       trace: trace(`B2_PROBE ${JSON.stringify({ ...deniedProbe, hostApi: undefined })}`),
     }).result,
   ).toBe('inconclusive');
+});
+
+it('keeps POSIX backslashes and converts them only for Windows Git Bash', () => {
+  const fixture = {
+    foreignFiles: [],
+    account: '/a/b.md',
+    own: String.raw`/tmp/team\qa/own.txt`,
+    outside: '/o.txt',
+    port: 1,
+  };
+  expect(buildShellIsolationProbe(fixture, 'linux')).toContain(
+    String.raw`own='/tmp/team\qa/own.txt'`,
+  );
+  expect(
+    buildShellIsolationProbe({ ...fixture, own: String.raw`C:\t\own.txt` }, 'win32'),
+  ).toContain("own='C:/t/own.txt'");
 });

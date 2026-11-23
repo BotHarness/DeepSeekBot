@@ -11,6 +11,7 @@ import {
 } from '../src/runtime/bot-network.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { deferred } from './deferred.js';
 
 function agents(run: (turn: OrchestratorAgentRun) => Promise<void>): BotAgentAdapter {
   return {
@@ -224,6 +225,91 @@ it.each(['withdrawn', 'unavailable', 'returned-before-start', 'legacy-unverified
   },
   60_000,
 );
+
+it('recovers a later remote DM after its Host rejoins during the harvest sweep', async () => {
+  const localStarted = deferred<void>();
+  const finishLocal = deferred<void>();
+  const turns: string[] = [];
+  let rejoined = false;
+  const core = createCore({
+    dshHome: createTempRoot('network-rejoin-sweep-'),
+    botNetwork: {
+      contacts: () => [],
+      membership: async (hostId) => {
+        if (hostId === 'other') {
+          await Promise.resolve();
+          rejoined = true;
+          return 'withdrawn';
+        }
+        return rejoined ? 'member' : 'withdrawn';
+      },
+      async send() {
+        throw new Error('Unexpected send');
+      },
+    },
+    agents: agents(async (run) => {
+      turns.push(run.message);
+      if (turns.length === 1) {
+        localStarted.resolve();
+        await finishLocal.promise;
+      }
+    }),
+  });
+  try {
+    core.registry.create({ slug: 'receiver', displayName: 'Receiver' });
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'receiver')!;
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dm.id,
+      messageId: 'local-work',
+      body: 'Local work',
+    });
+    if (!admission.admitted) throw new Error(admission.reason);
+    await localStarted.promise;
+    for (const [hostId, id] of [
+      ['returning', 'remote-first'],
+      ['other', 'remote-other'],
+      ['returning', 'remote-later'],
+    ] as const) {
+      await receiveNetworkBotDm(
+        {
+          registry: core.registry,
+          channels: core.channels,
+          admitBotDmMessage: (channel, message) => core.runtime.admitBotDmMessage(channel, message),
+        },
+        {
+          hostId,
+          hostKey: (hostId === 'other' ? 'b' : 'a').repeat(64),
+          botSlug: 'sender',
+          displayName: 'Sender',
+          membership: { kind: 'tailnet', localNodeId: 'local', remoteNodeId: hostId },
+          device: { model: null, platform: 'linux' },
+          capabilities: [],
+        },
+        {
+          id,
+          at: new Date().toISOString(),
+          senderBotSlug: 'sender',
+          recipientBotSlug: 'receiver',
+          body: id,
+          causation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
+        },
+      );
+    }
+    finishLocal.resolve();
+    await admission.settled;
+    await core.runtime.whenIdle();
+    expect(turns).toEqual([
+      expect.stringContaining('Local work'),
+      expect.stringContaining('remote-later'),
+    ]);
+    expect(turns[1]).not.toContain('remote-first');
+    expect(turns[1]).not.toContain('remote-other');
+  } finally {
+    finishLocal.resolve();
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});
 
 it('uses normal Bot tools and Inbox to exchange a DM between two Host owners', async () => {
   const contact = (hostId: string, botSlug: string) => ({

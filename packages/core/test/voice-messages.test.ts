@@ -247,7 +247,7 @@ describe('Bot voice messages', () => {
     expect(message.body).toBe('Still visible.');
     expect(message.attachments).toBeUndefined();
     expect(message.voice).toMatchObject({ state: 'failed', code: 'provider-rate-limited' });
-    expect(message.voice!.error).toContain('quota exceeded');
+    expect(message.voice!.error).toBe('The provider is out of quota or rate limited: HTTP 429');
   });
 
   it('tells the Bot to bind a voice first', async () => {

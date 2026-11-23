@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
@@ -220,6 +220,45 @@ describe('Memory move', () => {
       expect(inspectMemoryRepository({ memoryDir: before }).state).toBe('ready');
       expect(existsSync(join(location, 'ada'))).toBe(false);
       expect(f.calls).toEqual([`archive:${first}`, `release:${first}`, `unarchive:${first}`]);
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('leaves Memory and the unsaved Orchestrator intact when claiming the replacement fails', async () => {
+    const f = await fixture({ unsaved: true });
+    try {
+      await f.send();
+      const first = f.runs[0]!.sessionId;
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-claim-failed-');
+      vi.spyOn(f.core.ownership, 'claim').mockImplementationOnce(() => {
+        throw new Error('Replacement claim failed');
+      });
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: 'memory-unavailable',
+          message: expect.stringContaining('Replacement claim failed'),
+        },
+      });
+      expect(f.core.registry.memoryDirFor('ada')).toBe(before);
+      expect(inspectMemoryRepository({ memoryDir: before }).state).toBe('ready');
+      expect(existsSync(join(location, 'ada'))).toBe(false);
+      expect(f.core.runtime.currentOrchestratorSessionId!('ada')).toBe(first);
+
+      vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementationOnce(() => {
+        throw new Error('Registry update failed');
+      });
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toMatchObject({
+        ok: false,
+        error: { message: expect.stringContaining('Registry update failed') },
+      });
+      expect(
+        f.core.ownership.rootsFor('ada', 'orchestrator').map((root) => root.sessionId),
+      ).toEqual([first]);
+      expect(f.core.registry.memoryDirFor('ada')).toBe(before);
+      expect(existsSync(join(location, 'ada'))).toBe(false);
     } finally {
       await f.close();
     }

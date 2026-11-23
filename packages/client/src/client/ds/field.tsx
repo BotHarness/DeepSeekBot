@@ -219,6 +219,7 @@ export function TextAreaField({
   value,
   onChange,
   initialFocus = false,
+  monospace = false,
   ...rest
 }: {
   readonly label: ReactNode;
@@ -227,6 +228,7 @@ export function TextAreaField({
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly initialFocus?: boolean;
+  readonly monospace?: boolean;
 } & Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   'value' | 'onChange' | 'id' | 'className' | 'children'
@@ -238,7 +240,7 @@ export function TextAreaField({
           {...rest}
           {...control}
           {...(initialFocus ? { 'data-modal-autofocus': '' } : {})}
-          {...stylex.props(styles.textarea)}
+          {...stylex.props(styles.textarea, monospace && styles.mono)}
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
         />

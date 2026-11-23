@@ -1,6 +1,12 @@
 import type { ReduceMotion } from 'react-native-reanimated';
 
-import { springs, type PlatformOS, type SpringPhysics, type SpringSpeed } from './tokens';
+import {
+  morphSprings,
+  springs,
+  type PlatformOS,
+  type SpringPhysics,
+  type SpringSpeed,
+} from './tokens';
 
 export type Spring = SpringPhysics & { reduceMotion: ReduceMotion };
 
@@ -20,6 +26,7 @@ export function platformSprings(os: PlatformOS) {
     spatial: speeds(springs[os].spatial),
     effects: speeds(springs[os].effects),
     release: system({ ...release, damping: 2 * Math.sqrt(release.stiffness * release.mass) }),
+    morph: system(morphSprings[os]),
   } as const;
 }
 

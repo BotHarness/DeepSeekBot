@@ -177,7 +177,11 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     return { body: message?.body ?? safe.body };
   }
 
-  function continuableDmEvent(channelId: string, messageId: string): string | undefined {
+  function continuableDmEvent(
+    channelId: string,
+    messageId: string,
+    onlyLatest = false,
+  ): string | undefined {
     if (ports.channels.message(channelId, messageId)?.tobCliRequestId !== undefined)
       return undefined;
     const channel = ports.channels.get(channelId);
@@ -198,9 +202,14 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
          AND e.source_kind = 'human-message' AND a.reason = 'human-dm'
          AND e.attempt_state IN ('retryable', 'needs-repair')
          AND a.attempt_state IN ('retryable', 'needs-repair')
+         AND (? = 0 OR NOT EXISTS (
+           SELECT 1 FROM source_events newer JOIN inbox_admissions admission USING (source_event_id)
+            WHERE admission.bot_slug = a.bot_slug AND admission.reason = 'human-dm'
+              AND newer.bot_slug = e.bot_slug AND newer.rowid > e.rowid
+         ))
     `,
         )
-        .get(channelId, messageId, channel.botSlug!),
+        .get(channelId, messageId, channel.botSlug!, Number(onlyLatest)),
     ) as { source_event_id: string } | undefined;
     return row?.source_event_id;
   }
@@ -251,7 +260,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         failure.role !== 'orchestrator' ||
         failure.code === undefined ||
         ports.currentOrchestratorSessionId(bot.slug) !== failure.sessionId ||
-        continuableDmEvent(channelId, failure.requestMessageId) === undefined
+        continuableDmEvent(channelId, failure.requestMessageId, true) === undefined
       )
         continue;
       armAutoContinue(
@@ -281,10 +290,12 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     pending: Omit<PendingAutoContinue, 'timer'>,
     delayMs: number,
     code: string,
-  ): void {
+    ready?: Promise<void>,
+  ): () => boolean {
     cancelAutoContinue(botSlug);
-    const timer = setTimeout(() => {
-      if (ports.autoContinues.get(botSlug)?.timer !== timer) return;
+    const isPending = () => ports.autoContinues.get(botSlug)?.timer === timer;
+    const resume = () => {
+      if (!isPending()) return;
       ports.autoContinues.delete(botSlug);
       if (ports.closed() || ports.currentOrchestratorSessionId(botSlug) !== pending.sessionId)
         return;
@@ -294,9 +305,14 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         autoAttempts: pending.attempt,
       });
       void settled?.catch(() => undefined);
+    };
+    const timer = setTimeout(() => {
+      if (ready === undefined) resume();
+      else void ready.then(resume);
     }, delayMs);
     timer.unref?.();
     ports.autoContinues.set(botSlug, { ...pending, timer });
+    return isPending;
   }
 
   async function recoverDmMessage(

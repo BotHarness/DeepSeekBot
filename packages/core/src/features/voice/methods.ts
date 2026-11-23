@@ -1,3 +1,9 @@
+import {
+  parseVoiceTemplate,
+  validateVoiceTemplate,
+  type VoiceRequestTemplate,
+  type VoiceTemplateValidation,
+} from '../../voice/request-template.js';
 import type { BridgeResult } from '../../bridge/methods.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
@@ -67,6 +73,11 @@ export interface VoiceBridgeMethods {
   voiceProviders(payload?: unknown): BridgeResult<VoiceProvidersView>;
   voiceCatalog(payload: unknown): Promise<BridgeResult<VoiceCatalogPage>>;
   voiceCatalogImport(payload: unknown): Promise<BridgeResult<{ voice: VoiceCatalogItem }>>;
+  voiceProviderTemplate(payload: unknown): BridgeResult<{ template: VoiceRequestTemplate }>;
+  voiceTemplateValidate(payload: unknown): BridgeResult<VoiceTemplateValidation>;
+  voiceProviderTemplateSet(
+    payload: unknown,
+  ): Promise<BridgeResult<{ provider: VoiceProviderView }>>;
   voiceProviderAdd(payload: unknown): Promise<BridgeResult<{ provider: VoiceProviderView }>>;
   voiceProviderRemove(
     payload: unknown,
@@ -184,6 +195,36 @@ export function createVoiceBridgeMethods(deps: {
         return failure(error);
       }
     },
+    voiceTemplateValidate(payload) {
+      const input = record(payload);
+      const kind = input['kind'];
+      if (kind !== 'tts' && kind !== 'asr') return invalid('kind must be tts or asr');
+      return { ok: true, value: validateVoiceTemplate(input['template'], kind) };
+    },
+    voiceProviderTemplate(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const id = optionalText(record(payload)['id']);
+      if (id === undefined) return invalid('id is required');
+      try {
+        return { ok: true, value: { template: deps.providers.template(id) } };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async voiceProviderTemplateSet(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = record(payload);
+      const id = optionalText(input['id']);
+      if (id === undefined) return invalid('id is required');
+      try {
+        return {
+          ok: true,
+          value: { provider: await deps.providers.setTemplate(id, input['template']) },
+        };
+      } catch (error) {
+        return failure(error);
+      }
+    },
     async voiceProviderAdd(payload) {
       if (deps.providers === undefined) return unavailable();
       const input = record(payload);
@@ -197,6 +238,14 @@ export function createVoiceBridgeMethods(deps: {
         const provider = await deps.providers.add({
           ...(input['kind'] === 'asr' ? { kind: 'asr' as const } : {}),
           preset: input['preset'],
+          ...(input['template'] === undefined
+            ? {}
+            : {
+                template: parseVoiceTemplate(
+                  input['template'],
+                  input['kind'] === 'asr' ? 'asr' : 'tts',
+                ),
+              }),
           ...(typeof input['name'] === 'string' ? { name: input['name'] } : {}),
           ...(typeof input['baseUrl'] === 'string' ? { baseUrl: input['baseUrl'] } : {}),
           ...(typeof input['model'] === 'string' ? { model: input['model'] } : {}),
