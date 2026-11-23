@@ -87,26 +87,32 @@ function isFontScale(path) {
   );
 }
 
-function scaleInSize(value) {
+function scaleInSize(value, checkReference = false) {
   const path = resolveValue(value);
   if (!path) return false;
   if (isFontScale(path)) return true;
   if (path.isBinaryExpression() || path.isLogicalExpression())
     return (
-      scaleInSize(path.get('left')) ||
-      (path.node.operator !== '/' && scaleInSize(path.get('right')))
+      scaleInSize(path.get('left'), checkReference) ||
+      ((checkReference || path.node.operator !== '/') &&
+        scaleInSize(path.get('right'), checkReference))
     );
   if (path.isConditionalExpression())
-    return scaleInSize(path.get('consequent')) || scaleInSize(path.get('alternate'));
-  if (path.isUnaryExpression()) return scaleInSize(path.get('argument'));
+    return (
+      (checkReference && scaleInSize(path.get('test'), checkReference)) ||
+      scaleInSize(path.get('consequent'), checkReference) ||
+      scaleInSize(path.get('alternate'), checkReference)
+    );
+  if (path.isUnaryExpression()) return scaleInSize(path.get('argument'), checkReference);
   if (path.isCallExpression()) {
     const callee = importOf(path.get('callee'));
     if (
+      !checkReference &&
       callee?.name === 'clampScaledIconSize' &&
       callee.source.endsWith('/design/scaled-icon-size')
     )
-      return false;
-    return path.get('arguments').some(scaleInSize);
+      return scaleInSize(path.get('arguments.2'), true);
+    return path.get('arguments').some((arg) => scaleInSize(arg, checkReference));
   }
   return false;
 }
@@ -168,6 +174,15 @@ function enclosingOpenings(opening) {
   return ancestors;
 }
 
+function hasScalableFont(boxes) {
+  for (const box of boxes) {
+    const fonts = modifierArgs(box, 'font', true);
+    if (fonts.some((args) => property(args, 'textStyle'))) return true;
+    if (modifierArgs(box, 'font').length > 0) return false;
+  }
+  return false;
+}
+
 export function mobileIconScale(file, ast) {
   const found = [];
   traverse(ast, {
@@ -175,13 +190,13 @@ export function mobileIconScale(file, ast) {
       const name = jsxName(opening.node.name);
       const original = importOf(opening.get('name'))?.name ?? name;
       const swift = imported(opening.get('name'), 'Image', SWIFT_UI) && prop(opening, 'systemName');
-      const styledSymbol =
-        swift && modifierArgs(opening, 'font', true).some((args) => property(args, 'textStyle'));
       const scaledIcon =
         ICON.test(original ?? '') &&
         ['size', 'iconSize', 'fontSize'].some((key) => scaleInSize(prop(opening, key)));
-      if (!styledSymbol && !scaledIcon) return;
+      if (!swift && !scaledIcon) return;
       const boxes = enclosingOpenings(opening);
+      const styledSymbol = swift && hasScalableFont(boxes);
+      if (!styledSymbol && !scaledIcon) return;
       const fixed = boxes.some(
         (box) =>
           fixedStyle(box, styledSymbol) ||

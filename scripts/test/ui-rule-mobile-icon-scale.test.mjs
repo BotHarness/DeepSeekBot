@@ -45,6 +45,42 @@ describe('mobile fixed-slot icon scale', () => {
     ]);
   });
 
+  it('requires a text-scale-independent clamp ceiling', () => {
+    const found = check(`
+      import { View } from 'react-native';
+      import { clampScaledIconSize as fit } from '../design/scaled-icon-size';
+      const { fontScale: scale } = theme;
+      const ceiling = 24 * scale;
+      const example = <View style={{ width: 32 }}>
+        <PlusIcon size={fit(24, theme.fontScale, 32)} />
+        <PlusIcon size={fit(24, theme.fontScale, size * fab.glyphMaxScale)} />
+        <PlusIcon size={fit(24, theme.fontScale, 24 * theme.fontScale)} />
+        <PlusIcon size={fit(24, theme.fontScale, ceiling)} />
+      </View>;
+    `);
+    expect(found.map(({ line }) => line)).toEqual([9, 10]);
+  });
+
+  it('checks inherited font styles and respects local overrides and caps', () => {
+    const found = check(`
+      import { Image, VStack } from '@expo/ui/swift-ui';
+      import { dynamicTypeSize, font, frame } from '@expo/ui/swift-ui/modifiers';
+      const textStyle = 'body';
+      const example = <>
+        <VStack modifiers={[font({ textStyle }), frame({ width: 32 })]}>
+          <VStack><Image systemName="plus" /></VStack>
+          <Image systemName="plus" modifiers={[font({ size: 24 })]} />
+          <VStack modifiers={[font({ size: 24 })]}><Image systemName="plus" /></VStack>
+          <Image systemName="plus" modifiers={[dynamicTypeSize({ max: 'xxxLarge' })]} />
+        </VStack>
+        <VStack modifiers={[font({ textStyle }), frame({ minWidth: 32 })]}>
+          <Image systemName="plus" />
+        </VStack>
+      </>;
+    `);
+    expect(found.map(({ line }) => line)).toEqual([7]);
+  });
+
   it('accepts clamped icons, intrinsic layouts and frames that grow with the icon', () => {
     expect(
       check(`
