@@ -12,6 +12,7 @@ import {
   resolveRecurringOccurrence,
 } from '@deepseek-ai/dsh-schedule';
 
+import { validBotCreationKey } from '../bots/creation.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export const BOT_SCHEDULE_ENABLED_LIMIT = 20;
@@ -91,9 +92,7 @@ export interface BotScheduleCreateOptions {
   operationKey?: string;
 }
 
-export function validBotScheduleOperationKey(key: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(key);
-}
+export const validBotScheduleOperationKey = validBotCreationKey;
 
 export class BotScheduleError extends Error {
   readonly code: BotScheduleErrorCode;
