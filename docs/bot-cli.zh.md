@@ -320,7 +320,7 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 ```bash
 deepseekbot channel <group-channel>
-deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <stable-key>]
+deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <stable-key>]
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
@@ -730,6 +730,13 @@ deepseekbot browser-observation <bot-id> [--tab <tab-id>] [--out /tmp/frame.png]
 deepseekbot browser-takeover-audit <bot-id>
 printf '%s' "<takeover-token>" | deepseekbot browser-takeover-recording --token-stdin
 deepseekbot browser-profile-set <bot-id> --profile work
+deepseekbot browser-profile-pair --out /private/absolute/profile-code
+deepseekbot browser-profile-forget
+deepseekbot browser-daily-connect <bot-id>
+deepseekbot browser-daily-grant <bot-id>
+deepseekbot browser-daily-return <bot-id>
+deepseekbot browser-borrow-pair <bot-id> --out /private/absolute/borrow-code
+deepseekbot browser-borrow-return <bot-id>
 deepseekbot browser-packages
 deepseekbot browser-install-packages --package libnss3 --package libgbm1 --confirm --wait
 deepseekbot computer-install-packages --confirm --wait
@@ -748,6 +755,8 @@ deepseekbot browser-webrtc --viewer <id> [--probe]
 本地 Browser 进程已运行但尚无所属当前标签页时，`browser-observation` 返回 `viewerUrl: null`；进程就绪不等于画面就绪。`browser-frame` 区分已停止/无标签页的拒绝（404）与有界等待后首帧不可用的 `host-refused`（503）。
 
 `browser-observation` 返回浏览器面板轮询的同一份状态：浏览器是否在运行、标签页和当前标签页、接管状态、已保存的 profile 和目标。当前画面不会以 base64 打印，只汇总为 `{mimeType, bytes}`，给出 `--out` 时保存到该文件。`browser-takeover-audit` 按时间顺序列出 Bot 的接管事件。`browser-takeover-recording` 读取一次接管及其录下的输入；token 是接管链接里 `takeover=` 的值，从 stdin 传入。`browser-profile-set` 为 Bot 选择浏览器 profile（`default` 恢复默认），命名规则与面板相同。
+
+`browser-profile-pair --out <file>` 开始 Chrome Profile 配对，`browser-borrow-pair <bot-id> --out <file>` 通过扩展把 Bot 与人类自己的浏览器配对。两者只把一次性配对码写入一个新的绝对路径文件（仅所有者可读写），输出过期时间和 `codeFile`，从不打印配对码；文件已存在时以 `pairing-file-failed` 拒绝。`browser-profile-forget` 忘记已配对的 Chrome Profile。`browser-daily-connect <bot-id>` 为日常浏览器启动 Playwright 扩展连接，`browser-daily-grant <bot-id>` 把人类在扩展中选中的页面交给 Bot（未选页面前按 Host 的消息拒绝），`browser-daily-return` 和 `browser-borrow-return` 收回浏览器。它们调用浏览器面板按钮使用的同一组路由。Tob 拒绝运行两个配对命令和 `browser-daily-grant`，并以 `self-escalation-refused` 拒绝任何会修改它自己的授权、访问、审批策略或待审批请求的命令（[Tob 决策](decisions/tob.md#tob-self-escalation)）。
 
 机器缺少 Chrome 所需的系统库时，`browser-open` 以 `provision-missing-libs` 拒绝，并在说明里列出需要的包。`browser-packages` 报告 Host 能否安装这些包（`access`）以及上次安装的进度；`browser-install-packages` 安装指定的包，`computer-install-packages` 安装本机 Computer 报告缺少的包。两者都和面板上的安装按钮一样需要 `--confirm`，`--wait` 会轮询到安装结束。Host 没有管理员权限时以 `needs-administrator` 拒绝。
 
@@ -1338,6 +1347,8 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
+`marketplace-list` 返回的每一页都带 `search`：有条目时为 `matches`，市场已应答但没有条目时为 `no-matches`。市场无法搜索时（离线、网络失败、超时、市场出错或未配置），命令以非零状态退出并返回 `marketplace-unavailable`，不输出 `bots` 或 `search`；市场自身的编码拒绝（如 `rate-limited`）也以非零状态退出。搜索失败绝不是空结果。Tob 无需审批卡即可运行 `marketplace-list`，在自定义 Bot 方案旁给出实时候选（[Tob 决策](decisions/tob.md#tob-creation-candidates)）。
+
 `marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
 
 `marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`；`picks` 是文章中仍在上架的最多四个精选 Bot，按文章顺序排列，stderr 每篇一行，列出日期、标题和精选 Bot 名称。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。
@@ -1692,6 +1703,8 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 用 `group-member-picker` 查询可选成员。传入频道 ID 查询现有群，省略 ID 查询建群候选。结果仅包含当前认证 Host 上可选的团队成员和 Bot。用 `group-members-add` 从 stdin 读取包含 1–100 个目标的 JSON 数组。团队成员用 `kind: "human"` 和稳定 Human `id`，Bot 用 `kind: "bot"` 和 Bot `id`。每个目标都带上本次尝试的唯一 `operationKey`。使用 8–128 个 ASCII 字符，以字母或数字开头，其余字符只允许字母、数字、`.`、`_`、`:` 或 `-`。Host 先添加团队成员，再检查 Bot 邀请，并为每项返回 `joined`、`pending` 或带错误码的 `failed`。整个批次的响应未确认时，使用原频道 ID 和包含原 key 的完整目标数据重试。单项目标返回 `group-member-unconfirmed` 时，在原频道用原 key 重试该项。重试已确认失败的目标时使用新 key。重放已确认的团队成员添加时，保留随后发生的访问撤销。
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
+
+在 Team 模式下，运行不带频道 ID 的 `group-member-picker`，从 `people[].id` 读取可邀请的团队成员 ID。已认证的 Human 可以在在线 `group-create` 中为每个人传入一个 `--human <id>`，同时用 `--member <bot-id>` 添加 Bot。建群和初始团队成员的加入在同一事务中完成。任何初始成员被拒绝，都会导致建群失败。响应丢失时，使用同一 operation key 和两份原始成员列表重试。
 
 后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理没有类型化的 Tob 操作；已有 Human CLI 命令的，Tob 通过通用路径运行，须先由 Human 批准完整命令。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](decisions/messaging.md#adr-0226) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
 
@@ -2145,13 +2158,13 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --sessio
 `profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；不导出凭证存储，但聊天和 Memory 中仍可能含有秘密。
 
 ```bash
-tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
-tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-preview --host http://127.0.0.1:31967 --out confirmation.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-file confirmation.json --out environment.botharness-backup
 tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
 tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
 ```
 
-导出消费当前预览 token，不覆盖已有文件。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
+预览只输出需要审阅的数量与警告，从不输出导出确认凭据。`--out` 把审阅过的预览连同确认凭据写入一个以 0600 权限新建的文件，stdout 只给出 `confirmation: {path}`；不带 `--out` 时 `confirmation` 为 `null`。导出通过 `--confirmation-file` 读取该文件（或用 `--confirmation-stdin` 传入同样的 JSON），确认凭据只能使用一次，且不覆盖已有文件；环境已变化或重复使用确认凭据时以 `preview-stale` 拒绝。Tob 走同一路径，确认凭据不会出现在它的结果、审批卡片或 Session 日志中：不带 `--out` 的预览是读取，带 `--out` 的预览、导出、检查和恢复都会先向 Human 显示审批卡片。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
 
 继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`core-contract-invalid` 表示需要具备有效核心声明的完整备份；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
 

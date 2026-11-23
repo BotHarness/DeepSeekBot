@@ -476,6 +476,8 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return record;
     },
     createGroup(human: HumanContext, input) {
+      if (input.humanIds?.length)
+        throw new Error('Initial Host members require the operational Channel store');
       const id = input.id ?? nextGroupId(input.name);
       if (!isValidChannelId(id) || read(id) !== undefined)
         throw new Error('Group Channel identity is unavailable');

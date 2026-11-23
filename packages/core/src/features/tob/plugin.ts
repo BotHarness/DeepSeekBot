@@ -216,6 +216,7 @@ export function mountOperations(
         registry: core.registry,
         channels: core.channels,
         human: core.team.ownerContext(),
+        isTob: (slug) => core.tob.isTob(slug),
       }),
     run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
   });

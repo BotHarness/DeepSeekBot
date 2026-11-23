@@ -85,7 +85,9 @@ export function CreationPanel({
   const contentStyle = useAnimatedStyle(() => ({
     opacity:
       levelOpacity.value *
-      (reduced ? progress.value : interpolate(progress.value, [0.985, 1], [0, 1], 'clamp')),
+      (reduced
+        ? progress.value
+        : interpolate(progress.value, [creationCard.contentReveal, 1], [0, 1], 'clamp')),
   }));
   const iconStyle = useAnimatedStyle(() => ({
     opacity: reduced ? 0 : interpolate(progress.value, [0, 0.45], [1, 0], 'clamp'),
@@ -114,7 +116,7 @@ export function CreationPanel({
           { duration: creationCard.fadeDuration, reduceMotion: ReduceMotion.Never },
           complete,
         )
-      : withSpring(next, { ...spring.release, overshootClamping: true }, complete);
+      : withSpring(next, { ...spring.morph, overshootClamping: true }, complete);
   };
   const show = (measuredHeight: number) => {
     if (entered.current || closing.current || !shown.current || measuredHeight <= 0) return;

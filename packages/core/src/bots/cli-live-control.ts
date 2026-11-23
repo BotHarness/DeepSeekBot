@@ -59,6 +59,8 @@ export async function runControlCommand(
   if (command === 'workspace-create' && !target.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(target))
     usage('workspace-create needs an absolute folder path.');
   const members = (values.member ?? []).map((member) => member.trim()).filter(Boolean);
+  const humanIds = (values.human ?? []).map((id) => id.trim());
+  if (humanIds.some((id) => !id)) usage('--human needs a Host member ID.');
   const operationKey =
     command === 'group-create' && values['operation-key'] !== undefined
       ? channelOperationKey(values['operation-key'])
@@ -96,6 +98,7 @@ export async function runControlCommand(
     return rpc('channelCreate', {
       name: target,
       members,
+      ...(humanIds.length ? { humanIds } : {}),
       ...(operationKey === undefined ? {} : { operationKey }),
     });
   const described = record(await rpc('settings/describe', {}));

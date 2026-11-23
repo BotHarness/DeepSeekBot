@@ -306,15 +306,15 @@ export async function openDmChannel(
 
 export async function createGroupChannel(
   call: BridgeCall,
-  name: string,
+  name: string | channels.GroupChannelCreateArgs,
   signal?: AbortSignal,
   operationKey?: string,
 ): Promise<ChannelSummary> {
-  const channel = await channels.createGroupChannel(bridgeHost(call, signal), {
-    name,
-    members: [],
-    ...(operationKey === undefined ? {} : { operationKey }),
-  });
+  const input =
+    typeof name === 'string'
+      ? { name, members: [], ...(operationKey === undefined ? {} : { operationKey }) }
+      : name;
+  const channel = await channels.createGroupChannel(bridgeHost(call, signal), input);
   return presentChannel(channel);
 }
 

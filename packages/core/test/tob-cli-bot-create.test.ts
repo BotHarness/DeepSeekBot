@@ -134,6 +134,10 @@ describe('Tob creation through the existing Host owner', () => {
     expect(f.core.grants.list(bot.slug)).toEqual([]);
     expect(b.approve).toHaveBeenCalledOnce();
     expect(b.beforeWrite).toHaveBeenCalledOnce();
+    const tob = await f.core.tob.ensure();
+    expect(tob.botSlug).not.toBe(bot.slug);
+    expect(f.core.tob.isTob(tob.botSlug)).toBe(true);
+    expect(f.core.tob.isTob(bot.slug)).toBe(false);
   });
 
   it('recovers a lost post-commit response through its receipt without another approval or mutation', async () => {

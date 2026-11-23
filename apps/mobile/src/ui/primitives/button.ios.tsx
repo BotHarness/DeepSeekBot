@@ -14,6 +14,7 @@ import {
   accessibilityHidden,
   accessibilityLabel,
   accessibilityValue,
+  buttonBorderShape,
   buttonStyle,
   contentShape,
   controlSize,
@@ -25,6 +26,7 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { controlCase } from '../platform-copy';
+import { accessibilityTextSize, capsuleBorderShape } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
@@ -82,7 +84,8 @@ function SwiftUIButton({
 }: ComponentProps<typeof SharedButton>) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const glass = useLiquidGlass();
+  const glass = useLiquidGlass() && !accessibilityTextSize(theme.fontScale);
+  const border = capsuleBorderShape(theme.fontScale);
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
@@ -102,6 +105,13 @@ function SwiftUIButton({
         onPress={onPress}
         modifiers={[
           buttonStyle(style),
+          ...(bezel
+            ? [
+                border.shape === 'capsule'
+                  ? buttonBorderShape(border.shape)
+                  : buttonBorderShape(border.shape, border.cornerRadius),
+              ]
+            : []),
           controlSize('large'),
           tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
           controlDisabled(disabled || busy),

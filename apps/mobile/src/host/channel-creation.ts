@@ -10,6 +10,7 @@ export type ChannelCreationRecord = {
   hostId: string;
   name: string;
   members: string[];
+  humanIds?: string[];
 } & ({ kind: 'draft' } | { kind: 'submitted'; deviceId: string; operationKey: string });
 export type ChannelCreationOperation = Extract<ChannelCreationRecord, { kind: 'submitted' }>;
 export interface ChannelCreationSnapshot {
@@ -43,7 +44,18 @@ function savedRecord(value: unknown): ChannelCreationRecord | undefined {
     !value.members.every((member): member is string => typeof member === 'string')
   )
     return;
-  const input = { hostId: value.hostId, name: value.name, members: value.members };
+  const humanIds = 'humanIds' in value ? value.humanIds : undefined;
+  if (
+    humanIds !== undefined &&
+    (!Array.isArray(humanIds) || !humanIds.every((id): id is string => typeof id === 'string'))
+  )
+    return;
+  const input = {
+    hostId: value.hostId,
+    name: value.name,
+    members: value.members,
+    ...(humanIds === undefined ? {} : { humanIds }),
+  };
   if ('kind' in value && value.kind === 'draft') return { ...input, kind: 'draft' };
   if (
     'kind' in value &&
@@ -127,10 +139,10 @@ export function createChannelCreation(options: {
       if (hostId !== state.record.hostId) {
         generation++;
         publish({
-          record: { ...state.record, hostId, members: [] },
+          record: { kind: 'draft', hostId, name: state.record.name, members: [] },
           candidates: [],
           loading: false,
-          selectionReset: state.record.members.length > 0,
+          selectionReset: state.record.members.length > 0 || !!state.record.humanIds?.length,
           error: undefined,
         });
       }
@@ -185,12 +197,8 @@ export function createChannelCreation(options: {
         publish({ result });
       } catch (error) {
         if (fresh && error instanceof ChannelCreationNotAccepted) {
-          const draft: ChannelCreationRecord = {
-            kind: 'draft',
-            hostId: operation.hostId,
-            name: operation.name,
-            members: operation.members,
-          };
+          const { deviceId: _deviceId, operationKey: _key, ...fields } = operation;
+          const draft: ChannelCreationRecord = { ...fields, kind: 'draft' };
           try {
             await options.storage.write(draft);
             publish({ record: draft });

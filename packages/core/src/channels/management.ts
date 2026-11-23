@@ -1,5 +1,6 @@
 import { type HumanContext } from '../humans/context.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -14,6 +15,7 @@ import type { ChannelStore } from './store.js';
 export interface ChannelManagementCreateInput {
   name: string;
   members: string[];
+  humanIds?: string[];
 }
 export interface ChannelManagementInviteInput {
   channelId: string;
@@ -152,9 +154,12 @@ function key(value: string): void {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(value))
     throw new ChannelManagementError('invalid-operation-key');
 }
-function createInput(input: ChannelManagementCreateInput): void {
+const groupHumanIds = z.array(z.string().trim().min(1).max(200)).max(100).optional();
+
+function createInput(input: ChannelManagementCreateInput): ChannelManagementCreateInput {
+  const humans = groupHumanIds.safeParse(input.humanIds);
   if (
-    Object.keys(input).some((field) => !['name', 'members'].includes(field)) ||
+    Object.keys(input).some((field) => !['name', 'members', 'humanIds'].includes(field)) ||
     typeof input.name !== 'string' ||
     !input.name.trim() ||
     input.name.length > 200 ||
@@ -164,9 +169,15 @@ function createInput(input: ChannelManagementCreateInput): void {
     !Array.isArray(input.members) ||
     input.members.length > 100 ||
     new Set(input.members).size !== input.members.length ||
-    !input.members.every((member) => typeof member === 'string' && isValidSlug(member))
+    !input.members.every((member) => typeof member === 'string' && isValidSlug(member)) ||
+    !humans.success
   )
     throw new ChannelManagementError('invalid-input');
+  const humanIds = humans.data ?? [];
+  if (input.members.length + humanIds.length > 100 || new Set(humanIds).size !== humanIds.length)
+    throw new ChannelManagementError('invalid-input');
+  const { name, members } = input;
+  return { name, members, ...(humanIds.length ? { humanIds } : {}) };
 }
 function inviteInput(input: ChannelManagementInviteInput): void {
   if (
@@ -507,8 +518,7 @@ export function createChannelManagement(options: {
       return snapshot(input.channelId);
     },
     lookupCreate(operationKey, input) {
-      createInput(input);
-      const row = checked(operationKey, 'create', input);
+      const row = checked(operationKey, 'create', createInput(input));
       return row ? complete(row) : undefined;
     },
     lookupInvite(operationKey, input) {
@@ -516,8 +526,8 @@ export function createChannelManagement(options: {
       const row = checked(operationKey, 'invite', input);
       return row ? complete(row) : undefined;
     },
-    create(human: HumanContext, input, operationKey) {
-      createInput(input);
+    create(human: HumanContext, raw, operationKey) {
+      const input = createInput(raw);
       let row = operationKey === undefined ? undefined : checked(operationKey, 'create', input);
       if (row) {
         const replay = complete(row);

@@ -160,6 +160,11 @@ export function AvatarCustomizer({
       : theme.largeText
         ? avatarEditor.largeColumns
         : avatarEditor.columns;
+  const shuffle = () => {
+    const next = seededAvatarFor(randomAvatarSeed(), 2);
+    setRecipe(next);
+    setBase(next);
+  };
   const change = (field: string, value: string | number) => {
     const next = changeAvatarFeature(recipe, field, value);
     if (next) setRecipe(next);
@@ -219,6 +224,11 @@ export function AvatarCustomizer({
               ]}
             />
           </View>
+          {family === 'illustrated' ? (
+            <View style={{ alignSelf: 'stretch' }}>
+              <Button label={label('shuffle')} testID="avatar-editor-shuffle" onPress={shuffle} />
+            </View>
+          ) : null}
         </View>
         <View
           style={{
