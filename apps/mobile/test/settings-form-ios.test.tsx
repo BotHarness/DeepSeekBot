@@ -23,7 +23,10 @@ type NativeProps = {
 };
 
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: ({ width }: { width?: number }) => <svg data-size={width} />,
+  Path: () => null,
+}));
 vi.mock('expo-symbols', () => ({ SymbolView: () => <i data-rn-symbol /> }));
 vi.mock(
   '../src/ui/primitives/settings-form-row',
@@ -180,8 +183,12 @@ import { CheckIcon } from '../src/ui/shell/icons';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-let unmount: (() => void) | undefined;
-afterEach(() => act(() => unmount?.()));
+const unmounts: (() => void)[] = [];
+afterEach(() =>
+  act(() => {
+    for (const unmountRoot of unmounts.splice(0)) unmountRoot();
+  }),
+);
 
 async function render(node: ReactNode) {
   const host = document.createElement('div');
@@ -189,7 +196,7 @@ async function render(node: ReactNode) {
   await act(async () =>
     root.render(<DesignThemeProvider appearance={{ scheme: 'light' }}>{node}</DesignThemeProvider>),
   );
-  unmount = () => root.unmount();
+  unmounts.push(() => root.unmount());
   return host;
 }
 
@@ -413,11 +420,14 @@ it('stacks a React Native row icon above its text and grows the chevron at acces
     );
     vi.restoreAllMocks();
     const button = host.querySelector('[data-testid="preset-row"]')!;
-    return { button, tile: button.querySelector('img')! };
+    const chevron = Number(button.querySelector('svg')!.getAttribute('data-size'));
+    return { button, tile: button.querySelector('img')!, chevron };
   };
   const regular = await row(1.353);
   expect(regular.tile.parentElement).toBe(regular.button);
+  expect(regular.chevron).toBeCloseTo(22 * 1.353);
   const large = await row(2);
+  expect(large.chevron).toBe(44);
   expect(large.tile.parentElement).not.toBe(large.button);
   expect(large.tile.parentElement!.textContent).toContain('Main: V4.1 Flash');
 });

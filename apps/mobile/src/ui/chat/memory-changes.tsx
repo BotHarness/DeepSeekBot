@@ -225,7 +225,7 @@ function FileHeader({
             size={theme.type.meta.line * theme.fontScale}
           />
         </View>
-        <Text numberOfLines={1} style={{ flex: 1 }}>
+        <Text {...(theme.largeText ? {} : { numberOfLines: 1 })} style={{ flex: 1 }}>
           {folder === '' ? null : <Text tone="muted">{folder}</Text>}
           <Text strong>{name}</Text>
         </Text>
