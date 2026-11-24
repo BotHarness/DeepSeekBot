@@ -29,6 +29,12 @@ describe('GenUI authoring shorthand', () => {
     expect(
       await expandGenuiDiagrams(`${inert}<genui-diagram>flowchart LR\n A --&gt; B</genui-diagram>`),
     ).toBe(`${inert}${expected.svg}`);
+    const attribute = '<div data-example="<script>" title=\'<!--\'></div>';
+    expect(
+      await expandGenuiDiagrams(
+        `${attribute}<genui-diagram>flowchart LR\n A --&gt; B</genui-diagram>`,
+      ),
+    ).toBe(`${attribute}${expected.svg}`);
   });
 
   it('refuses malformed elements and reports which diagram failed', async () => {

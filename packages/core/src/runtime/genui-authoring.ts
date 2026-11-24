@@ -33,11 +33,46 @@ function decode(source: string): string {
   return source.replace(/&(?:lt|gt|quot|#39|amp);/gu, (entity) => ENTITIES[entity] ?? entity);
 }
 
-const INERT =
-  /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/giu;
+const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
 
 function blank(html: string): string {
-  return html.replace(INERT, (region) => ' '.repeat(region.length));
+  const lower = html.toLowerCase();
+  let output = '';
+  let cursor = 0;
+  let index = lower.indexOf('<');
+  while (index !== -1) {
+    let end: number;
+    if (lower.startsWith('<!--', index)) {
+      const close = lower.indexOf('-->', index + 4);
+      end = close === -1 ? html.length : close + 3;
+    } else {
+      const name = /^<([a-z][\w-]*)/u.exec(lower.slice(index, index + 64))?.[1];
+      if (name === undefined) {
+        index = lower.indexOf('<', index + 1);
+        continue;
+      }
+      let quote = '';
+      let tagEnd = index + 1;
+      for (; tagEnd < lower.length; tagEnd += 1) {
+        const char = lower[tagEnd];
+        if (quote) quote = char === quote ? '' : quote;
+        else if (char === '"' || char === "'") quote = char;
+        else if (char === '>') break;
+      }
+      if (tagEnd >= lower.length) break;
+      if (!RAW_TEXT.has(name)) {
+        index = lower.indexOf('<', tagEnd + 1);
+        continue;
+      }
+      const close = lower.indexOf(`</${name}`, tagEnd + 1);
+      const closeEnd = close === -1 ? -1 : lower.indexOf('>', close);
+      end = closeEnd === -1 ? html.length : closeEnd + 1;
+    }
+    output += html.slice(cursor, index) + ' '.repeat(end - index);
+    cursor = end;
+    index = lower.indexOf('<', end);
+  }
+  return output + html.slice(cursor);
 }
 
 export async function expandGenuiDiagrams(
@@ -49,20 +84,20 @@ export async function expandGenuiDiagrams(
 ): Promise<string> {
   if (!OPEN_DIAGRAM.test(html)) return html;
   const markup = blank(html);
+  const opened = (markup.match(/<genui-diagram\b/giu) ?? []).length;
+  if (opened > GENUI_AUTHORING_LIMITS.diagrams)
+    throw new GenuiAuthoringError(
+      'genui-diagram-tag',
+      `Use at most ${GENUI_AUTHORING_LIMITS.diagrams} <genui-diagram> elements per document.`,
+    );
   const matches = [...markup.matchAll(DIAGRAM)].map((found) => {
     const match = ELEMENT.exec(html.slice(found.index, found.index + found[0].length))!;
     return Object.assign(match, { index: found.index });
   });
-  const unmatched = (markup.match(/<genui-diagram\b/giu) ?? []).length;
-  if (unmatched !== matches.length)
+  if (opened !== matches.length)
     throw new GenuiAuthoringError(
       'genui-diagram-tag',
       'Close every <genui-diagram> with </genui-diagram> and do not nest them.',
-    );
-  if (matches.length > GENUI_AUTHORING_LIMITS.diagrams)
-    throw new GenuiAuthoringError(
-      'genui-diagram-tag',
-      `Use at most ${GENUI_AUTHORING_LIMITS.diagrams} <genui-diagram> elements per document.`,
     );
   let output = '';
   let cursor = 0;
