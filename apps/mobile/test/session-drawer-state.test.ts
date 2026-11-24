@@ -1,0 +1,44 @@
+import { expect, it, vi } from 'vitest';
+
+const keyboard = vi.hoisted(() => ({ dismiss: vi.fn() }));
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Keyboard: keyboard,
+}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+
+import {
+  closeSessionDrawer,
+  enterDrawerRoot,
+  openSessionDrawer,
+  sessionDrawer,
+  drawerPlace,
+  sessionDrawerProgress,
+} from '../src/features/sessions/session-drawer-state';
+
+it('dismisses the keyboard as it opens and hides once closed', () => {
+  openSessionDrawer();
+  expect(keyboard.dismiss).toHaveBeenCalledOnce();
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: true, shown: true });
+  closeSessionDrawer(false);
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: false, shown: false });
+  expect(sessionDrawerProgress.value).toBe(0);
+});
+
+it('follows the Compose drawer’s reported target', () => {
+  sessionDrawer.nativeChange(true);
+  expect(sessionDrawer.getSnapshot().open).toBe(true);
+  sessionDrawer.nativeChange(false);
+  expect(sessionDrawer.getSnapshot().open).toBe(false);
+});
+
+it('enables the edge gesture only while a Drawer-style root is focused', () => {
+  expect(drawerPlace()).toEqual({ edge: 0, sessionId: undefined });
+  const leaveRoot = enterDrawerRoot();
+  const leaveSession = enterDrawerRoot('chosen');
+  expect(drawerPlace()).toEqual({ edge: 2, sessionId: 'chosen' });
+  leaveRoot();
+  expect(drawerPlace()).toEqual({ edge: 1, sessionId: 'chosen' });
+  leaveSession();
+  expect(drawerPlace()).toEqual({ edge: 0, sessionId: undefined });
+});

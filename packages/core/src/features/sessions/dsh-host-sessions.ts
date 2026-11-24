@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller';
+import type {
+  SessionCreateRequest,
+  SessionRequestId,
+} from '@deepseek-ai/dsh-api-session-controller';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -134,6 +137,16 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
           ? null
           : sessionRouteChoice(current);
       return { override, default: original === undefined ? null : sessionRouteChoice(original) };
+    },
+    async create(target) {
+      const { sessionId } = await controller().create(
+        'cwd' in target
+          ? { cwd: target.cwd }
+          : {
+              workspaceId: target.workspaceId as NonNullable<SessionCreateRequest['workspaceId']>,
+            },
+      );
+      return { sessionId };
     },
     async send(id, text) {
       const requestId = randomUUID() as SessionRequestId;

@@ -1,0 +1,226 @@
+import { useState } from 'react';
+import { Keyboard, Pressable, SectionList, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { HostClient } from '@botharness/host-client/client';
+import {
+  HOST_SESSION_SEARCH_MAX,
+  type HostSessionRow,
+} from '@botharness/host-protocol/host-sessions';
+import { SheetLoading } from '../../ui/chat/sheet';
+import { pressTint, useDesignTheme } from '../../ui/design/theme';
+import { glassPress, radius, space } from '../../ui/design/tokens';
+import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
+import { ReadFailure } from '../../ui/primitives/read-failure';
+import { SearchField } from '../../ui/primitives/search-field';
+import { Text } from '../../ui/primitives/text';
+import { HostSessionListItem } from './session-row';
+import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
+import { useStrings } from '../../ui/strings';
+import { sessionDrawerSections } from './session-drawer-model';
+import { SessionOptionsMenu } from './session-options-menu';
+import { useSessionQuery } from './use-session-query';
+
+export type SessionDrawerPanelProps = {
+  client: HostClient;
+  title: string;
+  active: boolean;
+  selectedSessionId?: string | undefined;
+  canCreate: boolean;
+  onOpen(row: HostSessionRow): void;
+  onNew(): void;
+};
+
+export function SessionDrawerPanel({
+  client,
+  title,
+  active,
+  selectedSessionId,
+  canCreate,
+  onOpen,
+  onNew,
+}: SessionDrawerPanelProps) {
+  const t = useStrings().hostSessions;
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
+  const query = useSessionQuery(client, active);
+  const [searching, setSearching] = useState(false);
+  const sections = sessionDrawerSections(query.rows ?? [], query.sort, Date.now());
+  const closeSearch = () => {
+    query.changeSearch('');
+    setSearching(false);
+    Keyboard.dismiss();
+  };
+  return (
+    <View testID="session-drawer" style={{ flex: 1, paddingTop: insets.top }}>
+      <View
+        style={{
+          minHeight: theme.touch + space.x2 * 2,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x3,
+          paddingLeft: space.x5,
+          paddingRight: space.x3,
+        }}
+      >
+        <Text
+          variant="title"
+          strong
+          accessibilityRole="header"
+          testID="session-drawer-environment"
+          numberOfLines={theme.largeText ? 2 : 1}
+          style={{ flex: 1 }}
+        >
+          {title}
+        </Text>
+        {query.canQuery ? (
+          <SessionOptionsMenu active={query.optionsActive} groups={query.groups} />
+        ) : null}
+      </View>
+      <SectionList
+        testID="session-drawer-list"
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: space.x3, paddingBottom: space.x3 }}
+        sections={sections}
+        keyExtractor={(row) => row.sessionId}
+        refreshing={query.online && query.pullRefreshing}
+        onRefresh={query.online ? () => query.refresh('pull') : undefined}
+        renderSectionHeader={({ section }) => (
+          <Text
+            variant="meta"
+            tone="muted"
+            accessibilityRole="header"
+            style={{ paddingHorizontal: space.x3, paddingTop: space.x4, paddingBottom: space.x2 }}
+          >
+            {t.groups[section.group]}
+          </Text>
+        )}
+        ListHeaderComponent={
+          query.failed && query.rows !== undefined ? (
+            <ReadFailure
+              title={t.loadFailed}
+              onRetry={query.refresh}
+              busy={query.busy}
+              disabled={!query.online}
+            />
+          ) : undefined
+        }
+        ListEmptyComponent={
+          !query.online ? (
+            <Text tone="muted" style={{ padding: space.x3 }}>
+              {t.offline}
+            </Text>
+          ) : query.failed && query.searchReady ? (
+            <ReadFailure title={t.loadFailed} onRetry={query.refresh} busy={query.busy} />
+          ) : query.rows === undefined ? (
+            <SheetLoading />
+          ) : (
+            <Text tone="muted" style={{ padding: space.x3 }}>
+              {query.search || query.source !== 'all' ? t.noMatches : t.empty}
+            </Text>
+          )
+        }
+        renderItem={({ item }) => (
+          <HostSessionListItem
+            row={item}
+            client={client}
+            selected={item.sessionId === selectedSessionId}
+            onPress={() => onOpen(item)}
+          />
+        )}
+      />
+      <KeyboardFormFooter>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
+            paddingHorizontal: space.x4,
+            paddingTop: space.x2,
+            paddingBottom: Math.max(insets.bottom, space.x4),
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            {searching ? (
+              <SearchField
+                testID="session-drawer-search-field"
+                floating
+                autoFocus
+                inset={0}
+                value={query.draft}
+                placeholder={t.search}
+                maxLength={HOST_SESSION_SEARCH_MAX}
+                onChangeText={(text) => query.changeSearch(text)}
+                onSubmitEditing={(text) => {
+                  query.changeSearch(text, true);
+                  Keyboard.dismiss();
+                }}
+                onClose={closeSearch}
+                trailing={
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t.searchCancel}
+                    testID="session-drawer-search-cancel"
+                    onPress={closeSearch}
+                    hitSlop={space.x2}
+                    style={{ minHeight: theme.touch, justifyContent: 'center' }}
+                  >
+                    <Text tone="accent">{t.searchCancel}</Text>
+                  </Pressable>
+                }
+              />
+            ) : (
+              <Pressable
+                testID="session-drawer-search"
+                accessibilityRole="search"
+                accessibilityLabel={t.search}
+                disabled={!query.canQuery}
+                onPress={() => setSearching(true)}
+                android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
+                style={({ pressed }) => ({
+                  minHeight: theme.touch,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.x3,
+                  paddingHorizontal: space.x4,
+                  borderRadius: radius.round,
+                  overflow: 'hidden',
+                  opacity: query.canQuery ? 1 : 0.5,
+                  backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                })}
+              >
+                <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+                <Text tone={query.search ? 'fg' : 'subtle'} numberOfLines={1} style={{ flex: 1 }}>
+                  {query.search || t.search}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+          {canCreate && !searching ? (
+            <Pressable
+              testID="session-drawer-new"
+              accessibilityRole="button"
+              accessibilityLabel={t.create}
+              onPress={onNew}
+              android_ripple={{ color: pressTint(theme.color.base), foreground: true }}
+              style={({ pressed }) => ({
+                width: theme.touch,
+                height: theme.touch,
+                borderRadius: radius.round,
+                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.color.fg,
+                opacity: pressed ? glassPress.dim : 1,
+              })}
+            >
+              <PencilIcon color={theme.color.base} size={theme.type.title.line} />
+            </Pressable>
+          ) : null}
+        </View>
+      </KeyboardFormFooter>
+    </View>
+  );
+}

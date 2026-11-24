@@ -43,3 +43,15 @@ Record each row on #3015 with a screen recording, on an Android 14+ phone with g
 6. Panel content is not clipped or offset, in portrait and landscape, light and dark.
 7. TalkBack: the workspace button opens the panel and focus moves into it; the close button and
    the dismiss action close it.
+
+## Session drawer
+
+`SessionDrawerView` wraps Compose Material 3 `ModalNavigationDrawer` for the phone's Session
+drawer (#5109), with the same `panel` and `content` slots. It is nearly full width
+(`sessionDrawerWidthDp`: the window minus a 56dp strip), its scrim closes it, and
+`ModalDrawerSheet(drawerState)` owns Back and predictive back while it is open. The content slides
+right by the drawer's width, fades to half opacity and blurs (API 31+) with the drawer's progress.
+JavaScript owns `open`; `onOpenChange` reports the drawer's target as soon as a drag or Back
+commits to it, so the tab island can fade with it. `hasSessionDrawer()` tells JavaScript the
+installed build has this view; an older development build falls back to the React Native drawer.
+A new Android development build is required.

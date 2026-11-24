@@ -47,6 +47,8 @@ export function ConversationTopBar({
   initial,
   connectionLabel,
   onBack,
+  leading = 'back',
+  onCompose,
   onProfile,
   onCall,
   menu,
@@ -169,12 +171,19 @@ export function ConversationTopBar({
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
             <Surface {...island} modifiers={actionLook}>
-              {action(
-                'chat-back',
-                t.back,
-                require('../../../assets/header/arrow-back.xml'),
-                onBack,
-              )}
+              {leading === 'drawer'
+                ? action(
+                    'session-drawer-button',
+                    t.hostSessions.openDrawer,
+                    require('../../../assets/header/menu.xml'),
+                    onBack,
+                  )
+                : action(
+                    'chat-back',
+                    t.back,
+                    require('../../../assets/header/arrow-back.xml'),
+                    onBack,
+                  )}
             </Surface>
             <Surface
               {...island}
@@ -263,6 +272,16 @@ export function ConversationTopBar({
                 )}
               </Row>
             </Surface>
+            {onCompose === undefined ? null : (
+              <Surface {...island} modifiers={actionLook}>
+                {action(
+                  'session-new',
+                  t.hostSessions.create,
+                  require('../../../assets/header/edit.xml'),
+                  onCompose,
+                )}
+              </Surface>
+            )}
             {menu !== undefined ? (
               <DropdownMenu
                 expanded={menuOpen}

@@ -20,7 +20,12 @@ import { rowGlyph, space } from '../design/tokens';
 import { ChatList, type ChatListHandle } from '../primitives/chat-list';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
-import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
+import { useSessionDrawerRoot } from '../../features/sessions/drawer-root';
+import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
+import { openNewSession } from '../../features/sessions/session-drawer-navigation';
+import { enterDrawerRoot, openSessionDrawer } from '../../features/sessions/session-drawer-state';
+import { HeaderCircleButton } from './header-chrome';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
@@ -60,6 +65,7 @@ function SessionHeader({
   const theme = useDesignTheme();
   const t = useStrings();
   const router = useRouter();
+  const drawer = useSessionDrawerRoot();
   const back = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
@@ -74,6 +80,20 @@ function SessionHeader({
           headerTitle: () => (
             <ChatHeaderRow
               back={{ label: t.back, testID: 'session-back-button', onPress: back }}
+              {...(drawer
+                ? {
+                    leading: <SessionDrawerButton />,
+                    extra: (
+                      <HeaderCircleButton
+                        label={t.hostSessions.create}
+                        testID="session-new"
+                        onPress={openNewSession}
+                      >
+                        <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
+                      </HeaderCircleButton>
+                    ),
+                  }
+                : {})}
               title={
                 <ChatTitleCapsule
                   title={title}
@@ -91,7 +111,9 @@ function SessionHeader({
         <ConversationTopBar
           variant="session"
           title={title}
-          onBack={back}
+          leading={drawer ? 'drawer' : 'back'}
+          onBack={drawer ? openSessionDrawer : back}
+          onCompose={drawer ? openNewSession : undefined}
           menu={menu}
           onHeight={onHeight}
         />
@@ -132,6 +154,10 @@ export function SessionDetailScreen() {
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const sessionId = session ?? id;
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
+  const drawer = useSessionDrawerRoot();
+  useFocusEffect(
+    useCallback(() => (drawer ? enterDrawerRoot(sessionId) : undefined), [drawer, sessionId]),
+  );
   return client === undefined || !matchingHost || sessionId === undefined ? (
     <SessionNotice title={title ?? t.title}>
       <SheetNote>{t.unavailable}</SheetNote>

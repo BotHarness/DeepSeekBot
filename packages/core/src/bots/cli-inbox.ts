@@ -92,6 +92,11 @@ export const INBOX_COMMANDS = [
     command: 'session-list',
     description: 'list accessible root Sessions on the Host (--search, --sort, --source)',
   },
+  {
+    command: 'session-create',
+    description:
+      'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -170,6 +175,9 @@ export interface InboxValues {
   dismissed?: boolean;
   activity?: string;
   'include-archived'?: boolean;
+  cwd?: string;
+  model?: string;
+  message?: string;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -570,6 +578,37 @@ function prepare(
           ...(search === undefined && sort === undefined && source === undefined
             ? {}
             : { queryVersion: 1 }),
+        },
+      };
+    }
+    case 'session-create': {
+      positionals(command, rest, 0, '');
+      const { cwd, workspace, model } = values;
+      if ((cwd === undefined) === (workspace === undefined))
+        usage('session-create needs --cwd <path> or --workspace <id>, not both or neither.');
+      const text = required(values.message, 'message', command);
+      if (text.trim() === '') usage('session-create --message needs non-blank text.');
+      let choice: unknown;
+      if (model !== undefined) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(model);
+        } catch {
+          usage('session-create --model needs Model Choice JSON.');
+        }
+        const parsedChoice = sessionModelChoice(parsed);
+        if (parsedChoice?.kind !== 'model')
+          usage('session-create --model needs a direct API model choice.');
+        choice = parsedChoice;
+      }
+      return {
+        method: 'sessionCreate',
+        args: {
+          ...(cwd === undefined
+            ? { workspaceId: required(workspace, 'workspace', command) }
+            : { cwd: required(cwd, 'cwd', command) }),
+          text,
+          ...(choice === undefined ? {} : { choice }),
         },
       };
     }

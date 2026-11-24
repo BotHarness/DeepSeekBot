@@ -397,7 +397,10 @@ export interface BridgeMethods
     ReleaseAdapterMethods,
     HumansAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
-    Pick<ReturnType<typeof createHostSessionsMethods>, 'sessionList' | 'sessionLive'>,
+    Pick<
+      ReturnType<typeof createHostSessionsMethods>,
+      'sessionList' | 'sessionLive' | 'sessionCreate'
+    >,
     WorkspacesAdapterMethods,
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
@@ -913,6 +916,7 @@ function buildBridgeMethods(
     assignmentTimeline: assignmentsMethods.assignmentTimeline,
     sessionProgress: assignmentsMethods.sessionProgress,
     sessionList: hostSessions.sessionList,
+    sessionCreate: hostSessions.sessionCreate,
     sessionTranscript: (payload) =>
       asObject(payload)['slug'] === null
         ? hostSessions.sessionTranscript(payload)

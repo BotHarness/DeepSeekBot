@@ -6,7 +6,6 @@ import { useMemo, useState, type ComponentProps } from 'react';
 import { Platform, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
@@ -15,8 +14,11 @@ import { useDesignTheme } from '../design/theme';
 import { fab, materialNavigationBar, navigationBar, space } from '../design/tokens';
 import { NavigationDestinations } from './navigation-destinations';
 import { ChatsCreate } from './chats-create';
-import { tabCreateAction, tabStackRoot, openNewSession } from './page-create-actions';
-import { SessionCreateFab } from './session-create-fab';
+import { tabCreateAction, tabStackRoot } from './page-create-actions';
+import {
+  sessionDrawerProgress,
+  useSessionDrawer,
+} from '../../features/sessions/session-drawer-state';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter } from './tab-name-pill';
@@ -127,14 +129,12 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { saved, client } = useHostSession();
   const chrome = useTabChrome();
   const hiddenNow = useChromeHidden(chrome?.hidden);
+  const drawerOpen = useSessionDrawer().open;
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
   const focusedTab = state.routes[state.index];
-  const create = tabStackRoot(focusedTab)
-    ? tabCreateAction(focusedTab?.name, sessionsTab, client ? saved : undefined)
-    : undefined;
+  const create = tabStackRoot(focusedTab) ? tabCreateAction(focusedTab?.name) : undefined;
   const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
   const items: NavigationDestination[] = routes.map((route, index) => {
     const item = {
@@ -178,6 +178,7 @@ function ScopedNavigationBar({
     ? insets.bottom + (size - insets.bottom) / 2 + materialNavigationBar.iconSize / 2
     : bottom + size / 2 + navigationBar.symbolBox / 2;
   const slide = useAnimatedStyle(() => ({
+    opacity: 1 - sessionDrawerProgress.value,
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * band }],
   }));
   return (
@@ -186,7 +187,7 @@ function ScopedNavigationBar({
         onLayout={
           android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
         }
-        pointerEvents={hiddenNow ? 'none' : 'box-none'}
+        pointerEvents={hiddenNow || drawerOpen ? 'none' : 'box-none'}
         style={[
           {
             position: 'absolute',
@@ -219,11 +220,7 @@ function ScopedNavigationBar({
           pointerEvents="box-none"
           style={{ position: 'absolute', right: insets.right + fab.margin, bottom: fabBottom }}
         >
-          {create === 'chats' ? (
-            <ChatsCreate scope={scope} bottom={fabBottom} />
-          ) : (
-            <SessionCreateFab onPress={openNewSession} />
-          )}
+          <ChatsCreate scope={scope} bottom={fabBottom} />
         </View>
       ) : null}
     </>

@@ -1,4 +1,5 @@
 import type {
+  HostSessionCreateRequest,
   HostSessionListOptions,
   HostSessionListResult,
   HostSessionRow,
@@ -78,4 +79,14 @@ export async function readHostSessionList(
     return [];
   });
   return { sessions, queryVersion: 1, sources };
+}
+
+export async function createHostSession(
+  host: HostCall,
+  request: HostSessionCreateRequest,
+): Promise<{ sessionId: string; requestId: string }> {
+  const answer = answerRecord(await host.call('sessionCreate', request), 'sessionCreate');
+  if (typeof answer['sessionId'] !== 'string' || typeof answer['requestId'] !== 'string')
+    throw new HostAnswerInvalid('invalid sessionCreate response');
+  return { sessionId: answer['sessionId'], requestId: answer['requestId'] };
 }

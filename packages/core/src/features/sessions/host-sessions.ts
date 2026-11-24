@@ -65,6 +65,7 @@ export interface NativeSessions {
     choice: Extract<SessionModelChoice, { kind: 'model' }> | null | undefined,
   ): Promise<SessionModelState>;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
+  create?(target: { cwd: string } | { workspaceId: string }): Promise<{ sessionId: string }>;
 }
 
 export function normalizeSessionSearch(text: string): string {
@@ -330,6 +331,39 @@ export function createHostSessionsMethods(
           return invalidInput('Native Sessions require a model provider and model');
         return { ok: true, value: await service.model(id, choice) };
       });
+    },
+    async sessionCreate(
+      payload: unknown,
+    ): Promise<BridgeResult<{ sessionId: string; requestId: string }>> {
+      if (!nativeAllowed()) return denied;
+      const source = asObject(payload);
+      const cwd = asNonBlank(source, 'cwd');
+      const workspaceId = asNonBlank(source, 'workspaceId');
+      const { text } = source;
+      if ((cwd === undefined) === (workspaceId === undefined))
+        return invalidInput('Exactly one of cwd and workspaceId is required');
+      if (typeof text !== 'string' || text.trim() === '')
+        return invalidInput('A non-blank text is required');
+      const proposed = source['choice'];
+      const parsed = proposed == null ? undefined : sessionModelChoice(proposed);
+      if (proposed != null && parsed?.kind !== 'model')
+        return invalidInput('Native Sessions require a model provider and model');
+      const choice = parsed?.kind === 'model' ? parsed : undefined;
+      const service = deps.nativeSessions;
+      if (service?.create === undefined) return unavailable;
+      try {
+        const { sessionId } = await service.create(
+          cwd === undefined ? { workspaceId: workspaceId! } : { cwd },
+        );
+        if (choice !== undefined) {
+          if (service.model === undefined) return unavailable;
+          await service.model(sessionId, choice);
+        }
+        const { requestId } = await service.send(sessionId, text);
+        return { ok: true, value: { sessionId, requestId } };
+      } catch (cause) {
+        return dshFailure(cause);
+      }
     },
     sessionSend(payload: unknown) {
       return native(payload, async (service, id) => {

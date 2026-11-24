@@ -11,6 +11,11 @@ import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions'
 
 const platform = vi.hoisted(() => ({ OS: 'ios' }));
 const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
+const place = vi.hoisted(() => ({
+  segments: ['(tabs)', '(home)', 'session', '[id]'],
+  index: 1,
+  replace: vi.fn(),
+}));
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -48,6 +53,9 @@ vi.mock('expo-router', () => ({
   },
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
   useRouter: () => navigation,
+  useSegments: () => place.segments,
+  useNavigation: () => ({ getState: () => ({ index: place.index }) }),
+  router: { replace: place.replace },
 }));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('react-native-svg', () => ({
@@ -563,4 +571,24 @@ it('accounts for the iOS safe areas while the native composer spacer reserves th
       paddingBottom: 0,
     },
   });
+});
+
+it('shows the Session drawer, New Session and options instead of Back at the Sessions root', async () => {
+  place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
+  place.index = 0;
+  try {
+    const { view } = await open({ role: 'native' });
+    const labels = [...view.querySelectorAll('button')].map(
+      (button) => button.getAttribute('aria-label') ?? button.textContent,
+    );
+    expect(labels).toContain('Show Sessions');
+    expect(labels).toContain('New Session');
+    expect(labels).toContain('Session options');
+    expect(labels).not.toContain('Back');
+    await act(async () => view.querySelector<HTMLElement>('[data-testid="session-new"]')?.click());
+    expect(place.replace).toHaveBeenCalledExactlyOnceWith('/sessions');
+  } finally {
+    place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+    place.index = 1;
+  }
 });

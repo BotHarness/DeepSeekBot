@@ -1,17 +1,11 @@
-import { router } from 'expo-router';
 import { savedHostIdentity, type SavedHost } from '@botharness/host-client/hosts';
 
 export function canCreateNativeSession(host: SavedHost | null | undefined): boolean {
   return host != null && savedHostIdentity(host).kind === 'owner';
 }
 
-export function tabCreateAction(
-  route: string | undefined,
-  sessionsEnabled: boolean,
-  host: SavedHost | null | undefined,
-): 'chats' | 'session' | undefined {
+export function tabCreateAction(route: string | undefined): 'chats' | undefined {
   if (route === '(home)') return 'chats';
-  if (route === '(sessions)' && sessionsEnabled && canCreateNativeSession(host)) return 'session';
 }
 
 export function tabStackRoot(route: object | undefined): boolean {
@@ -23,8 +17,4 @@ export function tabStackRoot(route: object | undefined): boolean {
     stack.index === undefined ||
     stack.index === 0
   );
-}
-
-export function openNewSession(): void {
-  router.push('/create-session');
 }

@@ -189,7 +189,7 @@ const owner: SavedHost = {
 };
 
 it.each(['ios', 'android'])(
-  'scopes bottom create actions to their tabs on %s',
+  'keeps the floating create action on Chats only on %s',
   async (platform) => {
     fixture.platform = platform;
     fixture.saved = owner;
@@ -204,31 +204,8 @@ it.each(['ios', 'android'])(
         fixture.index = index;
         await act(async () => root.render(<BottomNavigation />));
         expect(Boolean(chatsCreate())).toBe(index === 0);
-        expect(Boolean(sessionCreate())).toBe(index === 2);
+        expect(sessionCreate()).toBeNull();
       }
-
-      fixture.index = 2;
-      await act(async () => root.render(<BottomNavigation />));
-      await act(async () => sessionCreate()?.click());
-      expect(router.push).toHaveBeenCalledExactlyOnceWith('/create-session');
-      expect(host.querySelector('[role="dialog"]')).toBeNull();
-
-      fixture.saved = {
-        ...owner,
-        member: {
-          humanId: 'member-1',
-          displayName: 'Test Member',
-          username: 'test-member',
-          fingerprint: 'a'.repeat(64),
-          mustChangePassword: false,
-        },
-      };
-      await act(async () => root.render(<BottomNavigation />));
-      expect(sessionCreate()).toBeNull();
-
-      fixture.saved = owner;
-      await act(async () => interfacePreferences.setSessionsTab(false));
-      expect(sessionCreate()).toBeNull();
     } finally {
       act(() => root.unmount());
     }
