@@ -4,6 +4,7 @@ import type { HostApiAnswer, HostApiInit } from '@botharness/host-client/client'
 import {
   addedText,
   createComputerViewer,
+  createPhoneComputerViewer,
   typedInputs,
   wheelInput,
   WHEEL_STEP,
@@ -47,6 +48,73 @@ const frame = (seq: number): HostApiAnswer => ({
 });
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+it('observes a current desktop without acquiring control and resumes separately from release', async () => {
+  const operations: string[] = [];
+  const binding = {
+    computerId: 'local',
+    runtimeId: 'runtime',
+    viewerId: 'viewer',
+    attemptId: 'attempt',
+  };
+  let paused = false;
+  let controller = false;
+  const viewer = createPhoneComputerViewer({
+    async api(_path, init) {
+      const kind = String(init?.body?.['kind']);
+      operations.push(kind);
+      if (kind === 'frame' && init?.body?.['after'] !== undefined) {
+        await new Promise<void>((resolve) => {
+          if (init.signal?.aborted) resolve();
+          else init.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+      if (kind === 'takeover') paused = controller = true;
+      if (kind === 'release') controller = false;
+      if (kind === 'resume') paused = false;
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          state: {
+            binding,
+            runtimeId: 'runtime',
+            transport: 'frames',
+            paused,
+            controller,
+            ...(controller ? { grant: { generation: 1 }, lastInputSequence: 0 } : {}),
+            ...(kind === 'frame'
+              ? { frame: { seq: 1, data: 'test', mimeType: 'image/jpeg', width: 100, height: 50 } }
+              : {}),
+          },
+        },
+      };
+    },
+  });
+  const live = watch(viewer, (state) => state.status === 'live');
+  viewer.start();
+  try {
+    await live;
+    await viewer.send({ kind: 'click', x: 1, y: 2 });
+    expect(operations).not.toContain('takeover');
+    expect(operations).not.toContain('input');
+    await viewer.setControl(true);
+    await viewer.send({ kind: 'type', text: 'fixture' });
+    await viewer.setControl(false);
+    expect(viewer.getState()).toMatchObject({ paused: true, control: false });
+    await viewer.send({ kind: 'type', text: 'discard' });
+    await viewer.resume?.();
+    expect(viewer.getState()).toMatchObject({ paused: false, control: false });
+    expect(operations.filter((kind) => !['status', 'open', 'frame'].includes(kind))).toEqual([
+      'takeover',
+      'input',
+      'release',
+      'resume',
+    ]);
+  } finally {
+    viewer.stop();
+  }
+});
 
 function watch(
   viewer: ReturnType<typeof createComputerViewer>,

@@ -1,12 +1,16 @@
 import { deviceRefusal, type HostApiAnswer, type HostApiInit, type HostClient } from './client';
 import type { BrowserFrame, BrowserInput } from './browser-viewer';
+import { createCurrentDesktopViewer, currentDesktopAvailable } from './current-desktop-viewer';
 
 export type ComputerViewerStatus = 'loading' | 'live' | 'not-running' | 'unreachable' | 'refused';
 
 export interface ComputerViewerState {
   status: ComputerViewerStatus;
-  frame?: BrowserFrame;
+  frame?: BrowserFrame | undefined;
   control: boolean;
+  explicit?: boolean;
+  paused?: boolean | undefined;
+  busy?: boolean;
   notice?: string | undefined;
 }
 
@@ -16,8 +20,55 @@ export interface ComputerViewer {
   start(): void;
   stop(): void;
   setControl(active: boolean): Promise<void>;
+  resume?(): Promise<void>;
   hold(active: boolean): Promise<void>;
   send(input: BrowserInput): Promise<void>;
+}
+
+export function createPhoneComputerViewer(client: Pick<HostClient, 'api'>): ComputerViewer {
+  const idle: ComputerViewerState = { status: 'loading', control: false };
+  const listeners = new Set<() => void>();
+  let discovery: AbortController | undefined;
+  let viewer: ComputerViewer | undefined;
+  const publish = () => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    getState: () => viewer?.getState() ?? idle,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    start() {
+      if (discovery !== undefined) return;
+      if (viewer !== undefined) {
+        viewer.start();
+        return;
+      }
+      const attempt = new AbortController();
+      discovery = attempt;
+      void currentDesktopAvailable(client, attempt.signal)
+        .catch(() => false)
+        .then((current) => {
+          if (attempt.signal.aborted) return;
+          discovery = undefined;
+          viewer = current ? createCurrentDesktopViewer(client) : createComputerViewer({ client });
+          viewer.subscribe(publish);
+          viewer.start();
+          publish();
+        });
+    },
+    stop() {
+      discovery?.abort();
+      discovery = undefined;
+      viewer?.stop();
+      publish();
+    },
+    setControl: (active) => viewer?.setControl(active) ?? Promise.resolve(),
+    resume: () => viewer?.resume?.() ?? Promise.resolve(),
+    hold: (active) => viewer?.hold(active) ?? Promise.resolve(),
+    send: (input) => viewer?.send(input) ?? Promise.resolve(),
+  };
 }
 
 export interface ComputerViewerOptions {

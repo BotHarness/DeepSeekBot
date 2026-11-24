@@ -595,6 +595,19 @@ deepseekbot grants <bot-id>
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 
+### Use the current Linux desktop
+
+Run the Host from the X11 desktop you are signed in to. Bots and paired phones can see the whole desktop when you select this target.
+
+```bash
+deepseekbot computer-target
+deepseekbot computer-target --target current-desktop --confirm
+deepseekbot computer-start --target current-desktop
+deepseekbot computer-status
+```
+
+Check `status.state` for `running`. On failure, `status.refusal` gives the code and `status.detail` explains the next step. Choose **Computer** on the paired Android app while connected over LAN. To drive the same viewer from the Host CLI, call `computer-video open --out <absolute-file>`. For a frame viewer, the result includes `binding` and `transport: "frames"` without an SDP offer. Pass the binding JSON to `computer-video frame --args-stdin --out <absolute-file>`. Use the same binding for `takeover`, `input`, and `release`. Only `resume` clears the Bot pause.
+
 ### Local Computer video
 
 Windows and macOS Local Computer use the [native phone video path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows/macOS targets. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.

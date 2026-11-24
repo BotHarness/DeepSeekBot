@@ -108,6 +108,33 @@ async function invoke(argv: string[], url: string) {
 }
 
 describe('Agent Browser and Computer commands', () => {
+  it('reads and selects the current desktop through Host settings with explicit confirmation', async () => {
+    const ns = 'botharness-computer';
+    const live = await host(({ path }) => ({
+      json: {
+        ok: true,
+        value:
+          path === 'settings/describe'
+            ? { namespaces: [{ ns, revision: 2, value: { target: 'local' } }] }
+            : { revision: 3, value: { target: 'current-desktop' } },
+      },
+    }));
+    expect(await invoke(['computer-target'], live.url)).toMatchObject({
+      code: 0,
+      json: { value: { target: 'local' } },
+    });
+    const refused = await invoke(['computer-target', '--target', 'current-desktop'], live.url);
+    expect(refused.code).not.toBe(0);
+    expect(live.calls).toHaveLength(1);
+    expect(
+      await invoke(['computer-target', '--target', 'current-desktop', '--confirm'], live.url),
+    ).toMatchObject({ code: 0, json: { value: { target: 'current-desktop' } } });
+    expect(live.calls.at(-1)).toMatchObject({
+      path: 'settings/update',
+      body: { ns, expectedRevision: 2, patch: { target: 'current-desktop' } },
+    });
+  });
+
   it('uses the Local video owner command with private SDP output and no image request', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bh-video-'));
     dirs.push(dir);

@@ -178,7 +178,8 @@ Usage:
   tobs browser-takeover <id> (--enabled | --disabled)
   tobs browser-input <id> --args-stdin
   tobs browser-stop <id>
-  tobs computer-start [--target local|container]
+  tobs computer-target [--target current-desktop|local|container] [--confirm]
+  tobs computer-start [--target current-desktop|local|container]
   tobs computer-status
   tobs computer-stop
   tobs browser-tools

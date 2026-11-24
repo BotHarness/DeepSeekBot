@@ -18,6 +18,7 @@ import {
   type ComputerSettings,
 } from '../settings.js';
 import { Note } from '../../../client/src/client/ds/note.js';
+import { ConfirmDialog } from '../../../client/src/client/ds/form-dialog.js';
 import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
 import { Select } from '../../../client/src/client/ds/select.js';
 import { SettingsGroupPart, SettingsRow } from '../../../client/src/client/ds/settings-row.js';
@@ -352,6 +353,8 @@ export function ComputerSettingsRows({
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);
   const [targetError, setTargetError] = useState<string>();
   const [targetSaving, setTargetSaving] = useState(false);
+  const [hostPlatform, setHostPlatform] = useState<string>();
+  const [desktopConfirming, setDesktopConfirming] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [archives, setArchives] = useState<readonly string[] | undefined>(undefined);
   const [busy, setBusy] = useState<'export' | 'import' | 'upload' | undefined>(undefined);
@@ -373,8 +376,18 @@ export function ComputerSettingsRows({
   const [livePhase, setLivePhase] = useState<string | undefined>(undefined);
   const [liveElapsed, setLiveElapsed] = useState(0);
 
+  const platformResource = useMountedResource<HTMLSpanElement>(() => {
+    const controller = new AbortController();
+    void requestJson<{ platform?: string }>(STATUS_ENDPOINT, { signal: controller.signal })
+      .then((payload) => {
+        if (!controller.signal.aborted) setHostPlatform(payload.platform);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
   const hostDirResource = useMountedResource<HTMLSpanElement>(() => {
-    if (snapshot.target === 'local') return;
+    if (snapshot.target !== 'container') return;
     if (snapshot.status !== 'unavailable' && snapshot.exportDir !== '') return;
     let active = true;
     void hostExportDir()
@@ -565,10 +578,31 @@ export function ComputerSettingsRows({
   }, [exportDir, openDirectory]);
 
   const selectedFile = uploadName ?? (confirming === 'import' ? archives?.[0] : undefined);
+  const targets: ComputerTarget[] =
+    hostPlatform === 'linux' || snapshot.target === 'current-desktop'
+      ? ['current-desktop', 'local', 'container']
+      : ['local', 'container'];
+  const saveTarget = (id: ComputerTarget): void => {
+    setTargetSaving(true);
+    setTargetError(undefined);
+    void prefs
+      .setTarget(id)
+      .then(async () => {
+        if (id !== 'current-desktop') return;
+        await requestJson('./api/computer/start', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ authorize: true, target: id }),
+        });
+      })
+      .catch(() => setTargetError(t('rows.target.failed')))
+      .finally(() => setTargetSaving(false));
+  };
 
   return (
     <SettingsGroupPart rootRef={settingsPart}>
       <span hidden ref={hostDirResource} />
+      <span hidden ref={platformResource} />
       {busy === undefined ? null : <span hidden ref={busyResource} />}
       <SettingsRow
         title={t('rows.target.title')}
@@ -577,22 +611,32 @@ export function ComputerSettingsRows({
           <Select
             label={t('rows.target.title')}
             value={snapshot.target}
-            options={(['local', 'container'] as const).map((id) => ({
+            options={targets.map((id) => ({
               value: id,
               label: t(`rows.target.${id}`),
             }))}
             disabled={!writable || targetSaving}
             onChange={(id) => {
-              setTargetSaving(true);
-              setTargetError(undefined);
-              void prefs
-                .setTarget(id)
-                .catch((error: unknown) => setTargetError(String(error)))
-                .finally(() => setTargetSaving(false));
+              if (id === 'current-desktop') setDesktopConfirming(true);
+              else saveTarget(id);
             }}
           />
         }
       />
+      {desktopConfirming ? (
+        <ConfirmDialog
+          title={t('rows.target.current-desktop')}
+          description={t('rows.target.desktopNotice')}
+          labels={{ cancel: t('rows.target.cancel'), close: t('rows.target.cancel') }}
+          confirmLabel={t('rows.target.enable')}
+          danger={false}
+          onCancel={() => setDesktopConfirming(false)}
+          onConfirm={() => {
+            setDesktopConfirming(false);
+            saveTarget('current-desktop');
+          }}
+        />
+      ) : null}
       {targetError === undefined ? null : <Note tone="danger">{targetError}</Note>}
       <SettingsRow
         title={t('rows.autoAllow.title')}
@@ -608,8 +652,12 @@ export function ComputerSettingsRows({
           />
         }
       />
-      {snapshot.target === 'local' ? (
-        <LocalComputerStatus t={t as ComputerTranslate} observeResource={observeResource} />
+      {snapshot.target !== 'container' ? (
+        <LocalComputerStatus
+          t={t as ComputerTranslate}
+          observeResource={observeResource}
+          target={snapshot.target}
+        />
       ) : (
         <>
           <SettingsRow

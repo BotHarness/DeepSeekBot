@@ -49,10 +49,13 @@ interface LocalStatus {
 export function LocalComputerStatus({
   t,
   observeResource,
+  target = 'local',
 }: {
   t: ComputerTranslate;
   observeResource?: ObserveResource | undefined;
+  target?: 'local' | 'current-desktop';
 }): ReactElement {
+  const current = target === 'current-desktop';
   const [payload, setPayload] = useState<LocalStatus>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -113,7 +116,7 @@ export function LocalComputerStatus({
       .catch(() => setError('request-failed'))
       .finally(() => setBusy(false));
   };
-  const check = (): void => post('./api/computer/start', { authorize: true, target: 'local' });
+  const check = (): void => post('./api/computer/start', { authorize: true, target });
   const install = (): void => post('./api/computer/install-packages', { authorize: true });
   const granted = payload?.status?.state === 'running';
   const download = payload?.status?.progress;
@@ -133,7 +136,7 @@ export function LocalComputerStatus({
       disabled={preparing || payload?.probe?.available === false}
       onClick={check}
     >
-      {t(preparing ? 'local.checking' : 'local.check')}
+      {t(preparing ? 'local.checking' : current ? 'local.desktop.check' : 'local.check')}
     </Button>
   );
   const packages = installing ? (payload?.install?.packages ?? []) : (missing?.packages ?? []);
@@ -210,10 +213,10 @@ export function LocalComputerStatus({
       <SidebarCardList className="bh-computer-cards">
         <SidebarCardRow
           icon="monitor"
-          title={t('local.title')}
+          title={t(current ? 'rows.target.current-desktop' : 'local.title')}
           chips={
             granted ? (
-              <Tag tone="success">{t('local.chip.granted')}</Tag>
+              <Tag tone="success">{t(current ? 'entry.chip.running' : 'local.chip.granted')}</Tag>
             ) : preparing ? (
               <Tag tone="info">{t('local.chip.checking')}</Tag>
             ) : missing !== undefined ? (
@@ -224,7 +227,15 @@ export function LocalComputerStatus({
               <Tag tone="danger">{t('local.chip.failed')}</Tag>
             )
           }
-          meta={t(granted ? 'local.granted' : 'local.description')}
+          meta={t(
+            current
+              ? granted
+                ? 'local.desktop.ready'
+                : 'local.desktop.description'
+              : granted
+                ? 'local.granted'
+                : 'local.description',
+          )}
           detail={
             <div {...stylex.props(styles.detail)}>
               {failure === undefined ? null : <Note tone="danger">{failure}</Note>}

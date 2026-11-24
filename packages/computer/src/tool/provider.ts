@@ -155,7 +155,7 @@ export function createComputerToolProvider(
   const assertNotPaused = (slug: string): void => {
     if (options.isPaused?.() === true)
       throw new Error(
-        'Computer Pause is active: the Human is using the desktop from the phone. Wait for them to hand it back, then take a fresh screenshot before acting',
+        'Computer Pause is active. Wait for the Human to Resume, then take a fresh screenshot before acting',
       );
     if (options.isBotPaused?.(slug) === true) {
       note(`phase=control-refused owner=browser-pause slug=${slug}`);

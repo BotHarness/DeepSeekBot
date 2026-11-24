@@ -76,6 +76,7 @@ export function createDesktopProvisioningHandlers({
       }
       return json({
         target: target(),
+        platform: process.platform,
         provider: service.providerName ?? null,
         probe,
         status,

@@ -36,7 +36,7 @@ import {
   selectorExpression,
   typeScript,
 } from './browser-page-scripts.js';
-import { waitForBrowserReady } from './browser-ready.js';
+import { waitForBrowserReady, watchBrowserTargets } from './browser-ready.js';
 import { connectCdp, type CdpClient } from './cdp.js';
 
 export {
@@ -64,6 +64,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let binary: string | undefined;
   let lastUrl: string | undefined;
   let foreground = false;
+  let launchedHeadless: boolean | undefined;
   const sessions = new Map<string, string>();
   const closedChildren = new WeakSet<ChildProcess>();
 
@@ -74,20 +75,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       ? options.execution.isRunning()
       : child !== undefined && child.exitCode === null && !child.killed);
 
-  const watchTargets = (live: CdpClient): void => {
-    const changed = options.onObservationChanged;
-    if (changed === undefined) return;
-    for (const method of [
-      'Target.targetCreated',
-      'Target.targetDestroyed',
-      'Target.targetInfoChanged',
-    ])
-      live.subscribe(method, undefined, changed);
-    void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
-    changed();
-  };
-
-  const launch = async (): Promise<void> => {
+  const launch = async (headless: boolean): Promise<void> => {
     if (options.execution !== undefined) {
       const started = await options.execution.start();
       binary = started.binary;
@@ -97,7 +85,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         await options.execution.stop();
         throw error;
       }
-      watchTargets(client);
+      watchBrowserTargets(client, options.onObservationChanged);
       onEvent('ready target=container');
       return;
     }
@@ -156,9 +144,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       onEvent(`installed ${binary}`);
     }
     mkdirSync(options.userDataDir, { recursive: true });
-    const headless =
-      typeof options.headless === 'function' ? options.headless() : options.headless === true;
-    foreground = !headless && options.foregroundTabs?.() === true;
     onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
     const proc = spawn(
       binary,
@@ -171,6 +156,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
+    launchedHeadless = headless;
     proc.once('close', () => {
       closedChildren.add(proc);
       options.onObservationChanged?.();
@@ -244,13 +230,21 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       proc.kill('SIGTERM');
       throw error;
     }
-    watchTargets(client);
+    watchBrowserTargets(client, options.onObservationChanged);
     onEvent('ready');
   };
 
   const ensure = async (): Promise<void> => {
     if (stopping !== undefined) await stopping;
-    if (isRunning()) return;
+    if (starting !== undefined) await starting;
+    const headless =
+      options.execution === undefined &&
+      (typeof options.headless === 'function' ? options.headless() : options.headless === true);
+    foreground = !headless && options.foregroundTabs?.() === true;
+    if (isRunning()) {
+      if (options.execution !== undefined || launchedHeadless === headless) return;
+      await stop();
+    }
     if (starting === undefined && child !== undefined) {
       if (closedChildren.has(child)) child = undefined;
       else await stop();
@@ -258,7 +252,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     client?.close();
     client = undefined;
     sessions.clear();
-    starting ??= launch().finally(() => {
+    starting ??= launch(headless).finally(() => {
       starting = undefined;
     });
     await starting;

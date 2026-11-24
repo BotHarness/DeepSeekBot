@@ -1,4 +1,4 @@
-import type { DesktopInput } from './desktop-view.js';
+import type { DesktopFrame, DesktopInput } from './desktop-view.js';
 
 export type LocalVideoInput =
   | DesktopInput
@@ -60,11 +60,14 @@ export interface LocalVideoState {
   readonly continuousScroll?: boolean;
   readonly media: LocalVideoMediaStatus;
   readonly offer?: LocalVideoDescription;
+  readonly transport?: 'frames';
+  readonly frame?: DesktopFrame;
 }
 
 export type LocalVideoCommand =
   | { readonly kind: 'status' }
   | { readonly kind: 'open' }
+  | { readonly kind: 'frame'; readonly binding: LocalVideoBinding; readonly after?: number }
   | {
       readonly kind: 'signal';
       readonly binding: LocalVideoBinding;
@@ -133,6 +136,15 @@ export type LocalVideoRefusal =
   | 'connect-carrier-required';
 
 export class LocalVideoError extends Error {
+  static is(error: unknown): error is LocalVideoError {
+    return (
+      error instanceof Error &&
+      error.name === 'LocalVideoError' &&
+      'code' in error &&
+      typeof error.code === 'string'
+    );
+  }
+
   constructor(
     readonly code: LocalVideoRefusal,
     message: string,
@@ -166,6 +178,8 @@ export interface LocalDesktopControl {
   readonly desktop: boolean;
   readonly held: boolean;
   readonly epoch: number;
+  readonly ready: boolean;
+  readonly currentDesktop: boolean;
 }
 
 export interface LocalVideoOwner {

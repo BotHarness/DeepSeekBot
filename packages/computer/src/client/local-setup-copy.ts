@@ -2,6 +2,12 @@ import type { ComputerTranslate } from './locale.js';
 
 export function localSetupFailure(code: string | undefined, t: ComputerTranslate): string {
   switch (code) {
+    case 'x11-session-required':
+      return t('local.error.x11');
+    case 'desktop-unreachable':
+      return t('local.error.desktop');
+    case 'linux-desktop-required':
+      return t('local.error.linux');
     case 'permissions-required':
       return t('local.error.permissions');
     case 'disk-full':

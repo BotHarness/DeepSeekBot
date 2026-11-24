@@ -82,6 +82,10 @@ On this target the old frame, takeover and input routes refuse, so a bare `activ
 
 **Local target on Linux.** The phone still uses the screenshot stream. `GET /api/computer/frame` long-polls single-flight captures of at most 1600 px, sent as JPEG at quality 70. `POST /api/computer/takeover` pauses every Bot and drains running calls for up to 10 seconds. `POST /api/computer/input` works only while paused. That pause is a 30-second lease renewed by polls and input.
 
+**Current desktop target on Linux.** The Human confirms whole-desktop visibility for Bots and paired phones before selecting `current-desktop`. The Host runs from the signed-in X11 session and requires a successful driver capture before reporting readiness. A display check failure preserves the selection and asks the Human to start the Host from their X11 session.
+
+Android polls the Linux screenshot stream through the paired LAN viewer commands. Frames and video share the Computer owner's durable pause and exclusive input grant. Local Bot Browser opens its existing persistent profile in a visible window on the same X11 display. Takeover saves pause, drains both tool sets, and discards results that completed across the pause. Release ends the input grant. Only Resume clears the saved pause.
+
 In every mode, Human input is recorded as a `computer-action` with its kind and character count, never the typed text, and frames are never stored. A Bot that needs the Human asks with a non-blocking [Takeover Handoff](../../GLOSSARY.md) (`takeover_request` with target `computer`), which requires Computer Access.
 
 Why: a Human who is away from the desk needs to sign in or answer a captcha without installing a separate remote-desktop app. Video separates watching from controlling, so watching never pauses a Bot. A durable pause means a closed app or a crashed helper cannot hand the desktop back while the Human is typing a password. Dropping the image fallback avoids a second transport lifecycle and silent image traffic through Connect.

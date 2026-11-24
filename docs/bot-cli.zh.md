@@ -577,6 +577,19 @@ deepseekbot grants <bot-id>
 
 `computer-frame` 把 Computer 桌面（本机或容器）的当前画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
 
+### 使用当前 Linux 桌面
+
+从当前登录的 X11 桌面启动 Host。选中此目标后，Bot 和已配对的手机都能看到整块桌面。
+
+```bash
+deepseekbot computer-target
+deepseekbot computer-target --target current-desktop --confirm
+deepseekbot computer-start --target current-desktop
+deepseekbot computer-status
+```
+
+查看 `status.state` 是否为 `running`。检查失败时，`status.refusal` 给出错误码，`status.detail` 给出下一步。通过局域网连接已配对的 Android，打开 **Computer**。用 CLI 驱动同一观看链路时，运行 `computer-video open --out <绝对路径>`。帧流返回 `binding` 和 `transport: "frames"`。将绑定 JSON 传给 `computer-video frame --args-stdin --out <绝对路径>`，并在 `takeover`、`input` 和 `release` 时复用绑定。只有 `resume` 会结束 Bot 暂停。
+
 ### Activity、委派、会话与审批规则
 
 ```bash

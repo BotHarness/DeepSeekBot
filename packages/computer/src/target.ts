@@ -1,10 +1,10 @@
 import type { ComputerProvider } from './provider.js';
 import type { CuaDriver } from './tool/driver.js';
 
-export type ComputerTarget = 'local' | 'container';
+export type ComputerTarget = 'local' | 'container' | 'current-desktop';
 
 export function computerTarget(value: unknown): ComputerTarget {
-  return value === 'local' ? 'local' : 'container';
+  return value === 'local' || value === 'current-desktop' ? value : 'container';
 }
 
 export interface ComputerTargetRuntime {
@@ -145,7 +145,7 @@ export function createComputerTargetRuntime(options: {
       !disposed &&
       changing === undefined &&
       target === options.target() &&
-      (target === 'local' ? running : active.provider.upstream() !== undefined),
+      (target === 'container' ? active.provider.upstream() !== undefined : running),
     async dispose() {
       disposed = true;
       await changing?.catch(() => undefined);

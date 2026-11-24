@@ -28,7 +28,7 @@ import { createTransferTokens } from './transfer-tokens.js';
 import { createArchiveHandlers, defaultExportDir } from './archive-http.js';
 import { createProcessRunner } from './process-runner.js';
 import { createIdleWatcher } from './idle.js';
-import { createDesktopView } from './desktop-view.js';
+import { createDesktopFrameStream, createDesktopView } from './desktop-view.js';
 import { createDesktopHandlers } from './desktop-http.js';
 import {
   createDesktopProvisioningHandlers,
@@ -50,6 +50,7 @@ import { createDockerComputerProvider } from './providers/docker.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
+import { openCurrentDesktop } from './tool/local-display.js';
 import { detectTailnetAddress } from '../../core/src/devices/routes.js';
 import { createSelkiesWebRtc } from '../../core/src/http/selkies-webrtc.js';
 import { createLocalComputerProvider } from './providers/local.js';
@@ -141,13 +142,15 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     join(resolveDshHome(), 'botharness', 'computer-approval-target.json'),
     () =>
       JSON.stringify(
-        target() === 'local'
-          ? ['local']
+        target() !== 'container'
+          ? [target()]
           : ['container', config.containerName, config.volumeName, config.dataDir, config.image],
       ),
   );
+  const currentDesktop = (): boolean => target() === 'current-desktop';
   const migratedLocal = (): boolean =>
-    (process.platform === 'win32' || process.platform === 'darwin') && target() === 'local';
+    currentDesktop() ||
+    ((process.platform === 'win32' || process.platform === 'darwin') && target() === 'local');
   const runtime = createComputerTargetRuntime({
     target,
     onChange: () => {
@@ -160,14 +163,16 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     onStatusChanged: statusChanged.schedule,
     create: (selected, onStatusChanged) => {
-      if (selected === 'local') {
+      if (selected !== 'container') {
         const driver = createLocalCuaDriver({
           runner,
+          ...(selected === 'current-desktop' ? { display: openCurrentDesktop } : {}),
           onEvent: (detail) => diagnostics.record('lifecycle', detail),
         });
         const provider = createLocalComputerProvider({
           driver,
           runner,
+          currentDesktop: selected === 'current-desktop',
           onEvent: (detail) => diagnostics.record('lifecycle', `target=local ${detail}`),
           onStatusChanged,
         });
@@ -223,14 +228,20 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       );
   });
   ctx.effect(() => () => runtime.dispose(), 'botharness-computer: target runtime');
-  const activity = { touch: (): void => undefined };
   const driver = runtime.driver;
+  const currentDesktopFrames = createDesktopFrameStream({
+    driver,
+    isRunning: () => currentDesktop() && runtime.isRunning(),
+    scales: () => false,
+    waitMs: 1_000,
+  });
   const localVideo = createLocalVideoOwner({
     pause: createComputerPauseStore(join(resolveDshHome(), 'botharness', 'computer-pause.json')),
     driver,
     media: createLocalVideoMedia({
       onEvent: (detail) => diagnostics.record('lifecycle', detail),
     }),
+    frames: { enabled: currentDesktop, next: currentDesktopFrames.next },
     isRunning: () => migratedLocal() && runtime.isRunning(),
     supported: migratedLocal,
     driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
@@ -251,16 +262,18 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     },
     'botharness-computer: Local video owner',
   );
+  const activity = { touch: (): void => undefined };
   const desktopView = createDesktopView({
     driver,
     isRunning: () => runtime.isRunning(),
     scales: () => target() === 'local',
   });
+  const desktopPaused = (): boolean => target() !== 'container' && localVideo.isPaused();
   const toolProvider = createComputerToolProvider({
     ctx,
     driver,
     isComputerRunning: () => runtime.isRunning(),
-    isPaused: () => (migratedLocal() ? localVideo.isPaused() : desktopView.isPaused()),
+    isPaused: () => desktopPaused() || (!migratedLocal() && desktopView.isPaused()),
     isBotPaused: (slug) => {
       if (!migratedLocal()) return false;
       const browser = ctx.get('botharnessBrowserTools') as unknown as
@@ -271,7 +284,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     runBotOperation: (operation, signal) =>
       migratedLocal() ? localVideo.runBotOperation(() => operation()) : operation(signal),
     authorizationScope,
-    guidance: () => (target() === 'local' ? localComputerGuidance() : COMPUTER_GUIDANCE),
+    guidance: () => (target() !== 'container' ? localComputerGuidance() : COMPUTER_GUIDANCE),
     isAutoAllowed: () => effective().autoAllowActions,
     audit: (event) => diagnostics.record('computer-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
@@ -288,10 +301,13 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   });
   ctx.provide('botharnessComputerTools', {
     desktopControl: (): LocalDesktopControl => ({
-      desktop: migratedLocal(),
-      held: migratedLocal() && runtime.isRunning() && localVideo.isPaused(),
+      desktop: migratedLocal() || desktopPaused(),
+      held: desktopPaused(),
       epoch: localVideo.controlEpoch(),
+      ready: !currentDesktop() || runtime.isRunning(),
+      currentDesktop: currentDesktop(),
     }),
+    runDesktopOperation: <T>(operation: () => Promise<T>) => localVideo.runBotOperation(operation),
     reconcileBot: (slug: string) => toolProvider.reconcileBot(slug),
     ownsTool: (name: string) => ownsComputerTool(name),
     approvalScope: () => savedTargetScope.current(),
@@ -388,7 +404,6 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     const timer = setInterval(() => watcher.tick(), 60_000);
     return () => clearInterval(timer);
   }, 'botharness-computer: idle stop');
-
   const webrtc = createSelkiesWebRtc({
     label: 'computer',
     upstream: () => (target() === 'container' ? service.upstream() : undefined),
@@ -418,12 +433,12 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
         {
           ok: false,
           code: 'update-required',
-          error:
-            'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
+          error: currentDesktop()
+            ? 'Update the viewer to watch and take control of the current desktop.'
+            : 'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
         },
         409,
       );
-
     const webrtcRoute = {
       path: '/api/computer/webrtc',
       methods: ['GET'] as const,
@@ -615,7 +630,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
 
     const desktopHttp = createDesktopHandlers({
       json,
-      migratedLocal,
+      migratedLocal: () => migratedLocal() || desktopPaused(),
       legacyLocalRefusal,
       desktopView,
       activity,

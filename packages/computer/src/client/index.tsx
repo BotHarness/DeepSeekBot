@@ -96,7 +96,7 @@ interface ComputerProgress {
 }
 
 interface ComputerStatusPayload {
-  readonly target?: 'local' | 'container';
+  readonly target?: 'local' | 'container' | 'current-desktop';
   resolution?: string;
   readonly provider: string | null;
   readonly probe: { readonly available: boolean; readonly detail?: string };
@@ -774,8 +774,8 @@ function ComputerEntry({
   return (
     <div ref={statusResource} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {inProgress ? <span hidden ref={progressResource} /> : null}
-      {payload?.target === 'local' ? (
-        <LocalComputerStatus t={t} observeResource={observeResource} />
+      {payload?.target === 'local' || payload?.target === 'current-desktop' ? (
+        <LocalComputerStatus t={t} observeResource={observeResource} target={payload.target} />
       ) : (
         <ComputerEntryView
           t={t}

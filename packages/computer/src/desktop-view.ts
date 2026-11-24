@@ -249,31 +249,25 @@ function untilAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T | un
   });
 }
 
-export function createDesktopView(options: {
+interface DesktopFrameStreamOptions {
   driver: Pick<CuaDriver, 'call'>;
   isRunning: () => boolean;
   scales?: () => boolean;
   intervalMs?: number;
   waitMs?: number;
-  pauseLeaseMs?: number;
   encode?: FrameEncoder;
   now?: () => number;
-}): DesktopView {
+}
+
+export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
   const encode = options.encode ?? jpegEncoder;
   const intervalMs = options.intervalMs ?? 150;
   const waitMs = options.waitMs ?? 10_000;
   const now = options.now ?? Date.now;
-  const pauseLeaseMs = options.pauseLeaseMs ?? 30_000;
-  let pausedUntil = 0;
-  const isPaused = (): boolean => pausedUntil > now();
-  const renewPause = (): void => {
-    if (isPaused()) pausedUntil = now() + pauseLeaseMs;
-  };
   let latest: DesktopFrame | undefined;
   let latestCapture: string | undefined;
   let capturing: Promise<DesktopFrame | undefined> | undefined;
   let lastStarted = 0;
-  let pointer: { x: number; y: number } | undefined;
   let seq = 0;
   let captures = 0;
   let unchanged = 0;
@@ -327,9 +321,8 @@ export function createDesktopView(options: {
   };
 
   return {
-    async next(after, signal) {
+    async next(after: number | undefined, signal?: AbortSignal) {
       requireRunning();
-      renewPause();
       if (latest !== undefined && after !== undefined && latest.seq > after) return latest;
       const deadline = now() + waitMs;
       while (signal?.aborted !== true) {
@@ -340,8 +333,33 @@ export function createDesktopView(options: {
       }
       return undefined;
     },
+    requireRunning,
+    requestFreshCapture() {
+      lastStarted = 0;
+    },
+    stats: () => ({ captures, unchanged, published, lastCaptureMs }),
+  };
+}
+
+export function createDesktopView(
+  options: DesktopFrameStreamOptions & { pauseLeaseMs?: number },
+): DesktopView {
+  const frames = createDesktopFrameStream(options);
+  const now = options.now ?? Date.now;
+  const pauseLeaseMs = options.pauseLeaseMs ?? 30_000;
+  let pausedUntil = 0;
+  let pointer: { x: number; y: number } | undefined;
+  const isPaused = (): boolean => pausedUntil > now();
+  const renewPause = (): void => {
+    if (isPaused()) pausedUntil = now() + pauseLeaseMs;
+  };
+  return {
+    next(after, signal) {
+      renewPause();
+      return frames.next(after, signal);
+    },
     async input(input, signal) {
-      requireRunning();
+      frames.requireRunning();
       if (!isPaused())
         throw new DesktopViewError('not-paused', 'Pause the Bot before using the desktop.');
       renewPause();
@@ -354,13 +372,13 @@ export function createDesktopView(options: {
       );
       const refused = refusalText(result);
       if (refused !== undefined) throw new DesktopViewError('input-failed', refused);
-      lastStarted = 0;
+      frames.requestFreshCapture();
     },
     setPaused(active) {
       pausedUntil = active ? now() + pauseLeaseMs : 0;
       return isPaused();
     },
     isPaused,
-    stats: () => ({ captures, unchanged, published, lastCaptureMs }),
+    stats: frames.stats,
   };
 }

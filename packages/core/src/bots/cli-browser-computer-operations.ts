@@ -79,6 +79,7 @@ export async function runDeviceCommand(
       ![
         'status',
         'open',
+        'frame',
         'signal',
         'heartbeat',
         'takeover',
@@ -89,16 +90,16 @@ export async function runDeviceCommand(
       ].includes(slug)
     )
       usage(
-        'computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.',
+        'computer-video needs status, open, frame, signal, heartbeat, takeover, input, release, resume or close.',
       );
     if (toolArgs['force'] === true && values.confirm !== true)
       usage('Forced takeover requires --confirm.');
     if (
-      slug === 'open' &&
+      (slug === 'open' || slug === 'frame') &&
       (values.out === undefined ||
         (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
     )
-      usage('computer-video open requires --out <absolute-file> for private signaling data.');
+      usage(`computer-video ${slug} requires --out <absolute-file>.`);
   }
   if (command === 'browser-frame' || command === 'computer-frame') {
     const out = values.out ?? '';
@@ -114,9 +115,10 @@ export async function runDeviceCommand(
     command === 'computer-start' &&
     values.target !== undefined &&
     values.target !== 'local' &&
-    values.target !== 'container'
+    values.target !== 'container' &&
+    values.target !== 'current-desktop'
   )
-    usage('--target must be local or container.');
+    usage('--target must be current-desktop, local or container.');
   const signal = AbortSignal.timeout(timeoutMs(values.timeout));
   const { http } = await connectLiveHost(values, io, signal);
   const json = async (path: string, body?: Record<string, unknown>) => {
@@ -159,7 +161,7 @@ export async function runDeviceCommand(
       }),
     );
     const state = record(result['state']);
-    const { offer, ...safeState } = state;
+    const { offer, frame, ...safeState } = state;
     if (offer !== undefined && values.out !== undefined) {
       try {
         writeFileSync(values.out, JSON.stringify(offer), {
@@ -178,9 +180,19 @@ export async function runDeviceCommand(
         );
       }
     }
+    const { data, ...frameInfo } = record(frame);
+    if (typeof data === 'string' && values.out !== undefined)
+      writeFileSync(values.out, Buffer.from(data, 'base64'), { mode: 0o600 });
     return {
       ...result,
-      ...(result['state'] === undefined ? {} : { state: safeState }),
+      ...(result['state'] === undefined
+        ? {}
+        : {
+            state: {
+              ...safeState,
+              ...(frame === undefined ? {} : { frame: { ...frameInfo, path: values.out } }),
+            },
+          }),
       ...(offer === undefined ? {} : { signalingFile: values.out }),
     };
   }

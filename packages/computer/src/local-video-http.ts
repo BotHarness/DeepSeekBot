@@ -20,8 +20,7 @@ export async function localVideoCommand(
   try {
     return { ok: true, state: await owner.handle(caller, value as LocalVideoCommand, signal) };
   } catch (error) {
-    if (error instanceof LocalVideoError)
-      return { ok: false, code: error.code, error: error.message };
+    if (LocalVideoError.is(error)) return { ok: false, code: error.code, error: error.message };
 
     return {
       ok: false,

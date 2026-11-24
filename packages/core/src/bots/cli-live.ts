@@ -253,13 +253,17 @@ export const LIVE_COMMANDS = [
     description: 'start the profile Computer with explicit authorization',
   },
   {
+    command: 'computer-target',
+    description: 'read or select the Computer Target (--target current-desktop|local|container)',
+  },
+  {
     command: 'computer-status',
     description: 'read the profile Computer target and state',
   },
   {
     command: 'computer-video',
     description:
-      'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
+      'Local Computer viewer status/open/frame/signal/heartbeat/takeover/input/release/resume/close',
   },
   {
     command: 'computer-frame',

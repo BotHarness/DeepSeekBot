@@ -3,7 +3,15 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { TextInput } from '../../src/ui/primitives/system-text';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Keyboard, Pressable, View, type ViewInstance, type TextInputInstance } from 'react-native';
+import {
+  AppState,
+  Keyboard,
+  Platform,
+  Pressable,
+  View,
+  type ViewInstance,
+  type TextInputInstance,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +21,7 @@ import {
   addedText,
   COMPUTER_KEYS,
   createComputerViewer,
+  createPhoneComputerViewer,
   typedInputs,
   wheelInput,
   type ComputerModifier,
@@ -59,10 +68,12 @@ function LegacyComputerScreen() {
   const { client } = useHostSession(hostId);
   const snapshot = useHostSnapshot(client);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
-  const viewer = useMemo(
-    () => (client === undefined ? undefined : createComputerViewer({ client })),
-    [client],
-  );
+  const viewer = useMemo(() => {
+    if (client === undefined) return undefined;
+    return Platform.OS === 'android'
+      ? createPhoneComputerViewer(client)
+      : createComputerViewer({ client });
+  }, [client]);
   const state = useSyncExternalStore(
     (listener) => viewer?.subscribe(listener) ?? (() => {}),
     () => viewer?.getState() ?? idle,
@@ -107,7 +118,15 @@ function LegacyComputerScreen() {
     const hidden = Keyboard.addListener('keyboardDidHide', () =>
       setTool((current) => (current === 'keyboard' ? 'mouse' : current)),
     );
+    const appState = AppState.addEventListener('change', (next) => {
+      if (next === 'active') viewer?.start();
+      else if (viewer?.getState().explicit === true) {
+        keyboard.current?.blur();
+        viewer.stop();
+      }
+    });
     return () => {
+      appState.remove();
       hidden.remove();
       viewer?.stop();
     };
@@ -124,6 +143,12 @@ function LegacyComputerScreen() {
         : undefined;
   const live = !revoked && state.frame !== undefined && message === undefined;
   const driving = live && state.control;
+  const explicit = state.explicit === true;
+  const release = () => {
+    keyboard.current?.blur();
+    setTool('mouse');
+    void viewer?.setControl(false);
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.layer.canvas.fill }}>
@@ -131,19 +156,26 @@ function LegacyComputerScreen() {
         options={viewerHeaderOptions({
           theme,
           title: t.computerTitle(bot?.displayName ?? slug ?? ''),
-          status: live ? (driving ? t.computerYouDriving : t.computerWatching) : '',
+          status: live
+            ? driving
+              ? t.computerYouDriving
+              : state.paused
+                ? t.computerVideoBotsPaused
+                : t.computerWatching
+            : '',
           driving,
           closeLabel: t.computerClose,
           onClose: close,
-          action: driving
-            ? {
-                key: 'hand-back',
-                label: t.computerHandBack,
-                symbol: { type: 'sfSymbol', name: 'hand.raised.slash' },
-                icon: 'hand-back',
-                onPress: () => void viewer?.setControl(false),
-              }
-            : undefined,
+          action:
+            driving && !explicit
+              ? {
+                  key: 'hand-back',
+                  label: t.computerHandBack,
+                  symbol: { type: 'sfSymbol', name: 'hand.raised.slash' },
+                  icon: 'hand-back',
+                  onPress: release,
+                }
+              : undefined,
         })}
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -151,10 +183,11 @@ function LegacyComputerScreen() {
           {live ? (
             <BrowserStage
               frame={state.frame!}
-              interactive={live}
+              interactive={!explicit || driving}
               mode={mode}
               cursor={cursor}
               pointerShape="arrow"
+              accessibilityLabel={explicit ? t.computerDesktopSurface : undefined}
               onInput={send}
               onWheel={(dragY, at) => send(wheelInput(dragY, at))}
             />
@@ -177,8 +210,17 @@ function LegacyComputerScreen() {
               ) : (
                 <>
                   <Text accessibilityRole="alert" tone="muted" style={{ textAlign: 'center' }}>
-                    {message}
+                    {explicit && state.notice !== undefined ? state.notice : message}
                   </Text>
+                  {explicit && !revoked ? (
+                    <Button
+                      label={t.computerDesktopReconnect}
+                      onPress={() => {
+                        viewer?.stop();
+                        viewer?.start();
+                      }}
+                    />
+                  ) : null}
                   {!revoked ? null : (
                     <View style={{ alignSelf: 'stretch', marginTop: space.x5 }}>
                       <Button
@@ -210,7 +252,28 @@ function LegacyComputerScreen() {
           </Text>
         )}
 
-        {!live ? null : (
+        {explicit && live && !driving ? (
+          <View
+            style={{ padding: space.x5, paddingBottom: insets.bottom + space.x3, gap: space.x3 }}
+          >
+            <Button
+              testID="computer-desktop-takeover"
+              label={t.computerDesktopTakeover}
+              tone="primary"
+              disabled={state.busy === true}
+              onPress={() => void viewer?.setControl(true)}
+            />
+            {state.paused ? (
+              <Button
+                testID="computer-desktop-resume"
+                label={t.computerVideoResume}
+                disabled={state.busy === true}
+                onPress={() => void viewer?.resume?.()}
+              />
+            ) : null}
+          </View>
+        ) : null}
+        {!live || (explicit && !driving) ? null : (
           <View
             style={{
               paddingHorizontal: space.x5,
@@ -219,6 +282,14 @@ function LegacyComputerScreen() {
               gap: space.x4,
             }}
           >
+            {explicit ? (
+              <Button
+                testID="computer-desktop-release"
+                label={t.computerVideoRelease}
+                disabled={state.busy === true}
+                onPress={release}
+              />
+            ) : null}
             {tool === 'keyboard' ? (
               <ComputerKeyBar
                 modifiers={modifiers}
