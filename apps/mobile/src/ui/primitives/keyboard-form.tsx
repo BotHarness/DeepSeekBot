@@ -35,6 +35,7 @@ export function KeyboardFormScroll(
     revealPast = 0,
     revealEnd = 0,
     revealBands = noBands,
+    snapToOffsets,
     ...rest
   } = props;
   const clipped = clippedHeight(nativeHeight, layoutHeight);
@@ -51,6 +52,7 @@ export function KeyboardFormScroll(
         keyboardDismissMode="interactive"
         bottomOffset={clearance}
         {...rest}
+        snapToOffsets={native.snapToOffsets ?? snapToOffsets}
         ref={native.ref}
         onLayout={(event) => {
           const next = event.nativeEvent.layout.height;
