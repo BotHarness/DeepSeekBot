@@ -1,0 +1,13 @@
+[package]
+name = "windows-lock-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows-sys = { version = "0.61.2", features = [
+  "Win32_System_Registry",
+  "Win32_System_RemoteDesktop",
+] }
