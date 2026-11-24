@@ -10638,7 +10638,7 @@ window.__ModuleLoader__.load({
 					ref: bubble,
 					id,
 					role: "tooltip",
-					className: "bhxixxii4 bhxu96u03 bhx13vifvy bhxp6lfbs bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
+					className: "bhxixxii4 bhxu96u03 bhx13vifvy bhxp6lfbs bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhx1fj9vlw bhx47corl",
 					children: text
 				}), document.body) : null]
 			});
@@ -14955,6 +14955,7 @@ window.__ModuleLoader__.load({
 .bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}
 .bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
+.bhx1fj9vlw:not(#\\#):not(#\\#):not(#\\#){white-space:pre-line}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
 .bhx1ja2u2z:not(#\\#):not(#\\#):not(#\\#){z-index:0}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
