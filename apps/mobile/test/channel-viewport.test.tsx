@@ -33,6 +33,7 @@ vi.mock('react-native-reanimated', () => ({
   useSharedValue: (value: number | boolean) => useRef({ value }).current,
   useAnimatedReaction: () => undefined,
   useAnimatedStyle: (compute: () => unknown) => compute(),
+  useDerivedValue: (compute: () => unknown) => ({ value: compute() }),
 }));
 vi.mock('react-native-keyboard-controller', () => ({
   useKeyboardHandler: (handlers: typeof native.handlers) => {

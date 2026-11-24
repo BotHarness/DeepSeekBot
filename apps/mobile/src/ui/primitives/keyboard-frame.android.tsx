@@ -29,16 +29,14 @@ export function KeyboardChatFrame({
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
-      <View style={{ flex: 1, marginBottom: island }}>
-        <View style={{ flex: 1 }}>{children}</View>
-        <KeyboardStickyView
-          offset={{ closed: 0, opened: island }}
-          onLayout={onComposerLayout}
-          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-        >
-          {composer}
-        </KeyboardStickyView>
-      </View>
+      <View style={{ flex: 1 }}>{children}</View>
+      <KeyboardStickyView
+        offset={{ closed: 0 - island, opened: 0 }}
+        onLayout={onComposerLayout}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+      >
+        {composer}
+      </KeyboardStickyView>
     </View>
   );
 }

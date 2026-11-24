@@ -4,9 +4,14 @@ import { useKeyboardChatScroll, useKeyboardOverlayStyle } from './keyboard-chat-
 
 export function useChatScrollAdapter(keyboard: ChatKeyboardCoordination, held: boolean) {
   const { island } = useChatBottom();
-  return useKeyboardChatScroll(keyboard, held, { inverted: true, offset: island, inset: 0 });
+  return useKeyboardChatScroll(keyboard, held, {
+    inverted: true,
+    offset: 0,
+    inset: 0,
+    floor: island,
+  });
 }
 
 export function useChatOverlayStyle() {
-  return useKeyboardOverlayStyle(useChatBottom().island);
+  return useKeyboardOverlayStyle(0, useChatBottom().island);
 }

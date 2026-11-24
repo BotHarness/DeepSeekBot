@@ -8,6 +8,7 @@ function useNativeChatScrollAdapter(keyboard: ChatKeyboardCoordination, held: bo
     inverted: false,
     offset: chatKeyboardOffset(bottom),
     inset: bottom.safe,
+    floor: 0,
   });
 }
 
