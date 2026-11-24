@@ -22,8 +22,9 @@ import {
   headerControlHeight,
 } from './native-header';
 import { swipeEntry } from '../shell/swipe-entry';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, type useDesignTheme } from '../design/theme';
-import { glassPress, radius, space } from '../design/tokens';
+import { glassPress, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import type { useStrings } from '../strings';
 import { useBotCall } from './call-button';
@@ -157,7 +158,7 @@ export function useConversationProfile({
         alignItems: 'center',
         gap: space.x3,
         paddingHorizontal: theme.touch / 2,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         ...titleChipFill(theme, pressed),
         overflow: 'hidden',
       })}

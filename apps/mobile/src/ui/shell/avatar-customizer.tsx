@@ -310,8 +310,8 @@ export function AvatarCustomizer({
                       onPress={() => change(item.field, color)}
                       android_ripple={{ color: theme.layer.raised.pressed }}
                       style={{
-                        minWidth: theme.touch,
-                        minHeight: theme.touch,
+                        width: theme.touch,
+                        height: theme.touch,
                         alignItems: 'center',
                         justifyContent: 'center',
                         borderRadius: radius.round,

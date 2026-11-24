@@ -3,6 +3,7 @@ import { Keyboard, Pressable, SectionList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HOST_SESSION_SEARCH_MAX } from '@botharness/host-protocol/host-sessions';
 import { SheetLoading } from '../../ui/chat/sheet';
+import { capsuleRadius } from '../../ui/design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
 import { glassPress, radius, space } from '../../ui/design/tokens';
 import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
@@ -97,7 +98,7 @@ export function SessionDrawerPanel({
         alignItems: 'center',
         gap: space.x3,
         paddingHorizontal: space.x4,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         overflow: 'hidden',
         opacity: query.canQuery ? 1 : 0.5,
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
