@@ -63,6 +63,27 @@ describe('regression proof for fix PRs', () => {
     });
   });
 
+  it('reverts the lockfile with a changed dependency patch so pnpm accepts the base state', () => {
+    const changes = parseChanges(
+      [
+        'M',
+        'patches/react-native-screens@4.30.1.patch',
+        'M',
+        'pnpm-lock.yaml',
+        'M',
+        'apps/mobile/test/sheet.test.ts',
+        '',
+      ].join('\0'),
+    );
+    expect(revertPlan(changes)).toEqual({
+      fromBase: ['patches/react-native-screens@4.30.1.patch', 'pnpm-lock.yaml'],
+      remove: [],
+    });
+    expect(
+      revertPlan(parseChanges(['M', 'src/a.ts', 'M', 'pnpm-lock.yaml', ''].join('\0'))),
+    ).toEqual({ fromBase: ['src/a.ts'], remove: [] });
+  });
+
   it('counts only a test that passes with the fix and fails without it', () => {
     const report = (statuses) => ({
       testResults: [
