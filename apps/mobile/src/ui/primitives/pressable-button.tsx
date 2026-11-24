@@ -20,8 +20,9 @@ import { controlCase } from '../platform-copy';
 
 import { buttonColors, cardChoiceColors, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { Text } from './text';
 import { LoadingIndicator } from './loading-indicator';
@@ -87,7 +88,7 @@ export function Button({
           gap: space.x3,
           paddingHorizontal: space.x5,
           paddingVertical: space.x3,
-          borderRadius: radius.round,
+          borderRadius: capsuleRadius(theme.fontScale),
           backgroundColor:
             paint?.fill ?? (pressed ? colors.pressed : filled ? colors.fill : undefined),
           overflow: 'hidden',
