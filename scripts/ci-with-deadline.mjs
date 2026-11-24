@@ -93,6 +93,16 @@ async function runAttempt(command, args, seconds, attempt, attempts) {
     await delay(1000);
     terminate('SIGKILL');
     child.unref();
+    for (let wait = 0; wait < 100 && attemptProcesses(scope).length > 0; wait += 1)
+      await delay(100);
+    const survivors = attemptProcesses(scope);
+    if (survivors.length > 0) {
+      process.stderr.write(
+        `CI timeout: ${survivors.length} processes survived SIGKILL; not retrying\n`,
+      );
+      reportProcesses(survivors);
+      return { code: 124 };
+    }
     return { code: 124, timedOut: true };
   } finally {
     deadline.abort();
