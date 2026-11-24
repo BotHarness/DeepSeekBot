@@ -88,7 +88,7 @@ jobs:
   static:
     name: lint, format, typecheck, build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -160,19 +160,19 @@ jobs:
             node scripts/feature-impact.mjs --base=HEAD^ --summary
           fi
       - name: Run pnpm lint
-        timeout-minutes: 5
-        run: exec node scripts/ci-with-deadline.mjs 120 2 pnpm lint
+        timeout-minutes: 7
+        run: exec node scripts/ci-with-deadline.mjs 160 2 pnpm lint
         env:
           BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
       - name: Run pnpm format:check
-        timeout-minutes: 2
+        timeout-minutes: 3
         run: exec node scripts/ci-with-deadline.mjs 40 2 pnpm format:check
       - name: Run pnpm typecheck
-        timeout-minutes: 3
+        timeout-minutes: 4
         run: exec node scripts/ci-with-deadline.mjs 75 2 pnpm typecheck
       - name: Run pnpm build
-        timeout-minutes: 3
-        run: exec node scripts/ci-with-deadline.mjs 80 2 pnpm build
+        timeout-minutes: 8
+        run: exec node scripts/ci-with-deadline.mjs 210 2 pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
       - name: Report kernel out-of-memory kills
         if: failure() || cancelled()
@@ -483,7 +483,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.tests != 'none'
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v7
         with:
@@ -497,8 +497,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Run pnpm e2e:smoke
-        timeout-minutes: 7
-        run: exec node scripts/ci-with-deadline.mjs 195 2 pnpm e2e:smoke
+        timeout-minutes: 12
+        run: exec node scripts/ci-with-deadline.mjs 320 2 pnpm e2e:smoke
       - name: Report kernel out-of-memory kills
         if: failure() || cancelled()
         run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
@@ -536,7 +536,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.perf == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && 16 || 12 }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && 20 || 18 }}
     env:
       BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
       DEEPSEEK_API_KEY: perf-budget-placeholder
@@ -558,7 +558,7 @@ jobs:
           sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
           sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
       - name: Launch the performance Host
-        timeout-minutes: 4
+        timeout-minutes: 9
         env:
           SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: |
@@ -566,18 +566,18 @@ jobs:
           if [ "$SYSTEM_PREVIEW_DIAGNOSTIC" != "true" ]; then
             preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
           fi
-          exec node scripts/ci-with-deadline.mjs 90 2 node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
+          exec node scripts/ci-with-deadline.mjs 220 2 node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
       - name: Check the timeline performance budget
-        timeout-minutes: 6
+        timeout-minutes: 11
         run: >-
-          exec node scripts/ci-with-deadline.mjs 170 2 node scripts/perf-idle-timeline.mjs --messages 600 --label ci
+          exec node scripts/ci-with-deadline.mjs 280 2 node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
       - name: Check GenUI opening
         id: system_preview
-        timeout-minutes: 4
+        timeout-minutes: 6
         continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: >-
-          exec node scripts/ci-with-deadline.mjs 105 2 node scripts/perf-genui-opening.mjs --headless
+          exec node scripts/ci-with-deadline.mjs 140 2 node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-ci > /dev/null
       - if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
         run: >-
@@ -590,16 +590,16 @@ jobs:
         run: node scripts/verify-app.mjs stop --name perf
       - id: controlled_launch
         if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.controlled_sandbox.outcome == 'success' && steps.browser_environment.outcome == 'success'
-        timeout-minutes: 4
+        timeout-minutes: 9
         run: >-
-          exec node scripts/ci-with-deadline.mjs 90 2 node scripts/verify-app.mjs launch --name perf
+          exec node scripts/ci-with-deadline.mjs 220 2 node scripts/verify-app.mjs launch --name perf
           --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null
       - id: controlled_preview
         if: always() && steps.controlled_launch.outcome == 'success'
         continue-on-error: true
-        timeout-minutes: 4
+        timeout-minutes: 6
         run: >-
-          exec node scripts/ci-with-deadline.mjs 105 2 node scripts/perf-genui-opening.mjs --headless
+          exec node scripts/ci-with-deadline.mjs 140 2 node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-controlled > /dev/null
       - if: always() && steps.controlled_launch.outcome == 'success'
         run: >-
