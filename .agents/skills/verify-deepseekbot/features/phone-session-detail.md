@@ -25,7 +25,7 @@ Enable **Sessions** in Settings → Interface, then open the **Sessions** tab an
 
 ## Driving it with verify-app
 
-On Android, open a Session from the **Sessions** tab. Verify that the transcript opens and the chat-style header shows Back, the Session title capsule, and the Session options button. Open the options menu, dismiss it, and use Back to return to **Sessions**.
+On Android, open a Session from the **Sessions** tab. Verify that the transcript opens and the Session top app bar shows Back, the Session title capsule, and the Session options button. Open the options menu, dismiss it, and use Back to return to **Sessions**.
 
 Use the assigned device in `docs/agents/device-qa.md` and a paired isolated Host with a working model. Use `deepseekbot bot-sessions`, `session-transcript`, and `session-model` to read the same canonical state. Compare a DM with a short draft to the base. Open a current Orchestrator, send a marked follow-up with the keyboard open, and verify it reaches the selected Session. Open a linked Assignment and verify its details, follow-up, and Stop. Open `composer-session-model`, save an allowed choice during an active Turn, and verify the pending label and the subsequent Turn's recorded model. Check English and Chinese, both themes, and a large-text logo-only chip beside Send. Open a long transcript, scroll away from the latest row, and compare its edges with the Bot Conversation screen on the same device. Tap **Jump to latest**, then open and dismiss the keyboard with an unsent draft.
 
