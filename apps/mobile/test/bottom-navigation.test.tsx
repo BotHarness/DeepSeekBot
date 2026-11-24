@@ -45,6 +45,9 @@ vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+vi.mock('../src/ui/shell/use-tab-menus', () => ({
+  useTabMenus: () => ({ menus: {}, load: () => {} }),
+}));
 vi.mock('expo-router', () => ({
   router: { push: vi.fn() },
   useIsFocused: () => true,

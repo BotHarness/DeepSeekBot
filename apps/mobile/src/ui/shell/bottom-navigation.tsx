@@ -21,6 +21,7 @@ import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter } from './tab-name-pill';
 import { tabTransition } from './tab-transition';
 import { navigationLabel } from './navigation-label';
+import { useTabMenus, type TabMenuRoute } from './use-tab-menus';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useSessionsTab } from '../interface-preferences';
 import { useStrings } from '../strings';
@@ -125,6 +126,14 @@ function NavigationBar({
   const drawerOpen = useSessionDrawer().open;
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
   const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
+  const { menus, load: loadMenus } = useTabMenus({
+    sessionsTab,
+    focusedRoute: state.routes[state.index]?.name,
+    go: (name) => {
+      const key = state.routes.find((route) => route.name === name)?.key;
+      if (key !== undefined && key !== currentKey) navigateToTab(key);
+    },
+  });
   const items: NavigationDestination[] = routes.map((route, index) => {
     const item = {
       key: route.key,
@@ -149,7 +158,7 @@ function NavigationBar({
         });
         if (!event.defaultPrevented) selectTab(route.key);
       },
-      onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
+      menu: menus[route.name as TabMenuRoute],
     };
   });
   const android = Platform.OS === 'android';
@@ -191,6 +200,7 @@ function NavigationBar({
         slide,
       ]}
     >
+      <View ref={loadMenus} collapsable={false} />
       <NavigationDestinations items={items} />
       {pill ? (
         <TabNamePill

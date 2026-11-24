@@ -24,7 +24,7 @@ import { HeaderSearch } from './header-search';
 import { HostSessionOptionsSheet } from './host-session-options';
 import { HostSessionOptionsButton } from './host-session-options-button';
 import { openNewSession } from '../../features/sessions/session-drawer-navigation';
-import { canCreateNativeSession } from './page-create-actions';
+import { canCreateNativeSession, sessionHref } from './page-create-actions';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader } from './tab-native-header';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
@@ -106,17 +106,7 @@ function HostSessionsList({
   const [searchOpen, setSearchOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
 
-  const open = (row: HostSessionRow) => {
-    router.push({
-      pathname: '/session/[id]',
-      params: {
-        id: row.sessionId,
-        hostId,
-        ...(row.source.kind === 'native' ? { source: 'native' } : { slug: row.source.botSlug }),
-        ...(row.title === undefined ? {} : { title: row.title }),
-      },
-    });
-  };
+  const open = (row: HostSessionRow) => router.push(sessionHref(row, hostId));
   const optionsItem: NativeStackHeaderItem = {
     type: 'menu',
     label: t.options,

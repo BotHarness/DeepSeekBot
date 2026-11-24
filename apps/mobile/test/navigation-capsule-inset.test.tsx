@@ -14,7 +14,6 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityElement: () => ({}),
   accessibilityHidden: () => ({}),
   accessibilityAddTraits: () => ({}),
-  onLongPressGesture: () => ({}),
   buttonStyle: () => ({}),
   background: () => ({}),
   glassEffect: () => ({ $type: 'glassEffect' }),
@@ -62,7 +61,6 @@ it('lets each tab fill the bar height so its whole slot is hit-testable', async 
               activity: false,
               count: 0,
               onPress: () => {},
-              onLongPress: () => {},
             },
           ]}
         />,
