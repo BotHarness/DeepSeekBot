@@ -9,6 +9,7 @@ import {
   AppearanceSetting,
   InterfaceSaveNotice,
   LanguageSetting,
+  SessionNavigationSettings,
   SessionsTabSetting,
 } from './interface-settings';
 import { useStrings } from './strings';
@@ -143,6 +144,7 @@ export function SettingsView({
         {hapticFeedback}
         {deliveryReceipts}
       </SettingsSection>
+      <SessionNavigationSettings on={SHEET_GROUP} />
       <InterfaceSaveNotice />
       <SettingsSection title={t.about} on={SHEET_GROUP}>
         <SettingsRow

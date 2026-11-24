@@ -169,9 +169,17 @@ Choosing a Session replaces the Sessions tab's content, so there is no Back: the
 
 The Session header has no ⋯ button (Human decision, 2026-11-24). Tapping the name capsule opens the Session options: on iOS a SwiftUI `Menu` whose label is the glass capsule, on Android the Material 3 `DropdownMenu` anchored to the identity island. The menu starts with the full Session name, because the capsule truncates it: on iOS this is the menu section's title, on Android a non-interactive header row. The items are the ones ⋯ used to hold (Stop, Archive or Unarchive, Model choice). The capsule's accessibility label is the full name, with the hint “Session options”. While the transcript is still loading, the capsule is a plain heading.
 
-## Phone Sessions query controls
+## Phone Sessions Stacked style and landing (#5110)
 
-The Sessions tab adds Search and Filter and sort to its navigation bar. Search uses the iOS navigation bar's native search field and Android Compose Material 3 `DockedSearchBar`, with the virtualized list below it. End editing to return to the toolbar and keep the query. Close search to clear the query. The iOS navigation bar’s SwiftUI `Menu` shows inline checkmark groups for Sort by and Source. The Android `ModalBottomSheet` shows the same choices with radio buttons. Select an option to apply it immediately. Sessions sort by last Human turn by default, with creation time and last activity also available. The device remembers the sort. Source is All, Native (Host Owner) or a Bot with visible Sessions. Search and source can apply together.
+**Stacked** style makes the Session list the Sessions tab root. It is the drawer's `SessionDrawerPanel` as a page (`variant="page"`), so the rows, day groups, Filter and sort (with Bot Sessions: Show / Hide), search and empty states are the drawer's. The header holds the Environment name, Filter and sort and, for the Host Owner, ✎ New Session. The Search pill sits under the header instead of at the bottom, because the island is there. Choosing a Session pushes it with Back. ✎ pushes the New Session screen with Back. From inside a Session, ✎ replaces that Session with the New Session screen, so Back still returns to the list. Stacked style has no drawer and no edge swipe, so the left edge stays the system Back. The island stays visible inside a Session in both styles.
+
+Settings › This phone › **Sessions** (shown while the Sessions tab is on) keeps three phone-only preferences in `interfacePreferences`:
+
+- **Session navigation style**: Drawer (default) or Stacked. A change applies without a restart and keeps the open Session: when the Sessions tab is focused again, Stacked puts the list under the open Session, and Drawer makes the open Session the root and drops a pushed New Session screen.
+- **On launch** (the first entry to the Sessions tab after a cold launch): New Session (default), Session list or Last Session. The last Session opened in the Sessions tab is kept in a local file. With none kept, Last Session falls back to New Session.
+- **Returning to Sessions** (later entries from another tab): Stay where you were (default), New Session or Session list.
+
+In Drawer style, “Session list” is the New Session screen with the drawer open. Tapping the selected Sessions tab again goes to the root in both styles. A long-press tab menu choice opens its own target and counts as the first entry.
 
 ## Android chat top bar and composer
 

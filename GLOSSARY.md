@@ -1263,7 +1263,7 @@ The tab that shows Activity.
 _Avoid_: notifications tab, inbox
 
 **Sessions tab**:
-The optional tab for the phone's Host Sessions. Tapping it lands on the New Session screen; existing Sessions are listed in the Session drawer.
+The optional tab for the phone's Host Sessions. Its root follows the Session navigation style: the New Session screen in Drawer style, with existing Sessions in the Session drawer, or the Session list in Stacked style. Per-phone landing settings choose where it opens on launch and when returning from another tab.
 _Avoid_: Session list tab, Sessions page
 
 **New Session screen**:

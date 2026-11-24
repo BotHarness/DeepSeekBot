@@ -10,12 +10,10 @@ import { openDrawerSession, openNewSession } from './session-drawer-navigation';
 import { useDrawerPlace } from './session-drawer-state';
 import type { SessionQueryHost } from './use-session-query';
 
-export function SessionDrawerContent({ active }: { active: boolean }) {
+export function useSessionScope() {
   const t = useStrings().hostSessions;
-  const { saved } = useHostSession();
   const connected = useHostSessions();
   const [scope] = useConversationFilter();
-  const place = useDrawerPlace();
   const scoped = connected.find((host) => computerEnvironmentKey(host.saved.hostId) === scope);
   const chosen =
     scoped === undefined
@@ -33,23 +31,35 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
       })),
     [key, nameKey],
   );
-  if (hosts.length === 0) return null;
-  const title = scoped === undefined ? t.allEnvironments : hosts[0]!.hostName;
+  return {
+    key,
+    hosts,
+    title: scoped === undefined ? t.allEnvironments : (hosts[0]?.hostName ?? t.title),
+    showHost: scoped === undefined,
+    canCreate: chosen.some((host) => canCreateNativeSession(host.saved)),
+  };
+}
+
+export function SessionDrawerContent({ active }: { active: boolean }) {
+  const { saved } = useHostSession();
+  const place = useDrawerPlace();
+  const scope = useSessionScope();
+  if (scope.hosts.length === 0) return null;
   return (
     <SessionDrawerPanel
-      key={key}
-      hosts={hosts}
-      title={title}
-      showHost={scoped === undefined}
+      key={scope.key}
+      hosts={scope.hosts}
+      title={scope.title}
+      showHost={scope.showHost}
       active={active}
       selected={
         place.sessionId === undefined || saved == null
           ? undefined
           : { hostId: place.hostId ?? saved.hostId, sessionId: place.sessionId }
       }
-      canCreate={chosen.some((host) => canCreateNativeSession(host.saved))}
+      canCreate={scope.canCreate}
       onOpen={(row) => openDrawerSession(row.hostId, row)}
-      onNew={openNewSession}
+      onNew={() => openNewSession()}
     />
   );
 }

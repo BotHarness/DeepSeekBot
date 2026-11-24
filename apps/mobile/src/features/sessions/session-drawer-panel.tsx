@@ -15,6 +15,8 @@ import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
 import { useStrings } from '../../ui/strings';
 import { sessionDrawerSections } from './session-drawer-model';
 import { SessionOptionsMenu } from './session-options-menu';
+import { HeaderCircleButton } from '../../ui/chat/header-chrome';
+import { useFloatingTabInset } from '../../ui/shell/floating-tab-inset';
 import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 
 export type SessionDrawerPanelProps = {
@@ -26,6 +28,7 @@ export type SessionDrawerPanelProps = {
   canCreate: boolean;
   onOpen(row: SessionQueryRow): void;
   onNew(): void;
+  variant?: 'drawer' | 'page';
 };
 
 export function SessionDrawerPanel({
@@ -37,7 +40,10 @@ export function SessionDrawerPanel({
   canCreate,
   onOpen,
   onNew,
+  variant = 'drawer',
 }: SessionDrawerPanelProps) {
+  const page = variant === 'page';
+  const tabInset = useFloatingTabInset();
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -49,8 +55,65 @@ export function SessionDrawerPanel({
     setSearching(false);
     Keyboard.dismiss();
   };
+  const searchBlock = searching ? (
+    <SearchField
+      testID="session-drawer-search-field"
+      floating
+      autoFocus
+      inset={0}
+      value={query.draft}
+      placeholder={t.search}
+      maxLength={HOST_SESSION_SEARCH_MAX}
+      onChangeText={(text) => query.changeSearch(text)}
+      onSubmitEditing={(text) => {
+        query.changeSearch(text, true);
+        Keyboard.dismiss();
+      }}
+      onClose={closeSearch}
+      trailing={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.searchCancel}
+          testID="session-drawer-search-cancel"
+          onPress={closeSearch}
+          hitSlop={space.x2}
+          style={{ minHeight: theme.touch, justifyContent: 'center' }}
+        >
+          <Text tone="accent">{t.searchCancel}</Text>
+        </Pressable>
+      }
+    />
+  ) : (
+    <Pressable
+      testID="session-drawer-search"
+      accessibilityRole="search"
+      accessibilityLabel={t.search}
+      disabled={!query.canQuery}
+      onPress={() => setSearching(true)}
+      android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
+      style={({ pressed }) => ({
+        minHeight: theme.touch,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x3,
+        paddingHorizontal: space.x4,
+        borderRadius: radius.round,
+        overflow: 'hidden',
+        opacity: query.canQuery ? 1 : 0.5,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+      })}
+    >
+      <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+      <Text tone={query.search ? 'fg' : 'subtle'} numberOfLines={1} style={{ flex: 1 }}>
+        {query.search || t.search}
+      </Text>
+    </Pressable>
+  );
   return (
-    <View testID="session-drawer" style={{ flex: 1, paddingTop: insets.top }}>
+    <View
+      testID={page ? 'session-list' : 'session-drawer'}
+      style={{ flex: 1, paddingTop: insets.top }}
+    >
       <View
         style={{
           minHeight: theme.touch + space.x2 * 2,
@@ -74,14 +137,25 @@ export function SessionDrawerPanel({
         {query.canQuery ? (
           <SessionOptionsMenu active={query.optionsActive} groups={query.groups} />
         ) : null}
+        {page && canCreate ? (
+          <HeaderCircleButton label={t.create} testID="session-list-new" onPress={onNew}>
+            <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
+          </HeaderCircleButton>
+        ) : null}
       </View>
+      {page ? (
+        <View style={{ paddingHorizontal: space.x4, paddingBottom: space.x2 }}>{searchBlock}</View>
+      ) : null}
       <SectionList
         testID="session-drawer-list"
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: space.x3, paddingBottom: space.x3 }}
+        contentContainerStyle={{
+          paddingHorizontal: space.x3,
+          paddingBottom: page ? tabInset : space.x3,
+        }}
         sections={sections}
         keyExtractor={(row) => `${row.hostId}:${row.sessionId}`}
         refreshing={query.online && query.pullRefreshing}
@@ -131,96 +205,43 @@ export function SessionDrawerPanel({
           />
         )}
       />
-      <KeyboardFormFooter>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            paddingHorizontal: space.x4,
-            paddingTop: space.x2,
-            paddingBottom: Math.max(insets.bottom, space.x4),
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            {searching ? (
-              <SearchField
-                testID="session-drawer-search-field"
-                floating
-                autoFocus
-                inset={0}
-                value={query.draft}
-                placeholder={t.search}
-                maxLength={HOST_SESSION_SEARCH_MAX}
-                onChangeText={(text) => query.changeSearch(text)}
-                onSubmitEditing={(text) => {
-                  query.changeSearch(text, true);
-                  Keyboard.dismiss();
-                }}
-                onClose={closeSearch}
-                trailing={
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t.searchCancel}
-                    testID="session-drawer-search-cancel"
-                    onPress={closeSearch}
-                    hitSlop={space.x2}
-                    style={{ minHeight: theme.touch, justifyContent: 'center' }}
-                  >
-                    <Text tone="accent">{t.searchCancel}</Text>
-                  </Pressable>
-                }
-              />
-            ) : (
+      {page ? null : (
+        <KeyboardFormFooter>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x3,
+              paddingHorizontal: space.x4,
+              paddingTop: space.x2,
+              paddingBottom: Math.max(insets.bottom, space.x4),
+            }}
+          >
+            <View style={{ flex: 1 }}>{searchBlock}</View>
+            {canCreate && !searching ? (
               <Pressable
-                testID="session-drawer-search"
-                accessibilityRole="search"
-                accessibilityLabel={t.search}
-                disabled={!query.canQuery}
-                onPress={() => setSearching(true)}
-                android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
+                testID="session-drawer-new"
+                accessibilityRole="button"
+                accessibilityLabel={t.create}
+                onPress={onNew}
+                android_ripple={{ color: pressTint(theme.color.base), foreground: true }}
                 style={({ pressed }) => ({
-                  minHeight: theme.touch,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.x3,
-                  paddingHorizontal: space.x4,
+                  width: theme.touch,
+                  height: theme.touch,
                   borderRadius: radius.round,
                   overflow: 'hidden',
-                  opacity: query.canQuery ? 1 : 0.5,
-                  backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: theme.color.fg,
+                  opacity: pressed ? glassPress.dim : 1,
                 })}
               >
-                <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
-                <Text tone={query.search ? 'fg' : 'subtle'} numberOfLines={1} style={{ flex: 1 }}>
-                  {query.search || t.search}
-                </Text>
+                <PencilIcon color={theme.color.base} size={theme.type.title.line} />
               </Pressable>
-            )}
+            ) : null}
           </View>
-          {canCreate && !searching ? (
-            <Pressable
-              testID="session-drawer-new"
-              accessibilityRole="button"
-              accessibilityLabel={t.create}
-              onPress={onNew}
-              android_ripple={{ color: pressTint(theme.color.base), foreground: true }}
-              style={({ pressed }) => ({
-                width: theme.touch,
-                height: theme.touch,
-                borderRadius: radius.round,
-                overflow: 'hidden',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: theme.color.fg,
-                opacity: pressed ? glassPress.dim : 1,
-              })}
-            >
-              <PencilIcon color={theme.color.base} size={theme.type.title.line} />
-            </Pressable>
-          ) : null}
-        </View>
-      </KeyboardFormFooter>
+        </KeyboardFormFooter>
+      )}
     </View>
   );
 }

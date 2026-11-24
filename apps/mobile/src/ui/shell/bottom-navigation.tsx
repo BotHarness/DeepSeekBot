@@ -16,6 +16,7 @@ import {
   sessionDrawerProgress,
   useSessionDrawer,
 } from '../../features/sessions/session-drawer-state';
+import { landInSessionsTab } from '../../features/sessions/session-drawer-navigation';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter } from './tab-name-pill';
@@ -96,6 +97,19 @@ function NavigationLayout() {
   );
 }
 
+type NestedStack = {
+  state?: { index?: number; routes: readonly { name: string; params?: object | undefined }[] };
+};
+
+function sessionsStack(route: object) {
+  const state = (route as NestedStack).state;
+  if (state === undefined) return undefined;
+  return {
+    index: state.index ?? state.routes.length - 1,
+    routes: state.routes.map((route) => ({ name: route.name, params: route.params })),
+  };
+}
+
 type NavigationBarLayout = TabBarProps & {
   sessionsTab: boolean;
   size: number;
@@ -156,7 +170,9 @@ function NavigationBar({
           target: route.key,
           canPreventDefault: true,
         });
-        if (!event.defaultPrevented) selectTab(route.key);
+        if (event.defaultPrevented) return;
+        selectTab(route.key);
+        if (item.sessions) landInSessionsTab(item.focused, sessionsStack(route));
       },
       menu: menus[route.name as TabMenuRoute],
     };

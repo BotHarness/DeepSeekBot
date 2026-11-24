@@ -22,6 +22,8 @@ vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
   useRouter: () => ({ replace: fixture.replace }),
+  useSegments: () => ['(tabs)', '(sessions)', 'sessions'],
+  useNavigation: () => ({ getState: () => ({ index: 0, routes: [] }), reset: vi.fn() }),
 }));
 vi.mock('../src/ui/interface-preferences', async (original) => ({
   ...(await original<typeof import('../src/ui/interface-preferences')>()),
