@@ -5,6 +5,10 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('../src/ui/primitives/app-dialog', () => ({ showActionMenu: vi.fn() }));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
   async () => (await import('./compose-menu-shim')).modifiers,
@@ -47,21 +51,29 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
     BadgedBox,
     Badge: ({ children, containerColor }: { children?: ReactNode; containerColor?: string }) =>
       createElement('b', { 'data-container': containerColor ?? 'default' }, children),
-    Icon: () => createElement('i', { 'data-icon': true }),
+    Icon: ({ source }: { source: string }) => createElement('i', { 'data-icon': source }),
   };
 });
 import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.android';
 import { router } from 'expo-router';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-it('keeps the Activity icon and labels, marks pending items with a Material 3 dot badge and speaks the count', async () => {
+it('shows the Activity icon without a label, marks pending items with a Material 3 dot badge and speaks the count', async () => {
   const requireAsset = createRequire(import.meta.url);
-  const assets = ['activity', 'chats', 'settings'].map((name) =>
-    requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
-  );
-  for (const path of assets) {
+  const names = [
+    'activity',
+    'activity-filled',
+    'chats',
+    'chats-filled',
+    'sessions',
+    'sessions-filled',
+    'settings',
+    'settings-outline',
+  ];
+  const assets = names.map((name) => requireAsset.resolve('../assets/toolbar/' + name + '.xml'));
+  for (const [index, path] of assets.entries()) {
     const asset = new Module(path);
-    asset.exports = 1;
+    asset.exports = names[index];
     requireAsset.cache[path] = asset;
   }
   const host = document.createElement('div');
@@ -78,7 +90,6 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
               count: 0,
               focused: !focused,
               onPress: select,
-              onLongPress() {},
             },
             {
               key: 'activity',
@@ -86,7 +97,6 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
               count,
               focused,
               onPress: select,
-              onLongPress() {},
             },
             {
               key: 'settings',
@@ -95,7 +105,6 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
               count: 0,
               focused: false,
               onPress: () => router.push('/settings'),
-              onLongPress() {},
             },
           ],
         }),
@@ -111,8 +120,10 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
       ] as const) {
         render(count, focused);
         const button = host.querySelectorAll('button')[1]!;
-        expect(button.querySelector('[data-slot="label"]')?.textContent).toBe(t.activity);
-        expect(button.querySelector('[data-slot="icon"] i')).not.toBeNull();
+        expect(button.querySelector('[data-slot="label"]')).toBeNull();
+        expect(button.querySelector('[data-slot="icon"] i')?.getAttribute('data-icon')).toBe(
+          focused ? 'activity-filled' : 'activity',
+        );
         const badge = button.querySelector('[data-slot="badge"] b');
         expect(Boolean(badge)).toBe(count > 0);
         if (badge) {
@@ -125,8 +136,10 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
         expect(button.getAttribute('aria-pressed')).toBe(String(focused));
       }
       const settings = host.querySelectorAll('button')[2]!;
-      expect(settings.querySelector('[data-slot="label"]')?.textContent).toBe(t.settings);
-      expect(settings.querySelector('[data-slot="icon"] i')).not.toBeNull();
+      expect(settings.querySelector('[data-slot="label"]')).toBeNull();
+      expect(settings.querySelector('[data-slot="icon"] i')?.getAttribute('data-icon')).toBe(
+        'settings-outline',
+      );
       expect(settings.getAttribute('aria-pressed')).toBe('false');
       vi.mocked(router.push).mockClear();
       await act(async () => settings.click());
@@ -144,14 +157,22 @@ it('keeps the Activity icon and labels, marks pending items with a Material 3 do
   }
 });
 
-it('drops every Material label together when labels do not fit and keeps each content description', async () => {
+it('shows no Material label, fills only the selected icon and keeps each content description', async () => {
   const requireAsset = createRequire(import.meta.url);
-  const assets = ['chats', 'sessions', 'settings'].map((name) =>
-    requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
-  );
-  for (const path of assets) {
+  const names = [
+    'activity',
+    'activity-filled',
+    'chats',
+    'chats-filled',
+    'sessions',
+    'sessions-filled',
+    'settings',
+    'settings-outline',
+  ];
+  const assets = names.map((name) => requireAsset.resolve('../assets/toolbar/' + name + '.xml'));
+  for (const [index, path] of assets.entries()) {
     const asset = new Module(path);
-    asset.exports = 1;
+    asset.exports = names[index];
     requireAsset.cache[path] = asset;
   }
   const host = document.createElement('div');
@@ -163,13 +184,11 @@ it('drops every Material label together when labels do not fit and keeps each co
     ...kind,
     count: 0,
     onPress() {},
-    onLongPress() {},
   });
   try {
     act(() =>
       root.render(
         createElement(NavigationDestinations, {
-          labels: false,
           items: [
             item('chats', {}),
             item('sessions', { sessions: true }),
@@ -179,11 +198,24 @@ it('drops every Material label together when labels do not fit and keeps each co
       ),
     );
     expect(host.querySelectorAll('[data-slot="label"]')).toHaveLength(0);
-    expect(host.querySelectorAll('[data-slot="icon"] i')).toHaveLength(3);
+    expect(
+      [...host.querySelectorAll('[data-slot="icon"] i')].map((i) => i.getAttribute('data-icon')),
+    ).toEqual(['chats-filled', 'sessions', 'settings-outline']);
     expect([...host.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))).toEqual([
       t.chats,
       t.hostSessions.title,
       t.settings,
+    ]);
+    expect(
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => [
+        tab.getAttribute('aria-label'),
+        tab.getAttribute('aria-selected'),
+        tab.getAttribute('data-testid'),
+      ]),
+    ).toEqual([
+      [t.chats, 'true', 'navigation-chats-a11y'],
+      [t.hostSessions.title, 'false', 'sessions-tab-a11y'],
+      [t.settings, 'false', 'settings-button-a11y'],
     ]);
   } finally {
     act(() => root.unmount());

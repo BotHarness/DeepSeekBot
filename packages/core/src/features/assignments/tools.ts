@@ -944,6 +944,7 @@ export function isReportState(value: string): value is AssignmentReportState {
 export function createAssignmentReportTool(
   currentRun: () => { run: Pick<AssignmentAgentRun, 'report'>; hasOutcome: boolean } | undefined,
   agent: Pick<Agent, 'session'>,
+  withProvenance?: (summary: string) => string,
 ): ToolDefinition {
   return defineTool({
     name: 'report_to_orchestrator',
@@ -985,7 +986,7 @@ export function createAssignmentReportTool(
       await active.run.report(
         {
           state: args.state,
-          summary: args.summary,
+          summary: withProvenance?.(args.summary) ?? args.summary,
           ...(args.expects_reply === undefined
             ? {}
             : { expectsReply: args.expects_reply === true }),

@@ -454,6 +454,10 @@ _避免使用_：Memory tool、filesystem watcher、Git event source、generic r
 Memory Repository 中的普通 Git commit。Git 作者和拓扑保持原样；BotHarness 可以另记一次可信操作结束时的 HEAD、actor 与 cause，作为审计/恢复检查点，而不是文件成为记忆的许可。
 _避免使用_：accepted commit、file save、filesystem event、auto-save
 
+**Memory Lease**：
+让一个 Tob 所有的 Assignment 为 Tob 私聊中的一次 Human 请求只读选定 Bot 已接受 Memory 的授权。它绑定该请求的 Source Event、这个 Assignment 和每个 Bot 的身份代次，记录每次读取及其 revision；被撤销、Assignment 归档或请求被清除时结束。它从不允许写入。
+_避免使用_：Memory share、cross-Bot access、Memory permission、borrowed Memory
+
 **Memory Observation**：
 Host 看到的仓库状态的可信记录，可关联受信任的 Orchestrator Session 与 Source Event。它说明状态何时被看到，不推断 Git 内容的作者；观察不会暂存、提交、拒绝或隐藏当前工作树文件。
 _避免使用_：commit acceptance、filesystem watch、background distillation
@@ -1282,7 +1286,7 @@ _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 _避免使用_：偏好页、齿轮菜单
 
 **Environment sheet**：
-环境选择 sheet。从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
+环境选择 sheet。从 Settings 的「环境设定」分组或 Chats header 的环境名打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
 _避免使用_：Workspace panel、Workspace drawer、Host drawer、Host chip、侧边栏
 
 **Conversation screen**：

@@ -26,6 +26,7 @@ const fixture = vi.hoisted(() => ({
   invalidations: 0,
   filter: 'all',
   backs: 0,
+  pushed: [] as string[],
 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -35,7 +36,7 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigation,
   usePathname: () => '/',
   useGlobalSearchParams: () => ({}),
-  router: {},
+  router: { push: (path: string) => fixture.pushed.push(path) },
   useRouter: () => ({ back: () => fixture.backs++, push: () => {} }),
 }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
@@ -93,7 +94,8 @@ vi.mock('../src/ui/primitives/sheet-screen', async () => {
 vi.mock('../src/ui/primitives/sheet-header', async () => {
   const { createElement } = await import('react');
   return {
-    SheetHeader: ({ title }: { title: string }) => createElement('h2', { role: 'header' }, title),
+    SheetHeader: ({ title, trailing }: { title: string; trailing?: import('react').ReactNode }) =>
+      createElement('div', null, createElement('h2', { role: 'header' }, title), trailing),
   };
 });
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));
@@ -232,6 +234,7 @@ beforeEach(async () => {
   fixture.selected = 'a';
   fixture.invalidations = 0;
   fixture.backs = 0;
+  fixture.pushed = [];
   fixture.filter = 'all';
   fixture.hosts = [
     { hostId: 'a', hostName: 'A', routes: ['https://a.test'], deviceId: 'qa', credential: 'first' },
@@ -326,14 +329,24 @@ it('unpairing removes only routes whose explicit Host source was removed', async
   expect(state.routes[1]?.params).toMatchObject({ hostId: 'b' });
 });
 
-it('the Environment sheet lists All, each Computer and then pairing as native rows', async () => {
+it('the Environment sheet lists All and each Computer, with pairing behind the header +', async () => {
   expect(node.querySelector('[role="header"]')?.textContent).toBe(t.environmentSheet.title);
   const ids = [...node.querySelectorAll('[data-testid]')].map((item) =>
     item.getAttribute('data-testid'),
   );
-  expect(
-    ids.filter((id) => /^(environment-all|drawer-host-|environment-pair)/.test(id ?? '')),
-  ).toEqual(['environment-all', 'drawer-host-a', 'drawer-host-b', 'environment-pair']);
+  expect(ids.filter((id) => /^(environment-|drawer-host-)/.test(id ?? ''))).toEqual([
+    'environment-add',
+    'environment-sheet',
+    'environment-all',
+    'drawer-host-a',
+    'drawer-host-b',
+  ]);
+  await act(async () =>
+    node.querySelector<HTMLButtonElement>('[data-testid="environment-add"]')!.click(),
+  );
+  expect(fixture.backs).toBe(1);
+  expect(fixture.pushed).toEqual(['/pair']);
+  await act(async () => root.render(<Entry />));
   fixture.filter = JSON.stringify(['computer', 'b']);
   await act(async () =>
     node.querySelector<HTMLButtonElement>('[data-testid="environment-all"]')!.click(),

@@ -43,7 +43,7 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
-import { fab, searchAppBar, space } from '../../../src/ui/design/tokens';
+import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -54,10 +54,11 @@ import { useCreationTargets } from '../../../src/ui/shell/use-creation-targets';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
-import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
+import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
+import { useChatsCreate } from '../../../src/ui/shell/chats-create';
 import { hostDrawer } from '../../../src/ui/shell/host-drawer-state';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
@@ -74,7 +75,9 @@ import { useConnectionPresence } from '../../../src/ui/primitives/connection-pro
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
-import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
+import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
+import { useHideChromeOnScroll } from '../../../src/ui/shell/tab-chrome';
+import { TobEntryBar, tobEntryBarHeight } from '../../../src/ui/shell/tob-entry-bar';
 
 import {
   environmentChatList,
@@ -152,6 +155,7 @@ const HomeContent = memo(function HomeContent({
   const cloud = useCloudSnapshot();
   const directory = useCloudConversations();
   const [filter, setFilter] = useConversationFilter();
+  const create = useChatsCreate(filter);
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string>();
   const openTarget = useRef<string | undefined>(undefined);
@@ -242,8 +246,20 @@ const HomeContent = memo(function HomeContent({
     recentHostIds(recent),
     saved?.hostId,
   );
-  const tobHref = tobModeHref(tobHostId, tobComputers);
-  const pullFocused = useIsFocused();
+  const tobHref = tobModeHref(
+    tobHostId,
+    tobComputers,
+    Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'web',
+  );
+  const tobName = hosts
+    .find((host) => host.saved.hostId === tobHostId)
+    ?.snapshot.roster?.bots.find((bot) => bot.slug === tobHref?.params.slug)?.displayName;
+  const browsing = !searching && !searchFocused && query === '';
+  const hideChrome = useHideChromeOnScroll(browsing);
+  const tobEntry =
+    tobHref !== undefined && browsing
+      ? { href: tobHref, name: tobName ?? tobHref.params.slug }
+      : undefined;
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -616,6 +632,7 @@ const HomeContent = memo(function HomeContent({
         }
         nativeSearch={{
           placeholder: t.searchPlaceholder,
+          label: t.openSearch,
           onChange: onQuery,
           onFocus: () => {
             setSearching(true);
@@ -645,12 +662,11 @@ const HomeContent = memo(function HomeContent({
             />
           ) : undefined
         }
+        nativeItems={create.nativeItem ? [create.nativeItem] : undefined}
         actions={
-          <HeaderAction
-            icon="search"
-            label={t.openSearch}
-            testID="search-button"
-            onPress={() => setSearching(true)}
+          <ChatsHeaderActions
+            search={{ label: t.openSearch, onPress: () => setSearching(true) }}
+            create={create.button}
           />
         }
       >
@@ -677,21 +693,17 @@ const HomeContent = memo(function HomeContent({
           )}
           travel={lastChatTravel}
         >
-          <PullToTob
-            enabled={pullFocused && !searching && !searchFocused && query === ''}
-            scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
-            hostId={tobHostId}
-            href={tobHref}
-            refreshing={refreshing}
-            onRefresh={() => void refresh()}
-            onOpen={(href) => router.push(href)}
-          >
+          <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
             {(pull) => (
               <Animated.FlatList<HomeItem>
-                {...pull}
+                {...(browsing ? pull : {})}
+                onScroll={hideChrome}
                 renderScrollComponent={renderKeyboardFormScroll}
                 scrollEventThrottle={1}
-                contentContainerStyle={{ paddingBottom: bottom + fab.size + space.x6 }}
+                contentContainerStyle={{
+                  paddingBottom:
+                    bottom + space.x6 + (tobEntry ? tobEntryBarHeight(theme) + space.x3 : 0),
+                }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 data={listItems}
@@ -876,9 +888,11 @@ const HomeContent = memo(function HomeContent({
                 }
               />
             )}
-          </PullToTob>
+          </PullToRefresh>
         </LastChatSwipe>
       </HomeHeader>
+      {tobEntry ? <TobEntryBar href={tobEntry.href} name={tobEntry.name} /> : null}
+      {create.panel}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet

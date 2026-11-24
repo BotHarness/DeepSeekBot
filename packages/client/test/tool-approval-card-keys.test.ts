@@ -570,6 +570,57 @@ describe('Tool approval file diff', () => {
     expect(approvalFileChange('edit', 'not json')).toBeUndefined();
   });
 
+  it('reads a reviewed Tob Memory diff with its base revision', () => {
+    const base = 'a'.repeat(40);
+    const save = approvalFileChange(
+      'deepseekbot memory-save',
+      JSON.stringify({
+        command: 'memory-save',
+        target: 'research',
+        previousValue: { path: 'SOUL.md', revision: base },
+        patch: {
+          path: 'SOUL.md',
+          expectedHead: base,
+          diff: '--- a/SOUL.md\n+++ b/SOUL.md\n@@ -1,2 +1,2 @@\n # Soul\n-old\n+new\n',
+        },
+      }),
+    );
+    expect(save).toEqual({
+      path: 'research · SOUL.md @ aaaaaaa',
+      added: 1,
+      removed: 1,
+      lines: [
+        { kind: 'context', text: '@@ -1,2 +1,2 @@' },
+        { kind: 'context', text: '# Soul' },
+        { kind: 'remove', text: 'old' },
+        { kind: 'add', text: 'new' },
+      ],
+    });
+    expect(
+      approvalFileChange(
+        'deepseekbot memory-restore-commit',
+        JSON.stringify({
+          target: 'research',
+          patch: {
+            sha: 'b'.repeat(40),
+            expectedHead: base,
+            diff: 'diff --git a/n.md b/n.md\nindex 1..2 100644\n--- a/n.md\n+++ b/n.md\n@@ -1 +1 @@\n-second\n+first\n',
+          },
+        }),
+      ),
+    ).toMatchObject({
+      path: 'research · aaaaaaa → bbbbbbb',
+      added: 1,
+      removed: 1,
+      lines: [
+        { kind: 'context', text: 'diff --git a/n.md b/n.md' },
+        { kind: 'context', text: '@@ -1 +1 @@' },
+        { kind: 'remove', text: 'second' },
+        { kind: 'add', text: 'first' },
+      ],
+    });
+  });
+
   it('renders the diff and folds long input', async () => {
     const content = Array.from({ length: 30 }, (_, index) => 'line ' + index).join('\n');
     const card = await render(

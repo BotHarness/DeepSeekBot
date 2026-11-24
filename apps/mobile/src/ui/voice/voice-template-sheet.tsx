@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Keyboard, View, type ViewInstance } from 'react-native';
+import { Keyboard, Platform, View, type ViewInstance } from 'react-native';
 
 import { errorText } from '@botharness/host-client/bot-settings';
 import {
@@ -106,7 +106,12 @@ export function VoiceTemplateSheet({
     <Sheet visible label={t.template.edit} onClose={close} avoidKeyboard fill>
       <View ref={mount} testID="voice-template-edit" style={{ flexShrink: 1 }}>
         <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-          <DrawerHeader title={t.template.editTitle(service.name)} onClose={close} />
+          <DrawerHeader
+            {...(Platform.OS === 'android'
+              ? { title: t.template.edit, subtitle: service.name }
+              : { title: t.template.editTitle(service.name) })}
+            onClose={close}
+          />
         </View>
         <KeyboardFormScroll nestedScrollEnabled>
           {draft === undefined ? (

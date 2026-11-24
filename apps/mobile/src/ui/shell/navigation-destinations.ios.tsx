@@ -1,7 +1,8 @@
-import { Button, ContextMenu, Host, HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, Section, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   accessibilityElement,
+  accessibilityHidden,
   accessibilityLabel,
   background,
   buttonStyle,
@@ -9,21 +10,19 @@ import {
   font,
   foregroundStyle,
   frame,
-  glassEffect,
   lineLimit,
   monospacedDigit,
-  onLongPressGesture,
-  padding,
   shapes,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
-import type { ReactNode } from 'react';
-import { Platform } from 'react-native';
+import type { ReactElement } from 'react';
 import { useDesignTheme } from '../design/theme';
 import { navigationBar, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 import { navigationLabel } from './navigation-label';
+import type { TabMenuEntry, TabMenuGlyph } from './tab-menu-model';
 
 export const tabSymbols = {
   chats: ['bubble.left.and.bubble.right', 'bubble.left.and.bubble.right.fill'],
@@ -52,16 +51,9 @@ const symbolBox = frame({
 });
 const symbolSize = dynamicTypeSize({ max: 'xxxLarge' });
 
-export function NavigationDestinations({
-  items,
-  labels = true,
-}: {
-  items: NavigationDestination[];
-  labels?: boolean;
-}) {
+export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
   return (
     <Host key={theme.scheme} style={{ flex: 1 }} colorScheme={theme.scheme}>
       <HStack
@@ -87,28 +79,16 @@ export function NavigationDestinations({
               onPress={item.onPress}
               modifiers={[
                 buttonStyle('plain'),
-                ...(item.focused
-                  ? [
-                      glass
-                        ? glassEffect({
-                            glass: { variant: 'regular', interactive: true },
-                            shape: 'capsule',
-                          })
-                        : background(theme.layer.raised.pressed, shapes.capsule()),
-                    ]
-                  : [background(navigationBar.hitFill, shapes.capsule())]),
-                onLongPressGesture(item.onLongPress),
+                background(navigationBar.hitFill, shapes.capsule()),
                 frame({ maxWidth: Infinity, maxHeight: Infinity }),
                 accessibilityElement('ignore'),
                 accessibilityLabel(accessibility),
-                accessibilityAddTraits(item.focused ? ['isSelected'] : []),
+                accessibilityAddTraits(item.focused ? ['isButton', 'isSelected'] : ['isButton']),
                 foregroundStyle(item.focused ? theme.color.fg : theme.color.muted),
               ]}
             >
               <VStack
-                spacing={space.x1}
                 modifiers={[
-                  padding({ horizontal: navigationBar.labelInset, vertical: space.x1 }),
                   frame({ maxWidth: Infinity, maxHeight: Infinity, minHeight: theme.touch }),
                 ]}
               >
@@ -121,6 +101,7 @@ export function NavigationDestinations({
                       monospacedDigit(),
                       lineLimit(1),
                       symbolBox,
+                      accessibilityHidden(),
                     ]}
                   >
                     {badgeCount(item.count)}
@@ -129,31 +110,23 @@ export function NavigationDestinations({
                   <Image
                     testID="tab-symbol"
                     systemName={symbolFor(item)}
-                    modifiers={[font({ textStyle: 'title2' }), symbolSize, symbolBox]}
+                    modifiers={[
+                      font({ textStyle: 'title2' }),
+                      symbolSize,
+                      symbolBox,
+                      accessibilityHidden(),
+                    ]}
                   />
                 )}
-                {labels ? (
-                  <Text
-                    testID="tab-label"
-                    modifiers={[font({ textStyle: 'caption2' }), lineLimit(1)]}
-                  >
-                    {label}
-                  </Text>
-                ) : null}
               </VStack>
             </Button>
           );
-          return labels ? (
+          return item.menu === undefined ? (
             tab
           ) : (
-            <LabelPeek
-              key={item.key}
-              label={label}
-              symbol={symbolFor(item)}
-              onSelect={item.onPress}
-            >
+            <TabMenu key={item.key} entries={item.menu}>
               {tab}
-            </LabelPeek>
+            </TabMenu>
           );
         })}
       </HStack>
@@ -161,22 +134,42 @@ export function NavigationDestinations({
   );
 }
 
-function LabelPeek({
-  label,
-  symbol,
-  onSelect,
+const menuSymbols = {
+  bot: 'bubble.left',
+  channel: 'bubble.left.and.bubble.right',
+  person: 'person',
+  session: 'list.bullet.rectangle',
+  activity: 'bell',
+  new: 'plus',
+} as const satisfies Record<TabMenuGlyph, string>;
+
+function TabMenu({
+  entries,
   children,
 }: {
-  label: string;
-  symbol: TabSymbol;
-  onSelect(): void;
-  children: ReactNode;
+  entries: readonly TabMenuEntry[];
+  children: ReactElement;
 }) {
+  const theme = useDesignTheme();
+  const recent = entries.filter((entry) => entry.glyph !== 'new');
+  const create = entries.filter((entry) => entry.glyph === 'new');
+  const row = (entry: TabMenuEntry) => (
+    <Button
+      key={entry.key}
+      label={entry.label}
+      systemImage={menuSymbols[entry.glyph]}
+      onPress={entry.run}
+      modifiers={[foregroundStyle(theme.color.fg)]}
+    />
+  );
   return (
-    <ContextMenu modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity })]}>
+    <ContextMenu
+      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity }), tint(theme.color.fg)]}
+    >
       <ContextMenu.Trigger>{children}</ContextMenu.Trigger>
       <ContextMenu.Items>
-        <Button label={label} systemImage={symbol} onPress={onSelect} />
+        {recent.length > 0 ? <Section>{recent.map(row)}</Section> : null}
+        {create.map(row)}
       </ContextMenu.Items>
     </ContextMenu>
   );

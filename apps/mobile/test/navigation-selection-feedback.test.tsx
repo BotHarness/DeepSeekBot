@@ -21,6 +21,9 @@ vi.mock('react-native', async () => ({
   },
   Keyboard: { dismiss: vi.fn() },
 }));
+vi.mock('../src/ui/shell/use-tab-menus', () => ({
+  useTabMenus: () => ({ menus: {}, load: () => {} }),
+}));
 vi.mock('expo-router', () => ({
   router: { push: vi.fn() },
   useIsFocused: () => true,
@@ -49,10 +52,7 @@ vi.mock('expo-router/js-tabs', () => {
   Tabs.Screen = () => null;
   return { Tabs };
 });
-vi.mock('react-native-reanimated', async () => ({
-  default: { View: (await import('./react-native-shim')).View },
-  useAnimatedStyle: (style: () => object) => style(),
-}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ left: 0, right: 0, bottom: 0 }),
 }));

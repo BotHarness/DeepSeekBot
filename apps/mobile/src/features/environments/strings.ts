@@ -28,6 +28,16 @@ export const en = {
   allEnvironmentsRow: 'All environments',
   environmentSheet: {
     title: 'Environment',
+    add: 'Add environment',
+    switch: 'Switch environment',
+    settings: 'Environment settings',
+    phone: 'This phone',
+    savedOn: (name: string) => `These settings and the usage above are saved on ${name}.`,
+    allRecent: (name: string) => `All environments (recent: ${name})`,
+    savedOnCurrent: (name: string) =>
+      `These settings and the usage above belong to ${name}, the current computer.`,
+    savedOnRecent: (name: string) =>
+      `All environments is selected. These settings and the usage above belong to ${name}, the most recently used computer.`,
     computers: 'Computers',
     cloud: 'Cloud workspaces',
   },
@@ -166,6 +176,14 @@ export const zh: typeof en = {
   allEnvironmentsRow: '全部环境',
   environmentSheet: {
     title: '环境',
+    add: '添加环境',
+    switch: '切换环境',
+    settings: '环境设定',
+    phone: '这台手机',
+    savedOn: (name: string) => `以上设定和用量都保存在 ${name} 上。`,
+    allRecent: (name: string) => `全部环境（最近：${name}）`,
+    savedOnCurrent: (name: string) => `以上是当前电脑 ${name} 的设定和用量。`,
+    savedOnRecent: (name: string) => `当前为全部环境，以上是最近使用的电脑 ${name} 的设定和用量。`,
     computers: '电脑',
     cloud: '云端工作区',
   },
