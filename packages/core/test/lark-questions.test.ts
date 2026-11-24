@@ -453,7 +453,7 @@ it('text replies answer with letters, several questions, a #reference, or a bare
   });
 });
 
-it('a question raised from a Lark group conversation is answered in that group by paired people only, and the default can send it back to the DM', async () => {
+it('a question raised from a Lark group conversation is answered in that group by paired people only, and the Binding or its platform default can send it back to the DM', async () => {
   const f = await fixture();
   const group = { kind: 'group' as const, id: 'oc_team' };
   placeGroupSource(f.core, {
@@ -491,6 +491,28 @@ it('a question raised from a Lark group conversation is answered in that group b
     conversationId: 'oc_team',
   });
 
+  const binding = () =>
+    attachOperationalModule(f.core.operationalDatabase, 'messaging').read(
+      (db) =>
+        db
+          .prepare(
+            "SELECT id, group_interactions_revision AS revision FROM messaging_bindings WHERE bot_slug = 'ada'",
+          )
+          .get() as { id: string; revision: number },
+    );
+  const setBinding = (enabled: boolean | null) =>
+    f.core.externalMessaging.setGroupInteractions('ada', binding().id, binding().revision, enabled);
+  expect(await setBinding(false)).toMatchObject({
+    groupInteractions: false,
+    groupInteractionsInheritance: 'custom',
+  });
+  const bindingOff = await f.start();
+  expect(bindingOff.delivery.destination).toBeUndefined();
+  await expect(
+    f.core.externalMessaging.setGroupInteractions('ada', binding().id, 1, null),
+  ).rejects.toMatchObject({ code: 'identity-changed' });
+
+  await setBinding(null);
   attachOperationalModule(f.core.operationalDatabase, 'messaging').transaction((db) => {
     const { revision, changedAt: _at, ...preferences } = messagingDefaults(db, 'feishu');
     commitMessagingDefaults(db, {
@@ -502,4 +524,14 @@ it('a question raised from a Lark group conversation is answered in that group b
   const private_ = await f.start();
   expect(private_.delivery.destination).toBeUndefined();
   expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({ conversationId: 'oc_private' });
+
+  expect(await setBinding(true)).toMatchObject({
+    groupInteractions: true,
+    groupInteractionsInheritance: 'custom',
+  });
+  const bindingOn = await f.start();
+  expect(bindingOn.delivery.destination).toMatchObject({
+    kind: 'group',
+    conversationId: 'oc_team',
+  });
 });

@@ -532,6 +532,7 @@ deepseekbot messaging-reachable <bot-id> --binding <binding-id> [--cursor <curso
 deepseekbot messaging-post <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin [--request-id <id>]
 deepseekbot messaging-post-status <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin --request-id <id>
 deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-10000|none>
+deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
@@ -548,6 +549,8 @@ deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
+
+`groupInteractions`（缺省为开启）决定 Bot 的提问或执行审批发到哪里：如果 Bot 在该会话中最近一条消息来自同一账号的 IM 群，开启时卡片作为该群里的回复发出，任何持有已批准管理配对且具备相应权限的人都能在群里回答或审批；关闭时仍发到选定的管理私聊。`messaging-group-interactions` 可为单个 Binding 覆盖平台默认值，因此同一平台的两个应用可以不同；`--inherit` 恢复跟随平台默认值，`messaging-grants` 会显示每个 Binding 的生效值以及是否继承。在群里回答或审批后，下一张卡片不会改发到私聊。群卡片不提供保存精确规则。之后保存平台默认值时省略该字段会保留原值（[#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)）。
 
 对于已核验的微信私聊连接器，update JSON 支持独立的 `dmMirror` 与 `dmForward` 布尔值，两者默认均为 `false`。先读取 `channel-bridges`，再携带当前 Grant／route revision 提交设置。同一 Binding 与会话的入口共享偏好；离线时仍可关闭，关闭停止未提交操作，不清除历史、不撤销正常回复权限。转发需要同一账户中已有的主动发送目标。例如，在其他字段不变的 update payload 中加入 `"dmMirror":true,"dmForward":false`，即可只开启本地镜像。
 

@@ -112,6 +112,9 @@ export interface MessagingBridgeMethods {
   messagingPostConversation(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
   messagingPostRequest(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent | null }>>;
   messagingPostLimit(payload: unknown): Promise<BridgeResult<{ identity: MessagingIdentity }>>;
+  messagingGroupInteractions(
+    payload: unknown,
+  ): Promise<BridgeResult<{ identity: MessagingIdentity }>>;
   messagingTargets(payload: unknown): Promise<BridgeResult<{ targets: MessagingTarget[] }>>;
   messagingAuthorize(payload: unknown): Promise<BridgeResult<{ grant: MessagingGrant }>>;
   messagingRevoke(payload: unknown): Promise<BridgeResult<{ revoked: true }>>;
@@ -476,6 +479,26 @@ export function createMessagingBridgeMethods(
           input.data.bindingId,
           input.data.expectedRevision,
           input.data.limit,
+        ),
+      }));
+    },
+    messagingGroupInteractions(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1),
+          bindingId: z.string().uuid(),
+          expectedRevision: z.number().int().positive(),
+          enabled: z.boolean().nullable(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid group interactions'));
+      return messagingCall(async (service) => ({
+        identity: await service.setGroupInteractions(
+          input.data.slug,
+          input.data.bindingId,
+          input.data.expectedRevision,
+          input.data.enabled,
         ),
       }));
     },

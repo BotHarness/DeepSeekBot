@@ -369,4 +369,6 @@ it('an approval raised from a Lark group is decided in that group by a paired pe
     status: 'queued',
   });
   expect(await first.answer).toBe('allowed-once');
+  const second = await f.start();
+  expect(second.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_team' });
 });

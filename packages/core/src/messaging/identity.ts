@@ -14,6 +14,9 @@ export interface MessagingIdentity {
   enabled: boolean;
   postLimit?: number | null;
   postLimitRevision?: number;
+  groupInteractions?: boolean;
+  groupInteractionsInheritance?: 'inherit' | 'custom';
+  groupInteractionsRevision?: number;
   typingEnabled?: boolean;
   typingInheritance?: 'inherit' | 'custom';
   receiveAfter?: string;
@@ -65,6 +68,8 @@ interface BindingRow {
   enabled: number;
   post_limit: number | null;
   post_limit_revision: number;
+  group_interactions: number | null;
+  group_interactions_revision: number;
   enabled_inherited: number;
   typing_enabled: number;
   typing_inherited: number;
@@ -90,6 +95,12 @@ export function readMessagingIdentity(db: DatabaseSync, id: string): MessagingId
     name: r.display_name,
     postLimit: r.post_limit,
     postLimitRevision: r.post_limit_revision,
+    groupInteractions:
+      r.group_interactions === null
+        ? messagingDefaults(db, r.platform).groupInteractions !== false
+        : r.group_interactions === 1,
+    groupInteractionsInheritance: r.group_interactions === null ? 'inherit' : 'custom',
+    groupInteractionsRevision: r.group_interactions_revision,
     enabled:
       r.enabled_inherited === 1
         ? messagingDefaults(db, r.platform).identityEnabled

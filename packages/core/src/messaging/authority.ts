@@ -7,7 +7,6 @@ import {
   messagingPlatform,
   type MessagingPlatformId,
 } from './platforms/index.js';
-import { messagingDefaults } from './defaults.js';
 import { z } from 'zod';
 import { MessagingError, type MessagingProvider, type MessagingReplyRoute } from './provider.js';
 
@@ -102,10 +101,10 @@ export function createInteractionAuthority(options: {
       try {
         const { identity, platform } = context(grant);
         return options.database.read((db) => {
-          if (messagingDefaults(db, platform).groupInteractions === false) return undefined;
+          if (identity.groupInteractions === false) return undefined;
           const row = db
             .prepare(
-              "SELECT e.payload_json FROM source_events e LEFT JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = ? WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (p.channel_id IS NOT NULL OR e.channel_id = ?) ORDER BY p.revision IS NULL, p.revision DESC, e.rowid DESC LIMIT 1",
+              "SELECT e.payload_json FROM source_events e LEFT JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = ? WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (p.channel_id IS NOT NULL OR e.channel_id = ?) AND json_extract(e.payload_json, '$.userQuestionResolution') IS NULL AND json_extract(e.payload_json, '$.toolApprovalDecision') IS NULL ORDER BY p.revision IS NULL, p.revision DESC, e.rowid DESC LIMIT 1",
             )
             .get(channelId, grant.botSlug, channelId) as
             | { payload_json: string | null }
