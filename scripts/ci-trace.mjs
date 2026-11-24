@@ -15,7 +15,9 @@ const SUMMARY = /Duration\s+([\d.]+)s \(([^)]*)\)/u;
 const seconds = (from, to) => (Date.parse(to) - Date.parse(from)) / 1000;
 const median = (values) => {
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+  const middle = Math.floor(sorted.length / 2);
+  if (!sorted.length) return 0;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 const jobKey = (name) => name.replace(/shard \d+/u, 'shard N');
 
@@ -99,10 +101,12 @@ export function parseShardLog(text) {
       };
   }
   const testSeconds = files.reduce((sum, file) => sum + file.ms, 0) / 1000;
-  const wall = files.length ? (Math.max(...files.map((file) => file.end)) - start) / 1000 : 0;
+  const window = files.length ? (Math.max(...files.map((file) => file.end)) - start) / 1000 : 0;
+  const wall = summary?.duration ?? window;
   return {
     files: files.length,
     testSeconds,
+    window,
     wall,
     parallelism: wall ? testSeconds / wall : 0,
     summary,
@@ -141,12 +145,12 @@ export function formatReport(summary, shards = []) {
       '',
       '## Test shards',
       '',
-      '| Shard | Files | Test time | Shard wall | Parallelism | Phases |',
-      '| --- | --- | --- | --- | --- | --- |',
+      '| Shard | Files | Test time | Vitest duration | File-result window | Parallelism | Phases |',
+      '| --- | --- | --- | --- | --- | --- | --- |',
     );
     for (const shard of shards)
       lines.push(
-        `| ${shard.name} | ${shard.files} | ${shard.testSeconds.toFixed(0)} s | ${shard.wall.toFixed(0)} s | ${shard.parallelism.toFixed(1)} | ${Object.entries(
+        `| ${shard.name} | ${shard.files} | ${shard.testSeconds.toFixed(0)} s | ${shard.wall.toFixed(0)} s | ${shard.window.toFixed(0)} s | ${shard.parallelism.toFixed(1)} | ${Object.entries(
           shard.summary?.phases ?? {},
         )
           .map(([name, share]) => `${name} ${share}%`)

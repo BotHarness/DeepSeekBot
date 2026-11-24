@@ -34,7 +34,7 @@ describe('ci trace', () => {
     expect(summary.wall).toEqual({ median: 55, max: 55 });
     expect(summary.lastJobs).toEqual({ 'test (shard N)': 1 });
     const shards = summary.jobs.find((entry) => entry.name === 'test (shard N)');
-    expect(shards).toMatchObject({ median: 30, max: 30, queue: 10, slack: 5 });
+    expect(shards).toMatchObject({ median: 25, max: 30, queue: 7.5, slack: 2.5 });
     expect(shards.steps).toEqual([{ name: 'Run Vitest shard', median: 25, max: 25 }]);
     expect(summary.jobs.map((entry) => entry.name)).not.toContain('skipped');
   });
@@ -48,8 +48,9 @@ describe('ci trace', () => {
       'test (shard 1)\tRun Vitest shard\t2026-11-24T12:00:13.0000000Z    Duration  14.20s (tests 70%, import 20%, transform 10%)',
     ].join('\n');
     const shard = parseShardLog(log);
-    expect(shard).toMatchObject({ files: 3, testSeconds: 9, wall: 10.5 });
-    expect(shard.parallelism).toBeCloseTo(9 / 10.5);
+    expect(shard).toMatchObject({ files: 3, testSeconds: 9, window: 10.5, wall: 14.2 });
+    expect(shard.parallelism).toBeCloseTo(9 / 14.2);
+    expect(parseShardLog(log.split('\n').slice(0, 3).join('\n'))).toMatchObject({ wall: 10.5 });
     expect(shard.summary).toEqual({
       duration: 14.2,
       phases: { tests: 70, import: 20, transform: 10 },
@@ -66,6 +67,6 @@ describe('ci trace', () => {
     expect(report).toContain('# Verify trace: 1 runs');
     expect(report).toContain('| test (shard N) | 1.0 min | 1.0 min | 0 s | 0.0 min |');
     expect(report).toContain('| Run Vitest \\| shard | 60 s | 60 s |');
-    expect(report).toContain('| test (shard 1) | 0 | 0 s | 0 s | 0.0 |  |');
+    expect(report).toContain('| test (shard 1) | 0 | 0 s | 0 s | 0 s | 0.0 |  |');
   });
 });

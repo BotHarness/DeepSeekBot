@@ -184,7 +184,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 - each job's median, maximum, queue wait and slack before the run ended;
 - the slowest steps of the four longest jobs.
 
-`--logs` also reads the newest run's test shard logs and adds each shard's file count, summed test time, wall time, parallelism, Vitest phase shares (tests, import, transform, environment), slowest files and the files that finished last. Options:
+`--logs` also reads the newest run's test shard logs and adds each shard's file count, summed test time, Vitest duration, the window between the first and last file result, parallelism (test time over Vitest duration), Vitest phase shares (tests, import, transform, environment), slowest files and the files that finished last. Options:
 
 - `--runs N` changes how many runs it reads;
 - `--branch` and `--event` pick other runs;
