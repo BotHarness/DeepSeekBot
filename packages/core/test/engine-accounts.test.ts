@@ -376,15 +376,10 @@ describe('named Claude Code subscription accounts', () => {
     expect(() => createEngineStore(path).resolveAccount('claude')).toThrow('was not found');
   });
 
-  it('accepts Claude paste-back after three minutes and refuses it after ten minutes', async () => {
+  it('keeps Claude paste-back open until sign-in ends, like the Claude Code CLI', async () => {
     const { host } = setup();
     const submit = vi.fn(async () => {});
     vi.useFakeTimers();
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), ms);
-      return controller.signal;
-    });
     const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
       options.onCodeInput?.(submit);
       options.signal?.addEventListener('abort', () => options.onExit?.(), { once: true });
@@ -392,12 +387,12 @@ describe('named Claude Code subscription accounts', () => {
     });
     try {
       await host.login('claude');
-      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
       await expect(host.submitClaudeCode('claude', 'fixture#state')).resolves.toEqual({
         submitted: true,
       });
       expect(submit).toHaveBeenCalledWith('fixture#state');
-      await vi.advanceTimersByTimeAsync(6 * 60_000);
+      await expect(host.cancelLogin('claude')).resolves.toEqual({ cancelled: true });
       await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
         code: 'engine-login-not-pending',
         message: expect.stringContaining('Start sign-in again'),
@@ -406,21 +401,14 @@ describe('named Claude Code subscription accounts', () => {
     } finally {
       await host.close();
       start.mockRestore();
-      timeout.mockRestore();
       vi.useRealTimers();
     }
   });
 
-  it('refuses Claude paste-back once the window ends even before sign-in cleanup', async () => {
+  it('refuses Claude paste-back once sign-in is cancelled even before cleanup', async () => {
     const { host } = setup();
     const submit = vi.fn(async () => {});
     let exit: (() => void) | undefined;
-    vi.useFakeTimers();
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(), ms);
-      return controller.signal;
-    });
     const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
       options.onCodeInput?.(submit);
       exit = options.onExit;
@@ -428,17 +416,17 @@ describe('named Claude Code subscription accounts', () => {
     });
     try {
       await host.login('claude');
-      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      const cancelled = host.cancelLogin('claude');
       await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
         code: 'engine-login-not-pending',
       });
       expect(submit).not.toHaveBeenCalled();
+      exit?.();
+      await expect(cancelled).resolves.toEqual({ cancelled: true });
     } finally {
       exit?.();
       await host.close();
       start.mockRestore();
-      timeout.mockRestore();
-      vi.useRealTimers();
     }
   });
 
