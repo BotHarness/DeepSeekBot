@@ -1,6 +1,7 @@
 import { deviceRefusal, type HostApiAnswer, type HostApiInit, type HostClient } from './client';
 import type { BrowserFrame, BrowserInput } from './browser-viewer';
 import { createCurrentDesktopViewer, currentDesktopAvailable } from './current-desktop-viewer';
+import type { WaylandIssueCode } from '../../computer/src/desktop-availability';
 
 export type ComputerViewerStatus = 'loading' | 'live' | 'not-running' | 'unreachable' | 'refused';
 
@@ -12,6 +13,7 @@ export interface ComputerViewerState {
   paused?: boolean | undefined;
   busy?: boolean;
   notice?: string | undefined;
+  noticeCode?: WaylandIssueCode | undefined;
 }
 
 export interface ComputerViewer {
@@ -149,7 +151,7 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
   const wait = options.wait ?? pause;
   const frameTimeoutMs = options.frameTimeoutMs ?? FRAME_TIMEOUT_MS;
   const listeners = new Set<() => void>();
-  let state: ComputerViewerState = { status: 'loading', control: false };
+  let state: ComputerViewerState = { status: 'loading', control: false, explicit: false };
   let run: AbortController | undefined;
   let queue: Promise<void> = Promise.resolve();
   const releaseMs = options.releaseMs ?? RELEASE_MS;

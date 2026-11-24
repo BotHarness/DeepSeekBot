@@ -34,6 +34,21 @@ export const en = {
   computerVideoReconnect: 'Reconnect video',
   computerDesktopTakeover: 'Pause Bots and take control',
   computerDesktopReconnect: 'Reconnect desktop',
+  computerDesktopUnavailable: {
+    'desktop-consent-pending': 'Confirm screen sharing in the GNOME dialog on your computer.',
+    'desktop-consent-required':
+      'Check the desktop in Computer settings and confirm screen sharing on your computer.',
+    'desktop-locked': 'The desktop is locked. Unlock it on your computer.',
+    'desktop-screen-inactive':
+      'GNOME has blanked or locked the screen. Wake or unlock it on your computer.',
+    'desktop-restoring': 'Reconnecting. If GNOME asks to share again, confirm on your computer.',
+    'desktop-portal-ended': 'GNOME stopped sharing. Check the desktop in Computer settings.',
+    'desktop-portal-dependencies':
+      'Install GNOME desktop sharing components on your computer and check the desktop again.',
+    'desktop-portal-token-write':
+      'The Host could not save desktop permission. Check the Host profile folder permissions.',
+    'desktop-unreachable': 'Start the Host from a terminal in the signed-in GNOME desktop.',
+  },
   computerDesktopSurface: 'Live view of the desktop',
   computerVideoMacPermission:
     'On your Mac, allow Screen Recording for the capture helper in System Settings → Privacy & Security, then reconnect.',
@@ -116,6 +131,17 @@ export const zh: typeof en = {
   computerVideoReconnect: '重新连接视频',
   computerDesktopTakeover: '暂停 Bot 并接管',
   computerDesktopReconnect: '重新连接桌面',
+  computerDesktopUnavailable: {
+    'desktop-consent-pending': '请在电脑上的 GNOME 对话框中确认屏幕共享。',
+    'desktop-consent-required': '在 Computer 设置中重新检查桌面，并在电脑上确认共享。',
+    'desktop-locked': '桌面已锁定。请在电脑上解锁。',
+    'desktop-screen-inactive': 'GNOME 已关闭画面或锁屏。请在电脑上唤醒或解锁。',
+    'desktop-restoring': '正在重新连接。如果 GNOME 再次请求共享，请在电脑上确认。',
+    'desktop-portal-ended': 'GNOME 已停止共享。在 Computer 设置中重新检查桌面。',
+    'desktop-portal-dependencies': '请在电脑上安装 GNOME 桌面共享组件，再检查桌面。',
+    'desktop-portal-token-write': 'Host 无法保存桌面授权。检查 Host 配置目录权限。',
+    'desktop-unreachable': '请在已登录的 GNOME 桌面上从终端启动 Host。',
+  },
   computerDesktopSurface: '桌面实时画面',
   computerVideoMacPermission:
     '请在 Mac 系统设置 → 隐私与安全性中允许捕获程序录制屏幕，然后重新连接。',

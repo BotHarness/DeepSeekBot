@@ -1,5 +1,6 @@
 import type { ComputerProvider } from './provider.js';
 import type { CuaDriver } from './tool/driver.js';
+import type { DesktopAccessIssue } from './desktop-availability.js';
 
 export type ComputerTarget = 'local' | 'container' | 'current-desktop';
 
@@ -11,6 +12,7 @@ export interface ComputerTargetRuntime {
   readonly provider: ComputerProvider;
   readonly driver: CuaDriver;
   isRunning(): boolean;
+  unavailable(): DesktopAccessIssue | undefined;
   sync(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -145,7 +147,13 @@ export function createComputerTargetRuntime(options: {
       !disposed &&
       changing === undefined &&
       target === options.target() &&
-      (target === 'container' ? active.provider.upstream() !== undefined : running),
+      (target === 'container'
+        ? active.provider.upstream() !== undefined
+        : (active.provider.isRunning?.() ?? running)),
+    unavailable: () =>
+      !disposed && changing === undefined && target === options.target()
+        ? active.provider.unavailable?.()
+        : undefined,
     async dispose() {
       disposed = true;
       await changing?.catch(() => undefined);

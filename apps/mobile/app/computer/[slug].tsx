@@ -113,16 +113,16 @@ function LegacyComputerScreen() {
   };
 
   const mount = useMounted<ViewInstance>(() => {
-    viewer?.start();
+    if (AppState.currentState === null || AppState.currentState === 'active') viewer?.start();
     recordFeature('viewer:subpanel_open', { panel: 'computer' });
     const hidden = Keyboard.addListener('keyboardDidHide', () =>
       setTool((current) => (current === 'keyboard' ? 'mouse' : current)),
     );
     const appState = AppState.addEventListener('change', (next) => {
       if (next === 'active') viewer?.start();
-      else if (viewer?.getState().explicit === true) {
+      else if (viewer?.getState().explicit !== false) {
         keyboard.current?.blur();
-        viewer.stop();
+        viewer?.stop();
       }
     });
     return () => {
@@ -142,6 +142,8 @@ function LegacyComputerScreen() {
         ? t.computerUnreachable
         : undefined;
   const live = !revoked && state.frame !== undefined && message === undefined;
+  const desktopNotice =
+    state.noticeCode === undefined ? state.notice : t.computerDesktopUnavailable[state.noticeCode];
   const driving = live && state.control;
   const explicit = state.explicit === true;
   const release = () => {
@@ -210,10 +212,11 @@ function LegacyComputerScreen() {
               ) : (
                 <>
                   <Text accessibilityRole="alert" tone="muted" style={{ textAlign: 'center' }}>
-                    {explicit && state.notice !== undefined ? state.notice : message}
+                    {explicit && desktopNotice !== undefined ? desktopNotice : message}
                   </Text>
                   {explicit && !revoked ? (
                     <Button
+                      testID="computer-desktop-reconnect"
                       label={t.computerDesktopReconnect}
                       onPress={() => {
                         viewer?.stop();

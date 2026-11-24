@@ -9,6 +9,7 @@ import { join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
 import { browserComputerDesktop } from './computer-desktop.js';
+import { LocalVideoError } from '../../computer/src/local-video-contract.js';
 import { createBrowserConfig, type BrowserConfig } from './browser-config.js';
 import { createBrowserInteractionHandlers } from './browser-interaction-http.js';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
@@ -924,7 +925,11 @@ export function apply(
           return json({ ok: true, content: result.content });
         } catch (error) {
           return json(
-            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              ...(LocalVideoError.is(error) ? { code: error.code } : {}),
+              error: error instanceof Error ? error.message : String(error),
+            },
             409,
           );
         }

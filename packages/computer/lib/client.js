@@ -2408,9 +2408,17 @@ window.__ModuleLoader__.load({
 			"rows.target.failed": "无法保存或启动桌面。请检查当前操作目标后重试。",
 			"local.desktop.ready": "当前桌面已就绪",
 			"local.desktop.check": "检查桌面",
-			"local.desktop.description": "使用当前登录的 Linux X11 桌面。",
+			"local.desktop.description": "使用当前登录的 Linux 桌面。",
 			"local.error.x11": "请登录 X11 桌面，并从该桌面启动 DSH。",
-			"local.error.desktop": "无法访问当前桌面。请从 X11 桌面内的终端启动 DSH，再检查一次。",
+			"local.error.desktop": "无法访问当前桌面。请在已登录的桌面上从终端启动 DSH，再检查一次。",
+			"local.wayland.consentPending": "请在这台电脑的 GNOME 系统对话框中选择屏幕，允许远程交互，勾选记住此次选择，再点共享。",
+			"local.wayland.consentRequired": "请重新检查桌面，在 GNOME 系统对话框中允许远程交互，并勾选记住此次选择。",
+			"local.wayland.locked": "桌面已锁定。请在这台电脑上解锁。",
+			"local.wayland.inactive": "GNOME 已关闭画面或锁屏。请在这台电脑上唤醒或解锁。",
+			"local.wayland.restoring": "正在重新连接。如果 GNOME 再次请求共享，请在这台电脑上确认。",
+			"local.wayland.ended": "GNOME 已停止共享此桌面。请在这台电脑上重新检查桌面。",
+			"local.wayland.dependencies": "请安装 GNOME 桌面门户和用于 PipeWire 共享的 Python GObject 与 GStreamer 组件，再检查桌面。",
+			"local.wayland.token": "无法保存 GNOME 桌面授权。请检查 Host 配置目录权限，再检查桌面。",
 			"local.error.linux": "此选项需要 Linux。请选择其他操作目标。",
 			"local.title": "本机 Computer",
 			"local.granted": "桌面权限已授予",
@@ -2545,9 +2553,17 @@ window.__ModuleLoader__.load({
 			"rows.target.failed": "Could not save or start the desktop. Check the selected target and retry.",
 			"local.desktop.ready": "Current desktop is ready",
 			"local.desktop.check": "Check desktop",
-			"local.desktop.description": "Uses the Linux X11 desktop you are signed in to.",
+			"local.desktop.description": "Uses the Linux desktop you are signed in to.",
 			"local.error.x11": "Sign in to an X11 desktop and start DSH from that session.",
-			"local.error.desktop": "Could not reach the current desktop. Start DSH from a terminal in your X11 desktop and check again.",
+			"local.error.desktop": "Could not reach the current desktop. Start DSH from a terminal in your signed-in desktop and check again.",
+			"local.wayland.consentPending": "On this computer, select the screen in the GNOME sharing dialog, enable Allow Remote Interaction and Remember This Selection, then choose Share.",
+			"local.wayland.consentRequired": "Check the desktop again. In the GNOME sharing dialog, enable Allow Remote Interaction and Remember This Selection.",
+			"local.wayland.locked": "The desktop is locked. Unlock it on this computer.",
+			"local.wayland.inactive": "GNOME has blanked or locked the screen. Wake or unlock it on this computer.",
+			"local.wayland.restoring": "Reconnecting. If GNOME asks to share again, confirm on this computer.",
+			"local.wayland.ended": "GNOME stopped sharing this desktop. Check the desktop again on this computer.",
+			"local.wayland.dependencies": "Install the GNOME desktop portal and the Python GObject and GStreamer components for PipeWire sharing, then check the desktop again.",
+			"local.wayland.token": "Could not save GNOME desktop permission. Check the Host profile folder permissions, then check the desktop again.",
 			"local.error.linux": "This option requires Linux. Select another Computer Target.",
 			"local.title": "Local Computer",
 			"local.granted": "Desktop permissions granted",
@@ -14875,6 +14891,14 @@ window.__ModuleLoader__.load({
 		//#region packages/computer/src/client/local-setup-copy.ts
 		function localSetupFailure(code, t) {
 			switch (code) {
+				case "desktop-consent-pending": return t("local.wayland.consentPending");
+				case "desktop-consent-required": return t("local.wayland.consentRequired");
+				case "desktop-locked": return t("local.wayland.locked");
+				case "desktop-screen-inactive": return t("local.wayland.inactive");
+				case "desktop-restoring": return t("local.wayland.restoring");
+				case "desktop-portal-ended": return t("local.wayland.ended");
+				case "desktop-portal-dependencies": return t("local.wayland.dependencies");
+				case "desktop-portal-token-write": return t("local.wayland.token");
 				case "x11-session-required": return t("local.error.x11");
 				case "desktop-unreachable": return t("local.error.desktop");
 				case "linux-desktop-required": return t("local.error.linux");
@@ -14978,6 +15002,7 @@ window.__ModuleLoader__.load({
 			const preparing = busy || installing || payload?.status?.phase === "starting";
 			const missing = payload?.status?.missing;
 			const failure = (error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail) === void 0 ? void 0 : localSetupFailure(error ?? payload?.status?.refusal, t);
+			const waitingForGnome = preparing && current && failure !== void 0;
 			const permissions = payload?.status?.refusal === "permissions-required" ? payload.status.permissions : void 0;
 			const post = (path, body) => {
 				setBusy(true);
@@ -15013,7 +15038,7 @@ window.__ModuleLoader__.load({
 			const checkButton = /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 				size: "sm",
 				variant: "outline",
-				disabled: preparing || payload?.probe?.available === false,
+				disabled: preparing || payload?.probe?.available === false || payload?.status?.refusal === "desktop-locked",
 				onClick: check,
 				children: t(preparing ? "local.checking" : current ? "local.desktop.check" : "local.check")
 			});
@@ -15092,7 +15117,7 @@ window.__ModuleLoader__.load({
 						meta: t(current ? granted ? "local.desktop.ready" : "local.desktop.description" : granted ? "local.granted" : "local.description"),
 						detail: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: "bhxrvj5dj bhx2zm2ee bhx619ttb",
-							children: [failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+							children: [failure === void 0 ? null : waitingForGnome ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: failure }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
 								tone: "danger",
 								children: failure
 							}), body]
@@ -15606,7 +15631,7 @@ window.__ModuleLoader__.load({
 						t,
 						observeResource,
 						target: snapshot.target
-					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					}, snapshot.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
 							title: t("rows.exportDir.title"),
 							description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
@@ -16343,7 +16368,7 @@ window.__ModuleLoader__.load({
 					t,
 					observeResource,
 					target: payload.target
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
+				}, payload.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
 					t,
 					state: payload?.status.state ?? "absent",
 					...phase === void 0 ? {} : { phase },

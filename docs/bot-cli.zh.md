@@ -579,7 +579,7 @@ deepseekbot grants <bot-id>
 
 ### 使用当前 Linux 桌面
 
-从当前登录的 X11 桌面启动 Host。选中此目标后，Bot 和已配对的手机都能看到整块桌面。
+从当前登录的 GNOME Wayland 或 X11 桌面启动 Host。选中此目标后，Bot 和已配对的手机都能看到所共享的整块屏幕。
 
 ```bash
 deepseekbot computer-target
@@ -588,7 +588,13 @@ deepseekbot computer-start --target current-desktop
 deepseekbot computer-status
 ```
 
+在 GNOME Wayland 上，在系统共享对话框选择显示器，允许远程交互，勾选记住此次选择，再点共享。Ubuntu 上的 Host 需要 `xdg-desktop-portal-gnome`、`python3-gi`、`gir1.2-gtk-4.0`、`gir1.2-gstreamer-1.0`、`gstreamer1.0-pipewire`、`gstreamer1.0-plugins-base` 和 `gstreamer1.0-plugins-good`。
+
+`computer-tools` 列出当前桌面可用的操作。用 `computer-tool <Bot ID> get_desktop_state --out <绝对路径>` 查看画面。再用 `--args-stdin` 向 `click`、`scroll`、`type_text`、`press_key` 或 `hotkey` 传参。Wayland 输入发往当前获得焦点的应用，坐标取自最新截图。Bot Browser 用独立的浏览器资料在同一个桌面打开可见窗口。
+
 查看 `status.state` 是否为 `running`。检查失败时，`status.refusal` 给出错误码，`status.detail` 给出下一步。通过局域网连接已配对的 Android，打开 **Computer**。用 CLI 驱动同一观看链路时，运行 `computer-video open --out <绝对路径>`。帧流返回 `binding` 和 `transport: "frames"`。将绑定 JSON 传给 `computer-video frame --args-stdin --out <绝对路径>`，并在 `takeover`、`input` 和 `release` 时复用绑定。只有 `resume` 会结束 Bot 暂停。
+
+锁屏时 GNOME 会停止共享。`computer-status` 和 `computer-video status` 会报告 `desktop-locked`。请在电脑上解锁。Host 会尝试恢复保存的授权，画面恢复前报告 `desktop-restoring`。如果 GNOME 再次显示共享对话框，请在电脑上确认。画面恢复后，Computer 和 Bot Browser 仍保持暂停，直到明确执行 `computer-video resume`。
 
 ### Activity、委派、会话与审批规则
 

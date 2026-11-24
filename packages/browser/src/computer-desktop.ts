@@ -1,4 +1,7 @@
-import type { LocalDesktopControl } from '../../computer/src/local-video-contract.js';
+import {
+  LocalVideoError,
+  type LocalDesktopControl,
+} from '../../computer/src/local-video-contract.js';
 
 interface ComputerTools {
   desktopControl?(): LocalDesktopControl;
@@ -18,6 +21,8 @@ export function browserComputerDesktop(lookup: () => unknown, target: () => stri
     control,
     headless(preference: boolean): boolean {
       const state = control();
+      if (state?.unavailable !== undefined)
+        throw new LocalVideoError(state.unavailable.code, state.unavailable.detail);
       if (state?.ready === false)
         throw new Error(
           'Check the current desktop in Computer settings before opening the Bot Browser.',

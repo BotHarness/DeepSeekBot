@@ -654,6 +654,7 @@ export function ComputerSettingsRows({
       />
       {snapshot.target !== 'container' ? (
         <LocalComputerStatus
+          key={snapshot.target}
           t={t as ComputerTranslate}
           observeResource={observeResource}
           target={snapshot.target}

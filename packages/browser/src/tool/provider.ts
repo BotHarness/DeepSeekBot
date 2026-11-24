@@ -16,6 +16,10 @@ import type { BrowserTab } from '../runtime/browser.js';
 import type { BorrowService } from '../borrow.js';
 import type { ProfileControl } from '../profile-control.js';
 import type { DailyControl } from '../daily.js';
+import {
+  LocalVideoError,
+  type LocalDesktopControl,
+} from '../../../computer/src/local-video-contract.js';
 
 export const BROWSER_PROMPT_SECTION = 'botharness:browser';
 
@@ -62,7 +66,7 @@ export interface BrowserToolProviderOptions {
   readonly takeover?: () => TakeoverService | undefined;
   readonly takeoverUrlFor?: (slug: string) => string | undefined;
   readonly desktopControl?: () =>
-    | { readonly held: boolean; readonly epoch: number; readonly ready?: boolean }
+    | (Pick<LocalDesktopControl, 'held' | 'epoch' | 'unavailable'> & { readonly ready?: boolean })
     | undefined;
   readonly runDesktopOperation?: <T>(operation: () => Promise<T>) => Promise<T>;
 }
@@ -245,6 +249,8 @@ export function createBrowserToolProvider(
       );
     }
     const desktop = options.desktopControl?.();
+    if (desktop?.unavailable !== undefined && raw !== 'takeover')
+      throw new LocalVideoError(desktop.unavailable.code, desktop.unavailable.detail);
     if (desktop?.held === true && raw !== 'takeover') {
       note(`phase=control-refused owner=computer-pause slug=${slug} tool=${raw}`);
       throw new Error(DESKTOP_HELD_MESSAGE);

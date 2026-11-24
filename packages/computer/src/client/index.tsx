@@ -775,7 +775,12 @@ function ComputerEntry({
     <div ref={statusResource} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {inProgress ? <span hidden ref={progressResource} /> : null}
       {payload?.target === 'local' || payload?.target === 'current-desktop' ? (
-        <LocalComputerStatus t={t} observeResource={observeResource} target={payload.target} />
+        <LocalComputerStatus
+          key={payload.target}
+          t={t}
+          observeResource={observeResource}
+          target={payload.target}
+        />
       ) : (
         <ComputerEntryView
           t={t}

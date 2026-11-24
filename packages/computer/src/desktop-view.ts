@@ -273,11 +273,14 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
   let unchanged = 0;
   let published = 0;
   let lastCaptureMs = 0;
+  let revision = 0;
 
   const capture = (): Promise<DesktopFrame | undefined> => {
     capturing ??= (async () => {
+      const attempt = revision;
       const gap = lastStarted + intervalMs - now();
       if (gap > 0) await wait(gap);
+      if (attempt !== revision) return undefined;
       lastStarted = now();
       captures += 1;
       const result = await options.driver.call('get_desktop_state', {
@@ -291,13 +294,15 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
           'capture-failed',
           refusalText(result) ?? 'The desktop driver returned no screenshot.',
         );
+      if (attempt !== revision) return undefined;
       if (latestCapture === shot.data) {
         unchanged += 1;
         return undefined;
       }
-      latestCapture = shot.data;
       const encoded =
         shot.mimeType === 'image/png' ? await encode(Buffer.from(shot.data, 'base64')) : undefined;
+      if (attempt !== revision) return undefined;
+      latestCapture = shot.data;
       seq += 1;
       published += 1;
       latest = {
@@ -336,6 +341,11 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
     requireRunning,
     requestFreshCapture() {
       lastStarted = 0;
+    },
+    clear() {
+      revision += 1;
+      latest = undefined;
+      latestCapture = undefined;
     },
     stats: () => ({ captures, unchanged, published, lastCaptureMs }),
   };

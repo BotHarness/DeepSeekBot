@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { ComputerPauseStore } from './computer-pause-store.js';
+import type { DesktopAccessIssue } from './desktop-availability.js';
 import { desktopInputCall, type DesktopFrame } from './desktop-view.js';
 import {
   cursorEnabled,
@@ -8,6 +9,12 @@ import {
   parseLocalVideoInput,
 } from './local-video-input.js';
 import type { ScrollMotion } from './macos-scroll.js';
+import {
+  formatLocalVideoTrace,
+  type OperationTrace,
+  type Initiator,
+  type FailureSource,
+} from './local-video-diagnostics.js';
 import type { CuaDriver } from './tool/driver.js';
 import {
   LOCAL_VIDEO_LIMITS,
@@ -43,39 +50,6 @@ interface Viewer {
   inputGated: boolean;
   cursorReady: boolean;
   closing?: Promise<void>;
-}
-
-type FailureSource =
-  | 'owner'
-  | 'pause-store'
-  | 'bot-drain'
-  | 'human-drain'
-  | 'geometry'
-  | 'driver'
-  | 'helper'
-  | 'signaling'
-  | 'cleanup'
-  | 'media'
-  | 'control';
-type Initiator = 'host-owner' | 'paired-device' | 'lifecycle' | 'helper' | 'timer';
-interface OperationTrace {
-  readonly id: string;
-  readonly phase: string;
-  readonly initiator: Initiator;
-  readonly started: number;
-  readonly runtime: string;
-  attempt: string;
-  grant: number;
-  source: FailureSource;
-  external:
-    | 'none'
-    | 'get_screen_size'
-    | 'media-open'
-    | 'media-answer'
-    | 'media-close'
-    | 'desktop-input'
-    | 'cursor-setup';
-  cause?: LocalVideoRefusal;
 }
 
 const correlation = (id: string): string =>
@@ -135,6 +109,7 @@ export function createLocalVideoOwner(options: {
     next(after: number | undefined, signal: AbortSignal): Promise<DesktopFrame | undefined>;
   };
   readonly isRunning: () => boolean;
+  readonly unavailable?: () => DesktopAccessIssue | undefined;
   readonly supported?: () => boolean;
   readonly driverPlatform?: 'darwin' | 'win32';
   readonly scrollMotion?: ScrollMotion;
@@ -161,26 +136,8 @@ export function createLocalVideoOwner(options: {
     external: 'none',
   });
   const outcome = (trace: OperationTrace, code?: LocalVideoRefusal): void => {
-    const retryable =
-      trace.phase !== 'input' &&
-      code !== undefined &&
-      [
-        'queue-full',
-        'drain-timeout',
-        'not-ready',
-        'media-not-live',
-        'control-disconnected',
-      ].includes(code);
-    const detail =
-      `phase=local-video-${trace.phase} operation=${trace.id} initiator=${trace.initiator}` +
-      ` runtime=${trace.runtime} attempt=${trace.attempt} grant=${trace.grant}` +
-      ` durationMs=${Math.max(0, Math.round(now() - trace.started))}` +
-      ` outcome=${code === undefined ? 'ok' : 'refused'} refusal=${code ?? 'none'}` +
-      ` source=${code === undefined ? 'none' : trace.source} cause=${trace.cause ?? code ?? 'none'}` +
-      ` external=${trace.external}` +
-      ` retryable=${retryable} paused=${paused} bots=${paused ? 'remain-paused' : 'enabled'}`;
     try {
-      options.onEvent?.(detail);
+      options.onEvent?.(formatLocalVideoTrace(trace, now(), paused, code));
     } catch {}
   };
   const note = (
@@ -267,10 +224,15 @@ export function createLocalVideoOwner(options: {
   const requireActive = (): void => {
     if (disposed) refuse('disposed', 'The Computer owner has stopped.');
   };
+  const requireAvailable = (): void => {
+    const issue = options.unavailable?.();
+    if (issue !== undefined) refuse(issue.code, issue.detail);
+  };
   const requireRunning = (): void => {
     requireActive();
     if (options.supported?.() === false)
       refuse('unsupported-platform', 'This Computer does not support a Local Computer viewer.');
+    requireAvailable();
     if (!options.isRunning()) refuse('not-running', 'Start the Local Computer first.');
   };
   const requireRuntime = (value: string): void => {
@@ -370,6 +332,7 @@ export function createLocalVideoOwner(options: {
     const current = viewer?.deviceId === caller.deviceId ? viewer : undefined;
     const ownGrant = grant?.viewer === current ? grant : undefined;
     const mediaViewer = viewer;
+    const unavailable = options.unavailable?.();
     return {
       computerId: 'local',
       runtimeId,
@@ -393,6 +356,7 @@ export function createLocalVideoOwner(options: {
                 : {}),
             },
       ...(options.frames?.enabled() ? { transport: 'frames' as const } : {}),
+      ...(unavailable === undefined ? {} : { unavailable }),
       ...(offer && current?.peer !== undefined ? { offer: current.peer.offer } : {}),
     };
   };
@@ -574,6 +538,7 @@ export function createLocalVideoOwner(options: {
       if (command.kind === 'resume') {
         if (signal?.aborted) refuse('stale-attempt', 'The resume request was cancelled.');
         requireRuntime(command.runtimeId);
+        requireAvailable();
         if (command.binding !== undefined) checkViewer(caller, command.binding);
         if (grant !== undefined && grant.viewer.deviceId !== caller.deviceId)
           refuse('control-conflict', 'Release the current controller before resuming Bots.');
@@ -591,6 +556,7 @@ export function createLocalVideoOwner(options: {
           await drain(humans);
           trace.source = 'owner';
           requireRuntime(command.runtimeId);
+          requireAvailable();
           if (generation !== expectedGeneration)
             refuse('stale-grant', 'Control changed during resume.');
           if (signal?.aborted)
@@ -607,8 +573,9 @@ export function createLocalVideoOwner(options: {
           return state(caller);
         });
       }
-      const current = checkViewer(caller, command.binding);
       if (command.kind === 'frame') {
+        requireAvailable();
+        const current = checkViewer(caller, command.binding);
         requireRunning();
         if (!current.frames || options.frames === undefined || !options.frames.enabled())
           refuse('invalid-input', 'This viewer does not use desktop frames.');
@@ -623,6 +590,7 @@ export function createLocalVideoOwner(options: {
           frame = await options.frames.next(command.after, captureSignal);
         } catch {
           if (grant?.viewer === current) invalidate();
+          requireAvailable();
           refuse('media-not-live', 'The Host could not capture the desktop.');
         }
         checkViewer(caller, command.binding);
@@ -646,6 +614,7 @@ export function createLocalVideoOwner(options: {
         if (grant?.viewer === current) grant.expiresAt = now() + LOCAL_VIDEO_LIMITS.controlExpiryMs;
         return { ...state(caller), ...(frame === undefined ? {} : { frame }) };
       }
+      const current = checkViewer(caller, command.binding);
       if (command.kind === 'heartbeat') {
         if (current.frames) refuse('invalid-input', 'Use frame requests to follow this desktop.');
         const playback = command.playback;
@@ -911,8 +880,22 @@ export function createLocalVideoOwner(options: {
     handle,
     isPaused: () => paused,
     controlEpoch: () => botEpoch,
+    async pauseUnavailable() {
+      requireActive();
+      blockBots();
+      invalidate();
+      if (viewer !== undefined) {
+        viewer.media = closedMedia();
+        viewer.presenting = false;
+      }
+      persist(true);
+      await transition(async () => {
+        await Promise.all([drain(bots), drain(humans)]);
+      });
+    },
     async runBotOperation<T>(operation: () => Promise<T>): Promise<T> {
       requireActive();
+      requireAvailable();
       if (paused)
         refuse(
           'control-required',

@@ -94,6 +94,7 @@ export function LocalComputerStatus({
     failureDetail === undefined
       ? undefined
       : localSetupFailure(error ?? payload?.status?.refusal, t);
+  const waitingForGnome = preparing && current && failure !== undefined;
   const permissions =
     payload?.status?.refusal === 'permissions-required' ? payload.status.permissions : undefined;
   const post = (path: string, body: Record<string, unknown>): void => {
@@ -133,7 +134,11 @@ export function LocalComputerStatus({
     <Button
       size="sm"
       variant="outline"
-      disabled={preparing || payload?.probe?.available === false}
+      disabled={
+        preparing ||
+        payload?.probe?.available === false ||
+        payload?.status?.refusal === 'desktop-locked'
+      }
       onClick={check}
     >
       {t(preparing ? 'local.checking' : current ? 'local.desktop.check' : 'local.check')}
@@ -238,7 +243,11 @@ export function LocalComputerStatus({
           )}
           detail={
             <div {...stylex.props(styles.detail)}>
-              {failure === undefined ? null : <Note tone="danger">{failure}</Note>}
+              {failure === undefined ? null : waitingForGnome ? (
+                <Note>{failure}</Note>
+              ) : (
+                <Note tone="danger">{failure}</Note>
+              )}
               {body}
             </div>
           }

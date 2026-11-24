@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { HostApiAnswer, HostApiInit } from '@botharness/host-client/client';
 import {
@@ -113,6 +113,81 @@ it('observes a current desktop without acquiring control and resumes separately 
     ]);
   } finally {
     viewer.stop();
+  }
+});
+
+it('clears a locked Wayland frame and reconnects without taking control or resuming Bots', async () => {
+  vi.useFakeTimers();
+  let afterLock = 0;
+  let opened = 0;
+  const operations: string[] = [];
+  const locked = { code: 'desktop-locked', detail: 'Unlock this computer.' };
+  const viewing = { computerId: 'local', runtimeId: 'runtime', viewerId: 'phone' };
+  let endFirstFrame = () => {};
+  const firstFrameEnded = new Promise<void>((resolve) => {
+    endFirstFrame = resolve;
+  });
+  const viewer = createPhoneComputerViewer({
+    async api(_path, init) {
+      const kind = init?.body?.['kind'];
+      operations.push(String(kind));
+      if (kind === 'open') opened += 1;
+      if (kind === 'status' && opened > 0) afterLock += 1;
+      if (kind === 'frame' && init?.body?.['after'] === 1) {
+        await firstFrameEnded;
+        return { status: 409, body: { ok: false, code: locked.code, error: locked.detail } };
+      }
+      if (kind === 'frame' && init?.body?.['after'] === 2) {
+        await new Promise<void>((resolve) => {
+          if (init.signal?.aborted) resolve();
+          else init.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          state: {
+            binding: { ...viewing, attemptId: String(opened) },
+            transport: 'frames',
+            paused: opened > 1 || afterLock > 0,
+            controller: false,
+            ...(kind === 'status' && afterLock === 1 ? { unavailable: locked } : {}),
+            ...(kind === 'frame'
+              ? {
+                  frame: {
+                    seq: opened,
+                    data: 'test',
+                    mimeType: 'image/jpeg',
+                    width: 100,
+                    height: 50,
+                  },
+                }
+              : {}),
+          },
+        },
+      };
+    },
+  });
+  try {
+    const live = watch(viewer, (state) => state.frame?.seq === 1);
+    viewer.start();
+    await live;
+    const offline = watch(viewer, (state) => state.noticeCode === 'desktop-locked');
+    endFirstFrame();
+    expect(await offline).toMatchObject({ status: 'unreachable', paused: true, control: false });
+    expect(viewer.getState().frame).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(viewer.getState().frame).toBeUndefined();
+    const recovered = watch(viewer, (state) => state.frame?.seq === 2);
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(await recovered).toMatchObject({ status: 'live', paused: true, control: false });
+    expect(operations.filter((kind) => kind === 'open')).toHaveLength(2);
+    expect(operations).not.toContain('resume');
+    expect(operations).not.toContain('takeover');
+  } finally {
+    viewer.stop();
+    vi.useRealTimers();
   }
 });
 

@@ -597,7 +597,7 @@ deepseekbot grants <bot-id>
 
 ### Use the current Linux desktop
 
-Run the Host from the X11 desktop you are signed in to. Bots and paired phones can see the whole desktop when you select this target.
+Run the Host from your signed-in GNOME Wayland or X11 desktop. Bots and paired phones can see the whole shared screen when you select this target.
 
 ```bash
 deepseekbot computer-target
@@ -606,7 +606,13 @@ deepseekbot computer-start --target current-desktop
 deepseekbot computer-status
 ```
 
+On GNOME Wayland, select the monitor in the system sharing dialog. Enable **Allow Remote Interaction** and **Remember This Selection**, then choose **Share**. On Ubuntu, the Host needs `xdg-desktop-portal-gnome`, `python3-gi`, `gir1.2-gtk-4.0`, `gir1.2-gstreamer-1.0`, `gstreamer1.0-pipewire`, `gstreamer1.0-plugins-base`, and `gstreamer1.0-plugins-good`.
+
+`computer-tools` lists the actions available on this desktop. Use `computer-tool <bot-id> get_desktop_state --out <absolute-file>` to observe, then `click`, `scroll`, `type_text`, `press_key`, or `hotkey` with `--args-stdin`. Wayland input uses the focused app or pixel coordinates from the latest screenshot. Bot Browser uses its own profile in a visible window on the same desktop.
+
 Check `status.state` for `running`. On failure, `status.refusal` gives the code and `status.detail` explains the next step. Choose **Computer** on the paired Android app while connected over LAN. To drive the same viewer from the Host CLI, call `computer-video open --out <absolute-file>`. For a frame viewer, the result includes `binding` and `transport: "frames"` without an SDP offer. Pass the binding JSON to `computer-video frame --args-stdin --out <absolute-file>`. Use the same binding for `takeover`, `input`, and `release`. Only `resume` clears the Bot pause.
+
+GNOME stops desktop sharing at lock. `computer-status` and `computer-video status` report `desktop-locked`. Unlock at this computer. The Host tries to restore the saved grant and reports `desktop-restoring` until capture returns. If GNOME shows the sharing dialog again, confirm on the computer. Both Bot tools stay paused after recovery until `computer-video resume`.
 
 ### Local Computer video
 

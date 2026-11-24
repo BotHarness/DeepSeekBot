@@ -1,4 +1,5 @@
 import type { DesktopFrame, DesktopInput } from './desktop-view.js';
+import type { DesktopAccessIssue, WaylandIssueCode } from './desktop-availability.js';
 
 export type LocalVideoInput =
   | DesktopInput
@@ -62,6 +63,7 @@ export interface LocalVideoState {
   readonly offer?: LocalVideoDescription;
   readonly transport?: 'frames';
   readonly frame?: DesktopFrame;
+  readonly unavailable?: DesktopAccessIssue;
 }
 
 export type LocalVideoCommand =
@@ -104,6 +106,7 @@ export type LocalVideoCommand =
     };
 
 export type LocalVideoRefusal =
+  | WaylandIssueCode
   | 'invalid-input'
   | 'update-required'
   | 'not-running'
@@ -180,6 +183,7 @@ export interface LocalDesktopControl {
   readonly epoch: number;
   readonly ready: boolean;
   readonly currentDesktop: boolean;
+  readonly unavailable?: DesktopAccessIssue;
 }
 
 export interface LocalVideoOwner {
@@ -191,6 +195,7 @@ export interface LocalVideoOwner {
   runBotOperation<T>(operation: () => Promise<T>): Promise<T>;
   isPaused(): boolean;
   controlEpoch(): number;
+  pauseUnavailable(): Promise<void>;
   revoke(deviceId: string): Promise<void>;
   resetRuntime(): Promise<void>;
   dispose(): Promise<void>;
