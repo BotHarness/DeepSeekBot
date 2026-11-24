@@ -56,6 +56,7 @@ export function TobEntryBar({
       android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
       style={({ pressed }) => ({
         height,
+        minHeight: theme.touch,
         borderRadius: height / 2,
         overflow: 'hidden',
         flexDirection: 'row',
