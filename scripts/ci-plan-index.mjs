@@ -187,7 +187,14 @@ export function staleReferences(index, removed) {
   if (!gone.size) return result;
   const ghost = withRemoved(index, removed);
   const aliases = subpathAliases(index);
-  const stems = [...gone].flatMap(stemsOf);
+  const stems = [...gone].flatMap((path) => [
+    ...stemsOf(path),
+    ...aliases
+      .filter(([, directory, suffix = '']) => path.startsWith(directory) && path.endsWith(suffix))
+      .map(([, directory, suffix = '']) =>
+        posix.basename(path.slice(directory.length, path.length - suffix.length)),
+      ),
+  ]);
   const targetsOf = (file, literal) => {
     if (literal.startsWith('.')) return [resolveSpecifier(ghost, file, literal)];
     const targets = [

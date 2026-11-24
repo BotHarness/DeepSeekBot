@@ -419,6 +419,23 @@ describe('CI test plan', () => {
     expect(listing.tests).toBe('full');
     expect(listing.reason).toContain('packages/client/assets/plugins.json still names');
     expect(plan(removal('scripts/old.mjs'))).toMatchObject({ docsSite: true });
+    const prefixed = {
+      ...files,
+      'packages/kit/package.json': JSON.stringify({
+        name: '@botharness/kit',
+        exports: { './*': './src/prefix-*.ts' },
+      }),
+      'packages/kit/src/prefix-kept.ts': '',
+      'packages/kit/plugins.json': JSON.stringify({ plugin: '@botharness/kit/gone' }),
+    };
+    const prefixedIndex = createIndex(Object.keys(prefixed), (file) => prefixed[file]);
+    expect(
+      plan({
+        event: 'pull_request',
+        index: prefixedIndex,
+        changes: [{ status: 'removed', path: 'packages/kit/src/prefix-gone.ts' }],
+      }).tests,
+    ).toBe('full');
     const own = {
       ...files,
       'packages/client/src/gadget/config.json': JSON.stringify({ entry: './index.ts' }),
