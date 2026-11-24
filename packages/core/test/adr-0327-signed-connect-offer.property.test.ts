@@ -13,6 +13,7 @@ it('refuses a correctly signed non-object offer payload', async () => {
   try {
     await account.signIn();
     await settle(account);
+    expect(account.status()).toMatchObject({ state: 'signed-in' });
     await fc.assert(
       fc.asyncProperty(nonObject, async (payload) => {
         const body = JSON.stringify(payload);
