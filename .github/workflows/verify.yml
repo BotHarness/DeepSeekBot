@@ -206,6 +206,10 @@ jobs:
     if: needs.plan.outputs.android-native == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      ROBOLECTRIC_MAVEN_URL: https://repo.maven.apache.org/maven2
+      # Robolectric 4.14.1 SDK jars for the API 28 and API 35 suites.
+      ROBOLECTRIC_SDK_VERSIONS: 9-robolectric-4913185-2-i7 15-robolectric-12650502-i7
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -220,12 +224,33 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Cache Robolectric Android SDK jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented
+          key: robolectric-sdk-${{ runner.os }}-${{ env.ROBOLECTRIC_SDK_VERSIONS }}
+      - name: Fetch and verify Robolectric Android SDK jars before running tests
+        shell: bash
+        run: |
+          artifact=org/robolectric/android-all-instrumented
+          curl_options=(--fail --silent --show-error --retry 4 --retry-max-time 90 --connect-timeout 10 --max-time 120)
+          for version in $ROBOLECTRIC_SDK_VERSIONS; do
+            filename="android-all-instrumented-$version.jar"
+            jar="$HOME/.m2/repository/$artifact/$version/$filename"
+            [[ ! -s "$jar" ]] || continue
+            mkdir -p "$(dirname "$jar")"
+            url="$ROBOLECTRIC_MAVEN_URL/$artifact/$version/$filename"
+            checksum=$(curl "${curl_options[@]}" "$url.sha512")
+            curl "${curl_options[@]}" --output "$jar.tmp" "$url"
+            printf '%s  %s\n' "$checksum" "$jar.tmp" | sha512sum --check
+            mv "$jar.tmp" "$jar"
+          done
       - name: Configure Android test dependency downloads and failure details
         run: |
           cat > "$RUNNER_TEMP/android-test-init.gradle" <<'GRADLE'
           allprojects {
             tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
-              systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+              systemProperty 'robolectric.dependency.repo.url', System.getenv('ROBOLECTRIC_MAVEN_URL')
               testLogging {
                 exceptionFormat = 'full'
                 showCauses = true
