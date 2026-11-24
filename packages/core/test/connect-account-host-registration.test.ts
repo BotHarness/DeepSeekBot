@@ -111,6 +111,83 @@ describe('Connect account sign-in', () => {
     }
   });
 
+  it('fails tunnel setup when the relay rejects the bound port with 404', async () => {
+    const services = fakeServices({ pending: 0 });
+    const ready = vi.fn();
+    const { account, tunnel } = setup(services, 52000, 60_000, ready);
+    const fetch = services.fetcher.getMockImplementation()!;
+    let tunnelCalls = 0;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/tunnel') && ++tunnelCalls === 2)
+        return Response.json({}, { status: 404 });
+      return fetch(input, init);
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(tunnelCalls).toBe(2);
+      expect(account.status()).toMatchObject({
+        state: 'error',
+        issue: 'relay-unavailable',
+        recovery: 'automatic',
+      });
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+      expect(ready).not.toHaveBeenCalled();
+    } finally {
+      await account.close();
+    }
+  });
+
+  it.each(['relay reply', 'tunnel enable'])(
+    'does not leave an obsolete tunnel enabled when the account closes during %s',
+    async (stage) => {
+      const services = fakeServices({ pending: 0 });
+      const { account, credentials, tunnel } = setup(services);
+      const fetch = services.fetcher.getMockImplementation()!;
+      const enable = tunnel.connect.enable;
+      const started = deferred();
+      const release = deferred();
+      let syncing: Promise<void> | undefined;
+      try {
+        await account.signIn();
+        await settle(account);
+        services.fetcher.mockImplementation(async (input, init) => {
+          if (stage !== 'relay reply' || !String(input).endsWith('/tunnel'))
+            return fetch(input, init);
+          started.resolve();
+          await release.promise;
+          const response = await fetch(input, init);
+          return Response.json({ ...(await response.json()), relayKey: 'late-fixture-signer' });
+        });
+        tunnel.connect.enable = async (input) => {
+          if (stage === 'tunnel enable') {
+            started.resolve();
+            await release.promise;
+          }
+          return enable(input);
+        };
+        tunnel.fail();
+        syncing = account.start();
+        await started.promise;
+        const closing = account.close();
+        release.resolve();
+        await closing;
+        if (stage === 'relay reply') {
+          expect(tunnel.enabled).toHaveLength(1);
+          expect([...credentials.records.values()]).toEqual([
+            expect.objectContaining({ payload: expect.objectContaining({ relayKey: RELAY_KEY }) }),
+          ]);
+        } else {
+          expect(tunnel.connect.status()).toEqual({ state: 'off' });
+        }
+      } finally {
+        release.resolve();
+        await syncing;
+        await account.close();
+      }
+    },
+  );
+
   it('tells the relay the bound origin port when Connect picked another one', async () => {
     const { account, services } = setup(fakeServices({ pending: 0 }), 52000);
     await account.signIn();
