@@ -12,7 +12,12 @@ import { openActivityItem } from './open-activity-item';
 import { openCloudCreation } from './open-cloud-creation';
 import { conversationHref } from './open-conversation';
 import { navigateChannel } from './channel-navigation';
-import { canCreateNativeSession, openNewSession, sessionHref } from './page-create-actions';
+import {
+  openDrawerSession,
+  openNewSession,
+} from '../../features/sessions/session-drawer-navigation';
+import { useHideBotSessions } from '../interface-preferences';
+import { canCreateNativeSession } from './page-create-actions';
 import { useRecentSessions } from './recent-sessions';
 import {
   activityLabel,
@@ -20,6 +25,7 @@ import {
   conversationLabel,
   pendingActivity,
   recentConversations,
+  recentSessionsShown,
   type TabMenuEntry,
   type TabMenuHost,
 } from './tab-menu-model';
@@ -53,12 +59,14 @@ export function useTabMenus({
     watch,
     () => client?.getSnapshot().connection.status === 'connected',
   );
-  const { rows: sessions, load } = useRecentSessions(
+  const hideBotSessions = useHideBotSessions();
+  const { rows: recent, load } = useRecentSessions(
     sessionsTab ? client : undefined,
     saved?.hostId,
     online,
     focusedRoute,
   );
+  const sessions = recentSessionsShown(recent, hideBotSessions);
   const canCreateSession = canCreateNativeSession(saved);
 
   const menuHosts: TabMenuHost[] = hosts.map((host) => ({
@@ -154,7 +162,7 @@ export function useTabMenus({
               glyph: 'session',
               run: () => {
                 now().go('(sessions)');
-                router.push(sessionHref(row, hostId));
+                openDrawerSession(hostId, row);
               },
             }));
       if (canCreateSession)
