@@ -21,6 +21,16 @@ function git(root: string, args: string[]): string {
   }).trim();
 }
 
+function expectMemoryConfig(root: string): void {
+  for (const [key, value] of [
+    ['user.name', 'BotHarness'],
+    ['user.email', 'bot@botharness.local'],
+    ['commit.gpgsign', 'false'],
+    ['core.autocrlf', 'false'],
+  ] as const)
+    expect(git(root, ['config', '--local', '--get', key])).toBe(value);
+}
+
 function commitCount(root: string): number {
   return Number(git(root, ['rev-list', '--count', 'HEAD']));
 }
@@ -38,9 +48,10 @@ describe('memory git repository', () => {
     expect(await pending).toEqual({ created: true });
     const head = git(root, ['rev-parse', 'HEAD']);
     expect(git(root, ['branch', '--show-current'])).toBe('main');
-    expect(git(root, ['config', 'user.email'])).toBe('bot@botharness.local');
+    expectMemoryConfig(root);
     expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe('* text=auto eol=lf\n');
     expect(await initializeMemoryRepositoryAsync(root)).toEqual({ created: false });
+    expectMemoryConfig(root);
     expect(git(root, ['rev-parse', 'HEAD'])).toBe(head);
   });
   it('initializes one main branch, local identity and committed LF attributes', async () => {
@@ -49,7 +60,7 @@ describe('memory git repository', () => {
 
     expect(git(root, ['branch', '--show-current'])).toBe('main');
     expect(git(root, ['branch', '--format=%(refname:short)'])).toBe('main');
-    expect(git(root, ['config', 'user.email'])).toBe('bot@botharness.local');
+    expectMemoryConfig(root);
     expect(readFileSync(join(root, '.gitattributes'), 'utf8')).toBe('* text=auto eol=lf\n');
     expect(git(root, ['ls-files', '.gitattributes'])).toBe('.gitattributes');
     expect(git(root, ['status', '--porcelain'])).toBe('');
