@@ -233,7 +233,11 @@ jobs:
         shell: bash
         run: |
           artifact=org/robolectric/android-all-instrumented
-          curl_options=(--fail --silent --show-error --retry 4 --retry-max-time 90 --connect-timeout 10 --max-time 120)
+          curl_options=(
+            --fail --silent --show-error
+            --retry 4 --retry-max-time 90
+            --connect-timeout 10 --speed-limit 1024 --speed-time 30
+          )
           for version in $ROBOLECTRIC_SDK_VERSIONS; do
             filename="android-all-instrumented-$version.jar"
             jar="$HOME/.m2/repository/$artifact/$version/$filename"
@@ -242,7 +246,7 @@ jobs:
             url="$ROBOLECTRIC_MAVEN_URL/$artifact/$version/$filename"
             checksum=$(curl "${curl_options[@]}" "$url.sha512")
             curl "${curl_options[@]}" --output "$jar.tmp" "$url"
-            printf '%s  %s\n' "$checksum" "$jar.tmp" | sha512sum --check
+            printf '%s  %s\n' "$checksum" "$jar.tmp" | sha512sum -c -
             mv "$jar.tmp" "$jar"
           done
       - name: Configure Android test dependency downloads and failure details
