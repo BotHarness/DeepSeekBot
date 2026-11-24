@@ -423,7 +423,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      - run: pnpm vitest run --project '!docs-site' --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         timeout-minutes: 18
 
   test-affected:

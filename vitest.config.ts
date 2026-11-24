@@ -11,6 +11,8 @@ const genuiBudgetTests = [
   'packages/client/test/genui-dom-mirror.test.ts',
 ];
 
+const docsSiteTest = 'apps/docs/test/changelog-public-surfaces.test.ts';
+
 const durableIntegrationTests = [
   'packages/core/test/bot-group-review-rounds.test.ts',
   'packages/core/test/channel-attachment-forwarding.test.ts',
@@ -60,7 +62,12 @@ export default defineConfig({
         test: {
           ...testDefaults,
           name: 'default',
-          exclude: [...configDefaults.exclude, ...genuiBudgetTests, ...durableIntegrationTests],
+          exclude: [
+            ...configDefaults.exclude,
+            ...genuiBudgetTests,
+            ...durableIntegrationTests,
+            docsSiteTest,
+          ],
           sequence: { groupOrder: 0 },
         },
       },
@@ -86,6 +93,16 @@ export default defineConfig({
           maxWorkers: 1,
           fileParallelism: false,
           sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        extends: false,
+        ...sourceOptions(),
+        test: {
+          ...testDefaults,
+          name: 'docs-site',
+          include: [docsSiteTest],
+          sequence: { groupOrder: 3 },
         },
       },
     ],
