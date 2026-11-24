@@ -976,10 +976,10 @@ it('asks before a started Bot draft leaves the sheet and discards or keeps it', 
   const repeat = vi.fn();
   await act(async () => fixture.onPrevented?.({ repeat }));
   expect(fixture.dialogs.at(-1)?.title).toBe(t.creationDraft.title);
-  expect(fixture.dialogs.at(-1)?.actions.map((action) => action.text)).toEqual([
-    t.creationDraft.discard,
-    t.creationDraft.keep,
-    t.creationDraft.edit,
+  expect(fixture.dialogs.at(-1)?.actions).toMatchObject([
+    { text: t.creationDraft.discard, style: 'destructive' },
+    { text: t.creationDraft.keep },
+    { text: t.creationDraft.edit, style: 'cancel' },
   ]);
   await answer(t.creationDraft.keep);
   expect(repeat).toHaveBeenCalledTimes(1);

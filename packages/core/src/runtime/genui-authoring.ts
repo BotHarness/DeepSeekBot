@@ -1,0 +1,199 @@
+import { compileGenuiDiagram, GenuiDiagramError } from './genui-diagram.js';
+import type { GenuiPreviewDiagnostic } from './genui-preview.js';
+
+export const GENUI_AUTHORING_LIMITS = Object.freeze({
+  diagrams: 8,
+  previews: 64,
+  previewTtlMs: 2 * 60 * 60 * 1000,
+});
+
+const DIAGRAM = /<genui-diagram\b([^>]*)>([\s\S]*?)<\/genui-diagram\s*>/giu;
+const ELEMENT = /^<genui-diagram\b([^>]*)>([\s\S]*?)<\/genui-diagram\s*>$/iu;
+const OPEN_DIAGRAM = /<genui-diagram\b/iu;
+const WIDTH = /^\s*(?:width\s*=\s*(?:"(\d{1,4})"|'(\d{1,4})'|(\d{1,4})))?\s*$/iu;
+const ENTITIES: Record<string, string> = {
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&amp;': '&',
+};
+
+export class GenuiAuthoringError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'GenuiAuthoringError';
+  }
+}
+
+function decode(source: string): string {
+  return source.replace(/&(?:lt|gt|quot|#39|amp);/gu, (entity) => ENTITIES[entity] ?? entity);
+}
+
+const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
+
+function blank(html: string): string {
+  const lower = html.toLowerCase();
+  let output = '';
+  let cursor = 0;
+  let index = lower.indexOf('<');
+  while (index !== -1) {
+    let end: number;
+    if (lower.startsWith('<!--', index)) {
+      const close = lower.indexOf('-->', index + 4);
+      end = close === -1 ? html.length : close + 3;
+    } else {
+      const name = /^<([a-z][\w-]*)/u.exec(lower.slice(index, index + 64))?.[1];
+      if (name === undefined) {
+        index = lower.indexOf('<', index + 1);
+        continue;
+      }
+      let quote = '';
+      let tagEnd = index + 1;
+      for (; tagEnd < lower.length; tagEnd += 1) {
+        const char = lower[tagEnd];
+        if (quote) quote = char === quote ? '' : quote;
+        else if (char === '"' || char === "'") quote = char;
+        else if (char === '>') break;
+      }
+      if (tagEnd >= lower.length) break;
+      if (!RAW_TEXT.has(name)) {
+        index = lower.indexOf('<', tagEnd + 1);
+        continue;
+      }
+      const close = lower.indexOf(`</${name}`, tagEnd + 1);
+      const closeEnd = close === -1 ? -1 : lower.indexOf('>', close);
+      end = closeEnd === -1 ? html.length : closeEnd + 1;
+    }
+    output += html.slice(cursor, index) + ' '.repeat(end - index);
+    cursor = end;
+    index = lower.indexOf('<', end);
+  }
+  return output + html.slice(cursor);
+}
+
+export async function expandGenuiDiagrams(
+  html: string,
+  options: {
+    signal?: AbortSignal;
+    onDiagnostic?: ((event: GenuiPreviewDiagnostic) => void) | undefined;
+  } = {},
+): Promise<string> {
+  if (!OPEN_DIAGRAM.test(html)) return html;
+  const markup = blank(html);
+  const opened = (markup.match(/<genui-diagram\b/giu) ?? []).length;
+  if (opened > GENUI_AUTHORING_LIMITS.diagrams)
+    throw new GenuiAuthoringError(
+      'genui-diagram-tag',
+      `Use at most ${GENUI_AUTHORING_LIMITS.diagrams} <genui-diagram> elements per document.`,
+    );
+  const matches = [...markup.matchAll(DIAGRAM)].map((found) => {
+    const match = ELEMENT.exec(html.slice(found.index, found.index + found[0].length))!;
+    return Object.assign(match, { index: found.index });
+  });
+  if (opened !== matches.length)
+    throw new GenuiAuthoringError(
+      'genui-diagram-tag',
+      'Close every <genui-diagram> with </genui-diagram> and do not nest them.',
+    );
+  let output = '';
+  let cursor = 0;
+  for (const match of matches) {
+    const width = WIDTH.exec(match[1] ?? '');
+    if (width === null)
+      throw new GenuiAuthoringError(
+        'genui-diagram-tag',
+        '<genui-diagram> accepts only an optional width="240–1600" attribute.',
+      );
+    const value = width[1] ?? width[2] ?? width[3];
+    let compiled;
+    try {
+      compiled = await compileGenuiDiagram(
+        decode(match[2] ?? '').trim(),
+        value === undefined ? undefined : Number(value),
+        {
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+          onDiagnostic: options.onDiagnostic,
+        },
+      );
+    } catch (error) {
+      if (error instanceof GenuiDiagramError)
+        throw new GenuiDiagramError(
+          error.code,
+          `Diagram ${matches.indexOf(match) + 1}: ${error.message}`,
+        );
+      throw error;
+    }
+    output += html.slice(cursor, match.index) + compiled.svg;
+    cursor = match.index + match[0].length;
+  }
+  return output + html.slice(cursor);
+}
+
+export async function expandGenuiContent(
+  value: unknown,
+  options: Parameters<typeof expandGenuiDiagrams>[1] = {},
+): Promise<unknown> {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('version' in value) ||
+    value.version !== 2 ||
+    !('html' in value) ||
+    typeof value.html !== 'string'
+  )
+    return value;
+  return { ...value, html: await expandGenuiDiagrams(value.html, options) };
+}
+
+interface StoredPreview {
+  document: unknown;
+  expiresAt: number;
+}
+
+export interface GenuiPreviewStore {
+  remember(scope: string, previewId: string, document: unknown): void;
+  read(scope: string, previewId: string): unknown;
+}
+
+export function createGenuiPreviewStore(
+  now: () => number = Date.now,
+  limits: { entries: number; ttlMs: number } = {
+    entries: GENUI_AUTHORING_LIMITS.previews,
+    ttlMs: GENUI_AUTHORING_LIMITS.previewTtlMs,
+  },
+): GenuiPreviewStore {
+  const entries = new Map<string, StoredPreview>();
+  const key = (scope: string, previewId: string) => `${scope}\u0000${previewId}`;
+  const prune = () => {
+    const current = now();
+    for (const [entry, stored] of entries) if (stored.expiresAt <= current) entries.delete(entry);
+    while (entries.size > limits.entries) entries.delete(entries.keys().next().value!);
+  };
+  return {
+    remember(scope, previewId, document) {
+      const entry = key(scope, previewId);
+      entries.delete(entry);
+      entries.set(entry, {
+        document: structuredClone(document),
+        expiresAt: now() + limits.ttlMs,
+      });
+      prune();
+    },
+    read(scope, previewId) {
+      prune();
+      const stored = entries.get(key(scope, previewId));
+      if (stored === undefined)
+        throw new GenuiAuthoringError(
+          'genui-preview-expired',
+          'That genui_preview_id is unknown or expired for this Bot. Preview the document again, or send the complete genui_json.',
+        );
+      return structuredClone(stored.document);
+    },
+  };
+}
+
+export const genuiPreviews = createGenuiPreviewStore();

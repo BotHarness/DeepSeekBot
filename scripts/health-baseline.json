@@ -1,6 +1,5 @@
 {
   "long-files": [
-    "packages/client/src/client/channel-dock.tsx",
     "packages/core/src/database/schema-plan.ts",
     "prototype/avatar-hair/app.js",
     "prototype/dot-matrix/dotmatrix.js"

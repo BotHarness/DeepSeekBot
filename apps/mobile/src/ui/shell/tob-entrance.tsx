@@ -16,7 +16,7 @@ import { EntranceSettled } from './entrance-settled';
 import { leaveScreen } from './leave-screen';
 import { StackRoot } from './stack-root';
 import { tobEntryOrigin } from './tob-entry-origin';
-import { containerTransformFade, containerTransformFrame } from './tob-mode-model';
+import { containerTransform, containerTransformFade } from './tob-mode-model';
 
 function leave(): void {
   leaveScreen(router);
@@ -33,8 +33,12 @@ export function TobEntranceStack() {
 
   const mount = useMounted<ViewInstance>(() => {
     if (!reduced)
-      progress.value = withSpring(1, { ...spring.spatial.default, overshootClamping: true }, () =>
-        runOnJS(setSettled)(true),
+      progress.value = withSpring(
+        1,
+        { ...spring.spatial.default, overshootClamping: true },
+        (finished) => {
+          if (finished === true) runOnJS(setSettled)(true);
+        },
       );
   }, []);
 
@@ -46,21 +50,27 @@ export function TobEntranceStack() {
   });
 
   const container = useAnimatedStyle(() => {
-    const frame = containerTransformFrame(origin, screen, reduced ? 1 : progress.value);
+    const step = containerTransform(origin, screen, reduced ? 1 : progress.value);
     return {
-      left: frame.x,
-      top: frame.y,
-      width: frame.width,
-      height: frame.height,
-      borderRadius: frame.radius,
+      borderRadius: step.radius,
+      transform: [
+        { translateX: step.container.translateX },
+        { translateY: step.container.translateY },
+        { scaleX: step.container.scaleX },
+        { scaleY: step.container.scaleY },
+      ],
     };
   });
   const content = useAnimatedStyle(() => {
-    const frame = containerTransformFrame(origin, screen, reduced ? 1 : progress.value);
+    const step = containerTransform(origin, screen, reduced ? 1 : progress.value);
     return {
-      left: -frame.x,
-      top: frame.height - screen.height,
       opacity: containerTransformFade(reduced ? 1 : progress.value).content,
+      transform: [
+        { translateX: step.content.translateX },
+        { translateY: step.content.translateY },
+        { scaleX: step.content.scaleX },
+        { scaleY: step.content.scaleY },
+      ],
     };
   });
   const source = useAnimatedStyle(() => ({
@@ -68,35 +78,65 @@ export function TobEntranceStack() {
   }));
 
   return (
-    <Animated.View
-      testID="tob-entrance"
-      collapsable={false}
-      onAccessibilityEscape={leave}
-      style={[
-        { position: 'absolute', overflow: 'hidden', backgroundColor: theme.color.base },
-        container,
-      ]}
-    >
+    <View style={{ flex: 1 }} pointerEvents="box-none">
       <Animated.View
-        style={[{ position: 'absolute', width: screen.width, height: screen.height }, content]}
+        testID="tob-entrance"
+        collapsable={false}
+        onAccessibilityEscape={leave}
+        style={[
+          {
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: screen.width,
+            height: screen.height,
+            overflow: 'hidden',
+            backgroundColor: theme.color.base,
+          },
+          container,
+        ]}
       >
-        <View ref={mount} style={{ flex: 1 }} collapsable={false}>
-          <EntranceSettled value={settled}>
-            <StackRoot value>
-              <Stack
-                screenOptions={{
-                  headerShadowVisible: false,
-                  contentStyle: { backgroundColor: theme.color.base },
-                }}
-              />
-            </StackRoot>
-          </EntranceSettled>
-        </View>
+        <Animated.View
+          style={[
+            { position: 'absolute', left: 0, top: 0, width: screen.width, height: screen.height },
+            content,
+          ]}
+        >
+          <View ref={mount} style={{ flex: 1 }} collapsable={false}>
+            <EntranceSettled value={settled && !leaving}>
+              <StackRoot value>
+                <Stack
+                  screenOptions={{
+                    headerShadowVisible: false,
+                    contentStyle: { backgroundColor: theme.color.base },
+                  }}
+                />
+              </StackRoot>
+            </EntranceSettled>
+          </View>
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: theme.layer.raised.fill }, source]}
+        />
       </Animated.View>
-      <Animated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { backgroundColor: theme.layer.raised.fill }, source]}
-      />
-    </Animated.View>
+      {origin === undefined ? null : (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              left: origin.x,
+              top: origin.y,
+              width: origin.width,
+              height: origin.height,
+              borderRadius: origin.height / 2,
+              backgroundColor: theme.layer.raised.fill,
+            },
+            source,
+          ]}
+        />
+      )}
+    </View>
   );
 }

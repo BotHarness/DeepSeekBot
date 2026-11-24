@@ -88,6 +88,38 @@ export function containerTransformFrame(
   };
 }
 
+export type ContainerTransform = {
+  container: { translateX: number; translateY: number; scaleX: number; scaleY: number };
+  radius: number;
+  content: { translateX: number; translateY: number; scaleX: number; scaleY: number };
+};
+
+export function containerTransform(
+  origin: EntranceRect | undefined,
+  screen: { width: number; height: number },
+  progress: number,
+): ContainerTransform {
+  'worklet';
+  const frame = containerTransformFrame(origin, screen, progress);
+  const scaleX = frame.width / screen.width;
+  const scaleY = frame.height / screen.height;
+  return {
+    container: {
+      translateX: frame.x + frame.width / 2 - screen.width / 2,
+      translateY: frame.y + frame.height / 2 - screen.height / 2,
+      scaleX,
+      scaleY,
+    },
+    radius: frame.radius / Math.sqrt(scaleX * scaleY),
+    content: {
+      translateX: (screen.width / 2 - frame.x - frame.width / 2) / scaleX,
+      translateY: (frame.height / 2 - screen.height / 2) / scaleY,
+      scaleX: 1 / scaleX,
+      scaleY: 1 / scaleY,
+    },
+  };
+}
+
 export function containerTransformFade(progress: number): { content: number; origin: number } {
   'worklet';
   const p = Math.min(1, Math.max(0, progress));
