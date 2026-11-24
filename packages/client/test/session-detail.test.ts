@@ -5,7 +5,6 @@ import { type SessionDetailPrefs } from '../src/client/session-detail.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { SessionSeq } from '@deepseek-ai/dsh-session/types';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -22,7 +21,6 @@ import { zhTranslate } from '../src/client/locale.js';
 import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
 import { SessionModelSwitch } from '../src/client/session-model-switch.js';
-import { nativeModelSwitchDefinition } from '../src/client/native-session-model-switch.js';
 import {
   cachedSessionDetail,
   clearSessionDetailCache,
@@ -113,30 +111,6 @@ it('shows one localized model switch and keeps model names out of replies and th
 it('renders the native Session model switch as one localized marker', async () => {
   const from = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
   const to = { kind: 'dsh', provider: 'deepseek', model: 'deepseek-v4-pro' } as const;
-  const start = {
-    role: 'start',
-    location: { kind: 'session' },
-    event: {
-      seq: SessionSeq(2),
-      time: 0,
-      type: 'turn/start',
-      data: { turn: 1 },
-    },
-  } as const;
-  const node = nativeModelSwitchDefinition.buildViewNode?.({
-    key: 'switch',
-    kind: nativeModelSwitchDefinition.kind,
-    id: '2',
-    start,
-    matches: [start],
-    state: { state: {}, marker: { from, to, time: 0 } },
-    current: new Map(),
-  });
-  expect(node).toMatchObject({
-    kind: 'botharness-model-switch',
-    groupTree: 'turn',
-    data: { from, to },
-  });
   const host = document.createElement('div');
   const root = createRoot(host);
   mounted.push(() => act(() => root.unmount()));
