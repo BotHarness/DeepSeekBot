@@ -1,8 +1,9 @@
 import { Stack, router, usePreventRemove } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import Animated, {
   runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -16,7 +17,12 @@ import { EntranceSettled } from './entrance-settled';
 import { leaveScreen } from './leave-screen';
 import { StackRoot } from './stack-root';
 import { tobEntryOrigin } from './tob-entry-origin';
-import { containerTransform, containerTransformFade } from './tob-mode-model';
+import {
+  containerTransform,
+  containerTransformExit,
+  containerTransformFade,
+  exitDone,
+} from './tob-mode-model';
 
 function leave(): void {
   leaveScreen(router);
@@ -42,12 +48,34 @@ export function TobEntranceStack() {
       );
   }, []);
 
+  const exiting = useSharedValue(false);
+  const removal = useRef<(() => void) | undefined>(undefined);
+  const finishExit = () => {
+    const repeat = removal.current;
+    removal.current = undefined;
+    repeat?.();
+  };
+
   usePreventRemove(!reduced && !leaving, ({ repeat }) => {
     setLeaving(true);
+    removal.current = repeat;
+    exiting.value = true;
     progress.value = withSpring(0, { ...spring.release, overshootClamping: true }, () =>
-      runOnJS(repeat)(),
+      runOnJS(finishExit)(),
     );
   });
+
+  useAnimatedReaction(
+    () => exiting.value && progress.value <= exitDone,
+    (done, previous) => {
+      if (done && previous !== true) runOnJS(finishExit)();
+    },
+  );
+
+  const reveal = useAnimatedStyle(() => ({
+    flex: 1,
+    opacity: containerTransformExit(progress.value, exiting.value),
+  }));
 
   const container = useAnimatedStyle(() => {
     const step = containerTransform(origin, screen, reduced ? 1 : progress.value);
@@ -78,7 +106,7 @@ export function TobEntranceStack() {
   }));
 
   return (
-    <View style={{ flex: 1 }} pointerEvents="box-none">
+    <Animated.View style={reveal} pointerEvents="box-none">
       <Animated.View
         testID="tob-entrance"
         collapsable={false}
@@ -103,7 +131,7 @@ export function TobEntranceStack() {
           ]}
         >
           <View ref={mount} style={{ flex: 1 }} collapsable={false}>
-            <EntranceSettled value={settled}>
+            <EntranceSettled value={settled && !leaving}>
               <StackRoot value>
                 <Stack
                   screenOptions={{
@@ -137,6 +165,6 @@ export function TobEntranceStack() {
           ]}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }

@@ -1,5 +1,7 @@
 # Android Chats -1 screen (spike)
 
+Unused since [ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md) removed the Android workspace drawer; `DismissibleDrawerView` awaits removal. `EndSheetView` in this module still backs the Android conversation profile side sheet.
+
 Local Expo UI extension that wraps Compose Material 3 `DismissibleNavigationDrawer` with two
 React Native slots, `panel` (the workspace panel) and `content` (Chats). There is no scrim: the
 whole Chats screen slides right by the panel's width, like a launcher's -1 screen (#3015, hub

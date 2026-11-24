@@ -85,7 +85,9 @@ state.context = (await import('../src/ui/shell/entrance-settled')).EntranceSettl
 const { useStackRoot } = await import('../src/ui/shell/stack-root');
 const {
   containerTransform,
+  containerTransformExit,
   containerTransformFade,
+  exitDone,
   containerTransformFrame,
   tobComputer,
   tobModeHostId,
@@ -236,6 +238,16 @@ describe('the container transform', () => {
     });
   });
 
+  it('fades the whole entrance out over the end of the exit so the real bar shows again', () => {
+    expect(containerTransformExit(0, false)).toBe(1);
+    expect(containerTransformExit(0.5, true)).toBe(1);
+    expect(containerTransformExit(0.15, true)).toBe(1);
+    expect(containerTransformExit(0.1, true)).toBeGreaterThan(0);
+    expect(containerTransformExit(0.1, true)).toBeLessThan(1);
+    expect(containerTransformExit(exitDone, true)).toBe(0);
+    expect(containerTransformExit(0, true)).toBe(0);
+  });
+
   it('starts near full size when the bar was not measured', () => {
     expect(containerTransformFrame(undefined, screen, 0).width).toBeCloseTo(screen.width * 0.9);
   });
@@ -313,6 +325,17 @@ describe('the Tob entrance', () => {
     await render();
     expect(state.settled[0]).toBe(false);
     expect(state.settled.at(-1)).toBe(true);
+  });
+
+  it('closes the settled gate as soon as Back starts, so a late connection cannot focus the Composer', async () => {
+    state.springs.length = 0;
+    await render();
+    expect(state.settled.at(-1)).toBe(true);
+    const prevent = state.prevent!;
+    await act(async () =>
+      prevent.callback({ data: { action: { type: 'POP' } }, repeat: () => undefined }),
+    );
+    expect(state.settled.at(-1)).toBe(false);
   });
 
   it('never settles when the entrance is cancelled, so Back cannot focus the Composer', async () => {
