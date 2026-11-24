@@ -384,22 +384,52 @@ export function ToolApprovalCard({
           )
         : t('approval.alwaysUnavailable')
       : undefined;
-  const memoryInfo =
-    memoryEdit === undefined
+  const effects =
+    request.effects === undefined
       ? undefined
+      : `${t(`approval.effect.changes.${request.effects.changes}`)} · ${t(`approval.effect.reach.${request.effects.reach}`)}`;
+  const origin = `${request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')} · ${request.toolName}`;
+  const review =
+    request.approvalReview === undefined
+      ? undefined
+      : request.approvalReview.kind === 'template-unavailable'
+        ? t('autoApproval.unavailable')
+        : request.approvalReview.fallback === undefined
+          ? request.approvalReview.reason
+          : t('autoApproval.reviewUnavailable');
+  const hostAccess =
+    message.approval?.masked === false && message.approval.opaque
+      ? t('approval.opaqueWarning')
+      : undefined;
+  const info = (
+    memoryEdit === undefined
+      ? [
+          origin,
+          t('approval.cwd', { path: request.cwd }),
+          effects,
+          review,
+          scope,
+          summary.command === undefined ? hostAccess : undefined,
+        ]
       : [
           `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
-          request.effects === undefined
-            ? undefined
-            : `${t(`approval.effect.changes.${request.effects.changes}`)} · ${t(`approval.effect.reach.${request.effects.reach}`)}`,
-          `${request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')} · ${request.toolName}`,
+          effects,
+          origin,
+          review,
           canAlwaysAllow ? undefined : scope,
-          message.approval?.masked === false && message.approval.opaque
-            ? t('approval.opaqueWarning')
-            : undefined,
+          hostAccess,
         ]
-          .filter((line) => line !== undefined)
-          .join('\n');
+  )
+    .filter((line) => line !== undefined && line !== '')
+    .join('\n');
+  const shortScope =
+    scope === undefined || !canAlwaysAllow
+      ? undefined
+      : memoryEdit !== undefined
+        ? t('approval.alwaysMemoryScope')
+        : secretCli || request.toolName === 'secret_mcp_connect'
+          ? scope
+          : t('approval.alwaysToolScopeShort', { tool: request.toolName });
   const details =
     memoryEdit !== undefined ? (
       <ApprovalInput
@@ -412,14 +442,6 @@ export function ToolApprovalCard({
       />
     ) : open ? (
       <div id={detailsId} {...hooked('bh-tool-approval-details-body', styles.group)}>
-        <div {...stylex.props(styles.caption)}>
-          {request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')}
-          {' · '}
-          {request.toolName}
-        </div>
-        <div {...hooked('bh-tool-approval-cwd', styles.caption)}>
-          {t('approval.cwd', { path: request.cwd })}
-        </div>
         <ApprovalInput
           toolName={request.toolName}
           input={request.input}
@@ -481,11 +503,7 @@ export function ToolApprovalCard({
       <RequestHeading
         urgent={countdown?.urgent === true}
         pendingRef={countdownMount}
-        info={
-          memoryInfo === undefined ? undefined : (
-            <InfoTip label={t('approval.memoryDetails')} text={memoryInfo} />
-          )
-        }
+        info={<InfoTip label={t('approval.details')} text={info} />}
         pending={
           !actionable ? undefined : countdown !== undefined && soon ? (
             <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
@@ -526,24 +544,12 @@ export function ToolApprovalCard({
           <BotCreateApprovalPreview
             args={botCreate}
             preview={request.botCreatePreview}
-            compact={compact && !open}
+            compact={!open}
             t={t}
           />
         )}
-        {request.effects === undefined || memoryEdit !== undefined ? null : (
-          <div {...stylex.props(styles.caption)}>
-            {t(`approval.effect.changes.${request.effects.changes}`)} ·{' '}
-            {t(`approval.effect.reach.${request.effects.reach}`)}
-          </div>
-        )}
-        {request.approvalReview === undefined ? null : (
-          <div {...stylex.props(styles.caption)}>
-            {request.approvalReview.kind === 'template-unavailable'
-              ? t('autoApproval.unavailable')
-              : request.approvalReview.fallback === undefined
-                ? request.approvalReview.reason
-                : t('autoApproval.reviewUnavailable')}
-          </div>
+        {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
+          <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
         )}
         {details}
       </>
@@ -560,10 +566,8 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {scope === undefined || (memoryEdit !== undefined && !canAlwaysAllow) ? null : (
-        <div {...stylex.props(styles.caption)}>
-          {memoryEdit === undefined ? scope : t('approval.alwaysMemoryScope')}
-        </div>
+      {shortScope === undefined ? null : (
+        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{shortScope}</div>
       )}
       {settled !== undefined ? (
         <RequestOutcome
