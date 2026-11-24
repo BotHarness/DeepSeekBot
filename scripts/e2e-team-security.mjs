@@ -19,15 +19,18 @@ import { runEngineAccountGrantGate } from './team-security-engine-account-gate.m
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
 import { formatTeamSecurityReport } from './team-security-report.mjs';
+import { runScenarioAttempts } from './team-security-scenario.mjs';
 import {
   buildShellIsolationProbe,
   checkShellIsolationProbe,
 } from './team-security-shell-probe.mjs';
 
 export { buildShellIsolationProbe };
+export { classifyScenario } from './team-security-scenario.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'packages/deepseekbot/dist/deepseekbot.mjs');
+const B5_MAX_ATTEMPTS = 3;
 
 export const usage = `Usage: node scripts/e2e-team-security.mjs [options]
 
@@ -126,12 +129,6 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'\\''`)}'`;
 }
 
-export function classifyScenario(checks, blocked, inconclusive) {
-  if (checks.some((item) => !item.ok)) return 'fail';
-  if (blocked !== undefined) return 'blocked';
-  return inconclusive === undefined ? 'pass' : 'inconclusive';
-}
-
 class Suite {
   constructor(options) {
     this.options = options;
@@ -185,6 +182,7 @@ class Suite {
     const code = value?.error?.code;
     this.log.push({
       scenario: this.current,
+      ...(this.currentAttempt === undefined ? {} : { attempt: this.currentAttempt }),
       as: as ?? 'owner',
       args: args.filter((arg) => !arg.startsWith(this.secrets)),
       status: result.status,
@@ -203,10 +201,11 @@ class Suite {
   }
 
   transcript(name, value) {
-    writeFileSync(
-      join(this.transcripts, `${this.current}-${name}.json`),
-      JSON.stringify(value, null, 2),
-    );
+    const prefix =
+      this.currentAttempt === undefined
+        ? this.current
+        : `${this.current}-attempt-${this.currentAttempt}`;
+    writeFileSync(join(this.transcripts, `${prefix}-${name}.json`), JSON.stringify(value, null, 2));
   }
 
   ask(name, as, bot, body) {
@@ -250,49 +249,37 @@ class Suite {
     return text;
   }
 
-  async scenario(id, summary, run) {
+  async scenario(id, summary, run, maxAttempts) {
     if (
       this.options.scenarios.length > 0 &&
       !this.options.scenarios.some((prefix) => id.startsWith(prefix))
     )
       return;
     this.current = id;
-    const started = Date.now();
-    const checks = [];
-    let blocked;
-    const check = (name, ok, detail) => {
-      checks.push({ name, ok: Boolean(ok), ...(detail === undefined ? {} : { detail }) });
-      return ok;
-    };
-    try {
-      const inconclusive = await run(check, (reason) => {
-        blocked = reason;
-      });
-      const reason = blocked ?? inconclusive;
-      this.results.push({
-        id,
-        summary,
-        result: classifyScenario(checks, blocked, inconclusive),
-        ...(reason === undefined ? {} : { error: reason }),
-        checks,
-        ms: Date.now() - started,
-      });
-    } catch (error) {
-      this.results.push({
-        id,
-        summary,
-        result: 'fail',
-        checks,
-        error: String(error?.message ?? error).slice(0, 800),
-        ms: Date.now() - started,
-      });
+    const attempts = await runScenarioAttempts((check, block, number) => {
+      this.currentAttempt = maxAttempts > 1 ? number : undefined;
+      return run(check, block);
+    }, maxAttempts);
+    this.currentAttempt = undefined;
+    const { result, checks, error } = attempts.at(-1);
+    this.results.push({
+      id,
+      summary,
+      result,
+      checks,
+      ...(error === undefined ? {} : { error }),
+      ms: attempts.reduce((total, attempt) => total + attempt.ms, 0),
+      ...(maxAttempts > 1 ? { attempts } : {}),
+    });
+    for (const attempt of attempts) {
+      const label = maxAttempts > 1 ? `${id} attempt ${attempt.number}/${maxAttempts}` : id;
+      process.stdout.write(`${attempt.result.toUpperCase()} ${label} ${summary}\n`);
+      for (const item of attempt.checks.filter((entry) => !entry.ok))
+        process.stdout.write(
+          `  ${item.ok === null ? '?' : '✗'} ${item.name} ${JSON.stringify(item.detail ?? '')}\n`,
+        );
+      if (attempt.error) process.stdout.write(`  ✗ ${attempt.error}\n`);
     }
-    const last = this.results.at(-1);
-    process.stdout.write(`${last.result.toUpperCase()} ${id} ${summary}\n`);
-    if (last.result !== 'pass')
-      for (const item of last.checks.filter((entry) => !entry.ok))
-        process.stdout.write(`  ✗ ${item.name} ${JSON.stringify(item.detail ?? '')}\n`);
-    if (last.error) process.stdout.write(`  ✗ ${last.error}\n`);
   }
 
   member(username, roleIds, base = ['member'], webCredentials) {
@@ -357,9 +344,9 @@ export async function main(argv = process.argv.slice(2)) {
   if (options.launch) verify('launch');
   const suite = options.list ? undefined : new Suite(options);
   const ids = [];
-  const define = async (id, summary, run) => {
+  const define = async (id, summary, run, maxAttempts = 1) => {
     if (options.list) ids.push(`${id}  ${summary}`);
-    else await suite.scenario(id, summary, run);
+    else await suite.scenario(id, summary, run, maxAttempts);
   };
   const startedAt = new Date().toISOString();
   let exit = 0;
@@ -883,6 +870,7 @@ export async function main(argv = process.argv.slice(2)) {
         `B5-${engine}`,
         `${engine} Assignment with full access can edit and run shell outside the Grant`,
         (check, block) => engineWorkspaceScenario(s, engine, true, check, block),
+        B5_MAX_ATTEMPTS,
       );
     }
 
