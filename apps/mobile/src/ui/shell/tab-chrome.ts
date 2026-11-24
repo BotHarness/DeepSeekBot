@@ -57,25 +57,30 @@ export function useHideChromeOnScroll(enabled: boolean) {
   const chrome = useTabChrome();
   const reduced = useSystemReducedMotion();
   const state = useSharedValue<ChromeScroll>(chromeShown);
+  const active = useSharedValue(false);
   const show = useCallback(() => {
     state.value = chromeShown;
     if (chrome) chrome.hidden.value = 0;
   }, [chrome, state]);
   useFocusEffect(
     useCallback(() => {
+      active.value = enabled;
       if (!enabled) show();
-      return show;
-    }, [enabled, show]),
+      return () => {
+        active.value = false;
+        show();
+      };
+    }, [active, enabled, show]),
   );
   return useAnimatedScrollHandler({
     onScroll(event) {
-      if (chrome === undefined) return;
+      if (chrome === undefined || !active.value) return;
       const offset = event.contentOffset.y + event.contentInset.top;
       const end = Math.max(
         0,
         event.contentSize.height - event.layoutMeasurement.height + event.contentInset.bottom,
       );
-      const next = enabled ? chromeScroll(state.value, offset, end) : chromeShown;
+      const next = chromeScroll(state.value, offset, end);
       const was = state.value.hidden;
       state.value = next;
       if (next.hidden === was) return;
