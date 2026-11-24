@@ -42,12 +42,12 @@ export interface InteractionContext {
 
 export interface InteractionAuthority {
   context(grant: InteractionGrant): InteractionContext;
-  authorize(
-    grant: InteractionGrant,
-    source: InteractionSource,
-    capability: PairingCapability,
-    conversation: { id: string; shared?: boolean },
-  ): ToolApprovalActor | undefined;
+  authorize(input: {
+    grant: InteractionGrant;
+    source: InteractionSource;
+    capability: PairingCapability;
+    expected: { conversationId: string; shared: boolean };
+  }): ToolApprovalActor | undefined;
   groupDestination(grant: InteractionGrant, channelId: string): InteractionDestination | undefined;
 }
 
@@ -105,7 +105,7 @@ export function createInteractionAuthority(options: {
         return undefined;
       }
     },
-    authorize(grant, source, capability, conversation) {
+    authorize({ grant, source, capability, expected }) {
       try {
         const { identity, platform } = context(grant);
         const current = options.pairing.assert(
@@ -113,14 +113,14 @@ export function createInteractionAuthority(options: {
           identity.id,
           source.actorId,
           capability,
-          conversation.shared ? undefined : grant.pairingId,
+          expected.shared ? undefined : grant.pairingId,
         );
         if (
           identity.providerId !== source.providerId ||
           identity.accountRef !== source.botId ||
           identity.fingerprint !== source.fingerprint ||
-          conversation.id !== source.conversationId ||
-          (!conversation.shared &&
+          expected.conversationId !== source.conversationId ||
+          (!expected.shared &&
             (current.revision !== grant.pairingRevision ||
               current.conversationId !== source.conversationId))
         )

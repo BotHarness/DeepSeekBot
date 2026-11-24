@@ -366,9 +366,14 @@ export function createQuestionMessaging(options: {
     },
   ) =>
     safe(value) && live(value)
-      ? authority.authorize(value.route, { ...event, providerId }, 'answer', {
-          id: value.receipt?.conversationId ?? event.conversationId,
-          shared: value.destination !== undefined,
+      ? authority.authorize({
+          grant: value.route,
+          source: { ...event, providerId },
+          capability: 'answer',
+          expected: {
+            conversationId: value.receipt?.conversationId ?? event.conversationId,
+            shared: value.destination !== undefined,
+          },
         })
       : undefined;
   const authorized = (...input: Parameters<typeof answerer>) => answerer(...input) !== undefined;

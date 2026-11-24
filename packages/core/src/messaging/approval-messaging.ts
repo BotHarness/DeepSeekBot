@@ -361,6 +361,18 @@ export function createApprovalMessaging(options: {
       return;
     }
   };
+  const decider = (
+    value: ApprovalDelivery,
+    providerId: string,
+    event: Parameters<ApprovalMessaging['action']>[1],
+    conversationId: string,
+  ) =>
+    authority.authorize({
+      grant: value.route,
+      source: { ...event, providerId },
+      capability: event.action === 'rejected' ? 'reject' : 'approve',
+      expected: { conversationId, shared: value.destination !== undefined },
+    });
   const bounded = <T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> =>
     boundedMessagingDelivery(controller.signal, run);
   const trace = (
@@ -789,12 +801,7 @@ export function createApprovalMessaging(options: {
           )
             return false;
           return (
-            authority.authorize(
-              value.route,
-              { ...event, providerId },
-              event.action === 'rejected' ? 'reject' : 'approve',
-              { id: value.receipt?.conversationId ?? '', shared: value.destination !== undefined },
-            ) !== undefined &&
+            decider(value, providerId, event, value.receipt?.conversationId ?? '') !== undefined &&
             value.delivery === 'sent' &&
             value.receipt?.conversationId === event.conversationId &&
             value.receipt.messageId === event.messageId
@@ -879,12 +886,7 @@ export function createApprovalMessaging(options: {
           ruleAllowed(value, confirmedRule.kind)
         );
       };
-      const actor = authority.authorize(
-        value.route,
-        { ...event, providerId },
-        event.action === 'rejected' ? 'reject' : 'approve',
-        { id: event.conversationId, shared: value.destination !== undefined },
-      );
+      const actor = decider(value, providerId, event, event.conversationId);
       if (!actor) return { accepted: true, status: 'refused' };
       queueMicrotask(
         () =>
@@ -916,12 +918,7 @@ export function createApprovalMessaging(options: {
                   : {}),
                 authorized: () => {
                   if (signal.aborted || !safe(value)) return false;
-                  const current = authority.authorize(
-                    value.route,
-                    { ...event, providerId },
-                    event.action === 'rejected' ? 'reject' : 'approve',
-                    { id: event.conversationId, shared: value.destination !== undefined },
-                  );
+                  const current = decider(value, providerId, event, event.conversationId);
                   return (
                     current?.pairingId === actor.pairingId &&
                     current.pairingRevision === actor.pairingRevision
