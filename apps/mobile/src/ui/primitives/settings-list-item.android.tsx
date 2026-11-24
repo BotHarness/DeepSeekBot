@@ -1,6 +1,7 @@
 import {
   Box,
   CircularProgressIndicator,
+  Column,
   Host,
   Icon,
   ListItem,
@@ -99,6 +100,15 @@ export function SettingsListItem(props: SettingsRowProps) {
   const headline =
     selected === true ? colors.selectedText : tone === 'fg' ? undefined : theme.color[tone];
   const lines = oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
+  const titleLine = (
+    <Text
+      {...(headline === undefined ? {} : { color: headline })}
+      {...(below === undefined ? lines : {})}
+      style={strong ? { fontWeight: 'bold' } : {}}
+    >
+      {title}
+    </Text>
+  );
   const detailLine =
     detail === undefined ? null : detailDot === undefined ? (
       <Text {...lines}>{detail}</Text>
@@ -149,18 +159,16 @@ export function SettingsListItem(props: SettingsRowProps) {
             }
           >
             <ListItem.HeadlineContent>
-              <Text
-                {...(headline === undefined ? {} : { color: headline })}
-                {...(below === undefined ? lines : {})}
-                style={strong ? { fontWeight: 'bold' } : {}}
-              >
-                {title}
-                {below === undefined ? null : (
+              {below === undefined ? (
+                titleLine
+              ) : (
+                <Column>
+                  {titleLine}
                   <Text color={theme.color.muted} style={{ fontWeight: 'normal' }}>
-                    {`\n${below.text}`}
+                    {below.text}
                   </Text>
-                )}
-              </Text>
+                </Column>
+              )}
             </ListItem.HeadlineContent>
             {detailLine === null ? null : (
               <ListItem.SupportingContent>{detailLine}</ListItem.SupportingContent>

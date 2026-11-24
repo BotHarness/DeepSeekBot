@@ -50,6 +50,28 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
+vi.mock('expo', () => ({
+  requireNativeView:
+    () =>
+    ({
+      text,
+      spans,
+      color,
+      maxLines,
+    }: {
+      text?: unknown;
+      spans?: readonly { text?: string }[];
+      color?: string;
+      maxLines?: number;
+    }) => {
+      const nativeText = typeof text === 'string' ? text : undefined;
+      return (
+        <span data-native-text={nativeText} data-color={color} data-max-lines={maxLines}>
+          {nativeText ?? spans?.map((span) => span.text).join('')}
+        </span>
+      );
+    },
+}));
 vi.mock(
   '../src/ui/primitives/settings-list-item',
   () => import('../src/ui/primitives/settings-list-item.android'),
@@ -57,10 +79,12 @@ vi.mock(
 vi.mock('../src/ui/primitives/row-icon-source.android', async () => ({
   ROW_ICON_SOURCES: (await import('./compose-list-item-shim')).rowIconSources,
 }));
-vi.mock(
-  '@expo/ui/jetpack-compose',
-  async () => (await import('./compose-list-item-shim')).components,
-);
+vi.mock('@expo/ui/jetpack-compose', async () => ({
+  ...(await import('./compose-list-item-shim')).components,
+  ...(await vi.importActual<Pick<typeof import('@expo/ui/jetpack-compose'), 'Text'>>(
+    '../node_modules/@expo/ui/src/jetpack-compose/Text/index',
+  )),
+}));
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
   async () => (await import('./compose-list-item-shim')).modifiers,
@@ -226,11 +250,10 @@ it('hosts avatars inside the item and keeps React Native buttons outside it', as
   expect(screen.querySelector('button')!.textContent).toBe('Remove');
 });
 
-it('keeps the Android Settings row value visible with its label at font scale 2', async () => {
-  device.fontScale = 2;
+it('keeps native Settings text props as strings through live font and theme changes', async () => {
   const computer = 'A very long Computer name';
   const open = vi.fn();
-  const screen = await render(
+  const row = (
     <SettingsRow
       testID="environment-row"
       title="Environment"
@@ -238,20 +261,24 @@ it('keeps the Android Settings row value visible with its label at font scale 2'
       singleLine
       control={{ kind: 'value', text: computer, chevron: true }}
       onPress={open}
-    />,
+    />
   );
+  const screen = await render(row);
   const item = screen.querySelector<HTMLElement>('[data-list-item]')!;
-  const headline = slot(item, 'headline')!.querySelector('span')!;
+  const headline = () => [...slot(item, 'headline')!.querySelectorAll('span')];
+  const nativeText = () => headline().map((text) => text.getAttribute('data-native-text'));
   const setFontScale = (scale: number) =>
     act(async () => {
       device.fontScale = scale;
       for (const notify of device.listeners) notify();
     });
 
+  expect(nativeText()).toEqual(['Environment']);
+  expect(slot(item, 'trailing')!.textContent).toBe(computer);
   for (const scale of [2, 1.3]) {
     await setFontScale(scale);
-    expect(headline.textContent).toBe(`Environment\n${computer}`);
-    expect(headline.hasAttribute('data-max-lines')).toBe(false);
+    expect(nativeText()).toEqual(['Environment', computer]);
+    expect(headline().every((text) => !text.hasAttribute('data-max-lines'))).toBe(true);
     expect(slot(item, 'supporting')).toBeNull();
     expect(slot(item, 'trailing')!.textContent).toBe('');
     expect(slot(item, 'trailing')!.querySelector('i')!.getAttribute('data-icon')).toBe(
@@ -261,12 +288,20 @@ it('keeps the Android Settings row value visible with its label at font scale 2'
   expect(screen.querySelector('[data-testid="environment-row"]')!.getAttribute('aria-label')).toBe(
     `Environment, ${computer}`,
   );
-  await act(async () => headline.click());
+  await act(async () =>
+    root!.render(<DesignThemeProvider appearance={{ scheme: 'dark' }}>{row}</DesignThemeProvider>),
+  );
+  expect(screen.querySelector('[data-list-item]')).toBe(item);
+  expect(item.getAttribute('data-fill')).toBe(
+    resolveTheme('dark', { scheme: 'dark' }).layer.sheet.fill,
+  );
+  expect(nativeText()).toEqual(['Environment', computer]);
+  await act(async () => headline()[0]!.click());
   expect(open).toHaveBeenCalledOnce();
 
   await setFontScale(1);
-  expect(headline.textContent).toBe('Environment');
-  expect(headline.getAttribute('data-max-lines')).toBe('1');
+  expect(nativeText()).toEqual(['Environment']);
+  expect(headline()[0]!.getAttribute('data-max-lines')).toBe('1');
   expect(slot(item, 'trailing')!.textContent).toBe(computer);
 });
 
