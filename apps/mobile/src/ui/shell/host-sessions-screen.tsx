@@ -1,5 +1,5 @@
 import { Redirect, Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, Keyboard, Platform, Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import {
@@ -82,7 +82,9 @@ function HostSessionsList({
   const nativeHeader = Platform.OS === 'ios';
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
-  const query = useSessionQuery(client);
+  const query = useSessionQuery(
+    useMemo(() => [{ hostId, hostName: '', client }], [client, hostId]),
+  );
   const {
     source,
     draft,

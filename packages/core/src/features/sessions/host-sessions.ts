@@ -38,6 +38,8 @@ export interface DshSessionListRow {
   parentSessionId?: string;
   title?: string;
   running: boolean;
+  waiting?: true;
+  model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
 }
@@ -173,6 +175,8 @@ export function createHostSessionsMethods(
           sessionId: row.sessionId,
           ...(row.title === undefined ? {} : { title: row.title }),
           ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
+          ...(row.waiting === true ? { waiting: true as const } : {}),
+          ...(row.model === undefined ? {} : { model: row.model }),
           running: row.running,
           lastPromptAt: row.lastPromptAt,
           updatedAt: row.updatedAt,
@@ -205,6 +209,9 @@ export function createHostSessionsMethods(
           ...base,
           ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
           running: row.running || (engine !== undefined && engine.state !== 'idle'),
+          ...(row.waiting === true || engine?.state === 'waiting-approval'
+            ? { waiting: true as const }
+            : {}),
           source: {
             kind: 'bot',
             botSlug: bot.slug,
@@ -266,6 +273,11 @@ export function createHostSessionsMethods(
           b.updatedAt - a.updatedAt ||
           a.sessionId.localeCompare(b.sessionId),
       );
+      if (queryVersion === 1)
+        for (const row of sessions) {
+          const at = clock(row);
+          row.sortedAt = at < 0 ? row.updatedAt : at;
+        }
       return {
         ok: true,
         value: {

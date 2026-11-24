@@ -222,3 +222,42 @@ it('lets only the Host Owner create a native Session in a folder and prompts it 
   expect(create).toHaveBeenLastCalledWith({ workspaceId: 'ws-1' });
   expect(model).toHaveBeenCalledExactlyOnceWith('created', choice);
 });
+
+it('carries the model, a waiting question and the sort time on each queried row', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [
+        {
+          sessionId: 'asking',
+          cwd: '/work/app',
+          running: false,
+          waiting: true,
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          lastPromptAt: 40,
+          updatedAt: 41,
+        },
+        { sessionId: 'fresh', running: true, lastPromptAt: null, updatedAt: 30 },
+      ],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'unused' }),
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  expect(await owner.sessionList({ queryVersion: 1 })).toMatchObject({
+    ok: true,
+    value: {
+      sessions: [
+        {
+          sessionId: 'asking',
+          waiting: true,
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          sortedAt: 40,
+        },
+        { sessionId: 'fresh', sortedAt: 30 },
+      ],
+    },
+  });
+  const legacy = await owner.sessionList({});
+  expect(legacy.ok && legacy.value.sessions[0]).not.toHaveProperty('sortedAt');
+});

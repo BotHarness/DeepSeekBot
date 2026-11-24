@@ -73,7 +73,7 @@ export function useSessionDrawer(): SessionDrawerState {
   return useSyncExternalStore(sessionDrawer.subscribe, sessionDrawer.getSnapshot);
 }
 
-type Place = { edge: number; sessionId: string | undefined };
+type Place = { edge: number; sessionId: string | undefined; hostId?: string | undefined };
 let place: Place = { edge: 0, sessionId: undefined };
 const placeListeners = new Set<() => void>();
 
@@ -82,12 +82,14 @@ function setPlace(next: Place): void {
   for (const listener of placeListeners) listener();
 }
 
-export function enterDrawerRoot(sessionId?: string): () => void {
-  setPlace({ edge: place.edge + 1, sessionId });
+export function enterDrawerRoot(sessionId?: string, hostId?: string): () => void {
+  setPlace({ edge: place.edge + 1, sessionId, ...(hostId === undefined ? {} : { hostId }) });
   return () => {
+    const left = place.sessionId === sessionId;
     setPlace({
       edge: place.edge - 1,
-      sessionId: place.sessionId === sessionId ? undefined : place.sessionId,
+      sessionId: left ? undefined : place.sessionId,
+      ...(left || place.hostId === undefined ? {} : { hostId: place.hostId }),
     });
   };
 }

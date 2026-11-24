@@ -156,7 +156,10 @@ export function SessionDetailScreen() {
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
   const drawer = useSessionDrawerRoot();
   useFocusEffect(
-    useCallback(() => (drawer ? enterDrawerRoot(sessionId) : undefined), [drawer, sessionId]),
+    useCallback(
+      () => (drawer ? enterDrawerRoot(sessionId, hostId ?? openedOn) : undefined),
+      [drawer, sessionId, hostId, openedOn],
+    ),
   );
   return client === undefined || !matchingHost || sessionId === undefined ? (
     <SessionNotice title={title ?? t.title}>

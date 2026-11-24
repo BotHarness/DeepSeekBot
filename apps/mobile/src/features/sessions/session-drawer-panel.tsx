@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, Pressable, SectionList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { HostClient } from '@botharness/host-client/client';
-import {
-  HOST_SESSION_SEARCH_MAX,
-  type HostSessionRow,
-} from '@botharness/host-protocol/host-sessions';
+import { HOST_SESSION_SEARCH_MAX } from '@botharness/host-protocol/host-sessions';
 import { SheetLoading } from '../../ui/chat/sheet';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
 import { glassPress, radius, space } from '../../ui/design/tokens';
@@ -13,28 +9,31 @@ import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
 import { ReadFailure } from '../../ui/primitives/read-failure';
 import { SearchField } from '../../ui/primitives/search-field';
 import { Text } from '../../ui/primitives/text';
-import { HostSessionListItem } from './session-row';
+import type { SessionQueryRow } from './session-query-model';
+import { SessionDrawerRow } from './session-drawer-row';
 import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
 import { useStrings } from '../../ui/strings';
 import { sessionDrawerSections } from './session-drawer-model';
 import { SessionOptionsMenu } from './session-options-menu';
-import { useSessionQuery } from './use-session-query';
+import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 
 export type SessionDrawerPanelProps = {
-  client: HostClient;
+  hosts: readonly SessionQueryHost[];
   title: string;
+  showHost: boolean;
   active: boolean;
-  selectedSessionId?: string | undefined;
+  selected?: { hostId: string; sessionId: string } | undefined;
   canCreate: boolean;
-  onOpen(row: HostSessionRow): void;
+  onOpen(row: SessionQueryRow): void;
   onNew(): void;
 };
 
 export function SessionDrawerPanel({
-  client,
+  hosts,
   title,
+  showHost,
   active,
-  selectedSessionId,
+  selected,
   canCreate,
   onOpen,
   onNew,
@@ -42,7 +41,7 @@ export function SessionDrawerPanel({
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const query = useSessionQuery(client, active);
+  const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
   const sections = sessionDrawerSections(query.rows ?? [], query.sort, Date.now());
   const closeSearch = () => {
@@ -84,7 +83,7 @@ export function SessionDrawerPanel({
         stickySectionHeadersEnabled={false}
         contentContainerStyle={{ paddingHorizontal: space.x3, paddingBottom: space.x3 }}
         sections={sections}
-        keyExtractor={(row) => row.sessionId}
+        keyExtractor={(row) => `${row.hostId}:${row.sessionId}`}
         refreshing={query.online && query.pullRefreshing}
         onRefresh={query.online ? () => query.refresh('pull') : undefined}
         renderSectionHeader={({ section }) => (
@@ -123,10 +122,11 @@ export function SessionDrawerPanel({
           )
         }
         renderItem={({ item }) => (
-          <HostSessionListItem
+          <SessionDrawerRow
             row={item}
-            client={client}
-            selected={item.sessionId === selectedSessionId}
+            client={hosts.find((host) => host.hostId === item.hostId)?.client}
+            showHost={showHost}
+            selected={item.hostId === selected?.hostId && item.sessionId === selected.sessionId}
             onPress={() => onOpen(item)}
           />
         )}

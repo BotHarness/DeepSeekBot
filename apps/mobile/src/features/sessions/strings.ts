@@ -40,6 +40,9 @@ export const en = {
     loadFailed: 'Couldn’t load sessions.',
     running: 'Running',
     idle: 'Idle',
+    waiting: 'Needs you',
+    done: 'Done',
+    allEnvironments: 'All environments',
   },
   sessionModel: {
     choice: 'Model choice',
@@ -230,6 +233,9 @@ export const zh: typeof en = {
     loadFailed: '加载会话失败。',
     running: '运行中',
     idle: '空闲',
+    waiting: '需要你',
+    done: '已完成',
+    allEnvironments: '全部环境',
   },
   sessionModel: {
     choice: '模型选择',

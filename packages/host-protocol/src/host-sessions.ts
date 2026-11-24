@@ -55,6 +55,9 @@ export interface HostSessionRow {
   title?: string;
   folderName?: string;
   running: boolean;
+  waiting?: true;
+  model?: { provider: string; model: string };
+  sortedAt?: number;
   lastPromptAt: number | null;
   updatedAt: number;
 }

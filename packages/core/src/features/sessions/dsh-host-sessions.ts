@@ -32,8 +32,13 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
         .map((row) => {
           const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
           const metadata = row.projections?.values;
+          const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
           return {
             sessionId,
+            ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+            ...((metadata?.userQuestions?.active.length ?? 0) > 0
+              ? { waiting: true as const }
+              : {}),
             ...(cwd === undefined ? {} : { cwd }),
             ...(parentSessionId === undefined ? {} : { parentSessionId }),
             ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),

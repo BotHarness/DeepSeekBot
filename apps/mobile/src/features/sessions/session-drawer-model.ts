@@ -39,17 +39,18 @@ function dayStart(now: number): number {
 }
 
 function rowTime(row: HostSessionRow, sort: HostSessionSort): number {
+  if (row.sortedAt !== undefined) return row.sortedAt;
   return sort === 'last-human-turn' ? (row.lastPromptAt ?? row.updatedAt) : row.updatedAt;
 }
 
-export function sessionDrawerSections(
-  rows: readonly HostSessionRow[],
+export function sessionDrawerSections<Row extends HostSessionRow>(
+  rows: readonly Row[],
   sort: HostSessionSort,
   now: number,
-): { group: SessionDrawerGroup; data: HostSessionRow[] }[] {
+): { group: SessionDrawerGroup; data: Row[] }[] {
   const today = dayStart(now);
   const yesterday = dayStart(today - 1);
-  const sections: { group: SessionDrawerGroup; data: HostSessionRow[] }[] = [];
+  const sections: { group: SessionDrawerGroup; data: Row[] }[] = [];
   let floor = 0;
   for (const row of rows) {
     const time = rowTime(row, sort);

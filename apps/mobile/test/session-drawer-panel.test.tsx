@@ -17,6 +17,7 @@ vi.mock('expo-router', () => ({
 }));
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({ BotPortrait: () => null }));
+vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({
   DrawerMaterial: () => null,
   useLiquidGlass: () => false,
@@ -41,7 +42,9 @@ function client(call: ReturnType<typeof vi.fn>): HostClient {
   } as unknown as HostClient;
 }
 
-async function render(props: { onOpen?(): void; onNew?(): void; canCreate?: boolean } = {}) {
+async function render(
+  props: { onOpen?(): void; onNew?(): void; canCreate?: boolean; second?: boolean } = {},
+) {
   const call = vi.fn(async (_method: string, args: { search?: string }) => ({
     queryVersion: 1,
     sources: [{ kind: 'native' }],
@@ -49,6 +52,8 @@ async function render(props: { onOpen?(): void; onNew?(): void; canCreate?: bool
       {
         sessionId: 'fresh',
         title: 'Fresh work',
+        folderName: 'botharness',
+        model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
         source: { kind: 'native' },
         running: true,
         lastPromptAt: now,
@@ -57,7 +62,9 @@ async function render(props: { onOpen?(): void; onNew?(): void; canCreate?: bool
       {
         sessionId: 'old',
         title: 'Old research',
+        folderName: '笔记',
         source: { kind: 'native' },
+        waiting: true,
         running: false,
         lastPromptAt: now - 5 * 86_400_000,
         updatedAt: now - 5 * 86_400_000,
@@ -66,20 +73,42 @@ async function render(props: { onOpen?(): void; onNew?(): void; canCreate?: bool
   }));
   const view = document.createElement('div');
   root = createRoot(view);
+  const other = vi.fn(async () => ({
+    queryVersion: 1,
+    sources: [{ kind: 'bot', botSlug: 'ada', displayName: 'Ada' }],
+    sessions: [
+      {
+        sessionId: 'remote',
+        title: 'Remote review',
+        folderName: 'deploy-tools',
+        source: { kind: 'bot', botSlug: 'ada', displayName: 'Ada' },
+        running: false,
+        lastPromptAt: now - 60_000,
+        updatedAt: now - 60_000,
+        sortedAt: now - 60_000,
+      },
+    ],
+  }));
   await act(async () =>
     root!.render(
       <SessionDrawerPanel
-        client={client(call)}
-        title="Studio"
+        hosts={[
+          { hostId: 'studio', hostName: 'Studio', client: client(call) },
+          ...(props.second
+            ? [{ hostId: 'laptop', hostName: 'Laptop', client: client(other) }]
+            : []),
+        ]}
+        title={props.second ? 'All environments' : 'Studio'}
+        showHost={props.second === true}
         active
-        selectedSessionId="old"
+        selected={{ hostId: 'studio', sessionId: 'old' }}
         canCreate={props.canCreate ?? true}
         onOpen={props.onOpen ?? (() => {})}
         onNew={props.onNew ?? (() => {})}
       />,
     ),
   );
-  return { view, call };
+  return { view, call, other };
 }
 
 it('lists Sessions by day with the open one highlighted under the Environment name', async () => {
@@ -143,4 +172,23 @@ it('expands the Search pill into a field only when tapped, and starts a New Sess
 it('hides New Session from a member', async () => {
   const { view } = await render({ canCreate: false });
   expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
+});
+
+it('merges every Computer’s Sessions under All with the three-column rows', async () => {
+  const { view, other } = await render({ second: true });
+  expect(other).toHaveBeenCalledOnce();
+  const ids = [...view.querySelectorAll('[data-testid^="host-session-"]')].map((row) =>
+    row.getAttribute('data-testid'),
+  );
+  expect(ids).toEqual(['host-session-fresh', 'host-session-remote', 'host-session-old']);
+  const remote = view.querySelector('[data-testid="host-session-remote"]')!;
+  expect(remote.textContent).toContain('Laptop · deploy-tools · Ada');
+  expect(remote.querySelector('[data-testid="session-bot-remote"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="session-monogram-fresh"]')?.textContent).toBe('BO');
+  expect(view.querySelector('[data-testid="session-monogram-old"]')?.textContent).toBe('笔');
+  expect(view.querySelector('[data-testid="session-status-fresh"]')?.textContent).toBe('Running');
+  expect(view.querySelector('[data-testid="session-status-old"]')?.textContent).toBe('Needs you');
+  expect(view.querySelector('[data-testid="session-status-remote"]')?.textContent).toBe('Done');
+  expect(view.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
 });

@@ -1,19 +1,34 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
 import { readHostSessionList } from '@botharness/host-client/host-sessions';
 import {
   HOST_SESSION_SORTS,
   type HostSessionFilter,
-  type HostSessionRow,
   type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import { sessionReadHost } from '../../host/session-detail';
 import { interfacePreferences, useSessionSort } from '../../ui/interface-preferences';
 import type { SessionOptionGroup } from '../../ui/shell/host-session-options';
 import { useStrings } from '../../ui/strings';
+import { mergeSessionRows, mergeSessionSources, type SessionQueryRow } from './session-query-model';
 
-export function useSessionQuery(client: HostClient, active = true) {
+export type SessionQueryHost = { hostId: string; hostName: string; client: HostClient };
+
+function onlineSource(hosts: readonly SessionQueryHost[]) {
+  return {
+    subscribe(listener: () => void) {
+      const stops = hosts.map((host) => host.client.subscribe(listener));
+      return () => {
+        for (const stop of stops) stop();
+      };
+    },
+    getSnapshot: () =>
+      hosts.some((host) => host.client.getSnapshot().connection.status === 'connected'),
+  };
+}
+
+export function useSessionQuery(hosts: readonly SessionQueryHost[], active = true) {
   const t = useStrings().hostSessions;
   const sort = useSessionSort();
   const [source, setSource] = useState<HostSessionFilter>('all');
@@ -25,7 +40,7 @@ export function useSessionQuery(client: HostClient, active = true) {
   const [result, setResult] = useState<{
     search: string;
     source: HostSessionFilter;
-    rows: HostSessionRow[];
+    rows: SessionQueryRow[];
   }>();
   const search = draft.trim();
   const searchReady = search === '' || search === debounced;
@@ -34,10 +49,8 @@ export function useSessionQuery(client: HostClient, active = true) {
   const [busy, setBusy] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const flight = useRef<AbortController>(undefined);
-  const online = useSyncExternalStore(
-    client.subscribe,
-    () => client.getSnapshot().connection.status === 'connected',
-  );
+  const hostKey = hosts.map((host) => host.hostId).join('\n');
+  const online = useOnline(hosts, hostKey);
 
   const changeSearch = (text: string, immediate = false) => {
     setDraft(text);
@@ -63,17 +76,39 @@ export function useSessionQuery(client: HostClient, active = true) {
       flight.current = abort;
       setFailed(false);
       setBusy(true);
-      void readHostSessionList(sessionReadHost(client, abort.signal), { search, sort, source })
-        .then(
-          (value) => {
-            if (abort.signal.aborted) return;
-            setResult({ search, source, rows: value.sessions });
-            setSources(value.sources);
-          },
-          () => {
-            if (!abort.signal.aborted) setFailed(true);
-          },
-        )
+      void Promise.allSettled(
+        hosts.map(async (host) => ({
+          host,
+          value: await readHostSessionList(sessionReadHost(host.client, abort.signal), {
+            search,
+            sort,
+            source,
+          }),
+        })),
+      )
+        .then((settled) => {
+          if (abort.signal.aborted) return;
+          const read = settled.flatMap((entry) =>
+            entry.status === 'fulfilled' ? [entry.value] : [],
+          );
+          if (read.length === 0) {
+            setFailed(true);
+            return;
+          }
+          setFailed(read.length < settled.length);
+          setResult({
+            search,
+            source,
+            rows: mergeSessionRows(
+              read.map(({ host, value }) => ({
+                hostId: host.hostId,
+                hostName: host.hostName,
+                rows: value.sessions,
+              })),
+            ),
+          });
+          setSources(mergeSessionSources(read.map(({ value }) => value.sources ?? [])));
+        })
         .finally(() => {
           if (flight.current !== abort) return;
           flight.current = undefined;
@@ -81,7 +116,7 @@ export function useSessionQuery(client: HostClient, active = true) {
           setPullRefreshing(false);
         });
     },
-    [active, client, online, search, searchReady, sort, source],
+    [active, hostKey, online, search, searchReady, sort, source],
   );
   useFocusEffect(
     useCallback(() => {
@@ -112,21 +147,14 @@ export function useSessionQuery(client: HostClient, active = true) {
       selected: source,
       choices: [
         { id: 'all', label: t.all, select: () => setSource('all') },
-        ...(sources ?? [])
-          .slice()
-          .sort((a, b) => {
-            if (a.kind === 'native') return b.kind === 'native' ? 0 : -1;
-            if (b.kind === 'native') return 1;
-            return a.displayName.localeCompare(b.displayName) || a.botSlug.localeCompare(b.botSlug);
-          })
-          .map((item) => {
-            const id: HostSessionFilter = item.kind === 'native' ? 'native' : `bot:${item.botSlug}`;
-            return {
-              id,
-              label: item.kind === 'native' ? t.nativeSource : item.displayName,
-              select: () => setSource(id),
-            };
-          }),
+        ...(sources ?? []).map((item) => {
+          const id: HostSessionFilter = item.kind === 'native' ? 'native' : `bot:${item.botSlug}`;
+          return {
+            id,
+            label: item.kind === 'native' ? t.nativeSource : item.displayName,
+            select: () => setSource(id),
+          };
+        }),
       ],
     },
   ];
@@ -148,6 +176,11 @@ export function useSessionQuery(client: HostClient, active = true) {
     changeSearch,
     refresh,
   };
+}
+
+function useOnline(hosts: readonly SessionQueryHost[], hostKey: string): boolean {
+  const source = useMemo(() => onlineSource(hosts), [hostKey]);
+  return useSyncExternalStore(source.subscribe, source.getSnapshot);
 }
 
 export type SessionQuery = ReturnType<typeof useSessionQuery>;
