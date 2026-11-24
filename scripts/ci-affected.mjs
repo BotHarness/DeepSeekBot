@@ -3,8 +3,10 @@ import { isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DOCS_SITE_TEST, ROOT, SHARDS } from './ci-plan.mjs';
+import { loadDurations } from './ci-test-durations.mjs';
 
 export const SHARD_THRESHOLD = 60;
+export const UNRECORDED_SECONDS = 0.2;
 
 export function parseFiles(text) {
   const files = JSON.parse(text);
@@ -24,14 +26,21 @@ export function parseFiles(text) {
   return [...new Set(files)].sort();
 }
 
-export function partitionFiles(files) {
+export function partitionFiles(files, { seconds = loadDurations(), shards } = {}) {
   const selected = parseFiles(JSON.stringify(files));
   const count = selected.length;
   const include = Array.from(
-    { length: count >= SHARD_THRESHOLD ? SHARDS : count ? 1 : 0 },
+    { length: count ? (shards ?? (count >= SHARD_THRESHOLD ? SHARDS : 1)) : 0 },
     (_, index) => ({ shard: index + 1, files: [] }),
   );
-  selected.forEach((file, index) => include[index % include.length].files.push(file));
+  const weight = (file) => seconds[file] ?? UNRECORDED_SECONDS;
+  const load = include.map(() => 0);
+  for (const file of [...selected].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b))) {
+    const lightest = load.indexOf(Math.min(...load));
+    include[lightest].files.push(file);
+    load[lightest] += weight(file);
+  }
+  for (const shard of include) shard.files.sort();
   return { count, matrix: { include } };
 }
 
@@ -62,6 +71,21 @@ export async function selectAffected(inputs, { root = ROOT, create = createRunne
       specs
         .map((spec) => repositoryPath(root, spec.moduleId))
         .filter((file) => file !== DOCS_SITE_TEST),
+    );
+  } finally {
+    await runner.close();
+  }
+}
+
+export async function selectFull({ root = ROOT, create = createRunner } = {}) {
+  const runner = await create({ root, watch: false, run: true, project: ['!docs-site'] });
+  try {
+    const specs = await runner.globTestSpecifications();
+    return partitionFiles(
+      specs
+        .map((spec) => repositoryPath(root, spec.moduleId))
+        .filter((file) => file !== DOCS_SITE_TEST),
+      { shards: SHARDS },
     );
   } finally {
     await runner.close();
@@ -102,8 +126,14 @@ if (
   realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 ) {
   try {
-    if (process.argv.length === 3 && process.argv[2] === '--select') {
-      const result = await selectAffected(parseFiles(process.env.RELATED));
+    if (
+      process.argv.length === 3 &&
+      (process.argv[2] === '--select' || process.argv[2] === '--select-full')
+    ) {
+      const result =
+        process.argv[2] === '--select'
+          ? await selectAffected(parseFiles(process.env.RELATED))
+          : await selectFull();
       if (process.env.GITHUB_OUTPUT)
         appendFileSync(
           process.env.GITHUB_OUTPUT,
@@ -112,7 +142,10 @@ if (
       console.log(JSON.stringify(result));
     } else if (process.argv.length === 3 && process.argv[2] === '--run') {
       await runSelected(parseFiles(process.env.TEST_FILES));
-    } else throw new Error('Usage: ci-affected.mjs --select (RELATED) | --run (TEST_FILES)');
+    } else
+      throw new Error(
+        'Usage: ci-affected.mjs --select (RELATED) | --select-full | --run (TEST_FILES)',
+      );
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

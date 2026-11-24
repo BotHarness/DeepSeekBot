@@ -18,6 +18,7 @@ import {
   plan,
   REQUIRED_CHECK,
   ROOT,
+  SHARDS,
   rulesTable,
   syncGuide,
   localCommands,
@@ -615,8 +616,18 @@ describe('CI test plan drift checks', () => {
     jobs: {
       plan: {},
       static: {},
-      'test-full': { strategy: { matrix: { shard: [1, 2, 3] } } },
-      verify: { name: REQUIRED_CHECK, if: 'always()', needs: ['plan', 'static', 'test-full'] },
+      'test-full': { strategy: { matrix: '${{ fromJSON(needs.plan.outputs.matrix) }}' } },
+      'test-affected': { if: `needs.plan.outputs.shards == '${SHARDS}'` },
+      verify: {
+        name: REQUIRED_CHECK,
+        if: 'always()',
+        needs: ['plan', 'static', 'test-full', 'test-affected'],
+        steps: [
+          {
+            run: `if (plan.shards !== '${SHARDS}') fail(); if (shards === '${SHARDS}') affected();`,
+          },
+        ],
+      },
     },
   });
 
@@ -629,12 +640,16 @@ describe('CI test plan drift checks', () => {
     broken.jobs.lint = {};
     broken.jobs.verify.name = 'verify';
     broken.on.pull_request.paths = ['packages/**'];
-    broken.jobs['test-full'].strategy.matrix.shard = [1, 2];
+    broken.jobs['test-full'].strategy.matrix = { shard: [1, 2, 3] };
+    broken.jobs['test-affected'].if = "needs.plan.outputs.shards == '3'";
+    broken.jobs.verify.steps = [{ run: "if (shards === '3') affected();" }];
     expect(checkWorkflow(broken)).toEqual([
       `The aggregate job must keep the required check name "${REQUIRED_CHECK}"`,
       'The aggregate job does not need lint',
       'The pull_request trigger filters paths; path selection belongs to scripts/ci-plan.mjs',
-      'test-full must run a matrix of 3 shards to match SHARDS',
+      'test-full must take its duration-balanced matrix from the plan job',
+      `test-affected must run when the plan selects ${SHARDS} shards`,
+      `The aggregate job must expect ${SHARDS} full and affected shards`,
     ]);
   });
 

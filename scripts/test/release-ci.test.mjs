@@ -68,7 +68,9 @@ describe('release verification protection', () => {
     expect(lookup).toContain('.conclusion == "success"');
     expect(verify.on).toHaveProperty('workflow_call');
     expect(release.jobs['verify-fallback'].uses).toBe('./.github/workflows/verify.yml');
-    expect(verify.jobs['test-full'].strategy.matrix.shard).toEqual([1, 2, 3]);
+    expect(verify.jobs['test-full'].strategy.matrix).toBe(
+      '${{ fromJSON(needs.plan.outputs.matrix) }}',
+    );
     expect(release.jobs.prepare.steps.some((step) => step.run?.includes('pnpm test'))).toBe(false);
   });
   it('accepts successful reuse or successful fallback, but never a missing or failed gate', () => {
