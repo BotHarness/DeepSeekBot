@@ -14,7 +14,7 @@ import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
-import { TextField } from '../primitives/text-field';
+import { TextField, type TextFieldHandle } from '../primitives/text-field';
 import { useStrings } from '../strings';
 import { SignInBrandButton } from './sign-in-brand-button';
 
@@ -86,6 +86,7 @@ export function EmailCodeSignIn({
     flow.password ? 'password' : 'code',
   );
   const [password, setPassword] = useState('');
+  const passwordField = useRef<TextFieldHandle>(null);
   const [verifyPassword, setVerifyPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [sentTo, setSentTo] = useState<string>();
@@ -225,16 +226,19 @@ export function EmailCodeSignIn({
             textContentType="emailAddress"
             keyboardType="email-address"
             inputMode="email"
-            returnKeyType={mode === 'password' || mode === 'register' ? 'done' : 'send'}
+            returnKeyType={mode === 'password' || mode === 'register' ? 'next' : 'send'}
+            submitBehavior={mode === 'password' || mode === 'register' ? 'submit' : undefined}
             invalid={error === 'invalid-email'}
             onSubmitEditing={() => {
               if (mode === 'code') void send(email);
               else if (mode === 'reset') void reset();
+              else passwordField.current?.focus();
             }}
           />
           {mode === 'password' || mode === 'register' ? (
             <>
               <TextField
+                ref={passwordField}
                 testID="email-sign-in-password"
                 accessibilityLabel={copy.password}
                 label={copy.password}
