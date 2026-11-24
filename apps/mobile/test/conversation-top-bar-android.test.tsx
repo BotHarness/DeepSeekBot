@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from 'react';
+import { Fragment, createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -31,6 +31,7 @@ vi.mock('react-native', async () => ({
   },
   View: ({ children }: { children?: ReactNode }) => createElement('div', {}, children),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
@@ -75,7 +76,13 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     Trigger: node('Trigger'),
     Items: node('Items'),
   });
+  const transition = { fadeIn: () => ({}), fadeOut: () => ({}) };
   return {
+    AnimatedVisibility: ({ visible, children }: { visible: boolean; children?: ReactNode }) =>
+      visible ? createElement(Fragment, null, children) : null,
+    Box: node('Box'),
+    EnterTransition: transition,
+    ExitTransition: transition,
     CircularProgressIndicator: () => null,
     Column: node('Column'),
     DropdownMenu,
