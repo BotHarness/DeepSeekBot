@@ -173,7 +173,10 @@ export function AppDialogHost() {
         </ModalBottomSheet>
       </Host>
     );
-  const single = choices[0];
+  const confirms = [
+    ...choices.filter(({ action }) => action.style !== 'destructive'),
+    ...choices.filter(({ action }) => action.style === 'destructive'),
+  ];
   return (
     <Host
       key={shown.id}
@@ -199,8 +202,8 @@ export function AppDialogHost() {
             </Column>
           </AlertDialog.Text>
         )}
-        {single === undefined ? null : (
-          <AlertDialog.ConfirmButton>{choiceButton(single)}</AlertDialog.ConfirmButton>
+        {confirms.length === 0 ? null : (
+          <AlertDialog.ConfirmButton>{confirms.map(choiceButton)}</AlertDialog.ConfirmButton>
         )}
         {cancel === undefined ? null : (
           <AlertDialog.DismissButton>

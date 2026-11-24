@@ -179,7 +179,7 @@ class LocalComputerVideoView(context: Context, appContext: AppContext) : ExpoVie
       main.postDelayed(deadline, 20000)
       main.postDelayed(sample, 1000)
       enqueue {
-        PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
+        WebRtcRuntime.initialize(context)
         val base = EglBase.create().also { egl = it }
         renderer = EglRenderer("LocalComputerVideo").apply {
           init(base.eglBaseContext, EglBase.CONFIG_PLAIN, GlRectDrawer())

@@ -12,7 +12,7 @@ export function sheetScreenOptions(theme: DesignTheme, full = false) {
   return {
     headerShown: false,
     presentation: 'formSheet' as const,
-    sheetAllowedDetents: full ? [1] : [0.75, 1],
+    sheetAllowedDetents: full || Platform.OS === 'android' ? [1] : [0.75, 1],
     sheetGrabberVisible: true,
     contentStyle: { backgroundColor: theme.overlay.fill },
     ...(Platform.OS === 'android' ? { sheetCornerRadius: radius.xl } : {}),

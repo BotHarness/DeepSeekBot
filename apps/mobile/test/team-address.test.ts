@@ -44,3 +44,21 @@ it('shows a fingerprint as rows of four groups of four characters', () => {
     '78a4 c119 ef3a 20b1',
   ]);
 });
+
+it('splits a fingerprint into rows of two groups for large text', () => {
+  expect(
+    fingerprintRows(
+      '4c36 bf9e c059 2dc7 e6fe 7138 d795 e2fb b1b1 e57e 3fab 1918 78a4 c119 ef3a 20b1',
+      2,
+    ),
+  ).toEqual([
+    '4c36 bf9e',
+    'c059 2dc7',
+    'e6fe 7138',
+    'd795 e2fb',
+    'b1b1 e57e',
+    '3fab 1918',
+    '78a4 c119',
+    'ef3a 20b1',
+  ]);
+});

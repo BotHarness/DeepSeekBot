@@ -1,4 +1,10 @@
-import type { ComponentPropsWithRef } from 'react';
+import {
+  useImperativeHandle,
+  useRef,
+  type ComponentProps,
+  type ComponentRef,
+  type Ref,
+} from 'react';
 import { Platform, View } from 'react-native';
 
 import { useDesignTheme, type DesignTheme } from '../design/theme';
@@ -6,7 +12,10 @@ import { edge, radius, space } from '../design/tokens';
 import { TextInput } from './system-text';
 import { Text } from './text';
 
-export type TextFieldProps = ComponentPropsWithRef<typeof TextInput> & {
+export type TextFieldHandle = { focus(): void };
+
+export type TextFieldProps = Omit<ComponentProps<typeof TextInput>, 'ref'> & {
+  ref?: Ref<TextFieldHandle>;
   invalid?: boolean;
   label?: string;
   supportingText?: string;
@@ -36,6 +45,7 @@ export function fieldStyle(theme: DesignTheme, { multiline = false, invalid = fa
 }
 
 export function TextField({
+  ref,
   style,
   invalid = false,
   multiline,
@@ -46,8 +56,11 @@ export function TextField({
   ...props
 }: TextFieldProps) {
   const theme = useDesignTheme();
+  const field = useRef<ComponentRef<typeof TextInput>>(null);
+  useImperativeHandle(ref, () => ({ focus: () => field.current?.focus() }), []);
   const input = (
     <TextInput
+      ref={field}
       placeholderTextColor={theme.color.subtle}
       clearButtonMode={multiline || editable === false ? 'never' : 'while-editing'}
       {...props}
