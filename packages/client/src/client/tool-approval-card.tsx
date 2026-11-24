@@ -393,7 +393,7 @@ export function ToolApprovalCard({
             ? undefined
             : `${t(`approval.effect.changes.${request.effects.changes}`)} · ${t(`approval.effect.reach.${request.effects.reach}`)}`,
           `${request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')} · ${request.toolName}`,
-          scope,
+          canAlwaysAllow ? undefined : scope,
           message.approval?.masked === false && message.approval.opaque
             ? t('approval.opaqueWarning')
             : undefined,
@@ -560,8 +560,10 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {scope === undefined || memoryEdit !== undefined ? null : (
-        <div {...stylex.props(styles.caption)}>{scope}</div>
+      {scope === undefined || (memoryEdit !== undefined && !canAlwaysAllow) ? null : (
+        <div {...stylex.props(styles.caption)}>
+          {memoryEdit === undefined ? scope : t('approval.alwaysMemoryScope')}
+        </div>
       )}
       {settled !== undefined ? (
         <RequestOutcome

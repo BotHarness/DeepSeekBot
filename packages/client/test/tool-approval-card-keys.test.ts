@@ -649,6 +649,7 @@ describe('Tool approval file diff', () => {
     expect(card.querySelector('figcaption')).toBeNull();
     expect(card.textContent).not.toContain('/qa');
     expect(card.textContent).not.toContain('可撤销更改');
+    expect(card.textContent).toContain('始终允许后，此 Bot 修改你的 Bot 的记忆时不再询问。');
     const info = card.querySelector<HTMLButtonElement>('button[aria-label="详细信息"]')!;
     await act(async () => info.click());
     const tip = document.querySelector('[role="tooltip"]')?.textContent ?? '';

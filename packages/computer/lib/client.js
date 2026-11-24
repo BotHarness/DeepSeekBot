@@ -10839,7 +10839,10 @@ window.__ModuleLoader__.load({
 					const origin = node.getBoundingClientRect();
 					const left = Math.max(0, Math.min(target.left, window.innerWidth - origin.width));
 					node.style.left = `${left - origin.left}px`;
-					node.style.top = `${target.bottom + gap - origin.top}px`;
+					const below = target.bottom + gap;
+					const above = target.top - gap - origin.height;
+					const top = below + origin.height > window.innerHeight && above >= 0 ? above : below;
+					node.style.top = `${top - origin.top}px`;
 				};
 				place();
 				window.addEventListener("resize", place);
