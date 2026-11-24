@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import { createGenuiPreviewStore } from '../src/runtime/genui-authoring.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 
@@ -383,6 +384,75 @@ describe('GenUI through canonical message ownership', () => {
             .readMessages(fixture.dm.id)
             .filter((message) => message.genui?.version === 2),
         ).toHaveLength(2);
+      });
+    } finally {
+      await fixture.close();
+    }
+  });
+  it('publishes a previewed document by id and compiles inline diagrams for direct JSON', async () => {
+    const fixture = await inboxFixture();
+    try {
+      await fixture.send('Publish previewed HTML', async (run) => {
+        const previews = createGenuiPreviewStore();
+        const tool = createBotMessageTool(() => run, undefined, undefined, previews);
+        const context = {
+          callId: ToolCallId('html-preview-id'),
+          signal: new AbortController().signal,
+        } satisfies Partial<ToolRunContext>;
+        previews.remember(run.bot.slug, 'preview-1', htmlDocument);
+        previews.remember('another-bot', 'preview-2', htmlDocument);
+        await expect(
+          tool.execute(
+            { channel_id: fixture.dm.id, body: 'Foreign preview.', genui_preview_id: 'preview-2' },
+            context as ToolRunContext,
+          ),
+        ).rejects.toThrow('expired');
+        await expect(
+          tool.execute(
+            {
+              channel_id: fixture.dm.id,
+              body: 'Both.',
+              genui_preview_id: 'preview-1',
+              genui_json: JSON.stringify(htmlDocument),
+            },
+            context as ToolRunContext,
+          ),
+        ).rejects.toThrow('either');
+        expect(
+          await tool.execute(
+            {
+              channel_id: fixture.dm.id,
+              body: 'Previewed summary.',
+              genui_preview_id: 'preview-1',
+            },
+            context as ToolRunContext,
+          ),
+        ).toContain('committed');
+        const diagram = {
+          ...htmlDocument,
+          snapshotId: 'html-diagram',
+          html: '<h1>Flow</h1><genui-diagram width="480">flowchart LR\n A[输入] --&gt; B[结果]</genui-diagram><p>输入到结果</p>',
+        };
+        expect(
+          await tool.execute(
+            {
+              channel_id: fixture.dm.id,
+              body: 'Diagram summary.',
+              genui_json: JSON.stringify(diagram),
+            },
+            { ...context, callId: ToolCallId('html-diagram') } as ToolRunContext,
+          ),
+        ).toContain('committed');
+        const published = fixture.core.channels
+          .readMessages(fixture.dm.id)
+          .flatMap((message) => (message.genui?.version === 2 ? [message.genui] : []));
+        expect(published.map((document) => document.snapshotId).sort()).toEqual([
+          'html-diagram',
+          'html-snapshot-1',
+        ]);
+        const compiled = published.find((document) => document.snapshotId === 'html-diagram');
+        expect(compiled?.html).toMatch(/^<h1>Flow<\/h1><svg[\s\S]*<\/svg><p>输入到结果<\/p>$/u);
+        expect(compiled?.html).not.toContain('genui-diagram>');
       });
     } finally {
       await fixture.close();
