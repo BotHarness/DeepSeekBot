@@ -27,12 +27,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { cappedTextSize, headerLabelScaleCeiling } from '../design/capped-text';
 import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { MenuIcon } from '../primitives/menu-icon';
 import { MorphTitle } from './morph-title.android';
+import { sessionMenuHeader, sessionPlaceLabel } from './session-place';
+import { FolderIcon } from '../shell/icons';
+import { HostGlyph } from '../shell/host-tile';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
@@ -52,6 +56,7 @@ export function ConversationTopBar({
   onCompose,
   titleMenu,
   titlePending = false,
+  place,
   onProfile,
   onCall,
   menu,
@@ -76,8 +81,57 @@ export function ConversationTopBar({
     );
   const islandHeight = identityHeight(
     Math.min(theme.fontScale, headerLabelScaleCeiling),
-    showStatus,
+    showStatus || place !== undefined,
   );
+  const glyph = clampScaledIconSize(
+    theme.type.meta.size,
+    theme.fontScale,
+    theme.type.meta.size * headerLabelScaleCeiling,
+  );
+  const placeRow =
+    place === undefined ? null : (
+      <Row
+        verticalAlignment="center"
+        horizontalArrangement={{ spacedBy: space.x3 }}
+        modifiers={[testID('session-header-place')]}
+      >
+        <RNHostView modifiers={[size(glyph, glyph)]}>
+          <View accessible={false} importantForAccessibility="no-hide-descendants">
+            <HostGlyph icon={place.hostIcon} size={glyph} color={theme.color.muted} />
+          </View>
+        </RNHostView>
+        {place.folder === undefined ? null : (
+          <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+            <RNHostView modifiers={[size(glyph, glyph)]}>
+              <View accessible={false} importantForAccessibility="no-hide-descendants">
+                <FolderIcon color={theme.color.muted} size={glyph} />
+              </View>
+            </RNHostView>
+            <Text
+              color={theme.color.muted}
+              style={{
+                typography: 'bodySmall',
+                fontSize: cappedTextSize(
+                  theme.type.meta.size,
+                  theme.fontScale,
+                  headerLabelScaleCeiling,
+                ),
+                lineHeight: cappedTextSize(
+                  theme.type.meta.line,
+                  theme.fontScale,
+                  headerLabelScaleCeiling,
+                ),
+              }}
+              maxLines={1}
+              overflow="ellipsis"
+            >
+              {place.folder}
+            </Text>
+          </Row>
+        )}
+      </Row>
+    );
+  const titleLabel = variant === 'session' ? sessionPlaceLabel(title, place) : title;
   const actionSize = Math.min(islandHeight, identityHeight(1, true));
   const titleStyle = {
     typography: 'titleMedium',
@@ -215,7 +269,7 @@ export function ConversationTopBar({
                   testID('chat-identity'),
                   semantics({
                     contentDescription: [
-                      title,
+                      titleLabel,
                       status,
                       titleMenu === undefined ? undefined : t.sessionDetail.options,
                     ]
@@ -255,6 +309,7 @@ export function ConversationTopBar({
                   )}
                   <Column modifiers={[weight(1)]}>
                     <MorphTitle title={title} pending={titlePending} style={titleStyle} />
+                    {placeRow}
                     {!showStatus ? null : (
                       <Row
                         verticalAlignment="center"
@@ -318,7 +373,7 @@ export function ConversationTopBar({
                       testID('chat-identity'),
                       semantics({
                         contentDescription: [
-                          title,
+                          titleLabel,
                           status,
                           titleMenu === undefined ? undefined : t.sessionDetail.options,
                         ]
@@ -358,6 +413,7 @@ export function ConversationTopBar({
                       )}
                       <Column modifiers={[weight(1)]}>
                         <MorphTitle title={title} pending={titlePending} style={titleStyle} />
+                        {placeRow}
                         {!showStatus ? null : (
                           <Row
                             verticalAlignment="center"
@@ -403,7 +459,7 @@ export function ConversationTopBar({
                 <DropdownMenu.Items>
                   <Column modifiers={[width(materialMenu.width)]}>
                     <MaterialMenuGroup
-                      header={title}
+                      header={sessionMenuHeader(title, place)}
                       items={titleMenu.items.map((item) => ({
                         key: item.testID,
                         testID: item.testID,

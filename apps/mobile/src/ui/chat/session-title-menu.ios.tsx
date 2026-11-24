@@ -1,5 +1,6 @@
 import { Host } from '@expo/ui';
-import { Button, HStack, Menu, Section, Spacer, Text } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Menu, Section, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { HOST_SYMBOLS } from '@botharness/host-client/ui/design/host-look';
 import {
   Animation,
   accessibilityAddTraits,
@@ -21,6 +22,7 @@ import {
   lineLimit,
   padding,
   tint,
+  truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
@@ -29,9 +31,17 @@ import { controlCase } from '../platform-copy';
 import { glassHeader } from './header-kind';
 import { headerControlHeight } from './native-header';
 import { titleMorphKey } from './session-header-title';
+import { sessionMenuHeader, sessionPlaceLabel, type SessionPlace } from './session-place';
+import { space } from '../design/tokens';
 import type { SessionTitleMenuProps } from './session-title-menu';
 
-export function SessionTitleMenu({ title, pending = false, hint, menu }: SessionTitleMenuProps) {
+export function SessionTitleMenu({
+  title,
+  pending = false,
+  place,
+  hint,
+  menu,
+}: SessionTitleMenuProps) {
   const theme = useDesignTheme();
   const reducedMotion = useReducedMotion();
   const height = headerControlHeight(theme);
@@ -47,17 +57,20 @@ export function SessionTitleMenu({ title, pending = false, hint, menu }: Session
         ...(reducedMotion ? [] : [animation(Animation.smooth(), titleMorphKey(title, pending))]),
       ]}
     >
-      <Text
-        modifiers={[
-          font({ textStyle: 'body', weight: 'semibold' }),
-          dynamicTypeSize({ max: 'xxxLarge' }),
-          lineLimit(1),
-          foregroundStyle(pending ? theme.color.muted : theme.color.fg),
-          contentTransition(reducedMotion ? 'identity' : 'interpolate'),
-        ]}
-      >
-        {title}
-      </Text>
+      <VStack alignment="leading" spacing={0}>
+        <Text
+          modifiers={[
+            font({ textStyle: 'body', weight: 'semibold' }),
+            dynamicTypeSize({ max: 'xxxLarge' }),
+            lineLimit(1),
+            foregroundStyle(pending ? theme.color.muted : theme.color.fg),
+            contentTransition(reducedMotion ? 'identity' : 'interpolate'),
+          ]}
+        >
+          {title}
+        </Text>
+        {place === undefined ? null : <PlaceLine place={place} />}
+      </VStack>
       <Spacer />
     </HStack>
   );
@@ -69,7 +82,7 @@ export function SessionTitleMenu({ title, pending = false, hint, menu }: Session
           modifiers={[
             ...capsule,
             accessibilityElement('ignore'),
-            accessibilityLabel(title),
+            accessibilityLabel(sessionPlaceLabel(title, place)),
             accessibilityAddTraits(['isHeader']),
             accessibilityIdentifier('session-header-title'),
           ]}
@@ -86,12 +99,12 @@ export function SessionTitleMenu({ title, pending = false, hint, menu }: Session
           buttonStyle('plain'),
           tint(theme.color.fg),
           ...capsule,
-          accessibilityLabel(title),
+          accessibilityLabel(sessionPlaceLabel(title, place)),
           accessibilityHint(hint),
           accessibilityIdentifier('session-header-title'),
         ]}
       >
-        <Section title={title}>
+        <Section title={sessionMenuHeader(title, place)}>
           {menu.items.map((item) => (
             <Button
               key={item.testID}
@@ -106,5 +119,29 @@ export function SessionTitleMenu({ title, pending = false, hint, menu }: Session
         </Section>
       </Menu>
     </Host>
+  );
+}
+
+function PlaceLine({ place }: { place: SessionPlace }) {
+  const theme = useDesignTheme();
+  const meta = [
+    font({ textStyle: 'footnote' }),
+    dynamicTypeSize({ max: 'xxxLarge' }),
+    foregroundStyle(theme.color.muted),
+  ];
+  return (
+    <HStack spacing={space.x3}>
+      {place.hostIcon.kind === 'symbol' ? (
+        <Image systemName={HOST_SYMBOLS[place.hostIcon.id].ios as never} modifiers={meta} />
+      ) : (
+        <Text modifiers={meta}>{place.hostIcon.emoji}</Text>
+      )}
+      {place.folder === undefined ? null : (
+        <HStack spacing={space.x2}>
+          <Image systemName="folder" modifiers={meta} />
+          <Text modifiers={[...meta, lineLimit(1), truncationMode('middle')]}>{place.folder}</Text>
+        </HStack>
+      )}
+    </HStack>
   );
 }
