@@ -1265,25 +1265,33 @@ _避免使用_：Session 列表 tab、Sessions 页
 Sessions tab 的空白状态：Human 在这里选电脑环境和工作目录，并写下新 Session 的第一句话。第一句话发出之前，这个 Session 并不存在。
 _避免使用_：创建 Session 表单、空白 Session
 
-**Session drawer**（Session 抽屉）：
-Sessions tab 的左侧导航抽屉，从左边缘右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
+**Session drawer**：
+Session 抽屉。Sessions tab 的左侧导航抽屉，从左边缘右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
 _避免使用_：Session 侧边栏、Session 列表页、Host drawer
 
-**Session navigation style**（Session 导航方式）：
-手机本地偏好，决定 Sessions tab 怎样在 Session 间移动：抽屉式（默认；New Session screen 是根页面，Session drawer 列出 Session，选中后替换内容、没有返回）或列表式（Session 列表是根页面，选中后 push 进入、有返回）。两种方式下进入 Session 后 tab island 都常驻。
+**Session navigation style**：
+Session 导航方式。手机本地偏好，决定 Sessions tab 怎样在 Session 间移动：抽屉式（默认；New Session screen 是根页面，Session drawer 列出 Session，选中后替换内容、没有返回）或列表式（Session 列表是根页面，选中后 push 进入、有返回）。两种方式下进入 Session 后 tab island 都常驻。
 _避免使用_：Session 模式、布局模式
 
-**Tob 入口栏**（Tob entry bar）：
-Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。
+**Tob entry bar**：
+Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 
 **Settings**：
 手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。
 _避免使用_：偏好页、齿轮菜单
 
-**Environment sheet**（环境选择 sheet）：
-从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
-_避免使用_：Workspace panel、Workspace drawer、Host drawer、Host chip、侧边栏
+**Workspace panel**：
+iOS 上 Chats 左边的常驻页面，列出已配对的 Computer 和云端工作区并在它们之间切换。其他地方由 Workspace drawer 承担同一职能。
+_避免使用_：-1 屏、侧边栏、Host drawer
+
+**Workspace drawer**：
+从 Host chip 打开的导航抽屉，列出已配对的 Computer 和云端工作区并在它们之间切换。
+_避免使用_：Host drawer、侧边栏、菜单
+
+**Environment sheet**：
+环境选择 sheet。从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
+_避免使用_：Host drawer、Host chip、侧边栏
 
 **Conversation screen**：
 会话页。显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline，以及 Human 能发言时的 Composer（只读的 Bot-to-Bot DM 没有）。Tob Mode 打开的也是这个页面。
