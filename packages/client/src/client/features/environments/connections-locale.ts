@@ -103,6 +103,8 @@ export const zh = {
   'privateTunnel.panel.lastCheck': '最近一次检查',
   'privateTunnel.panel.turnOff': '关闭',
   'privateTunnel.panel.turnOffHint': '关闭后手机不能再从外网连到这台电脑。',
+  'privateTunnel.addressSignIn': '允许凭地址登录',
+  'privateTunnel.addressSignInHint': '地址会在公网上可被发现，任何人都可以尝试密码。',
   'privateRelay.panel.offTitle': '连到你自己的中继服务器',
   'privateRelay.panel.steps': '私有中继步骤',
   'privateRelay.panel.stepDeploy': '部署中继',
@@ -428,6 +430,9 @@ export const en = {
   'privateTunnel.panel.turnOff': 'Turn off',
   'privateTunnel.panel.turnOffHint':
     'Phones can no longer reach this computer from outside your network.',
+  'privateTunnel.addressSignIn': 'Allow sign-in by address',
+  'privateTunnel.addressSignInHint':
+    'The address becomes discoverable on the public internet, and anyone can try a password.',
   'privateRelay.panel.offTitle': 'Connect through your own relay server',
   'privateRelay.panel.steps': 'Private relay steps',
   'privateRelay.panel.stepDeploy': 'Deploy relay',

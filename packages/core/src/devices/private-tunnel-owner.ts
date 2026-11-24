@@ -18,11 +18,13 @@ export interface PrivateRouteStatus extends PrivateTunnelStatus {
   id: PrivateRouteId;
   enabled: boolean;
   revision: string;
+  addressSignIn?: boolean;
 }
 interface OwnedRoute {
   id: PrivateRouteId;
   enabled: boolean;
   configuration: TunnelRecord;
+  addressSignIn?: true;
 }
 interface OwnedRoutes {
   version: 2;
@@ -82,10 +84,16 @@ function decode(input: unknown): OwnedRoutes | undefined {
       configuration.phoneToken !== input.phoneToken ||
       value.id !== routeId(configuration.mode) ||
       typeof value.enabled !== 'boolean' ||
-      routes.some((route) => route.id === value.id)
+      routes.some((route) => route.id === value.id) ||
+      (value.addressSignIn !== undefined && typeof value.addressSignIn !== 'boolean')
     )
       return;
-    routes.push({ id: value.id, enabled: value.enabled, configuration });
+    routes.push({
+      id: value.id,
+      enabled: value.enabled,
+      configuration,
+      ...(value.id === 'custom' && value.addressSignIn === true ? { addressSignIn: true } : {}),
+    });
   }
   return { version: 2, phoneToken: input.phoneToken, routes };
 }
@@ -202,13 +210,14 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
         id: route.id,
         enabled: route.enabled,
         revision: revisions.get(route.id)!,
+        ...(route.id === 'custom' ? { addressSignIn: route.addressSignIn === true } : {}),
       };
     });
   const status = (): PrivateTunnelStatus => {
     if (failure) return { state: 'error', issue: failure };
     const route = statuses().find((route) => route.state === 'connected') ?? statuses()[0];
     if (!route) return { state: 'off' };
-    const { id: _id, enabled: _enabled, ...view } = route;
+    const { id: _id, enabled: _enabled, addressSignIn: _address, ...view } = route;
     return view;
   };
   const unavailable = (): PrivateTunnelResult => ({
@@ -224,6 +233,7 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     if (!entry?.enabled) return;
     const runtime = createPrivateTunnelRuntime({
       ...options,
+      addressSignIn: () => state?.routes.find((route) => route.id === id)?.addressSignIn === true,
       record: (phase, detail) =>
         options.record?.(phase, `route=${id}${detail ? ` ${detail}` : ''}`),
       storage: {
@@ -310,7 +320,12 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
           ...current,
           routes: [
             ...current.routes.filter((route) => route.id !== id),
-            { id, enabled: true, configuration: next },
+            {
+              id,
+              enabled: true,
+              configuration: next,
+              ...(replace === undefined && previous?.addressSignIn ? { addressSignIn: true } : {}),
+            },
           ],
         }),
         replace,
@@ -319,6 +334,28 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       return { ok: false, code: 'credential-unavailable' };
     await stopRuntime(id);
     await startRuntime(id);
+    return { ok: true, status: runtimes.get(id)?.status() ?? { state: 'off' }, routeId: id };
+  };
+  const setAddressSignIn = async (
+    id: PrivateRouteId,
+    enabled: boolean,
+  ): Promise<PrivateTunnelResult> => {
+    if (id !== 'custom') return { ok: false, code: 'private-route-address-sign-in-unsupported' };
+    if (closed || !(await load()) || !state) return unavailable();
+    await writes;
+    if (!state.routes.some((route) => route.id === id))
+      return { ok: false, code: 'private-route-not-found' };
+    const written = await write((current) => ({
+      ...current,
+      routes: current.routes.map((route) => {
+        if (route.id !== id) return route;
+        const { addressSignIn: _previous, ...rest } = route;
+        return enabled ? { ...rest, addressSignIn: true } : rest;
+      }),
+    }));
+    if (!written) return { ok: false, code: 'credential-unavailable' };
+    if (!enabled) runtimes.get(id)?.closeAddressSignIn();
+    options.record?.('address-sign-in', `route=${id} enabled=${String(enabled)}`);
     return { ok: true, status: runtimes.get(id)?.status() ?? { state: 'off' }, routeId: id };
   };
   const change = async (
@@ -390,6 +427,14 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
       [...runtimes.values()]
         .map((runtime) => runtime.admission())
         .find((value) => value !== undefined),
+    addressSignInOrigins: () =>
+      statuses().flatMap((route) =>
+        route.addressSignIn && route.enabled && route.state === 'connected' && route.origin
+          ? [route.origin]
+          : [],
+      ),
+    setAddressSignIn: (id: PrivateRouteId, enabled: boolean) =>
+      serial(() => setAddressSignIn(id, enabled)),
     admissions: () =>
       [...runtimes].flatMap(([id, runtime]) => {
         const admission = runtime.admission();

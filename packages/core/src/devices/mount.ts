@@ -1,4 +1,4 @@
-import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
+import { memberRoutes as eligibleMemberRoutes, memberUrls } from '../team/member-urls.js';
 import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
 import { deviceOwnsRequest } from '../team/device-audience.js';
@@ -856,10 +856,13 @@ export function mountDevicePairing(
       const status = await publishing.status();
       const tunnel = connect.route();
       if (tunnel) status.routes.push(tunnel);
-      return eligibleMemberRoutes(
-        webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
-        status,
-      );
+      return memberUrls([
+        ...eligibleMemberRoutes(
+          webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
+          status,
+        ),
+        ...privateTunnel.addressSignInOrigins(),
+      ]);
     };
     webCtx.effect(
       () =>
