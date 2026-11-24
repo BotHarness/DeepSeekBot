@@ -85,6 +85,7 @@ export const accountActionIcon = {
 } as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
+export const headerBarItem = { top: 0, margin: 16, size: 44, glyph: 20 } as const;
 export const navigationBar = {
   height: 64,
   itemWidth: 80,
@@ -94,8 +95,6 @@ export const navigationBar = {
   indicatorRadius: radius.md,
   itemPadding: 6,
   symbolBox: 32,
-  labelInset: 4,
-  labelLeading: 1.18,
   hitFill: '#00000001',
   shadow: {
     light: '0 2px 8px rgba(15, 17, 21, 0.06)',
@@ -108,9 +107,6 @@ export const materialNavigationBar = {
   margin: 0,
   indicatorWidth: 56,
   indicatorHeight: 32,
-  iconLabelGap: 4,
-  labelSize: 12,
-  labelInset: 8,
 } as const;
 export const materialIconButton = {
   target: 48,
@@ -338,6 +334,7 @@ export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
+export const tabMenu = { recent: 4 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
@@ -396,24 +393,13 @@ export const fileTile = {
 
 export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
 
-export const topEntrance = {
-  edge: 20,
-  start: 12,
-  verticalFail: 16,
-  commit: 96,
-  flick: 500,
-} as const;
-
-export const tobPull = {
-  commit: 80,
-  start: 12,
-  topTolerance: 1,
-  horizontalFail: 12,
-  resistance: 0.5,
-  maxTravel: 120,
-  indicator: 32,
-  glyph: 18,
-  stroke: 2,
+export const tabChrome = {
+  hideDuration: 200,
+  pillHold: 700,
+  pillFade: 160,
+  tabFade: 200,
+  fadeThrough: 300,
+  fadeThroughScale: 0.92,
 } as const;
 
 export const markdownTable = {

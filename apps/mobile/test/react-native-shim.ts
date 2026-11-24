@@ -189,3 +189,4 @@ export const AccessibilityInfo = {
   isReduceMotionEnabled: async () => false,
   addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };
+export const Easing = { bezier: (...points: number[]) => ({ points }) };

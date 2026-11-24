@@ -1675,7 +1675,7 @@ The repository moves to `<absolute-dir>/<bot-id>`; the folder must already exist
 
 `deepseekbot tob-home` prepares/reuses the protected local Tob identity, Memory, managed Workspace and DM, returning their IDs and the canonical attention summary. It does not send a message. `deepseekbot home-model-set --provider <id> --model <id>` sets the pinned Default preset’s main model. Bots with independent plans keep their choices.
 
-Tob uses the normal native bash/pwsh Tool to call `deepseekbot`; the dedicated `tob_assignment_limit_read` and `tob_assignment_limit_set` Tools and their direct-runner entries are removed. Existing Assignment Tools are unchanged. Tob can run every Human CLI command ([ADR-0314](decisions/tob.md#adr-0314)). The Bot creation/profile/lifecycle, group, model, runtime, privacy, Git, update, Share Draft, diagnostic and voice operations listed below keep their typed review (target, previous value, revision, operation key). Any other command is sent to the Host as its exact argv, stdin and current folder, and the Host runs the Human CLI for it with its own launch token, which never reaches Tob's Shell. A command on the Host's read list without `--out` runs at once; every other command, including one the list does not know, first shows the Human an approval card with the exact argv, folder, and the size and SHA-256 of any stdin. Full access and Approval Templates do not skip that card, only an "always allow" the Human chose on one, and a rejected card never runs the command. The Human CLI's own error code and message come back unchanged. `--host`, `--token-file` and `--home` are refused, and `ssh-tunnel` and `voice-local-kit` stay with the Human's own CLI.
+Tob uses the normal native bash/pwsh Tool to call `deepseekbot`; the dedicated `tob_assignment_limit_read` and `tob_assignment_limit_set` Tools and their direct-runner entries are removed. Existing Assignment Tools are unchanged. Tob can run every Human CLI command ([ADR-0314](decisions/tob.md#adr-0314)). The Bot creation/profile/lifecycle, Memory edit, group, model, runtime, privacy, Git, update, Share Draft, diagnostic and voice operations listed below keep their typed review (target, previous value, revision, operation key). Any other command is sent to the Host as its exact argv, stdin and current folder, and the Host runs the Human CLI for it with its own launch token, which never reaches Tob's Shell. A command on the Host's read list without `--out` runs at once; every other command, including one the list does not know, first shows the Human an approval card with the exact argv, folder, and the size and SHA-256 of any stdin. Full access and Approval Templates do not skip that card, only an "always allow" the Human chose on one, and a rejected card never runs the command. The Human CLI's own error code and message come back unchanged. `--host`, `--token-file` and `--home` are refused, and `ssh-tunnel` and `voice-local-kit` stay with the Human's own CLI.
 
 Tob's Host-supplied system guidance is bundled with the plugin and is installed only for the protected Tob Orchestrator; upgrades do not overwrite the Human's editable personality or Memory. A simple question such as “What can you do?” first discovers the installed CLI capabilities, then describes practical outcomes in the Human's language and offers a concrete next step. Capability questions are read-only: they do not propose a mutation or approval. A later specific change request still goes through the existing authority and approval checks.
 
@@ -1712,7 +1712,7 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 The Host reserves one identity in its durable creation receipt before creating the Memory Repository and DM. After a lost response, repeat the **same operation key and same payload**: an existing completed receipt returns that Bot and DM, while a partially completed operation reconciles the reserved identity. A completed scoped retry performs a checked read instead of another creation approval. A changed payload refuses with `creation-key-conflict`; an archived or deleted identity refuses with `creation-identity-unavailable` and is never recreated by replay. `creation-memory-conflict` means the reserved folder exists without its Registry identity: preserve it for repair rather than deleting it or trying a new key. Receipt-backed creation is not a filesystem/database transaction and does not promise automatic repair of that interrupted state.
 
-The authenticated Human online `create` also accepts `--operation-key` for blank creation or an inspected Git source in managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or permission to modify another Bot’s Memory.
+The authenticated Human online `create` also accepts `--operation-key` for blank creation or an inspected Git source in managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior. Scoped Tob does not gain Git/Zip/directory import or Marketplace search; it changes another Bot's existing Memory only through the reviewed edits under [Tob Memory and Soul edits](#tob-memory-and-soul-edits).
 
 The Human online `create-status` command performs a read-only receipt lookup on the original Host. Pass the same name, persona, Bio, tags and other blank-create inputs with the original key; changed input is refused. It returns `{receipt:null}` before an operation exists, or `{receipt:{operationKey,botSlug,status,channelId?}}`. A `reserved` receipt can be resumed using `create` with that exact input and key; `created` identifies the existing Bot and DM. Never change Host or mint a new key to recover an uncertain result. Mobile checks this lookup before its first create, so a Host without recovery support cannot silently create an unrecoverable Bot.
 
@@ -1736,6 +1736,22 @@ deepseekbot bot-delete-retry <bot-id> --confirm
 Deletion retains Memory by default. `--erase-memory` selects the exact owner-reviewed Memory directory, only when `preview.eraseAvailable` permits it; caller-selected paths are rejected. `bot-delete-memory-folder` returns the validated `{target:{path,relativePath,kind}}` for inspection, not arbitrary filesystem access. Preview tokens, dependency scope and path ownership checks remain authoritative. Deletion retry continues the already accepted retention/erasure choice; it cannot change that choice. Scoped confirm and retry require a fresh Human decision each time, including under full access, remembered rules or automatic approval. Both Human commands now require `--confirm`, so update existing cleanup scripts. Tob itself cannot be archived or deleted (`protected-bot`), and names, personality text and imports never grant its authority.
 
 See [ADR-0225](decisions/tob.md#adr-0225) and the [coverage inventory](agents/cli-ui-coverage.md#2089-bot-management-scope). Direct CLI, actual Tob conversation, Web navigation and macOS Desktop are separate verification gates; these command contracts do not imply those runs have passed.
+
+### Tob Memory and Soul edits
+
+From its accepted Human DM, Tob can change one file in the Memory of a Bot the Human owns, `SOUL.md` and `MEMORY.md` included, or restore an earlier Memory commit. Both go through the existing Memory owner as the Bot's owner, the same path as `memory-save` and `memory-restore-commit` in the Human's own CLI, with a typed approval card instead of the generic one ([#4828](https://github.com/BotHarness/DeepSeekBot/issues/4828)). An Assignment may draft the new text in a file; the Tob Orchestrator reads it and runs the command, so only the admitted Orchestrator applies it.
+
+```bash
+deepseekbot memory-file <bot-id> --path SOUL.md    # read the file and the current head
+deepseekbot memory-save <bot-id> --path SOUL.md --body-stdin --expected-head <head> --edit-id soul-2026-11-23 < draft.md
+deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <head> [--restore-id <uuid>] [--name <version>]
+```
+
+Scoped `--expected-head` is required. Before any card the Host refuses a head that has moved, uncommitted or busy Memory (`memory-conflict`), a write that changes nothing or a file that cannot be reviewed as text (`memory-invalid`), and a review diff over 256 KiB (`memory-review-too-large`; split the edit, or restore from the Memory panel). It also refuses Tob itself (`protected-bot`), an archived Bot (`archived-bot`) and a Bot the Human does not own (`permission-required`). The card shows `previousValue` (path, base `revision`, bytes and SHA-256 of the current text) and `patch` (the new bytes and SHA-256, the unified `diff` against that base, and `takesEffect`); the Web card renders the diff with the Bot, path and base revision. A restore shows its own card with the diff from the current head to the target commit, the changed `paths`, and whether uncommitted changes will be backed up first. Full Access and Approval Templates do not skip either card.
+
+After approval the Host rechecks Tob's source authority, ownership and the base revision, so a change made while the card was open refuses with `memory-conflict` and writes nothing. It then commits through the Memory owner and reads the file back; the result carries the `commit`, the `file` provenance (path, revision, bytes, SHA-256) and `takesEffect`. A read-back that does not match is `readback-mismatch`; a lost result is `operation-outcome-uncertain`. Repeat the **same** `--edit-id` and body (or `--restore-id`) to read back an uncertain write: if that edit was accepted the Host returns its commit with `replayed: true`, without a card or a second write; the same id with a different body refuses with `memory-conflict`.
+
+`SOUL.md` and `MEMORY.md` are frozen into a running Session's prompt: new Sessions use the change at once, and a running Session picks it up after its next compaction. Other Memory files are read on demand, so the next read sees the change.
 
 ### Tob group creation and invitations
 
@@ -1863,6 +1879,23 @@ deepseekbot release-restart --confirm
 These reuse the same telemetry, Git and release owners as Settings. Environment-locked telemetry cannot be overridden; inspect the returned effective/locked state rather than assuming the stored preference controls collection. Git covers availability and installation only, with no new global Git identity editor.
 
 Scoped `release-install` and `release-restart` require explicit `--confirm` and a fresh Human decision for every invocation. Full access, remembered allow rules and automatic approval cannot replace that decision; the flag itself is not approval. `git-install` does not use `--confirm` and retains its existing review policy. Restart can interrupt running turns and disconnect the requesting CLI; do not automatically repeat an install or restart after an uncertain result. Reconnect and inspect release status before deciding another action. Test these operations only in an owned isolated Profile, preserving the Human's active Desktop.
+
+### Tob Assignment Memory leases
+
+```bash
+# Tob's Orchestrator, in its Human DM turn
+deepseekbot assignment-memory-lease <assignment-session-id> <bot-id> <bot-id> --operation-key <key>
+deepseekbot assignment-memory-leases [<assignment-session-id>]
+deepseekbot assignment-memory-revoke <lease-id> [--reason <text>]
+# Inside that Tob Assignment's Shell
+deepseekbot memory-snapshot <bot-id>
+deepseekbot memory-file <bot-id> --path <file>
+deepseekbot memory-history <bot-id> [--limit <1-50>]
+deepseekbot memory-diff <bot-id> --sha <commit>
+deepseekbot assignment-memory-leases
+```
+
+A lease lets one Tob-owned Assignment read up to eight Bots the Human owns, read-only, for the current Human request. It ends when the Assignment is archived, the request's DM message is purged or ended, or Tob revokes it. Each read returns `provenance` (`revision`, `path`, `bytes`, `sha256`, `truncated`); bodies and diffs over 64 KiB are cut. `assignment-memory-leases` shows `state` (`active`, `revoked`, `expired`), `status` (`complete` or `partial`) and each Bot's `read`, `unread` or `refused`; the Assignment Report carries the same summary. Memory writes and `--out` refuse with `lease-read-only`, other commands with `tob-authority-required`; an unlisted Bot with `lease-target-denied`, an archived or replaced one with `lease-target-unavailable`. Reuse the same `--operation-key` to get the same lease back. The Human runs the Tob commands model-free through `deepseekbot tob-cli start --args-stdin` with `{"argv":["assignment-memory-lease",…]}` ([Model-free Tob CLI requests](#model-free-tob-cli-requests)). See [Tob decisions §10](decisions/tob.md#tob-memory-lease).
 
 ### Recover an exhausted Group draft
 

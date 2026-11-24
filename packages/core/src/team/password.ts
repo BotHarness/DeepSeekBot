@@ -1,4 +1,5 @@
 import { TeamError } from './error.js';
+import * as nodeCrypto from 'node:crypto';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { z } from 'zod';
@@ -18,6 +19,39 @@ export const passwordHashSchema = z.object({
 });
 export type PasswordHash = z.infer<typeof passwordHashSchema>;
 
+type NativeArgon2 = (
+  algorithm: 'argon2id',
+  parameters: {
+    message: string;
+    nonce: Buffer;
+    parallelism: number;
+    tagLength: number;
+    memory: number;
+    passes: number;
+  },
+  callback: (error: Error | null, key: Buffer) => void,
+) => void;
+
+const nativeArgon2Function = (nodeCrypto as { argon2?: NativeArgon2 }).argon2;
+
+export const nativeArgon2: ((password: string, salt: string) => Promise<Buffer>) | undefined =
+  nativeArgon2Function &&
+  ((password, salt) =>
+    new Promise<Buffer>((resolve, reject) =>
+      nativeArgon2Function(
+        'argon2id',
+        {
+          message: password,
+          nonce: Buffer.from(salt, 'hex'),
+          parallelism: ARGON2_PARAMS.p,
+          tagLength: ARGON2_PARAMS.dkLen,
+          memory: ARGON2_PARAMS.m,
+          passes: ARGON2_PARAMS.t,
+        },
+        (error, key) => (error ? reject(new Error('password-hash-failed')) : resolve(key)),
+      ),
+    ));
+
 let running = 0;
 const waiting: Array<() => void> = [];
 
@@ -27,6 +61,7 @@ async function derive(password: string, salt: string): Promise<Buffer> {
   else running += 1;
   let worker: Worker | undefined;
   try {
+    if (nativeArgon2) return await nativeArgon2(password, salt);
     worker = new Worker(
       `
     const { parentPort, workerData } = require('node:worker_threads');

@@ -29,7 +29,7 @@
 | Selected-Client preferences, layout and shortcuts from the CLI and Tob | only for `--natural` | `scripts/e2e-client-settings.mjs`, `scripts/e2e-client-settings-tob.mjs` | [client-settings.md](client-settings.md) |
 | Functional Panel appearance | no | `scripts/e2e-panel-appearance.mjs`, `scripts/e2e-nested-appearance.mjs` | [panel-appearance.md](panel-appearance.md) |
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
-| Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
+| Protected Tob DM and the mobile Tob entry bar (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
 | Subscription Engine Session context, Model Choice, idle resume and lost-session recovery | yes | `verify-app` isolated Host, `deepseekbot session-model` and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
@@ -55,6 +55,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
 | Phone pairing, inbound Connections, onboarding Quick connect, QR images and route guidance | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs`, `scripts/e2e-phone-recovery.mjs` | [phone-pairing.md](phone-pairing.md) |
 | Phone Environment sheet, Chats header and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
+| Phone tab long-press menus (recent conversations, Sessions and pending Activity) | no | none (shared-device native path) | [phone-tab-menus.md](phone-tab-menus.md) |
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |

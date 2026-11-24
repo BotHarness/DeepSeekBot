@@ -10,8 +10,9 @@ vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ $type: 'accessibilityLabel', label }),
   accessibilityElement: () => ({}),
+  accessibilityHidden: () => ({}),
   accessibilityAddTraits: (traits: string[]) => ({ $type: 'accessibilityAddTraits', traits }),
-  onLongPressGesture: (onLongPress: () => void) => ({ $type: 'onLongPressGesture', onLongPress }),
+  tint: () => ({}),
   buttonStyle: () => ({}),
   background: () => ({}),
   buttonBorderShape: () => ({}),
@@ -31,6 +32,7 @@ vi.mock('@expo/ui/swift-ui', () => {
     Host: container,
     HStack: container,
     VStack: container,
+    Section: ({ children }: { children: ReactNode }) => createElement('section', null, children),
     Text: ({ children, testID }: { children: ReactNode; testID?: string }) =>
       createElement('span', { 'data-testid': testID }, children),
     ContextMenu: Object.assign(
@@ -51,13 +53,12 @@ vi.mock('@expo/ui/swift-ui', () => {
       onPress(): void;
       children?: ReactNode;
       label?: string;
-      modifiers?: { $type: string; label?: string; traits?: string[]; onLongPress?: () => void }[];
+      modifiers?: { $type: string; label?: string; traits?: string[] }[];
     }) =>
       createElement(
         'button',
         {
           onClick: onPress,
-          onContextMenu: modifiers.find((m) => m.$type === 'onLongPressGesture')?.onLongPress,
           'aria-label': modifiers.find((m) => m.$type === 'accessibilityLabel')?.label,
           'aria-pressed': modifiers.some(
             (m) => m.$type === 'accessibilityAddTraits' && m.traits?.includes('isSelected'),
@@ -74,7 +75,8 @@ it('native controls preserve selection, unread label and distinct navigation/cre
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
-  const longPress = vi.fn();
+  const recent = vi.fn();
+  const newGroup = vi.fn();
   const chats = vi.fn(),
     activity = vi.fn(),
     create = vi.fn(),
@@ -91,7 +93,10 @@ it('native controls preserve selection, unread label and distinct navigation/cre
                 activity: false,
                 count: 0,
                 onPress: chats,
-                onLongPress: longPress,
+                menu: [
+                  { key: 'design', label: 'Design', glyph: 'channel', run: recent },
+                  { key: 'new-group', label: 'New Group', glyph: 'new', run: newGroup },
+                ],
               },
               {
                 key: 'activity',
@@ -99,7 +104,6 @@ it('native controls preserve selection, unread label and distinct navigation/cre
                 activity: true,
                 count: 4,
                 onPress: activity,
-                onLongPress: longPress,
               },
             ]}
           />
@@ -108,14 +112,22 @@ it('native controls preserve selection, unread label and distinct navigation/cre
         </>,
       ),
     );
-    const buttons = [...host.querySelectorAll('button')];
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
     expect(buttons[0]!.getAttribute('aria-pressed')).toBe('true');
     expect(buttons[1]!.getAttribute('aria-label')).toContain('4');
     expect(buttons[1]!.querySelector('i')).toBeNull();
     expect(buttons[1]!.textContent).toContain('4');
     expect(buttons[0]!.querySelector('i')?.title).toBe('bubble.left.and.bubble.right.fill');
+    const menus = host.querySelectorAll('[data-context-menu]');
+    expect(menus).toHaveLength(1);
+    expect(menus[0]!.contains(buttons[0]!)).toBe(true);
+    expect(menus[0]!.contains(buttons[1]!)).toBe(false);
+    const rows = [...menus[0]!.querySelectorAll('menu button')];
+    expect(rows.map((row) => row.textContent)).toEqual(['Design', 'New Group']);
+    expect(menus[0]!.querySelector('menu section')?.textContent).toBe('Design');
     await act(async () => {
-      buttons[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+      (rows[0] as HTMLButtonElement).click();
+      (rows[1] as HTMLButtonElement).click();
       buttons[1]!.click();
       buttons[2]!.click();
       buttons[3]!.click();
@@ -124,7 +136,8 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     expect(create).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
     expect(chats).not.toHaveBeenCalled();
-    expect(longPress).toHaveBeenCalledOnce();
+    expect(recent).toHaveBeenCalledOnce();
+    expect(newGroup).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     host.remove();
@@ -148,7 +161,6 @@ it('shows the native Settings gear and opens it without selecting a new tab', as
               settings: true,
               count: 0,
               onPress: open,
-              onLongPress: () => {},
             },
           ]}
         />,
@@ -157,7 +169,8 @@ it('shows the native Settings gear and opens it without selecting a new tab', as
     const button = host.querySelector('button')!;
     expect(button.querySelector('i')?.title).toBe('gearshape');
     expect(button.getAttribute('aria-pressed')).toBe('false');
-    expect(button.getAttribute('aria-label')).toBe(button.textContent);
+    expect(button.getAttribute('aria-label')).toBe('Settings');
+    expect(button.textContent).toBe('');
     await act(async () => button.click());
     expect(open).toHaveBeenCalledOnce();
   } finally {
@@ -182,7 +195,6 @@ it('opens the optional Sessions tab from its own native icon and label', async (
               sessions: true,
               count: 0,
               onPress: open,
-              onLongPress: () => {},
             },
           ]}
         />,
@@ -197,7 +209,7 @@ it('opens the optional Sessions tab from its own native icon and label', async (
   }
 });
 
-it('hides every label together, keeps the spoken name and offers each name in a context menu', async () => {
+it('shows icons only and keeps each spoken name on a plain tab button', async () => {
   const host = document.createElement('div');
   const root = createRoot(host);
   const selected: string[] = [];
@@ -208,7 +220,6 @@ it('hides every label together, keeps the spoken name and offers each name in a 
     ...kind,
     count: 0,
     onPress: () => selected.push(key),
-    onLongPress: () => {},
   });
   const items = [
     item('chats', {}),
@@ -216,24 +227,18 @@ it('hides every label together, keeps the spoken name and offers each name in a 
     item('settings', { settings: true }),
   ];
   try {
-    await act(async () => root.render(<NavigationDestinations labels={false} items={items} />));
+    await act(async () => root.render(<NavigationDestinations items={items} />));
     expect(host.querySelectorAll('[data-testid="tab-label"]')).toHaveLength(0);
-    const tabs = [...host.querySelectorAll('[data-context-menu] button[aria-label]')];
+    expect(host.querySelector('[data-context-menu]')).toBeNull();
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
     expect(tabs.map((b) => b.getAttribute('aria-label'))).toEqual([
       'Chats',
       'Sessions',
       'Settings',
     ]);
-    const menu = host.querySelectorAll('menu')[1]!;
-    const entry = menu.querySelector('button')!;
-    expect(entry.textContent).toBe('Sessions');
-    await act(async () => entry.click());
+    expect(tabs.map((b) => b.textContent)).toEqual(['', '', '']);
+    await act(async () => tabs[1]!.click());
     expect(selected).toEqual(['sessions']);
-    await act(async () => root.render(<NavigationDestinations items={items} />));
-    expect(
-      [...host.querySelectorAll('[data-testid="tab-label"]')].map((label) => label.textContent),
-    ).toEqual(['Chats', 'Sessions', 'Settings']);
-    expect(host.querySelector('[data-context-menu]')).toBeNull();
   } finally {
     act(() => root.unmount());
   }

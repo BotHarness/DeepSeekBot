@@ -3,7 +3,7 @@ import { useProfilePaging } from './profile-paging';
 import { NativePageHeader } from '../primitives/native-page-navigation';
 import { HostScope } from '../../host/host-scope';
 import { takeSharedFiles } from '../share/incoming-share';
-import { useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
+import { useFocusEffect, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot } from '../shell/stack-root';
+import { useEntranceSettled } from '../shell/entrance-settled';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -58,6 +59,7 @@ export function ConversationScreen({
   place,
   focus,
   focusRequest,
+  composeOnOpen = false,
   latestWindowOnly = false,
   presentation,
   active = true,
@@ -66,6 +68,7 @@ export function ConversationScreen({
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
+  composeOnOpen?: boolean;
   latestWindowOnly?: boolean;
   presentation?: ConversationPresentation;
   active?: boolean;
@@ -119,6 +122,7 @@ export function ConversationScreen({
             place={place}
             focus={focus}
             focusRequest={focusRequest}
+            composeOnOpen={composeOnOpen}
             latestWindowOnly={latestWindowOnly}
             focused={focused}
             presentation={presentation}
@@ -133,6 +137,7 @@ function ChatConversation({
   place,
   focus: routeFocus,
   focusRequest: routeFocusRequest,
+  composeOnOpen,
   latestWindowOnly,
   focused,
   presentation,
@@ -141,6 +146,7 @@ function ChatConversation({
   place: ChatPlace;
   focus: string | undefined;
   focusRequest: string | undefined;
+  composeOnOpen: boolean;
   latestWindowOnly: boolean;
   presentation: ConversationPresentation | undefined;
 }) {
@@ -213,10 +219,10 @@ function ChatConversation({
   }, [router, closePresentation, paging]);
   const pull = usePullToCompose({
     inverted: android,
-    enabled: composable || stackRoot,
+    enabled: composable,
     threshold: pullToCompose.threshold,
     flick: Platform.OS === 'android' ? pullToCompose.flick : undefined,
-    onCompose: stackRoot ? leave : compose,
+    onCompose: compose,
   });
   const markdownViewport = useMemo(
     () => ({
@@ -346,7 +352,7 @@ function ChatConversation({
     timelineRows,
     profile,
   });
-  return renderConversation({
+  const screenTree = renderConversation({
     focused,
     presentation,
     t,
@@ -390,4 +396,25 @@ function ChatConversation({
     header,
     notice,
   });
+  return composeOnOpen ? (
+    <>
+      {screenTree}
+      <ComposeOnOpen ready={focused && composable} compose={compose} />
+    </>
+  ) : (
+    screenTree
+  );
+}
+
+function ComposeOnOpen({ ready, compose }: { ready: boolean; compose(): void }) {
+  const settled = useEntranceSettled();
+  const done = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (done.current || !settled || !ready) return;
+      done.current = true;
+      compose();
+    }, [settled, ready, compose]),
+  );
+  return null;
 }

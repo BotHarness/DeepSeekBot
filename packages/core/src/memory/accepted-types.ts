@@ -226,6 +226,20 @@ export interface MemoryAcceptance {
       editId: string;
     },
   ): MemoryAcceptedCommit;
+  reviewHumanSave(input: { botSlug: string; path: string; body: string; editId: string }): {
+    head: string;
+    path: string;
+    before: string | null;
+    diff: string;
+    accepted?: MemoryAcceptedCommit;
+  };
+  reviewHumanRestore(input: { botSlug: string; sha: string; restoreId: string }): {
+    head: string;
+    dirty: boolean;
+    paths: string[];
+    diff: string;
+    accepted?: MemoryAcceptedCommit;
+  };
   restoreCommitHuman(
     human: HumanContext,
     input: {

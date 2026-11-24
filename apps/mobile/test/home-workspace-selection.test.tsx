@@ -20,7 +20,6 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/des
 import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { refreshMemberPermissions } from '../src/host/member-permissions';
-import { ChatsCreate } from '../src/ui/shell/chats-create';
 import type { CreationPanelControls } from '../src/ui/shell/creation-panel';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
@@ -169,6 +168,11 @@ vi.mock('../src/host/native-notification-avatars', () => ({ avatarImageUri: () =
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+Object.assign(HTMLElement.prototype, {
+  measureInWindow(done: (x: number, y: number, width: number, height: number) => void) {
+    done(330, 50, 44, 44);
+  },
+});
 
 let root: Root | undefined;
 
@@ -187,24 +191,17 @@ afterEach(() => {
   resetHomeState();
 });
 
-async function home(creationScope?: string): Promise<HTMLElement> {
+async function home(): Promise<HTMLElement> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  await act(async () =>
-    root!.render(
-      <>
-        <HomeScreen />
-        {creationScope && <ChatsCreate scope={creationScope} bottom={80} />}
-      </>,
-    ),
-  );
+  await act(async () => root!.render(<HomeScreen />));
   return host;
 }
 
 async function expectNewGroup(view: HTMLElement, visible: boolean) {
-  const fab = view.querySelector<HTMLButtonElement>('[data-testid="chats-create-fab"]');
-  if (fab && !fab.disabled) await act(async () => fab.click());
+  const create = view.querySelector<HTMLButtonElement>('[data-testid="chats-create-button"]');
+  if (create && !create.disabled) await act(async () => create.click());
   expect(Boolean(view.querySelector('[data-testid="chats-create-group"]'))).toBe(visible);
 }
 
@@ -539,7 +536,7 @@ describe('Search in the Chats header', () => {
       if (hostState.member && permissions) await refreshMemberPermissions(client);
       const scope = computerEnvironmentKey('h1');
       conversationFilter.set(scope);
-      const view = await home(scope);
+      const view = await home();
       expect(view.textContent).toContain(canCreate ? t.cloudChannels.empty : t.emptyTeamChannels);
       expect(view.textContent?.includes(t.emptyTeamChannels)).toBe(!canCreate);
       await expectNewGroup(view, canCreate);
@@ -571,7 +568,7 @@ describe('Search in the Chats header', () => {
       ];
       const environment = cloudEnvironmentKey(scope, 'org_a');
       conversationFilter.set(environment);
-      const view = await home(environment);
+      const view = await home();
       expect(view.textContent).toContain(
         role === 'owner' ? t.cloudChannels.empty : t.cloudChannels.emptyMember,
       );
@@ -906,9 +903,10 @@ describe('Selected view header accessibility', () => {
           ),
         );
         const button = host.querySelector('[data-testid="chats-environment-name"]')!;
-        expect(button.tagName).not.toBe('BUTTON');
-        expect(button.getAttribute('role')).toBe('header');
         expect(button.getAttribute('aria-label')).toBe(accessibilityLabel ?? title);
+        push.mockClear();
+        await act(async () => (button as HTMLElement).click());
+        expect(push).toHaveBeenCalledWith('/environment');
         const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(

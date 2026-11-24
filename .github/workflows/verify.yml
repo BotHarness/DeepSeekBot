@@ -157,13 +157,21 @@ jobs:
           else
             node scripts/feature-impact.mjs --base=HEAD^ --summary
           fi
+      # Step limits are about 3x the slowest passing run, so a hang names its step.
       - run: pnpm lint
+        timeout-minutes: 5
         env:
           BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
       - run: pnpm format:check
+        timeout-minutes: 3
       - run: pnpm typecheck
+        timeout-minutes: 5
       - run: pnpm build
+        timeout-minutes: 6
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
 
   mobile-export:
     name: mobile verification (iOS and Android)
@@ -416,6 +424,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm vitest run --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        timeout-minutes: 18
 
   test-affected:
     name: test (affected shard ${{ matrix.shard }})
@@ -437,6 +446,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/ci-affected.mjs --run
+        timeout-minutes: 18
         env:
           TEST_FILES: ${{ toJSON(matrix.files) }}
 
@@ -478,6 +488,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:smoke
+        timeout-minutes: 10
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
 
   ui-visual:
     name: UI visual checks (alignment, accessibility, keyboard, zoom)
@@ -533,7 +547,8 @@ jobs:
           node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
           sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
           sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
-      - env:
+      - timeout-minutes: 6
+        env:
           SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: |
           preview_args=()
@@ -541,10 +556,12 @@ jobs:
             preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
           fi
           node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
-      - run: >-
+      - timeout-minutes: 6
+        run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
       - id: system_preview
+        timeout-minutes: 5
         continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: >-
           node scripts/perf-genui-opening.mjs --headless
@@ -585,6 +602,9 @@ jobs:
           CONTROLLED_PREVIEW: ${{ steps.controlled_preview.outcome }}
         run: >-
           node -e 'if (process.env.SYSTEM_PREVIEW !== "success" || process.env.CONTROLLED_PREVIEW !== "success") throw Error("Both complete GenUI browser arms are required; retain failures for diagnosis")'
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
       - if: always()
         uses: actions/upload-artifact@v4
         with:

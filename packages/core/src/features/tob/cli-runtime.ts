@@ -35,6 +35,8 @@ export interface TobCliRequestLease {
 export interface TobCliAuthority {
   (): void;
 
+  readonly sources: readonly string[];
+
   beginWrite(): {
     approvalChannelId: string;
     authorize(): void;
@@ -250,6 +252,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
     };
     authorize();
     return Object.assign(authorize, {
+      sources: Object.freeze([...accepted]),
       beginWrite: () => {
         authorize();
         return {

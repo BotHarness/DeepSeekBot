@@ -4,15 +4,6 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-type PanEvent = { translationX: number; velocityX: number };
-type Pan = {
-  enabled: unknown;
-  activeX: unknown;
-  failY: unknown;
-  slop: unknown;
-  update(event: PanEvent): void;
-  end(event: PanEvent): void;
-};
 type Action = { type: string };
 type Prevent = {
   prevent: boolean;
@@ -22,13 +13,15 @@ type Prevent = {
 const state = vi.hoisted(() => ({
   os: 'ios',
   reduced: false,
-  pans: [] as Pan[],
   springs: [] as { to: unknown; config: unknown }[],
   back: vi.fn(),
   replace: vi.fn(),
   repeat: vi.fn(),
   prevent: undefined as Prevent | undefined,
   stackRoot: [] as boolean[],
+  finished: true,
+  settled: [] as (boolean | undefined)[],
+  context: undefined as import('react').Context<boolean | undefined> | undefined,
 }));
 
 vi.mock('react-native', async () => {
@@ -50,7 +43,7 @@ vi.mock('react-native-reanimated', async () => {
     useReducedMotion: () => false,
     withSpring: (to: unknown, config: unknown, done?: (finished?: boolean) => void) => {
       state.springs.push({ to, config });
-      done?.(true);
+      done?.(state.finished);
       return to;
     },
   };
@@ -58,46 +51,19 @@ vi.mock('react-native-reanimated', async () => {
 vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => state.reduced,
 }));
-vi.mock('react-native-gesture-handler', async () => {
-  const { createElement, Fragment } = await import('react');
-  return {
-    Gesture: {
-      Pan: () => {
-        const pan: Pan = {
-          enabled: undefined,
-          activeX: undefined,
-          failY: undefined,
-          slop: undefined,
-          update: () => undefined,
-          end: () => undefined,
-        };
-        state.pans.push(pan);
-        const builder = {
-          enabled: (value: unknown) => ((pan.enabled = value), builder),
-          activeOffsetX: (value: unknown) => ((pan.activeX = value), builder),
-          failOffsetY: (value: unknown) => ((pan.failY = value), builder),
-          hitSlop: (value: unknown) => ((pan.slop = value), builder),
-          onUpdate: (run: Pan['update']) => ((pan.update = run), builder),
-          onEnd: (run: Pan['end']) => ((pan.end = run), builder),
-        };
-        return builder;
-      },
-    },
-    GestureDetector: ({ children }: { children: unknown }) =>
-      createElement(Fragment, null, children as never),
-  };
-});
 vi.mock('expo-router', async () => {
-  const { createElement } = await import('react');
+  const { createElement, use } = await import('react');
   const { useStackRoot } = await import('../src/ui/shell/stack-root');
   function Stack() {
     state.stackRoot.push(useStackRoot());
+    state.settled.push(state.context ? use(state.context) : undefined);
     return createElement('div', { 'data-testid': 'nested-stack' });
   }
   return {
     Stack,
     router: { back: state.back, replace: state.replace, canGoBack: () => true },
     useLocalSearchParams: () => ({}),
+    useNavigation: () => ({ addListener: () => () => undefined }),
     usePreventRemove: (
       prevent: boolean,
       callback: (options: { data: { action: Action }; repeat(): void }) => void,
@@ -113,20 +79,24 @@ vi.mock('expo-secure-store', () => ({
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('../src/ui/chat/conversation-screen', () => ({ ConversationScreen: () => null }));
 
-const { TopEntranceStack } = await import('../src/ui/shell/top-entrance');
+const { TobEntranceStack } = await import('../src/ui/shell/tob-entrance');
+const { tobEntryOrigin } = await import('../src/ui/shell/tob-entry-origin');
+state.context = (await import('../src/ui/shell/entrance-settled')).EntranceSettled;
 const { useStackRoot } = await import('../src/ui/shell/stack-root');
 const {
-  closesTopEntrance,
+  containerTransform,
+  containerTransformExit,
+  containerTransformFade,
+  exitDone,
+  containerTransformFrame,
   tobComputer,
   tobModeHostId,
   tobModeHref,
-  topEntranceDrag,
-  topEntranceScreenOptions,
+  tobEntranceScreenOptions,
 } = await import('../src/ui/shell/tob-mode-model');
 const { recentHostIds } = await import('../src/ui/shell/recent-chats');
 const { computerEnvironmentKey, cloudEnvironmentKey } =
   await import('../src/host/conversation-environments');
-const { topEntrance } = await import('../src/ui/design/tokens');
 const { spring } = await import('../src/ui/design/motion');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -161,14 +131,18 @@ describe('the Tob that Tob Mode opens', () => {
     expect(tobModeHostId(cloudEnvironmentKey('s', 'org'), [], [], undefined)).toBeUndefined();
   });
 
-  it("goes to that computer's Tob DM, once its roster names the Tob", () => {
-    expect(tobModeHref('h2', computers)).toEqual({
-      pathname: '/dm-top/[slug]',
-      params: { slug: 'tob-2', hostId: 'h2' },
+  it("goes to that computer's Tob DM with the Composer focused, once its roster names the Tob", () => {
+    expect(tobModeHref('h2', computers, 'ios')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'tob-2', hostId: 'h2', compose: '1' },
     });
-    expect(tobModeHref('loading', computers)).toBeUndefined();
-    expect(tobModeHref('old', computers)).toBeUndefined();
-    expect(tobModeHref(undefined, computers)).toBeUndefined();
+    expect(tobModeHref('h2', computers, 'android')).toEqual({
+      pathname: '/dm-tob/[slug]',
+      params: { slug: 'tob-2', hostId: 'h2', compose: '1' },
+    });
+    expect(tobModeHref('loading', computers, 'ios')).toBeUndefined();
+    expect(tobModeHref('old', computers, 'ios')).toBeUndefined();
+    expect(tobModeHref(undefined, computers, 'android')).toBeUndefined();
   });
 
   it('reads recency from the recent chats and the Tob from the roster', () => {
@@ -190,18 +164,19 @@ describe('the Tob that Tob Mode opens', () => {
 });
 
 describe('the Tob DM route', () => {
-  it('is the chat screen itself, under a top entrance, with no Tob screen of its own', async () => {
+  it('is the chat screen itself, under a container transform on Android, with no Tob screen of its own', async () => {
     const dm = await import('../app/dm/[slug]');
-    const top = await import('../app/dm-top/[slug]');
-    expect(top.default).toBe(dm.default);
-    const layout = await import('../app/dm-top/_layout');
-    expect(layout.default).toBe(TopEntranceStack);
+    const entry = await import('../app/dm-tob/[slug]');
+    expect(entry.default).toBe(dm.default);
+    const layout = await import('../app/dm-tob/_layout');
+    expect(layout.default).toBe(TobEntranceStack);
     expect(existsSync(new URL('../app/tob', import.meta.url))).toBe(false);
-    expect(existsSync(new URL('../src/ui/shell/tob-mode-screen.tsx', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../app/dm-top', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../src/ui/shell/pull-to-tob.tsx', import.meta.url))).toBe(false);
   });
 
-  it('is presented over Chats without a system animation, so the entrance slides itself', () => {
-    expect(topEntranceScreenOptions).toMatchObject({
+  it('is presented over Chats without a system animation, so the entrance transforms itself', () => {
+    expect(tobEntranceScreenOptions).toMatchObject({
       presentation: 'transparentModal',
       animation: 'none',
       headerShown: false,
@@ -209,20 +184,97 @@ describe('the Tob DM route', () => {
   });
 });
 
-describe('the top entrance', () => {
+describe('the container transform', () => {
+  const screen = { width: 390, height: 844 };
+  const bar = { x: 16, y: 700, width: 280, height: 56 };
+
+  it('grows the Tob entry bar into the full screen', () => {
+    expect(containerTransformFrame(bar, screen, 0)).toEqual({ ...bar, radius: 28 });
+    expect(containerTransformFrame(bar, screen, 1)).toEqual({
+      x: 0,
+      y: 0,
+      ...screen,
+      radius: 0,
+    });
+    const half = containerTransformFrame(bar, screen, 0.5);
+    expect(half.width).toBe((bar.width + screen.width) / 2);
+    expect(containerTransformFrame(bar, screen, 2)).toEqual(
+      containerTransformFrame(bar, screen, 1),
+    );
+  });
+
+  it('moves only by transform: the container lands on the frame and the content keeps its size', () => {
+    for (const progress of [0, 0.3, 0.7, 1]) {
+      const frame = containerTransformFrame(bar, screen, progress);
+      const step = containerTransform(bar, screen, progress);
+      const cx = screen.width / 2;
+      const cy = screen.height / 2;
+      const container = (x: number, y: number) => [
+        cx + (x - cx) * step.container.scaleX + step.container.translateX,
+        cy + (y - cy) * step.container.scaleY + step.container.translateY,
+      ];
+      const content = (x: number, y: number) =>
+        container(
+          cx + (x - cx) * step.content.scaleX + step.content.translateX,
+          cy + (y - cy) * step.content.scaleY + step.content.translateY,
+        );
+      const [left, top] = container(0, 0);
+      const [right, bottom] = container(screen.width, screen.height);
+      expect(left).toBeCloseTo(frame.x);
+      expect(top).toBeCloseTo(frame.y);
+      expect(right! - left!).toBeCloseTo(frame.width);
+      expect(bottom! - top!).toBeCloseTo(frame.height);
+      const [contentLeft, contentTop] = content(0, 0);
+      const [contentRight, contentBottom] = content(screen.width, screen.height);
+      expect(contentLeft).toBeCloseTo(0);
+      expect(contentRight! - contentLeft!).toBeCloseTo(screen.width);
+      expect(contentBottom! - contentTop!).toBeCloseTo(screen.height);
+      expect(contentBottom).toBeCloseTo(frame.y + frame.height);
+    }
+    expect(containerTransform(bar, screen, 1)).toEqual({
+      container: { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 },
+      radius: 0,
+      content: { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 },
+    });
+  });
+
+  it('fades the whole entrance out over the end of the exit so the real bar shows again', () => {
+    expect(containerTransformExit(0, false)).toBe(1);
+    expect(containerTransformExit(0.5, true)).toBe(1);
+    expect(containerTransformExit(0.15, true)).toBe(1);
+    expect(containerTransformExit(0.1, true)).toBeGreaterThan(0);
+    expect(containerTransformExit(0.1, true)).toBeLessThan(1);
+    expect(containerTransformExit(exitDone, true)).toBe(0);
+    expect(containerTransformExit(0, true)).toBe(0);
+  });
+
+  it('starts near full size when the bar was not measured', () => {
+    expect(containerTransformFrame(undefined, screen, 0).width).toBeCloseTo(screen.width * 0.9);
+  });
+
+  it('fades the bar out before the conversation fades in', () => {
+    expect(containerTransformFade(0)).toEqual({ content: 0, origin: 1 });
+    expect(containerTransformFade(0.3).origin).toBe(0);
+    expect(containerTransformFade(0.2).content).toBe(0);
+    expect(containerTransformFade(1)).toEqual({ content: 1, origin: 0 });
+  });
+});
+
+describe('the Tob entrance', () => {
   let root: Root;
   let container: HTMLDivElement;
 
   beforeEach(() => {
-    state.os = 'ios';
+    state.os = 'android';
     state.reduced = false;
-    state.pans.length = 0;
     state.springs.length = 0;
     state.prevent = undefined;
     state.stackRoot.length = 0;
     state.back.mockClear();
     state.replace.mockClear();
     state.repeat.mockClear();
+    tobEntryOrigin.set({ x: 16, y: 700, width: 280, height: 56 });
+    state.settled.length = 0;
     container = document.createElement('div');
     root = createRoot(container);
   });
@@ -231,8 +283,7 @@ describe('the top entrance', () => {
     await act(async () => root.unmount());
   });
 
-  const render = () => act(async () => root.render(<TopEntranceStack />));
-  const pan = () => state.pans.at(-1)!;
+  const render = () => act(async () => root.render(<TobEntranceStack />));
   const remove = () =>
     act(async () => {
       const prevent = state.prevent!;
@@ -254,67 +305,53 @@ describe('the top entrance', () => {
     expect(outside).toBe(false);
   });
 
-  it('comes down on the spatial spring and goes back up on the release spring', async () => {
+  it('expands on the spatial spring, settles, and shrinks back on the release spring', async () => {
     await render();
     expect(state.springs[0]).toEqual({
-      to: 0,
+      to: 1,
       config: { ...spring.spatial.default, overshootClamping: true },
     });
     expect(state.prevent!.prevent).toBe(true);
     await remove();
     expect(state.springs.at(-1)).toEqual({
-      to: -844,
+      to: 0,
       config: { ...spring.release, overshootClamping: true },
     });
     expect(state.repeat).toHaveBeenCalledOnce();
     expect(state.prevent!.prevent).toBe(false);
   });
 
-  it('does not slide with Reduce Motion', async () => {
-    state.reduced = true;
+  it('tells the conversation once the entrance has settled', async () => {
     await render();
-    expect(state.springs).toEqual([]);
-    expect(state.prevent!.prevent).toBe(false);
-    await remove();
-    expect(state.springs).toEqual([]);
-    expect(state.repeat).toHaveBeenCalledOnce();
+    expect(state.settled[0]).toBe(false);
+    expect(state.settled.at(-1)).toBe(true);
   });
 
-  it('stops sliding when Reduce Motion changes while Tob Mode is open', async () => {
-    await render();
+  it('closes the settled gate as soon as Back starts, so a late connection cannot focus the Composer', async () => {
     state.springs.length = 0;
+    await render();
+    expect(state.settled.at(-1)).toBe(true);
+    const prevent = state.prevent!;
+    await act(async () =>
+      prevent.callback({ data: { action: { type: 'POP' } }, repeat: () => undefined }),
+    );
+    expect(state.settled.at(-1)).toBe(false);
+  });
+
+  it('never settles when the entrance is cancelled, so Back cannot focus the Composer', async () => {
+    state.finished = false;
+    await render();
+    expect(state.settled.at(-1)).toBe(false);
+    state.finished = true;
+  });
+
+  it('does not animate with Reduce Motion', async () => {
     state.reduced = true;
     await render();
+    expect(state.springs).toEqual([]);
     expect(state.prevent!.prevent).toBe(false);
     await remove();
     expect(state.springs).toEqual([]);
     expect(state.repeat).toHaveBeenCalledOnce();
-  });
-
-  it('goes back on an iOS swipe from the leading edge, and springs back when let go early', async () => {
-    await render();
-    expect(pan().enabled).toBe(true);
-    expect(pan().slop).toEqual({ left: 0, width: topEntrance.edge });
-    expect(pan().activeX).toBe(topEntrance.start);
-    expect(pan().failY).toEqual([-topEntrance.verticalFail, topEntrance.verticalFail]);
-    await act(async () => pan().end({ translationX: topEntrance.commit / 2, velocityX: 0 }));
-    expect(state.back).not.toHaveBeenCalled();
-    await act(async () => pan().end({ translationX: topEntrance.commit, velocityX: 0 }));
-    expect(state.back).toHaveBeenCalledOnce();
-  });
-
-  it('leaves Android Back to the system', async () => {
-    state.os = 'android';
-    await render();
-    expect(pan().enabled).toBe(false);
-  });
-
-  it('follows the finger only toward the trailing edge, and commits past the threshold or on a flick', () => {
-    expect(topEntranceDrag(-40)).toBe(0);
-    expect(topEntranceDrag(40)).toBe(40);
-    expect(closesTopEntrance(topEntrance.commit, 0)).toBe(true);
-    expect(closesTopEntrance(topEntrance.commit / 2, 0)).toBe(false);
-    expect(closesTopEntrance(10, topEntrance.flick + 1)).toBe(true);
-    expect(closesTopEntrance(topEntrance.commit * 2, -topEntrance.flick - 1)).toBe(false);
   });
 });

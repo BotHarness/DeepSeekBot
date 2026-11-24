@@ -7,7 +7,7 @@ import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/
 import { edge, glassPress, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
-import { HeaderIconGlyph, type HeaderIcon } from '../shell/header-icon-button';
+import { HeaderIconGlyph, type HeaderIcon } from '../shell/header-icon-glyph';
 import { glassHeader, headerIslands } from './header-kind';
 import { useStrings } from '../strings';
 import { edgeFadeStops, type EdgeFadeShape } from './edge-fade';
