@@ -270,6 +270,7 @@ function stubActions(): BridgeActions {
     setModelPlan: vi.fn(async () => {
       throw new Error('unexpected Model Plan change');
     }),
+    createHostFolder: vi.fn(),
     listHostFolders: vi.fn(async () => ({
       path: '/',
       home: '/',

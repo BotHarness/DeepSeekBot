@@ -15,6 +15,7 @@ import {
   loadQuestion,
   type RequestRef,
 } from '@botharness/host-client/requests';
+import { useCreateFolder } from '../../host/member-permissions';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
@@ -81,9 +82,10 @@ export const RequestCard = memo(function RequestCard({
     }),
     [client, inbox, ref],
   );
+  const createFolder = useCreateFolder(client);
   const grant = useMemo(
-    () => grantRequestPort(client, ref, () => void inbox?.refresh()),
-    [client, inbox, ref],
+    () => ({ ...grantRequestPort(client, ref, () => void inbox?.refresh()), createFolder }),
+    [client, inbox, ref, createFolder],
   );
 
   const subject = card.subject === undefined ? {} : { subject: card.subject };
