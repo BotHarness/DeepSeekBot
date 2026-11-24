@@ -948,8 +948,8 @@ export async function main(argv = process.argv.slice(2)) {
         allowFail: true,
       });
       check(
-        'Member transfer refused',
-        denied.error?.code === 'permission-required',
+        'Member remote policy excludes Steward transfer',
+        denied.error?.code === 'remote-access/denied',
         denied.error?.code,
       );
       check('Member denial preserves the Steward', s.cli(['steward']).botSlug === previous);

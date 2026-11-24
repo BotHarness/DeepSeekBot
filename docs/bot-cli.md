@@ -1678,7 +1678,7 @@ The repository moves to `<absolute-dir>/<bot-id>`; the folder must already exist
 
 ## Home and Tob
 
-`deepseekbot steward` returns `{ "botSlug": "<id>" }` to an authenticated Owner or Team member. The Human Host Owner can run `deepseekbot steward-transfer <bot-id> --confirm` to grant an active Bot they own scoped Host management and delegation in the Owner DM. Both DMs receive a system notice. The CLI broker refuses this command with `cli-command-refused`. A Team member receives `permission-required`.
+`deepseekbot steward` returns `{ "botSlug": "<id>" }` to an authenticated Owner or Team member. The Human Host Owner can run `deepseekbot steward-transfer <bot-id> --confirm` to grant an active Bot they own scoped Host management and delegation in the Owner DM. Both DMs receive a system notice. The CLI broker refuses this command with `cli-command-refused`. The Team member CLI receives `remote-access/denied` because the member policy omits the transfer method.
 
 `deepseekbot tob-home` prepares/reuses the local Tob identity, Memory, managed Workspace and DM, returning their IDs and the canonical attention summary. It does not send a message. `deepseekbot home-model-set --provider <id> --model <id>` sets the pinned Default preset’s main model. Bots with independent plans keep their choices.
 

@@ -1617,7 +1617,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot steward` 向已认证的 Owner 或 Team 成员返回 `{ "botSlug": "<id>" }`。Host Owner 本人可运行 `deepseekbot steward-transfer <bot-id> --confirm`，将 Owner DM 中的受限 Host 管理和委派能力转给自己拥有的活跃 Bot。双方的 Human DM 都会收到系统提示。CLI broker 会以 `cli-command-refused` 拒绝此命令，Team 成员会收到 `permission-required`。
+`deepseekbot steward` 向已认证的 Owner 或 Team 成员返回 `{ "botSlug": "<id>" }`。Host Owner 本人可运行 `deepseekbot steward-transfer <bot-id> --confirm`，将 Owner DM 中的受限 Host 管理和委派能力转给自己拥有的活跃 Bot。双方的 Human DM 都会收到系统提示。CLI broker 会以 `cli-command-refused` 拒绝此命令，Team 成员的 CLI 会收到 `remote-access/denied`，因为成员权限不包含转移方法。
 
 `deepseekbot tob-home` 幂等准备本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
