@@ -13,7 +13,7 @@ export const en = {
   takeoverDone: 'Done',
   takeoverFailed: "Couldn't finish",
   takeoverCancel: 'Not needed',
-  takeoverNote: 'Type passwords only in the live view, never in chat.',
+  takeoverNote: 'Type passwords only in the live view, never in a message.',
   takeoverError: 'Could not update this request. Try again.',
 };
 
@@ -29,6 +29,6 @@ export const zh: typeof en = {
   takeoverDone: '完成',
   takeoverFailed: '无法完成',
   takeoverCancel: '不需要了',
-  takeoverNote: '密码只在实时画面里输入，不要发到聊天里。',
+  takeoverNote: '密码只在实时画面里输入，不要在消息里发送。',
   takeoverError: '没能更新这个请求，请重试。',
 };
