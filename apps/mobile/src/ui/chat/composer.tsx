@@ -18,7 +18,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChatBottom } from '../primitives/chat-keyboard';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -221,7 +221,7 @@ export function Composer({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
+  const bottomInset = useChatBottom().safe;
   const [footerHeight, setFooterHeight] = useState(0);
   const [held, setHeld] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -467,7 +467,7 @@ export function Composer({
       style={{
         paddingHorizontal: space.x4,
         paddingTop: space.x3,
-        paddingBottom: Math.max(insets.bottom, space.x3),
+        paddingBottom: Math.max(bottomInset, space.x3),
       }}
     >
       {editing ? (
@@ -627,7 +627,7 @@ export function Composer({
             position: 'absolute',
             right: space.x4 + inset,
             bottom:
-              Math.max(insets.bottom, space.x3) +
+              Math.max(bottomInset, space.x3) +
               (footer === undefined ? 0 : footerHeight) +
               pill.height +
               space.x3,

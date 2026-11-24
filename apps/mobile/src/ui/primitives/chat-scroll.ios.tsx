@@ -1,20 +1,19 @@
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import type { ChatKeyboardCoordination } from './chat-scroll';
-import { composerKeyboardGap, nativeChatKeyboard } from './chat-keyboard';
+import { chatKeyboardOffset, nativeChatKeyboard, useChatBottom } from './chat-keyboard';
 import { useKeyboardChatScroll, useKeyboardOverlayStyle } from './keyboard-chat-scroll';
 
 function useNativeChatScrollAdapter(keyboard: ChatKeyboardCoordination, held: boolean) {
-  const bottom = useSafeAreaInsets().bottom;
+  const bottom = useChatBottom();
   return useKeyboardChatScroll(keyboard, held, {
     inverted: false,
-    offset: composerKeyboardGap(bottom),
-    inset: bottom,
+    offset: chatKeyboardOffset(bottom),
+    inset: bottom.safe,
+    floor: 0,
   });
 }
 
 function useNativeChatOverlayStyle() {
-  return useKeyboardOverlayStyle(composerKeyboardGap(useSafeAreaInsets().bottom));
+  return useKeyboardOverlayStyle(chatKeyboardOffset(useChatBottom()));
 }
 
 export const useChatScrollAdapter = nativeChatKeyboard

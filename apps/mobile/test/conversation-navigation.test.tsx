@@ -312,7 +312,7 @@ it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
     expect(button).not.toBeNull();
     await act(async () => button!.click());
     if (os === 'ios') {
-      expect(profileHistory.state.routes.at(-1)).toMatchObject({
+      expect(profileHistory.visible).toMatchObject({
         name: 'bot/[slug]',
         params: { slug: 'ada', hostId: 'computer_a' },
       });
@@ -639,12 +639,12 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
     );
     expect(title).toBeDefined();
     await act(async () => title!.click());
-    expect(profileHistory.state.routes.at(-1)).toMatchObject({
+    expect(profileHistory.visible).toMatchObject({
       name: 'bot/[slug]',
       params: { slug: 'ada', hostId: 'computer_a' },
     });
     profileHistory.back();
-    expect(profileHistory.state.routes.at(-1)!.name).toBe('dm/[slug]');
+    expect(profileHistory.visible!.name).toBe('dm/[slug]');
   } finally {
     Object.assign(Platform, { OS: os });
   }
@@ -671,7 +671,7 @@ it('a swipe left on the messages opens the same profile as the title', async () 
   await act(async () =>
     view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-swipe-trigger"]')!.click(),
   );
-  expect(profileHistory.state.routes.at(-1)).toMatchObject({
+  expect(profileHistory.visible).toMatchObject({
     name: 'bot/[slug]',
     params: { slug: 'ada', hostId: 'computer_a', entry: 'swipe' },
   });
@@ -737,10 +737,10 @@ it('opens the related Session from a Bot message and leaves the DM composer with
     view.querySelector('[data-testid="composer-input"]')?.getAttribute('data-session-controls'),
   ).toBeNull();
   await act(async () => chip!.click());
-  expect(profileHistory.state.routes.at(-1)).toMatchObject({
+  expect(profileHistory.visible).toMatchObject({
     name: 'session/[id]',
     params: { id: 'release-task', slug: 'ada', hostId: 'computer_a', title: 'Release review' },
   });
   profileHistory.back();
-  expect(profileHistory.state.routes.at(-1)?.name).toBe('dm/[slug]');
+  expect(profileHistory.visible?.name).toBe('dm/[slug]');
 });

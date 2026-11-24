@@ -41,6 +41,8 @@ export function BotProfileScreen({
   const t = useStrings();
   const focused = useProfileFocused();
   const router = useRouter();
+  const openSession = (route: ReturnType<typeof sessionRoute>) =>
+    onClose === undefined ? router.dismissTo(route) : router.push(route);
   const theme = useDesignTheme();
   const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
@@ -174,7 +176,7 @@ export function BotProfileScreen({
             params: { slug: bot.slug, hostId: saved?.hostId, id: routine.id },
           }),
         onOpenAssignment: (assignment) =>
-          router.push(
+          openSession(
             sessionRoute({
               id: assignment.sessionId,
               hostId: saved?.hostId,
@@ -183,7 +185,7 @@ export function BotProfileScreen({
             }),
           ),
         onOpenSession: (id, title) =>
-          router.push(
+          openSession(
             sessionRoute({
               id,
               hostId: saved?.hostId,

@@ -58,27 +58,9 @@ export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTA
       typeof payload.params.hostId !== 'string'
     )
       return original.getStateForAction(state, action, options);
-    const identity = channelRouteId(payload.name, { ...payload.params });
-    const existing = state.routes
-      .slice(0, state.index + 1)
-      .some((route) => channelRouteId(route.name, { ...route.params }) === identity);
-    const dismissProfile =
-      !existing &&
-      'dismissProfile' in payload &&
-      payload.dismissProfile === true &&
-      state.routes[state.index]?.name === 'bot/[slug]';
-    const dismissActivity =
-      !existing &&
-      'dismissActivity' in payload &&
-      payload.dismissActivity === true &&
-      state.routes[state.index]?.name === 'request-activity';
     return original.getStateForAction(
       state,
-      {
-        ...action,
-        type: dismissProfile || dismissActivity ? 'REPLACE' : 'NAVIGATE',
-        payload: { ...payload, pop: true },
-      },
+      { ...action, payload: { ...payload, pop: true } },
       options,
     );
   },
@@ -98,10 +80,13 @@ export function appStackState(
   return child ? appStackState(child) : undefined;
 }
 
+function routerState<T extends object>(state: T): T & { __internal__routerActionState: true } {
+  return { ...state, __internal__routerActionState: true };
+}
+
 export function navigateChannel(
   navigation: ChannelNavigation,
   destination: ChannelDestination,
-  intent?: 'dismiss-profile' | 'dismiss-activity',
 ): boolean {
   if (!navigation.isReady()) return false;
   const state = appStackState(navigation.getRootState());
@@ -113,16 +98,57 @@ export function navigateChannel(
           ...destination.params,
           focusRequest: destination.params.focusRequest ?? `channel-focus-${++focusSequence}`,
         };
+  const name = destination.pathname.slice(1);
+  const chatsStack = routerState({ index: 1, routes: [{ name: 'index' }, { name, params }] });
+  const tabsIndex = state.routes.findIndex((route) => route.name === '(tabs)');
+  const tabs = state.routes[tabsIndex]?.state;
+  if (tabsIndex < 0 || tabs?.stale !== false || tabs.key === undefined) {
+    navigation.dispatch({
+      type: 'NAVIGATE',
+      target: state.key,
+      payload: {
+        name: '(tabs)',
+        pop: true,
+        state: routerState({ index: 0, routes: [{ name: '(home)', state: chatsStack }] }),
+      },
+    });
+    return true;
+  }
+  const outside = state.index !== tabsIndex || tabs.routes[tabs.index ?? 0]?.name !== '(home)';
+  if (state.index !== tabsIndex)
+    navigation.dispatch({ type: 'POP_TO', target: state.key, payload: { name: '(tabs)' } });
+  const stack = tabs.routes.find((route) => route.name === '(home)')?.state;
+  if (stack?.stale !== false || stack.key === undefined) {
+    navigation.dispatch({
+      type: 'NAVIGATE',
+      target: tabs.key,
+      payload: { name: '(home)', state: chatsStack },
+    });
+    return true;
+  }
+  if (outside) {
+    const identity = channelRouteId(name, params);
+    const [list, ...pushed] = stack.routes;
+    const existing = pushed.find(
+      (route) => channelRouteId(route.name, { ...route.params }) === identity,
+    );
+    if (list)
+      navigation.dispatch({
+        type: 'RESET',
+        target: stack.key,
+        payload: {
+          ...stack,
+          index: 1,
+          routes: [list, existing ? { ...existing, params } : { name, params }],
+        },
+      });
+    navigation.dispatch({ type: 'NAVIGATE', target: tabs.key, payload: { name: '(home)' } });
+    if (list) return true;
+  }
   navigation.dispatch({
     type: 'NAVIGATE',
-    target: state.key,
-    payload: {
-      name: destination.pathname.slice(1),
-      params,
-      pop: true,
-      ...(intent === 'dismiss-profile' ? { dismissProfile: true } : {}),
-      ...(intent === 'dismiss-activity' ? { dismissActivity: true } : {}),
-    },
+    target: stack.key,
+    payload: { name, params, pop: true },
   });
   return true;
 }

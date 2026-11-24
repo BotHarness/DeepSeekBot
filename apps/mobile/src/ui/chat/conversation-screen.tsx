@@ -4,7 +4,7 @@ import { NativePageHeader } from '../primitives/native-page-navigation';
 import { HostScope } from '../../host/host-scope';
 import { takeSharedFiles } from '../share/incoming-share';
 import { useFocusEffect, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MAX_PICKED } from '../../host/pick-files';
@@ -13,6 +13,8 @@ import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import { useEntranceSettled } from '../shell/entrance-settled';
+import { HideChromeWhile } from '../shell/tab-chrome';
+import { ChatIslandInset } from '../primitives/chat-keyboard';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -182,6 +184,7 @@ function ChatConversation({
   }, [nestedChange, profileOpen]);
   const [profileVisited, setProfileVisited] = useState(false);
   const [profileOpening, setProfileOpening] = useState(false);
+  const island = use(ChatIslandInset) > 0;
   const prepareProfile = () => {
     setProfileVisited(true);
     setProfileOpening(true);
@@ -396,13 +399,12 @@ function ChatConversation({
     header,
     notice,
   });
-  return composeOnOpen ? (
+  return (
     <>
       {screenTree}
-      <ComposeOnOpen ready={focused && composable} compose={compose} />
+      {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
+      {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
     </>
-  ) : (
-    screenTree
   );
 }
 

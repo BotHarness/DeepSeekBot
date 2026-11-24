@@ -91,3 +91,25 @@ export function useHideChromeOnScroll(enabled: boolean) {
     },
   });
 }
+
+function useHideChromeWhile(hidden: boolean) {
+  const chrome = useTabChrome();
+  const reduced = useSystemReducedMotion();
+  useFocusEffect(
+    useCallback(() => {
+      if (chrome === undefined || !hidden) return;
+      const move = (target: number) => {
+        chrome.hidden.value = reduced
+          ? target
+          : withTiming(target, { duration: tabChrome.hideDuration });
+      };
+      move(1);
+      return () => move(0);
+    }, [chrome, hidden, reduced]),
+  );
+}
+
+export function HideChromeWhile({ hidden }: { hidden: boolean }) {
+  useHideChromeWhile(hidden);
+  return null;
+}

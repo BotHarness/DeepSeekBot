@@ -72,6 +72,9 @@ vi.mock('expo-router', async () => {
     },
   };
 });
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 vi.mock('expo-secure-store', () => ({
   getItemAsync: async () => null,
   setItemAsync: async () => undefined,
@@ -165,10 +168,10 @@ describe('the Tob that Tob Mode opens', () => {
 
 describe('the Tob DM route', () => {
   it('is the chat screen itself, under a container transform on Android, with no Tob screen of its own', async () => {
-    const dm = await import('../app/dm/[slug]');
-    const entry = await import('../app/dm-tob/[slug]');
+    const dm = await import('../app/(tabs)/(home)/dm/[slug]');
+    const entry = await import('../app/(tabs)/(home)/dm-tob/[slug]');
     expect(entry.default).toBe(dm.default);
-    const layout = await import('../app/dm-tob/_layout');
+    const layout = await import('../app/(tabs)/(home)/dm-tob/_layout');
     expect(layout.default).toBe(TobEntranceStack);
     expect(existsSync(new URL('../app/tob', import.meta.url))).toBe(false);
     expect(existsSync(new URL('../app/dm-top', import.meta.url))).toBe(false);

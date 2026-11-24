@@ -29,6 +29,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 
 import { space } from '../src/ui/design/tokens';
+import { ChatIslandInset } from '../src/ui/primitives/chat-keyboard';
 import { KeyboardChatFrame, useListBottomSafeArea } from '../src/ui/primitives/keyboard-frame.ios';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,5 +72,49 @@ describe('iOS chat keyboard frame', () => {
     }
     expect(seen.at(0)).toBe(34);
     expect(seen.at(-1)).toBe(34);
+  });
+
+  it('stands the composer on the tab island and lifts it only by the keyboard above the island', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    act(() =>
+      root.render(
+        <ChatIslandInset value={90}>
+          <KeyboardChatFrame
+            composer={<span data-testid="composer" />}
+            backgroundColor="white"
+            onMount={() => {}}
+            onComposerLayout={() => {}}
+          >
+            <span data-testid="list" />
+          </KeyboardChatFrame>
+        </ChatIslandInset>,
+      ),
+    );
+    const sticky = container.querySelector<HTMLElement>('[data-testid="sticky"]')!;
+    expect(sticky.dataset['closed']).toBe('0');
+    expect(sticky.dataset['opened']).toBe('90');
+    expect(JSON.parse(sticky.parentElement?.dataset['style'] ?? '{}')).toMatchObject({
+      marginBottom: 90,
+    });
+    act(() => root.unmount());
+  });
+
+  it('drops the home indicator inset when the tab island owns the bottom edge', () => {
+    const seen: number[] = [];
+    function Probe() {
+      seen.push(useListBottomSafeArea());
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    act(() =>
+      root.render(
+        <ChatIslandInset value={90}>
+          <Probe />
+        </ChatIslandInset>,
+      ),
+    );
+    act(() => root.unmount());
+    expect(seen.at(-1)).toBe(0);
   });
 });

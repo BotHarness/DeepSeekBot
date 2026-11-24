@@ -5,9 +5,8 @@ import {
   KeyboardProvider,
   useKeyboardState,
 } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { space } from '../design/tokens';
+import { composerKeyboardGap, useChatBottom } from './chat-keyboard';
 
 export interface KeyboardChatFrameProps {
   children: ReactNode;
@@ -19,7 +18,7 @@ export interface KeyboardChatFrameProps {
 }
 
 export function useListBottomSafeArea(): number {
-  const bottom = useSafeAreaInsets().bottom;
+  const bottom = useChatBottom().safe;
   const open = useKeyboardState((state) => state.isVisible);
   return open ? 0 : bottom;
 }
@@ -36,14 +35,14 @@ export function KeyboardChatFrame({
   onMount,
   onComposerLayout,
 }: KeyboardChatFrameProps) {
-  const bottom = useSafeAreaInsets().bottom;
+  const { safe, island } = useChatBottom();
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, marginBottom: island }}
         behavior="padding"
-        keyboardVerticalOffset={-Math.max(0, bottom - space.x3)}
+        keyboardVerticalOffset={-composerKeyboardGap(safe)}
       >
         <View style={{ flex: 1 }}>
           {children}
