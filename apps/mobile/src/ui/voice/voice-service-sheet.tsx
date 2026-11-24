@@ -303,7 +303,14 @@ export function VoiceServiceSheet({
     );
   };
   return (
-    <Sheet visible label={title} onClose={close} avoidKeyboard fill>
+    <Sheet
+      visible
+      label={title}
+      onClose={close}
+      avoidKeyboard
+      fill
+      androidFill={page === 'model' || page === 'voice'}
+    >
       {page === 'preset' ? (
         <View testID="voice-service-presets" style={{ flexShrink: 1 }}>
           <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>

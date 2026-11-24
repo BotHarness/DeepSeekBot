@@ -87,7 +87,10 @@ async function mount(node: ReactNode) {
 }
 function contentStyle(view: HTMLElement) {
   const content = view.querySelector('section > [aria-label]');
-  return JSON.parse(content?.getAttribute('data-style') ?? '{}') as { maxHeight?: number };
+  return JSON.parse(content?.getAttribute('data-style') ?? '{}') as {
+    height?: number;
+    maxHeight?: number;
+  };
 }
 
 it('opens the shell in the Material 3 modal bottom sheet with the hosted content', async () => {
@@ -151,6 +154,31 @@ it('caps the hosted content at the room the sheet leaves, minus the keyboard', a
     </Sheet>,
   );
   expect(contentStyle(open).maxHeight).toBe(844 - 24 - 16 - 48 * 2 - 300);
+});
+
+it('keeps a catalog sheet at the available height as results change', async () => {
+  const catalog = (children: ReactNode) => (
+    <Sheet visible label="Voice" onClose={() => {}} androidFill>
+      {children}
+    </Sheet>
+  );
+  const view = await mount(catalog(<p>Loading results</p>));
+  expect(contentStyle(view).height).toBe(844 - 24 - 16 - 48 * 2);
+  const results = (
+    <>
+      <p>Voice result</p>
+      <p>Another result</p>
+    </>
+  );
+  await act(async () => {
+    root!.render(catalog(results));
+  });
+  expect(contentStyle(view).height).toBe(844 - 24 - 16 - 48 * 2);
+  Object.assign(keyboard, { isVisible: true, height: 300 });
+  await act(async () => {
+    root!.render(catalog(results));
+  });
+  expect(contentStyle(view).height).toBe(844 - 24 - 16 - 48 * 2 - 300);
 });
 
 function openingTag(source: string, from: number) {

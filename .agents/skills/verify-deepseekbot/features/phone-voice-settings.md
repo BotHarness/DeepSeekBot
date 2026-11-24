@@ -45,6 +45,7 @@ An Owner's phone manages the Host's TTS and ASR Voice Providers in **Settings â†
 4. Tap a sample button and assert the button's selected state; tap another and assert only one is selected; go back and assert none plays.
 5. Add a Custom request service from the Google Cloud TTS example with a placeholder key; open its actions, **Edit request**, change the URL and save. Read back with `deepseekbot voice-provider-template <id>`.
 6. Set the default service and voice, and read back `defaults` with `deepseekbot voice-providers`.
+7. On Android, search the Public library, dismiss the keyboard, clear the query and immediately swipe up in the results. The refreshed list must scroll, and the picker Back button must return to the form. Check that dragging the sheet handle still dismisses the sheet.
 
 ## Gotchas
 

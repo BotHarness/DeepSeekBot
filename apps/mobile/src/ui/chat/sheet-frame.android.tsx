@@ -7,11 +7,12 @@ import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import type { SheetFrameProps } from './sheet-frame';
 
-export function SheetFrame({ visible, label, onClose, children }: SheetFrameProps) {
+export function SheetFrame({ visible, label, onClose, children, androidFill }: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const keyboard = useKeyboardState((state) => (state.isVisible ? state.height : 0));
+  const contentHeight = height - insets.top - insets.bottom - theme.touch * 2 - keyboard;
   if (!visible) return null;
   return (
     <Host
@@ -31,7 +32,8 @@ export function SheetFrame({ visible, label, onClose, children }: SheetFrameProp
             accessibilityLabel={label}
             onAccessibilityEscape={onClose}
             style={{
-              maxHeight: height - insets.top - insets.bottom - theme.touch * 2 - keyboard,
+              maxHeight: contentHeight,
+              height: androidFill ? contentHeight : undefined,
               paddingBottom: space.x5,
             }}
           >

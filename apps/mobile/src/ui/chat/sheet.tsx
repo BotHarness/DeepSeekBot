@@ -31,6 +31,7 @@ export function Sheet({
   avoidKeyboard = false,
   animationType = 'fade',
   fill = false,
+  androidFill,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -43,6 +44,7 @@ export function Sheet({
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
   fill?: boolean;
+  androidFill?: boolean;
 }) {
   if (Page !== undefined)
     return visible ? (
@@ -62,6 +64,7 @@ export function Sheet({
       avoidKeyboard={avoidKeyboard}
       animationType={animationType}
       fill={fill}
+      androidFill={androidFill}
     >
       {title === undefined ? null : (
         <View
