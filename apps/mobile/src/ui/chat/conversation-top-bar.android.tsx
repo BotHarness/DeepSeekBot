@@ -12,7 +12,6 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
-  defaultMinSize,
   fillMaxWidth,
   height as nativeHeight,
   padding,
@@ -28,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
+import { cappedTextSize, headerLabelScaleCeiling } from '../design/capped-text';
 import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
@@ -59,14 +59,26 @@ export function ConversationTopBar({
   const [height, setHeight] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const mark = materialIconButton.container;
-  const identityHeight = (scale: number) =>
+  const status = connectionLabel ?? subtitle;
+  const showStatus = status !== undefined && !theme.largeText;
+  const identityHeight = (scale: number, withStatus: boolean) =>
     Math.max(
       theme.touch,
-      Math.ceil((theme.type.title.line + theme.type.meta.line) * scale + space.x2 * 2),
+      Math.ceil(
+        (theme.type.title.line + (withStatus ? theme.type.meta.line : 0)) * scale + space.x2 * 2,
+      ),
     );
-  const islandHeight = identityHeight(theme.fontScale);
-  const actionSize = Math.min(islandHeight, identityHeight(1));
-  const status = connectionLabel ?? subtitle;
+  const islandHeight = identityHeight(
+    Math.min(theme.fontScale, headerLabelScaleCeiling),
+    showStatus,
+  );
+  const actionSize = Math.min(islandHeight, identityHeight(1, true));
+  const titleStyle = {
+    typography: 'titleMedium',
+    fontWeight: 'bold',
+    fontSize: cappedTextSize(theme.type.title.size, theme.fontScale, headerLabelScaleCeiling),
+    lineHeight: cappedTextSize(theme.type.title.line, theme.fontScale, headerLabelScaleCeiling),
+  } as const;
   const action = (
     id: string,
     label: string,
@@ -137,7 +149,7 @@ export function ConversationTopBar({
                 verticalAlignment="center"
                 modifiers={[nativeHeight(islandHeight), padding(space.x5, 0, space.x5, 0)]}
               >
-                <Text style={{ typography: 'titleMedium', fontWeight: 'bold' }} maxLines={1}>
+                <Text style={titleStyle} maxLines={1} overflow="ellipsis">
                   {t.messageSelection.count(selection.count)}
                 </Text>
               </Row>
@@ -192,7 +204,7 @@ export function ConversationTopBar({
                 verticalAlignment="center"
                 horizontalArrangement={{ spacedBy: space.x3 }}
                 modifiers={[
-                  defaultMinSize({ minHeight: islandHeight }),
+                  nativeHeight(islandHeight),
                   padding(
                     variant === 'session' ? space.x4 : space.x2,
                     space.x2,
@@ -218,14 +230,10 @@ export function ConversationTopBar({
                   </RNHostView>
                 )}
                 <Column modifiers={[weight(1)]}>
-                  <Text
-                    style={{ typography: 'titleMedium', fontWeight: 'bold' }}
-                    maxLines={theme.largeText ? 2 : 1}
-                    overflow="ellipsis"
-                  >
+                  <Text style={titleStyle} maxLines={1} overflow="ellipsis">
                     {title}
                   </Text>
-                  {status === undefined ? null : (
+                  {!showStatus ? null : (
                     <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
                       {activeBots.length === 0 ? null : (
                         <RNHostView
