@@ -389,6 +389,38 @@ describe('CI test plan', () => {
     expect(result.related).not.toContain('packages/client/test/unrelated.test.ts');
   });
 
+  it('keeps directory, index-import, listing and docs-site references to removed files', () => {
+    const files = {
+      ...repo,
+      'packages/client/test/retired.test.ts':
+        'const dir = resolve(ROOT, "packages/client/src/retired");',
+      'packages/client/test/widget.test.ts': "import '../src/widget';",
+      'packages/client/src/client/plugin.js': '',
+      'packages/client/assets/plugins.json': JSON.stringify({ plugin: '../src/client/plugin.js' }),
+      [DOCS_SITE_TEST]: 'const script = resolve(ROOT, "scripts/old.mjs");',
+    };
+    const headIndex = (removed) =>
+      createIndex(
+        Object.keys(files).filter((file) => !removed.includes(file)),
+        (file) => files[file],
+      );
+    const removal = (path) => ({
+      event: 'pull_request',
+      index: headIndex([path]),
+      changes: [{ status: 'removed', path }],
+    });
+    expect(plan(removal('packages/client/src/retired/only.ts')).related).toContain(
+      'packages/client/test/retired.test.ts',
+    );
+    expect(plan(removal('packages/client/src/widget/index.ts')).related).toContain(
+      'packages/client/test/widget.test.ts',
+    );
+    const listing = plan(removal('packages/client/src/client/plugin.js'));
+    expect(listing.tests).toBe('full');
+    expect(listing.reason).toContain('packages/client/assets/plugins.json still names');
+    expect(plan(removal('scripts/old.mjs'))).toMatchObject({ docsSite: true });
+  });
+
   it('runs everything when a config listing still names a removed code file', () => {
     const files = {
       ...repo,

@@ -165,13 +165,29 @@ function subpathAliases(index) {
   return aliases;
 }
 
+export function withRemoved(index, removed) {
+  const gone = new Set(removed.filter((path) => !index.tracked.has(path)));
+  if (!gone.size) return index;
+  return {
+    ...index,
+    tracked: new Set([...index.tracked, ...gone]),
+    directories: new Set([...index.directories, ...directoriesOf(gone)]),
+    source: (file) => (gone.has(file) ? '' : index.source(file)),
+  };
+}
+
+function stemOf(path) {
+  const stem = posix.basename(path).replace(/\..*$/, '');
+  return stem === 'index' ? posix.basename(posix.dirname(path)) : stem;
+}
+
 export function staleReferences(index, removed) {
   const gone = new Set(removed);
   const result = { files: [], listing: null };
   if (!gone.size) return result;
-  const ghost = { ...index, tracked: new Set([...index.tracked, ...gone]) };
+  const ghost = withRemoved(index, removed);
   const aliases = subpathAliases(index);
-  const stems = [...gone].map((path) => posix.basename(path).replace(/\.[^.]+$/, ''));
+  const stems = [...gone].map(stemOf);
   const targetsOf = (file, literal) => {
     if (literal.startsWith('.')) return [resolveSpecifier(ghost, file, literal)];
     const targets = [
@@ -186,22 +202,24 @@ export function staleReferences(index, removed) {
     }
     return targets;
   };
+  const staleTarget = (file, source) => {
+    for (const [, , literal] of source.matchAll(STRING)) {
+      const target = targetsOf(file, literal).find((candidate) => candidate && gone.has(candidate));
+      if (target) return target;
+    }
+    return LISTING.test(file) ? [...gone].find((path) => source.includes(path)) : undefined;
+  };
   for (const file of index.files) {
     if (gone.has(file) || !(CODE.test(file) || LISTING.test(file))) continue;
     const source = index.source(file);
     if (!stems.some((stem) => source.includes(stem))) continue;
+    const target = staleTarget(file, source);
+    if (!target) continue;
     if (LISTING.test(file)) {
-      if ([...gone].some((path) => source.includes(path))) {
-        result.listing = { file, path: [...gone].find((path) => source.includes(path)) };
-        return result;
-      }
-      continue;
+      result.listing = { file, path: target };
+      return result;
     }
-    for (const [, , literal] of source.matchAll(STRING))
-      if (targetsOf(file, literal).some((target) => target && gone.has(target))) {
-        result.files.push(file);
-        break;
-      }
+    result.files.push(file);
   }
   result.files.sort();
   return result;

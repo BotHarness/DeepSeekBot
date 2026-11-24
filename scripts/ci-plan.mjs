@@ -17,6 +17,7 @@ import {
   staleReferences,
   TEST_AREAS,
   TEST_ALIASES,
+  withRemoved,
 } from './ci-plan-index.mjs';
 
 export {
@@ -417,7 +418,10 @@ export function plan({ event, labels = [], changes = [], truncated = false, inde
   }
 
   const changedPaths = paths.map(({ path }) => path);
-  const referencing = referencingFiles(referenceMap(index), changedPaths);
+  const gonePaths = changes
+    .filter((change) => REMOVED.has(statusOf(change.status)))
+    .map((change) => change.previous ?? change.path);
+  const referencing = referencingFiles(referenceMap(withRemoved(index, gonePaths)), changedPaths);
   if (!docsSite && referencing.includes(DOCS_SITE_TEST)) {
     docsSite = true;
     docsReason = DOCS_SITE_TEST;
@@ -428,6 +432,10 @@ export function plan({ event, labels = [], changes = [], truncated = false, inde
       'full',
       `${stale.listing.file} still names the removed ${stale.listing.path}, which no test traces`,
     );
+  if (!docsSite && stale.files.includes(DOCS_SITE_TEST)) {
+    docsSite = true;
+    docsReason = DOCS_SITE_TEST;
+  }
   const inputs = new Set([...referencing, ...stale.files]);
   for (const { path, rule } of paths)
     if (rule.tests === 'related' && index.tracked.has(path)) inputs.add(path);
