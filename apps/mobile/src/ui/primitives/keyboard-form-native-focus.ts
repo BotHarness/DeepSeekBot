@@ -5,6 +5,7 @@ export function useNativeFormScroll(
   ref: Ref<KeyboardAwareScrollViewRef> | undefined,
   _enabled: boolean,
   _bottomOffset: number,
+  _revealPast: number,
 ) {
   return { ref, focus: undefined };
 }
