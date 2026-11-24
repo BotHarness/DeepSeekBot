@@ -61,7 +61,7 @@ export default defineConfig({
           ...testDefaults,
           name: 'default',
           exclude: [...configDefaults.exclude, ...genuiBudgetTests, ...durableIntegrationTests],
-          isolate: false,
+          maxWorkers: 4,
           sequence: { groupOrder: 0 },
         },
       },
