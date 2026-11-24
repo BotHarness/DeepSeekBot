@@ -103,7 +103,7 @@ export function TobEntranceStack() {
           ]}
         >
           <View ref={mount} style={{ flex: 1 }} collapsable={false}>
-            <EntranceSettled value={settled}>
+            <EntranceSettled value={settled && !leaving}>
               <StackRoot value>
                 <Stack
                   screenOptions={{

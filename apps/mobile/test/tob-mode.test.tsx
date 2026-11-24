@@ -315,6 +315,17 @@ describe('the Tob entrance', () => {
     expect(state.settled.at(-1)).toBe(true);
   });
 
+  it('closes the settled gate as soon as Back starts, so a late connection cannot focus the Composer', async () => {
+    state.springs.length = 0;
+    await render();
+    expect(state.settled.at(-1)).toBe(true);
+    const prevent = state.prevent!;
+    await act(async () =>
+      prevent.callback({ data: { action: { type: 'POP' } }, repeat: () => undefined }),
+    );
+    expect(state.settled.at(-1)).toBe(false);
+  });
+
   it('never settles when the entrance is cancelled, so Back cannot focus the Composer', async () => {
     state.finished = false;
     await render();
