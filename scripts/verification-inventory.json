@@ -904,7 +904,7 @@
     },
     {
       "id": "desktop.tob.home",
-      "label": "Open the protected Tob DM (Channel list or Home shortcut), Settings model setup and approved global concurrency change",
+      "label": "Open the Tob DM, test reviewed Host management, and transfer the Steward role",
       "source": "packages/client/src/client/workspace-shortcuts.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
       "task": 2082,
@@ -2861,10 +2861,15 @@
     {
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
-      "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates.",
+      "behaviors": [
+        "team.security-suite",
+        "settings.model-providers",
+        "settings.model-presets",
+        "desktop.tob.home"
+      ],
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates. C8 verifies the member ID-only read, Owner transfer, both DM markers and the broker refusal before approval.",
       "task": 4197,
-      "sha256": "cc16b08fbf62099eac3d20eff1bb42a3b52409e4915907f7982e14c0a7e598f1"
+      "sha256": "26c01755f03636532144c468f36f01c80f3a870c98fc066f960258b2f21903ca"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",
