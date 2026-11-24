@@ -45,6 +45,7 @@ export function PinnedAvatar({
           }
           size={inner}
           corner={inner / 2}
+          fill={theme.color.base}
           variant="meta"
           strong={false}
         />

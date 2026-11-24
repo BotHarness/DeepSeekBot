@@ -595,6 +595,7 @@ export function renderConversation({
                   activeBots={headerStatus.bots}
                   connectionLabel={connectionLabel}
                   onBack={leave}
+                  leading={tabRoot ? 'none' : 'back'}
                   onProfile={canOpenProfile ? openProfile : undefined}
                   onCall={canOpenProfile ? placeCall : undefined}
                   onHeight={setMeasuredHeaderHeight}
