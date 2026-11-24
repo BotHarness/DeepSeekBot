@@ -41,14 +41,16 @@ export function recentConversations(
         (conversation) => ({ hostId: host.hostId, conversation }),
       ),
     )
-    .filter(({ conversation }) => conversation.at !== undefined)
+    .filter(({ conversation }) => latest(conversation) !== undefined)
     .sort(
       (a, b) =>
-        time(b.conversation.at) - time(a.conversation.at) ||
+        time(latest(b.conversation)) - time(latest(a.conversation)) ||
         a.conversation.key.localeCompare(b.conversation.key),
     )
     .slice(0, limit);
 }
+
+const latest = (conversation: Conversation) => conversation.at ?? conversation.createdAt;
 
 export function conversationGlyph(conversation: Conversation): TabMenuGlyph {
   return conversation.kind === 'bot' ? 'bot' : conversation.person ? 'person' : 'channel';

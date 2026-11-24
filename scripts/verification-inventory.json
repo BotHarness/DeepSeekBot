@@ -273,6 +273,14 @@
       "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues."
     },
     {
+      "id": "phone.tab-menus",
+      "label": "Long-press a phone tab for its recent conversations, Sessions or pending Activity",
+      "source": "apps/mobile/src/ui/shell/use-tab-menus.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-tab-menus.md",
+      "task": 5111,
+      "gap": "A real touch-and-hold is needed on iOS (agent-device longpress taps on the Simulator); Android needs the shared emulator queue."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",

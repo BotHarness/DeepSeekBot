@@ -97,6 +97,23 @@ describe('recentConversations', () => {
     expect(recentConversations(hosts, '["cloud","scope","org"]', 4)).toEqual([]);
   });
 
+  it('ranks a new conversation with no messages by its creation time', () => {
+    const fresh = host('home', {
+      roster: {
+        ...roster(
+          [bot('ada', '2026-11-24T08:00:00Z')],
+          [{ id: 'launch', name: 'Launch', memberCount: 1, members: ['ada'] }],
+        ),
+        activityChannels: [
+          { id: 'launch', type: 'group', name: 'Launch', createdAt: '2026-11-24T09:00:00Z' },
+        ] as NonNullable<RosterView['activityChannels']>,
+      },
+    });
+    expect(
+      recentConversations([fresh], 'all', 4).map(({ conversation }) => conversation.key),
+    ).toEqual(['channel:launch', 'bot:ada']);
+  });
+
   it('leaves out hidden conversations', () => {
     const hidden = host('home', {
       roster: {
