@@ -7,6 +7,8 @@ tables. Do not specify a generation: `defineSchemaPlan` computes it from the lis
 each planned object and retains `generation` for callers. Tests use `plan.targetGeneration` or
 `plan.generationOf('your-id')`; historical fixtures may select a prefix by index/generation.
 
+Migration constants may live in `packages/core/src/database/migrations/*.ts` while the ordered list stays in `schema-plan.ts`.
+
 When two branches append migrations, keep both. The migration merged first stays first; append the
 other after it. Resolve the snapshot conflict in the same order, then run
 `node scripts/check-schema-migrations.mjs --write-snapshot`. There is no generation allocation or
