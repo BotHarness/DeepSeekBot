@@ -106,15 +106,20 @@ vi.mock('../src/host/host-session', () => ({
     },
   }),
 }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'laptop' } }),
+}));
 vi.mock('../src/ui/chat/session-title-menu', () => ({
   SessionTitleMenu: ({
     title,
     pending = false,
+    place,
     hint,
     menu,
   }: {
     title: string;
     pending?: boolean;
+    place?: { hostName: string; folder?: string; path?: string };
     hint: string;
     menu?: {
       items: readonly { label: string; testID: string; disabled?: boolean; run(): void }[];
@@ -132,6 +137,9 @@ vi.mock('../src/ui/chat/session-title-menu', () => ({
         <button
           data-testid="session-header-title"
           data-pending={pending}
+          data-host={place?.hostName}
+          data-folder={place?.folder}
+          data-path={place?.path}
           aria-label={title}
           aria-description={hint}
           onClick={() => setExpanded(!expanded)}
@@ -308,7 +316,7 @@ async function open({
   beforeArchive?: () => Promise<void>;
   Body?: typeof SessionDetailBody;
   fresh?: boolean;
-  transcript?: () => { displayTitle?: string; titleFallback?: true };
+  transcript?: () => { displayTitle?: string; titleFallback?: true; cwd?: string };
 } = {}) {
   const view = document.createElement('div');
   root = createRoot(view);
@@ -828,6 +836,17 @@ it('shows the prompt as a pending title on a new Session until the generated tit
   expect(capsule().textContent).toBe('Release checklist');
   expect(capsule().dataset['pending']).toBe('false');
   expect(capsule().getAttribute('aria-label')).toBe('Release checklist');
+});
+
+it('shows the Host and worktree folder under a native Session title', async () => {
+  const { view } = await open({
+    role: 'native',
+    transcript: () => ({ displayTitle: 'Release', cwd: '/Users/me/worktrees/app-5187' }),
+  });
+  const capsule = view.querySelector<HTMLElement>('[data-testid="session-header-title"]')!;
+  expect(capsule.dataset['host']).toBe('Computer');
+  expect(capsule.dataset['folder']).toBe('app-5187');
+  expect(capsule.dataset['path']).toBe('/Users/me/worktrees/app-5187');
 });
 
 it('never marks an opened existing Session title as pending', async () => {

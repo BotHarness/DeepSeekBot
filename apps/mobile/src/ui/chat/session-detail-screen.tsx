@@ -12,6 +12,8 @@ import {
   setSessionArchived,
 } from '@botharness/host-client/session-detail';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { sessionReadHost } from '../../host/session-detail';
 import { sendJumpPreferences } from '../../host/native-send-jump';
 import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assignment-timeline';
@@ -39,6 +41,7 @@ import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
 import { ChatHeaderRow } from './chat-header-row';
 import { sessionHeaderTitle } from './session-header-title';
+import { sessionPlace } from './session-place';
 import { SessionTitleMenu } from './session-title-menu';
 import { useChannelViewport } from './channel-viewport';
 import {
@@ -65,11 +68,13 @@ import { useSessionTranscript } from './use-session-transcript';
 function SessionHeader({
   title,
   pending = false,
+  cwd,
   menu,
   onHeight,
 }: {
   title: string;
   pending?: boolean;
+  cwd?: string | undefined;
   menu?: ChatHeaderMenu | undefined;
   onHeight(height: number): void;
 }) {
@@ -81,6 +86,11 @@ function SessionHeader({
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const { saved } = useHostSession(hostId);
   const stacked = useSessionNavigationStyle() === 'stacked';
+  const look = useHostLook(saved?.hostId);
+  const place =
+    saved == null
+      ? undefined
+      : sessionPlace({ hostIcon: look.icon, hostName: shownHostName(look, saved.hostName), cwd });
   const compose =
     inSessions && canCreateNativeSession(saved)
       ? () =>
@@ -122,6 +132,7 @@ function SessionHeader({
                 <SessionTitleMenu
                   title={title}
                   pending={pending}
+                  place={place}
                   hint={t.sessionDetail.options}
                   menu={menu}
                 />
@@ -135,6 +146,7 @@ function SessionHeader({
           variant="session"
           title={title}
           titlePending={pending}
+          place={place}
           leading={drawer ? 'drawer' : 'back'}
           onBack={drawer ? openSessionDrawer : back}
           onCompose={compose}
@@ -149,10 +161,12 @@ function SessionHeader({
 function SessionNotice({
   title,
   pending = false,
+  cwd,
   children,
 }: {
   title: string;
   pending?: boolean;
+  cwd?: string | undefined;
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
@@ -166,7 +180,7 @@ function SessionNotice({
       }}
     >
       {children}
-      <SessionHeader title={title} pending={pending} onHeight={setMeasuredHeaderHeight} />
+      <SessionHeader title={title} pending={pending} cwd={cwd} onHeight={setMeasuredHeaderHeight} />
     </View>
   );
 }
@@ -638,6 +652,7 @@ export function SessionDetailBody({
       <SessionHeader
         title={sessionTitle}
         pending={header.pending}
+        cwd={transcript?.cwd}
         menu={menu}
         onHeight={setMeasuredHeaderHeight}
       />

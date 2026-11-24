@@ -321,6 +321,25 @@ it('refuses a model choice before creating when the Host cannot set models', asy
   expect(create).not.toHaveBeenCalled();
 });
 
+it('returns the native Session folder with its transcript', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({
+        events: [],
+        seq: 0,
+        running: false,
+        cwd: '/Users/me/code/app-worktree',
+      }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'prompt-1' }),
+    },
+  });
+  expect(
+    await f.bridge(OWNER_HUMAN_CONTEXT).sessionTranscript({ slug: null, sessionId: 'native' }),
+  ).toMatchObject({ ok: true, value: { cwd: '/Users/me/code/app-worktree' } });
+});
+
 it('marks a native Session title as a fallback until a generated title replaces it', async () => {
   const userMessage = {
     type: 'user/message',

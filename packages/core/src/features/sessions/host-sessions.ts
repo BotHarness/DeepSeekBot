@@ -61,6 +61,7 @@ export interface NativeSessions {
     seq: number;
     running: boolean;
     title?: string;
+    cwd?: string;
   }>;
   model?(
     sessionId: string,
@@ -314,6 +315,7 @@ export function createHostSessionsMethods(
               role: 'native',
               ...(title === undefined ? {} : { displayTitle: title }),
               ...(fallbackTitle ? { titleFallback: true } : {}),
+              ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
               running: snapshot.running,
               seq: snapshot.seq,
             },

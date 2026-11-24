@@ -36,6 +36,8 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
+vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 vi.mock('../src/ui/chat/header-bot-stack', () => ({ HeaderBotStack: () => null }));
 vi.mock('../src/ui/chat/chat-header-surface.android', () => ({ ChatHeaderSurface: () => null }));
@@ -196,5 +198,36 @@ describe('Android Session header', () => {
     expect(view.innerHTML).not.toContain('more-vert');
     expect(view.querySelector('[data-test-id="session-new"]')).not.toBeNull();
     expect(view.querySelector('[data-test-id="session-drawer-button"]')).not.toBeNull();
+  });
+
+  it('shows the Host and worktree folder under the title and the full path in the menu', () => {
+    device.fontScale = 1;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        place={{
+          hostIcon: { kind: 'symbol', id: 'laptop' },
+          hostName: 'Studio Mac',
+          folder: 'app-5187',
+          path: '/srv/worktrees/app-5187',
+        }}
+        leading="drawer"
+        onBack={() => {}}
+        titleMenu={{
+          label: 'Session options',
+          testID: 'session-options',
+          items: [
+            { label: 'Model choice', testID: 'session-model-choice', icon: 'model', run() {} },
+          ],
+        }}
+      />,
+    );
+    const place = view.querySelector('[data-test-id="session-header-place"]');
+    expect(place?.textContent).toBe('app-5187');
+    expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
+      `${TITLE}\nStudio Mac\n/srv/worktrees/app-5187`,
+    );
   });
 });
