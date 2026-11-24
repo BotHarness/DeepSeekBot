@@ -1,4 +1,10 @@
-import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
+import {
+  Redirect,
+  Stack,
+  useFocusEffect,
+  useRouter,
+  type NativeStackHeaderItem,
+} from 'expo-router';
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Keyboard, Platform, Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
@@ -15,17 +21,18 @@ import { sessionReadHost } from '../../host/session-detail';
 import { BotPortrait } from '../bot-avatar';
 import { SheetLoading } from '../chat/sheet';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { fab, radius, space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { interfacePreferences, useSessionsTab, useSessionSort } from '../interface-preferences';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { HeaderAction } from './header-action';
+import { HeaderIconButton } from './header-icon-button';
 import { HeaderSearch } from './header-search';
 import { HostSessionOptionsSheet, type SessionOptionGroup } from './host-session-options';
 import { HostSessionOptionsButton } from './host-session-options-button';
-import { canCreateNativeSession } from './page-create-actions';
+import { canCreateNativeSession, openNewSession } from './page-create-actions';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader } from './tab-native-header';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
@@ -216,6 +223,37 @@ function HostSessionsList({
       },
     });
   };
+  const optionsItem: NativeStackHeaderItem = {
+    type: 'menu',
+    label: t.options,
+    accessibilityLabel: t.options,
+    identifier: 'host-sessions-options',
+    icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
+    sharesBackground: true,
+    ...(optionsActive ? { tintColor: theme.color.accent } : {}),
+    menu: {
+      items: groups.map((group) => ({
+        type: 'submenu',
+        inline: true,
+        label: group.label,
+        items: group.choices.map((choice) => ({
+          type: 'action',
+          label: choice.label,
+          state: choice.id === group.selected ? 'on' : 'off',
+          onPress: choice.select,
+        })),
+      })),
+    },
+  };
+  const createItem: NativeStackHeaderItem = {
+    type: 'button',
+    label: t.create,
+    accessibilityLabel: t.create,
+    identifier: 'session-create',
+    icon: { type: 'sfSymbol', name: 'square.and.pencil' },
+    sharesBackground: true,
+    onPress: openNewSession,
+  };
   return (
     <>
       {nativeHeader ? (
@@ -238,34 +276,7 @@ function HostSessionsList({
                   }
                 : undefined
             }
-            items={
-              canQuery
-                ? [
-                    {
-                      type: 'menu',
-                      label: t.options,
-                      accessibilityLabel: t.options,
-                      identifier: 'host-sessions-options',
-                      icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
-                      sharesBackground: true,
-                      ...(optionsActive ? { tintColor: theme.color.accent } : {}),
-                      menu: {
-                        items: groups.map((group) => ({
-                          type: 'submenu',
-                          inline: true,
-                          label: group.label,
-                          items: group.choices.map((choice) => ({
-                            type: 'action',
-                            label: choice.label,
-                            state: choice.id === group.selected ? 'on' : 'off',
-                            onPress: choice.select,
-                          })),
-                        })),
-                      },
-                    },
-                  ]
-                : undefined
-            }
+            items={[...(canQuery ? [optionsItem] : []), ...(canCreate ? [createItem] : [])]}
           />
           {theme.largeText ? (
             <View
@@ -301,22 +312,34 @@ function HostSessionsList({
               )
             }
             actions={
-              !searchOpen && canQuery ? (
+              searchOpen || (!canQuery && !canCreate) ? undefined : (
                 <>
-                  <HeaderAction
-                    icon="search"
-                    label={t.search}
-                    testID="host-sessions-search"
-                    active={search !== ''}
-                    onPress={() => setSearchOpen(true)}
-                  />
-                  <HostSessionOptionsButton
-                    active={optionsActive}
-                    groups={groups}
-                    onOpen={() => setOptionsOpen(true)}
-                  />
+                  {canQuery ? (
+                    <>
+                      <HeaderAction
+                        icon="search"
+                        label={t.search}
+                        testID="host-sessions-search"
+                        active={search !== ''}
+                        onPress={() => setSearchOpen(true)}
+                      />
+                      <HostSessionOptionsButton
+                        active={optionsActive}
+                        groups={groups}
+                        onOpen={() => setOptionsOpen(true)}
+                      />
+                    </>
+                  ) : null}
+                  {canCreate ? (
+                    <HeaderIconButton
+                      icon="edit"
+                      label={t.create}
+                      testID="session-create"
+                      onPress={openNewSession}
+                    />
+                  ) : null}
                 </>
-              ) : undefined
+              )
             }
           />
         </>
@@ -328,7 +351,7 @@ function HostSessionsList({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: space.x4,
-          paddingBottom: bottom + (canCreate ? fab.size : 0),
+          paddingBottom: bottom,
         }}
         data={rows}
         keyExtractor={(row) => row.sessionId}

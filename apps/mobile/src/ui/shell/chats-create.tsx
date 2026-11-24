@@ -1,16 +1,23 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState, type ComponentRef } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { useCallback, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  View,
+  useWindowDimensions,
+  type ViewInstance,
+} from 'react-native';
 import { cloudError } from '../../cloud/client';
 import { cloudAvailable } from '../../cloud/available';
 import { targetsFor, type CreationTarget } from '../../host/creation-targets';
 import { useDesignTheme } from '../design/theme';
-import { fab } from '../design/tokens';
+import { radius } from '../design/tokens';
 import { haptic } from '../haptics';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
 import { botSourceHref, chatsCreationActions } from './creation-menu-items';
-import { CreationPanel } from './creation-panel';
+import { CreationPanel, type CreationAnchor } from './creation-panel';
 import { CreationRow } from './creation-row';
 import {
   ArrowBackIcon,
@@ -23,26 +30,33 @@ import {
   PlusIcon,
   ShareIcon,
 } from './icons';
-import { NavigationAction } from './navigation-action';
+import { HeaderIconButton } from './header-icon-button';
 import { openCloudCreation } from './open-cloud-creation';
 import { useCreationTargets } from './use-creation-targets';
 
-export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }) {
+export type ChatsCreate = {
+  trigger: ReactNode;
+  panel: ReactNode;
+};
+
+export function useChatsCreate(scope: string): ChatsCreate {
   const t = useStrings();
   const theme = useDesignTheme();
+  const viewport = useWindowDimensions();
   const targets = useCreationTargets(scope);
   const actions = chatsCreationActions(scope, targets);
-  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<CreationAnchor>();
+  const open = anchor !== undefined;
   const [busy, setBusy] = useState(false);
   const opening = useRef(false);
-  const trigger = useRef<ComponentRef<typeof NavigationAction>>(null);
+  const trigger = useRef<ViewInstance>(null);
   const generation = useRef(0);
   useFocusEffect(
     useCallback(
       () => () => {
         generation.current++;
         opening.current = false;
-        setOpen(false);
+        setAnchor(undefined);
       },
       [],
     ),
@@ -76,7 +90,8 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
       });
     }
   };
-  if (!actions.bot && !actions.group && !actions.invite && !actions.join) return null;
+  if (!actions.bot && !actions.group && !actions.invite && !actions.join)
+    return { trigger: null, panel: null };
   const iconSize = theme.type.title.line * theme.fontScale;
   const botTarget = scope === 'all' ? undefined : targetsFor('bot', scope, targets)[0];
   const botHostId = botTarget?.kind === 'computer' ? botTarget.hostId : undefined;
@@ -87,107 +102,162 @@ export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }
     ['zip', FileIcon],
     ['git', GitCommitIcon],
   ] as const;
-  return (
-    <>
-      <NavigationAction
-        ref={trigger}
-        testID="chats-create-fab"
+  const press = () => {
+    if (opening.current || !trigger.current) return;
+    opening.current = true;
+    haptic('menu');
+    trigger.current.measureInWindow((x, y, width, height) => {
+      const size = Math.min(width, height);
+      setAnchor({
+        top: y + (height - size) / 2,
+        right: viewport.width - x - width + (width - size) / 2,
+        size,
+      });
+    });
+  };
+  return {
+    trigger: (
+      <ChatsCreateButton
+        triggerRef={trigger}
         label={t.createHere}
-        size={fab.size}
         disabled={busy}
         expanded={open}
-        onPress={() => {
-          if (opening.current) return;
-          opening.current = true;
-          haptic('menu');
-          setOpen(true);
-        }}
+        onPress={press}
       />
-      {open ? (
-        <CreationPanel
-          bottom={bottom}
-          onDismiss={(action) => {
-            opening.current = false;
-            setOpen(false);
-            if (action) action();
-            else
-              requestAnimationFrame(() => {
-                if (trigger.current)
-                  AccessibilityInfo.sendAccessibilityEvent?.(trigger.current, 'focus');
-              });
-          }}
-        >
-          {({ dismiss, firstAction, level, showSources, back }) => {
-            const rows =
-              level === 'sources'
-                ? [
-                    { id: 'back', label: t.back, icon: ArrowBackIcon, onPress: back },
-                    ...(actions.bot
-                      ? sources.map(([source, icon]) => ({
-                          id: source,
-                          label: t.chatsCreate[source],
-                          icon,
-                          onPress: () =>
-                            dismiss(() => router.push(botSourceHref(source, botHostId))),
-                        }))
-                      : []),
-                  ]
-                : [
-                    ...(actions.bot
-                      ? [
-                          {
-                            id: 'bot',
-                            label: t.botCreation.title,
-                            icon: PersonIcon,
-                            onPress: showSources,
-                          },
-                        ]
-                      : []),
-                    ...(actions.group
-                      ? [
-                          {
-                            id: 'group',
-                            label: t.chatsCreate.group,
-                            icon: MembersIcon,
-                            onPress: () => dismiss(newGroup),
-                          },
-                        ]
-                      : []),
-                    ...(actions.join
-                      ? [
-                          {
-                            id: 'join',
-                            label: t.chatsCreate.join,
-                            icon: ChatsIcon,
-                            onPress: () => dismiss(() => router.push('/cloud-join')),
-                          },
-                        ]
-                      : []),
-                    ...(invite
-                      ? [
-                          {
-                            id: 'invite',
-                            label: t.chatsCreate.invite,
-                            icon: ShareIcon,
-                            onPress: () => dismiss(() => void cloud(invite, 'invite')),
-                          },
-                        ]
-                      : []),
-                  ];
-            return rows.map(({ id, label, icon: Icon, onPress }, index) => (
-              <CreationRow
-                key={id}
-                focusRef={index === 0 ? firstAction : undefined}
-                testID={`chats-create-${id}`}
-                label={label}
-                icon={<Icon color={theme.color.fg} size={iconSize} />}
-                onPress={onPress}
-                onBack={back}
-              />
-            ));
-          }}
-        </CreationPanel>
-      ) : null}
-    </>
+    ),
+    panel: anchor ? (
+      <CreationPanel
+        anchor={anchor}
+        onDismiss={(action) => {
+          opening.current = false;
+          setAnchor(undefined);
+          if (action) action();
+          else
+            requestAnimationFrame(() => {
+              if (trigger.current)
+                AccessibilityInfo.sendAccessibilityEvent?.(trigger.current, 'focus');
+            });
+        }}
+      >
+        {({ dismiss, firstAction, level, showSources, back }) => {
+          const rows =
+            level === 'sources'
+              ? [
+                  { id: 'back', label: t.back, icon: ArrowBackIcon, onPress: back },
+                  ...(actions.bot
+                    ? sources.map(([source, icon]) => ({
+                        id: source,
+                        label: t.chatsCreate[source],
+                        icon,
+                        onPress: () => dismiss(() => router.push(botSourceHref(source, botHostId))),
+                      }))
+                    : []),
+                ]
+              : [
+                  ...(actions.bot
+                    ? [
+                        {
+                          id: 'bot',
+                          label: t.botCreation.title,
+                          icon: PersonIcon,
+                          onPress: showSources,
+                        },
+                      ]
+                    : []),
+                  ...(actions.group
+                    ? [
+                        {
+                          id: 'group',
+                          label: t.chatsCreate.group,
+                          icon: MembersIcon,
+                          onPress: () => dismiss(newGroup),
+                        },
+                      ]
+                    : []),
+                  ...(actions.join
+                    ? [
+                        {
+                          id: 'join',
+                          label: t.chatsCreate.join,
+                          icon: ChatsIcon,
+                          onPress: () => dismiss(() => router.push('/cloud-join')),
+                        },
+                      ]
+                    : []),
+                  ...(invite
+                    ? [
+                        {
+                          id: 'invite',
+                          label: t.chatsCreate.invite,
+                          icon: ShareIcon,
+                          onPress: () => dismiss(() => void cloud(invite, 'invite')),
+                        },
+                      ]
+                    : []),
+                ];
+          return rows.map(({ id, label, icon: Icon, onPress }, index) => (
+            <CreationRow
+              key={id}
+              focusRef={index === 0 ? firstAction : undefined}
+              testID={`chats-create-${id}`}
+              label={label}
+              icon={<Icon color={theme.color.fg} size={iconSize} />}
+              onPress={onPress}
+              onBack={back}
+            />
+          ));
+        }}
+      </CreationPanel>
+    ) : null,
+  };
+}
+
+function ChatsCreateButton({
+  triggerRef,
+  label,
+  disabled,
+  expanded,
+  onPress,
+}: {
+  triggerRef: RefObject<ViewInstance | null>;
+  label: string;
+  disabled: boolean;
+  expanded: boolean;
+  onPress(): void;
+}) {
+  const theme = useDesignTheme();
+  const unavailable = disabled || expanded;
+  if (Platform.OS === 'android')
+    return (
+      <View
+        ref={triggerRef}
+        collapsable={false}
+        accessibilityState={{ disabled: unavailable, expanded }}
+        pointerEvents={unavailable ? 'none' : 'auto'}
+        style={{ opacity: expanded ? 0 : 1 }}
+      >
+        <HeaderIconButton icon="add" label={label} testID="chats-create-button" onPress={onPress} />
+      </View>
+    );
+  return (
+    <Pressable
+      ref={triggerRef}
+      testID="chats-create-button"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: unavailable, expanded }}
+      disabled={unavailable}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: theme.touch,
+        height: theme.touch,
+        borderRadius: radius.round,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: expanded ? 0 : pressed ? 0.7 : 1,
+      })}
+    >
+      <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
+    </Pressable>
   );
 }

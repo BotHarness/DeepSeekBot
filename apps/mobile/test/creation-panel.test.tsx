@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import { creationTargets } from '../src/host/creation-targets';
 import { computerEnvironmentKey } from '../src/host/conversation-environments';
 
-const fixture = vi.hoisted(() => ({ push: vi.fn(), botCreation: true }));
+const fixture = vi.hoisted(() => ({ push: vi.fn(), haptic: vi.fn(), botCreation: true }));
 vi.mock('react-native', async () => {
   const { useLayoutEffect } = await import('react');
   const shim = await import('./react-native-shim');
@@ -70,7 +70,7 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 vi.mock('expo-router', () => ({ router: { push: fixture.push }, useFocusEffect: () => {} }));
-vi.mock('../src/ui/haptics', () => ({ haptic: () => {} }));
+vi.mock('../src/ui/haptics', () => ({ haptic: fixture.haptic }));
 vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => false,
 }));
@@ -84,9 +84,24 @@ vi.mock('../src/ui/shell/use-creation-targets', () => ({
       botCreation: fixture.botCreation,
     })),
 }));
-import { ChatsCreate } from '../src/ui/shell/chats-create';
+import { useChatsCreate } from '../src/ui/shell/chats-create';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+Object.assign(HTMLElement.prototype, {
+  measureInWindow(done: (x: number, y: number, width: number, height: number) => void) {
+    done(330, 50, 44, 44);
+  },
+});
+
+function ChatsCreate({ scope }: { scope: string }) {
+  const create = useChatsCreate(scope);
+  return (
+    <>
+      {create.trigger}
+      {create.panel}
+    </>
+  );
+}
 
 async function withCard(
   scope: string,
@@ -99,9 +114,10 @@ async function withCard(
     await act(async () => button.click());
   };
   fixture.push.mockClear();
+  fixture.haptic.mockClear();
   try {
-    await act(async () => root.render(<ChatsCreate scope={scope} bottom={80} />));
-    await press('fab');
+    await act(async () => root.render(<ChatsCreate scope={scope} />));
+    await press('button');
     await check(host, press);
   } finally {
     act(() => root.unmount());
@@ -114,7 +130,7 @@ it.each([undefined, 'mac'])(
   async (hostId) => {
     await withCard(hostId ? computerEnvironmentKey(hostId) : 'all', async (host, press) => {
       const dialog = () => host.querySelector('[role="dialog"]');
-      const trigger = host.querySelector<HTMLButtonElement>('[data-testid="chats-create-fab"]')!;
+      const trigger = host.querySelector<HTMLButtonElement>('[data-testid="chats-create-button"]')!;
       expect(trigger.getAttribute('aria-expanded')).toBe('true');
       expect(trigger.disabled).toBe(true);
       await press('bot');
@@ -130,7 +146,7 @@ it.each([undefined, 'mac'])(
         ['zip', '/import-bot-zip'],
         ['git', '/import-bot-git'],
       ]) {
-        if (!dialog()) await press('fab');
+        if (!dialog()) await press('button');
         await press('bot');
         await press(source!);
         expect(fixture.push).toHaveBeenLastCalledWith({
@@ -154,5 +170,26 @@ it('keeps New Group available on a Computer that denies Bot creation', async () 
       pathname: '/create-channel',
       params: { entry: 'host', hostId: 'mac' },
     });
+  });
+});
+
+it('shows no header + when nothing can be created in the scope', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<ChatsCreate scope="another-source" />));
+    expect(host.querySelector('[data-testid="chats-create-button"]')).toBeNull();
+  } finally {
+    act(() => root.unmount());
+  }
+});
+
+it('grows the card from the measured header + and acknowledges the press once', async () => {
+  await withCard('all', async (host, press) => {
+    expect(fixture.haptic).toHaveBeenCalledExactlyOnceWith('menu');
+    await press('button');
+    expect(fixture.haptic).toHaveBeenCalledOnce();
+    const card = host.querySelector<HTMLElement>('[data-testid="chats-create-card"]')!;
+    expect(JSON.parse(card.dataset.style!)).toMatchObject({ top: 50, right: 16 });
   });
 });

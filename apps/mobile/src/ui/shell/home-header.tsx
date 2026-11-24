@@ -3,6 +3,7 @@ import { ConnectionProgress, useConnectionProgress } from '../primitives/connect
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
+import type { NativeStackHeaderItem } from 'expo-router';
 import { Platform, Pressable, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
@@ -28,6 +29,7 @@ export function HomeHeader({
   search,
   bar,
   nativeSearch,
+  nativeItems,
   onWorkspaces,
   children,
 }: {
@@ -38,6 +40,7 @@ export function HomeHeader({
   search?: ReactNode;
   bar?: ReactNode;
   nativeSearch?: TabHeaderSearch | undefined;
+  nativeItems?: NativeStackHeaderItem[] | undefined;
   onWorkspaces?: (() => void) | undefined;
   children: ReactNode;
 }) {
@@ -125,6 +128,7 @@ export function HomeHeader({
         title={title}
         leading={theme.largeText ? null : location}
         search={nativeSearch}
+        items={nativeItems}
       />
       {theme.largeText ? (
         <View

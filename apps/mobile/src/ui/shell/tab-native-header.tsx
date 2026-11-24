@@ -66,17 +66,21 @@ export function TabNativeHeader({
         ? []
         : [{ type: 'custom', element: leading, hidesSharedBackground: true }],
     unstable_headerRightItems: () =>
-      searchOpen || !search?.label
+      searchOpen
         ? []
         : [
-            {
-              type: 'button',
-              label: search.label,
-              identifier: 'tab-search',
-              icon: { type: 'sfSymbol', name: 'magnifyingglass' },
-              sharesBackground: true,
-              onPress: () => setSearchOpen(true),
-            },
+            ...(search?.label
+              ? [
+                  {
+                    type: 'button' as const,
+                    label: search.label,
+                    identifier: 'tab-search',
+                    icon: { type: 'sfSymbol' as const, name: 'magnifyingglass' as const },
+                    sharesBackground: true,
+                    onPress: () => setSearchOpen(true),
+                  },
+                ]
+              : []),
             ...(items ?? []),
           ],
     headerSearchBarOptions:
