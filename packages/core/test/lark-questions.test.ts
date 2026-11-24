@@ -501,7 +501,12 @@ it('a question raised from a Lark group conversation is answered in that group b
           .get() as { id: string; revision: number },
     );
   const setBinding = (enabled: boolean | null) =>
-    f.core.externalMessaging.setGroupInteractions('ada', binding().id, binding().revision, enabled);
+    f.core.externalMessaging.setGroupInteractions({
+      botSlug: 'ada',
+      bindingId: binding().id,
+      expectedRevision: binding().revision,
+      enabled,
+    });
   expect(await setBinding(false)).toMatchObject({
     groupInteractions: false,
     groupInteractionsInheritance: 'custom',
@@ -509,7 +514,12 @@ it('a question raised from a Lark group conversation is answered in that group b
   const bindingOff = await f.start();
   expect(bindingOff.delivery.destination).toBeUndefined();
   await expect(
-    f.core.externalMessaging.setGroupInteractions('ada', binding().id, 1, null),
+    f.core.externalMessaging.setGroupInteractions({
+      botSlug: 'ada',
+      bindingId: binding().id,
+      expectedRevision: 1,
+      enabled: null,
+    }),
   ).rejects.toMatchObject({ code: 'identity-changed' });
 
   await setBinding(null);
@@ -534,4 +544,7 @@ it('a question raised from a Lark group conversation is answered in that group b
     kind: 'group',
     conversationId: 'oc_team',
   });
+  await setBinding(false);
+  await f.text('A', 'om_' + bindingOn.delivery.id, { conversation: group });
+  expect(f.owner.pending('ada', bindingOn.delivery.id)).toBeDefined();
 });

@@ -494,12 +494,12 @@ export function createMessagingBridgeMethods(
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid group interactions'));
       return messagingCall(async (service) => ({
-        identity: await service.setGroupInteractions(
-          input.data.slug,
-          input.data.bindingId,
-          input.data.expectedRevision,
-          input.data.enabled,
-        ),
+        identity: await service.setGroupInteractions({
+          botSlug: input.data.slug,
+          bindingId: input.data.bindingId,
+          expectedRevision: input.data.expectedRevision,
+          enabled: input.data.enabled,
+        }),
       }));
     },
     messagingTargets(payload) {

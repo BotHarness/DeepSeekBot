@@ -24,6 +24,9 @@ const identity = {
   availability: 'available' as const,
   newConversations: 'ask' as const,
   grantCount: 2,
+  groupInteractions: true,
+  groupInteractionsInheritance: 'inherit' as const,
+  groupInteractionsRevision: 1,
   scopes: [],
 };
 

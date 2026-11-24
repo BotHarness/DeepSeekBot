@@ -345,7 +345,7 @@ export function createOutboundBinding(context: {
       );
       return binding(bindingId);
     },
-    async setGroupInteractions(botSlug, bindingId, expectedRevision, enabled) {
+    async setGroupInteractions({ botSlug, bindingId, expectedRevision, enabled }) {
       transaction(
         (db) => {
           active(botSlug);

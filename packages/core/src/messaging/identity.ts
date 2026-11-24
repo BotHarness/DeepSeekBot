@@ -14,9 +14,9 @@ export interface MessagingIdentity {
   enabled: boolean;
   postLimit?: number | null;
   postLimitRevision?: number;
-  groupInteractions?: boolean;
-  groupInteractionsInheritance?: 'inherit' | 'custom';
-  groupInteractionsRevision?: number;
+  groupInteractions: boolean;
+  groupInteractionsInheritance: 'inherit' | 'custom';
+  groupInteractionsRevision: number;
   typingEnabled?: boolean;
   typingInheritance?: 'inherit' | 'custom';
   receiveAfter?: string;

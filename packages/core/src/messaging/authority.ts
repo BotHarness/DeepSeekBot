@@ -143,6 +143,7 @@ export function createInteractionAuthority(options: {
           identity.accountRef !== source.botId ||
           identity.fingerprint !== source.fingerprint ||
           expected.conversationId !== source.conversationId ||
+          (expected.shared && identity.groupInteractions === false) ||
           (!expected.shared &&
             (current.revision !== grant.pairingRevision ||
               current.conversationId !== source.conversationId))
