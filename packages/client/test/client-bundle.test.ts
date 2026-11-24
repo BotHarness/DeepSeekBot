@@ -206,6 +206,7 @@ describe('@botharness/ui browser bundle', () => {
       'theme',
       'sessions',
       'uiWorkspace',
+      'uiConversation',
       'workspaces',
       'remote',
       'remote.session',
@@ -219,6 +220,7 @@ describe('@botharness/ui browser bundle', () => {
       label?: string;
     }[] = [];
     const sources: unknown[] = [];
+    const conversationDefinitions: unknown[] = [];
     const scoped = {
       shortcuts: {
         register: () => () => undefined,
@@ -255,6 +257,14 @@ describe('@botharness/ui browser bundle', () => {
         registerSource: (source: unknown) => {
           sources.push(source);
           return () => undefined;
+        },
+      },
+      uiConversation: {
+        events: {
+          register: (definition: unknown) => {
+            conversationDefinitions.push(definition);
+            return () => undefined;
+          },
         },
       },
       locale: {
@@ -302,6 +312,11 @@ describe('@botharness/ui browser bundle', () => {
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },
       {
+        name: 'conversation.chat.node',
+        key: 'botharness-model-switch',
+        locale: 'botharness',
+      },
+      {
         name: 'sidebar.panellist',
         id: 'botharness',
         order: 10,
@@ -338,6 +353,9 @@ describe('@botharness/ui browser bundle', () => {
         locale: 'botharness',
         inject: expect.any(Function),
       },
+    ]);
+    expect(conversationDefinitions).toEqual([
+      expect.objectContaining({ kind: 'botharness-model-switch', target: 'chat' }),
     ]);
     expect(sources).toHaveLength(1);
     expect((sources[0] as { trigger?: string }).trigger).toBe('@');
