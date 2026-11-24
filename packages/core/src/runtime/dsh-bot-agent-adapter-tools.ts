@@ -110,6 +110,7 @@ export function orchestratorTools(
     browserPath: adapter.genuiPreviewBrowserPath,
     onDiagnostic: adapter.onGenuiDiagnostic,
     attachmentContext: adapter.genuiAttachmentContext,
+    scope: run.bot.slug,
   });
   registerTool(
     createChannelActionTool(

@@ -108,7 +108,8 @@ export interface DshBotAgentAdapterOptions {
   prepareModelRoute?: (
     botSlug: string,
     role: 'orchestrator' | 'assignment',
-    retainedRoute?: ModelRoute,
+    retainedRoute: ModelRoute | undefined,
+    signal: AbortSignal,
   ) => Promise<void>;
 
   resolveAgentPresets?: () => DshAgentPresetHost | undefined;

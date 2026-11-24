@@ -618,9 +618,9 @@ export function createHostAgentAdapter(
       if (persistence === undefined) throw new Error('DSH Session Persistence is unavailable');
       return (await persistence.stat(sessionId)) !== undefined;
     },
-    prepareModelRoute: (slug, role, retainedRoute) => {
+    prepareModelRoute: (slug, role, retainedRoute, signal) => {
       deps.core.profileRecovery.requireExecution(slug);
-      return modelReadiness.prepare(slug, role, retainedRoute);
+      return modelReadiness.prepare(slug, role, retainedRoute, signal);
     },
     orchestratorCwd: (bot) => deps.core.registry.memoryDirFor(bot.slug),
     observePreparation: (slug, sessionId, preparing) => {
