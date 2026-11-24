@@ -40,7 +40,10 @@ export function SheetAddButton({ label, actions, testID }: SheetAddButtonProps) 
               key={action.label}
               label={controlCase(action.label)}
               systemImage={MENU_SYMBOL[action.icon]}
-              modifiers={[foregroundStyle(theme.color.fg)]}
+              modifiers={[
+                foregroundStyle(theme.color.fg),
+                ...(action.testID === undefined ? [] : [accessibilityIdentifier(action.testID)]),
+              ]}
               onPress={action.run}
             />
           ))}

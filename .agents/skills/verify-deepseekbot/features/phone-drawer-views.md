@@ -4,6 +4,9 @@
 
 - `apps/mobile/src/ui/shell/{environment-sheet,environment-sheet-rows,environment-settings-row,host-drawer-model,host-drawer-state,home-header}.{ts,tsx}`
 - `apps/mobile/app/environment.tsx`
+- `apps/mobile/src/ui/settings-view.tsx`
+- `apps/mobile/app/(tabs)/(settings)/settings.tsx`
+- `apps/mobile/src/ui/primitives/sheet-add-button*.tsx`
 
 ## Terms
 
@@ -13,8 +16,8 @@
 
 ## Sub-features
 
-- `entry`: Settings' **Environment settings** group starts with an "Environment" row showing the current Environment name; it, the Chats header's Environment name (a button with ▾) and the Session drawer's Environment name open the Environment sheet: a native iOS form sheet with medium and large detents, or the Android modal bottom sheet. There is no left-edge or anywhere swipe and no Android search-bar menu button ([ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md), amended by #5130). The sheet's + (top-right) opens pairing directly, or a native menu with Pair a new computer and Join by link or QR when Cloud is on.
-- `settings-groups`: Settings reads account, Environment settings (Environment row, Usage, Model providers, Voice, Model configuration, Prompt presets, Storage, with a footer naming the Computer), This phone (Notifications and interface preferences), About. Under All the footer names the most recently used Computer.
+- `entry`: Settings' **Environment settings** group starts with an "Environment" row showing the current Environment name; it, and the Chats header's Environment name (a button with ▾) open the Environment sheet (the Session drawer joins with #5109): a native iOS form sheet with medium and large detents, or the Android modal bottom sheet. There is no left-edge or anywhere swipe and no Android search-bar menu button ([ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md), amended by #5130). The sheet's + (top-right) opens pairing directly, or a native menu with Pair a new computer and Join by link or QR when Cloud is on.
+- `settings-groups`: Settings reads account, Environment settings (Environment row, Usage, Model providers, Voice, Model configuration, Prompt presets, Storage, with a footer naming the Computer), This phone (Notifications and interface preferences), About. Under All the row and the footer name the most recently used Computer.
 - `all`: the first row selects All without switching the current paired Host. Chats renders one list containing every loaded online Computer (offline Computers are left out) and available cloud workspaces.
 - `host`: choosing a Computer closes the sheet and queues its switch through the existing Host Session. Each switch waits for the prior save/adopt to settle before checking the current Host. Only the latest successful choice selects its conversation filter, so the final Host owner, persisted Host and selected Host view agree. A failed switch does not block the next choice. All updates the filter immediately without cancelling an already requested Host switch. A successful choice keeps ADR-0272's reset: scoped details and sheets close and every tab stack returns to its root, while Settings stays the selected tab.
 - `cloud`: with Cloud enabled, cloud workspaces follow the Computers; choosing one opens its Cloud list as before. Pair a new computer, Join by link or QR and Manage cloud services come last.

@@ -26,6 +26,7 @@ export type MenuAction = {
     | 'stop';
   run(): void;
   destructive?: boolean;
+  testID?: string;
 };
 
 export type ActionMenuButtonProps = {

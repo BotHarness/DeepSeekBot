@@ -139,6 +139,7 @@ export function EnvironmentSheetScreen() {
     {
       label: t.pairAnother,
       icon: 'computer',
+      testID: 'environment-add-pair',
       run: () => closeThen(() => hostDrawer.pairNew()),
     },
     ...(cloudAvailable
@@ -146,6 +147,7 @@ export function EnvironmentSheetScreen() {
           {
             label: t.workspaceAdd.join,
             icon: 'join' as const,
+            testID: 'environment-add-join',
             run: () => closeThen(() => router.push('/cloud-join')),
           },
         ]

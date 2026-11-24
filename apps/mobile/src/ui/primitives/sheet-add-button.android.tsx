@@ -44,6 +44,7 @@ export function SheetAddButton({ label, actions, testID }: SheetAddButtonProps) 
                     key: action.label,
                     label: action.label,
                     destructive: false,
+                    ...(action.testID === undefined ? {} : { testID: action.testID }),
                     icon: (
                       <MenuIcon
                         icon={action.icon}

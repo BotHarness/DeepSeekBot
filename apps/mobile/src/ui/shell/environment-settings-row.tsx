@@ -17,9 +17,10 @@ import { useStrings } from '../strings';
 export function EnvironmentSettingsRow() {
   const t = useStrings();
   const router = useRouter();
-  const { hosts } = useHostSession();
+  const { hosts, saved } = useHostSession();
   const [filter] = useConversationFilter();
   const cloud = useCloudSnapshot();
+  const recentLook = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
   const selected = hosts.find((host) => computerEnvironmentKey(host.hostId) === filter);
   const look = useHostLook(selected?.hostId);
@@ -40,7 +41,14 @@ export function EnvironmentSettingsRow() {
       testID="settings-environment"
       title={t.environmentSheet.title}
       icon="computer"
-      control={{ kind: 'value', text: current.title, chevron: true }}
+      control={{
+        kind: 'value',
+        text:
+          filter === 'all' && saved != null
+            ? t.environmentSheet.allRecent(shownHostName(recentLook, saved.hostName))
+            : current.title,
+        chevron: true,
+      }}
       onPress={() => router.push('/environment')}
     />
   );
@@ -53,7 +61,7 @@ export function useEnvironmentFooter(): string | undefined {
   const look = useHostLook(saved?.hostId);
   if (saved == null) return undefined;
   const name = shownHostName(look, saved.hostName);
-  return filter === computerEnvironmentKey(saved.hostId)
-    ? t.environmentSheet.savedOn(name)
-    : t.environmentSheet.savedOnRecent(name);
+  if (filter === 'all') return t.environmentSheet.savedOnRecent(name);
+  if (filter === computerEnvironmentKey(saved.hostId)) return t.environmentSheet.savedOn(name);
+  return t.environmentSheet.savedOnCurrent(name);
 }
