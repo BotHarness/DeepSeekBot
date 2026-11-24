@@ -50,6 +50,10 @@ tobs devices
 6. 报告修改资源、真实结果和待完成的手机/网络步骤，给出仅针对这条 Tunnel/DNS 的恢复与移除方法。保留 Profile 和其他资源；撤销手机与移除隧道分别处理。
 ```
 
+## 让 Host Member 凭地址登录
+
+默认只有已配对的设备能使用这条连接。团队模式下，Host Owner 可以在已连接的连接上打开**连接详情**，开启**允许凭地址登录**。之后 Host Member 在手机、桌面或网页上输入这个 HTTPS 地址、用户名和密码即可登录，邀请里也会列出该地址。地址会在公网上可被发现，任何人都可以尝试密码；团队登录限流同样生效，并由这条连接上的所有人共享。关闭后这些连接会再次断开。替换连接会关闭此设置。CLI：`tobs private-route allow-address-sign-in custom --confirm` 和 `tobs private-route deny-address-sign-in custom --confirm`。
+
 ## 恢复与移除
 
 已启用的 Named Tunnel 随 Host 重启恢复，主机名不变。电脑休眠或停止时无法访问。`dns` 错误检查主机名/DNS 路由；源站失败检查准确的 HTTP loopback 端口；连接器拒绝检查私有令牌/账号。保持 TLS 验证开启。

@@ -2419,7 +2419,11 @@ deepseekbot private-route stop quick --expected-route-revision <revision-from-li
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
+deepseekbot private-route allow-address-sign-in custom --confirm
+deepseekbot private-route deny-address-sign-in custom --confirm
 ```
+
+`allow-address-sign-in custom` lets the custom route answer the Host's sign-in discovery and carry the encrypted channel without the private admission token, so Host Members can sign in by typing its HTTPS address with a username and password. The address becomes discoverable on the public internet and anyone can try a password; the Team sign-in rate limit applies through the route. `deny-address-sign-in custom` restores token-only admission and closes channels opened without the token. Quick Tunnel refuses with `private-route-address-sign-in-unsupported`, and replacing the custom route turns the setting off. `list` reports `addressSignIn` on the custom route.
 
 Use the existing Host connection arguments for every command. Named connector tokens enter through stdin only. Add retries are idempotent; changing an occupied slot requires Replace. Stop retains configuration and disabled intent; only enabled routes resume after Host restart. Remove forgets the selected configuration, without revoking paired phones. Revoke the device through the existing device command to remove its access across both routes. Legacy no-ID enable/disable refuses ambiguous multi-route operations.
 

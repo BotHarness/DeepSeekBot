@@ -12,6 +12,8 @@ The browser reads each Remote Host Feed through its own Paired Device and the sh
 - `packages/host-client/src/{owner-sign-in,password-sign-in,sign-in-discovery,team-sign-in}.ts`
 - `packages/client/src/client/relationship{s,-settings}.{ts,tsx}`
 - `packages/core/src/devices/relationship*.ts`
+- `packages/core/src/devices/private-tunnel{,-owner}.ts`
+- `packages/client/src/client/private-tunnel-settings.tsx`
 
 ## Terms
 
@@ -27,6 +29,10 @@ Use two fresh Profiles on the same build. Serve the target Host's device channel
 With Team mode off, open the target Host's Connections settings. Turn on **Password sign-in** and set an Owner username and password. In the source Owner Client, open **Connect to another computer**, enter the target HTTPS address, and choose **Sign in with username and password**. Open the fingerprint disclosure to compare the discovered identity. Sign in with the Owner credentials. Repeat with a new member account and verify that the first-time password change and identity-switch confirmation precede saving the grant. Paste a Team invitation into the same field and verify the existing fingerprint and member flow. From the address choice, select **Approve on that computer** and follow the pairing-link guidance. With password sign-in off for all accounts, discovery goes straight to that guidance. Open a Channel unique to the target Host. Compare the visible Channel with the target CLI roster and the new exact device record. Check wrong credentials and an invalid or changed Host identity before the successful attempt. Record a clean console and an accessibility snapshot without credential fields.
 
 Use `team-mode owner-sign-in status` to inspect the setting. Sign in a separate CLI device with `device-owner-sign-in` and validate `device-probe` with its private device file. Disable password sign-in on the target. Verify that a new login is refused and both enrolled devices still read the target Feed. Revoke the CLI device by its ID and verify it loses access. Restart the target Profile and verify the setting and selected username persist. Remove test device files during cleanup.
+
+## Sign in by address on the custom private route (#5183)
+
+Use a fresh Team mode Host with one active Host Member. Add a `custom` private route in HTTPS-ingress mode whose origin is a local TLS endpoint the test browser and Simulator trust, for example a `caddy` or Node `https` reverse proxy to the route's printed `127.0.0.1` port. Wait until the route is connected. Before: in the member's Web Client and the iOS Simulator, enter that HTTPS address in **Connect to another computer**. Sign-in shows the pairing-code or sign-in-link guidance (`private-route`). On the Host, open **Connections → the custom route → Connection details** and turn on **Allow sign-in by address**. The one-line hint must say the address becomes discoverable on the public internet. After: the same address shows the fingerprint and password form, and the member signs in and reads a public Channel. Turn the setting off and verify that the member's open channel drops and a new attempt shows the private-route guidance again. Confirm that a Quick Tunnel on the same Host never answers discovery. For CLI parity use `private-route allow-address-sign-in custom --confirm`, `private-route deny-address-sign-in custom --confirm` and `private-route list`, which reports `addressSignIn`.
 
 ## Change the Owner password (#4899)
 

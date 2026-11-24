@@ -90,6 +90,10 @@ Set up my existing Tobs Host through my own HTTPS proxy/tunnel. Read https://tob
 6. Report resources changed, actual checks and the remaining steps. Provide restart and rollback limited to this configuration; preserve the Host Profile, other proxy routes, certificates and device grants.
 ```
 
+## Let Host Members sign in by address
+
+By default only paired devices can use this route. In Team mode, the Host Owner can open **Connection details** on the connected route and turn on **Allow sign-in by address**. Host Members can then type this HTTPS address with their username and password on phone, Desktop or Web, and invitations list it. The address becomes discoverable on the public internet and anyone can try a password; the Team sign-in rate limit applies, shared by everyone on this route. Turning it off closes those connections again. Replacing the route turns it off. CLI: `tobs private-route allow-address-sign-in custom --confirm` and `tobs private-route deny-address-sign-in custom --confirm`.
+
 ## Verify and maintain
 
 Complete [route verification](private-connect.md#verify-the-selected-route) through the chosen HTTPS origin, not a localhost shortcut. For an internal-only origin, test from the phone on the intended internal network with internal DNS and trusted certificates; external Wi-Fi/cellular is not a requirement. Bot model connectivity is a separate dependency. Record the configured upstream port so proxy reloads/restarts keep using it. Retain the previous proxy configuration for rollback. On versions with per-route controls, Stop preserves configuration; removing an ingress does not revoke the phone. Remove only its proxy rules/DNS after checking ownership; do not stop shared nginx/Caddy services to retire one route.

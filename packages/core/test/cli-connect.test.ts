@@ -321,3 +321,42 @@ it('runs the same Host-owned public connectivity check without publishing creden
   });
   expect(http.mock.calls[0]).toEqual(['/api/botharness/devices/connect-health', {}]);
 });
+
+it('allows and denies sign-in by address on the custom route through the Host owner', async () => {
+  const http = vi.fn(async () => reply({ ok: true, routeId: 'custom' }));
+  const connect = vi.fn(async () => ({ http }));
+  for (const [action, enabled] of [
+    ['allow-address-sign-in', true],
+    ['deny-address-sign-in', false],
+  ] as const) {
+    await runConnectCommand('private-route', [action, 'custom'], { confirm: true }, {}, connect);
+    expect(http).toHaveBeenLastCalledWith('/api/botharness/devices/private-tunnel', {
+      action: 'address-sign-in',
+      routeId: 'custom',
+      enabled,
+      confirm: true,
+    });
+  }
+  const refused = vi.fn(async () =>
+    reply({ ok: false, code: 'private-route-address-sign-in-unsupported' }),
+  );
+  expect(
+    await runConnectCommand(
+      'private-route',
+      ['allow-address-sign-in', 'quick'],
+      { confirm: true },
+      {},
+      async () => ({ http: refused }),
+    ),
+  ).toEqual({ ok: false, code: 'private-route-address-sign-in-unsupported' });
+  const unused = vi.fn();
+  for (const [args, values] of [
+    [['allow-address-sign-in', 'custom'], {}],
+    [['allow-address-sign-in'], { confirm: true }],
+    [['deny-address-sign-in', 'custom'], { confirm: true, origin: 'https://bot.example.com' }],
+  ] as const)
+    await expect(
+      runConnectCommand('private-route', [...args], values, {}, unused),
+    ).rejects.toMatchObject({ code: 'usage' });
+  expect(unused).not.toHaveBeenCalled();
+});
