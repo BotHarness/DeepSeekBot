@@ -1,5 +1,5 @@
 import type { DshImOutboundService, DshImTarget } from '../../features/messaging/dsh-im-types.js';
-import type { MessagingAttachment } from '../provider.js';
+import type { MessagingAttachment, MessagingSetupVariant } from '../provider.js';
 
 export const messagingPlatformIds = ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const;
 export type MessagingPlatformId = (typeof messagingPlatformIds)[number];
@@ -57,9 +57,9 @@ export interface DshImInboundPolicy {
   };
 }
 
-export interface DshImPlatformProfile {
-  id: MessagingPlatformId;
-  setupKind?: 'credentials' | 'qr';
+export interface DshImPlatformProfile<Id extends MessagingPlatformId = MessagingPlatformId> {
+  id: Id;
+  setup?: MessagingSetupVariant & { platform: Id };
   receiptIdentity: 'native' | 'client-acknowledgement';
   receiveScope(target: DshImTarget): { kind: 'group' | 'dm'; conversationId: string } | undefined;
   features: {

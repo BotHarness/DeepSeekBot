@@ -1,6 +1,6 @@
 import { atMessage, plainShape, sourceFilesBase, type DshImPlatformProfile } from './types.js';
 
-export const discordProfile: DshImPlatformProfile = {
+export const discordProfile: DshImPlatformProfile<'discord'> = {
   id: 'discord',
   receiptIdentity: 'native',
   receiveScope: (target) =>

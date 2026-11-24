@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DshImTarget } from '../src/features/messaging/dsh-im-types.js';
 import { createDshImProvider } from '../src/messaging/dsh-im.js';
 import { messagingDefaultsPlatform } from '../src/messaging/defaults.js';
 import {
@@ -86,12 +87,11 @@ describe('Messaging platform registry', () => {
   });
 
   it('maps Provider targets to receive scopes only where the platform qualifies them', () => {
-    const scope = (id: (typeof messagingPlatformIds)[number], kind: string, route: object) =>
-      messagingPlatform(id).receiveScope({
-        targetId: 't',
-        kind,
-        route: route as never,
-      });
+    const scope = (
+      id: (typeof messagingPlatformIds)[number],
+      kind: string,
+      route: DshImTarget['route'],
+    ) => messagingPlatform(id).receiveScope({ targetId: 't', kind, route });
     expect(scope('feishu', 'group', { chatId: 'oc_1' })).toEqual({
       kind: 'group',
       conversationId: 'oc_1',

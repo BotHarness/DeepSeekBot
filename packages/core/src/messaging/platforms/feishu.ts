@@ -53,9 +53,9 @@ function isLarkVoice(event: DshImInboundShape): boolean {
   );
 }
 
-export const feishuProfile: DshImPlatformProfile = {
+export const feishuProfile: DshImPlatformProfile<'feishu'> = {
   id: 'feishu',
-  setupKind: 'credentials',
+  setup: { platform: 'feishu', kind: 'credentials' },
   receiptIdentity: 'native',
   receiveScope: (target) => {
     const chatId = target.route['chatId'];

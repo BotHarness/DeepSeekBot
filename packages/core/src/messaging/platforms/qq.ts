@@ -1,6 +1,6 @@
 import { atMessage, isImage, sourceFilesBase, type DshImPlatformProfile } from './types.js';
 
-export const qqProfile: DshImPlatformProfile = {
+export const qqProfile: DshImPlatformProfile<'qq'> = {
   id: 'qq',
   receiptIdentity: 'native',
   receiveScope: (target) =>

@@ -1,6 +1,6 @@
 import { atMessage, plainShape, sourceFilesBase, type DshImPlatformProfile } from './types.js';
 
-export const slackProfile: DshImPlatformProfile = {
+export const slackProfile: DshImPlatformProfile<'slack'> = {
   id: 'slack',
   receiptIdentity: 'native',
   receiveScope: (target) =>

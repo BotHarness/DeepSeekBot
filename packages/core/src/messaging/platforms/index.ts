@@ -15,7 +15,7 @@ export {
   type MessagingPlatformId,
 } from './types.js';
 
-const profiles: Record<MessagingPlatformId, DshImPlatformProfile> = {
+const profiles: { [Id in MessagingPlatformId]: DshImPlatformProfile<Id> } = {
   feishu: feishuProfile,
   slack: slackProfile,
   discord: discordProfile,

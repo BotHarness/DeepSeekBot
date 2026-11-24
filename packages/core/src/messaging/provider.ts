@@ -1,4 +1,3 @@
-import type { MessagingPlatformId } from './platforms/types.js';
 import type { WorkRequest } from '../cloud/work-contract.js';
 
 export interface MessagingAccount {
@@ -230,12 +229,14 @@ export interface MessagingApprovalAck {
   status: 'queued' | 'refused';
 }
 
-export interface MessagingSetup {
+export type MessagingSetupVariant =
+  | { platform: 'feishu'; kind: 'credentials' }
+  | { platform: 'weixin'; kind: 'qr' };
+
+export type MessagingSetup = MessagingSetupVariant & {
   version: 1;
-  platform: MessagingPlatformId;
   endpoint: 'dsh-im/app-setup';
-  kind: 'credentials' | 'qr';
-}
+};
 
 export interface MessagingQuestionCard {
   requestId: string;

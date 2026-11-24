@@ -1,8 +1,8 @@
 import { atMessage, isImage, sourceFilesBase, type DshImPlatformProfile } from './types.js';
 
-export const weixinProfile: DshImPlatformProfile = {
+export const weixinProfile: DshImPlatformProfile<'weixin'> = {
   id: 'weixin',
-  setupKind: 'qr',
+  setup: { platform: 'weixin', kind: 'qr' },
   receiptIdentity: 'client-acknowledgement',
   receiveScope: (target) =>
     target.kind === 'user' && typeof target.route['toUserId'] === 'string'

@@ -130,21 +130,24 @@ export function createDshImProvider(
     });
   return {
     id: `dsh-im/${platform}`,
-    ...(host.setupVersion === 1 && typeof host.describeSetup === 'function' && profile.setupKind
+    ...(host.setupVersion === 1 && typeof host.describeSetup === 'function' && profile.setup
       ? {
           async setup() {
             const raw = await host.describeSetup!(platform);
             if (!raw || typeof raw !== 'object') return undefined;
             const descriptor = raw as Record<string, unknown>;
-            const kind = profile.setupKind!;
             if (
               descriptor['version'] !== 1 ||
               descriptor['channel'] !== platform ||
               descriptor['endpoint'] !== 'dsh-im/app-setup' ||
-              descriptor['kind'] !== kind
+              descriptor['kind'] !== profile.setup!.kind
             )
               return undefined;
-            return { version: 1 as const, platform, endpoint: 'dsh-im/app-setup' as const, kind };
+            return {
+              version: 1 as const,
+              endpoint: 'dsh-im/app-setup' as const,
+              ...profile.setup!,
+            };
           },
         }
       : {}),
