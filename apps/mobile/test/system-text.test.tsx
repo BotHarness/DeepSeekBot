@@ -32,16 +32,9 @@ vi.mock('react-native', async () => ({
       {children as string}
     </span>
   ),
-  TextInput: ({
-    style,
-    allowFontScaling,
-    dynamicTypeRamp,
-    value,
-    onChangeText,
-  }: Record<string, unknown>) => (
+  TextInput: ({ style, allowFontScaling, value, onChangeText }: Record<string, unknown>) => (
     <textarea
       data-metrics={JSON.stringify(style)}
-      data-ramp={dynamicTypeRamp as string}
       data-native-scaling={String(allowFontScaling)}
       value={value as string}
       onChange={(event) => (onChangeText as (text: string) => void)(event.target.value)}
@@ -139,41 +132,10 @@ describe('system text size', () => {
     expect(input.selectionStart).toBe(3);
     expect(input.selectionEnd).toBe(8);
     expect(JSON.parse(input.dataset.metrics!)).toEqual([
-      { fontSize: 17, lineHeight: 22 },
-      { fontSize: 17 * 3.571, lineHeight: 22 * 3.571 },
-    ]);
-    expect(input.dataset.nativeScaling).toBe('false');
-  });
-
-  it('sizes iOS single-line text and placeholders from the font scale', () => {
-    device.scale = 3;
-    const fields = render(
-      <>
-        <TextInput placeholder="Pairing link" />
-        <TextInput placeholder="Search" maxFontSizeMultiplier={1.35} />
-        <TextInput placeholder="Unbounded" maxFontSizeMultiplier={0} />
-        <TextInput placeholder="Fixed" allowFontScaling={false} />
-        <TextInput multiline placeholder="Message" style={{ fontSize: 17, lineHeight: 22 }} />
-      </>,
-    ).querySelectorAll('textarea');
-    const size = (index: number) =>
-      (JSON.parse(fields[index]!.dataset.metrics!) as { fontSize?: number }[]).at(-1)!.fontSize;
-    expect(size(0)).toBe(51);
-    expect(size(1)).toBeCloseTo(17 * 1.35);
-    expect(size(2)).toBe(51);
-    expect(size(3)).toBe(17);
-    expect([...fields].slice(0, 4).map((field) => field.dataset.nativeScaling)).toEqual([
-      'false',
-      'false',
-      'false',
-      'false',
-    ]);
-    expect(fields[4]!.dataset.nativeScaling).toBe('undefined');
-    expect(fields[4]!.dataset.ramp).toBe('body');
-    expect(JSON.parse(fields[4]!.dataset.metrics!)).toEqual([
       { fontSize: 17 },
       { fontSize: 17, lineHeight: 22 },
     ]);
+    expect(input.dataset.nativeScaling).toBe('undefined');
   });
 
   it('keeps decorative initials unscaled and nested text metrics inherited', () => {

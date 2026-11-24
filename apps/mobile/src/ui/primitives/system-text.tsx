@@ -45,34 +45,12 @@ type InputProps = ComponentPropsWithRef<typeof NativeTextInput> &
 export function TextInput({ style, dynamicTypeRamp = 'body', ...props }: InputProps) {
   const ios = Platform.OS === 'ios';
   const { scheme } = useDesignTheme();
-  const { fontScale } = useWindowDimensions();
-  if (!ios) return <NativeTextInput keyboardAppearance={scheme} {...props} style={style} />;
-  if (props.multiline === true)
-    return (
-      <NativeTextInput
-        keyboardAppearance={scheme}
-        {...props}
-        {...{ dynamicTypeRamp }}
-        style={[{ fontSize: typeScale.ios.body.size }, style]}
-      />
-    );
-  const metrics = StyleSheet.flatten(style);
-  const ceiling = props.maxFontSizeMultiplier ?? 0;
-  const scale =
-    props.allowFontScaling === false ? 1 : ceiling >= 1 ? Math.min(fontScale, ceiling) : fontScale;
-  const size = (metrics?.fontSize ?? typeScale.ios.body.size) * scale;
   return (
     <NativeTextInput
       keyboardAppearance={scheme}
       {...props}
-      allowFontScaling={false}
-      style={[
-        style,
-        {
-          fontSize: size,
-          ...(metrics?.lineHeight === undefined ? {} : { lineHeight: metrics.lineHeight * scale }),
-        },
-      ]}
+      {...(ios ? { dynamicTypeRamp } : {})}
+      style={ios ? [{ fontSize: typeScale.ios.body.size }, style] : style}
     />
   );
 }

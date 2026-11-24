@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { TextInput } from './system-text';
 
-import { headerLabelScaleCeiling } from '../design/capped-text';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { ActivitySearchIcon } from '../shell/icons';
@@ -39,8 +38,6 @@ export function SearchField({
   onChangeText,
 }: SearchFieldProps) {
   const theme = useDesignTheme();
-  const scale = floating ? Math.min(theme.fontScale, headerLabelScaleCeiling) : theme.fontScale;
-  const height = Math.max(theme.touch, theme.type.body.line * scale + space.x3 * 2);
   return (
     <View
       style={{
@@ -55,7 +52,7 @@ export function SearchField({
       <View
         style={{
           flex: 1,
-          minHeight: height,
+          minHeight: theme.touch,
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x3,
@@ -65,7 +62,7 @@ export function SearchField({
         }}
       >
         {floating ? <DrawerMaterial /> : null}
-        <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size * scale} />
+        <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
         <TextInput
           testID={testID}
           maxLength={maxLength}
@@ -83,10 +80,9 @@ export function SearchField({
           autoCorrect={false}
           clearButtonMode="while-editing"
           returnKeyType="search"
-          {...(floating ? { maxFontSizeMultiplier: headerLabelScaleCeiling } : {})}
           style={{
             flex: 1,
-            minHeight: height,
+            minHeight: theme.touch,
             paddingRight: space.x3,
             color: theme.color.fg,
             fontSize: theme.type.body.size,
