@@ -14,6 +14,8 @@ import { interfacePreferences } from '../src/ui/interface-preferences';
 const platform = vi.hoisted(() => ({ OS: 'ios' }));
 const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
 const place = vi.hoisted(() => ({
+  hostId: undefined as string | undefined,
+  member: new Set<string>(),
   segments: ['(tabs)', '(home)', 'session', '[id]'],
   index: 1,
   replace: vi.fn(),
@@ -62,6 +64,7 @@ vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
   useRouter: () => navigation,
   useSegments: () => place.segments,
+  useLocalSearchParams: () => ({ hostId: place.hostId }),
   useNavigation: () => ({ getState: () => ({ index: place.index }) }),
   router: { replace: place.replace, push: place.push, dismissTo: place.dismissTo },
 }));
@@ -82,8 +85,25 @@ vi.mock('react-native-keyboard-controller', () => ({
   KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../src/host/host-session', () => ({
-  useHostSession: () => ({
-    saved: { hostId: 'host', hostName: 'Computer', routes: [], deviceId: 'd', credential: 'c' },
+  useHostSession: (hostId = 'host') => ({
+    saved: {
+      hostId,
+      hostName: 'Computer',
+      routes: [],
+      deviceId: 'd',
+      credential: 'c',
+      ...(place.member.has(hostId)
+        ? {
+            member: {
+              humanId: 'm',
+              displayName: 'Member',
+              username: 'member',
+              fingerprint: 'a'.repeat(64),
+              mustChangePassword: false,
+            },
+          }
+        : {}),
+    },
   }),
 }));
 vi.mock('../src/ui/chat/session-title-menu', () => ({
@@ -724,6 +744,8 @@ it('keeps Back with ✎ for a Session pushed inside the Sessions tab, and no ✎
   } finally {
     place.segments = ['(tabs)', '(home)', 'session', '[id]'];
   }
+  await act(async () => root?.unmount());
+  root = undefined;
   const elsewhere = await open({ role: 'native' });
   const labels = [...elsewhere.view.querySelectorAll('button')].map(
     (button) => button.getAttribute('aria-label') ?? button.textContent,
@@ -749,5 +771,30 @@ it('shows Back · capsule · ✎ at the Sessions root in Stacked style', async (
   } finally {
     interfacePreferences.setSessionNavigation('drawer');
     place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+  }
+});
+
+it('offers New Session from the Host that owns the open Session, not the selected one', async () => {
+  place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
+  place.index = 0;
+  place.member = new Set(['member-host']);
+  const labels = (view: HTMLElement) =>
+    [...view.querySelectorAll('button')].map(
+      (button) => button.getAttribute('aria-label') ?? button.textContent,
+    );
+  try {
+    place.hostId = 'member-host';
+    const member = await open({ role: 'native' });
+    expect(labels(member.view)).not.toContain('New Session');
+    await act(async () => root?.unmount());
+    root = undefined;
+    place.hostId = 'owner-host';
+    const owner = await open({ role: 'native' });
+    expect(labels(owner.view)).toContain('New Session');
+  } finally {
+    place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+    place.index = 1;
+    place.hostId = undefined;
+    place.member = new Set();
   }
 });

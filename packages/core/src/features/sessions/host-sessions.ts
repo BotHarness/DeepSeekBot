@@ -67,7 +67,9 @@ export interface NativeSessions {
     choice: Extract<SessionModelChoice, { kind: 'model' }> | null | undefined,
   ): Promise<SessionModelState>;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
-  create?(target: { cwd: string } | { workspaceId: string }): Promise<{ sessionId: string }>;
+  create?(
+    target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
+  ): Promise<{ sessionId: string }>;
 }
 
 export function normalizeSessionSearch(text: string): string {
@@ -273,11 +275,7 @@ export function createHostSessionsMethods(
           b.updatedAt - a.updatedAt ||
           a.sessionId.localeCompare(b.sessionId),
       );
-      if (queryVersion === 1)
-        for (const row of sessions) {
-          const at = clock(row);
-          row.sortedAt = at < 0 ? row.updatedAt : at;
-        }
+      if (queryVersion === 1) for (const row of sessions) row.sortedAt = clock(row);
       return {
         ok: true,
         value: {
@@ -361,20 +359,42 @@ export function createHostSessionsMethods(
       if (proposed != null && parsed?.kind !== 'model')
         return invalidInput('Native Sessions require a model provider and model');
       const choice = parsed?.kind === 'model' ? parsed : undefined;
+      const reuse = asNonBlank(source, 'sessionId');
       const service = deps.nativeSessions;
       if (service?.create === undefined) return unavailable;
+      if (choice !== undefined && service.model === undefined) return unavailable;
+      let created: string | undefined;
       try {
+        const place = cwd === undefined ? { workspaceId: workspaceId! } : { cwd };
         const { sessionId } = await service.create(
-          cwd === undefined ? { workspaceId: workspaceId! } : { cwd },
+          reuse === undefined ? place : { ...place, sessionId: reuse },
         );
-        if (choice !== undefined) {
-          if (service.model === undefined) return unavailable;
-          await service.model(sessionId, choice);
-        }
+        created = sessionId;
+        if (choice !== undefined)
+          try {
+            await service.model!(sessionId, choice);
+          } catch (cause) {
+            const failure = dshFailure(cause);
+            const error =
+              remoteErrorOf(cause) === undefined
+                ? {
+                    code: 'session/model-unavailable',
+                    message: cause instanceof Error ? cause.message : String(cause),
+                  }
+                : failure.ok
+                  ? { code: 'session/model-unavailable', message: 'Model choice failed' }
+                  : failure.error;
+            return { ok: false, error: { ...error, details: { ...error.details, sessionId } } };
+          }
         const { requestId } = await service.send(sessionId, text);
         return { ok: true, value: { sessionId, requestId } };
       } catch (cause) {
-        return dshFailure(cause);
+        const failure = dshFailure(cause);
+        if (created === undefined || failure.ok) return failure;
+        return {
+          ok: false,
+          error: { ...failure.error, details: { ...failure.error.details, sessionId: created } },
+        };
       }
     },
     sessionSend(payload: unknown) {

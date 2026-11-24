@@ -1,6 +1,6 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   errorText,
@@ -8,8 +8,9 @@ import {
   loadWorkspaceOptions,
   resolveWorkspaceFolder,
 } from '@botharness/host-client/bot-settings';
-import type { HostClient } from '@botharness/host-client/client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 import { createHostSession } from '@botharness/host-client/host-sessions';
+import { useMounted } from '../../ui/mounted';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { useHostSession, useHostSessions, useHostSnapshot } from '../../host/host-session';
@@ -68,6 +69,7 @@ export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
     )
     .map((host) => ({ ...host, key: computerEnvironmentKey(host.saved.hostId) }));
   const [chosen, setChosen] = useState<string>();
+  const [draft, setDraft] = useState('');
   const hostId =
     computers.find((host) => host.saved.hostId === chosen)?.saved.hostId ??
     preselectedComputer(
@@ -105,10 +107,23 @@ export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
           }))}
           onComputer={setChosen}
           stacked={stacked}
+          draft={draft}
+          onDraft={setDraft}
         />
       )}
     </View>
   );
+}
+
+function createdSessionOf(cause: unknown): string | undefined {
+  if (!(cause instanceof MethodRefused)) return undefined;
+  const details = cause.details;
+  return typeof details === 'object' &&
+    details !== null &&
+    'sessionId' in details &&
+    typeof details.sessionId === 'string'
+    ? details.sessionId
+    : undefined;
 }
 
 function valueRow(largeText: boolean, text: string, chevron: boolean) {
@@ -123,6 +138,8 @@ function NewSessionForm({
   computers,
   onComputer,
   stacked,
+  draft,
+  onDraft: setDraft,
 }: {
   stacked: boolean;
   client: HostClient;
@@ -130,6 +147,8 @@ function NewSessionForm({
   hostName: string;
   computers: readonly { hostId: string; name: string }[];
   onComputer(hostId: string): void;
+  draft: string;
+  onDraft(text: string): void;
 }) {
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
@@ -139,8 +158,15 @@ function NewSessionForm({
   const online = useHostSnapshot(client).connection.status === 'connected';
   const [folder, setFolder] = useState<PickedFolder | undefined>(() => lastSessionFolder(hostId));
   const [picking, setPicking] = useState<'folder' | 'computer'>();
-  const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [blank, setBlank] = useState<string>();
+  const active = useRef(true);
+  const mount = useMounted<ViewInstance>(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [error, setError] = useState<string>();
   const model = useSessionModelControl({
     slug: null,
@@ -149,11 +175,14 @@ function NewSessionForm({
     enabled: online,
     running: false,
   });
-  const port: FolderPickerPort = {
-    listFolders: (path) => listHostFolders(client, path),
-    loadWorkspaceOptions: () => loadWorkspaceOptions(client),
-    resolveFolder: (path) => resolveWorkspaceFolder(client, path),
-  };
+  const port = useMemo<FolderPickerPort>(
+    () => ({
+      listFolders: (path) => listHostFolders(client, path),
+      loadWorkspaceOptions: () => loadWorkspaceOptions(client),
+      resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+    }),
+    [client],
+  );
 
   async function send() {
     const text = draft.trim();
@@ -166,7 +195,9 @@ function NewSessionForm({
         cwd: folder.path,
         text,
         ...(choice?.kind === 'model' ? { choice } : {}),
+        ...(blank === undefined ? {} : { sessionId: blank }),
       });
+      if (!active.current) return;
       rememberSessionFolder(hostId, folder);
       setDraft('');
       router.replace({
@@ -174,9 +205,12 @@ function NewSessionForm({
         params: { id: created.sessionId, hostId, source: 'native', title: text.slice(0, 80) },
       });
     } catch (cause) {
+      if (!active.current) return;
+      const left = createdSessionOf(cause);
+      if (left !== undefined) setBlank(left);
       setError(t.createFailed(errorText(cause)));
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   }
 
@@ -219,6 +253,7 @@ function NewSessionForm({
         />
       }
     >
+      <View ref={mount} />
       <View style={{ paddingTop: insets.top + space.x2, paddingHorizontal: space.x5 }}>
         <NewSessionLeading stacked={stacked} />
       </View>
@@ -234,7 +269,7 @@ function NewSessionForm({
               icon="computer"
               iconTone="muted"
               {...valueRow(theme.largeText, shownHostName(look, hostName), computers.length > 1)}
-              {...(computers.length > 1 ? { onPress: () => setPicking('computer') } : {})}
+              {...(computers.length > 1 && !busy ? { onPress: () => setPicking('computer') } : {})}
             />
           </SettingsGroupItem>
           <SettingsGroupItem first={false} last on="canvas">
@@ -245,7 +280,7 @@ function NewSessionForm({
               icon="folder"
               iconTone="muted"
               {...valueRow(theme.largeText, folder?.title ?? t.chooseFolder, true)}
-              onPress={online ? () => setPicking('folder') : undefined}
+              onPress={online && !busy ? () => setPicking('folder') : undefined}
             />
           </SettingsGroupItem>
         </View>
@@ -266,6 +301,7 @@ function NewSessionForm({
             confirm: t.useFolder,
             onPick: (next) => {
               setFolder(next);
+              setBlank(undefined);
               setPicking(undefined);
             },
           }}

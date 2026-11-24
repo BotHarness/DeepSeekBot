@@ -16,3 +16,11 @@ fun sessionDrawerWidthDp(windowWidthDp: Float): Float =
 /** Content opacity for a drawer [progress] from 0 (closed) to 1 (open). */
 fun sessionContentAlpha(progress: Float): Float =
   1f - (1f - SESSION_CONTENT_ALPHA) * progress.coerceIn(0f, 1f)
+
+/**
+ * The value to report once the Session drawer stops moving, or null while it still animates or
+ * when JavaScript already knows. An interrupted open that settles Closed never changes
+ * `currentValue`, so the report is tied to the end of each animation, not to a value change.
+ */
+fun sessionSettledReport(animating: Boolean, settledOpen: Boolean, lastReported: Boolean): Boolean? =
+  if (animating) null else settledReport(settledOpen, lastReported)

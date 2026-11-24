@@ -8,6 +8,7 @@ export interface BridgeError {
     spaceId?: string;
     route?: string;
     references?: string[];
+    sessionId?: string;
   };
   code: string;
   message: string;

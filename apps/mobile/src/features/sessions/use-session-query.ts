@@ -57,8 +57,7 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   const [busy, setBusy] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const flight = useRef<AbortController>(undefined);
-  const hostKey = hosts.map((host) => host.hostId).join('\n');
-  const online = useOnline(hosts, hostKey);
+  const online = useOnline(hosts);
 
   const changeSearch = (text: string, immediate = false) => {
     setDraft(text);
@@ -124,7 +123,7 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
           setPullRefreshing(false);
         });
     },
-    [active, hostKey, online, search, searchReady, sort, source],
+    [active, hosts, online, search, searchReady, sort, source],
   );
   useFocusEffect(
     useCallback(() => {
@@ -205,8 +204,8 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   };
 }
 
-function useOnline(hosts: readonly SessionQueryHost[], hostKey: string): boolean {
-  const source = useMemo(() => onlineSource(hosts), [hostKey]);
+function useOnline(hosts: readonly SessionQueryHost[]): boolean {
+  const source = useMemo(() => onlineSource(hosts), [hosts]);
   return useSyncExternalStore(source.subscribe, source.getSnapshot);
 }
 

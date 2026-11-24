@@ -17,4 +17,12 @@ class SessionDrawerModelTest {
     assertEquals(0.5f, sessionContentAlpha(1f), 0f)
     assertEquals(0.5f, sessionContentAlpha(2f), 0f)
   }
+
+  @Test
+  fun reportsAnInterruptedOpenThatSettlesClosed() {
+    assertEquals(null, sessionSettledReport(animating = true, settledOpen = false, lastReported = true))
+    assertEquals(false, sessionSettledReport(animating = false, settledOpen = false, lastReported = true))
+    assertEquals(null, sessionSettledReport(animating = false, settledOpen = true, lastReported = true))
+    assertEquals(true, sessionSettledReport(animating = false, settledOpen = true, lastReported = false))
+  }
 }

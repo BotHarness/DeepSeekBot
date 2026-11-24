@@ -75,7 +75,8 @@ function SessionHeader({
   const router = useRouter();
   const drawer = useSessionDrawerRoot();
   const inSessions = useInSessionsTab();
-  const { saved } = useHostSession();
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { saved } = useHostSession(hostId);
   const stacked = useSessionNavigationStyle() === 'stacked';
   const compose =
     inSessions && canCreateNativeSession(saved)

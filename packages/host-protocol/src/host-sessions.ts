@@ -23,8 +23,12 @@ export interface HostSessionListOptions {
   source?: HostSessionFilter;
 }
 
-export type HostSessionCreateRequest = ({ cwd: string } | { workspaceId: string }) & {
+export type HostSessionCreateRequest = (
+  | { cwd: string; workspaceId?: never }
+  | { workspaceId: string; cwd?: never }
+) & {
   text: string;
+  sessionId?: string;
   choice?: Extract<SessionModelChoice, { kind: 'model' }>;
 };
 

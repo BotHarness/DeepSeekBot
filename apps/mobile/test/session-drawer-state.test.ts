@@ -42,3 +42,17 @@ it('enables the edge gesture only while a Drawer-style root is focused', () => {
   leaveSession();
   expect(drawerPlace()).toEqual({ edge: 0, sessionId: undefined });
 });
+
+it('dismisses the keyboard as the drawer closes, so a focused search field does not stay up', () => {
+  openSessionDrawer();
+  keyboard.dismiss.mockClear();
+  closeSessionDrawer(false);
+  expect(keyboard.dismiss).toHaveBeenCalledOnce();
+  sessionDrawer.nativeChange(true);
+  keyboard.dismiss.mockClear();
+  sessionDrawer.nativeChange(false);
+  expect(keyboard.dismiss).toHaveBeenCalledOnce();
+  keyboard.dismiss.mockClear();
+  closeSessionDrawer(false);
+  expect(keyboard.dismiss).not.toHaveBeenCalled();
+});

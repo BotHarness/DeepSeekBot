@@ -33,10 +33,13 @@ export function useHostLook(hostId: string | undefined): HostLook {
 }
 
 export function useHostLocalNames(hostIds: readonly string[]): readonly string[] {
-  const key = hostIds.join('\n');
+  const key = JSON.stringify(hostIds);
   const names = useSyncExternalStore(
     hostLooks.subscribe,
-    useCallback(() => hostIds.map((hostId) => hostLooks.look(hostId).name ?? '').join('\n'), [key]),
+    useCallback(
+      () => JSON.stringify(hostIds.map((hostId) => hostLooks.look(hostId).name ?? '')),
+      [key],
+    ),
   );
-  return names.split('\n');
+  return JSON.parse(names) as string[];
 }
