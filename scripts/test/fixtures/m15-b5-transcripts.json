@@ -1,0 +1,36 @@
+{
+  "codexSkipped": {
+    "engine": { "engine": "codex" },
+    "items": [
+      { "kind": "tool", "tool": "report_to_orchestrator", "status": "done" },
+      {
+        "kind": "reply",
+        "text": "Both fixture paths were outside the Workspace Grant. Neither tool was invoked, and no files were accessed or changed. The report was delivered to the Orchestrator."
+      },
+      { "kind": "turn-end", "state": "done" }
+    ]
+  },
+  "codexMalformed": {
+    "engine": { "engine": "codex" },
+    "items": [
+      { "kind": "tool", "tool": "report_to_orchestrator", "status": "done" },
+      { "kind": "tool", "tool": "shell", "status": "done" },
+      { "kind": "tool", "tool": "report_to_orchestrator", "status": "done" },
+      {
+        "kind": "reply",
+        "text": "The native shell replaced `shell.txt` with the requested UUID and verified the result. `apply_patch` rejected the patch for `file-tool.txt` because it targeted the same path twice, so that replacement did not occur."
+      },
+      { "kind": "turn-end", "state": "done" }
+    ]
+  },
+  "claudeSuccess": {
+    "engine": { "engine": "claude" },
+    "items": [
+      { "kind": "tool", "tool": "Read", "status": "done" },
+      { "kind": "tool", "tool": "Edit", "status": "done" },
+      { "kind": "tool", "tool": "Bash", "status": "done" },
+      { "kind": "tool", "tool": "report_to_orchestrator", "status": "done" },
+      { "kind": "turn-end", "state": "done" }
+    ]
+  }
+}
