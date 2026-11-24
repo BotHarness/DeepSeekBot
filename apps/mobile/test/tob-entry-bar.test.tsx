@@ -109,7 +109,7 @@ describe('the Tob entry bar', () => {
     return act(async () =>
       root.render(
         <TabChromeContext value={{ hidden: { value: 0 } as never, islandTop: 100 }}>
-          <TobEntryBar href={href} name="Tob" trailing={88} />
+          <TobEntryBar href={href} name="Tob" />
         </TabChromeContext>,
       ),
     );

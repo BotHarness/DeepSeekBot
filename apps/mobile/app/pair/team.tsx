@@ -32,7 +32,6 @@ import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { labelInField } from '../../src/ui/primitives/field-label';
 import { TextField, type TextFieldHandle } from '../../src/ui/primitives/text-field';
-import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
 
 const PASSWORD_MIN = 10;
@@ -163,7 +162,6 @@ export default function TeamSignInScreen() {
 
   const land = (hostId: string): void => {
     conversationFilter.set(computerEnvironmentKey(hostId));
-    closeWorkspacePageWhenShown();
     leave(() => router.dismissTo('/'));
   };
 

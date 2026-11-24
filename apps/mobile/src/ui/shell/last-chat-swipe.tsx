@@ -7,7 +7,6 @@ import type { SharedValue } from 'react-native-reanimated';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { ListSkeleton } from '../primitives/list-skeleton';
-import { useHostDrawerOpen } from './host-drawer';
 import { lastChat, useRecentChats, type RecentChat } from './recent-chats';
 import { swipeHref } from './swipe-entry';
 import { SwipeOpen } from './swipe-open';
@@ -26,7 +25,6 @@ export function LastChatSwipe({
 }) {
   const { hosts } = useHostSession();
   const recent = useRecentChats();
-  const drawerOpen = useHostDrawerOpen();
   const focused = useIsFocused();
   const previous = lastChat(
     recent,
@@ -39,7 +37,7 @@ export function LastChatSwipe({
         <ChatsSheetRegistration
           chat={enabled ? chat : undefined}
           active={focused}
-          enabled={enabled && !drawerOpen}
+          enabled={enabled}
         />
         {children}
       </>
@@ -47,7 +45,7 @@ export function LastChatSwipe({
   const href = chat?.href;
   return (
     <SwipeOpen
-      enabled={enabled && href !== undefined && !drawerOpen}
+      enabled={enabled && href !== undefined}
       travel={travel}
       onOpen={() => {
         if (href !== undefined) router.navigate(swipeHref(href));

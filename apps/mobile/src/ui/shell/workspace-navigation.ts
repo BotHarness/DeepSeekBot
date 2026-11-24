@@ -56,14 +56,15 @@ export function resetWorkspaceRoot(
   const retained = state.routes.find((route) => route.name === '(tabs)');
   const tabsState = retained?.state;
   const home = tabsState?.routes.findIndex((route) => route.name === '(home)') ?? -1;
+  const selected = setupHostId === undefined ? (tabsState?.index ?? home) : home;
   const tabs =
-    retained && tabsState && home >= 0
+    retained && tabsState && selected >= 0
       ? {
           ...retained,
           state: {
             ...tabsState,
-            index: home,
-            history: [{ type: 'route', key: tabsState.routes[home]?.key }],
+            index: selected,
+            history: [{ type: 'route', key: tabsState.routes[selected]?.key }],
             routes: tabsState.routes.map((route) =>
               route.state?.type === 'stack'
                 ? { ...route, state: workspaceStackRoot(route.state) }

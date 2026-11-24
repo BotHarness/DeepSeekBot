@@ -266,11 +266,11 @@
     },
     {
       "id": "phone.drawer-views",
-      "label": "Choose All or one Host from the phone drawer with Android Host accent",
-      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "label": "Choose All or one Host from the Settings Environment sheet with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/environment-sheet.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
       "task": 2518,
-      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues."
     },
     {
       "id": "browser.remote-hosts",

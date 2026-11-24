@@ -80,7 +80,7 @@ describe('workspace selection preserves the Chats root', () => {
     expect(next.routes[0]).toBe(chats);
   });
 
-  it('choosing a Host retains Chats while removing detail routes', async () => {
+  it('choosing a Host keeps the selected tab and resets Chats to its root while removing detail routes', async () => {
     const navigation = navigator(homeStack([chats]));
     navigation.dispatch({ type: 'PUSH', payload: { name: 'dm/[slug]' } });
     const drawer = createHostDrawer({
@@ -91,7 +91,7 @@ describe('workspace selection preserves the Chats root', () => {
     });
     expect(await drawer.select('a')).toBe(true);
     expect(navigation.getRootState().routes.map((route) => route.name)).toEqual(['(tabs)']);
-    expect(navigation.getRootState().routes[0]?.state?.index).toBe(0);
+    expect(navigation.getRootState().routes[0]?.state?.index).toBe(1);
     expect(home(navigation)?.index).toBe(0);
     expect(home(navigation)?.routes).toEqual([chats]);
   });

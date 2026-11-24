@@ -51,3 +51,10 @@ export function settingsRowLabel({
     .filter((part) => part !== undefined)
     .join(', ');
 }
+
+export function valueBelowTitle(
+  control: SettingsRowControl | undefined,
+  largeText: boolean,
+): control is Extract<SettingsRowControl, { kind: 'value' }> {
+  return control?.kind === 'value' && largeText;
+}

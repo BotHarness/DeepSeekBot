@@ -81,6 +81,32 @@ describe('conversation navigation', () => {
     history.back();
     expect(history.visible.name).toBe('index');
   });
+  it('opens from another tab over a different open chat and Back lands on the Chats list', () => {
+    const history = channelNavigationHarness(false, {
+      tab: '(activity)',
+      chats: [{ name: 'channel/[id]', params: { id: 'bo', hostId: 'h1' } }],
+    });
+    navigateChannel(history.navigation, conversationHref(bot, 'h1'));
+    expect(history.tab).toBe('(home)');
+    expect(history.chats.map((route) => route.name)).toEqual(['index', 'dm/[slug]']);
+    history.back();
+    expect(history.visible.name).toBe('index');
+  });
+  it('reuses the same open chat from another tab and drops the chats above it', () => {
+    const history = channelNavigationHarness(false, {
+      tab: '(activity)',
+      chats: [
+        { name: 'dm/[slug]', params: { slug: 'ada', hostId: 'h1' } },
+        { name: 'channel/[id]', params: { id: 'bo', hostId: 'h1' } },
+      ],
+    });
+    const key = history.chats[1]!.key;
+    navigateChannel(history.navigation, conversationHref(bot, 'h1', 'm1'));
+    expect(history.chats).toHaveLength(2);
+    expect(history.visible).toMatchObject({ key, params: { slug: 'ada', focus: 'm1' } });
+    history.back();
+    expect(history.visible.name).toBe('index');
+  });
   it('returns from a Profile opened over a conversation to that conversation', () => {
     const history = channelNavigationHarness();
     openConversation(history.navigation, bot, 'h1');

@@ -9,10 +9,8 @@ import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { ChatsPagingContext, chatsListSegments } from './chats-paging';
-import { WorkspacePanel } from './host-drawer';
 import { lastChatSource } from './last-chat-source';
 import { lastChat, useRecentChats } from './recent-chats';
-import { bindWorkspacePaging, closeWorkspacePage, openWorkspacePage } from './workspace-paging';
 
 export function WorkspacePager({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
@@ -21,7 +19,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const reduced = useSystemReducedMotion();
   const { hosts } = useHostSession();
   const recent = useRecentChats();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(0);
   const [forward, setForward] = useState(false);
   const [profileEnabled, setProfileEnabled] = useState(false);
   const [activity, setActivity] = useState<ProfileActivitySource>();
@@ -35,7 +33,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
     hosts.map((host) => host.hostId),
   );
   const [retained, setRetained] = useState(next);
-  if (home && page === 1 && retained?.href !== next?.href) setRetained(next);
+  if (home && page === 0 && retained?.href !== next?.href) setRetained(next);
   const source = useMemo(() => lastChatSource(retained), [retained]);
   const native = useRef<PagerView | null>(null);
   const move = useCallback(
@@ -46,34 +44,24 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
     },
     [reduced],
   );
-  const mount = useMounted<PagerView>(
-    (pager) => {
-      native.current = pager;
-      const release = shellFocused
-        ? bindWorkspacePaging({
-            open: () => (reduced ? pager.setPageWithoutAnimation(0) : pager.setPage(0)),
-            close: () => (reduced ? pager.setPageWithoutAnimation(1) : pager.setPage(1)),
-          })
-        : undefined;
-      return () => {
-        native.current = null;
-        release?.();
-      };
-    },
-    [reduced, shellFocused],
-  );
+  const mount = useMounted<PagerView>((pager) => {
+    native.current = pager;
+    return () => {
+      native.current = null;
+    };
+  }, []);
   const snap = useMounted<ViewInstance>(() => {
-    if (stacked && page !== 1) native.current?.setPageWithoutAnimation(1);
+    if (stacked && page !== 0) native.current?.setPageWithoutAnimation(0);
   }, [stacked, page]);
-  const open = useCallback(() => move(3), [move]);
-  const close = useCallback(() => move(2), [move]);
-  const leaveChat = useCallback(() => move(1), [move]);
+  const open = useCallback(() => move(2), [move]);
+  const close = useCallback(() => move(1), [move]);
+  const leaveChat = useCallback(() => move(0), [move]);
   const paging = useMemo(
     () => ({
-      visible: page === 3,
+      visible: page === 2,
       activity,
       setActivity,
-      focused: home && page >= 2,
+      focused: home && page >= 1,
       open,
       close,
       leaveChat,
@@ -82,14 +70,14 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
     [page, home, open, close, leaveChat, activity],
   );
   const pair = useConversationPagePair(source, paging);
-  const limit = Math.max(page + 1, !home || pair === undefined ? 2 : profileEnabled ? 4 : 3);
+  const limit = Math.max(page + 1, !home || pair === undefined ? 1 : profileEnabled ? 3 : 2);
   return (
     <PagerView
       ref={mount}
       testID="workspace-pager"
       style={{ flex: 1, backgroundColor: theme.color.base }}
       stableNativePages
-      initialPage={1}
+      initialPage={0}
       scrollEnabled={home && forward}
       pageLimit={limit}
       keyboardDismissMode="on-drag"
@@ -98,28 +86,11 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
       onPageSelected={(event) => setPage(event.nativeEvent.position)}
     >
       <View
-        key="workspaces"
-        testID="workspace-page"
-        collapsable={false}
-        accessibilityElementsHidden={page !== 0}
-        onAccessibilityEscape={() => closeWorkspacePage()}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <WorkspacePanel page active={home && page === 0} />
-      </View>
-      <View
         key="chats"
         ref={snap}
         testID="workspace-chats-page"
         collapsable={false}
-        accessibilityElementsHidden={page !== 1}
-        onAccessibilityEscape={
-          home
-            ? () => {
-                openWorkspacePage();
-              }
-            : undefined
-        }
+        accessibilityElementsHidden={page !== 0}
         style={{ width: '100%', height: '100%' }}
       >
         <ChatsPagingContext value={setForward}>{children}</ChatsPagingContext>

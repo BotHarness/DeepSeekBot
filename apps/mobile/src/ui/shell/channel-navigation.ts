@@ -114,6 +114,7 @@ export function navigateChannel(
     });
     return true;
   }
+  const outside = state.index !== tabsIndex || tabs.routes[tabs.index ?? 0]?.name !== '(home)';
   if (state.index !== tabsIndex)
     navigation.dispatch({ type: 'POP_TO', target: state.key, payload: { name: '(tabs)' } });
   const stack = tabs.routes.find((route) => route.name === '(home)')?.state;
@@ -125,8 +126,25 @@ export function navigateChannel(
     });
     return true;
   }
-  if (tabs.routes[tabs.index ?? 0]?.name !== '(home)')
+  if (outside) {
+    const identity = channelRouteId(name, params);
+    const [list, ...pushed] = stack.routes;
+    const existing = pushed.find(
+      (route) => channelRouteId(route.name, { ...route.params }) === identity,
+    );
+    if (list)
+      navigation.dispatch({
+        type: 'RESET',
+        target: stack.key,
+        payload: {
+          ...stack,
+          index: 1,
+          routes: [list, existing ? { ...existing, params } : { name, params }],
+        },
+      });
     navigation.dispatch({ type: 'NAVIGATE', target: tabs.key, payload: { name: '(home)' } });
+    if (list) return true;
+  }
   navigation.dispatch({
     type: 'NAVIGATE',
     target: stack.key,
