@@ -22,6 +22,7 @@ export type MenuAction = {
     | 'archive'
     | 'unarchive'
     | 'model'
+    | 'join'
     | 'stop';
   run(): void;
   destructive?: boolean;

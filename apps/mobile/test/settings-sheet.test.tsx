@@ -77,7 +77,7 @@ const button = (view: HTMLElement, label: string) =>
   view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 
 describe('Settings sheet', () => {
-  it("opens each row's screen and leaves computers and unpairing to the environment drawer", async () => {
+  it("opens each row's screen and leaves computers and unpairing to the Environment sheet", async () => {
     const handlers = actions();
     const view = await render(<SettingsView version="0.0.1 · 1c8d179" actions={handlers} />);
     expect(button(view, t.done)).toBeNull();
@@ -188,4 +188,32 @@ it('keeps statistics last and details collapsed until requested', async () => {
   expect(view.textContent).toContain(t.statisticsNotice);
   await act(async () => button(view, t.statisticsHideDetails)!.click());
   expect(view.textContent).not.toContain(t.statisticsNotice);
+});
+
+it('groups the account, then Environment settings with their Computer, then this phone, then About', async () => {
+  const view = await render(
+    <SettingsView
+      version="2.0.0"
+      actions={actions()}
+      profile={<p>Account row</p>}
+      environment={<p>Environment row</p>}
+      environmentFooter={t.environmentSheet.savedOnRecent('Studio')}
+    />,
+  );
+  const text = view.textContent!;
+  const order = [
+    'Account row',
+    t.environmentSheet.settings,
+    'Environment row',
+    t.modelProviders.title,
+    t.prompts.title,
+    t.storage.title,
+    t.environmentSheet.savedOnRecent('Studio'),
+    t.environmentSheet.phone,
+    t.notifications,
+    t.appIcon,
+    t.appVersion,
+  ].map((part) => text.indexOf(part));
+  expect(order.every((index) => index >= 0)).toBe(true);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
 });

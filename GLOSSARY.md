@@ -1287,7 +1287,7 @@ The tab for the phone's own preferences and the Human's account, models, usage a
 _Avoid_: preferences page, gear menu
 
 **Environment sheet**:
-The bottom sheet, opened from the first row of Settings, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together ([ADR-0364](docs/adr/0364-environment-switching-lives-in-settings.md)).
+The bottom sheet, opened from the Environment settings group in Settings and from the Environment name in the Chats header or Session drawer, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together ([ADR-0364](docs/adr/0364-environment-switching-lives-in-settings.md)).
 _Avoid_: Workspace panel, Workspace drawer, Host drawer, Host chip, sidebar
 
 **Conversation screen**:

@@ -1,10 +1,10 @@
 import type { ConnectionState } from '@botharness/host-client/client';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
-import { useIsFocused } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
 import type { NativeStackHeaderItem } from 'expo-router';
-import { Platform, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, Pressable, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
@@ -13,7 +13,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { ChatsIcon, CloudIcon } from './icons';
+import { ChatsIcon, ChevronDownIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
 import { FixedToolbar } from './fixed-toolbar';
 import { TabPageHeader } from './tab-page-header';
@@ -43,6 +43,7 @@ export function HomeHeader({
   const t = useStrings();
   const connectionLabel = useConnectionProgress(connection?.status, false, disruptedSince);
   const theme = useDesignTheme();
+  const router = useRouter();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const native = Platform.OS === 'ios' && nativeSearch !== undefined;
@@ -66,20 +67,23 @@ export function HomeHeader({
   };
   const title = environment.kind === 'all' ? t.chats : environment.title;
   const location = (
-    <View
+    <Pressable
       testID="chats-environment-name"
-      accessible
-      accessibilityRole="header"
+      accessibilityRole="button"
       accessibilityLabel={[environment.accessibilityLabel ?? environment.title, connectionLabel]
         .filter(Boolean)
         .join(', ')}
+      accessibilityHint={t.environmentSheet.switch}
       accessibilityState={{ busy: connectionLabel !== undefined }}
-      style={{
+      onPress={() => router.push('/environment')}
+      style={({ pressed }) => ({
         minHeight: theme.touch,
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
-      }}
+        opacity: pressed ? 0.6 : 1,
+      })}
     >
       {environment.kind === 'computer' && environment.hostIcon ? (
         <HostGlyph
@@ -96,7 +100,8 @@ export function HomeHeader({
         {title}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
-    </View>
+      <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+    </Pressable>
   );
   const header = native ? (
     <>

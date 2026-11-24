@@ -11,7 +11,7 @@ import { useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { SHEET_GROUP } from '../chat/sheet';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { SettingsRow } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 
 export function EnvironmentSettingsRow() {
@@ -35,15 +35,25 @@ export function EnvironmentSettingsRow() {
   const current =
     environments.find((environment) => environment.key === filter) ?? environments[0]!;
   return (
-    <SettingsSection on={SHEET_GROUP}>
-      <SettingsRow
-        on={SHEET_GROUP}
-        testID="settings-environment"
-        title={t.environmentSheet.title}
-        icon="computer"
-        control={{ kind: 'value', text: current.title, chevron: true }}
-        onPress={() => router.push('/environment')}
-      />
-    </SettingsSection>
+    <SettingsRow
+      on={SHEET_GROUP}
+      testID="settings-environment"
+      title={t.environmentSheet.title}
+      icon="computer"
+      control={{ kind: 'value', text: current.title, chevron: true }}
+      onPress={() => router.push('/environment')}
+    />
   );
+}
+
+export function useEnvironmentFooter(): string | undefined {
+  const t = useStrings();
+  const { saved } = useHostSession();
+  const [filter] = useConversationFilter();
+  const look = useHostLook(saved?.hostId);
+  if (saved == null) return undefined;
+  const name = shownHostName(look, saved.hostName);
+  return filter === computerEnvironmentKey(saved.hostId)
+    ? t.environmentSheet.savedOn(name)
+    : t.environmentSheet.savedOnRecent(name);
 }
