@@ -128,6 +128,38 @@ describe('Connect account deletion', () => {
     }
   });
 
+  it('finishes queued relay unlink when a newer sign-in fails', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    const fetch = services.fetcher.getMockImplementation()!;
+    const active = deferred();
+    const release = deferred();
+    try {
+      await account.signIn();
+      await settle(account);
+      services.fetcher.mockImplementation(async (input, init) => {
+        if (String(input).endsWith('/v1/config')) return Response.json({}, { status: 503 });
+        if (String(input) === `${RELAY}/v1/hosts` && init?.method === 'GET') {
+          active.resolve();
+          await release.promise;
+        }
+        return fetch(input, init);
+      });
+      const listing = account.connectedHosts();
+      await active.promise;
+      const signingOut = account.signOut();
+      const signingIn = account.signIn();
+      release.resolve();
+      await listing;
+      expect(await signingIn).toMatchObject({ ok: false });
+      expect(await signingOut).toMatchObject({ ok: true });
+      expect(services.hosts.size).toBe(0);
+    } finally {
+      release.resolve();
+      await account.close();
+    }
+  });
+
   it('keeps a live account signed in and relinks a Host the relay forgot', async () => {
     const services = fakeServices({ pending: 0 });
     const { account, tunnel } = setup(services, 41001, 10);

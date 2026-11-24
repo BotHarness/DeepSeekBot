@@ -1,6 +1,7 @@
 import { createConnectBotNetwork } from '../../devices/connect-bot-network.js';
 import { randomBytes } from 'node:crypto';
 import { hostname as osHostname } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { z } from 'zod';
@@ -44,7 +45,7 @@ const authorizationSeconds = z
   .pipe(z.number().positive().max(MAX_TIMER_SECONDS));
 const authorizationTimingSchema = z.object({
   interval: authorizationSeconds.default(5),
-  expires_in: authorizationSeconds.default(300),
+  expires_in: authorizationSeconds,
 });
 const terminalDeviceErrors = new Set(['access_denied', 'expired_token', 'invalid_grant']);
 
@@ -59,7 +60,8 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const fetcher = options.fetch ?? fetch;
   const hostName = options.hostName ?? osHostname;
   const freePort = options.freePort ?? freeLoopbackPort;
-  const sleep = options.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
+  const sleep = (ms: number, signal: AbortSignal) =>
+    options.sleep?.(ms) ?? delay(ms, undefined, { signal });
   const record = options.record ?? (() => {});
   const { requestError, post, relayCall, clientId } = createConnectAccountRequests(
     relay,
@@ -96,10 +98,10 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const relationshipEpoch = randomBytes(16).toString('hex');
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
-  let closed = false;
+  const shutdown = new AbortController();
   let signOutRequested = false;
   let canResumeSession = true;
-  const sessionBlocked = () => signOutRequested || closed;
+  const sessionBlocked = () => signOutRequested || shutdown.signal.aborted;
   let queue: Promise<unknown> = Promise.resolve();
 
   const serial = <T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> => {
@@ -435,7 +437,12 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       return true;
     };
     while (!signal.aborted) {
-      await sleep(Math.min(wait * 1000, Math.max(0, expires - Date.now())));
+      try {
+        await sleep(Math.min(wait * 1000, Math.max(0, expires - Date.now())), signal);
+      } catch (error) {
+        if (signal.aborted) return;
+        throw error;
+      }
       if (signal.aborted) return;
       if (expired()) return;
       let reply: Awaited<ReturnType<typeof post>>;
@@ -538,14 +545,13 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   };
 
   const startWatch = () => {
-    if (closed || watch !== undefined) return;
+    if (shutdown.signal.aborted || watch !== undefined) return;
     watch = setInterval(() => {
       if (sessionBlocked()) return;
       const tunnel = connect.status().state;
       if (
         (status.state === 'signed-in' && (tunnel === 'error' || tunnel === 'off')) ||
-        (status.state === 'error' &&
-          (status.issue === 'relay-unavailable' || status.issue === 'relay-full'))
+        (status.state === 'error' && status.recovery === 'automatic')
       )
         void sync();
       else if (status.state === 'signed-in') void check();
@@ -881,8 +887,13 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
     },
     async signIn() {
       if (options.credentials() === undefined) return { ok: false, code: 'credential-unavailable' };
-      if (closed) return { ok: false, code: 'relay-unavailable' };
+      if (shutdown.signal.aborted) return { ok: false, code: 'relay-unavailable' };
       const signal = advanceAttempt();
+      const refuse = (): AccountResult => {
+        if (!signal.aborted && status.state === 'signing-in')
+          fail(new AccountError('relay-unavailable'));
+        return { ok: false, code: 'relay-unavailable' };
+      };
       let id: ConnectClientId;
       let reply: Awaited<ReturnType<typeof post>>;
       try {
@@ -897,7 +908,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         );
         requestSignal.throwIfAborted();
       } catch {
-        return { ok: false, code: 'relay-unavailable' };
+        return refuse();
       }
       if (signal.aborted) return { ok: false, code: 'relay-unavailable' };
       const timing = authorizationTimingSchema.safeParse(reply.body);
@@ -915,7 +926,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
           reason: 'invalid-response',
           status: reply.status,
         });
-        return { ok: false, code: 'relay-unavailable' };
+        return refuse();
       }
       const { interval, expires_in: lifetime } = timing.data;
       const expires = Date.now() + lifetime * 1000;
@@ -934,7 +945,8 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       signOutRequested = true;
       canResumeSession = false;
       cached = undefined;
-      const signal = advanceAttempt();
+      advanceAttempt();
+      const signal = shutdown.signal;
       return serial(async (): Promise<AccountResult> => {
         let current: AccountRecord | undefined;
         try {
@@ -970,7 +982,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       });
     },
     async close() {
-      closed = true;
+      shutdown.abort();
       advanceAttempt();
       clearInterval(watch);
       watch = undefined;

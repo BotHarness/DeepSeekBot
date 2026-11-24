@@ -75,24 +75,79 @@ describe('Connect account sign-in', () => {
     }
   });
 
-  it('refuses device-authorization timing outside the supported range', async () => {
-    const services = fakeServices();
+  it('requires a device authorization expiry while allowing the default poll interval', async () => {
+    const services = fakeServices({ pending: 0 });
     const { account } = setup(services);
     const fetch = services.fetcher.getMockImplementation()!;
     try {
-      for (const timing of [
-        { expires_in: 'Infinity' },
-        { expires_in: 3_000_000 },
-        { interval: 'Infinity' },
-      ]) {
+      for (const expiresIn of [undefined, 300]) {
         services.fetcher.mockImplementation(async (input, init) => {
           const response = await fetch(input, init);
           if (!String(input).endsWith('/authorize/device')) return response;
-          return Response.json({ ...(await response.json()), ...timing });
+          return Response.json({
+            ...(await response.json()),
+            interval: undefined,
+            expires_in: expiresIn,
+          });
         });
-        await expect(account.signIn()).resolves.toEqual({ ok: false, code: 'relay-unavailable' });
-        expect(account.status()).toEqual({ state: 'signed-out' });
+        if (expiresIn === undefined)
+          expect(await account.signIn()).toEqual({ ok: false, code: 'relay-unavailable' });
+        else expect(await account.signIn()).toMatchObject({ ok: true });
       }
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('clears the previous device code when its replacement fails', async () => {
+    const services = fakeServices();
+    const fetch = services.fetcher.getMockImplementation()!;
+    const idle = deferred();
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: services.fetcher,
+      sleep: () => idle.promise,
+    });
+    try {
+      expect(await account.signIn()).toMatchObject({ ok: true });
+      services.fetcher.mockImplementation(async (input, init) =>
+        String(input).endsWith('/authorize/device')
+          ? Response.json({}, { status: 503 })
+          : fetch(input, init),
+      );
+      expect(await account.signIn()).toEqual({ ok: false, code: 'relay-unavailable' });
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'relay-unavailable' });
+      expect(account.status()).not.toHaveProperty('userCode');
+    } finally {
+      await account.close();
+      idle.resolve();
+    }
+  });
+
+  it('releases a pending device poll timer when the account closes', async () => {
+    const services = fakeServices();
+    const fetch = services.fetcher.getMockImplementation()!;
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        const response = await fetch(input, init);
+        if (!String(input).endsWith('/authorize/device')) return response;
+        return Response.json({ ...(await response.json()), interval: 5 });
+      },
+    });
+    const activeTimers = () =>
+      process.getActiveResourcesInfo().filter((kind) => kind === 'Timeout').length;
+    const before = activeTimers();
+    try {
+      expect(await account.signIn()).toMatchObject({ ok: true });
+      expect(activeTimers()).toBe(before + 1);
+      await account.close();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(activeTimers()).toBe(before);
     } finally {
       await account.close();
     }
