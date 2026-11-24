@@ -277,6 +277,49 @@ try {
   );
   assert.equal(layout.channels[active].open, false);
   await both(pageA, a, '05-layout-channel-hidden');
+  const pathTo = (tree, panel, path = '') =>
+    'panel' in tree
+      ? tree.panel === panel
+        ? path
+        : undefined
+      : (pathTo(tree.first, panel, `${path}0`) ?? pathTo(tree.second, panel, `${path}1`));
+  const set = async (patch) =>
+    ok(
+      'client-layout-set',
+      ['--client-id', a, '--patch-stdin', '--expected-revision', layout.revision],
+      patch,
+    );
+  layout = await set({ channel: { id: active, open: true } });
+  assert.equal(layout.channels[active].splitSaved, false);
+  layout = await set({
+    channel: { id: active, move: { panel: 'sessions', target: 'messages', direction: 'above' } },
+  });
+  assert.equal(layout.activeChannelId, active);
+  assert.equal(layout.channels[active].splitSaved, true);
+  const sessionsPath = pathTo(layout.channels[active].split, 'sessions');
+  assert.ok(sessionsPath !== undefined && sessionsPath.endsWith('0'), 'Sessions leads its split');
+  steps.push({ split: layout.channels[active].split });
+  await both(pageA, a, '08-layout-split-sessions-above');
+  const parentPath = sessionsPath.slice(0, -1);
+  layout = await set({ channel: { id: active, resize: { path: parentPath, ratio: 0.25 } } });
+  const parent = [...parentPath].reduce(
+    (node, step) => (step === '0' ? node.first : node.second),
+    layout.channels[active].split,
+  );
+  assert.deepEqual([parent.axis, parent.ratio], ['vertical', 0.25]);
+  await both(pageA, a, '09-layout-split-resized');
+  const placed = await refusal(
+    'client-layout-set',
+    ['--client-id', a, '--patch-stdin', '--expected-revision', layout.revision],
+    { channel: { id: active, direction: 'left' } },
+  );
+  assert.equal(placed.code, 'client-settings-invalid-input');
+  assert.match(placed.message, /channel\.move/);
+  layout = await set({ gap: 12, members: { ratio: 0.4 } });
+  assert.deepEqual([layout.gap, layout.members.ratio], [12, 0.4]);
+  await both(pageA, a, '10-layout-gap-12');
+  layout = await set({ global: { column: { heights: { sessions: 260 } } } });
+  assert.deepEqual(layout.global.column.heights, { sessions: 260 });
   assert.equal(
     (
       await refusal(

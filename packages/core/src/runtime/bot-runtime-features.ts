@@ -938,6 +938,8 @@ export function createBotRuntimeFeatures(
   });
 
   const recoverAtStartup = createBotRuntimeRecovery({
+    reconcilePendingOrchestratorReplacements:
+      orchestratorSessions.reconcilePendingOrchestratorReplacements,
     ready: () => options.database.mode === 'ready',
     admissionRecovery,
     channelAdmission,

@@ -305,6 +305,8 @@ _Formerly ADR-0277._
 
 PersonaBots on Hosts in the same verified tailnet or Tob Connect account, or in an ordinary LAN after both Humans approve each other's exact Host key, contact each other through ordinary Bot-to-Bot DMs that land in the receiver's Channel and Inbox. Delivery needs the peer online: a definite failure fails, a lost acknowledgement is unknown, and neither creates a persistent outgoing intent, automatic retry or replay. Revoking a LAN approval invalidates its epoch; re-admission never revives it.
 
+If observed tailnet withdrawal cleanup fails, the route stays withdrawn. A current snapshot that includes the Host allows the bridge to retry cleanup before counting the route as a member. An unavailable snapshot or an absent Host preserves the withdrawn state. The Owner can find the affected Host and failure in Diagnostic Logs. Other independently verified routes can keep the same colleague eligible. `bot-tailnet-bridge.test.ts` exercises the retry through the membership query used by harvest.
+
 Why: a resend subsystem across devices would act long after the Bot and Human stopped expecting it. The Bot decides whether to try later or ask the Human.
 
 Enforced by: `network-bot-message.test.ts`, `network-withdrawal.test.ts`, `bot-lan-membership.test.ts`.
