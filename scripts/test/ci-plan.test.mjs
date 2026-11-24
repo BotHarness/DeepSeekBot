@@ -419,6 +419,21 @@ describe('CI test plan', () => {
     expect(listing.tests).toBe('full');
     expect(listing.reason).toContain('packages/client/assets/plugins.json still names');
     expect(plan(removal('scripts/old.mjs'))).toMatchObject({ docsSite: true });
+    const own = {
+      ...files,
+      'packages/client/src/gadget/config.json': JSON.stringify({ entry: './index.ts' }),
+    };
+    const ownIndex = createIndex(
+      Object.keys(own).filter((file) => file !== 'packages/client/src/gadget/index.ts'),
+      (file) => own[file],
+    );
+    expect(
+      plan({
+        event: 'pull_request',
+        index: ownIndex,
+        changes: [{ status: 'removed', path: 'packages/client/src/gadget/index.ts' }],
+      }).tests,
+    ).toBe('full');
   });
 
   it('runs everything when a config listing still names a removed code file', () => {

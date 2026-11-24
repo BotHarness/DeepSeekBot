@@ -176,9 +176,9 @@ export function withRemoved(index, removed) {
   };
 }
 
-function stemOf(path) {
+function stemsOf(path) {
   const stem = posix.basename(path).replace(/\..*$/, '');
-  return stem === 'index' ? posix.basename(posix.dirname(path)) : stem;
+  return stem === 'index' ? [stem, posix.basename(posix.dirname(path))] : [stem];
 }
 
 export function staleReferences(index, removed) {
@@ -187,7 +187,7 @@ export function staleReferences(index, removed) {
   if (!gone.size) return result;
   const ghost = withRemoved(index, removed);
   const aliases = subpathAliases(index);
-  const stems = [...gone].map(stemOf);
+  const stems = [...gone].flatMap(stemsOf);
   const targetsOf = (file, literal) => {
     if (literal.startsWith('.')) return [resolveSpecifier(ghost, file, literal)];
     const targets = [
