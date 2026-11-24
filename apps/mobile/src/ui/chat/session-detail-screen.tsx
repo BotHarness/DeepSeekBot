@@ -330,6 +330,7 @@ export function SessionDetailBody({
   const theme = useDesignTheme();
   const router = useRouter();
   const inSessions = useInSessionsTab();
+  const drawer = useSessionDrawerRoot();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const { saved } = useHostSession(hostId);
   const view = useSessionTranscript(client, slug, id, online);
@@ -459,8 +460,12 @@ export function SessionDetailBody({
           if (role === 'native') {
             await archiveHostSession(client, id);
             if (saved !== null && saved !== undefined) forgetLastSession(saved.hostId, id);
-            if (router.canGoBack()) router.back();
-            else router.replace(inSessions ? '/sessions' : '/');
+            // The archived Session leaves the list, so land on the Sessions root, never on
+            // another tab through the shared back history.
+            if (inSessions && drawer) openNewSession();
+            else if (inSessions) router.dismissTo('/sessions');
+            else if (router.canGoBack()) router.back();
+            else router.replace('/');
             return true;
           }
           if (slug === null) return false;

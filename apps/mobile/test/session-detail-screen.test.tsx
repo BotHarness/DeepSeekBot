@@ -13,7 +13,7 @@ import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions'
 import { interfacePreferences } from '../src/ui/interface-preferences';
 
 const platform = vi.hoisted(() => ({ OS: 'ios' }));
-const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
+const navigation = vi.hoisted(() => ({ back: vi.fn(), dismissTo: vi.fn(), canGoBack: () => true }));
 const place = vi.hoisted(() => ({
   hostId: undefined as string | undefined,
   member: new Set<string>(),
@@ -533,6 +533,33 @@ it('archives an idle native Session after confirmation and leaves it', async () 
   );
   expect(call).toHaveBeenCalledWith('sessionNativeArchive', { sessionId: 'chosen' });
   expect(navigation.back).toHaveBeenCalled();
+});
+
+it('lands on the Sessions root after archiving from the Sessions tab, never another tab', async () => {
+  place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
+  place.index = 0;
+  place.replace.mockClear();
+  navigation.back.mockClear();
+  try {
+    const drawer = await open({ role: 'native' });
+    await press(drawer.view, 'Review the release');
+    await press(drawer.view.querySelector<HTMLElement>('[role="menu"]')!, 'Archive');
+    expect(place.replace).toHaveBeenCalledExactlyOnceWith('/sessions');
+    await act(async () => root?.unmount());
+
+    interfacePreferences.setSessionNavigation('stacked');
+    place.index = 1;
+    navigation.dismissTo.mockClear();
+    const stacked = await open({ role: 'native' });
+    await press(stacked.view, 'Review the release');
+    await press(stacked.view.querySelector<HTMLElement>('[role="menu"]')!, 'Archive');
+    expect(navigation.dismissTo).toHaveBeenCalledExactlyOnceWith('/sessions');
+    expect(navigation.back).not.toHaveBeenCalled();
+  } finally {
+    interfacePreferences.setSessionNavigation('drawer');
+    place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+    place.index = 1;
+  }
 });
 
 it('keeps a native Session when Archive is cancelled', async () => {
