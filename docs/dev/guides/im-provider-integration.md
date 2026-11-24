@@ -40,6 +40,8 @@ The Provider does not start a parallel dsh-im Session when BotHarness owns the a
 
 ## Platform mapping is explicit
 
+Each supported platform has one profile in [`packages/core/src/messaging/platforms/`](../../../packages/core/src/messaging/platforms/). The profile owns the Provider adapter rules that differ by platform: receive scopes for Provider targets, setup kind, receipt identity, optional features (reactions, typing, cards, reachable conversations, proactive posts), file read and reply rules, inbound consume options and inbound shape checks. `createDshImProvider` and the inbound adapter read the profile and never branch on a platform name. The platform list (`messagingPlatformIds`) is defined there once. A new platform starts with a new profile and a Provider consumer; see [#5236](https://github.com/BotHarness/DeepSeekBot/issues/5236) for the remaining registry, interaction and authority slices.
+
 | Field             | Lark / Feishu                                        | Qualified Slack adapter                                                          |
 | ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Account           | Application/Bot identity                             | Verified workspace, App, Bot and Bot-user identity; Socket hello App must match  |

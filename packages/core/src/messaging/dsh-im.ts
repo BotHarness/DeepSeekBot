@@ -4,6 +4,7 @@ import { dshImInbound } from '../features/messaging/dsh-im-inbound.js';
 import type { DshImOutboundService, DshImTarget } from '../features/messaging/dsh-im-types.js';
 import { identifier, providerFailure } from '../features/messaging/dsh-im-validation.js';
 import { MessagingError, MessagingProviderError, type MessagingProvider } from './provider.js';
+import { messagingPlatform, type MessagingPlatformId } from './platforms/index.js';
 
 export type { DshImOutboundService } from '../features/messaging/dsh-im-types.js';
 
@@ -22,7 +23,7 @@ function targetDigest(target: DshImTarget): string {
 
 export function createDshImProvider(
   value: unknown,
-  platform: 'feishu' | 'slack' | 'discord' | 'weixin' | 'qq' = 'feishu',
+  platform: MessagingPlatformId = 'feishu',
 ): MessagingProvider | undefined {
   if (value === null || typeof value !== 'object') return undefined;
   const service = value as Partial<DshImOutboundService>;
@@ -35,13 +36,16 @@ export function createDshImProvider(
   )
     return undefined;
   const host = service as DshImOutboundService;
+  const profile = messagingPlatform(platform);
+  const { features, files } = profile;
+  const client = profile.receiptIdentity === 'client-acknowledgement';
   const allOpaqueAccounts = new Map<string, string>();
   const rememberRuleCapability = (
     ref: string,
     info: Awaited<ReturnType<DshImOutboundService['describeBot']>>,
   ) => {
     if (
-      platform === 'feishu' &&
+      features.cards &&
       info.version === 1 &&
       info.botId === ref &&
       info.channel === platform &&
@@ -72,13 +76,14 @@ export function createDshImProvider(
     )
       throw new MessagingError('provider-incompatible');
     rememberRuleCapability(ref, info);
+    const has = (capability: string) => info.capabilities.includes(capability);
     return {
       ref,
       platform: info.channel,
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
       connected: info.connected,
-      ...(['qq', 'weixin'].includes(platform)
+      ...(features.postSupportFlag
         ? {
             postSupported:
               host.receiptVersion === 1 &&
@@ -86,38 +91,24 @@ export function createDshImProvider(
                 'proactive-text-checked',
                 'proactive-receipt-checked',
                 'proactive-fence-checked',
-              ].every((capability) => info.capabilities.includes(capability)),
+              ].every(has),
           }
         : {}),
-      ...(['feishu', 'slack'].includes(platform)
+      ...(features.reactions
         ? {
             reactionSupported:
               host.reactionVersion === 1 &&
               typeof host.reactionChecked === 'function' &&
-              info.capabilities.includes('reaction-write-checked'),
+              has('reaction-write-checked'),
           }
         : {}),
-      ...(platform === 'weixin' &&
+      ...(features.typing &&
       host.typingVersion === 1 &&
       typeof host.beginTypingChecked === 'function' &&
-      info.capabilities.includes('typing-lifecycle-checked')
+      has('typing-lifecycle-checked')
         ? { typingSupported: true }
         : {}),
-      ...(info.capabilities.includes('proactive-text-checked') ||
-      (platform === 'qq' &&
-        host.replyContextVersion === 1 &&
-        host.replyReceiptVersion === 1 &&
-        host.replyFenceVersion === 1 &&
-        typeof host.consumeInbound === 'function' &&
-        typeof host.qualifyReplyChecked === 'function' &&
-        typeof host.replyChecked === 'function' &&
-        [
-          'exclusive-text-consumer',
-          'reply-text-checked',
-          'reply-context-checked',
-          'reply-receipt-checked',
-          'reply-fence-checked',
-        ].every((capability) => info.capabilities.includes(capability)))
+      ...(has('proactive-text-checked') || profile.checkedSendFallback?.(host, has)
         ? {}
         : { unsupported: 'checked-send' as const }),
     };
@@ -128,56 +119,24 @@ export function createDshImProvider(
     return value;
   };
   const targets = async (ref: string) =>
-    (await host.listTargets(ref)).map((target) => ({
-      ref: target.targetId,
-      name: target.name ?? target.targetId,
-      digest: targetDigest(target),
-      ...((platform === 'feishu' &&
-        target.kind === 'group' &&
-        typeof target.route.chatId === 'string') ||
-      (platform === 'slack' &&
-        target.kind === 'conversation' &&
-        typeof target.route.channelId === 'string') ||
-      (platform === 'discord' &&
-        target.kind === 'channel' &&
-        typeof target.route.channelId === 'string') ||
-      (platform === 'qq' && target.kind === 'group' && typeof target.route.groupOpenId === 'string')
-        ? {
-            receiveScope: {
-              kind: 'group' as const,
-              conversationId: String(
-                platform === 'feishu'
-                  ? target.route.chatId
-                  : platform === 'qq'
-                    ? target.route.groupOpenId
-                    : target.route.channelId,
-              ),
-            },
-          }
-        : platform === 'feishu' &&
-            target.kind === 'user' &&
-            typeof target.route.openId === 'string' &&
-            /^ou_[A-Za-z0-9]+$/.test(target.route.openId) &&
-            typeof target.route.chatId === 'string' &&
-            /^oc_[A-Za-z0-9]+$/.test(target.route.chatId)
-          ? { receiveScope: { kind: 'dm' as const, conversationId: target.route.chatId } }
-          : platform === 'weixin' &&
-              target.kind === 'user' &&
-              typeof target.route.toUserId === 'string'
-            ? { receiveScope: { kind: 'dm' as const, conversationId: target.route.toUserId } }
-            : {}),
-    }));
+    (await host.listTargets(ref)).map((target) => {
+      const receiveScope = profile.receiveScope(target);
+      return {
+        ref: target.targetId,
+        name: target.name ?? target.targetId,
+        digest: targetDigest(target),
+        ...(receiveScope === undefined ? {} : { receiveScope }),
+      };
+    });
   return {
     id: `dsh-im/${platform}`,
-    ...(host.setupVersion === 1 &&
-    typeof host.describeSetup === 'function' &&
-    (platform === 'feishu' || platform === 'weixin')
+    ...(host.setupVersion === 1 && typeof host.describeSetup === 'function' && profile.setupKind
       ? {
           async setup() {
             const raw = await host.describeSetup!(platform);
             if (!raw || typeof raw !== 'object') return undefined;
             const descriptor = raw as Record<string, unknown>;
-            const kind = platform === 'feishu' ? 'credentials' : 'qr';
+            const kind = profile.setupKind!;
             if (
               descriptor['version'] !== 1 ||
               descriptor['channel'] !== platform ||
@@ -195,7 +154,7 @@ export function createDshImProvider(
       return result.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []));
     },
     targets,
-    ...(['feishu', 'slack'].includes(platform) &&
+    ...(features.reactions &&
     host.reactionVersion === 1 &&
     typeof host.reactionChecked === 'function'
       ? {
@@ -226,9 +185,7 @@ export function createDshImProvider(
           },
         }
       : {}),
-    ...(platform === 'weixin' &&
-    host.typingVersion === 1 &&
-    typeof host.beginTypingChecked === 'function'
+    ...(features.typing && host.typingVersion === 1 && typeof host.beginTypingChecked === 'function'
       ? {
           async beginTyping(input: Parameters<NonNullable<MessagingProvider['beginTyping']>>[0]) {
             input.signal.throwIfAborted();
@@ -287,7 +244,7 @@ export function createDshImProvider(
       if (target === undefined) throw new MessagingError('provider-unavailable');
       return { account: current, target };
     },
-    ...(platform === 'feishu' &&
+    ...(features.cards &&
     host.approvalCardVersion === 1 &&
     typeof host.approvalCardChecked === 'function'
       ? {
@@ -352,7 +309,7 @@ export function createDshImProvider(
             host.approvalRuleCardVersion === 2 && allOpaqueAccounts.get(ref) === fingerprint,
         }
       : {}),
-    ...(platform === 'feishu' &&
+    ...(features.cards &&
     host.questionCardVersion === 1 &&
     typeof host.questionCardChecked === 'function'
       ? {
@@ -478,7 +435,7 @@ export function createDshImProvider(
           },
         }
       : {}),
-    ...dshImInbound(host, platform, rememberRuleCapability),
+    ...dshImInbound(host, profile, rememberRuleCapability),
     ...(host.fileVersion === 1 &&
     typeof host.readSourceFile === 'function' &&
     typeof host.replyFileChecked === 'function'
@@ -488,15 +445,10 @@ export function createDshImProvider(
             if (
               info.account.fingerprint !== input.fingerprint ||
               !info.capabilities.includes('source-file-checked') ||
-              (platform === 'feishu' &&
-                input.attachment.mediaType === 'video/unknown' &&
-                !info.capabilities.includes('source-video-checked')) ||
-              (platform === 'qq' &&
-                !input.attachment.mediaType?.startsWith('image/') &&
-                (input.attachment.mediaType === 'audio/unknown'
-                  ? !info.capabilities.includes('source-voice-audio-checked')
-                  : !info.capabilities.includes('source-generic-file-checked') ||
-                    !info.capabilities.includes('reply-file-fence-checked')))
+              !files.readAllowed(
+                (capability) => info.capabilities.includes(capability),
+                input.attachment,
+              )
             )
               throw new MessagingError('provider-incompatible');
             return host.readSourceFile!(input.accountRef, input.route, input.attachment, {
@@ -510,24 +462,19 @@ export function createDshImProvider(
               if (
                 info.account.fingerprint !== input.fingerprint ||
                 !info.capabilities.includes('reply-file-checked') ||
-                ((platform === 'weixin' ||
-                  (platform === 'qq' && !input.file.mediaType?.startsWith('image/'))) &&
-                  !info.capabilities.includes('reply-file-fence-checked')) ||
-                ((platform === 'weixin' || platform === 'qq') &&
-                  input.file.mediaType?.startsWith('image/') &&
-                  !info.capabilities.includes('reply-image-fence-checked')) ||
-                (platform === 'weixin' &&
-                  input.file.mediaType?.startsWith('video/') &&
-                  !info.capabilities.includes('reply-video-fence-checked'))
+                !files.replyAllowed(
+                  (capability) => info.capabilities.includes(capability),
+                  input.file,
+                )
               )
                 throw new MessagingProviderError('capability-unavailable', 'not-started');
               const receiptChecked = info.capabilities.includes('reply-file-receipt-checked');
-              if (platform === 'qq' && !receiptChecked)
+              if (files.requireReceipt && !receiptChecked)
                 throw new MessagingProviderError('capability-unavailable', 'not-started');
               const result = await host.replyFileChecked!(
                 input.accountRef,
                 input.route,
-                platform === 'weixin' || platform === 'qq'
+                files.replyPayload === 'full'
                   ? input.file
                   : { id: input.file.id, name: input.file.name, bytes: input.file.bytes },
                 {
@@ -551,7 +498,7 @@ export function createDshImProvider(
                 if (
                   !receipt.success ||
                   receipt.data.conversationId !== input.route.conversationId ||
-                  (platform === 'weixin'
+                  (client
                     ? receipt.data.identityKind !== 'client-acknowledgement'
                     : receipt.data.identityKind !== undefined)
                 )
@@ -575,7 +522,7 @@ export function createDshImProvider(
           },
         }
       : {}),
-    ...((platform === 'feishu' || platform === 'discord' || platform === 'slack') &&
+    ...(features.reachableConversations &&
     host.reachableConversationVersion === 1 &&
     typeof host.listReachableConversations === 'function' &&
     typeof host.postConversationChecked === 'function'
@@ -671,27 +618,17 @@ export function createDshImProvider(
           },
         }
       : {}),
-    ...((platform === 'feishu' ||
-      platform === 'slack' ||
-      platform === 'qq' ||
-      platform === 'weixin') &&
-    host.receiptVersion === 1
+    ...(features.targetPost && host.receiptVersion === 1
       ? {
           async post(input: Parameters<NonNullable<MessagingProvider['post']>>[0]) {
             input.signal.throwIfAborted();
             const info = await host.describeBot(input.accountRef);
             if (info.account.fingerprint !== input.fingerprint)
               throw new MessagingProviderError('account-changed', 'not-started');
-            if (!info.capabilities.includes('proactive-receipt-checked'))
-              throw new MessagingProviderError('capability-unavailable', 'not-started');
             if (
-              (platform === 'qq' || platform === 'weixin') &&
-              !info.capabilities.includes('proactive-text-checked')
-            )
-              throw new MessagingProviderError('capability-unavailable', 'not-started');
-            if (
-              (platform === 'weixin' || platform === 'qq') &&
-              !info.capabilities.includes('proactive-fence-checked')
+              !['proactive-receipt-checked', ...features.targetPost!.required].every((capability) =>
+                info.capabilities.includes(capability),
+              )
             )
               throw new MessagingProviderError('capability-unavailable', 'not-started');
             try {
@@ -714,7 +651,7 @@ export function createDshImProvider(
                 !receipt.messageId ||
                 receipt.messageId.length > 512 ||
                 receipt.conversationId !== input.conversationId ||
-                (platform === 'weixin'
+                (client
                   ? receipt.identityKind !== 'client-acknowledgement' ||
                     (receipt.serverMessageId !== undefined &&
                       (typeof receipt.serverMessageId !== 'string' ||
@@ -729,7 +666,7 @@ export function createDshImProvider(
                   messageId: receipt.messageId,
                   conversationId: receipt.conversationId,
                   ...(receipt.identityKind ? { identityKind: receipt.identityKind } : {}),
-                  ...(platform === 'weixin' && receipt.serverMessageId
+                  ...(client && receipt.serverMessageId
                     ? { serverMessageId: receipt.serverMessageId }
                     : {}),
                 },
@@ -742,11 +679,11 @@ export function createDshImProvider(
       : {}),
     async send(input) {
       try {
-        if (platform === 'qq') {
+        if (profile.sendRequires) {
           const info = await host.describeBot(input.accountRef);
           if (info.account.fingerprint !== input.fingerprint)
             throw new MessagingProviderError('account-changed', 'not-started');
-          if (!info.capabilities.includes('proactive-text-checked'))
+          if (!profile.sendRequires.every((capability) => info.capabilities.includes(capability)))
             throw new MessagingProviderError('capability-unavailable', 'not-started');
         }
         const result = await host.sendChecked(input.accountRef, input.targetRef, input.text, {

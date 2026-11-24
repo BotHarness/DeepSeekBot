@@ -1,3 +1,4 @@
+import type { MessagingPlatformId } from './platforms/types.js';
 import type { WorkRequest } from '../cloud/work-contract.js';
 
 export interface MessagingAccount {
@@ -231,7 +232,7 @@ export interface MessagingApprovalAck {
 
 export interface MessagingSetup {
   version: 1;
-  platform: 'feishu' | 'weixin';
+  platform: MessagingPlatformId;
   endpoint: 'dsh-im/app-setup';
   kind: 'credentials' | 'qr';
 }
