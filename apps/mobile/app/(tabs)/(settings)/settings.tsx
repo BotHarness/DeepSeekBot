@@ -20,13 +20,17 @@ import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
 import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
-import { EnvironmentSettingsRow } from '../../../src/ui/shell/environment-settings-row';
+import {
+  EnvironmentSettingsRow,
+  useEnvironmentFooter,
+} from '../../../src/ui/shell/environment-settings-row';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
   const human = useHumanIdentity(client);
+  const environmentFooter = useEnvironmentFooter();
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
@@ -41,6 +45,7 @@ export default function SettingsScreen() {
     <SettingsTabPage>
       <SettingsView
         environment={<EnvironmentSettingsRow />}
+        environmentFooter={environmentFooter}
         profile={
           <AccountProfileRow
             chat={{ name: human.identity?.displayName, avatar: human.avatar, mount: human.mount }}

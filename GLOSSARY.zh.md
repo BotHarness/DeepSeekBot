@@ -1286,7 +1286,7 @@ _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 _避免使用_：偏好页、齿轮菜单
 
 **Environment sheet**：
-环境选择 sheet。从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
+环境选择 sheet。从 Settings 的「环境设定」分组或 Chats header 的环境名打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
 _避免使用_：Workspace panel、Workspace drawer、Host drawer、Host chip、侧边栏
 
 **Conversation screen**：
