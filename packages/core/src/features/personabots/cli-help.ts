@@ -182,6 +182,7 @@ Usage:
   tobs computer-target --target current-desktop --confirm
   tobs computer-target --target local|container
   tobs computer-start [--target current-desktop|local|container]
+    --target checks the saved selection. To switch, run computer-target first.
   tobs computer-status
   tobs computer-stop
   tobs computer-video status

@@ -650,6 +650,7 @@ export function ComputerSettingsRows({
           labels={{ cancel: t('rows.target.cancel'), close: t('rows.target.cancel') }}
           confirmLabel={t('rows.target.enable')}
           danger={false}
+          scrollDialog
           onCancel={() => setDesktopConfirming(false)}
           onConfirm={() => {
             setDesktopConfirming(false);

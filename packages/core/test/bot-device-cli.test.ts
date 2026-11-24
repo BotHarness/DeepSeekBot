@@ -211,6 +211,20 @@ describe('Agent Browser and Computer commands', () => {
     if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
+  it('reports a video frame timeout without creating the output file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'computer-frame-cli-'));
+    dirs.push(dir);
+    const live = await host(() => ({ json: { ok: true, state: {} } }));
+    const path = join(dir, 'frame.jpg');
+    const result = await invokeWithStdin(
+      ['computer-video', 'frame', '--args-stdin', '--out', path],
+      live.url,
+      '{}',
+    );
+    expect(result.json.error.code).toBe('no-frame');
+    expect(statSync(path, { throwIfNoEntry: false })).toBeUndefined();
+  });
+
   it('sends continuous scrolling and its explicit stop through the existing authenticated video input command', async () => {
     const live = await host(() => ({ json: { ok: true } }));
     const input = {

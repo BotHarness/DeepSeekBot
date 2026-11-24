@@ -10,10 +10,17 @@ const tool = (
   description: string,
   properties: Readonly<Record<string, unknown>>,
   required: readonly string[] = [],
+  dependentRequired?: Readonly<Record<string, readonly string[]>>,
 ): DriverToolDescriptor => ({
   name,
   description,
-  inputSchema: { type: 'object', properties, required, additionalProperties: false },
+  inputSchema: {
+    type: 'object',
+    properties,
+    required,
+    additionalProperties: false,
+    ...(dependentRequired === undefined ? {} : { dependentRequired }),
+  },
 });
 
 export const waylandTools = [
@@ -41,10 +48,11 @@ export const waylandTools = [
       amount: { type: 'number', exclusiveMinimum: 0, maximum: 120 },
     },
     ['direction'],
+    { x: ['y'], y: ['x'] },
   ),
   tool(
     'type_text',
-    'Type into the focused app. Leave credentials to the Human.',
+    'Type text supported by the desktop keyboard layout. Leave credentials to the Human.',
     {
       text: { type: 'string', maxLength: 1024 },
     },

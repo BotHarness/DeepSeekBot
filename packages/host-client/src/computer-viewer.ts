@@ -10,10 +10,11 @@ export interface ComputerViewerState {
   frame?: BrowserFrame | undefined;
   control: boolean;
   explicit?: boolean;
+  releasing?: boolean;
   paused?: boolean | undefined;
   busy?: boolean;
   notice?: string | undefined;
-  noticeCode?: WaylandIssueCode | undefined;
+  noticeCode?: WaylandIssueCode | 'desktop-input-queue-full' | undefined;
 }
 
 export interface ComputerViewer {

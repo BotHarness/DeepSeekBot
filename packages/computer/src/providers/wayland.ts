@@ -237,26 +237,26 @@ export function createWaylandDesktop(options: {
       await stopping;
       if (status.state === 'running') return;
       if (start !== undefined) return start.promise;
+      const joiningRestore = process !== undefined && issue?.code === 'desktop-restoring';
       let token: string | undefined;
-      try {
-        token = readToken(path);
-      } catch {
-        const reason = {
-          code: 'desktop-portal-token-write',
-          detail: waylandIssues['desktop-portal-token-write'],
-        } as const;
-        unavailable(reason);
-        throw refusal(reason.code);
+      if (!joiningRestore) {
+        try {
+          token = readToken(path);
+        } catch {
+          const code = 'desktop-portal-token-write';
+          unavailable({ code, detail: waylandIssues[code] });
+          throw refusal(code);
+        }
+        const reason = token === undefined ? 'desktop-consent-pending' : 'desktop-restoring';
+        unavailable({ code: reason, detail: waylandIssues[reason] });
       }
-      const reason = token === undefined ? 'desktop-consent-pending' : 'desktop-restoring';
-      unavailable({ code: reason, detail: waylandIssues[reason] });
       const attempt = completion<void>();
       start = attempt;
       const timer = setTimeout(() => {
         const ended = 'desktop-portal-ended';
         unavailable({ code: ended, detail: waylandIssues[ended] });
         void close().catch(() => undefined);
-      }, 90_000);
+      }, 130_000);
       try {
         if (process === undefined) {
           const owner = (options.open ?? openPortal)({
@@ -273,7 +273,8 @@ export function createWaylandDesktop(options: {
           });
           process = owner;
         }
-        process.write({ method: 'start', ...(token === undefined ? {} : { token }) });
+        if (!joiningRestore)
+          process.write({ method: 'start', ...(token === undefined ? {} : { token }) });
         await attempt.promise;
       } finally {
         clearTimeout(timer);

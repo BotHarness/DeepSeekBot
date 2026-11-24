@@ -58,7 +58,9 @@ export function LocalComputerStatus({
   startPending?: boolean;
 }): ReactElement {
   const current = target === 'current-desktop';
-  const [payload, setPayload] = useState<LocalStatus>();
+  const [received, setPayload] = useState<LocalStatus>();
+  const payload =
+    received?.target === undefined || received.target === target ? received : undefined;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const refresh = useCallback(async (signal?: AbortSignal) => {

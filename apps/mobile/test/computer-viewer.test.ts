@@ -121,6 +121,12 @@ it('observes a current desktop without acquiring control and resumes separately 
   };
   let paused = false;
   let controller = false;
+  let releaseAttempts = 0;
+  let allowKeys = () => {};
+  const blockedKeys = new Promise<void>((resolve) => {
+    allowKeys = resolve;
+  });
+  const keys: unknown[] = [];
   const viewer = createPhoneComputerViewer({
     async api(_path, init) {
       const kind = String(init?.body?.['kind']);
@@ -132,8 +138,16 @@ it('observes a current desktop without acquiring control and resumes separately 
         });
       }
       if (kind === 'takeover') paused = controller = true;
-      if (kind === 'release') controller = false;
+      if (kind === 'release') {
+        if (++releaseAttempts === 1) throw new Error('Release request lost');
+        controller = false;
+      }
       if (kind === 'resume') paused = false;
+      const input = init?.body?.['input'];
+      if (kind === 'input' && typeof input === 'object' && input !== null && 'key' in input) {
+        await blockedKeys;
+        keys.push(input.key);
+      }
       return {
         status: 200,
         body: {
@@ -162,6 +176,23 @@ it('observes a current desktop without acquiring control and resumes separately 
     expect(operations).not.toContain('input');
     await viewer.setControl(true);
     await viewer.send({ kind: 'type', text: 'fixture' });
+    const accepted = Array.from({ length: 8 }, (_, i) =>
+      viewer.send({ kind: 'key', key: String(i) }),
+    );
+    await viewer.send({ kind: 'key', key: 'BackSpace' });
+    expect(viewer.getState().noticeCode).toBe('desktop-input-queue-full');
+    allowKeys();
+    await Promise.all(accepted);
+    expect(keys).toEqual(['0', '1', '2', '3', '4', '5', '6', '7']);
+    await viewer.setControl(false);
+    expect(viewer.getState()).toMatchObject({
+      paused: true,
+      control: true,
+      releasing: true,
+      notice: 'Release request lost',
+    });
+    await viewer.send({ kind: 'type', text: 'discard' });
+    await viewer.resume?.();
     await viewer.setControl(false);
     expect(viewer.getState()).toMatchObject({ paused: true, control: false });
     await viewer.send({ kind: 'type', text: 'discard' });
@@ -170,6 +201,8 @@ it('observes a current desktop without acquiring control and resumes separately 
     expect(operations.filter((kind) => !['status', 'open', 'frame'].includes(kind))).toEqual([
       'takeover',
       'input',
+      ...Array.from({ length: 8 }, () => 'input'),
+      'release',
       'release',
       'resume',
     ]);
@@ -194,7 +227,8 @@ it('clears a locked Wayland frame and reconnects without taking control or resum
       const kind = init?.body?.['kind'];
       operations.push(String(kind));
       if (kind === 'open') opened += 1;
-      if (kind === 'status' && opened > 0) afterLock += 1;
+      if (kind === 'status' && opened > 0 && ++afterLock === 1)
+        throw new Error('Connection interrupted');
       if (kind === 'frame' && init?.body?.['after'] === 1) {
         await firstFrameEnded;
         return { status: 409, body: { ok: false, code: locked.code, error: locked.detail } };
@@ -214,7 +248,7 @@ it('clears a locked Wayland frame and reconnects without taking control or resum
             transport: 'frames',
             paused: opened > 1 || afterLock > 0,
             controller: false,
-            ...(kind === 'status' && afterLock === 1 ? { unavailable: locked } : {}),
+            ...(kind === 'status' && afterLock === 2 ? { unavailable: locked } : {}),
             ...(kind === 'frame'
               ? {
                   frame: {
@@ -238,6 +272,8 @@ it('clears a locked Wayland frame and reconnects without taking control or resum
     const offline = watch(viewer, (state) => state.noticeCode === 'desktop-locked');
     endFirstFrame();
     expect(await offline).toMatchObject({ status: 'unreachable', paused: true, control: false });
+    expect(viewer.getState().frame).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2_500);
     expect(viewer.getState().frame).toBeUndefined();
     await vi.advanceTimersByTimeAsync(2_500);
     expect(viewer.getState().frame).toBeUndefined();

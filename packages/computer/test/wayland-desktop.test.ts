@@ -174,7 +174,14 @@ describe('GNOME Wayland Computer target', () => {
     });
     h.message({ state: 'desktop-restoring' });
     h.message({ token: rotated });
+    const check = runtime.provider.start();
+    await Promise.resolve();
+    await Promise.resolve();
     h.message({ state: 'ready' });
+    await check;
+    expect(h.writes.filter((write) => 'method' in write && write.method === 'start')).toHaveLength(
+      1,
+    );
     expect(runtime.isRunning()).toBe(true);
     await expect(owner.runBotOperation(async () => 'new operation')).rejects.toMatchObject({
       code: 'control-required',
@@ -193,4 +200,34 @@ describe('GNOME Wayland Computer target', () => {
       'fresh observation',
     );
   });
+});
+
+it('refuses to start a replacement target while an authorized start waits for shutdown', async () => {
+  const stopping = deferred<void>();
+  const stopped = vi.fn();
+  const started = vi.fn(async () => {});
+  const h = portal();
+  let target: 'container' | 'current-desktop' | 'local' = 'container';
+  const runtime = createComputerTargetRuntime({
+    target: () => target,
+    create: (selection) => ({
+      driver: h.driver,
+      provider: {
+        ...h.provider,
+        start: started,
+        stop: selection === 'container' ? () => stopping.promise : async () => {},
+      },
+    }),
+    onChange: stopped,
+  });
+  cleanup.push(() => runtime.dispose());
+  target = 'current-desktop';
+  const start = expect(runtime.provider.start()).rejects.toThrow('Computer Target changed');
+  expect(stopped).toHaveBeenCalledOnce();
+  target = 'local';
+  stopping.resolve();
+  await start;
+  expect(started).not.toHaveBeenCalled();
+  await runtime.provider.start();
+  expect(started).toHaveBeenCalledOnce();
 });

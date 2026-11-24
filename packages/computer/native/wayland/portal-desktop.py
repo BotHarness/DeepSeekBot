@@ -10,7 +10,8 @@ import gi
 
 gi.require_version('Gst', '1.0')
 gi.require_version('Gdk', '4.0')
-from gi.repository import Gdk, Gio, GLib, Gst
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gdk, Gio, GLib, Gst, Gtk
 
 PORTAL = 'org.freedesktop.portal.Desktop'
 DESKTOP = '/org/freedesktop/portal/desktop'
@@ -30,6 +31,10 @@ def send(**message):
 
 
 class Refusal(Exception):
+    pass
+
+
+class InputError(Exception):
     pass
 
 
@@ -339,6 +344,42 @@ class Desktop:
     def key(self, keysym, pressed):
         self.notify('NotifyKeyboardKeysym', 'iu', keysym, int(pressed))
 
+    def press_keys(self, keysyms):
+        pressed = []
+        try:
+            for keysym in keysyms:
+                pressed.append(keysym)
+                self.key(keysym, True)
+        finally:
+            release_failed = False
+            for keysym in reversed(pressed):
+                try:
+                    self.key(keysym, False)
+                except GLib.Error:
+                    release_failed = True
+            if release_failed:
+                self.disconnect('desktop-portal-ended')
+                raise Refusal('desktop-portal-ended')
+
+    def text_keys(self, text):
+        if not text:
+            return []
+        Gdk.set_allowed_backends('wayland')
+        display = Gdk.Display.get_default() if Gtk.init_check() else None
+        seat = display.get_default_seat() if display is not None else None
+        keyboard = seat.get_keyboard() if seat is not None else None
+        if keyboard is None:
+            raise InputError('Could not read the desktop keyboard layout. Try again.')
+        group = keyboard.get_active_layout_index()
+        controls = {'\n': Gdk.KEY_Return, '\t': Gdk.KEY_Tab}
+        keysyms = [controls[char] if char in controls else Gdk.unicode_to_keyval(ord(char))
+                   for char in text]
+        for keysym in set(keysyms):
+            mapped, keys = display.map_keyval(keysym)
+            if not mapped or not any(key.group == group and key.level <= 2 for key in keys):
+                raise InputError('The desktop keyboard layout cannot type some of this text. Change the layout or enter the text on the desktop.')
+        return keysyms
+
     def execute(self, method, args):
         if self.status != 'ready' or self.session is None:
             raise Refusal(self.status or 'desktop-portal-ended')
@@ -365,12 +406,8 @@ class Desktop:
             self.notify('NotifyPointerAxisDiscrete', 'ui', axis,
                         direction * math.ceil(args.get('amount', 3)))
         elif method == 'type_text':
-            for char in args['text']:
-                keysym = {'\n': Gdk.KEY_Return, '\t': Gdk.KEY_Tab}.get(char)
-                if keysym is None:
-                    keysym = Gdk.unicode_to_keyval(ord(char))
-                self.key(keysym, True)
-                self.key(keysym, False)
+            for keysym in self.text_keys(args['text']):
+                self.press_keys((keysym,))
         else:
             labels = args['keys'] if method == 'hotkey' else [args['key']]
             aliases = {'ctrl': 'Control_L', 'control': 'Control_L', 'cmd': 'Super_L',
@@ -384,20 +421,14 @@ class Desktop:
                        if key != 'delete' else 'BackSpace') for key in labels]
             if any(keysym in (0, Gdk.KEY_VoidSymbol) for keysym in keysyms):
                 raise ValueError('The desktop does not recognize that key.')
-            pressed = []
-            try:
-                for keysym in keysyms:
-                    self.key(keysym, True)
-                    pressed.append(keysym)
-            finally:
-                for keysym in reversed(pressed):
-                    self.key(keysym, False)
+            self.press_keys(keysyms)
         return {}
 
     def receive(self, command):
         if command['method'] == 'start':
             self.started = True
-            self.token = command.get('token', self.token)
+            if self.token is None:
+                self.token = command.get('token')
             GLib.idle_add(self.connect, self.token is not None)
             return GLib.SOURCE_REMOVE
         request = command['id']
@@ -405,6 +436,8 @@ class Desktop:
             send(id=request, value=self.execute(command['method'], command['args']))
         except Refusal as error:
             send(id=request, refusal=str(error))
+        except InputError as error:
+            send(id=request, error=str(error))
         except (ValueError, KeyError, TypeError):
             send(id=request, error='The desktop could not apply these input arguments.')
         except GLib.Error:

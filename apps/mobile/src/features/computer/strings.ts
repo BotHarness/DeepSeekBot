@@ -35,6 +35,7 @@ export const en = {
   computerDesktopTakeover: 'Pause Bots and take control',
   computerDesktopReconnect: 'Reconnect desktop',
   computerDesktopUnavailable: {
+    'desktop-input-queue-full': 'The desktop is still handling input. Try that action again.',
     'desktop-consent-pending': 'Confirm screen sharing in the GNOME dialog on your computer.',
     'desktop-consent-required':
       'Check the desktop in Computer settings and confirm screen sharing on your computer.',
@@ -132,6 +133,7 @@ export const zh: typeof en = {
   computerDesktopTakeover: '暂停 Bot 并接管',
   computerDesktopReconnect: '重新连接桌面',
   computerDesktopUnavailable: {
+    'desktop-input-queue-full': '电脑还在处理输入。稍后重试这一步。',
     'desktop-consent-pending': '请在电脑上的 GNOME 对话框中确认屏幕共享。',
     'desktop-consent-required': '在 Computer 设置中重新检查桌面，并在电脑上确认共享。',
     'desktop-locked': '桌面已锁定。请在电脑上解锁。',

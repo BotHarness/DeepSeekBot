@@ -46,6 +46,8 @@ const styles = stylex.create({
     padding: space.x5,
   },
   headless: { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 },
+  scrollDialog: { overflowY: 'auto', overscrollBehavior: 'contain' },
+  scrollWithDialog: { flex: '0 0 auto', overflow: 'visible' },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -66,6 +68,7 @@ interface ModalBaseProps {
   className?: string;
   contentClassName?: string;
   backdropBlur?: boolean;
+  scrollDialog?: boolean;
 }
 
 export type ModalProps = ModalBaseProps &
@@ -90,7 +93,10 @@ export function Modal(props: ModalProps): ReactElement | null {
   const autofocus = useMountedResource<HTMLDivElement>((node) => focusFirst(node), []);
   if (!open) return null;
   const content = [
-    stylex.props(props.headless ? styles.headless : styles.body).className,
+    stylex.props(
+      props.headless ? styles.headless : styles.body,
+      props.scrollDialog && styles.scrollWithDialog,
+    ).className,
     contentClassName,
   ]
     .filter(Boolean)
@@ -102,6 +108,7 @@ export function Modal(props: ModalProps): ReactElement | null {
       onClose={onClose}
       title={title}
       className={className}
+      xstyle={props.scrollDialog ? styles.scrollDialog : undefined}
       unsized={className !== undefined && className !== ''}
     >
       {props.headless ? (

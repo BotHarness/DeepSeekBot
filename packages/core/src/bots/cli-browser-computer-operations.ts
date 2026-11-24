@@ -1,5 +1,5 @@
-import { writeFileSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { linkSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join } from 'node:path';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { connectLiveHost, record } from './cli-live-host.js';
@@ -26,7 +26,14 @@ export const DEVICE_COMMANDS = [
 
 function writeDesktopFrame(path: string, bytes: Buffer): void {
   try {
-    writeFileSync(path, bytes, { mode: 0o600, flag: 'wx' });
+    const staging = mkdtempSync(join(dirname(path), '.desktop-frame-'));
+    try {
+      const temporary = join(staging, 'frame');
+      writeFileSync(temporary, bytes, { mode: 0o600, flag: 'wx' });
+      linkSync(temporary, path);
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
+    }
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'EEXIST')
       throw new CliLiveError(
@@ -189,6 +196,8 @@ export async function runDeviceCommand(
       }
     }
     const { data, ...frameInfo } = record(frame);
+    if (slug === 'frame' && result['ok'] === true && typeof data !== 'string')
+      throw new CliLiveError('no-frame', 'The Computer has not produced a frame yet; try again.');
     if (typeof data === 'string' && values.out !== undefined)
       writeDesktopFrame(values.out, Buffer.from(data, 'base64'));
     return {

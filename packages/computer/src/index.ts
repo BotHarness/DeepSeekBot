@@ -156,6 +156,8 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     ((process.platform === 'win32' || process.platform === 'darwin') && target() === 'local');
   const runtime = createComputerTargetRuntime({
     target,
+    selectionRevision: () => authorizationRevision,
+    onStop: () => currentDesktopFrames.clear(),
     onChange: () => {
       transferTokens = createTransferTokens();
       toolProvider.resetRuntime();

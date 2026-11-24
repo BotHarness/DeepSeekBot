@@ -8,6 +8,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  ScrollView,
   View,
   type ViewInstance,
   type TextInputInstance,
@@ -144,13 +145,21 @@ function LegacyComputerScreen() {
   const live = !revoked && state.frame !== undefined && message === undefined;
   const desktopNotice =
     state.noticeCode === undefined ? state.notice : t.computerDesktopUnavailable[state.noticeCode];
-  const driving = live && state.control;
+  const driving = live && state.control && state.releasing !== true;
   const explicit = state.explicit === true;
   const release = () => {
     keyboard.current?.blur();
     setTool('mouse');
     void viewer?.setControl(false);
   };
+  const releaseButton = (
+    <Button
+      testID="computer-desktop-release"
+      label={t.computerVideoRelease}
+      disabled={state.busy === true}
+      onPress={release}
+    />
+  );
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.layer.canvas.fill }}>
@@ -239,23 +248,26 @@ function LegacyComputerScreen() {
           )}
         </View>
 
-        {state.notice === undefined || !live ? null : (
-          <Text
-            accessibilityLiveRegion="polite"
-            variant="meta"
-            tone="warning"
-            numberOfLines={2}
-            style={{
-              backgroundColor: theme.color.warningSoft,
+        {desktopNotice === undefined || !live ? null : (
+          <ScrollView
+            style={{ flexGrow: 0, maxHeight: '25%', backgroundColor: theme.color.warningSoft }}
+            contentContainerStyle={{
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
             }}
           >
-            {state.notice}
-          </Text>
+            <Text accessibilityLiveRegion="polite" variant="meta" tone="warning">
+              {desktopNotice}
+            </Text>
+          </ScrollView>
         )}
 
-        {explicit && live && !driving ? (
+        {explicit && live && state.releasing ? (
+          <View style={{ padding: space.x5, paddingBottom: insets.bottom + space.x3 }}>
+            {releaseButton}
+          </View>
+        ) : null}
+        {explicit && live && !state.control ? (
           <View
             style={{ padding: space.x5, paddingBottom: insets.bottom + space.x3, gap: space.x3 }}
           >
@@ -285,14 +297,7 @@ function LegacyComputerScreen() {
               gap: space.x4,
             }}
           >
-            {explicit ? (
-              <Button
-                testID="computer-desktop-release"
-                label={t.computerVideoRelease}
-                disabled={state.busy === true}
-                onPress={release}
-              />
-            ) : null}
+            {explicit ? releaseButton : null}
             {tool === 'keyboard' ? (
               <ComputerKeyBar
                 modifiers={modifiers}

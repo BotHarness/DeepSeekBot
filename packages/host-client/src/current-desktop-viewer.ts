@@ -81,7 +81,7 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
   function loseControl() {
     generation = undefined;
     revision += 1;
-    update({ control: false });
+    update({ control: false, releasing: false });
   }
 
   async function close(bound: LocalVideoBinding) {
@@ -105,7 +105,14 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
     while (!signal.aborted) {
       await waitForHost(signal);
       if (signal.aborted) return false;
-      const status = await command(client, { kind: 'status' }, signal);
+      let status: LocalVideoResult;
+      try {
+        status = await command(client, { kind: 'status' }, signal);
+      } catch (error) {
+        if (signal.aborted) return false;
+        if (deviceRefusal(error) !== undefined) throw error;
+        continue;
+      }
       if (signal.aborted || !status.ok || status.state.transport !== 'frames') return false;
       const unavailable = status.state.unavailable;
       if (unavailable === undefined) return true;
@@ -214,9 +221,15 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
     if (bound === undefined || owner === undefined || state.busy) return;
     if (kind === 'takeover' && state.status !== 'live') return;
     const previous = generation;
-    if (kind !== 'takeover') loseControl();
+    if (state.releasing && kind !== 'release') return;
+    if (kind === 'release' && previous === undefined) return;
     const started = ++revision;
-    update({ busy: true, notice: undefined });
+    update({
+      busy: true,
+      releasing: kind === 'release',
+      notice: undefined,
+      noticeCode: undefined,
+    });
     try {
       const grant = previous === undefined ? {} : { generation: previous };
       const result = await command(
@@ -232,7 +245,11 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
       if (result.ok) {
         generation = result.state.controller ? result.state.grant?.generation : undefined;
         sequence = result.state.lastInputSequence;
-        update({ control: generation !== undefined, paused: result.state.paused });
+        update({
+          control: generation !== undefined,
+          paused: result.state.paused,
+          releasing: false,
+        });
       } else {
         update({ notice: result.error });
       }
@@ -285,12 +302,38 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
       const bound = binding;
       const owner = run;
       const grant = generation;
-      if (grant === undefined || bound === undefined || owner === undefined || pending >= 8)
+      if (
+        grant === undefined ||
+        bound === undefined ||
+        owner === undefined ||
+        state.busy ||
+        state.releasing
+      )
         return Promise.resolve();
+      if (pending >= 8) {
+        if (input.kind !== 'scroll')
+          update({
+            notice: 'The desktop is still handling input. Try that action again.',
+            noticeCode: 'desktop-input-queue-full',
+          });
+        return Promise.resolve();
+      }
+      if (
+        state.noticeCode === 'desktop-input-queue-full' &&
+        pending === 0 &&
+        input.kind !== 'scroll'
+      )
+        update({ notice: undefined, noticeCode: undefined });
       pending += 1;
       const next = inputs
         .then(async () => {
-          if (owner.signal.aborted || generation !== grant || state.status !== 'live') return;
+          if (
+            owner.signal.aborted ||
+            generation !== grant ||
+            state.status !== 'live' ||
+            state.releasing
+          )
+            return;
           const result = await command(
             client,
             {
@@ -310,9 +353,12 @@ export function createCurrentDesktopViewer(client: Client): ComputerViewer {
           if (!result.ok) throw new Error(result.error);
         })
         .catch((error: unknown) => {
-          if (owner.signal.aborted || generation !== grant) return;
+          if (owner.signal.aborted || generation !== grant || state.releasing) return;
           loseControl();
-          update({ notice: error instanceof Error ? error.message : String(error) });
+          update({
+            notice: error instanceof Error ? error.message : String(error),
+            noticeCode: undefined,
+          });
         })
         .finally(() => {
           pending -= 1;

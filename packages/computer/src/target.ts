@@ -24,8 +24,10 @@ export function createComputerTargetRuntime(options: {
     onStatusChanged: () => void,
   ) => { provider: ComputerProvider; driver: CuaDriver };
   onChange: () => void;
+  onStop?: () => void;
   onStatusChanged?: () => void;
   onEvent?: ((detail: string) => void) | undefined;
+  selectionRevision?: () => number;
 }): ComputerTargetRuntime {
   let disposed = false;
   const create = (selected: ComputerTarget) =>
@@ -82,8 +84,15 @@ export function createComputerTargetRuntime(options: {
       return status;
     },
     start: async () => {
+      const requested = options.target();
+      const selection = options.selectionRevision?.();
       await sync();
       const observed = revision;
+      if (target !== requested || selection !== options.selectionRevision?.())
+        throw new Error(
+          'Computer Target changed; authorize Start again for the selected Computer.',
+        );
+      requireCurrent(observed);
       await active.provider.start();
       requireCurrent(observed);
       const status = await active.provider.status();
@@ -93,7 +102,11 @@ export function createComputerTargetRuntime(options: {
     stop: async () => {
       await sync();
       running = false;
-      await active.provider.stop();
+      try {
+        await active.provider.stop();
+      } finally {
+        options.onStop?.();
+      }
     },
     upstream: () =>
       target === options.target() && changing === undefined
