@@ -1,5 +1,5 @@
 import { useContext, useState, type ComponentPropsWithRef } from 'react';
-import type { ScrollViewProps } from 'react-native';
+import { View, type ScrollViewProps } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { useDesignTheme } from '../design/theme';
@@ -8,17 +8,25 @@ import {
   clippedHeight,
   KeyboardFormFooterSpace,
   KeyboardFormNativeFocus,
-  KeyboardFormVisibleHeight,
 } from './keyboard-form-context';
 import { useNativeFormScroll } from './keyboard-form-native-focus';
 
 export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardAwareScrollView>) {
   const theme = useDesignTheme();
   const footerHeight = useContext(KeyboardFormFooterSpace);
-  const visibleHeight = useContext(KeyboardFormVisibleHeight);
-  const [height, setHeight] = useState(0);
-  const { enabled = true, contentContainerStyle, bottomOffset, ref, onScroll, ...rest } = props;
-  const reserved = footerHeight > 0 ? footerHeight + clippedHeight(height, visibleHeight) : 0;
+  const [nativeHeight, setNativeHeight] = useState(0);
+  const [layoutHeight, setLayoutHeight] = useState(0);
+  const {
+    enabled = true,
+    contentContainerStyle,
+    bottomOffset,
+    ref,
+    onScroll,
+    onLayout,
+    children,
+    ...rest
+  } = props;
+  const clipped = clippedHeight(nativeHeight, layoutHeight);
   const clearance = Math.max(
     bottomOffset ??
       Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x6) + space.x6,
@@ -33,18 +41,28 @@ export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardA
         bottomOffset={clearance}
         {...rest}
         ref={native.ref}
+        onLayout={(event) => {
+          const next = event.nativeEvent.layout.height;
+          setLayoutHeight((current) => (current === next ? current : next));
+          onLayout?.(event);
+        }}
         onScroll={(event) => {
           const next = event.nativeEvent.layoutMeasurement.height;
-          setHeight((current) => (current === next ? current : next));
+          setNativeHeight((current) => (current === next ? current : next));
           onScroll?.(event);
         }}
         enabled={enabled}
         contentContainerStyle={[
           contentContainerStyle,
-          ...(reserved > 0 ? [{ paddingBottom: reserved + space.x5 }] : []),
+          ...(footerHeight > 0 ? [{ paddingBottom: footerHeight + space.x5 }] : []),
         ]}
         automaticallyAdjustKeyboardInsets={false}
-      />
+      >
+        {children}
+        {clipped > 0 ? (
+          <View testID="keyboard-form-clipped-space" style={{ height: clipped }} />
+        ) : null}
+      </KeyboardAwareScrollView>
     </KeyboardFormNativeFocus.Provider>
   );
 }
