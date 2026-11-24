@@ -108,6 +108,13 @@ export const materialNavigationBar = {
   indicatorWidth: 56,
   indicatorHeight: 32,
 } as const;
+export const floatingToolbar = {
+  item: 56,
+  height: 48,
+  icon: 24,
+  avatar: 32,
+  offset: 16,
+} as const;
 export const materialIconButton = {
   target: 48,
   container: 40,

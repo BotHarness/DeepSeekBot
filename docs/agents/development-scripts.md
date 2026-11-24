@@ -27,7 +27,7 @@ or treat a preparation reply as the final task outcome.
 
 The `verify` workflow runs lint, format, workspace typecheck (including mobile) and repository build on every pull request. `scripts/ci-plan.mjs` selects tests, the docs site build, and mobile verification independently:
 
-- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in five parallel shards.
+- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in five parallel shards. In CI (`CI` set), the default Vitest project uses 4 workers on each 4-vCPU runner. Vitest's default ran about 2 test files at a time there because many tests wait on git and the file system. Local runs keep Vitest's default.
 - **Affected**: every other pull request uses Vitest related-test selection on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
 - **None**: a pull request whose changed paths cannot reach any test, such as screenshots, change fragments and prose.
 
@@ -47,7 +47,7 @@ The required aggregate check keeps its existing name. Planned skips are accepted
 
 The docs site build test (`apps/docs/test/changelog-public-surfaces.test.ts`) runs in its own job: on full runs, when a changed path is a docs site input below, when it is imported by `apps/docs/astro.config.ts`, `scripts/sync-docs.mjs` or `scripts/sync-slides.mjs`, or when the test names it.
 
-A removed or renamed code file, or a path that no rule classifies, falls back to a full run. `pnpm lint` runs `node scripts/ci-plan.mjs --check`, which fails when a tracked file matches no rule, a rule matches no tracked file, a test file is outside the Vitest include, the workflow's aggregate job does not depend on every job or loses the required check name, the workflow filters paths, or this table is stale. Regenerate the table with `node scripts/ci-plan.mjs --write`.
+A path that no rule classifies falls back to a full run. A removed or renamed code file selects every code file that still names its old path, through a relative import, a root-relative path string, a workspace package's `./*` subpath export or the docs `@/` alias; typecheck and build still compile every importer. If a JSON or YAML file still names the old path, the run falls back to full. `pnpm lint` runs `node scripts/ci-plan.mjs --check`, which fails when a tracked file matches no rule, a rule matches no tracked file, a test file is outside the Vitest include, the workflow's aggregate job does not depend on every job or loses the required check name, the workflow filters paths, or this table is stale. Regenerate the table with `node scripts/ci-plan.mjs --write`.
 
 Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exact commands for your branch, committed and uncommitted changes included.
 
@@ -75,6 +75,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `.github/workflows/npm-release.yml`                                                                                                                       | Full suite          | Yes       | Release verification and package gates                                                             |
 | `scripts/published-product-provider.json`                                                                                                                 | Full suite          | Yes       | Published Provider reuse qualification                                                             |
 | `scripts/ci-plan.mjs`                                                                                                                                     | Full suite          | Yes       | This test plan and the Human merge guardrail paths                                                 |
+| `scripts/ci-plan-index.mjs`                                                                                                                               | Full suite          | Yes       | Path and import tracing behind the test plan                                                       |
 | `scripts/ci-affected.mjs`                                                                                                                                 | Full suite          | Yes       | Affected test selection and execution                                                              |
 | `packages/core/src/{database/owner,database/schema*,attachments/legacy-migration}.ts`                                                                     | Related tests       | Yes       | Host SQLite and attachment migrations                                                              |
 | `packages/host-client/src/local-store.ts`                                                                                                                 | Related tests       |           | Installed-client SQLite migrations                                                                 |
@@ -174,6 +175,23 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `{LICENSE,.lintstagedrc.json,.husky/pre-commit,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}` | No tests of its own |           | Root metadata; lint and format always run                                                          |
 
 <!-- END generated by scripts/ci-plan.mjs -->
+
+### Tracing CI time
+
+`node scripts/ci-trace.mjs` prints a Markdown report of where verify time goes. It reads the last 10 successful verify runs on `main` with `gh` and shows:
+
+- the median and maximum wall time;
+- which job finished last;
+- each job's median, maximum, queue wait and slack before the run ended;
+- the slowest steps of the four longest jobs.
+
+`--logs` also reads the newest run's test shard logs and adds each shard's file count, summed test time, Vitest duration, the window between the first and last file result, parallelism (test time over Vitest duration), Vitest phase shares (tests, import, transform, environment), slowest files and the files that finished last. Options:
+
+- `--runs N` changes how many runs it reads;
+- `--branch` and `--event` pick other runs;
+- `--run <id>`, repeatable, names runs directly.
+
+Use it before and after a CI change, and put both reports in the PR. A job with large slack is not the bottleneck. When the shards are long, the parallelism and phase shares show whether the time goes to tests, module imports or an unbalanced split.
 
 ## Real-model scenarios
 

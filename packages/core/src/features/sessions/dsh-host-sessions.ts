@@ -85,11 +85,21 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
         )) {
           if (frame.type !== 'snapshot') continue;
           const title = frame.projections.values.title;
+          const cwd = (
+            sessions.get(sessionId)?.header ??
+            (
+              await ctx
+                .get('sessionQuery')
+                ?.readTitleSnapshot(sessionId)
+                .catch(() => undefined)
+            )?.session
+          )?.cwd;
           return {
             events: frame.records.map((record) => record.event),
             seq: frame.cursor,
             running: ctx.agents.get(sessionId)?.status === 'running',
             ...(typeof title === 'string' ? { title } : {}),
+            ...(cwd === undefined ? {} : { cwd }),
           };
         }
       } finally {

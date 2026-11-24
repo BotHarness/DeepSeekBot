@@ -179,6 +179,13 @@ export function createDevicesHttp(options: {
           expectedRevision.length > 200)
       )
         return json({ code: 'private-tunnel-input-invalid' }, 400);
+      if (action === 'address-sign-in') {
+        if (routeId === undefined) return json({ code: 'private-route-id-required' }, 400);
+        if (typeof input['enabled'] !== 'boolean')
+          return json({ code: 'private-tunnel-input-invalid' }, 400);
+        const result = await options.privateTunnel.setAddressSignIn(routeId, input['enabled']);
+        return json(result, result.ok ? 200 : 409);
+      }
       if (action === 'start' || action === 'stop' || action === 'remove') {
         if (routeId === undefined) return json({ code: 'private-route-id-required' }, 400);
         if (action === 'start' && (options.privateConnection?.status().state ?? 'off') !== 'off')

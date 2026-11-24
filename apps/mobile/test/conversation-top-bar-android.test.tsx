@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from 'react';
+import { Fragment, createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -31,10 +31,13 @@ vi.mock('react-native', async () => ({
   },
   View: ({ children }: { children?: ReactNode }) => createElement('div', {}, children),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
+vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 vi.mock('../src/ui/chat/header-bot-stack', () => ({ HeaderBotStack: () => null }));
 vi.mock('../src/ui/chat/chat-header-surface.android', () => ({ ChatHeaderSurface: () => null }));
@@ -75,7 +78,13 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     Trigger: node('Trigger'),
     Items: node('Items'),
   });
+  const transition = { fadeIn: () => ({}), fadeOut: () => ({}) };
   return {
+    AnimatedVisibility: ({ visible, children }: { visible: boolean; children?: ReactNode }) =>
+      visible ? createElement(Fragment, null, children) : null,
+    Box: node('Box'),
+    EnterTransition: transition,
+    ExitTransition: transition,
     CircularProgressIndicator: () => null,
     Column: node('Column'),
     DropdownMenu,
@@ -189,5 +198,36 @@ describe('Android Session header', () => {
     expect(view.innerHTML).not.toContain('more-vert');
     expect(view.querySelector('[data-test-id="session-new"]')).not.toBeNull();
     expect(view.querySelector('[data-test-id="session-drawer-button"]')).not.toBeNull();
+  });
+
+  it('shows the Host and worktree folder under the title and the full path in the menu', () => {
+    device.fontScale = 1;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        place={{
+          hostIcon: { kind: 'symbol', id: 'laptop' },
+          hostName: 'Studio Mac',
+          folder: 'app-5187',
+          path: '/srv/worktrees/app-5187',
+        }}
+        leading="drawer"
+        onBack={() => {}}
+        titleMenu={{
+          label: 'Session options',
+          testID: 'session-options',
+          items: [
+            { label: 'Model choice', testID: 'session-model-choice', icon: 'model', run() {} },
+          ],
+        }}
+      />,
+    );
+    const place = view.querySelector('[data-test-id="session-header-place"]');
+    expect(place?.textContent).toBe('app-5187');
+    expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
+      `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-\u200b5187`,
+    );
   });
 });

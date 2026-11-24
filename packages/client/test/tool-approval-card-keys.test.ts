@@ -93,6 +93,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+async function infoTip(card: HTMLElement): Promise<string> {
+  const info = card.querySelector<HTMLButtonElement>('button[aria-label="详细信息"]')!;
+  await act(async () => info.click());
+  const text = document.querySelector('[role="tooltip"]')?.textContent ?? '';
+  await act(async () => info.click());
+  return text;
+}
+
 describe('Tool approval card layout', () => {
   it.each([
     'allowed-once',
@@ -105,7 +113,7 @@ describe('Tool approval card layout', () => {
     async (decision) => {
       const card = await render(message(), {}, decision);
       await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
-      expect(card.textContent).toContain('/qa');
+      expect(await infoTip(card)).toContain('/qa');
       expect(card.textContent).toContain('echo QA');
       const choices = [
         ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
@@ -136,9 +144,11 @@ describe('Tool approval card layout', () => {
       const value = message();
       value.toolApprovalRequest!.approvalReview = review;
       const card = await render(value);
-      expect(card.textContent).not.toContain(review.reason);
-      expect(card.textContent).toContain('审批');
-      expect(card.textContent).not.toContain('settings-invalid');
+      const tip = await infoTip(card);
+      expect(card.textContent).not.toContain('审批');
+      expect(tip).not.toContain(review.reason);
+      expect(tip).toContain('审批');
+      expect(tip).not.toContain('settings-invalid');
     },
   );
 
@@ -219,6 +229,9 @@ describe('Tool approval card layout', () => {
     const card = await render(value);
     expect(card.querySelector('.bh-request-category')?.textContent).toBe('新 Bot');
     expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe('创建 Bot「Tim」');
+    expect(card.querySelector('.bh-bot-create-preview dl')).toBeNull();
+    expect(card.querySelector('.bh-bot-create-name')?.textContent).toBe('Tim');
+    await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
     const preview = card.querySelector('.bh-bot-create-preview')!;
     expect(preview.querySelector('.bh-bot-create-name')?.textContent).toBe('Tim');
     expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
@@ -241,7 +254,7 @@ describe('Tool approval card layout', () => {
   it('opens and closes the details from anywhere on the card except its buttons', async () => {
     const card = await render();
     await act(async () => card.querySelector<HTMLElement>('.bh-request-head')!.click());
-    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     await act(async () =>
       card.querySelector<HTMLElement>('.bh-tool-approval-details-body > div')!.click(),
@@ -267,7 +280,6 @@ describe('Tool approval card layout', () => {
     await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
     await press(card, key);
     expect(card.querySelector('.bh-tool-approval-sentence')).not.toBeNull();
-    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
     expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     const choices = [
@@ -452,7 +464,8 @@ describe('Tool approval card keyboard', () => {
     expect(buttons[1]?.disabled).toBe(true);
     await press(card, 'a');
     expect(decisions).toEqual([]);
-    expect(card.textContent).toContain('需要单独确认');
+    expect(card.textContent).not.toContain('需要单独确认');
+    expect(await infoTip(card)).toContain('需要单独确认');
   });
 
   it('ignores keys with modifiers and keys typed into fields', async () => {
@@ -619,6 +632,37 @@ describe('Tool approval file diff', () => {
         { kind: 'add', text: 'first' },
       ],
     });
+  });
+
+  it('keeps a tool card to its summary, a short scope line and the choices, with details behind the info icon', async () => {
+    const value = message();
+    value.toolApprovalRequest!.effects = {
+      changes: 'reversible',
+      reach: 'workspace',
+      personalData: false,
+    };
+    const card = await render(value);
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe('运行命令');
+    expect(card.textContent).not.toContain('/qa');
+    expect(card.textContent).not.toContain('可撤销更改');
+    expect(card.textContent).not.toContain('换参数也一样');
+    expect(card.querySelector('.bh-tool-approval-scope')?.textContent).toBe(
+      '始终允许后，此 Bot 在这里使用 bash 不再询问。',
+    );
+    const tip = await infoTip(card);
+    expect(tip).toContain('bash');
+    expect(tip).toContain('工作目录：/qa');
+    expect(tip).toContain('可撤销更改 · 工作区');
+    expect(tip).toContain('换参数也一样');
+    value.toolApprovalRequest!.effects = {
+      changes: 'irreversible',
+      reach: 'external',
+      personalData: false,
+    };
+    const risky = await render(value);
+    expect(risky.querySelector('.bh-tool-approval-effects')?.textContent).toBe(
+      '不可撤销 · 外部影响',
+    );
   });
 
   it('keeps a Memory edit card to its summary and diff, with details behind the info icon', async () => {

@@ -2305,7 +2305,11 @@ deepseekbot private-route stop quick --expected-route-revision <list返回的代
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
+deepseekbot private-route allow-address-sign-in custom --confirm
+deepseekbot private-route deny-address-sign-in custom --confirm
 ```
+
+`allow-address-sign-in custom` 让 custom 连接在没有私有准入令牌时也能响应 Host 的登录发现并承载加密通道，Host Member 输入它的 HTTPS 地址、用户名和密码即可登录。该地址会在公网上可被发现，任何人都可以尝试密码；团队登录限流同样作用于这条连接。`deny-address-sign-in custom` 恢复仅凭令牌准入，并关闭未带令牌打开的通道。Quick Tunnel 以 `private-route-address-sign-in-unsupported` 拒绝；用 `--lan` 创建的 HTTPS 入口以 `private-route-address-sign-in-lan` 拒绝；团队模式和 Owner 密码登录都未开启时，Host 以 `private-route-address-sign-in-unavailable` 拒绝。即使设置无法保存，关闭也会立即断开这些通道，随后返回 `credential-unavailable`。替换 custom 连接会关闭此设置。`list` 在 custom 连接上返回 `addressSignIn`。
 
 每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
 

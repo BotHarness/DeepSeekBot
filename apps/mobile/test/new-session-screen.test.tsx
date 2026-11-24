@@ -183,7 +183,13 @@ it('creates a native Session by folder path even for a Team space Workspace row'
   });
   expect(fixture.replace).toHaveBeenCalledWith({
     pathname: '/session/[id]',
-    params: { id: 'created', hostId: 'studio', source: 'native', title: 'Map the repository' },
+    params: {
+      id: 'created',
+      hostId: 'studio',
+      source: 'native',
+      title: 'Map the repository',
+      fresh: '1',
+    },
   });
 });
 

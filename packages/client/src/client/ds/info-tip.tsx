@@ -37,6 +37,7 @@ const styles = stylex.create({
     lineHeight: style.textUiLine,
     fontWeight: 400,
     whiteSpace: 'pre-line',
+    overflowWrap: 'anywhere',
     pointerEvents: 'none',
   },
 });

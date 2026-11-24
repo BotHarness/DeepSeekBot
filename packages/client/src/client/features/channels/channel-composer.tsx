@@ -96,6 +96,7 @@ import type { ComposerTextareaFit } from './composer-input-layout.js';
 import { handleComposerKeyDown } from './composer-keyboard.js';
 import type { ChannelComposerUpload } from './composer-types.js';
 import { renderComposerAttachments, renderComposerAttachmentIcon } from './composer-attachments.js';
+import { composerCompactPadding } from '../../ds/composer-reserve.js';
 import {
   renderComposerChannelOptions,
   renderComposerMentionOptions,
@@ -127,7 +128,7 @@ export type ComposerSkillOption = SkillCatalogEntry & {
 };
 
 export interface ChannelComposerProps {
-  modelControl?: React.ReactNode;
+  modelControl?: ((compact: boolean) => React.ReactNode) | undefined;
   onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
@@ -394,11 +395,7 @@ export function ChannelComposer({
     animateFirstExpand: false,
   });
   const hasFooter =
-    modelControl !== undefined ||
-    fit.expanded ||
-    reply !== undefined ||
-    quotes.length > 0 ||
-    attachments.length > 0;
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     measureComposerInput(element, setFit);
@@ -748,10 +745,14 @@ export function ChannelComposer({
           composer.surface,
         )}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
+        data-model-reserve={modelControl === undefined ? undefined : ''}
         data-dictation={voice.snapshot.status}
         style={
           {
             '--bh-composer-body-height': `${fit.height}px`,
+            ...(modelControl === undefined || hasFooter
+              ? {}
+              : { '--bh-composer-padding': composerCompactPadding() }),
             ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
           } as CSSProperties
         }
@@ -948,7 +949,7 @@ export function ChannelComposer({
 
         <div {...hooked('bh-composer-footer', modelControl !== undefined && sessionStyles.footer)}>
           {modelControl === undefined ? null : (
-            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
+            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl(!hasFooter)}</div>
           )}
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (

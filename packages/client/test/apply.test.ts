@@ -125,6 +125,9 @@ function createScoped(specs: Spec[], disposed: Spec[], withSettings = false, wit
     inputTriggers: {
       registerSource: () => () => undefined,
     },
+    uiConversation: {
+      events: { register: () => () => undefined },
+    },
     locale: {
       register: () => () => undefined,
       bind: () => (key: string) => key,
@@ -247,7 +250,13 @@ describe('client apply', () => {
       id: 'botharness-bot-settings',
     });
     expect(registrations.find((spec) => spec.id === 'botharness-shortcut-help')).toBeUndefined();
-    const specs = registrations.filter((spec) => spec.name !== 'shell.overlay');
+    const marker = registrations.find((spec) => spec.name === 'conversation.chat.node');
+    expect(marker).toMatchObject({ key: 'botharness-model-switch', locale: 'botharness' });
+    const modeRegistrations = () =>
+      registrations.filter(
+        (spec) => spec.name !== 'shell.overlay' && spec.name !== 'conversation.chat.node',
+      );
+    const specs = modeRegistrations();
 
     expect(specs.map((spec) => spec.name)).toEqual([
       'sidebar.panellist',
@@ -284,7 +293,7 @@ describe('client apply', () => {
     });
 
     store.setMode('bot');
-    specs.splice(0, specs.length, ...registrations.filter((spec) => spec.name !== 'shell.overlay'));
+    specs.splice(0, specs.length, ...modeRegistrations());
     expect(specs.map((spec) => spec.name)).toEqual([
       'sidebar.panellist',
       'main',
@@ -304,6 +313,7 @@ describe('client apply', () => {
 
     store.setMode('dsh');
     expect(disposed.map((spec) => spec.name)).toEqual(['sidebar', 'sidebar.workspaces', 'main']);
+    expect(disposed).not.toContain(marker);
     for (const overlay of registrations.filter((spec) => spec.name === 'shell.overlay'))
       expect(disposed).not.toContain(overlay);
   });

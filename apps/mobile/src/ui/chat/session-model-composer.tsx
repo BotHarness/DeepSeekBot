@@ -16,11 +16,20 @@ import { space } from '../design/tokens';
 import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
+import { composerControl } from './composer-chrome';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
 import { sessionModelKey, sessionModelLabel } from './session-model-label';
-import { SHEET_GROUP, Sheet, SheetCallout, SheetFailed, SheetHeading, SheetLoading } from './sheet';
+import {
+  SHEET_GROUP,
+  Sheet,
+  SheetCallout,
+  SheetFailed,
+  SheetHeading,
+  SheetLoading,
+  SheetNote,
+} from './sheet';
 
 type Catalog = Awaited<ReturnType<typeof loadSessionModelCatalog>>;
 type Result<T> =
@@ -165,6 +174,54 @@ export function useSessionModelControl({
 
 type Control = ReturnType<typeof useSessionModelControl>;
 
+function useSessionModelSummary(control: Control, width: number) {
+  const t = useStrings().sessionModel;
+  const theme = useDesignTheme();
+  return sessionModelLabel({
+    state: control.state,
+    target: control.target,
+    catalog: control.catalog,
+    width: width / Math.max(1, theme.fontScale),
+    strings: control.native
+      ? { ...t, defaultLabel: control.fresh ? t.newDefaultLabel : t.nativeDefaultLabel }
+      : t,
+  });
+}
+
+export function useSessionModelMenuLabel(control: Control): string {
+  const t = useStrings().sessionModel;
+  const { name, effort } = useSessionModelSummary(control, Infinity);
+  return name === undefined ? t.choice : t.menuRow([name, effort].filter(Boolean).join(' · '));
+}
+
+export function SessionModelLogo({ control, disabled }: { control: Control; disabled: boolean }) {
+  const theme = useDesignTheme();
+  const { brand, accessible } = useSessionModelSummary(control, Infinity);
+  const size = composerControl(theme);
+  return (
+    <Pressable
+      testID="composer-session-model"
+      accessibilityRole="button"
+      accessibilityLabel={accessible}
+      accessibilityState={{ disabled, expanded: control.visible }}
+      disabled={disabled}
+      onPress={control.show}
+      hitSlop={space.x3}
+      android_ripple={{ color: pressTint(theme.color.fg), foreground: true, borderless: true }}
+      style={({ pressed }) => ({
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: size / 2,
+        backgroundColor: pressed ? theme.layer.raised.inset : undefined,
+      })}
+    >
+      <ModelBrandIcon brand={brand} color={theme.color.muted} size={theme.type.title.line} />
+    </Pressable>
+  );
+}
+
 export function SessionModelChip({
   control,
   width,
@@ -174,17 +231,8 @@ export function SessionModelChip({
   width: number;
   disabled: boolean;
 }) {
-  const t = useStrings().sessionModel;
   const theme = useDesignTheme();
-  const { brand, name, effort, accessible } = sessionModelLabel({
-    state: control.state,
-    target: control.target,
-    catalog: control.catalog,
-    width: width / Math.max(1, theme.fontScale),
-    strings: control.native
-      ? { ...t, defaultLabel: control.fresh ? t.newDefaultLabel : t.nativeDefaultLabel }
-      : t,
-  });
+  const { brand, name, effort, accessible } = useSessionModelSummary(control, width);
   const unavailable = disabled;
   return (
     <Pressable
@@ -322,6 +370,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
     ];
   }, [catalog, copy, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
+  const summary = useSessionModelSummary(control, Infinity);
   return (
     <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close}>
       {failed ? (
@@ -331,6 +380,9 @@ export function SessionModelPicker({ control }: { control: Control }) {
       ) : (
         <>
           {refused ? <SheetCallout tone="danger">{copy.saveFailed}</SheetCallout> : null}
+          {summary.pending && summary.name !== undefined ? (
+            <SheetNote>{`${summary.name} · ${copy.nextTurnNote}`}</SheetNote>
+          ) : null}
           <SectionList<Option>
             nestedScrollEnabled
             style={{ flexShrink: 1 }}

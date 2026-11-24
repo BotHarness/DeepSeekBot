@@ -12,15 +12,20 @@ import { ModelBrandIcon } from './model-brand-icon';
 export function TurnModelSwitchMarker({
   change,
   catalog,
+  showRouteKinds = true,
 }: {
   change: TurnModelSwitch;
   catalog?: TurnTargetCatalog | undefined;
+  showRouteKinds?: boolean;
 }) {
   const t = useStrings().turnModel;
   const theme = useDesignTheme();
   const from = turnTargetLabel(change.from, catalog);
   const to = turnTargetLabel(change.to, catalog);
   const line = t[change.reason ?? 'switched'];
+  const route = (target: TurnTarget) => (target.kind === 'engine' ? t.sub : t.api);
+  const name = (target: TurnTarget, short: string) =>
+    showRouteKinds ? `${short} ${route(target)}` : short;
   const model = (target: TurnTarget, label: ReturnType<typeof turnTargetLabel>) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1 }}>
       <ModelBrandIcon
@@ -31,19 +36,18 @@ export function TurnModelSwitchMarker({
       <Text variant="meta" tone="muted">
         {label.short}
       </Text>
-      <Text variant="meta" tone="muted">
-        {target.kind === 'engine' ? t.sub : t.api}
-      </Text>
+      {showRouteKinds ? (
+        <Text variant="meta" tone="muted">
+          {route(target)}
+        </Text>
+      ) : null}
     </View>
   );
   return (
     <View
       testID="turn-model-switch"
       accessible
-      accessibilityLabel={line(
-        `${from.short} ${change.from.kind === 'engine' ? t.sub : t.api}`,
-        `${to.short} ${change.to.kind === 'engine' ? t.sub : t.api}`,
-      )}
+      accessibilityLabel={line(name(change.from, from.short), name(change.to, to.short))}
       style={{
         flexDirection: 'row',
         flexWrap: 'wrap',

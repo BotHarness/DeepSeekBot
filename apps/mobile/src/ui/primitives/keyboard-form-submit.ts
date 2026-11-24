@@ -20,8 +20,10 @@ export function useKeyboardFormSubmit() {
           submitBottom - fieldBottom + space.x6 * Math.max(1, theme.fontScale),
         )
       : undefined;
+  const revealEnd = bottomOffset === undefined ? 0 : fieldBottom + bottomOffset;
   return {
-    scroll: { ref, ...(bottomOffset === undefined ? {} : { bottomOffset }) },
+    scroll: { ref, ...(bottomOffset === undefined ? {} : { bottomOffset, revealEnd }) },
+    revealEnd,
     onFieldLayout: (event: LayoutChangeEvent) => setFieldBottom(bottomOf(event)),
     onSubmitLayout: (event: LayoutChangeEvent) => {
       const bottom = bottomOf(event);

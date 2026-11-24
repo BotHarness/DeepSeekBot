@@ -18,6 +18,7 @@ import * as marketplaceCopy from '../features/marketplace/strings';
 import * as memoryCopy from '../features/memory/strings';
 import * as modelsCopy from '../features/models/strings';
 import * as personabotsCopy from '../features/personabots/strings';
+import * as pinnedTabCopy from '../features/pinned-tab/strings';
 import * as privateInputCopy from '../features/private-input/strings';
 import * as profileStorageCopy from '../features/profile-storage/strings';
 import * as promptsCopy from '../features/prompts/strings';
@@ -68,6 +69,7 @@ const en = {
   ...takeoverCopy.en,
   ...teamCopy.en,
   ...tobCopy.en,
+  ...pinnedTabCopy.en,
   ...usageCopy.en,
   ...voiceCopy.en,
   ...workspacesCopy.en,
@@ -136,6 +138,7 @@ const zh: typeof en = {
   ...takeoverCopy.zh,
   ...teamCopy.zh,
   ...tobCopy.zh,
+  ...pinnedTabCopy.zh,
   ...usageCopy.zh,
   ...voiceCopy.zh,
   ...workspacesCopy.zh,

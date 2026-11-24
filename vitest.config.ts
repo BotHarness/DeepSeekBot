@@ -16,6 +16,8 @@ const durableIntegrationTests = [
   'packages/core/test/channel-attachment-forwarding.test.ts',
 ];
 
+const CI_WORKERS = 4;
+
 function sourceOptions(): ViteUserConfig {
   return {
     plugins: [stylexPlugin({ rootDir: fileURLToPath(new URL('.', import.meta.url)) })],
@@ -61,6 +63,7 @@ export default defineConfig({
           ...testDefaults,
           name: 'default',
           exclude: [...configDefaults.exclude, ...genuiBudgetTests, ...durableIntegrationTests],
+          ...(process.env.CI ? { maxWorkers: CI_WORKERS } : {}),
           sequence: { groupOrder: 0 },
         },
       },
