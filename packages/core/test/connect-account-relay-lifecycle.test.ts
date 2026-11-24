@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { RELAY, CLIENT, fakeServices, settle, setup } from './connect-account-fixtures.js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  RELAY,
+  CLIENT,
+  deferred,
+  fakeServices,
+  settle,
+  setup,
+} from './connect-account-fixtures.js';
 
 describe('Connect account deletion', () => {
   async function until(done: () => boolean) {
@@ -33,6 +40,93 @@ describe('Connect account deletion', () => {
       ]);
       await account.close();
     });
+
+  it('classifies a relay 401 with a null JSON body as an expired session', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    const fetch = services.fetcher.getMockImplementation()!;
+    try {
+      await account.signIn();
+      await settle(account);
+      services.fetcher.mockImplementation(async (input, init) =>
+        String(input) === `${RELAY}/v1/hosts`
+          ? Response.json(null, { status: 401 })
+          : fetch(input, init),
+      );
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'session-expired' });
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('bounds a stalled relay watch request so sign-out can drain the account queue', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services, 41001, 10);
+    const fetch = services.fetcher.getMockImplementation()!;
+    const release = deferred();
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    let deadlineReached = false;
+    const deadline = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockImplementation((ms) => timeout(Math.min(ms, 60)));
+    try {
+      await account.signIn();
+      await settle(account);
+      services.fetcher.mockImplementation(async (input, init) => {
+        if (String(input) === `${RELAY}/v1/hosts` && !init?.method?.match(/POST|DELETE/u)) {
+          const signal = init?.signal;
+          await Promise.race([
+            release.promise,
+            new Promise<void>((resolve) =>
+              signal?.addEventListener(
+                'abort',
+                () => {
+                  deadlineReached = true;
+                  resolve();
+                },
+                { once: true },
+              ),
+            ),
+          ]);
+          signal?.throwIfAborted();
+        }
+        return fetch(input, init);
+      });
+      await vi.waitFor(() => expect(deadlineReached).toBe(true), { timeout: 800 });
+      expect(await account.signOut()).toMatchObject({ ok: true });
+    } finally {
+      release.resolve();
+      await account.close();
+      deadline.mockRestore();
+    }
+  });
+
+  it('blocks background reconnection and access after failed local sign-out until cleanup is retried', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const services = fakeServices({ pending: 0 });
+    const { account, credentials, tunnel } = setup(services, 41001, 10);
+    const remove = credentials.provider.deleteRecord;
+    try {
+      await account.signIn();
+      await settle(account);
+      credentials.provider.deleteRecord = async () => {
+        throw new Error('fixture credential store unavailable');
+      };
+      expect(await account.signOut()).toEqual({ ok: false, code: 'credential-unavailable' });
+      expect(services.hosts.size).toBe(0);
+      await vi.advanceTimersByTimeAsync(30);
+      expect(services.hosts.size).toBe(0);
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+      expect(await account.accessToken()).toBeUndefined();
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'signed-out' });
+      credentials.provider.deleteRecord = remove;
+      expect(await account.signOut()).toMatchObject({ ok: true, status: { state: 'signed-out' } });
+      expect(credentials.records.size).toBe(0);
+    } finally {
+      await account.close();
+      vi.useRealTimers();
+    }
+  });
 
   it('keeps a live account signed in and relinks a Host the relay forgot', async () => {
     const services = fakeServices({ pending: 0 });

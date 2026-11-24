@@ -1639,6 +1639,10 @@ Once a new device authorization succeeds, the owner retires the old live session
 
 The account error projection exposes `recovery: automatic | sign-in` to the existing Devices API, CLI and Client, so a saved-session provisioning retry is distinct from failed ownership verification. Device authorization retries transient transport/HTTP failures with backoff only until its original expiry; explicit OAuth refusals terminate the flow, and expiry cancels an in-flight request and rejects late tokens. 账号错误投影通过现有 Devices API、CLI 与 Client 标明自动恢复或重新登录；临时授权失败只在原期限内退避重试，明确拒绝、到期和过期后返回的令牌都不会续接登录。
 
+The Connect account owner sets a deadline on relay calls and cancels obsolete operations on a new attempt or Host shutdown. It enables a tunnel only for the current attempt and withdraws it if the relay rejects a port correction. Sign-out blocks new account operations and watcher recovery immediately, even if local credential deletion must be retried. The offer module validates relay-signed enrollment payloads and dispatches Host Relationship requests using the account owner's current session.
+
+Connect 账号 owner 为 relay 请求设置期限，并在开始新尝试或 Host 关闭时取消过期操作。只有当前尝试能启用隧道，relay 拒绝端口修正时会撤下隧道。退出登录立即阻止新的账号操作和后台恢复，即使本机凭据稍后还需重试删除。Offer 模块验证 relay 签名的注册载荷，并使用账号 owner 的当前会话发送 Host Relationship 请求。
+
 ### Mobile pairing links
 
 Expo Router sends initial pairing URLs through the Pair chooser to the transport-specific scanner route. On a running app, native intent hands a pairing URL to the focused scanner when one is registered. The scanner queues distinct payloads in arrival order and starts each through the existing pairing flow after the preceding attempt settles. A successful attempt keeps the sheet open while links are queued. Leaving the scanner discards its pending links. [#5048](https://github.com/BotHarness/DeepSeekBot/issues/5048)

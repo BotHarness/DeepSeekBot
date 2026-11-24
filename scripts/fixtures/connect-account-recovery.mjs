@@ -44,7 +44,7 @@ globalThis.fetch = async (input, init) => {
       operation !== 'refresh_token' &&
       state.counts[operation] === 1
     )
-      return finish({}, 503);
+      return finish({ error: 'server_error' }, 503);
     return finish({
       access_token: 'synthetic-access',
       refresh_token: 'synthetic-refresh',

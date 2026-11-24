@@ -7,6 +7,7 @@ import {
   CLIENT,
   RELAY_KEY,
   TOKEN,
+  deferred,
   memoryCredentials,
   fakeConnect,
   fakeServices,
@@ -15,6 +16,108 @@ import {
 } from './connect-account-fixtures.js';
 
 describe('Connect account sign-in', () => {
+  it('notifies account observers when a second sign-in publishes a new device code', async () => {
+    const services = fakeServices();
+    const fetch = services.fetcher.getMockImplementation()!;
+    const idle = deferred();
+    let grants = 0;
+    const changed = vi.fn();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        const response = await fetch(input, init);
+        if (!String(input).endsWith('/authorize/device')) return response;
+        return Response.json({ ...(await response.json()), user_code: `CODE-${++grants}` });
+      },
+      sleep: () => idle.promise,
+      onAccountChanged: changed,
+    });
+    try {
+      await account.signIn();
+      changed.mockClear();
+      await account.signIn();
+      expect(account.status()).toMatchObject({ state: 'signing-in', userCode: 'CODE-2' });
+      expect(changed).toHaveBeenCalledTimes(1);
+    } finally {
+      await account.close();
+      idle.resolve();
+      clock.mockRestore();
+    }
+  });
+
+  it('discards a device-authorization reply after sign-out', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    const started = deferred();
+    const release = deferred();
+    const fetch = services.fetcher.getMockImplementation()!;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/authorize/device')) {
+        started.resolve();
+        await release.promise;
+      }
+      return fetch(input, init);
+    });
+    const signingIn = account.signIn();
+    try {
+      await started.promise;
+      expect(await account.signOut()).toMatchObject({ ok: true });
+      release.resolve();
+      expect(await signingIn).toMatchObject({ ok: false });
+      expect(account.status()).toEqual({ state: 'signed-out' });
+    } finally {
+      release.resolve();
+      await signingIn;
+      await account.close();
+    }
+  });
+
+  it('refuses device-authorization timing outside the supported range', async () => {
+    const services = fakeServices();
+    const { account } = setup(services);
+    const fetch = services.fetcher.getMockImplementation()!;
+    try {
+      for (const timing of [
+        { expires_in: 'Infinity' },
+        { expires_in: 3_000_000 },
+        { interval: 'Infinity' },
+      ]) {
+        services.fetcher.mockImplementation(async (input, init) => {
+          const response = await fetch(input, init);
+          if (!String(input).endsWith('/authorize/device')) return response;
+          return Response.json({ ...(await response.json()), ...timing });
+        });
+        await expect(account.signIn()).resolves.toEqual({ ok: false, code: 'relay-unavailable' });
+        expect(account.status()).toEqual({ state: 'signed-out' });
+      }
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retries a device-token server error with an OAuth error code', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    const fetch = services.fetcher.getMockImplementation()!;
+    let tokenCalls = 0;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/authenticate') && ++tokenCalls === 1)
+        return Response.json({ error: 'server_error' }, { status: 503 });
+      return fetch(input, init);
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'signed-in' });
+      expect(tokenCalls).toBe(3);
+    } finally {
+      await account.close();
+    }
+  });
+
   it('rejects a token returned after timeout abort before the wall-clock deadline', async () => {
     const services = fakeServices({ pending: 0 });
     const credentials = memoryCredentials();

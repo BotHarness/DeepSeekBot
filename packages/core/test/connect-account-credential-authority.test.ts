@@ -43,6 +43,19 @@ describe('Connect account sign-in', () => {
     }
   });
 
+  it('refuses a correctly signed non-object offer payload', async () => {
+    const { account } = setup(fakeServices({ pending: 0 }));
+    try {
+      await account.signIn();
+      await settle(account);
+      const body = 'null';
+      const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+      await expect(account.verifyOffer(body, signature)).resolves.toEqual({ ok: false });
+    } finally {
+      await account.close();
+    }
+  });
+
   it('accepts only fresh offers the relay signed for this Host and account', async () => {
     const { account } = setup(fakeServices({ pending: 0 }));
     const verifierHash = Buffer.alloc(32, 3).toString('base64url');
