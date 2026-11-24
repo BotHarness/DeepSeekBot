@@ -426,10 +426,6 @@ describe('M2 private Bot boundaries', () => {
       db.prepare("INSERT INTO human_roles VALUES ('local-human', 'member')").run();
     });
     expect(f.core.tob.isTob(formerTob.botSlug)).toBe(false);
-    expect(await incoming.steward({})).toEqual({
-      ok: true,
-      value: { botSlug: formerTob.botSlug },
-    });
     expect(f.team.transferPreview(bob, owner.humanId).bots).toEqual(
       expect.arrayContaining([{ slug: formerTob.botSlug, displayName: 'Tob' }]),
     );
@@ -438,12 +434,6 @@ describe('M2 private Bot boundaries', () => {
     expect(incoming.rosterGet({})).toMatchObject({ ok: true, value: { pins: [] } });
     const home = await incoming.tobHome({});
     expect(home).toMatchObject({ ok: true, value: { botSlug: expect.any(String) } });
-    const newTob = f.core.tob.slug(bob)!;
-    expect(await incoming.stewardTransfer({ slug: newTob, confirm: true })).toEqual({
-      ok: true,
-      value: { botSlug: newTob },
-    });
-    expect(f.core.tob.isSteward(formerTob.botSlug)).toBe(false);
     expect(await incoming.onboarding({})).toMatchObject({
       ok: true,
       value: { tutorial: 'skipped', defaultBotSlug: f.core.tob.slug(bob) },

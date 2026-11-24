@@ -199,7 +199,11 @@ export function createTobService(options: {
       if (previous.botSlug === botSlug) return { botSlug };
       const former = registry.get(previous.botSlug);
       if (!former || !channels.appendSystemNotices) throw new TobError('steward-unavailable');
-      const from = channels.getOrCreateDm(human, former.slug, former.displayName);
+      const from = channels.getOrCreateDm(
+        humanContext(botOwner(former)),
+        former.slug,
+        former.displayName,
+      );
       const to = channels.getOrCreateDm(human, next.slug, next.displayName);
       if (!from || !to) throw new TobError('steward-unavailable');
       const message: ChannelMessage = {

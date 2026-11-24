@@ -8,7 +8,7 @@ import { dmChannelId } from '../src/channels/channel.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { createCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -74,6 +74,28 @@ it('commits a marker to both Human DMs and keeps the former Tob deletable across
   expect(await reopened.tob.steward()).toEqual({ botSlug: 'ada' });
   expect(await reopened.tob.ensure()).toMatchObject({ botSlug: 'ada' });
   expect(reopened.registry.get(home.botSlug)).toBeUndefined();
+});
+
+it('marks the former Steward’s own Human DM when a new Host Owner transfers the role', async () => {
+  const { core } = fixture();
+  const former = await core.tob.ensure(owner);
+  await core.team.setOwnerPassword(owner, 'owner-password-1');
+  const member = await core.team.createMember(owner, 'next-owner', 'Next');
+  const next = humanContext(member.member.humanId);
+  await core.team.changePassword(next, member.initialPassword, 'next-password-1', false);
+  await core.team.transferOwner(owner, next.humanId, 'owner-password-1');
+  const incoming = createBridgeMethodsForHumans(core)(next);
+  expect(await incoming.steward({})).toEqual({ ok: true, value: { botSlug: former.botSlug } });
+  const target = await core.tob.ensure(next);
+  expect(await incoming.stewardTransfer({ slug: target.botSlug, confirm: true })).toEqual({
+    ok: true,
+    value: { botSlug: target.botSlug },
+  });
+  expect(core.tob.isSteward(former.botSlug)).toBe(false);
+  for (const channelId of [former.channelId, target.channelId])
+    expect(core.channels.readMessages(channelId)).toEqual([
+      expect.objectContaining({ stewardTransfer: { botSlug: target.botSlug, botName: 'Tob' } }),
+    ]);
 });
 
 it('serializes concurrent transfers in a single chain of DM markers', async () => {
