@@ -21,6 +21,16 @@ describe('GenUI authoring shorthand', () => {
     expect(await expandGenuiContent(report)).toBe(report);
   });
 
+  it('expands only diagram elements in markup, not text in scripts, styles or comments', async () => {
+    const inert =
+      '<!-- <genui-diagram>pie</genui-diagram> --><script>const tag = "<genui-diagram>";</script><style>/* <genui-diagram> */</style>';
+    expect(await expandGenuiDiagrams(`<p>x</p>${inert}`)).toBe(`<p>x</p>${inert}`);
+    const expected = await compileGenuiDiagram('flowchart LR\n A --> B');
+    expect(
+      await expandGenuiDiagrams(`${inert}<genui-diagram>flowchart LR\n A --&gt; B</genui-diagram>`),
+    ).toBe(`${inert}${expected.svg}`);
+  });
+
   it('refuses malformed elements and reports which diagram failed', async () => {
     await expect(
       expandGenuiDiagrams('<genui-diagram>flowchart LR\n A --> B'),

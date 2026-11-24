@@ -8,6 +8,7 @@ export const GENUI_AUTHORING_LIMITS = Object.freeze({
 });
 
 const DIAGRAM = /<genui-diagram\b([^>]*)>([\s\S]*?)<\/genui-diagram\s*>/giu;
+const ELEMENT = /^<genui-diagram\b([^>]*)>([\s\S]*?)<\/genui-diagram\s*>$/iu;
 const OPEN_DIAGRAM = /<genui-diagram\b/iu;
 const WIDTH = /^\s*(?:width\s*=\s*(?:"(\d{1,4})"|'(\d{1,4})'|(\d{1,4})))?\s*$/iu;
 const ENTITIES: Record<string, string> = {
@@ -32,6 +33,13 @@ function decode(source: string): string {
   return source.replace(/&(?:lt|gt|quot|#39|amp);/gu, (entity) => ENTITIES[entity] ?? entity);
 }
 
+const INERT =
+  /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/giu;
+
+function blank(html: string): string {
+  return html.replace(INERT, (region) => ' '.repeat(region.length));
+}
+
 export async function expandGenuiDiagrams(
   html: string,
   options: {
@@ -40,8 +48,12 @@ export async function expandGenuiDiagrams(
   } = {},
 ): Promise<string> {
   if (!OPEN_DIAGRAM.test(html)) return html;
-  const matches = [...html.matchAll(DIAGRAM)];
-  const unmatched = (html.match(/<genui-diagram\b/giu) ?? []).length;
+  const markup = blank(html);
+  const matches = [...markup.matchAll(DIAGRAM)].map((found) => {
+    const match = ELEMENT.exec(html.slice(found.index, found.index + found[0].length))!;
+    return Object.assign(match, { index: found.index });
+  });
+  const unmatched = (markup.match(/<genui-diagram\b/giu) ?? []).length;
   if (unmatched !== matches.length)
     throw new GenuiAuthoringError(
       'genui-diagram-tag',

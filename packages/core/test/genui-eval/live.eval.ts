@@ -23,7 +23,19 @@ it('measures GenUI authoring tokens and correctness against a live model', async
     model: env['GENUI_EVAL_MODEL'] ?? 'deepseek-v4.1-flash',
     headers: { 'x-opencode-session': `genui-eval-${arm}-${Date.now()}` },
   };
+  if (
+    !Number.isSafeInteger(runs) ||
+    runs < 1 ||
+    !Number.isSafeInteger(concurrency) ||
+    concurrency < 1
+  )
+    throw new Error('GENUI_EVAL_RUNS and GENUI_EVAL_CONCURRENCY must be positive integers');
   const scenarios = GENUI_EVAL_SCENARIOS.filter((scenario) => !only || only.includes(scenario.id));
+  const unknown = only?.filter(
+    (id) => !GENUI_EVAL_SCENARIOS.some((scenario) => scenario.id === id),
+  );
+  if (scenarios.length === 0 || (unknown?.length ?? 0) > 0)
+    throw new Error(`Unknown or empty GENUI_EVAL_SCENARIOS: ${unknown?.join(',') ?? ''}`);
   const jobs = scenarios.flatMap((scenario) =>
     Array.from({ length: runs }, (_, index) => ({ scenario, index })),
   );
@@ -44,7 +56,7 @@ it('measures GenUI authoring tokens and correctness against a live model', async
           usage: { input: 0, cacheRead: 0, output: 0, steps: 0 },
           durationMs: 0,
           tools: [],
-          errors: [`harness: ${(error as Error).message}`],
+          errors: [`harness: ${error instanceof Error ? error.message : String(error)}`],
           published: false,
           renders: false,
           checks: { passed: 0, total: 1, missing: ['harness'] },

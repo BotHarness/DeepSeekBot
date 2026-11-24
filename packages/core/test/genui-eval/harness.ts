@@ -4,6 +4,7 @@ import { GENUI_AUTHORING_SECTION } from '../../src/features/genui/prompt.js';
 import { createGenuiDiagramTool, createGenuiPreviewTool } from '../../src/features/genui/tools.js';
 import { createBotMessageTool } from '../../src/runtime/bot-message-tool.js';
 import { parseGenuiContent } from '../../src/channels/genui.js';
+import { GENUI_DOCUMENT_LIMITS } from '../../src/channels/genui-document.js';
 import { previewGenuiDocument } from '../../src/runtime/genui-preview.js';
 import type { GenuiEvalScenario } from './scenarios.js';
 
@@ -88,7 +89,7 @@ export function score(scenario: GenuiEvalScenario, document: unknown) {
     typeof document === 'object' && document !== null && 'html' in document
       ? String((document as { html: unknown }).html)
       : JSON.stringify(document ?? '');
-  const text = normalize(html);
+  const text = normalize(html.replace(/<!--[\s\S]*?(?:-->|$)/gu, ''));
   const missing = scenario.required.filter((needle) => !text.includes(normalize(needle)));
   const svgs = (html.match(/<svg\b/giu) ?? []).length;
   const total = scenario.required.length + (scenario.diagrams > 0 ? 1 : 0);
@@ -184,7 +185,14 @@ export async function runScenario(
     correct: false,
   };
   for (let step = 0; step < 10 && !run.published; step++) {
-    const { message, usage } = await complete(endpoint, messages, tools);
+    let reply;
+    try {
+      reply = await complete(endpoint, messages, tools);
+    } catch (error) {
+      run.errors.push(`model: ${error instanceof Error ? error.message : String(error)}`);
+      break;
+    }
+    const { message, usage } = reply;
     run.usage.steps += 1;
     const cached =
       usage?.prompt_cache_hit_tokens ?? usage?.prompt_tokens_details?.cached_tokens ?? 0;
@@ -233,6 +241,10 @@ export async function runScenario(
             if (helpers.genuiPreviews === undefined) throw new Error('unknown genui_preview_id');
             document = helpers.genuiPreviews.read(scope, args['genui_preview_id']);
           } else if (args['genui_json'] !== undefined) {
+            if (new TextEncoder().encode(args['genui_json']).length > GENUI_DOCUMENT_LIMITS.bytes)
+              throw Object.assign(new Error('Report JSON exceeds its budget.'), {
+                code: 'invalid-genui',
+              });
             const raw: unknown = JSON.parse(args['genui_json']);
             const expand = helpers.expandGenuiContent;
             document = expand ? await serialBrowser(() => expand(raw)) : raw;

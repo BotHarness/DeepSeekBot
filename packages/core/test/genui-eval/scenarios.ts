@@ -89,10 +89,10 @@ E429 | 请求过于频繁`,
   {
     id: 'monthly-trend',
     diagrams: 1,
-    prompt: `用 GenUI 画一份 2026 年每月活跃 Bot 数的趋势报告发到我的 DM：一张折线图（x 轴月份，y 轴活跃 Bot 数），上方放三个指标：全年峰值 520（12 月）、同比增长 186%、月均 321。
+    prompt: `用 GenUI 画一份 2026 年每月活跃 Bot 数的趋势报告发到我的 DM：一张折线图（x 轴月份，y 轴活跃 Bot 数），上方放三个指标：全年峰值 520（12 月）、同比增长 186%、月均 338。
 数据：
 ${months.map((row) => row.join(' ')).join('\n')}`,
-    required: ['520', '186%', '321', ...months.map(([, value]) => String(value))],
+    required: ['520', '186%', '338', ...months.map(([, value]) => String(value))],
   },
   {
     id: 'plan-table',

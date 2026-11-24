@@ -352,6 +352,7 @@ export function createBotMessageTool(
                 await expandGenuiContent(JSON.parse(args.genui_json!), { signal: exec.signal }),
               );
             })();
+      exec.signal.throwIfAborted();
       if (
         args.freshness_override &&
         (!args.draft_id ||
