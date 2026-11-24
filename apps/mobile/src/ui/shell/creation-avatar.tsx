@@ -107,22 +107,24 @@ export function CreationAvatar({
         testID="create-bot-avatar-preview"
       />
       {imported ? null : (
-        <Segmented
-          label={t.avatarEditor.style}
-          value={tiltiesImage === undefined ? 'pixel' : 'tilties'}
-          options={[
-            { value: 'pixel', label: t.avatarEditor.pixel },
-            { value: 'tilties', label: t.avatarEditor.tilties },
-          ]}
-          disabled={disabled}
-          onChange={(style) =>
-            onChange(
-              style === 'tilties'
-                ? { kind: 'photo', image: randomTiltiesAvatar() }
-                : { kind: 'generated', seed: randomAvatarSeed() },
-            )
-          }
-        />
+        <View style={{ alignSelf: 'stretch' }}>
+          <Segmented
+            label={t.avatarEditor.style}
+            value={tiltiesImage === undefined ? 'pixel' : 'tilties'}
+            options={[
+              { value: 'pixel', label: t.avatarEditor.pixel },
+              { value: 'tilties', label: t.avatarEditor.tilties },
+            ]}
+            disabled={disabled}
+            onChange={(style) =>
+              onChange(
+                style === 'tilties'
+                  ? { kind: 'photo', image: randomTiltiesAvatar() }
+                  : { kind: 'generated', seed: randomAvatarSeed() },
+              )
+            }
+          />
+        </View>
       )}
       {imported && !avatar ? (
         <Text tone="muted" style={{ textAlign: 'center' }}>
