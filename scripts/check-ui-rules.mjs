@@ -123,7 +123,7 @@ export const RULES = {
     section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
   },
   wrappingCapsule: {
-    help: 'shape a SwiftUI capsule button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes',
+    help: 'shape a capsule that grows with its text through capsuleRadius(theme.fontScale) or a SwiftUI button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes; give a fixed circle or pill a fixed height',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };
@@ -277,7 +277,9 @@ export function scan(fix = false) {
           ...(/fontScale|getFontScale/u.test(source) && /IconButton/u.test(source)
             ? mobileActionScale(file, ast)
             : []),
-          ...(/buttonBorderShape/u.test(source) ? mobileWrappingCapsule(file, ast) : []),
+          ...(/buttonBorderShape|radius\.round/u.test(source)
+            ? mobileWrappingCapsule(file, ast)
+            : []),
           ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];

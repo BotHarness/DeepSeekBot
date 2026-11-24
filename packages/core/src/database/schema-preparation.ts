@@ -107,7 +107,7 @@ export function migrateInStaging(
       }
       staging.exec('COMMIT');
     } catch (error) {
-      if (staging?.isTransaction === true) {
+      if (staging?.isOpen === true && staging.isTransaction) {
         try {
           staging.exec('ROLLBACK');
         } catch {}
@@ -287,12 +287,13 @@ export function validateSchemaPlan(plan: SchemaPlan): void {
       `Schema plan for generation ${plan.targetGeneration} is incomplete`,
     );
   }
-  const canonical = defineSchemaPlan(plan.migrations);
+  defineSchemaPlan(plan.migrations);
   for (let index = 0; index < plan.migrations.length; index += 1) {
-    if (plan.migrations[index]?.generation !== canonical.migrations[index]?.generation) {
+    const expectedGeneration = FOUNDATION_SCHEMA_GENERATION + index + 1;
+    if (plan.migrations[index]?.generation !== expectedGeneration) {
       throw new OperationalDatabaseError(
         'migration-failed',
-        `Schema plan must contain ordered generation ${FOUNDATION_SCHEMA_GENERATION + index + 1}`,
+        `Schema plan must contain ordered generation ${expectedGeneration}`,
       );
     }
   }

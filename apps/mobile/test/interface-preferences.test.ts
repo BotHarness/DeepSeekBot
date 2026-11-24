@@ -20,6 +20,36 @@ describe('phone interface preferences', () => {
     expect(restarted.getSnapshot().sessionsTab).toBe(true);
   });
 
+  it('remembers the Session navigation style and landing choices on the phone', async () => {
+    let stored: unknown = {
+      sessionNavigation: 'sideways',
+      sessionLaunch: 'last',
+      sessionReturn: 7,
+    };
+    const storage = {
+      read: async () => stored,
+      write: (value: unknown) => {
+        stored = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot()).toMatchObject({
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'last',
+      sessionReturn: 'stay',
+    });
+    preferences.setSessionNavigation('stacked');
+    preferences.setSessionReturn('list');
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({
+      sessionNavigation: 'stacked',
+      sessionLaunch: 'last',
+      sessionReturn: 'list',
+    });
+  });
+
   it('restores the saved Session sort when appearance changes during the read', async () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
@@ -116,6 +146,9 @@ describe('phone interface preferences', () => {
       sessionsTab: false,
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
     });
   });
 
@@ -182,6 +215,9 @@ describe('phone interface preferences', () => {
       sessionsTab: false,
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
     });
   });
 

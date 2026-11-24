@@ -12,7 +12,8 @@ import type {
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
@@ -203,7 +204,7 @@ export function SessionModelChip({
         alignItems: 'center',
         justifyContent: 'center',
         gap: space.x2,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         overflow: 'hidden',
         backgroundColor: pressed ? theme.layer.raised.inset : undefined,
       })}

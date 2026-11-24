@@ -153,6 +153,40 @@ describe('operational database owner', () => {
     owner.close();
   });
 
+  it('closes the active connection when SQLite configuration fails', () => {
+    const dshHome = createTempRoot('botharness-db-active-validation-');
+    mountOperationalDatabase({ dshHome }).close();
+    const exec = DatabaseSync.prototype.exec;
+    let connection: DatabaseSync | undefined;
+    const spy = vi.spyOn(DatabaseSync.prototype, 'exec').mockImplementation(function (
+      this: DatabaseSync,
+      sql: string,
+    ) {
+      if (sql.includes('PRAGMA journal_mode = WAL')) {
+        connection = this;
+        throw new Error('active SQLite configuration failed');
+      }
+      exec.call(this, sql);
+    });
+
+    const owner = mountOperationalDatabase({ dshHome });
+    try {
+      expect(owner.diagnostics()).toMatchObject({
+        mode: 'recovery',
+        startup: { stage: 'active-validation' },
+        recovery: {
+          code: 'open-failed',
+          causes: [{ message: 'active SQLite configuration failed' }],
+        },
+      });
+      expect(connection?.isOpen).toBe(false);
+    } finally {
+      spy.mockRestore();
+      owner.close();
+      if (connection?.isOpen) connection.close();
+    }
+  });
+
   it('rejects thenable migration, read, and transaction callbacks', async () => {
     const migrationHome = createTempRoot('botharness-db-async-migration-');
     mountOperationalDatabase({ dshHome: migrationHome }).close();

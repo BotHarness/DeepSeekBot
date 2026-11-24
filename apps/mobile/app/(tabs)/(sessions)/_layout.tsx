@@ -13,6 +13,7 @@ export default function SessionsLayout() {
       <SessionDrawer>
         <TabStack>
           <Stack.Screen name="sessions" />
+          <Stack.Screen name="new-session" options={sessionRouteOptions} />
           <Stack.Screen name="session/[id]" options={sessionRouteOptions} />
         </TabStack>
       </SessionDrawer>

@@ -27,12 +27,10 @@ function clientId(client: HostClient): number {
   return id;
 }
 
-export function SessionDrawerContent({ active }: { active: boolean }) {
+export function useSessionScope() {
   const t = useStrings().hostSessions;
-  const { saved } = useHostSession();
   const connected = useHostSessions();
   const [scope] = useConversationFilter();
-  const place = useDrawerPlace();
   const all = scope === 'all';
   const scoped = connected.find((host) => computerEnvironmentKey(host.saved.hostId) === scope);
   const chosen =
@@ -60,33 +58,44 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
       })),
     [key],
   );
-  if (hosts.length === 0)
-    return (
-      <SessionDrawerNotice
-        title={all ? t.allEnvironments : t.title}
-        message={all ? t.offline : t.computerScopeOnly}
-      />
-    );
+  return {
+    scope,
+    hosts,
+    title: scoped === undefined ? t.allEnvironments : (hosts[0]?.hostName ?? t.title),
+    showHost: scoped === undefined,
+    canCreate: chosen.some((host) => canCreateNativeSession(host.saved)),
+    notice: {
+      title: all ? t.allEnvironments : t.title,
+      message: all ? t.offline : t.computerScopeOnly,
+    },
+  };
+}
+
+export function SessionDrawerContent({ active }: { active: boolean }) {
+  const { saved } = useHostSession();
+  const place = useDrawerPlace();
+  const scope = useSessionScope();
+  if (scope.hosts.length === 0) return <SessionDrawerNotice {...scope.notice} />;
   return (
     <SessionDrawerPanel
-      key={scope}
-      hosts={hosts}
-      title={scoped === undefined ? t.allEnvironments : hosts[0]!.hostName}
-      showHost={scoped === undefined}
+      key={scope.scope}
+      hosts={scope.hosts}
+      title={scope.title}
+      showHost={scope.showHost}
       active={active}
       selected={
         place.sessionId === undefined || saved == null
           ? undefined
           : { hostId: place.hostId ?? saved.hostId, sessionId: place.sessionId }
       }
-      canCreate={chosen.some((host) => canCreateNativeSession(host.saved))}
+      canCreate={scope.canCreate}
       onOpen={(row) => openDrawerSession(row.hostId, row)}
-      onNew={openNewSession}
+      onNew={() => openNewSession()}
     />
   );
 }
 
-function SessionDrawerNotice({ title, message }: { title: string; message: string }) {
+export function SessionDrawerNotice({ title, message }: { title: string; message: string }) {
   const insets = useSafeAreaInsets();
   return (
     <View

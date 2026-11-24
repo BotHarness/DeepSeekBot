@@ -136,11 +136,24 @@ export function titleChipFill(theme: DesignTheme, pressed: boolean) {
   return { backgroundColor: pressed ? theme.layer.raised.pressed : undefined };
 }
 
-export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: boolean }) {
+export function HeaderBackButton({
+  onPress,
+  plain,
+  testID,
+}: {
+  onPress(): void;
+  plain?: boolean;
+  testID?: string;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   return (
-    <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>
+    <HeaderCircleButton
+      label={t.back}
+      onPress={onPress}
+      plain={plain === true}
+      {...(testID === undefined ? {} : { testID })}
+    >
       <BackIcon color={theme.color.fg} size={ICON} />
     </HeaderCircleButton>
   );

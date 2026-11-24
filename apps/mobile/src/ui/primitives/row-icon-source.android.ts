@@ -49,6 +49,11 @@ export const ROW_ICON_SOURCES: Record<
   chevron: require('../../../assets/row-icons/chevron.xml'),
   add: require('../../../assets/row-icons/add.xml'),
   voice: require('../../../assets/row-icons/voice.xml'),
+  drawer: require('../../../assets/row-icons/drawer.xml'),
+  stacked: require('../../../assets/row-icons/stacked.xml'),
+  newSession: require('../../../assets/row-icons/newSession.xml'),
+  list: require('../../../assets/row-icons/list.xml'),
+  stay: require('../../../assets/row-icons/stay.xml'),
   expand: require('../../../assets/row-icons/expand.xml'),
   collapse: require('../../../assets/row-icons/collapse.xml'),
 };

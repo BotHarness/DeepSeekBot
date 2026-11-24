@@ -22,12 +22,18 @@ import { useTimelineIslandFloor } from '../primitives/chat-scroll';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
-import { useInSessionsTab, useSessionDrawerRoot } from '../../features/sessions/drawer-root';
+import {
+  useInSessionsTab,
+  useSessionsStackFit,
+  useSessionDrawerRoot,
+} from '../../features/sessions/drawer-root';
+import { rememberLastSession } from '../../features/sessions/last-session';
 import { canCreateNativeSession } from '../shell/page-create-actions';
 import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
 import { openNewSession } from '../../features/sessions/session-drawer-navigation';
 import { enterDrawerRoot, openSessionDrawer } from '../../features/sessions/session-drawer-state';
 import { HeaderCircleButton } from './header-chrome';
+import { useSessionNavigationStyle } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
@@ -74,13 +80,19 @@ function SessionHeader({
   const inSessions = useInSessionsTab();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const { saved } = useHostSession(hostId);
+  const stacked = useSessionNavigationStyle() === 'stacked';
   const compose =
     inSessions && canCreateNativeSession(saved)
-      ? () => (drawer ? openNewSession() : router.dismissTo('/sessions'))
+      ? () =>
+          drawer
+            ? openNewSession()
+            : stacked
+              ? openNewSession('session')
+              : router.dismissTo('/sessions')
       : undefined;
   const back = () => {
     if (router.canGoBack()) router.back();
-    else router.replace('/');
+    else router.replace(inSessions ? '/sessions' : '/');
   };
   return (
     <>
@@ -176,11 +188,25 @@ export function SessionDetailScreen() {
   const sessionId = session ?? id;
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
   const drawer = useSessionDrawerRoot();
+  const inSessions = useInSessionsTab();
+  useSessionsStackFit();
   useFocusEffect(
     useCallback(
       () => (drawer ? enterDrawerRoot(sessionId, hostId ?? openedOn) : undefined),
       [drawer, sessionId, hostId, openedOn],
     ),
+  );
+  useFocusEffect(
+    useCallback(() => {
+      const on = hostId ?? openedOn;
+      if (!inSessions || sessionId === undefined || on === undefined) return;
+      rememberLastSession({
+        hostId: on,
+        sessionId,
+        ...(source === 'native' || slug === undefined ? {} : { slug }),
+        ...(title === undefined ? {} : { title }),
+      });
+    }, [inSessions, sessionId, hostId, openedOn, source, slug, title]),
   );
   return client === undefined || !matchingHost || sessionId === undefined ? (
     <SessionNotice title={title ?? t.title}>
