@@ -2590,9 +2590,9 @@
       "path": "scripts/e2e-memory-diff-wrap.mjs",
       "category": "mapped",
       "behaviors": ["memory.diff-wrap"],
-      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged. L-4 makes direct-argv process options explicit.",
-      "task": 3089,
-      "sha256": "9b3a863fb290670afe244609e296028c181651bd7ca83ad84d3e99bf365a1c1a"
+      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged. L-4 makes direct-argv process options explicit. #5153 re-audit: selects the row by aria-current, opens Memory evolution from the Side column, skips the rail tour and pins zh-CN; classification unchanged.",
+      "task": 5153,
+      "sha256": "250dfd76e4e08832b7664422efc7822aa2186602a5735f1398a3f46074d8aff9"
     },
     {
       "path": "scripts/e2e-activity-approve-sync.mjs",
