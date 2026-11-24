@@ -54,7 +54,7 @@ export function TobEntryBar({
       accessibilityHint={t.tobEntryHint}
       onPress={ios ? undefined : open}
       android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
-      style={({ pressed }) => ({
+      style={{
         height,
         minHeight: theme.touch,
         borderRadius: height / 2,
@@ -63,8 +63,7 @@ export function TobEntryBar({
         alignItems: 'center',
         gap: space.x3,
         paddingHorizontal: space.x4,
-        opacity: ios && pressed ? 0.7 : 1,
-      })}
+      }}
     >
       <ComposerFieldMaterial cornerRadius={height / 2} />
       <PlusIcon color={theme.color.subtle} size={icon} />
@@ -76,6 +75,15 @@ export function TobEntryBar({
   );
   return (
     <Animated.View
+      {...(ios
+        ? {
+            accessible: true,
+            accessibilityRole: 'button' as const,
+            accessibilityLabel: t.tobEntry(name),
+            accessibilityHint: t.tobEntryHint,
+            testID: 'tob-entry',
+          }
+        : {})}
       pointerEvents={hidden ? 'none' : 'box-none'}
       style={[
         {

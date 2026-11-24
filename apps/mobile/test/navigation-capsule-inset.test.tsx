@@ -12,6 +12,7 @@ vi.mock('react-native', async () => ({
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: () => ({}),
   accessibilityElement: () => ({}),
+  accessibilityHidden: () => ({}),
   accessibilityAddTraits: () => ({}),
   onLongPressGesture: () => ({}),
   buttonStyle: () => ({}),

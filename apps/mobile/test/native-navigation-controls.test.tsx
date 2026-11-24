@@ -10,6 +10,7 @@ vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ $type: 'accessibilityLabel', label }),
   accessibilityElement: () => ({}),
+  accessibilityHidden: () => ({}),
   accessibilityAddTraits: (traits: string[]) => ({ $type: 'accessibilityAddTraits', traits }),
   onLongPressGesture: (onLongPress: () => void) => ({ $type: 'onLongPressGesture', onLongPress }),
   buttonStyle: () => ({}),
@@ -198,7 +199,7 @@ it('opens the optional Sessions tab from its own native icon and label', async (
   }
 });
 
-it('shows icons only, keeps the spoken name and offers each name in a context menu', async () => {
+it('shows icons only and keeps each spoken name on a plain tab button', async () => {
   const host = document.createElement('div');
   const root = createRoot(host);
   const selected: string[] = [];
@@ -219,16 +220,15 @@ it('shows icons only, keeps the spoken name and offers each name in a context me
   try {
     await act(async () => root.render(<NavigationDestinations items={items} />));
     expect(host.querySelectorAll('[data-testid="tab-label"]')).toHaveLength(0);
-    const tabs = [...host.querySelectorAll('[data-context-menu] button[aria-label]')];
+    expect(host.querySelector('[data-context-menu]')).toBeNull();
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
     expect(tabs.map((b) => b.getAttribute('aria-label'))).toEqual([
       'Chats',
       'Sessions',
       'Settings',
     ]);
-    const menu = host.querySelectorAll('menu')[1]!;
-    const entry = menu.querySelector('button')!;
-    expect(entry.textContent).toBe('Sessions');
-    await act(async () => entry.click());
+    expect(tabs.map((b) => b.textContent)).toEqual(['', '', '']);
+    await act(async () => tabs[1]!.click());
     expect(selected).toEqual(['sessions']);
   } finally {
     act(() => root.unmount());
