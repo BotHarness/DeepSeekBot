@@ -333,3 +333,15 @@ export function SessionModelComposer({
     </span>
   );
 }
+
+export function sessionModelControl({
+  action,
+  ...props
+}: Omit<Parameters<typeof SessionModelComposer>[0], 'action' | 'compact'> & {
+  action: BridgeActions['sessionModel'];
+}) {
+  if (action === undefined) return undefined;
+  return (compact: boolean) => (
+    <SessionModelComposer {...props} action={action} compact={compact} />
+  );
+}
