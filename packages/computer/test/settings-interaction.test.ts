@@ -114,13 +114,15 @@ describe('Computer Settings transfer interaction', () => {
 
   it('does not write or export until the chosen target is explicitly authorized', async () => {
     const view = await mount(async () => '/picked');
+    const mountRequests = view.requests.slice();
     await view.click('Export to…');
     expect(view.container.textContent).toContain('Export to: /picked');
     expect(view.writes).toEqual([]);
-    expect(view.requests).toEqual([]);
+    expect(view.requests).toEqual(mountRequests);
     await view.click('Cancel');
     expect(view.prefs.getSnapshot().exportDir).toBe('/old');
     expect(view.writes).toEqual([]);
+    expect(view.requests).toEqual(mountRequests);
     await view.click('Export to…');
     await view.click('Authorize and export');
     expect(view.writes).toEqual([{ field: 'exportDir', value: '/picked' }]);
@@ -130,10 +132,11 @@ describe('Computer Settings transfer interaction', () => {
 
   it('leaves configuration unchanged when the picker is cancelled', async () => {
     const view = await mount(async () => null);
+    const mountRequests = view.requests.slice();
     await view.click('Export to…');
     expect(view.container.textContent).not.toContain('Authorize and export');
     expect(view.writes).toEqual([]);
-    expect(view.requests).toEqual([]);
+    expect(view.requests).toEqual(mountRequests);
   });
 
   it('keeps manual directory entry usable when the native picker fails', async () => {
@@ -201,13 +204,16 @@ it('shows the operation phase on a Host event and advances the stopwatch without
     respond: async (url) =>
       url.endsWith('/export') ? exportRequest : Response.json({ status: { phase } }),
   });
+  const requestCountOnMount = view.requests.length;
+  const operationStatusReads = () =>
+    view.requests.slice(requestCountOnMount).filter((url) => url.endsWith('/status'));
   try {
     await view.click('Export to…');
     await view.click('Authorize and export');
-    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    expect(operationStatusReads()).toHaveLength(1);
     phase = 'exporting';
     await act(async () => vi.advanceTimersByTimeAsync(2_000));
-    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    expect(operationStatusReads()).toHaveLength(1);
     expect(view.container.textContent).not.toMatch(/Exporting ·/);
     await act(async () => {
       events.emit('computer');
