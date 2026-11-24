@@ -18,6 +18,7 @@ import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assi
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
 import { ChatList, type ChatListHandle } from '../primitives/chat-list';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
@@ -257,6 +258,7 @@ export function SessionDetailBody({
     target: transcript?.currentTarget,
   });
   const chrome = useChatTimelineChrome();
+  const islandFloor = useTimelineIslandFloor();
   const { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight } = chrome;
   const android = Platform.OS === 'android';
   const rows = useMemo(
@@ -523,6 +525,7 @@ export function SessionDetailBody({
               ...chrome,
               viewportHeight,
               composerHeight,
+              islandFloor,
               ready: latest.ready || rows.length === 0,
             })}
             {...latest.listProps}

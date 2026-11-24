@@ -17,3 +17,7 @@ export function useChatScrollAdapter(
 export function useChatOverlayStyle(): undefined {
   return undefined;
 }
+
+export function useTimelineIslandFloor(): number {
+  return 0;
+}

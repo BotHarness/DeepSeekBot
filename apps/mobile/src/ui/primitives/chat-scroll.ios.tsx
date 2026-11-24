@@ -21,3 +21,7 @@ export const useChatScrollAdapter = nativeChatKeyboard
   : (_keyboard: ChatKeyboardCoordination, _held: boolean) => undefined;
 
 export const useChatOverlayStyle = nativeChatKeyboard ? useNativeChatOverlayStyle : () => undefined;
+
+export function useTimelineIslandFloor(): number {
+  return 0;
+}
