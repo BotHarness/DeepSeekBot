@@ -236,6 +236,7 @@ export async function runOrchestrator(
       return;
     }
     if (adapter.engines?.isLive(run.sessionId)) await adapter.engines.release(run.sessionId);
+    if (adapter.humanStops.has(run.sessionId)) return;
     let handle: AgentHandle;
     let shown = false;
     const reveal = setTimeout(() => {
@@ -249,10 +250,11 @@ export async function runOrchestrator(
         async (signal) => {
           run.tobCliTurn?.signal.throwIfAborted();
           if (run.tobCliTurn === undefined)
-            await adapter.prepareModelRoute?.(
+            await adapter.prepareModelRoute(
               run.bot.slug,
               'orchestrator',
               run.routingTarget?.kind === 'route' ? run.routingTarget.route : undefined,
+              signal,
             );
           return orchestratorHandle(adapter, run, signal);
         },
@@ -475,10 +477,11 @@ export function stopOrchestratorTurn(
       return sessionId;
     }
     const handle = adapter.handles.get(sessionId);
-    if (handle === undefined) return undefined;
     adapter.humanStops.add(sessionId);
-    adapter.markStop(sessionId, handle);
-    handle.agent.cancel({ kind: 'user' });
+    if (handle !== undefined) {
+      adapter.markStop(sessionId, handle);
+      handle.agent.cancel({ kind: 'user' });
+    }
     return sessionId;
   }
   return undefined;
@@ -595,7 +598,7 @@ export async function loadOrchestrator(
     throw error;
   }
   await adapter.prepare(run.sessionId, async (signal) => {
-    await adapter.prepareModelRoute?.(run.bot.slug, 'orchestrator');
+    await adapter.prepareModelRoute(run.bot.slug, 'orchestrator', undefined, signal);
     await orchestratorHandle(adapter, run, signal);
   });
 }
