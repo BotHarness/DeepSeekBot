@@ -11,7 +11,7 @@ import type {
   ChannelTurnStopRest,
   ChannelTurnStopTarget,
 } from './turn-stop.js';
-import type { ChannelStewardTransfer } from './steward-transfer.js';
+import type { ChannelStewardTransfer } from '@botharness/host-protocol/steward-transfer';
 import type { ChannelModelSwitch } from './model-switch.js';
 import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 import type { ChannelVoiceCallRecord } from './voice-call-record.js';

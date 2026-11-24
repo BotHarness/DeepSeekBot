@@ -1,5 +1,3 @@
-import { isValidSlug } from '../bots/slug.js';
-
 export interface ChannelStewardTransfer {
   botSlug: string;
   botName: string;
@@ -10,7 +8,7 @@ export function isChannelStewardTransfer(value: unknown): value is ChannelStewar
   const { botSlug, botName } = value as Partial<ChannelStewardTransfer>;
   return (
     typeof botSlug === 'string' &&
-    isValidSlug(botSlug) &&
+    botSlug.length > 0 &&
     typeof botName === 'string' &&
     botName.trim().length > 0
   );

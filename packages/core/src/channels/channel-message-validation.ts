@@ -7,7 +7,8 @@ import {
   isChannelTurnStopRests,
   isChannelTurnStopTarget,
 } from './turn-stop.js';
-import { isChannelStewardTransfer } from './steward-transfer.js';
+import { isValidSlug } from '../bots/slug.js';
+import { isChannelStewardTransfer } from '@botharness/host-protocol/steward-transfer';
 import { isChannelModelSwitch } from './model-switch.js';
 import { isChannelVoiceCallRecord } from './voice-call-record.js';
 import { isChannelAttachmentRef, isChannelClearedAttachment } from '../attachments/ref.js';
@@ -462,7 +463,8 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   } else if (message['stewardTransfer'] !== undefined) {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
-      !isChannelStewardTransfer(message['stewardTransfer'])
+      !isChannelStewardTransfer(message['stewardTransfer']) ||
+      !isValidSlug(message['stewardTransfer'].botSlug)
     )
       return false;
   } else if (message['modelSwitch'] !== undefined) {
