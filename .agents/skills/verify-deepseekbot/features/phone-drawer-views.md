@@ -28,7 +28,7 @@
 
 ## How to get to it (user POV)
 
-Open Settings in the paired app and tap the first row, Environment. Choose All, a Computer or a cloud workspace. Open a Computer's ⋯ menu (or long-press it) to change its device-local icon and colour, its connection, or to unpair it.
+Open Settings in the paired app and, under Environment settings, tap the Environment row (or tap the Environment name in the Chats header). Choose All, a Computer or a cloud workspace. Open a Computer's ⋯ menu (or long-press it) to change its device-local icon and colour, its connection, or to unpair it.
 
 ## Driving it with verify-app
 
@@ -36,7 +36,7 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 
 1. Capture the base and candidate with the same data, locale and viewport. On each platform, run default/intermediate/maximum system text sizes in light and dark.
 2. On Chats, tap the Environment name (`chats-environment-name`): the Environment sheet opens and a selection keeps you on Chats. A swipe from the left edge does nothing, and on Android the expanded search bar has no menu button. On iOS, a left swipe on Chats still reaches the last conversation.
-3. Open Settings and tap `settings-environment`. On iOS check the sheet opens at the medium detent and drags to large; on Android check the modal bottom sheet, its handle and Back. Tap `environment-all`. Check the sheet closes, Settings stays selected and its row now reads All, and Chats shows All with one list. With TalkBack/VoiceOver, focus the Chats title and confirm it announces the complete selected All/Host/cloud name as a header.
+3. Open Settings and tap `settings-environment`. On iOS check the sheet opens at the medium detent and drags to large; on Android check the modal bottom sheet, its handle and Back. Tap `environment-all`. Check the sheet closes, Settings stays selected and its row now reads All environments with the most recently used Computer, and Chats shows All with one list. With TalkBack/VoiceOver, focus the Chats Environment name and confirm it is announced as a button with the complete selected All/Host/cloud name and the Switch environment hint.
 4. Reopen the sheet and tap `drawer-host-<hostId>` for another paired Host. Check Chats, Activity and Sessions all follow it, and the row, header, icon and conversations agree. Choose All while a Host switch is pending; the completed switch must not overwrite All. On device, rapidly choose B then A from current A; after settling, current Host, persisted Host and filter must all end on A. Restart and confirm the persisted owner agrees.
 5. From a DM with its Profile open, go to Settings and choose another Computer. Back cannot revive the previous DM or sheet.
 6. Customize the current Host to orange, then teal, then default from its ⋯ menu. With the current Host selected, Android's app accent changes in both schemes. Switching to All or a cloud view restores the default accent. The header icon reflects the Host colour on both platforms.
