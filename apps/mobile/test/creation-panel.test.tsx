@@ -74,6 +74,8 @@ vi.mock('../src/ui/haptics', () => ({ haptic: fixture.haptic }));
 vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => false,
 }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/shell/header-action', () => ({ HeaderAction: () => null }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
 vi.mock('../src/ui/primitives/app-dialog', () => ({ showAppDialog: () => {} }));
 vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
@@ -85,6 +87,7 @@ vi.mock('../src/ui/shell/use-creation-targets', () => ({
     })),
 }));
 import { useChatsCreate } from '../src/ui/shell/chats-create';
+import { ChatsHeaderActions } from '../src/ui/shell/chats-header-actions';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 Object.assign(HTMLElement.prototype, {
@@ -97,7 +100,7 @@ function ChatsCreate({ scope }: { scope: string }) {
   const create = useChatsCreate(scope);
   return (
     <>
-      {create.trigger}
+      <ChatsHeaderActions search={{ label: 'Search', onPress: () => {} }} create={create.button} />
       {create.panel}
     </>
   );

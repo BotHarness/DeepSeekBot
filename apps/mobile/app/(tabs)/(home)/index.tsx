@@ -54,11 +54,10 @@ import { useCreationTargets } from '../../../src/ui/shell/use-creation-targets';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
-import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
-import { HeaderCapsule } from '../../../src/ui/shell/header-capsule';
+import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
 import { useChatsCreate } from '../../../src/ui/shell/chats-create';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
@@ -668,19 +667,12 @@ const HomeContent = memo(function HomeContent({
               />
             ) : undefined
           }
-          nativeItems={
-            create.trigger ? [{ type: 'custom', element: <>{create.trigger}</> }] : undefined
-          }
+          nativeItems={create.nativeItem ? [create.nativeItem] : undefined}
           actions={
-            <HeaderCapsule>
-              <HeaderAction
-                icon="search"
-                label={t.openSearch}
-                testID="search-button"
-                onPress={() => setSearching(true)}
-              />
-              {create.trigger}
-            </HeaderCapsule>
+            <ChatsHeaderActions
+              search={{ label: t.openSearch, onPress: () => setSearching(true) }}
+              create={create.button}
+            />
           }
         >
           <LastChatSwipe

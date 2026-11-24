@@ -1,18 +1,12 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type NativeStackHeaderItem } from 'expo-router';
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from 'react';
-import {
-  AccessibilityInfo,
-  Platform,
-  Pressable,
-  View,
-  useWindowDimensions,
-  type ViewInstance,
-} from 'react-native';
+import { AccessibilityInfo, Platform, useWindowDimensions, type ViewInstance } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cloudError } from '../../cloud/client';
 import { cloudAvailable } from '../../cloud/available';
 import { targetsFor, type CreationTarget } from '../../host/creation-targets';
 import { useDesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
+import { headerBarItem } from '../design/tokens';
 import { haptic } from '../haptics';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
@@ -30,12 +24,20 @@ import {
   PlusIcon,
   ShareIcon,
 } from './icons';
-import { HeaderIconButton } from './header-icon-button';
 import { openCloudCreation } from './open-cloud-creation';
 import { useCreationTargets } from './use-creation-targets';
 
+export type ChatsCreateButton = {
+  label: string;
+  expanded: boolean;
+  disabled: boolean;
+  triggerRef: RefObject<ViewInstance | null>;
+  onPress(): void;
+};
+
 export type ChatsCreate = {
-  trigger: ReactNode;
+  button: ChatsCreateButton | undefined;
+  nativeItem: NativeStackHeaderItem | undefined;
   panel: ReactNode;
 };
 
@@ -43,6 +45,7 @@ export function useChatsCreate(scope: string): ChatsCreate {
   const t = useStrings();
   const theme = useDesignTheme();
   const viewport = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const targets = useCreationTargets(scope);
   const actions = chatsCreationActions(scope, targets);
   const [anchor, setAnchor] = useState<CreationAnchor>();
@@ -91,7 +94,7 @@ export function useChatsCreate(scope: string): ChatsCreate {
     }
   };
   if (!actions.bot && !actions.group && !actions.invite && !actions.join)
-    return { trigger: null, panel: null };
+    return { button: undefined, nativeItem: undefined, panel: null };
   const iconSize = theme.type.title.line * theme.fontScale;
   const botTarget = scope === 'all' ? undefined : targetsFor('bot', scope, targets)[0];
   const botHostId = botTarget?.kind === 'computer' ? botTarget.hostId : undefined;
@@ -103,7 +106,18 @@ export function useChatsCreate(scope: string): ChatsCreate {
     ['git', GitCommitIcon],
   ] as const;
   const press = () => {
-    if (opening.current || !trigger.current) return;
+    if (opening.current) return;
+    if (!trigger.current) {
+      if (Platform.OS !== 'ios') return;
+      opening.current = true;
+      haptic('menu');
+      setAnchor({
+        top: insets.top + headerBarItem.top,
+        right: insets.right + headerBarItem.margin,
+        size: headerBarItem.size,
+      });
+      return;
+    }
     opening.current = true;
     haptic('menu');
     trigger.current.measureInWindow((x, y, width, height) => {
@@ -116,15 +130,28 @@ export function useChatsCreate(scope: string): ChatsCreate {
     });
   };
   return {
-    trigger: (
-      <ChatsCreateButton
-        triggerRef={trigger}
-        label={t.createHere}
-        disabled={busy}
-        expanded={open}
-        onPress={press}
-      />
-    ),
+    button:
+      Platform.OS === 'ios'
+        ? undefined
+        : {
+            label: t.createHere,
+            expanded: open,
+            disabled: busy,
+            triggerRef: trigger,
+            onPress: press,
+          },
+    nativeItem:
+      Platform.OS === 'ios'
+        ? {
+            type: 'button',
+            identifier: 'chats-create-button',
+            label: t.createHere,
+            icon: { type: 'sfSymbol', name: 'plus' },
+            sharesBackground: true,
+            disabled: busy || open,
+            onPress: press,
+          }
+        : undefined,
     panel: anchor ? (
       <CreationPanel
         anchor={anchor}
@@ -210,54 +237,4 @@ export function useChatsCreate(scope: string): ChatsCreate {
       </CreationPanel>
     ) : null,
   };
-}
-
-function ChatsCreateButton({
-  triggerRef,
-  label,
-  disabled,
-  expanded,
-  onPress,
-}: {
-  triggerRef: RefObject<ViewInstance | null>;
-  label: string;
-  disabled: boolean;
-  expanded: boolean;
-  onPress(): void;
-}) {
-  const theme = useDesignTheme();
-  const unavailable = disabled || expanded;
-  if (Platform.OS === 'android')
-    return (
-      <View
-        ref={triggerRef}
-        collapsable={false}
-        accessibilityState={{ disabled: unavailable, expanded }}
-        pointerEvents={unavailable ? 'none' : 'auto'}
-        style={{ opacity: expanded ? 0 : 1 }}
-      >
-        <HeaderIconButton icon="add" label={label} testID="chats-create-button" onPress={onPress} />
-      </View>
-    );
-  return (
-    <Pressable
-      ref={triggerRef}
-      testID="chats-create-button"
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: unavailable, expanded }}
-      disabled={unavailable}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: theme.touch,
-        height: theme.touch,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: expanded ? 0 : pressed ? 0.7 : 1,
-      })}
-    >
-      <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
-    </Pressable>
-  );
 }

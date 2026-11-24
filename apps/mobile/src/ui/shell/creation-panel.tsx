@@ -23,7 +23,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spring } from '../design/motion';
 import { useDesignTheme } from '../design/theme';
-import { creationCard, fab, radius, space, swipeOpen } from '../design/tokens';
+import { creationCard, fab, headerBarItem, radius, space, swipeOpen } from '../design/tokens';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useStrings } from '../strings';
 import { PlusIcon } from './icons';
@@ -281,7 +282,11 @@ export function CreationPanel({
                 iconStyle,
               ]}
             >
-              <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
+              {Platform.OS === 'ios' ? (
+                <SystemSymbol name="plus" size={headerBarItem.glyph} color={theme.color.fg} />
+              ) : (
+                <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
+              )}
             </Animated.View>
           </View>
         </View>
