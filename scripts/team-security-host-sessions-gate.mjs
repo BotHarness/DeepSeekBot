@@ -89,7 +89,6 @@ export async function runHostSessionGate(s, fx, check) {
     ['session-live', '--session', sessionId],
     ['session-model', '--session', sessionId],
     ['session-send', sessionId, 'M15 member prompt'],
-    ['session-create', '--cwd', fx.sharedFinance, '--message', 'M15 member create'],
   ]) {
     const result = s.cli(args, member);
     check(
@@ -98,6 +97,15 @@ export async function runHostSessionGate(s, fx, check) {
       result.error?.code,
     );
   }
+  const memberCreate = s.cli(
+    ['session-create', '--cwd', fx.sharedFinance, '--message', 'M15 member create'],
+    member,
+  );
+  check(
+    'Member session-create refused before the Host creates anything',
+    memberCreate.error?.code === 'remote-access/denied' && memberCreate.sessionId === undefined,
+    memberCreate.error?.code,
+  );
   const accepted = s.cli(['session-send', sessionId, 'Reply with exactly M15-4932-OK.']);
   check('Owner prompt admitted', typeof accepted.requestId === 'string');
   const transcript = s.cli(['session-transcript', '--session', sessionId]);
