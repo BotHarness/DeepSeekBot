@@ -13,9 +13,11 @@ export function ChatTitleCapsule({
   leading,
   trailing,
   leadingSize,
+  pending = false,
   ...control
 }: HeaderTitleControl & {
   title: string;
+  pending?: boolean;
   subtitle?: ReactNode;
   leading?: ReactNode;
   trailing?: ReactNode;
@@ -48,6 +50,7 @@ export function ChatTitleCapsule({
           <Text
             {...(control.kind === 'button' ? barLabelProps : {})}
             strong
+            {...(pending ? { tone: 'muted' as const } : {})}
             numberOfLines={1}
             ellipsizeMode="tail"
             style={[barLabelStyle, { flexShrink: 1 }]}

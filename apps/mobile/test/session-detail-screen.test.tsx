@@ -109,10 +109,12 @@ vi.mock('../src/host/host-session', () => ({
 vi.mock('../src/ui/chat/session-title-menu', () => ({
   SessionTitleMenu: ({
     title,
+    pending = false,
     hint,
     menu,
   }: {
     title: string;
+    pending?: boolean;
     hint: string;
     menu?: {
       items: readonly { label: string; testID: string; disabled?: boolean; run(): void }[];
@@ -121,7 +123,7 @@ vi.mock('../src/ui/chat/session-title-menu', () => ({
     const [expanded, setExpanded] = useState(false);
     if (menu === undefined)
       return (
-        <span role="header" data-testid="session-header-title">
+        <span role="header" data-testid="session-header-title" data-pending={pending}>
           {title}
         </span>
       );
@@ -129,6 +131,7 @@ vi.mock('../src/ui/chat/session-title-menu', () => ({
       <>
         <button
           data-testid="session-header-title"
+          data-pending={pending}
           aria-label={title}
           aria-description={hint}
           onClick={() => setExpanded(!expanded)}
@@ -292,6 +295,8 @@ async function open({
   beforeAssignmentRead,
   beforeArchive,
   Body = SessionDetailBody,
+  fresh = false,
+  transcript = () => ({ displayTitle: 'Review the release' }),
 }: {
   role?: 'orchestrator' | 'assignment' | 'native';
   running?: boolean;
@@ -302,6 +307,8 @@ async function open({
   beforeAssignmentRead?: (readNumber: number) => Promise<void>;
   beforeArchive?: () => Promise<void>;
   Body?: typeof SessionDetailBody;
+  fresh?: boolean;
+  transcript?: () => { displayTitle?: string; titleFallback?: true };
 } = {}) {
   const view = document.createElement('div');
   root = createRoot(view);
@@ -323,7 +330,7 @@ async function open({
         seq: 4,
         items,
         currentTarget: to,
-        displayTitle: 'Review the release',
+        ...transcript(),
       };
     }
     if (method === 'sessionLive') {
@@ -376,6 +383,7 @@ async function open({
         slug={role === 'native' ? null : 'ada'}
         id="chosen"
         title="Release review"
+        fresh={fresh}
         online
       />,
     ),
@@ -797,4 +805,38 @@ it('offers New Session from the Host that owns the open Session, not the selecte
     place.hostId = undefined;
     place.member = new Set();
   }
+});
+
+it('shows the prompt as a pending title on a new Session until the generated title arrives', async () => {
+  let title: { displayTitle?: string; titleFallback?: true } = {
+    displayTitle: 'Release',
+    titleFallback: true,
+  };
+  const { view } = await open({
+    role: 'native',
+    running: true,
+    fresh: true,
+    transcript: () => title,
+  });
+  const capsule = () => view.querySelector<HTMLElement>('[data-testid="session-header-title"]')!;
+  expect(capsule().textContent).toBe('Release review');
+  expect(capsule().dataset['pending']).toBe('true');
+
+  title = { displayTitle: 'Release checklist' };
+  await press(view, 'Draft');
+  await press(view, 'Send');
+  expect(capsule().textContent).toBe('Release checklist');
+  expect(capsule().dataset['pending']).toBe('false');
+  expect(capsule().getAttribute('aria-label')).toBe('Release checklist');
+});
+
+it('never marks an opened existing Session title as pending', async () => {
+  const { view } = await open({
+    role: 'native',
+    running: true,
+    transcript: () => ({ displayTitle: 'Release', titleFallback: true }),
+  });
+  const capsule = view.querySelector<HTMLElement>('[data-testid="session-header-title"]')!;
+  expect(capsule.textContent).toBe('Release');
+  expect(capsule.dataset['pending']).toBe('false');
 });
