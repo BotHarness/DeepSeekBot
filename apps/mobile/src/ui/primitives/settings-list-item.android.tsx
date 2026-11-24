@@ -109,6 +109,7 @@ export function SettingsListItem(props: SettingsRowProps) {
         <Text {...lines}>{detail}</Text>
       </Row>
     );
+  const standalone = trailing === undefined && accessory === undefined;
   const item = (
     <View
       testID={testID}
@@ -130,7 +131,7 @@ export function SettingsListItem(props: SettingsRowProps) {
       onAccessibilityAction={({ nativeEvent }) => {
         if (enabled && nativeEvent.actionName === 'activate') activate?.();
       }}
-      style={{ flex: 1 }}
+      style={standalone ? undefined : { flex: 1 }}
     >
       <View importantForAccessibility="no-hide-descendants">
         <Host
@@ -194,7 +195,7 @@ export function SettingsListItem(props: SettingsRowProps) {
       </View>
     </View>
   );
-  if (trailing === undefined && accessory === undefined) return item;
+  if (standalone) return item;
   return (
     <View
       style={{

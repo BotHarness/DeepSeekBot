@@ -20,7 +20,7 @@ vi.mock('react-native', async () => ({
     accessibilityState?: Record<string, boolean | undefined>;
     accessibilityActions?: { name: string }[];
     importantForAccessibility?: string;
-    style?: { height?: number; minHeight?: number };
+    style?: { height?: number; minHeight?: number; flex?: number };
     onAccessibilityAction?(event: { nativeEvent: { actionName: string } }): void;
   }) =>
     createElement(
@@ -37,6 +37,7 @@ vi.mock('react-native', async () => ({
         'aria-hidden': props.importantForAccessibility === 'no-hide-descendants' || undefined,
         'data-actions': props.accessibilityActions?.map((action) => action.name).join(' '),
         'data-height': props.style?.height ?? props.style?.minHeight,
+        'data-flex': props.style?.flex,
         onDoubleClick: () =>
           props.onAccessibilityAction?.({ nativeEvent: { actionName: 'activate' } }),
       },
@@ -280,4 +281,15 @@ it('keeps a text-only detail without a dot', async () => {
   const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
   expect(supporting.textContent).toBe('Cached files');
   expect(supporting.querySelector('[data-dot]')).toBeNull();
+});
+
+it('sizes a standalone row to its content and lets a row beside a trailing view fill the width', async () => {
+  const view = await render(
+    <>
+      <SettingsRow testID="alone" title="Folder" control={{ kind: 'value', text: 'notes-app' }} />
+      <SettingsRow testID="beside" title="Model" trailing={<span>Now</span>} />
+    </>,
+  );
+  expect(view.querySelector('[data-testid="alone"]')?.getAttribute('data-flex')).toBeNull();
+  expect(view.querySelector('[data-testid="beside"]')?.getAttribute('data-flex')).toBe('1');
 });

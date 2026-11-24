@@ -58,7 +58,8 @@ data class SessionDrawerChange(@Field val open: Boolean = false) : Record
  * Native slots, `panel` and `content`. The drawer is nearly full width; its scrim closes it, and
  * `ModalDrawerSheet(drawerState)` owns Back and predictive back while it is open. The content
  * slides right, fades and blurs with the drawer's progress, after Claude's drawer. JavaScript owns
- * `open`; [onOpenChange] reports the drawer's target as soon as a drag or Back commits to it.
+ * `open`; [onOpenChange] reports each value the drawer settles at after a drag, a scrim tap or
+ * Back, so JavaScript never keeps `open` while the drawer is closed.
  */
 @Composable
 fun FunctionalComposableScope.SessionDrawerContent(
@@ -82,7 +83,7 @@ fun FunctionalComposableScope.SessionDrawerContent(
   }
 
   LaunchedEffect(drawerState) {
-    snapshotFlow { drawerState.targetValue == DrawerValue.Open }.collect { open ->
+    snapshotFlow { drawerState.currentValue == DrawerValue.Open }.collect { open ->
       settledReport(open, reported.value)?.let {
         reported.value = it
         onOpenChange(it)
