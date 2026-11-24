@@ -29,6 +29,7 @@ export interface PrivateTunnelView {
   issue?: string;
   probe?: string;
   addressChanged?: boolean;
+  addressSignIn?: boolean;
 }
 
 export type PrivateTunnelStep = 'choose' | 'named' | 'ingress';
@@ -162,6 +163,28 @@ function PrivateTunnelRouteSettings({
       }
       setToken('');
       setStep('choose');
+      await refresh();
+    } catch {
+      setFailure('private-tunnel-failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function setAddressSignIn(enabled: boolean): Promise<void> {
+    if (locked || routeId !== 'custom') return;
+    setBusy(true);
+    setFailure(undefined);
+    try {
+      const response = await fetch('./api/botharness/devices/private-tunnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'address-sign-in', routeId, enabled, confirm: true }),
+      });
+      const result = (await response.json().catch(() => ({}))) as { code?: string };
+      if (!response.ok) {
+        setFailure(result.code ?? 'private-tunnel-failed');
+        return;
+      }
       await refresh();
     } catch {
       setFailure('private-tunnel-failed');
@@ -310,6 +333,21 @@ function PrivateTunnelRouteSettings({
           ) : null}
           {status.probe && status.state === 'connected' ? (
             <StatusFact label={t('privateTunnel.panel.lastCheck')}>{status.probe}</StatusFact>
+          ) : null}
+          {routeId === 'custom' && status.mode !== 'quick' ? (
+            <SettingsRow
+              title={t('privateTunnel.addressSignIn')}
+              description={t('privateTunnel.addressSignInHint')}
+              data={{ 'data-private-route-address-sign-in': status.addressSignIn ? 'on' : 'off' }}
+              control={
+                <Switch
+                  label={t('privateTunnel.addressSignIn')}
+                  checked={status.addressSignIn === true}
+                  disabled={locked || busy}
+                  onChange={(next) => void setAddressSignIn(next)}
+                />
+              }
+            />
           ) : null}
           <StatusFact
             label={t('privateTunnel.panel.turnOff')}

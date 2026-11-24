@@ -12,7 +12,8 @@ import type {
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
@@ -28,7 +29,7 @@ type Result<T> =
 
 export interface ComposerSessionModel {
   slug: string | null;
-  sessionId: string;
+  sessionId: string | undefined;
   host: HostCall;
   enabled: boolean;
   running: boolean;
@@ -46,11 +47,17 @@ export function useSessionModelControl({
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<Result<SessionModelState>>();
+  const [draft, setDraft] = useState<SessionModelState>({ override: null, default: null });
   const [catalogResult, setCatalog] = useState<Result<Catalog>>();
   const [saving, setSaving] = useState<string>();
   const [refused, setRefused] = useState(false);
   const writing = useRef(false);
-  const state = saved?.host === host && 'value' in saved ? saved.value : undefined;
+  const state =
+    sessionId === undefined
+      ? draft
+      : saved?.host === host && 'value' in saved
+        ? saved.value
+        : undefined;
   const catalog =
     catalogResult?.host === host && 'value' in catalogResult ? catalogResult.value : undefined;
   const visible = enabled && open;
@@ -62,11 +69,11 @@ export function useSessionModelControl({
   const ready =
     state !== undefined &&
     catalog !== undefined &&
-    saved?.attempt === attempt &&
+    (sessionId === undefined || saved?.attempt === attempt) &&
     catalogResult?.attempt === attempt;
 
   useLayoutEffect(() => {
-    if (!enabled || saving !== undefined) return;
+    if (!enabled || saving !== undefined || sessionId === undefined) return;
     let active = true;
     void sessionModel(host, slug, sessionId).then(
       (value) => {
@@ -118,6 +125,11 @@ export function useSessionModelControl({
 
   async function choose(choice: SessionModelChoice | null) {
     if (!ready || writing.current) return;
+    if (sessionId === undefined) {
+      setDraft({ override: choice, default: null });
+      setOpen(false);
+      return;
+    }
     writing.current = true;
     setSaving(sessionModelKey(choice));
     setRefused(false);
@@ -136,6 +148,7 @@ export function useSessionModelControl({
   return {
     state,
     native: slug === null,
+    fresh: sessionId === undefined,
     target,
     catalog,
     failed,
@@ -168,7 +181,9 @@ export function SessionModelChip({
     target: control.target,
     catalog: control.catalog,
     width: width / Math.max(1, theme.fontScale),
-    strings: control.native ? { ...t, defaultLabel: t.nativeDefaultLabel } : t,
+    strings: control.native
+      ? { ...t, defaultLabel: control.fresh ? t.newDefaultLabel : t.nativeDefaultLabel }
+      : t,
   });
   const unavailable = disabled;
   return (
@@ -189,7 +204,7 @@ export function SessionModelChip({
         alignItems: 'center',
         justifyContent: 'center',
         gap: space.x2,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         overflow: 'hidden',
         backgroundColor: pressed ? theme.layer.raised.inset : undefined,
       })}
@@ -226,12 +241,32 @@ export function SessionModelPicker({ control }: { control: Control }) {
   const t = useStrings();
   const copy = t.sessionModel;
   const theme = useDesignTheme();
-  const { catalog, state, native, visible, ready, failed, refused, saving, close, retry, choose } =
-    control;
+  const {
+    catalog,
+    state,
+    native,
+    fresh,
+    visible,
+    ready,
+    failed,
+    refused,
+    saving,
+    close,
+    retry,
+    choose,
+  } = control;
   const sections = useMemo(() => {
     if (!visible || catalog === undefined) return [];
     return [
-      { title: '', data: [{ choice: null, name: native ? copy.nativeDefault : copy.default }] },
+      {
+        title: '',
+        data: [
+          {
+            choice: null,
+            name: fresh ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+          },
+        ],
+      },
       {
         title: copy.groups,
         data: (native ? [] : (catalog.groups ?? [])).map((group): Option => ({
@@ -285,7 +320,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
         ),
       },
     ];
-  }, [catalog, copy, native, t.routingGroup.engines, visible]);
+  }, [catalog, copy, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
   return (
     <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close}>

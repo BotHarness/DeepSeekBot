@@ -96,6 +96,10 @@ it('restores before showing content, updates native appearance and refreshes sys
       appearance: 'system',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

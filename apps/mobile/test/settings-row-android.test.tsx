@@ -2,6 +2,7 @@
 import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import Yoga from 'yoga-layout';
 
 const device = vi.hoisted(() => ({ fontScale: 1, listeners: new Set<() => void>() }));
 vi.mock('react-native', async () => ({
@@ -23,7 +24,7 @@ vi.mock('react-native', async () => ({
     accessibilityState?: Record<string, boolean | undefined>;
     accessibilityActions?: { name: string }[];
     importantForAccessibility?: string;
-    style?: { height?: number; minHeight?: number };
+    style?: { height?: number; minHeight?: number; flex?: number };
     onAccessibilityAction?(event: { nativeEvent: { actionName: string } }): void;
   }) =>
     createElement(
@@ -40,6 +41,7 @@ vi.mock('react-native', async () => ({
         'aria-hidden': props.importantForAccessibility === 'no-hide-descendants' || undefined,
         'data-actions': props.accessibilityActions?.map((action) => action.name).join(' '),
         'data-height': props.style?.height ?? props.style?.minHeight,
+        'data-flex': props.style?.flex,
         onDoubleClick: () =>
           props.onAccessibilityAction?.({ nativeEvent: { actionName: 'activate' } }),
       },
@@ -65,7 +67,7 @@ vi.mock(
 );
 
 import { DesignThemeProvider, resolveTheme } from '../src/ui/design/theme';
-import { SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
+import { SettingsGroupItem, SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
@@ -298,4 +300,56 @@ it('keeps a text-only detail without a dot', async () => {
   const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
   expect(supporting.textContent).toBe('Cached files');
   expect(supporting.querySelector('[data-dot]')).toBeNull();
+});
+
+it('sizes a standalone row to its content and lets a row beside a trailing view fill the width', async () => {
+  const view = await render(
+    <>
+      <SettingsRow testID="alone" title="Folder" control={{ kind: 'value', text: 'notes-app' }} />
+      <SettingsRow testID="beside" title="Model" trailing={<span>Now</span>} />
+    </>,
+  );
+  expect(view.querySelector('[data-testid="alone"]')?.getAttribute('data-flex')).toBeNull();
+  expect(view.querySelector('[data-testid="beside"]')?.getAttribute('data-flex')).toBe('1');
+});
+
+function centredRowHeight(flex: number | undefined): number {
+  const config = Yoga.Config.create();
+  config.setUseWebDefaults(false);
+  const root = Yoga.Node.create(config);
+  try {
+    root.setWidth(400);
+    root.setHeight(800);
+    const centre = Yoga.Node.create(config);
+    centre.setFlex(1);
+    centre.setJustifyContent(Yoga.JUSTIFY_CENTER);
+    root.insertChild(centre, 0);
+    const group = Yoga.Node.create(config);
+    centre.insertChild(group, 0);
+    const segment = Yoga.Node.create(config);
+    segment.setMargin(Yoga.EDGE_HORIZONTAL, 16);
+    group.insertChild(segment, 0);
+    const item = Yoga.Node.create(config);
+    if (flex !== undefined) item.setFlex(flex);
+    segment.insertChild(item, 0);
+    const compose = Yoga.Node.create(config);
+    compose.setHeight(56);
+    item.insertChild(compose, 0);
+    root.calculateLayout(undefined, undefined, Yoga.DIRECTION_LTR);
+    return item.getComputedHeight();
+  } finally {
+    root.freeRecursive();
+    config.free();
+  }
+}
+
+it('lays out the New Session picker rows at their Compose height in a centred column', async () => {
+  const view = await render(
+    <SettingsGroupItem first last on="canvas">
+      <SettingsRow testID="new-session-folder" title="Folder" control={{ kind: 'chevron' }} />
+    </SettingsGroupItem>,
+  );
+  const flex = view.querySelector('[data-testid="new-session-folder"]')?.getAttribute('data-flex');
+  expect(centredRowHeight(flex == null ? undefined : Number(flex))).toBe(56);
+  expect(centredRowHeight(1)).toBe(0);
 });

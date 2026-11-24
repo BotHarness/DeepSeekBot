@@ -48,6 +48,7 @@ export function teamFixture(
   options: {
     urls?: () => string[];
     routes?: () => Promise<string[]>;
+    addressRoutes?: () => string[];
     now?: () => number;
     warn?: (message: string) => void;
     voice?: boolean;
@@ -144,6 +145,7 @@ export function teamFixture(
       options.routes ??
       (async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080']),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.addressRoutes ? { addressRoutes: options.addressRoutes } : {}),
   });
   const unbindDevices = team.bindDevices(devices);
   closes.push(async () => unbindDevices());

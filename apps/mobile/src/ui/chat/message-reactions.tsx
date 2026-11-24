@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { reactedByMe, type ConversationReaction } from '@botharness/host-client/conversation';
-import { edge, radius, space } from '../design/tokens';
+import { edge, space } from '../design/tokens';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { useStrings, t } from '../strings';
@@ -75,7 +76,7 @@ export function ReactionChips({
                 gap: space.x2,
                 paddingHorizontal: space.x4,
                 minHeight: BADGE_HEIGHT,
-                borderRadius: radius.round,
+                borderRadius: capsuleRadius(theme.fontScale),
                 borderWidth: edge.focus,
                 borderColor: theme.color.base,
                 backgroundColor: mine

@@ -12,6 +12,11 @@ import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import { useDesignTheme } from '../design/theme';
 import { materialNavigationBar, navigationBar, space } from '../design/tokens';
 import { NavigationDestinations } from './navigation-destinations';
+import {
+  sessionDrawerProgress,
+  useSessionDrawer,
+} from '../../features/sessions/session-drawer-state';
+import { landInSessionsTab } from '../../features/sessions/session-drawer-navigation';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter } from './tab-name-pill';
@@ -92,6 +97,19 @@ function NavigationLayout() {
   );
 }
 
+type NestedStack = {
+  state?: { index?: number; routes: readonly { name: string; params?: object | undefined }[] };
+};
+
+function sessionsStack(route: object) {
+  const state = (route as NestedStack).state;
+  if (state === undefined) return undefined;
+  return {
+    index: state.index ?? state.routes.length - 1,
+    routes: state.routes.map((route) => ({ name: route.name, params: route.params })),
+  };
+}
+
 type NavigationBarLayout = TabBarProps & {
   sessionsTab: boolean;
   size: number;
@@ -119,6 +137,7 @@ function NavigationBar({
   const { width } = useWindowDimensions();
   const chrome = useTabChrome();
   const hiddenNow = useChromeHidden(chrome?.hidden);
+  const drawerOpen = useSessionDrawer().open;
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
   const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
   const { menus, load: loadMenus } = useTabMenus({
@@ -151,7 +170,9 @@ function NavigationBar({
           target: route.key,
           canPreventDefault: true,
         });
-        if (!event.defaultPrevented) selectTab(route.key);
+        if (event.defaultPrevented) return;
+        selectTab(route.key);
+        if (item.sessions) landInSessionsTab(item.focused, sessionsStack(route));
       },
       menu: menus[route.name as TabMenuRoute],
     };
@@ -170,6 +191,7 @@ function NavigationBar({
     ? insets.bottom + (size - insets.bottom) / 2 + materialNavigationBar.iconSize / 2
     : bottom + size / 2 + navigationBar.symbolBox / 2;
   const slide = useAnimatedStyle(() => ({
+    opacity: 1 - sessionDrawerProgress.value,
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * band }],
   }));
   return (
@@ -177,7 +199,7 @@ function NavigationBar({
       onLayout={
         android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
       }
-      pointerEvents={hiddenNow ? 'none' : 'box-none'}
+      pointerEvents={hiddenNow || drawerOpen ? 'none' : 'box-none'}
       style={[
         {
           position: 'absolute',

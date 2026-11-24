@@ -45,16 +45,20 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。
+为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。 它默认担任 Steward（主管）角色；ADR-0365（提议中）让该角色可以转移。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
-Tob 模式。手机端从 Chats 上的 Tob 入口栏打开的 Tob DM 普通 Conversation screen。与点击 Tob 行相比只是入口和过渡动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。入口的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+Tob 模式。手机端从 Chats 上的 Tob 入口栏打开的 Tob DM 普通 Conversation screen。与点击 Tob 行相比只是入口和过渡动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。入口的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。 它将由 Pinned tab 取代（#5191）。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：
 Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
+
+**Steward**：
+主管。让一个 Bot 通过 Human 的 CLI 管理所在 Environment、把请求委派给同事（Tob Delegation）并使用后续主管能力的角色。每个 Environment 始终正好有一个主管，默认由 Tob 担任。ADR-0365（提议中，#5191）让 Owner 可以转移它：整套能力一起转移，新主管保留自己的 Soul、Memory 与 prompt，原主管变回普通 Bot。主管身份不等于管理员权限。
+_避免使用_：Admin、管理员、Chief、Orchestrator（那是 Bot 的运行时，不是这个角色）
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -1262,7 +1266,7 @@ _避免使用_：首页、会话列表、Chat list
 _避免使用_：通知 tab、收件箱
 
 **Sessions tab**：
-手机上可选开启的 Host Session tab。点进来落在 New Session screen；已有的 Session 列在 Session drawer 里。
+手机上可选开启的 Host Session tab。根页面取决于 Session navigation style：Drawer 样式是 New Session screen，已有 Session 列在 Session drawer 里；Stacked 样式是 Session 列表。每台手机的落点设置决定启动时和从其他 tab 回来时打开哪里。
 _避免使用_：Session 列表 tab、Sessions 页
 
 **New Session screen**：
@@ -1278,8 +1282,12 @@ Session 导航方式。手机本地偏好，决定 Sessions tab 怎样在 Sessio
 _避免使用_：Session 模式、布局模式
 
 **Tob entry bar**：
-Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。
+Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。 它将由 Pinned tab 取代（#5191）。
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
+
+**Pinned tab**：
+固定对话 tab（计划中，#5191）。手机端 tab island 中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像，点击作为独立 tab 打开。默认绑定主管的 DM，取代 Tob 入口栏与 Tob 模式。
+_避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：
 手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。

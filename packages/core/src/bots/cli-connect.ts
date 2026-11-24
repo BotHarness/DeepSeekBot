@@ -9,7 +9,7 @@ export const CONNECT_COMMANDS = [
   {
     command: 'private-route',
     description:
-      'list, add/replace <quick|custom>, or start/stop/remove <quick|custom>; mutations require --confirm; stop supports --expected-route-revision',
+      'list, add/replace <quick|custom>, start/stop/remove <quick|custom>, or allow-address-sign-in/deny-address-sign-in custom; mutations require --confirm; stop supports --expected-route-revision',
   },
   {
     command: 'private-connect',
@@ -105,6 +105,36 @@ export async function runConnectCommand(
         privateRoutes?: unknown;
       };
       return { routes: snapshot.privateRoutes ?? [] };
+    }
+    if (action === 'allow-address-sign-in' || action === 'deny-address-sign-in') {
+      if (
+        rest.length !== 2 ||
+        (routeId !== 'quick' && routeId !== 'custom') ||
+        !values.confirm ||
+        values.wait ||
+        values.quick ||
+        values.lan ||
+        values.hostname !== undefined ||
+        values['token-stdin'] ||
+        values.origin !== undefined
+      )
+        throw new CliLiveError(
+          'usage',
+          'private-route allow-address-sign-in/deny-address-sign-in requires custom and --confirm.',
+        );
+      const host = await connect();
+      return JSON.parse(
+        new TextDecoder().decode(
+          (
+            await host.http(DEVICES + '/private-tunnel', {
+              action: 'address-sign-in',
+              routeId,
+              enabled: action === 'allow-address-sign-in',
+              confirm: true,
+            })
+          ).bytes,
+        ),
+      ) as unknown;
     }
     if (
       rest.length !== 2 ||

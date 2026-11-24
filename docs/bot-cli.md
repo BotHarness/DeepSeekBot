@@ -678,6 +678,7 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 
 ```bash
 deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
+deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
@@ -685,6 +686,8 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 ```
 
 These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+
+`session-create` starts a native Session, as the phone's New Session screen does: DSH creates it in the folder (`--cwd`) or in a DSH Workspace (`--workspace`, the `workspaceId` that `workspace/create` returns; a Team space id such as `spaces/local-human` is not one, so pass its folder with `--cwd`), applies the optional direct API model (`--model`, otherwise the Default preset), then admits `--message` as its first prompt. It returns `{ sessionId, requestId }`; follow the reply with `session-live --session <sessionId>`. Only the Host Owner can create native Sessions; a Team member is refused with `remote-access/denied` before the request reaches the method, which also refuses non-Owners with `permission-required`, and a Routing Group or subscription engine choice is refused with `usage` before anything is created. If DSH creates the Session but the model choice then fails, the error carries `details.sessionId`; rerun with `--session <that id>` and DSH reuses the blank Session instead of creating another.
 
 `session-send <bot-id> <orchestrator-session-id> <text>` sends the Human's text straight into the Bot's current Orchestrator Session, as the input box in that Session's detail does. It is a deliberate steer and is rare. No Channel shows the text: the Session receives it raw under one line saying the Human wrote it in Session detail, and the Bot Inbox keeps it as a Human Source Event on the Human's DM, so it survives a restart or compaction. A running turn takes it at its next step, whatever the `human-dm` delivery setting; while the Bot is preparing or reconciling its Memory it waits for the next turn instead, and an idle Orchestrator wakes for it. The Bot does not have to reply; a `bot_send_message` with that `source_event_id` lands in the Human's DM without a quote. Put `--` before text that starts with `-`; text that looks like a secret flag, such as `--token` or `--api-key=…`, is still refused with `secret-in-argv`, because secrets never travel in arguments. It returns `{ sourceEventId }`. Any other Session of a Bot that can take the message is refused with `invalid-input`; a Bot that cannot take messages now, for example a paused one, is refused with `unavailable`.
 
@@ -2422,7 +2425,11 @@ deepseekbot private-route stop quick --expected-route-revision <revision-from-li
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
+deepseekbot private-route allow-address-sign-in custom --confirm
+deepseekbot private-route deny-address-sign-in custom --confirm
 ```
+
+`allow-address-sign-in custom` lets the custom route answer the Host's sign-in discovery and carry the encrypted channel without the private admission token, so Host Members can sign in by typing its HTTPS address with a username and password. The address becomes discoverable on the public internet and anyone can try a password; the Team sign-in rate limit applies through the route. `deny-address-sign-in custom` restores token-only admission and closes channels opened without the token. Quick Tunnel refuses with `private-route-address-sign-in-unsupported`, and replacing the custom route turns the setting off. `list` reports `addressSignIn` on the custom route.
 
 Use the existing Host connection arguments for every command. Named connector tokens enter through stdin only. Add retries are idempotent; changing an occupied slot requires Replace. Stop retains configuration and disabled intent; only enabled routes resume after Host restart. Remove forgets the selected configuration, without revoking paired phones. Revoke the device through the existing device command to remove its access across both routes. Legacy no-ID enable/disable refuses ambiguous multi-route operations.
 

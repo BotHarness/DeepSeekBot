@@ -319,8 +319,8 @@ describe('bot sidebar rows', () => {
       ],
     );
 
-    for (const wide of [true, false]) {
-      const markup = wide ? renderSidebar() : await renderRailPreviews();
+    const { markup: rail, previews } = await renderRailPreviews();
+    for (const markup of [renderSidebar(), [rail, ...previews.values()].join('')]) {
       expect(markup).toContain('Atlas 退出了频道');
       expect(markup).toContain('Bea 被移出了频道');
       expect(markup).not.toContain('undefined：');
@@ -420,18 +420,26 @@ describe('bot sidebar rows', () => {
     expect(roster).toContain('bh-channel-slot bh-group-channel-slot');
     expect(roster).toContain('<img class="bh-group-avatar-image"');
 
-    const ordinaryRail = await renderRailPreviews();
+    const { markup: ordinaryRail, previews: ordinaryRailPreviews } = await renderRailPreviews();
     expect(ordinaryRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
-    expect(ordinaryRail.match(/<img class="bh-group-avatar-image"/g)).toHaveLength(2);
+    expect(
+      [ordinaryRail, ...ordinaryRailPreviews.values()]
+        .join('')
+        .match(/<img class="bh-group-avatar-image"/g),
+    ).toHaveLength(2);
 
     setRoster({ pins: [group.id] });
     const pinned = renderSidebar();
     expect(pinned).toContain('bh-pinned-channel-icon bh-group-pinned-channel-icon');
     expect(pinned).toContain('<img class="bh-group-avatar-image"');
 
-    const pinnedRail = await renderRailPreviews();
+    const { markup: pinnedRail, previews: pinnedRailPreviews } = await renderRailPreviews();
     expect(pinnedRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
-    expect(pinnedRail.match(/<img class="bh-group-avatar-image"/g)).toHaveLength(2);
+    expect(
+      [pinnedRail, ...pinnedRailPreviews.values()]
+        .join('')
+        .match(/<img class="bh-group-avatar-image"/g),
+    ).toHaveLength(2);
   });
 
   it('stacks member faces for a Group without an avatar in the roster, pinned grid, and rail', async () => {
@@ -442,9 +450,13 @@ describe('bot sidebar rows', () => {
     expect(roster).toContain('bh-channel-slot bh-group-channel-slot');
     expect(roster.match(/class="bh-group-avatar-stack" data-count="1"/g)).toHaveLength(1);
 
-    const ordinaryRail = await renderRailPreviews();
+    const { markup: ordinaryRail, previews: ordinaryRailPreviews } = await renderRailPreviews();
     expect(ordinaryRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
-    expect(ordinaryRail.match(/class="bh-group-avatar-stack"/g)).toHaveLength(2);
+    expect(
+      [ordinaryRail, ...ordinaryRailPreviews.values()]
+        .join('')
+        .match(/class="bh-group-avatar-stack"/g),
+    ).toHaveLength(2);
 
     setRoster({ pins: [group.id] });
     const pinned = renderSidebar();
@@ -453,8 +465,10 @@ describe('bot sidebar rows', () => {
     const stack = pinned.slice(pinned.indexOf('class="bh-group-avatar-stack"'));
     expect(stack).toMatch(/^[^]*?class="bh-persona-avatar"[^>]*data-state="idle"/);
 
-    const pinnedRail = await renderRailPreviews();
-    expect(pinnedRail.match(/class="bh-group-avatar-stack"/g)).toHaveLength(2);
+    const { markup: pinnedRail, previews: pinnedRailPreviews } = await renderRailPreviews();
+    expect(
+      [pinnedRail, ...pinnedRailPreviews.values()].join('').match(/class="bh-group-avatar-stack"/g),
+    ).toHaveLength(2);
   });
 
   it('omits hidden group and DM Channels from the roster, pin grid, and collapsed rail', () => {

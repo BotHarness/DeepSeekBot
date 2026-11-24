@@ -95,6 +95,10 @@ it('updates mounted settings and theme immediately and preserves unrelated state
       appearance: 'dark',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

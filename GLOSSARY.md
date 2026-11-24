@@ -45,16 +45,20 @@ A persistent local PersonaBot with its own Memory and read access to the Human's
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
-The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access.
+The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access. It holds the Steward role by default; ADR-0365 (proposed) makes that role transferable.
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-On mobile, the Tob DM's normal Conversation screen opened from the Tob entry bar on Chats. Only the entry and transition differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The entry always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+On mobile, the Tob DM's normal Conversation screen opened from the Tob entry bar on Chats. Only the entry and transition differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The entry always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel. The Pinned tab replaces it (#5191).
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
 Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
 _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
+
+**Steward**:
+The role that lets one Bot manage its Environment through the Human's CLI, delegate to colleagues (Tob Delegation) and use any later Steward capability. Every Environment always has exactly one Steward; Tob holds it by default. ADR-0365 (proposed, #5191) makes it transferable by the Owner: the capability set moves as a whole, the new Steward keeps its own Soul, Memory and prompt, and the former Steward becomes an ordinary Bot. The role is not administrator access.
+_Avoid_: Admin, administrator, Chief, Orchestrator (a Bot's runtime, not this role)
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
@@ -1263,7 +1267,7 @@ The tab that shows Activity.
 _Avoid_: notifications tab, inbox
 
 **Sessions tab**:
-The optional tab for the phone's Host Sessions. Tapping it lands on the New Session screen; existing Sessions are listed in the Session drawer.
+The optional tab for the phone's Host Sessions. Its root follows the Session navigation style: the New Session screen in Drawer style, with existing Sessions in the Session drawer, or the Session list in Stacked style. Per-phone landing settings choose where it opens on launch and when returning from another tab.
 _Avoid_: Session list tab, Sessions page
 
 **New Session screen**:
@@ -1279,8 +1283,12 @@ A per-phone preference for how the Sessions tab moves between Sessions: Drawer (
 _Avoid_: Session mode, layout mode
 
 **Tob entry bar**:
-The Composer-shaped tap target above the tab island on Chats that opens Tob Mode. It is only an entry: nothing is typed into it in place.
+The Composer-shaped tap target above the tab island on Chats that opens Tob Mode. It is only an entry: nothing is typed into it in place. The Pinned tab replaces it (#5191).
 _Avoid_: Tob input, quick composer, pull to Tob
+
+**Pinned tab**:
+Planned (#5191): the phone tab-island slot bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and opening it as its own tab. It defaults to the Steward's DM and replaces the Tob entry bar and Tob Mode.
+_Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:
 The tab for the phone's own preferences and the Human's account, models, usage and storage.

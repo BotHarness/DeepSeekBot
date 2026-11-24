@@ -152,6 +152,10 @@ export const INBOX_OPTIONS = {
   'include-archived': { type: 'boolean' },
   call: { type: 'string' },
   after: { type: 'string' },
+  cwd: { type: 'string' },
+  workspace: { type: 'string' },
+  model: { type: 'string' },
+  message: { type: 'string' },
 } as const;
 
 export const MESSAGING_OPTIONS = {

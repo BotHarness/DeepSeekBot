@@ -1,3 +1,16 @@
+import type { ReactNode, Ref } from 'react';
+
+type HostProps = Record<string, unknown> & {
+  children?: ReactNode | ((state: { pressed: boolean }) => ReactNode);
+  ref?: Ref<HTMLDivElement>;
+  style?: { opacity?: number };
+  onPress?: () => void;
+  onLongPress?: () => void;
+  onTouchStart?: () => void;
+  onAccessibilityAction?: (event: { nativeEvent: { actionName: string } }) => void;
+  onLayout?: (event: { nativeEvent: { layout: { height: number } } }) => void;
+};
+
 export const native = {
   os: 'ios',
   appState: 'active',
@@ -9,8 +22,8 @@ export const native = {
   pick: 0,
   presses: new Map<string, () => void>(),
   holds: new Map<string, () => void>(),
-  actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
-  layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
+  actions: new Map<string, NonNullable<HostProps['onAccessibilityAction']>>(),
+  layouts: new Map<string, NonNullable<HostProps['onLayout']>>(),
   dismiss: () => {},
   longPresses: Array<{ enabled: boolean; duration: number; start: () => void }>(),
 };
@@ -41,16 +54,16 @@ export async function mockGestureHandler() {
 export async function mockReactNative() {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
-    const Component = ({ children, ...props }: Record<string, unknown>) => {
+    const Component = ({ children, ...props }: HostProps) => {
       const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
-      if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
-        native.presses.set(pressKey, props['onPress'] as () => void);
-      if (typeof props['onLongPress'] === 'function' && typeof pressKey === 'string')
-        native.holds.set(pressKey, props['onLongPress'] as () => void);
-      if (typeof props['onAccessibilityAction'] === 'function' && typeof pressKey === 'string')
-        native.actions.set(pressKey, props['onAccessibilityAction'] as never);
-      if (typeof props['onLayout'] === 'function' && typeof props['testID'] === 'string')
-        native.layouts.set(props['testID'], props['onLayout'] as never);
+      if (typeof props.onPress === 'function' && typeof pressKey === 'string')
+        native.presses.set(pressKey, props.onPress);
+      if (typeof props.onLongPress === 'function' && typeof pressKey === 'string')
+        native.holds.set(pressKey, props.onLongPress);
+      if (typeof props.onAccessibilityAction === 'function' && typeof pressKey === 'string')
+        native.actions.set(pressKey, props.onAccessibilityAction);
+      if (typeof props.onLayout === 'function' && typeof props['testID'] === 'string')
+        native.layouts.set(props['testID'], props.onLayout);
       const attributes: Record<string, string> = {};
       for (const key of [
         'accessible',
@@ -72,18 +85,17 @@ export async function mockReactNative() {
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
             typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
-      const style = props['style'] as { opacity?: number } | undefined;
-      const touch = props['onTouchStart'];
+      const { style, onTouchStart } = props;
       return (
         <div
-          ref={props['ref'] as never}
+          ref={props.ref}
           data-native={name}
           {...attributes}
           style={{ opacity: style?.opacity }}
-          onClick={props['onPress'] as (() => void) | undefined}
-          onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
+          onClick={props.onPress}
+          onTouchStart={typeof onTouchStart === 'function' ? () => onTouchStart() : undefined}
         >
-          {(typeof children === 'function' ? children({ pressed: false }) : children) as never}
+          {typeof children === 'function' ? children({ pressed: false }) : children}
         </div>
       );
     };

@@ -50,6 +50,10 @@ Configure my existing Tobs Host with my own Cloudflare Named Tunnel. Read https:
 6. Report changed resources, actual results and pending phone/network steps. Provide recovery and removal instructions limited to this Tunnel/DNS route. Preserve the Profile and unrelated resources; phone revocation is separate from tunnel removal.
 ```
 
+## Let Host Members sign in by address
+
+By default only paired devices can use this route. In Team mode, the Host Owner can open **Connection details** on the connected route and turn on **Allow sign-in by address**. Host Members can then type this HTTPS address with their username and password on phone, Desktop or Web, and invitations list it. The address becomes discoverable on the public internet and anyone can try a password; the Team sign-in rate limit applies, shared by everyone on this route. Turning it off closes those connections again. Replacing the route turns it off. CLI: `tobs private-route allow-address-sign-in custom --confirm` and `tobs private-route deny-address-sign-in custom --confirm`.
+
 ## Recovery and removal
 
 An enabled Named Tunnel restores with the Host and keeps its hostname. A sleeping/stopped computer is unavailable. For `dns`, check the hostname/DNS route; for an origin failure, check the exact HTTP loopback port; for a connector refusal, check the private token/account. Keep TLS validation enabled.

@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller';
+import type {
+  SessionCreateRequest,
+  SessionRequestId,
+} from '@deepseek-ai/dsh-api-session-controller';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -23,22 +26,40 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
       return query;
     }),
     async list() {
-      const { items } = await controller().list({}, new AbortController().signal);
-      return items
-        .filter((row) => row.origin !== 'subagent')
-        .map((row) => {
-          const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
-          const metadata = row.projections?.values;
-          return {
-            sessionId,
-            ...(cwd === undefined ? {} : { cwd }),
-            ...(parentSessionId === undefined ? {} : { parentSessionId }),
-            ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
-            lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
-            running,
-            updatedAt,
-          };
-        });
+      const service = controller();
+      const signal = new AbortController().signal;
+      const { items } = await service.list({}, signal);
+      const roots = items.filter((row) => row.origin !== 'subagent');
+      const waiting = new Set(
+        (
+          await Promise.all(
+            roots
+              .filter((row) => row.running)
+              .map((row) =>
+                service.state({ sessionId: row.sessionId }, signal).then(
+                  (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
+                  () => undefined,
+                ),
+              ),
+          )
+        ).filter((id) => id !== undefined),
+      );
+      return roots.map((row) => {
+        const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
+        const metadata = row.projections?.values;
+        const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
+        return {
+          sessionId,
+          ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+          ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
+          ...(cwd === undefined ? {} : { cwd }),
+          ...(parentSessionId === undefined ? {} : { parentSessionId }),
+          ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
+          lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
+          running,
+          updatedAt,
+        };
+      });
     },
     async isRoot(id) {
       const sessionId = SessionId(id);
@@ -134,6 +155,19 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
           ? null
           : sessionRouteChoice(current);
       return { override, default: original === undefined ? null : sessionRouteChoice(original) };
+    },
+    async create(target) {
+      const reuse =
+        target.sessionId === undefined ? {} : { sessionId: SessionId(target.sessionId) };
+      const { sessionId } = await controller().create(
+        'cwd' in target
+          ? { cwd: target.cwd, ...reuse }
+          : {
+              workspaceId: target.workspaceId as NonNullable<SessionCreateRequest['workspaceId']>,
+              ...reuse,
+            },
+      );
+      return { sessionId };
     },
     async send(id, text) {
       const requestId = randomUUID() as SessionRequestId;

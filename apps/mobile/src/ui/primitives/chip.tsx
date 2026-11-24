@@ -1,6 +1,7 @@
 import { Pressable } from 'react-native';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { edge, space } from '../design/tokens';
 import { Text } from './text';
 import { useStrings } from '../strings';
 
@@ -34,7 +35,7 @@ export function Chip({ label, testID, count, selected, onPress, disabled = false
         alignItems: 'center',
         gap: space.x2,
         paddingHorizontal: space.x4,
-        borderRadius: radius.round,
+        borderRadius: capsuleRadius(theme.fontScale),
         borderWidth: edge.hairline,
         borderColor: selected ? theme.color.accent : theme.layer.canvas.edge,
         backgroundColor: selected

@@ -497,6 +497,7 @@ export const CLI_EFFECTS = {
   'session-progress': { effects: read, brokerRead: true },
   'session-model': { effects: write, brokerRead: false },
   'session-list': { effects: read, brokerRead: true },
+  'session-create': { effects: destructive, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
   'session-live': { effects: read, brokerRead: true },
   'session-tool': { effects: read, brokerRead: true },

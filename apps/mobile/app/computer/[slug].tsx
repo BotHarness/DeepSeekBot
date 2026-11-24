@@ -36,6 +36,7 @@ import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
+import { capsuleRadius } from '../../src/ui/design/large-text-fallback';
 
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
@@ -268,7 +269,7 @@ function LegacyComputerScreen() {
                           minHeight: theme.touch - space.x3,
                           alignItems: 'center',
                           justifyContent: 'center',
-                          borderRadius: radius.round,
+                          borderRadius: capsuleRadius(theme.fontScale),
                           backgroundColor:
                             mode === option ? theme.layer.raised.selected : undefined,
                         }}

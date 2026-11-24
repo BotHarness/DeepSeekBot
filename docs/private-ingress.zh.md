@@ -48,6 +48,10 @@ frp 的常规代理由 Host 旁的 `frpc` 主动连接公网服务器的 `frps`�
 6. 报告修改资源、真实检查和剩余步骤，给出只针对本次配置的重启与回退方法；保留 Host Profile、其他代理规则、证书和设备授权。
 ```
 
+## 让 Host Member 凭地址登录
+
+默认只有已配对的设备能使用这条连接。团队模式下，Host Owner 可以在已连接的连接上打开**连接详情**，开启**允许凭地址登录**。之后 Host Member 在手机、桌面或网页上输入这个 HTTPS 地址、用户名和密码即可登录，邀请里也会列出该地址。地址会在公网上可被发现，任何人都可以尝试密码；团队登录限流同样生效，并由这条连接上的所有人共享。关闭后这些连接会再次断开。替换连接会关闭此设置。CLI：`tobs private-route allow-address-sign-in custom --confirm` 和 `tobs private-route deny-address-sign-in custom --confirm`。
+
 ## 验证与维护
 
 通过所选 HTTPS 地址完成[连接验证](private-connect.zh.md#验证所选连接)，不能用 localhost 捷径代替。仅内网入口应从手机所在的目标内网验证内网 DNS、可信证书与连接，不要求外部 Wi-Fi/蜂窝网；Bot 模型连通性另算。记下上游端口，确保代理重载/重启后仍使用它，并保留旧代理配置用于回退。支持单条连接控制的版本中，停止保留配置，移除入口不等于撤销手机。清理前核对归属，只移除本条代理规则/DNS，不为退役一条连接而停止共享 nginx/Caddy。

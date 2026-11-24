@@ -221,3 +221,86 @@ it('shows an existing custom configuration as an explicit replacement form', asy
   expect(host.textContent).toContain(t('privateTunnel.routes.replaceConfirm'));
   expect(host.querySelector('[data-private-tunnel-setup="ingress"]')).not.toBeNull();
 });
+
+it('offers sign-in by address only on the custom route and explains the trade-off', async () => {
+  const requests: unknown[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return Response.json({ ok: true });
+    }),
+  );
+  const refresh = vi.fn(async () => undefined);
+  const routes = (addressSignIn: boolean) => [
+    {
+      id: 'quick' as const,
+      enabled: true,
+      state: 'connected' as const,
+      mode: 'quick' as const,
+      origin: 'https://quick.trycloudflare.com',
+    },
+    {
+      id: 'custom' as const,
+      enabled: true,
+      state: 'connected' as const,
+      mode: 'named' as const,
+      origin: 'https://team.example.com',
+      addressSignIn,
+    },
+  ];
+  const show = (addressSignIn: boolean, method?: 'named') =>
+    act(async () =>
+      root.render(
+        <PrivateTunnelSettings
+          t={t}
+          routes={routes(addressSignIn)}
+          refresh={refresh}
+          pair={() => undefined}
+          advanced={() => undefined}
+          step="choose"
+          setStep={() => undefined}
+          method={method}
+        />,
+      ),
+    );
+  const button = (label: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      (item) => item.textContent === label,
+    )!;
+  const details = () =>
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find((item) =>
+      item.textContent?.includes(t('privateTunnel.panel.manageHint')),
+    )!;
+  await show(false);
+  await act(async () => button(t('privateTunnel.panel.manage')).click());
+  await act(async () => details().click());
+  expect(host.textContent).toContain(t('privateTunnel.panel.turnOffHint'));
+  expect(host.querySelector('[data-private-route-address-sign-in]')).toBeNull();
+
+  await act(async () => root.unmount());
+  root = createRoot(host);
+  await show(false, 'named');
+  await act(async () => details().click());
+  const fact = host.querySelector('[data-private-route-address-sign-in]')!;
+  expect(fact.getAttribute('data-private-route-address-sign-in')).toBe('off');
+  expect(fact.textContent).toContain(t('privateTunnel.addressSignInHint'));
+  const toggle = fact.querySelector<HTMLButtonElement>('[role="switch"]')!;
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
+  await act(async () => toggle.click());
+  expect(requests).toEqual([
+    { action: 'address-sign-in', routeId: 'custom', enabled: true, confirm: true },
+  ]);
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  await show(true, 'named');
+  const on = host.querySelector('[data-private-route-address-sign-in]')!;
+  expect(on.getAttribute('data-private-route-address-sign-in')).toBe('on');
+  await act(async () => on.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+  expect(requests[1]).toEqual({
+    action: 'address-sign-in',
+    routeId: 'custom',
+    enabled: false,
+    confirm: true,
+  });
+});

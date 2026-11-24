@@ -9,6 +9,7 @@ import {
   conversationGlyph,
   pendingActivity,
   recentConversations,
+  recentSessionsShown,
   type TabMenuHost,
 } from '../src/ui/shell/tab-menu-model';
 import { createRecentSessions } from '../src/ui/shell/recent-sessions';
@@ -209,5 +210,28 @@ describe('recent Sessions', () => {
       'home',
     );
     expect(recent.get('home')?.map((session) => session.sessionId)).toEqual(['a']);
+  });
+});
+
+describe('recentSessionsShown', () => {
+  const native: HostSessionRow = {
+    sessionId: 'native',
+    source: { kind: 'native' },
+    running: false,
+    lastPromptAt: 2,
+    updatedAt: 2,
+  };
+  const bot: HostSessionRow = {
+    sessionId: 'bot',
+    source: { kind: 'bot', botSlug: 'ada', displayName: 'Ada' },
+    running: false,
+    lastPromptAt: 1,
+    updatedAt: 1,
+  };
+
+  it('drops Bot Sessions from the Sessions tab menu when the phone hides them', () => {
+    expect(recentSessionsShown([native, bot], false)).toEqual([native, bot]);
+    expect(recentSessionsShown([native, bot], true)).toEqual([native]);
+    expect(recentSessionsShown(undefined, true)).toBeUndefined();
   });
 });
