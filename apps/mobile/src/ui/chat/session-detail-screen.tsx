@@ -32,6 +32,7 @@ import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
 import { ChatHeaderRow } from './chat-header-row';
+import { sessionHeaderTitle } from './session-header-title';
 import { SessionTitleMenu } from './session-title-menu';
 import { useChannelViewport } from './channel-viewport';
 import {
@@ -57,10 +58,12 @@ import { useSessionTranscript } from './use-session-transcript';
 
 function SessionHeader({
   title,
+  pending = false,
   menu,
   onHeight,
 }: {
   title: string;
+  pending?: boolean;
   menu?: ChatHeaderMenu | undefined;
   onHeight(height: number): void;
 }) {
@@ -103,7 +106,14 @@ function SessionHeader({
                       </HeaderCircleButton>
                     ),
                   })}
-              title={<SessionTitleMenu title={title} hint={t.sessionDetail.options} menu={menu} />}
+              title={
+                <SessionTitleMenu
+                  title={title}
+                  pending={pending}
+                  hint={t.sessionDetail.options}
+                  menu={menu}
+                />
+              }
             />
           ),
         }}
@@ -112,6 +122,7 @@ function SessionHeader({
         <ConversationTopBar
           variant="session"
           title={title}
+          titlePending={pending}
           leading={drawer ? 'drawer' : 'back'}
           onBack={drawer ? openSessionDrawer : back}
           onCompose={compose}
@@ -123,7 +134,15 @@ function SessionHeader({
   );
 }
 
-function SessionNotice({ title, children }: { title: string; children: ReactNode }) {
+function SessionNotice({
+  title,
+  pending = false,
+  children,
+}: {
+  title: string;
+  pending?: boolean;
+  children: ReactNode;
+}) {
   const theme = useDesignTheme();
   const { headerOverlap, headerPadding, setMeasuredHeaderHeight } = useChatTimelineChrome();
   return (
@@ -135,19 +154,20 @@ function SessionNotice({ title, children }: { title: string; children: ReactNode
       }}
     >
       {children}
-      <SessionHeader title={title} onHeight={setMeasuredHeaderHeight} />
+      <SessionHeader title={title} pending={pending} onHeight={setMeasuredHeaderHeight} />
     </View>
   );
 }
 
 export function SessionDetailScreen() {
-  const { hostId, slug, id, session, source, title } = useLocalSearchParams<{
+  const { hostId, slug, id, session, source, title, fresh } = useLocalSearchParams<{
     hostId?: string;
     slug?: string;
     id?: string;
     session?: string;
     source?: string;
     title?: string;
+    fresh?: string;
   }>();
   const t = useStrings().sessionDetail;
   const { client, saved } = useHostSession(hostId);
@@ -173,6 +193,7 @@ export function SessionDetailScreen() {
       slug={source === 'native' ? null : slug}
       id={sessionId}
       title={title}
+      fresh={fresh === '1'}
     />
   );
 }
@@ -182,11 +203,13 @@ function SessionTarget({
   slug,
   id,
   title,
+  fresh,
 }: {
   client: HostClient;
   slug: string | null | undefined;
   id: string;
   title: string | undefined;
+  fresh: boolean;
 }) {
   const t = useStrings().sessionDetail;
   const [owner, setOwner] = useState<string | null>();
@@ -211,7 +234,7 @@ function SessionTarget({
   const resolved = slug === undefined ? owner : slug;
   if (slug === undefined && resolved == null)
     return (
-      <SessionNotice title={title ?? t.title}>
+      <SessionNotice title={title || t.title} pending={fresh}>
         {resolved === null ? (
           <SheetFailed message={t.unavailable} onRetry={() => setAttempt((value) => value + 1)} />
         ) : online ? (
@@ -223,7 +246,14 @@ function SessionTarget({
     );
   if (resolved === undefined) return null;
   return (
-    <SessionDetailBody client={client} slug={resolved} id={id} title={title} online={online} />
+    <SessionDetailBody
+      client={client}
+      slug={resolved}
+      id={id}
+      title={title}
+      fresh={fresh}
+      online={online}
+    />
   );
 }
 
@@ -237,12 +267,14 @@ export function SessionDetailBody({
   slug,
   id,
   title,
+  fresh = false,
   online,
 }: {
   client: HostClient;
   slug: string | null;
   id: string;
   title?: string | undefined;
+  fresh?: boolean;
   online: boolean;
 }) {
   const t = useStrings();
@@ -323,12 +355,20 @@ export function SessionDetailBody({
       return () => abort.abort();
     }, [client, id, online, role, slug, view.running, assignmentAttempt, archiveRevision]),
   );
-  const sessionTitle =
-    assignment?.assignment.title ||
-    (role === 'assignment' ? title : undefined) ||
-    transcript?.displayTitle ||
-    title ||
-    id;
+  const header = sessionHeaderTitle({
+    resolved:
+      assignment?.assignment.title ||
+      (role === 'assignment' ? title : undefined) ||
+      transcript?.displayTitle,
+    placeholder: title,
+    fresh,
+    transcript:
+      transcript === undefined
+        ? undefined
+        : { ...transcript, running: view.running, items: view.items },
+    fallback: fresh ? t.hostSessions.create : id,
+  });
+  const sessionTitle = header.text;
 
   async function run(command: SessionCommand): Promise<boolean> {
     if (!online || role === undefined || pending.current) return false;
@@ -414,7 +454,7 @@ export function SessionDetailBody({
 
   if (transcript === undefined)
     return (
-      <SessionNotice title={sessionTitle}>
+      <SessionNotice title={sessionTitle} pending={header.pending}>
         {view.error !== undefined ? (
           <SheetFailed
             message={
@@ -569,7 +609,12 @@ export function SessionDetailBody({
           </Animated.View>
         </Animated.View>
       </ChatTimelineFrame>
-      <SessionHeader title={sessionTitle} menu={menu} onHeight={setMeasuredHeaderHeight} />
+      <SessionHeader
+        title={sessionTitle}
+        pending={header.pending}
+        menu={menu}
+        onHeight={setMeasuredHeaderHeight}
+      />
       <SessionModelPicker control={model} />
     </View>
   );

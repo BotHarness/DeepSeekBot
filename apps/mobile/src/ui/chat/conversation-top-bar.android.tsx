@@ -32,6 +32,7 @@ import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { MenuIcon } from '../primitives/menu-icon';
+import { MorphTitle } from './morph-title.android';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
@@ -50,6 +51,7 @@ export function ConversationTopBar({
   leading = 'back',
   onCompose,
   titleMenu,
+  titlePending = false,
   onProfile,
   onCall,
   menu,
@@ -252,9 +254,7 @@ export function ConversationTopBar({
                     </RNHostView>
                   )}
                   <Column modifiers={[weight(1)]}>
-                    <Text style={titleStyle} maxLines={1} overflow="ellipsis">
-                      {title}
-                    </Text>
+                    <MorphTitle title={title} pending={titlePending} style={titleStyle} />
                     {!showStatus ? null : (
                       <Row
                         verticalAlignment="center"
@@ -357,9 +357,7 @@ export function ConversationTopBar({
                         </RNHostView>
                       )}
                       <Column modifiers={[weight(1)]}>
-                        <Text style={titleStyle} maxLines={1} overflow="ellipsis">
-                          {title}
-                        </Text>
+                        <MorphTitle title={title} pending={titlePending} style={titleStyle} />
                         {!showStatus ? null : (
                           <Row
                             verticalAlignment="center"

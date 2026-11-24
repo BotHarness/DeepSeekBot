@@ -72,6 +72,14 @@ export interface NativeSessions {
   ): Promise<{ sessionId: string }>;
 }
 
+function titleSourceKind(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const source = (data as { source?: unknown }).source;
+  return typeof source === 'object' && source !== null
+    ? (source as { kind?: unknown }).kind
+    : undefined;
+}
+
 export function normalizeSessionSearch(text: string): string {
   return text.trim().replace(/\s+/gu, ' ').toLowerCase();
 }
@@ -290,6 +298,11 @@ export function createHostSessionsMethods(
         async (service, id) => {
           const snapshot = await service.read(id);
           const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
+          const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
+          const fallbackTitle =
+            recorded === undefined
+              ? snapshot.title === undefined
+              : titleSourceKind(recorded.data) === 'fallback';
           return {
             ok: true,
             value: {
@@ -300,6 +313,7 @@ export function createHostSessionsMethods(
               sessionId: id,
               role: 'native',
               ...(title === undefined ? {} : { displayTitle: title }),
+              ...(fallbackTitle ? { titleFallback: true } : {}),
               running: snapshot.running,
               seq: snapshot.seq,
             },

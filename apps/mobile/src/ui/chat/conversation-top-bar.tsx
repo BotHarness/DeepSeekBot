@@ -22,6 +22,7 @@ export type ConversationTopBarProps = {
   leading?: 'back' | 'drawer';
   onCompose?: (() => void) | undefined;
   titleMenu?: ChatHeaderMenu | undefined;
+  titlePending?: boolean;
   onProfile?: (() => void) | undefined;
   onCall?: (() => void) | undefined;
   menu?: ChatHeaderMenu | undefined;
