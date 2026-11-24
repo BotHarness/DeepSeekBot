@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { hostSession } from '../../host/host-session';
 import { requestActivitySession } from '../../host/native-live-activity';
 import { navigateChannel } from '../shell/channel-navigation';
-import { hostDrawer } from '../shell/host-drawer';
+import { hostDrawer } from '../shell/host-drawer-state';
 import {
   activityAssignmentDestination,
   activityDestination,

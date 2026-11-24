@@ -1,16 +1,6 @@
 import type { ConnectHost } from '@botharness/host-client/connect-account';
 import type { HostGlance } from '../../host/host-glance';
 import type { SavedHost } from '@botharness/host-client/hosts';
-import { materialDrawer, modalRail } from '../design/tokens';
-
-export const DRAWER_SHARE = 0.85;
-export const EDGE_WIDTH = 24;
-const EDGE_DRAG_START = 10;
-const EDGE_VERTICAL_FAIL = 15;
-const ANYWHERE_DRAG_START = 24;
-const ANYWHERE_VERTICAL_FAIL = 8;
-const SETTLE_SHARE = 0.4;
-const FLING = 500;
 
 export interface HostDrawerRow {
   hostId: string;
@@ -64,38 +54,6 @@ export function hostRowBadge(glance: HostGlance): HostRowBadge {
   if ((glance.pending ?? 0) > 0) return { tone: 'needs-you', count: glance.pending! };
   if ((glance.unread ?? 0) > 0) return { tone: 'unread', count: glance.unread! };
   return undefined;
-}
-
-export function drawerWidth(windowWidth: number, os: string = 'ios'): number {
-  if (os === 'android')
-    return Math.min(materialDrawer.width, windowWidth - materialDrawer.scrimGutter);
-  return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
-}
-
-export function drawerSwipe(
-  os: string,
-  anywhere: boolean,
-): {
-  push: boolean;
-  activeX: number;
-  failY: number;
-  hitSlop?: { left: number; width: number };
-} {
-  return anywhere && os === 'android'
-    ? { push: true, activeX: ANYWHERE_DRAG_START, failY: ANYWHERE_VERTICAL_FAIL }
-    : {
-        push: false,
-        activeX: EDGE_DRAG_START,
-        failY: EDGE_VERTICAL_FAIL,
-        hitSlop: { left: 0, width: EDGE_WIDTH },
-      };
-}
-
-export function settleOpen(progress: number, velocityX: number): boolean {
-  'worklet';
-  if (velocityX > FLING) return true;
-  if (velocityX < -FLING) return false;
-  return progress > SETTLE_SHARE;
 }
 
 export interface HostDrawerState {
@@ -215,14 +173,4 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       returnFocus = focus;
     },
   };
-}
-
-export function addressLines(largeText: boolean, os: string) {
-  if (os === 'android')
-    return {
-      numberOfLines: 1,
-      adjustsFontSizeToFit: true,
-      minimumFontScale: materialDrawer.addressMinScale,
-    };
-  return largeText ? {} : { numberOfLines: 1 };
 }

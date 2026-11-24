@@ -54,8 +54,6 @@ vi.mock('expo', () => ({
 }));
 
 import { PrimaryTabRow } from '../src/ui/primitives/primary-tab-row.android';
-import { WorkspaceTabs } from '../src/ui/shell/workspace-tabs.android';
-import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -112,16 +110,5 @@ describe('Android primary tab row', () => {
       <PrimaryTabRow tabs={[{ value: 'a', label: 'Alpha' }]} value="handled" onChange={() => {}} />,
     );
     expect(selected()).toEqual([]);
-  });
-});
-
-describe('Android workspace tabs', () => {
-  it('shows Computers and Cloud as native tabs', async () => {
-    const onChange = vi.fn();
-    await render(<WorkspaceTabs value="cloud" onChange={onChange} />);
-    expect(tabs().map((tab) => tab.textContent)).toEqual([t.computers, t.workspaceAdd.cloudTab]);
-    expect(selected().map((tab) => tab.textContent)).toEqual([t.workspaceAdd.cloudTab]);
-    await act(async () => tabs()[0]?.click());
-    expect(onChange).toHaveBeenCalledWith('computers');
   });
 });

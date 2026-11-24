@@ -27,7 +27,6 @@ const state = vi.hoisted(() => ({
   open: vi.fn(),
   refresh: vi.fn(),
   haptic: vi.fn(async () => {}),
-  drawer: false,
   enabled: true,
   hostId: 'a' as string | undefined,
   href: true,
@@ -85,7 +84,6 @@ vi.mock('react-native-reanimated', async () => {
     },
   };
 });
-vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawer }));
 vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => false,
 }));
@@ -129,7 +127,6 @@ function send(phase: keyof Handlers, y: number, inset = 0) {
 beforeEach(() => {
   state.handlers = [];
   state.os = 'ios';
-  state.drawer = false;
   state.enabled = true;
   state.hostId = 'a';
   state.href = true;
@@ -142,7 +139,7 @@ afterEach(() => act(() => root?.unmount()));
 
 describe('iOS pull events through the real Chats pull component', () => {
   it.each(['ios', 'android'])(
-    'keeps the hosted list mounted across focus/search/drawer changes on %s',
+    'keeps the hosted list mounted across focus/search changes on %s',
     async (os) => {
       state.os = os;
       await mount();
@@ -150,14 +147,8 @@ describe('iOS pull events through the real Chats pull component', () => {
         (node) => node.textContent === 'Chats' && node.children.length === 0,
       );
       if (list === undefined) throw new Error('Chats list missing');
-      for (const [enabled, drawer] of [
-        [false, false],
-        [true, false],
-        [true, true],
-        [true, false],
-      ] as const) {
+      for (const enabled of [false, true, false, true]) {
         state.enabled = enabled;
-        state.drawer = drawer;
         await act(async () => root?.render(<Harness />));
         expect(view.contains(list)).toBe(true);
       }
@@ -229,16 +220,6 @@ describe('iOS pull events through the real Chats pull component', () => {
     send('onEndDrag', -tobPull.commit);
     expect(state.open).not.toHaveBeenCalled();
     expect(state.refresh).not.toHaveBeenCalled();
-  });
-  it('does not arm while the workspace drawer is open', async () => {
-    state.drawer = true;
-    await mount();
-    send('onBeginDrag', 0);
-    send('onScroll', -tobPull.commit);
-    send('onEndDrag', -tobPull.commit);
-    expect(state.open).not.toHaveBeenCalled();
-    expect(state.refresh).not.toHaveBeenCalled();
-    expect(state.haptic).not.toHaveBeenCalled();
   });
   it('cancels a drag when search opens before release', async () => {
     await mount();

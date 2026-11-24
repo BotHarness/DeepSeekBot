@@ -26,6 +26,11 @@ export const en = {
   creationSourceChanged: 'The selected connection changed. Close this menu and choose again.',
   allEnvironments: 'All',
   allEnvironmentsRow: 'All environments',
+  environmentSheet: {
+    title: 'Environment',
+    computers: 'Computers',
+    cloud: 'Cloud workspaces',
+  },
   noOnlineChats: 'No online chats',
   hostListLoadFailed: 'Could not load chats. Try again.',
   hostListUnavailable: 'Could not refresh chats. Showing the last list.',
@@ -159,6 +164,11 @@ export const zh: typeof en = {
   creationSourceChanged: '所选连接已变更，关闭菜单后重新选择。',
   allEnvironments: '全部',
   allEnvironmentsRow: '全部环境',
+  environmentSheet: {
+    title: '环境',
+    computers: '电脑',
+    cloud: '云端工作区',
+  },
   noOnlineChats: '暂无在线聊天',
   hostListLoadFailed: '聊天未能加载，再试一次。',
   hostListUnavailable: '聊天未能刷新，当前显示上次的列表。',

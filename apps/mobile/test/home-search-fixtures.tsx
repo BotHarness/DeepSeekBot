@@ -90,7 +90,6 @@ export async function rowMenuAction(view: HTMLElement, key: keyof typeof t.rowAc
 export const rows = (view: HTMLElement) =>
   [...view.querySelectorAll('button')]
     .filter((node) => node.dataset.testid !== 'action-menu-trigger')
-    .filter((node) => node.dataset.testid !== 'chats-view-button')
     .filter((node) => !node.dataset.testid?.startsWith('chat-section-'))
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
@@ -103,7 +102,6 @@ export const rows = (view: HTMLElement) =>
           t.openSearch,
           t.openTobMode,
           t.settings,
-          t.workspaces,
         ].includes(node.getAttribute('aria-label') ?? ''),
     )
     .map((node) => node.getAttribute('aria-label'));

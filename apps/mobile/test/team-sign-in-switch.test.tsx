@@ -94,12 +94,9 @@ const discoverHostAddress = vi.hoisted(() =>
   vi.fn(async (_input: unknown) => ({ ok: true as const, value: discovery })),
 );
 vi.mock('@botharness/host-client/password-sign-in', () => ({ discoverHostAddress }));
-const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
+const landing = vi.hoisted(() => ({ filter: vi.fn() }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: landing.filter },
-}));
-vi.mock('../src/ui/shell/workspace-paging', () => ({
-  closeWorkspacePageWhenShown: landing.closePage,
 }));
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
 vi.mock('expo-clipboard', () => clipboard);
@@ -176,7 +173,6 @@ it('signs the same member in again from a saved Host without an invitation or a 
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
     expect(router.dismissTo).toHaveBeenCalledOnce();
     expect(landing.filter).toHaveBeenCalledWith(computerEnvironmentKey('h'));
-    expect(landing.closePage).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     element.remove();
