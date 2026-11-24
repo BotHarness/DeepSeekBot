@@ -20,6 +20,7 @@ import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
 import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
+import { EnvironmentSettingsRow } from '../../../src/ui/shell/environment-settings-row';
 
 export default function SettingsScreen() {
   const t = useStrings();
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
   return (
     <SettingsTabPage>
       <SettingsView
+        environment={<EnvironmentSettingsRow />}
         profile={
           <AccountProfileRow
             chat={{ name: human.identity?.displayName, avatar: human.avatar, mount: human.mount }}

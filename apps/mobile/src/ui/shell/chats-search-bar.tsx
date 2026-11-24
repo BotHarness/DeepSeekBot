@@ -17,7 +17,6 @@ export type ChatsSearchBarProps = {
   onQuery(value: string): void;
   onExpanded(expanded: boolean): void;
   onPick(key: string): void;
-  onNavigation(): void;
 };
 
 export function ChatsSearchBar(_: ChatsSearchBarProps): null {

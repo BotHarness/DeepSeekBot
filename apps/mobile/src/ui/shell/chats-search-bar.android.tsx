@@ -10,7 +10,6 @@ import type { ChatsSearchBarProps, ChatsSearchResult } from './chats-search-bar'
 type NativeSearchBarProps = PrimitiveBaseProps & {
   autoExpand?: boolean;
   placeholder: string;
-  navigationLabel: string;
   closeLabel: string;
   clearLabel: string;
   emptyText: string;
@@ -19,7 +18,6 @@ type NativeSearchBarProps = PrimitiveBaseProps & {
   onQueryChange(event: { nativeEvent: { value: string } }): void;
   onExpandedChange(event: { nativeEvent: { expanded: boolean } }): void;
   onPick(event: { nativeEvent: { key: string } }): void;
-  onNavigation(): void;
 };
 
 const NativeSearchBar = requireNativeView<NativeSearchBarProps>(
@@ -40,7 +38,6 @@ export function ChatsSearchBar(props: ChatsSearchBarProps) {
         modifiers={[testID('chats-search-bar')]}
         autoExpand={props.autoExpand ?? false}
         placeholder={props.placeholder}
-        navigationLabel={t.workspaces}
         closeLabel={t.closeSearch}
         clearLabel={t.activityClearSearch}
         emptyText={t.searchNoResults}
@@ -49,7 +46,6 @@ export function ChatsSearchBar(props: ChatsSearchBarProps) {
         onQueryChange={(event) => props.onQuery(event.nativeEvent.value)}
         onExpandedChange={(event) => props.onExpanded(event.nativeEvent.expanded)}
         onPick={(event) => props.onPick(event.nativeEvent.key)}
-        onNavigation={props.onNavigation}
       />
     </Host>
   );

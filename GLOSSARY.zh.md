@@ -1281,17 +1281,9 @@ _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 手机本地偏好，以及 Human 的账号、模型、用量和存储所在的 tab。
 _避免使用_：偏好页、齿轮菜单
 
-**Workspace panel**：
-iOS 上 Chats 左边的常驻页面，列出已配对的 Computer 和云端工作区并在它们之间切换。其他地方由 Workspace drawer 承担同一职能。
-_避免使用_：-1 屏、侧边栏、Host drawer
-
-**Workspace drawer**：
-从 Host chip 打开的导航抽屉，列出已配对的 Computer 和云端工作区并在它们之间切换。
-_避免使用_：Host drawer、侧边栏、菜单
-
 **Environment sheet**：
 环境选择 sheet。从 Settings 第一行打开的底部 sheet，列出 All、已配对的 Computer 和云端工作区，同时为 Chats、Activity 和 Sessions 设置 Environment Scope（ADR-0364）。
-_避免使用_：Host drawer、Host chip、侧边栏
+_避免使用_：Workspace panel、Workspace drawer、Host drawer、Host chip、侧边栏
 
 **Conversation screen**：
 会话页。显示一个 DM 或 Channel 的页面：顶部 header、Conversation Timeline，以及 Human 能发言时的 Composer（只读的 Bot-to-Bot DM 没有）。Tob Mode 打开的也是这个页面。

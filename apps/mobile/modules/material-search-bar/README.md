@@ -5,8 +5,8 @@ Local Expo UI extension wrapping Compose Material 3 `AppBarWithSearch` and
 with `ExpoUIView` and rendered inside `<Host>`, as in Compose's
 `FullScreenSearchBarScaffoldSample`. Android Chats uses it as its header.
 
-Collapsed, it is a search pill with a navigation button at its start (the workspace drawer) and an
-optional progress ring. Tapping the pill expands Compose's full-screen search dialog, which owns its
+Collapsed, it is a search pill with an optional progress ring and no navigation button: Chats has
+no drawer ([ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md)). Tapping the pill expands Compose's full-screen search dialog, which owns its
 motion, keyboard focus and predictive Back. Collapsing clears the query.
 
 The query streams to React as `onQueryChange`; React filters with the app's existing ranking and
