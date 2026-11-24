@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { sourceFilesMatching, writesTables } from './source-files.js';
 
 const SQLITE_OPENERS = [
+  'database/migrations/messaging-delivery.ts',
   'database/owner.ts',
-  'database/schema-plan.ts',
   'logs/log-db.ts',
   'purge/ledger.ts',
 ];
@@ -12,6 +12,8 @@ const SQLITE_OPENERS = [
 const MESSAGING_TABLE_WRITERS = [
   'channels/question-answer-receipts.ts',
   'channels/sqlite-store.ts',
+  'database/migrations/messaging-channels.ts',
+  'database/migrations/messaging-history.ts',
   'database/schema-plan.ts',
   'features/activity/events.ts',
   'features/activity/inbox-harvest.ts',
