@@ -61,6 +61,7 @@ export default defineConfig({
           ...testDefaults,
           name: 'default',
           exclude: [...configDefaults.exclude, ...genuiBudgetTests, ...durableIntegrationTests],
+          isolate: false,
           sequence: { groupOrder: 0 },
         },
       },
