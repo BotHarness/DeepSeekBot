@@ -36,7 +36,7 @@ export const sessionDrawer = {
     publish({ open: state.open, shown: true });
   },
   settle(open: boolean, velocity = 0, animate = true) {
-    if (open) Keyboard.dismiss();
+    if (open || state.open) Keyboard.dismiss();
     publish({ open, shown: true });
     if (!animate) {
       sessionDrawerProgress.value = open ? 1 : 0;
@@ -52,7 +52,7 @@ export const sessionDrawer = {
     );
   },
   nativeChange(open: boolean) {
-    if (open) Keyboard.dismiss();
+    if (open || state.open) Keyboard.dismiss();
     publish({ open, shown: true });
     sessionDrawerProgress.value = withSpring(open ? 1 : 0, {
       ...spring.effects.default,

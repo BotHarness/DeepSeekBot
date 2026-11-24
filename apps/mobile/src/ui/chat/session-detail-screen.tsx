@@ -69,7 +69,8 @@ function SessionHeader({
   const router = useRouter();
   const drawer = useSessionDrawerRoot();
   const inSessions = useInSessionsTab();
-  const { saved } = useHostSession();
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { saved } = useHostSession(hostId);
   const compose =
     inSessions && canCreateNativeSession(saved)
       ? () => (drawer ? openNewSession() : router.dismissTo('/sessions'))

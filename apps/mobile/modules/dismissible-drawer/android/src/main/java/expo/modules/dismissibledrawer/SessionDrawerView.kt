@@ -83,12 +83,13 @@ fun FunctionalComposableScope.SessionDrawerContent(
   }
 
   LaunchedEffect(drawerState) {
-    snapshotFlow { drawerState.currentValue == DrawerValue.Open }.collect { open ->
-      settledReport(open, reported.value)?.let {
-        reported.value = it
-        onOpenChange(it)
+    snapshotFlow { drawerState.isAnimationRunning to (drawerState.currentValue == DrawerValue.Open) }
+      .collect { (running, open) ->
+        sessionSettledReport(running, open, reported.value)?.let {
+          reported.value = it
+          onOpenChange(it)
+        }
       }
-    }
   }
 
   // Once the drawer moves under the finger, keep React Native from taking the rest of the gesture.

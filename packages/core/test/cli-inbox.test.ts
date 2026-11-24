@@ -154,6 +154,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     const live = await host(echo);
     for (const argv of [
       ['session-create', '--cwd', '/work/research', '--message', 'Map the repository'],
+      ['session-create', '--cwd', '/work/research', '--session', 'blank', '--message', 'Retry'],
       [
         'session-create',
         '--workspace',
@@ -167,6 +168,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       expect((await invoke(argv, live.url)).code).toBe(0);
     expect(live.calls).toEqual([
       { method: 'sessionCreate', args: { cwd: '/work/research', text: 'Map the repository' } },
+      {
+        method: 'sessionCreate',
+        args: { cwd: '/work/research', text: 'Retry', sessionId: 'blank' },
+      },
       {
         method: 'sessionCreate',
         args: {
@@ -183,7 +188,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       ['session-create', '--cwd', '/a', '--message', 'Map', '--model', '{"kind":"group","id":"g"}'],
     ])
       expect((await invoke(argv, live.url)).text).toContain('usage');
-    expect(live.calls).toHaveLength(2);
+    expect(live.calls).toHaveLength(3);
   });
 
   it('sends raw text straight into the Orchestrator Session with session-send', async () => {

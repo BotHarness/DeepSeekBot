@@ -25,6 +25,7 @@ export interface HostSessionListOptions {
 
 export type HostSessionCreateRequest = ({ cwd: string } | { workspaceId: string }) & {
   text: string;
+  sessionId?: string;
   choice?: Extract<SessionModelChoice, { kind: 'model' }>;
 };
 

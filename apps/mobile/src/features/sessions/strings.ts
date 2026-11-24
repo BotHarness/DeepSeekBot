@@ -43,6 +43,8 @@ export const en = {
     waiting: 'Needs you',
     done: 'Done',
     allEnvironments: 'All environments',
+    computerScopeOnly:
+      'Sessions run on a computer. Choose a computer or All environments in Settings.',
     botSessionsLabel: 'Bot Sessions',
     botSessionsShow: 'Show',
     botSessionsHide: 'Hide',
@@ -239,6 +241,7 @@ export const zh: typeof en = {
     waiting: '需要你',
     done: '已完成',
     allEnvironments: '全部环境',
+    computerScopeOnly: '会话运行在电脑上。请在设置中选择一台电脑或“全部环境”。',
     botSessionsLabel: 'Bot 会话',
     botSessionsShow: '显示',
     botSessionsHide: '隐藏',

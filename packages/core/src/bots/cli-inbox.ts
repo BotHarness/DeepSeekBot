@@ -95,7 +95,7 @@ export const INBOX_COMMANDS = [
   {
     command: 'session-create',
     description:
-      'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message',
+      'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message; --session retries a blank one',
   },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
@@ -609,6 +609,9 @@ function prepare(
             : { cwd: required(cwd, 'cwd', command) }),
           text,
           ...(choice === undefined ? {} : { choice }),
+          ...(values.session === undefined
+            ? {}
+            : { sessionId: required(values.session, 'session', command) }),
         },
       };
     }

@@ -126,6 +126,7 @@ export async function runHostSessionGate(s, fx, check) {
   const hidden = s.cli(['session-list'], member);
   check(
     'Member inventory does not show the created native Session',
-    !hidden.sessions?.some((row) => row.sessionId === created.sessionId),
+    Array.isArray(hidden.sessions) &&
+      !hidden.sessions.some((row) => row.sessionId === created.sessionId),
   );
 }

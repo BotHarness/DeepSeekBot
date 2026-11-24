@@ -157,11 +157,14 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
       return { override, default: original === undefined ? null : sessionRouteChoice(original) };
     },
     async create(target) {
+      const reuse =
+        target.sessionId === undefined ? {} : { sessionId: SessionId(target.sessionId) };
       const { sessionId } = await controller().create(
         'cwd' in target
-          ? { cwd: target.cwd }
+          ? { cwd: target.cwd, ...reuse }
           : {
               workspaceId: target.workspaceId as NonNullable<SessionCreateRequest['workspaceId']>,
+              ...reuse,
             },
       );
       return { sessionId };

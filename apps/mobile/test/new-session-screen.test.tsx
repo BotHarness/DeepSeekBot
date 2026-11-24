@@ -88,6 +88,7 @@ vi.mock('../src/ui/chat/composer', () => ({
   }) => (
     <div>
       {props.above}
+      <span data-testid="draft">{props.value}</span>
       <button data-testid="type" onClick={() => props.onChange('Map the repository')} />
       <button data-testid="send" disabled={props.disabled} onClick={props.onSend} />
     </div>
@@ -222,4 +223,51 @@ it('tells a member that only the Host Owner can start Sessions', async () => {
   const { view } = await render();
   expect(view.textContent).toContain('Only the Host Owner can start Sessions on this computer.');
   expect(view.querySelector('[data-testid="send"]')).toBeNull();
+});
+
+it('keeps the typed prompt when another Computer is chosen for this Session', async () => {
+  fixture.folder = { path: '/work/app', title: 'app' };
+  const { view, click } = await render();
+  await click('type');
+  await click('new-session-computer');
+  await click('new-session-computer-laptop');
+  expect(view.querySelector('[data-testid="new-session-computer"]')?.textContent).toBe(
+    'Computer: Laptop',
+  );
+  expect(view.querySelector('[data-testid="draft"]')?.textContent).toBe('Map the repository');
+});
+
+it('holds the Computer while a Session is being created and reuses a blank one on retry', async () => {
+  fixture.folder = { path: '/work/app', title: 'app' };
+  let finish: (value: unknown) => void = () => {};
+  fixture.call.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { view, click } = await render();
+  await click('type');
+  await click('send');
+  expect(
+    view.querySelector<HTMLButtonElement>('[data-testid="new-session-computer"]')!.disabled,
+  ).toBe(true);
+  const { MethodRefused } = await import('@botharness/host-client/client');
+  await act(async () => {
+    finish(
+      Promise.reject(
+        new MethodRefused('session/model-unavailable', 'No model', { sessionId: 'blank-1' }),
+      ),
+    );
+  });
+  expect(
+    view.querySelector<HTMLButtonElement>('[data-testid="new-session-computer"]')!.disabled,
+  ).toBe(false);
+  fixture.call.mockResolvedValueOnce({ sessionId: 'blank-1', requestId: 'prompt-2' });
+  await click('send');
+  expect(fixture.call).toHaveBeenLastCalledWith('studio', 'sessionCreate', {
+    cwd: '/work/app',
+    text: 'Map the repository',
+    sessionId: 'blank-1',
+  });
 });
