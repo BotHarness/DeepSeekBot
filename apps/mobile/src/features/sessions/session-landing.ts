@@ -55,7 +55,9 @@ export function restackSessions(
   const top = stack.routes[stack.index];
   if (top === undefined) return undefined;
   if (style === 'stacked')
-    return top.name === SESSION && stack.index === 0 ? [{ name: ROOT }, top] : undefined;
+    return (top.name === SESSION || top.name === NEW) && stack.index === 0
+      ? [{ name: ROOT }, top]
+      : undefined;
   if (top.name === SESSION && stack.index > 0) return [top];
   if (top.name === NEW) {
     const root = stack.routes[0];

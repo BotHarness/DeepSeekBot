@@ -121,7 +121,7 @@ export function SessionDrawerPanel({
           alignItems: 'center',
           gap: space.x3,
           paddingLeft: space.x5,
-          paddingRight: space.x3,
+          paddingRight: page ? space.x4 : space.x3,
         }}
       >
         <Text

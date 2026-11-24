@@ -24,7 +24,7 @@ import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
 import {
   useInSessionsTab,
-  useRestackOnStyleChange,
+  useSessionsStackFit,
   useSessionDrawerRoot,
 } from '../../features/sessions/drawer-root';
 import { rememberLastSession } from '../../features/sessions/last-session';
@@ -169,7 +169,7 @@ export function SessionDetailScreen() {
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
   const drawer = useSessionDrawerRoot();
   const inSessions = useInSessionsTab();
-  useRestackOnStyleChange();
+  useSessionsStackFit();
   useFocusEffect(
     useCallback(
       () => (drawer ? enterDrawerRoot(sessionId, hostId ?? openedOn) : undefined),

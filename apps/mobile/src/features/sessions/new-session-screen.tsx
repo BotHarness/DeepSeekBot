@@ -39,7 +39,7 @@ import { useStrings } from '../../ui/strings';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
 import { HeaderBackButton } from '../../ui/chat/header-chrome';
-import { useRestackOnStyleChange } from './drawer-root';
+import { useSessionsStackFit } from './drawer-root';
 import { SessionDrawerButton } from './session-drawer-button';
 import { enterDrawerRoot } from './session-drawer-state';
 
@@ -79,7 +79,7 @@ export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
     );
   const target = computers.find((host) => host.saved.hostId === hostId);
   useFocusEffect(useCallback(() => (stacked ? undefined : enterDrawerRoot()), [stacked]));
-  useRestackOnStyleChange();
+  useSessionsStackFit();
   if (!enabled) return <Redirect href="/" />;
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }} testID="new-session-screen">

@@ -19,15 +19,16 @@ export function useInSessionsTab(): boolean {
   return segments.includes('(sessions)');
 }
 
-export function useRestackOnStyleChange(): void {
+export function useSessionsStackFit(): void {
   const style = useSessionNavigationStyle();
   const inSessions = useInSessionsTab();
   const navigation = useNavigation();
   const previous = useRef(style);
   useFocusEffect(
     useCallback(() => {
-      if (previous.current === style) return;
+      const changed = previous.current !== style;
       previous.current = style;
+      if (!changed && style !== 'stacked') return;
       if (!inSessions) return;
       const state = navigation.getState();
       if (state === undefined) return;
@@ -39,7 +40,15 @@ export function useRestackOnStyleChange(): void {
           params: entry.params,
         })),
       });
-      if (routes !== undefined) navigation.reset({ index: routes.length - 1, routes } as never);
+      if (routes === undefined) return;
+      const kept = new Map(state.routes.map((entry) => [entry.key, entry]));
+      navigation.reset({
+        ...state,
+        index: routes.length - 1,
+        routes: routes.map((entry) =>
+          entry.key === undefined ? entry : (kept.get(entry.key) ?? entry),
+        ),
+      } as never);
     }, [style, inSessions, navigation]),
   );
 }

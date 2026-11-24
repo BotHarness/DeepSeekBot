@@ -85,6 +85,11 @@ describe('switching the Session navigation style', () => {
     expect(restackSessions('stacked', open)).toEqual([{ name: 'sessions' }, open.routes[0]]);
     expect(restackSessions('stacked', session('a', 1))).toBeUndefined();
     expect(restackSessions('stacked', root)).toBeUndefined();
+    const fresh = { key: 'new-1', name: 'new-session' };
+    expect(restackSessions('stacked', { index: 0, routes: [fresh] })).toEqual([
+      { name: 'sessions' },
+      fresh,
+    ]);
   });
 
   it('makes the open Session the root for Drawer style and drops a pushed New Session', () => {
