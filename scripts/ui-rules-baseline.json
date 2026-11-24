@@ -811,11 +811,6 @@
       "width: 680px",
       "width: 6px"
     ],
-    "packages/client/src/client/features/schedules/schedules-entry.tsx": [
-      "maxHeight: 200px",
-      "minWidth: 40px",
-      "outlineOffset: 1px"
-    ],
     "packages/client/src/client/features/usage/profile-usage-styles.ts": [
       "bottom: 6px",
       "boxShadow: 14px",
