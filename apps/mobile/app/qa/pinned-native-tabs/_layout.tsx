@@ -1,14 +1,11 @@
 import * as Application from 'expo-application';
 import { Redirect, Stack, useGlobalSearchParams } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
+import { useAvatarIcons } from '../../../src/features/pinned-tab/avatar-icon';
 import { useState } from 'react';
-import { PixelRatio, View, type ViewInstance } from 'react-native';
-import { captureRef } from 'react-native-view-shot';
-import { PinnedAvatar } from '../../../src/features/pinned-tab/pinned-avatar';
+import { View } from 'react-native';
 import { useDesignTheme } from '../../../src/ui/design/theme';
-import { materialNavigationBar, navigationBar } from '../../../src/ui/design/tokens';
 import { badgeCount } from '../../../src/ui/primitives/badge-count';
-import { useMounted } from '../../../src/ui/mounted';
 import { tabSymbols } from '../../../src/ui/shell/navigation-destinations.ios';
 import { useStrings } from '../../../src/ui/strings';
 
@@ -23,11 +20,11 @@ function PinnedNativeTabs() {
   const params = useGlobalSearchParams<{ icon?: string; unread?: string }>();
   const [avatarIcon] = useState(params.icon === 'avatar');
   const [unread] = useState(Number.parseInt(params.unread ?? '3', 10) || 0);
-  const [plainUri, setPlainUri] = useState<string>();
-  const [ringUri, setRingUri] = useState<string>();
-  const plain = useAvatarCapture(avatarIcon, setPlainUri);
-  const ringed = useAvatarCapture(avatarIcon, setRingUri);
   const name = t.pinnedTabFixture.stewardName;
+  const avatar = useAvatarIcons(
+    { kind: 'bot', slug: 'fixture-steward', name, unread: 0 },
+    avatarIcon,
+  );
   const pinnedLabel = [
     t.pinnedTabFixture.tabLabel(name),
     ...(unread > 0 ? [t.pinnedTabFixture.unread(badgeCount(unread))] : []),
@@ -35,28 +32,8 @@ function PinnedNativeTabs() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }}>
       <Stack.Screen options={{ title: t.pinnedTabFixture.title }} />
-      {avatarIcon ? (
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', left: -materialNavigationBar.height * 2, top: 0 }}
-        >
-          {[plain, ringed].map((ref, index) => (
-            <View key={index} ref={ref} collapsable={false}>
-              <PinnedAvatar
-                target={{ kind: 'bot', slug: 'fixture-steward', name, unread: 0 }}
-                size={navigationBar.symbolBox}
-                selected={index === 1}
-                ring={index === 1}
-                unread={false}
-              />
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <NativeTabs
-        key={`${avatarIcon}-${plainUri ?? ''}-${ringUri ?? ''}`}
-        tintColor={theme.color.fg}
-      >
+      {avatar.capture}
+      <NativeTabs key={`${avatarIcon}-${avatar.key}`} tintColor={theme.color.fg}>
         <NativeTabs.Trigger name="index">
           <NativeTabs.Trigger.Icon
             sf={{ default: tabSymbols.chats[0], selected: tabSymbols.chats[1] }}
@@ -87,14 +64,8 @@ function PinnedNativeTabs() {
           accessibilityLabel={pinnedLabel}
           testID="pinned-fixture-pinned"
         >
-          {avatarIcon && plainUri !== undefined && ringUri !== undefined ? (
-            <NativeTabs.Trigger.Icon
-              src={{
-                default: { uri: plainUri, scale: PixelRatio.get() },
-                selected: { uri: ringUri, scale: PixelRatio.get() },
-              }}
-              renderingMode="original"
-            />
+          {avatarIcon && avatar.icons !== undefined ? (
+            <NativeTabs.Trigger.Icon src={avatar.icons} renderingMode="original" />
           ) : (
             <NativeTabs.Trigger.Icon sf={{ default: 'pin', selected: 'pin.fill' }} />
           )}
@@ -105,24 +76,5 @@ function PinnedNativeTabs() {
         </NativeTabs.Trigger>
       </NativeTabs>
     </View>
-  );
-}
-
-function useAvatarCapture(enabled: boolean, done: (uri: string) => void) {
-  return useMounted<ViewInstance>(
-    (view) => {
-      if (!enabled) return;
-      let live = true;
-      const timer = setTimeout(() => {
-        void captureRef(view, { format: 'png', quality: 1, result: 'tmpfile' }).then((uri) => {
-          if (live) done(uri);
-        });
-      }, 300);
-      return () => {
-        live = false;
-        clearTimeout(timer);
-      };
-    },
-    [enabled],
   );
 }

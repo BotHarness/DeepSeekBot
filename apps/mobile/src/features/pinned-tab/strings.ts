@@ -8,6 +8,11 @@ export const en = {
     unread: (count: string) => `${count} unread`,
     stewardName: 'Fixture Steward',
     channelName: 'Fixture Launch',
+    countTap: 'Count a tap',
+    swapOrder: 'Move Pinned tab to the end',
+    restoreOrder: 'Move Pinned tab next to Chats',
+    taps: (count: number) => `Taps on this tab: ${count}`,
+    row: (index: number) => `Fixture row ${index}`,
   },
 };
 
@@ -21,5 +26,10 @@ export const zh: typeof en = {
     unread: (count: string) => `${count} 条未读`,
     stewardName: 'Fixture Steward',
     channelName: 'Fixture Launch',
+    countTap: '记一次点击',
+    swapOrder: '把固定标签页移到末尾',
+    restoreOrder: '把固定标签页移回聊天右侧',
+    taps: (count: number) => `本标签页点击次数：${count}`,
+    row: (index: number) => `示例行 ${index}`,
   },
 };
