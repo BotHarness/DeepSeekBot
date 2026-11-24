@@ -43,6 +43,8 @@ export type PickedFolder = { path: string; title: string; workspaceId?: string }
 export type FolderPick = {
   title: string;
   subtitle: string;
+  heading: string;
+  target(path: string): string;
   confirm: string;
   onPick(folder: PickedFolder): void;
 };
@@ -196,7 +198,7 @@ export function FolderPickerSheet({
         ]),
     {
       key: 'folders',
-      title: t.browseTitle,
+      title: pick?.heading ?? t.browseTitle,
       footer: listing.status === 'ready' && listing.value.truncated ? t.browseTruncated : undefined,
       data: folderRows,
     },
@@ -288,7 +290,13 @@ export function FolderPickerSheet({
           </Grouped>
         )}
       />
-      {manual ? null : <OpenFolderTarget listing={listing} />}
+      {manual ? null : pick !== undefined ? (
+        listing.status === 'ready' ? (
+          <SheetNote>{pick.target(listing.value.path)}</SheetNote>
+        ) : null
+      ) : (
+        <OpenFolderTarget listing={listing} />
+      )}
       <SheetActions>
         <Button label={t.cancel} on="canvas" disabled={busy !== undefined} onPress={close} />
         <Button

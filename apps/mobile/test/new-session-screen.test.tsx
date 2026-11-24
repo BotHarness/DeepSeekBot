@@ -51,6 +51,7 @@ vi.mock('../src/host/host-session', () => {
           }
         : {}),
     },
+    snapshot: { connection: { status: 'connected' } },
     client: {
       hostId,
       call: (method: string, args: unknown) => fixture.call(hostId, method, args),

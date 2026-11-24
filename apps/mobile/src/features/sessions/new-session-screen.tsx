@@ -49,7 +49,11 @@ export function NewSessionScreen() {
   const connected = useHostSessions();
   const [scope] = useConversationFilter();
   const computers = connected
-    .filter((host) => canCreateNativeSession(host.saved))
+    .filter(
+      (host) =>
+        canCreateNativeSession(host.saved) &&
+        (host.snapshot.connection.status === 'connected' || host.saved.hostId === saved?.hostId),
+    )
     .map((host) => ({ ...host, key: computerEnvironmentKey(host.saved.hostId) }));
   const [chosen, setChosen] = useState<string>();
   const hostId =
@@ -91,6 +95,11 @@ export function NewSessionScreen() {
       )}
     </View>
   );
+}
+
+function valueRow(largeText: boolean, text: string, chevron: boolean) {
+  if (!largeText) return { control: { kind: 'value' as const, text, chevron } };
+  return { detail: text, ...(chevron ? { control: { kind: 'chevron' as const } } : {}) };
 }
 
 function NewSessionForm({
@@ -210,11 +219,7 @@ function NewSessionForm({
               title={t.computer}
               icon="computer"
               iconTone="muted"
-              control={{
-                kind: 'value',
-                text: shownHostName(look, hostName),
-                chevron: computers.length > 1,
-              }}
+              {...valueRow(theme.largeText, shownHostName(look, hostName), computers.length > 1)}
               {...(computers.length > 1 ? { onPress: () => setPicking('computer') } : {})}
             />
           </SettingsGroupItem>
@@ -225,7 +230,7 @@ function NewSessionForm({
               title={t.folder}
               icon="folder"
               iconTone="muted"
-              control={{ kind: 'value', text: folder?.title ?? t.chooseFolder, chevron: true }}
+              {...valueRow(theme.largeText, folder?.title ?? t.chooseFolder, true)}
               onPress={online ? () => setPicking('folder') : undefined}
             />
           </SettingsGroupItem>
@@ -242,6 +247,8 @@ function NewSessionForm({
           pick={{
             title: t.folderPickerTitle,
             subtitle: t.folderPickerHint,
+            heading: t.folderBrowse,
+            target: t.folderTarget,
             confirm: t.useFolder,
             onPick: (next) => {
               setFolder(next);
