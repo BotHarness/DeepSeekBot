@@ -531,13 +531,24 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
             return false;
           }
           cached = undefined;
-          status = { state: 'signed-out' };
-          if (!signal.aborted) completionSignal = advanceAttempt();
-          await connect.disable();
-          if (completionSignal.aborted) return false;
-          signOutRequested = false;
-          canResumeSession = true;
-          return true;
+          status = {
+            state: 'error',
+            recovery: 'automatic',
+            ...(current.email ? { email: current.email } : {}),
+            ...(current.hostId ? { hostId: current.hostId } : {}),
+          };
+          if (!signal.aborted) {
+            signOutRequested = false;
+            canResumeSession = true;
+            completionSignal = advanceAttempt();
+          }
+          try {
+            await connect.disable();
+          } catch (error) {
+            if (!completionSignal.aborted) fail(error, current);
+            return false;
+          }
+          return !completionSignal.aborted;
         });
         if (!saved || completionSignal.aborted) return;
       } catch (saveError) {

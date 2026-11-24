@@ -583,6 +583,32 @@ describe('Connect account lifecycle', () => {
     },
   );
 
+  it('keeps the incumbent usable when the replacement cannot read stored credentials', async () => {
+    const { account, credentials, tunnel } = setup(fakeServices({ pending: 0 }));
+    try {
+      await account.signIn();
+      await settle(account);
+      const incumbent = account.status();
+      expect(incumbent.state).toBe('signed-in');
+      const stored = [...credentials.records.values()];
+      const connected = tunnel.connect.status();
+      expect(await account.accessToken()).toBe('access-1');
+
+      vi.spyOn(credentials.provider, 'readRecord').mockRejectedValueOnce(
+        new Error('fixture credential read failed'),
+      );
+      await account.signIn();
+      await settle(account);
+
+      expect(account.status()).toEqual(incumbent);
+      expect(await account.accessToken()).toBe('access-1');
+      expect(tunnel.connect.status()).toEqual(connected);
+      expect([...credentials.records.values()]).toEqual(stored);
+    } finally {
+      await account.close();
+    }
+  });
+
   it('keeps the incumbent usable when the verified replacement cannot be stored', async () => {
     const options = { pending: 0, userId: 'user_alice', email: 'alice@example.com' };
     const services = fakeServices(options);
@@ -681,6 +707,103 @@ describe('Connect account lifecycle', () => {
       });
     } finally {
       await account.close();
+    }
+  });
+
+  it.each(['authorization', 'ownership lookup'])(
+    'provisions the stored replacement after a superseding %s fails',
+    async (failure) => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const options: NonNullable<Parameters<typeof fakeServices>[0]> = {
+        pending: 0,
+        email: 'alice@example.com',
+      };
+      const services = fakeServices(options);
+      const { account, credentials, tunnel } = setup(services, 41001, 10);
+      const retiring = deferred();
+      const proceed = deferred();
+      const retired = deferred();
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in', email: 'alice@example.com' });
+        const disable = tunnel.connect.disable;
+        vi.spyOn(tunnel.connect, 'disable').mockImplementationOnce(async () => {
+          retiring.resolve();
+          await proceed.promise;
+          const result = await disable();
+          retired.resolve();
+          return result;
+        });
+
+        options.email = 'committed@example.com';
+        await account.signIn();
+        await retiring.promise;
+        expect([...credentials.records.values()]).toEqual([
+          expect.objectContaining({
+            payload: expect.objectContaining({ kind: 'session', email: 'committed@example.com' }),
+          }),
+        ]);
+
+        if (failure === 'authorization') {
+          const fetch = services.fetcher.getMockImplementation()!;
+          services.fetcher.mockImplementation((input, init) =>
+            String(input).endsWith('/authorize/device')
+              ? Promise.resolve(Response.json({}, { status: 503 }))
+              : fetch(input, init),
+          );
+        } else {
+          options.listStatus = 503;
+        }
+        options.email = 'uncommitted@example.com';
+        await account.signIn();
+        proceed.resolve();
+        await retired.promise;
+        await settle(account);
+        await vi.advanceTimersByTimeAsync(10);
+
+        expect(account.status()).toMatchObject({
+          state: 'signed-in',
+          email: 'committed@example.com',
+          hostId: 'hstudioaaaaa',
+        });
+        expect(await account.accessToken()).toBe('access-2');
+        expect(tunnel.connect.status()).toMatchObject({ state: 'connected' });
+        expect(tunnel.enabled).toHaveLength(2);
+      } finally {
+        proceed.resolve();
+        await account.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('recovers the committed session after tunnel teardown fails', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const options = { pending: 0, email: 'alice@example.com' };
+    const { account, tunnel } = setup(fakeServices(options), 41001, 10);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'signed-in', email: 'alice@example.com' });
+
+      vi.spyOn(tunnel.connect, 'disable').mockRejectedValueOnce(
+        new Error('fixture tunnel teardown failed'),
+      );
+      options.email = 'committed@example.com';
+      await account.signIn();
+      await settle(account);
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(account.status()).toMatchObject({
+        state: 'signed-in',
+        email: 'committed@example.com',
+      });
+      expect(await account.accessToken()).toBe('access-2');
+      expect(tunnel.connect.status()).toMatchObject({ state: 'connected' });
+    } finally {
+      await account.close();
+      vi.useRealTimers();
     }
   });
 
