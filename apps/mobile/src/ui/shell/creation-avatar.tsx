@@ -1,15 +1,22 @@
 import { Image as CachedImage } from 'expo-image';
-import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { memo, useMemo, useState, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
 
-import { avatarSvg } from '../../../../../packages/core/src/bots/avatar-appearance';
+import {
+  avatarSvg,
+  type AvatarRecipe,
+} from '../../../../../packages/core/src/bots/avatar-appearance';
 import { creationAvatarRecipe, randomAvatarSeed } from '@botharness/host-client/bot-avatar-choice';
-import { isTiltiesAvatar, randomTiltiesAvatar } from '@botharness/host-client/tilties-avatars';
+import {
+  isTiltiesAvatar,
+  randomTiltiesAvatar,
+  TILTIES_PORTRAITS,
+} from '@botharness/host-client/tilties-avatars';
 import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
+import { avatarFamilyOptions } from '../../host/avatar-customization';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { useDesignTheme } from '../design/theme';
-import { creationAvatar, space } from '../design/tokens';
+import { creationAvatar, edge, radius, space } from '../design/tokens';
 import { Button } from '../primitives/creation-button';
 import { Segmented } from '../primitives/segmented';
 import { SystemSymbol } from '../primitives/system-symbol';
@@ -77,84 +84,221 @@ export function CreationAvatarPreview({
   );
 }
 
+type Gallery = 'tilties' | 'pixel';
+type Preset = { id: string; label: string; uri: string; avatar: BotAvatarChoice };
+
+const tiltiesPresets = TILTIES_PORTRAITS.map((portrait) => ({
+  portrait,
+  avatar: { kind: 'photo', image: portrait.image } as const,
+}));
+const pixelPresets = avatarFamilyOptions.illustrated.presets.map((recipe, index) => ({
+  id: String(index + 1),
+  number: index + 1,
+  recipe,
+  uri: 'data:image/svg+xml;base64,' + btoa(avatarSvg(recipe)),
+}));
+
+function initialGallery(avatar: BotAvatarChoice | undefined): Gallery {
+  if (avatar?.kind === 'recipe') return 'pixel';
+  if (avatar?.kind === 'generated' && avatar.origin !== 'initial') return 'pixel';
+  return 'tilties';
+}
+
+function sameRecipe(avatar: BotAvatarChoice | undefined, recipe: AvatarRecipe): boolean {
+  return (
+    avatar?.kind === 'recipe' &&
+    (avatar.recipe === recipe || JSON.stringify(avatar.recipe) === JSON.stringify(recipe))
+  );
+}
+
+const PresetTile = memo(function PresetTile({
+  preset,
+  selected,
+  disabled,
+  onChoose,
+}: {
+  preset: Preset;
+  selected: boolean;
+  disabled: boolean;
+  onChoose(avatar: BotAvatarChoice): void;
+}) {
+  const theme = useDesignTheme();
+  return (
+    <Pressable
+      testID={preset.id}
+      accessibilityRole="radio"
+      accessibilityLabel={preset.label}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
+      onPress={() => onChoose(preset.avatar)}
+      android_ripple={{ color: theme.layer.raised.pressed, borderless: false }}
+      style={({ pressed }) => ({
+        flex: 1,
+        aspectRatio: 1,
+        minHeight: theme.touch,
+        padding: space.x1,
+        borderRadius: radius.round,
+        borderWidth: edge.focus,
+        borderColor: selected ? theme.color.accent : 'transparent',
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <View
+        style={{
+          flex: 1,
+          borderRadius: radius.round,
+          overflow: 'hidden',
+          backgroundColor: theme.layer.raised.fill,
+        }}
+      >
+        <CachedImage
+          source={{ uri: preset.uri }}
+          cachePolicy="memory"
+          contentFit="cover"
+          style={{ flex: 1 }}
+        />
+      </View>
+    </Pressable>
+  );
+});
+
+function PresetGrid({
+  presets,
+  isSelected,
+  disabled,
+  onChoose,
+}: {
+  presets: readonly Preset[];
+  isSelected(preset: Preset): boolean;
+  disabled: boolean;
+  onChoose(avatar: BotAvatarChoice): void;
+}) {
+  const theme = useDesignTheme();
+  const columns = theme.largeText ? creationAvatar.largeColumns : creationAvatar.columns;
+  const rows: Preset[][] = [];
+  for (let index = 0; index < presets.length; index += columns)
+    rows.push(presets.slice(index, index + columns));
+  return (
+    <View accessibilityRole="radiogroup" style={{ alignSelf: 'stretch', gap: space.x2 }}>
+      {rows.map((row) => (
+        <View key={row[0]?.id} style={{ flexDirection: 'row', gap: space.x2 }}>
+          {row.map((preset) => (
+            <PresetTile
+              key={preset.id}
+              preset={preset}
+              selected={isSelected(preset)}
+              disabled={disabled}
+              onChoose={onChoose}
+            />
+          ))}
+          {Array.from({ length: columns - row.length }, (_, index) => (
+            <View key={'gap-' + index} style={{ flex: 1 }} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function CreationAvatar({
   avatar,
   name,
   imported,
   disabled,
   onChange,
+  children,
 }: {
   avatar: BotAvatarChoice | undefined;
   name: string;
   imported: boolean;
   disabled: boolean;
   onChange(avatar: BotAvatarChoice): void;
+  children?: ReactNode;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
-  const tiltiesImage =
-    avatar?.kind === 'photo' && isTiltiesAvatar(avatar.image) ? avatar.image : undefined;
+  const [gallery, setGallery] = useState<Gallery>(() => initialGallery(avatar));
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
   };
+  const presets: Preset[] =
+    gallery === 'tilties'
+      ? tiltiesPresets.map(({ portrait, avatar: choice }) => ({
+          id: 'create-bot-avatar-tilties-' + portrait.id,
+          label: t.avatarEditor.tiltiesName(portrait.en, portrait.zh),
+          uri: portrait.image,
+          avatar: choice,
+        }))
+      : pixelPresets.map((preset) => ({
+          id: 'create-bot-avatar-pixel-' + preset.id,
+          label: t.avatarEditor.preset(preset.number),
+          uri: preset.uri,
+          avatar: { kind: 'recipe', recipe: preset.recipe },
+        }));
+  const isSelected = (preset: Preset) =>
+    preset.avatar.kind === 'photo'
+      ? avatar?.kind === 'photo' && avatar.image === preset.avatar.image
+      : preset.avatar.kind === 'recipe' && sameRecipe(avatar, preset.avatar.recipe);
+  const randomize = () =>
+    onChange(
+      gallery === 'tilties'
+        ? {
+            kind: 'photo',
+            image: randomTiltiesAvatar(
+              avatar?.kind === 'photo' && isTiltiesAvatar(avatar.image) ? avatar.image : undefined,
+            ),
+          }
+        : { kind: 'generated', seed: randomAvatarSeed() },
+    );
   return (
-    <View style={{ alignItems: 'center', gap: space.x3 }}>
-      <CreationAvatarPreview
-        avatar={avatar}
-        name={name}
-        imported={imported}
-        testID="create-bot-avatar-preview"
-      />
-      {imported ? null : (
-        <View style={{ alignSelf: 'stretch' }}>
-          <Segmented
-            label={t.avatarEditor.style}
-            value={tiltiesImage === undefined ? 'pixel' : 'tilties'}
-            options={[
-              { value: 'pixel', label: t.avatarEditor.pixel },
-              { value: 'tilties', label: t.avatarEditor.tilties },
-            ]}
-            disabled={disabled}
-            onChange={(style) =>
-              onChange(
-                style === 'tilties'
-                  ? { kind: 'photo', image: randomTiltiesAvatar() }
-                  : { kind: 'generated', seed: randomAvatarSeed() },
-              )
-            }
-          />
-        </View>
-      )}
-      {imported && !avatar ? (
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          {copy.sourceAvatar}
-        </Text>
-      ) : null}
-      <View
-        style={{
-          flexDirection: theme.largeText ? 'column' : 'row',
-          alignSelf: 'stretch',
-          gap: space.x3,
-        }}
-      >
-        <View style={{ flex: theme.largeText ? undefined : 1 }}>
-          <Button
-            label={copy.photoAvatar}
-            testID="create-bot-avatar-photo"
-            disabled={disabled}
-            onPress={() => void choosePhoto()}
-          />
-        </View>
-        <View style={{ flex: theme.largeText ? undefined : 1 }}>
-          <Button
-            label={t.avatarEditor.title}
-            testID="create-bot-avatar-customize"
-            disabled={disabled}
-            onPress={() => router.push('/create-bot-avatar')}
-          />
-        </View>
+    <View style={{ gap: space.x4 }}>
+      <View style={{ alignItems: 'center', gap: space.x3 }}>
+        <CreationAvatarPreview
+          avatar={avatar}
+          name={name}
+          imported={imported}
+          testID="create-bot-avatar-preview"
+        />
+        {imported && !avatar ? (
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {copy.sourceAvatar}
+          </Text>
+        ) : null}
       </View>
+      {children}
+      <Button
+        label={copy.photoAvatar}
+        testID="create-bot-avatar-photo"
+        symbol="photo"
+        disabled={disabled}
+        onPress={() => void choosePhoto()}
+      />
+      <View style={{ alignSelf: 'stretch' }}>
+        <Segmented<Gallery>
+          label={t.avatarEditor.style}
+          value={gallery}
+          options={[
+            { value: 'tilties', label: t.avatarEditor.tilties },
+            { value: 'pixel', label: t.avatarEditor.pixel },
+          ]}
+          disabled={disabled}
+          testID="create-bot-avatar-gallery"
+          onChange={setGallery}
+        />
+      </View>
+      <Button
+        label={t.avatarEditor.random}
+        testID="create-bot-avatar-random"
+        symbol="refresh"
+        disabled={disabled}
+        onPress={randomize}
+      />
+      <PresetGrid
+        presets={presets}
+        isSelected={isSelected}
+        disabled={disabled}
+        onChoose={onChange}
+      />
     </View>
   );
 }
