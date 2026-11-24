@@ -1,45 +1,21 @@
 export const en = {
-  pinnedTabFixture: {
-    title: 'Pinned tab prototypes',
-    pinnedSelected: 'Pinned tab selected',
-    chatsSelected: 'Chats selected',
-    channelUnread: 'Channel, unread',
-    tabLabel: (name: string) => `${name}, pinned tab`,
-    unread: (count: string) => `${count} unread`,
-    stewardName: 'Fixture Steward',
-    channelName: 'Fixture Launch',
-    opsName: 'Fixture Ops',
-    notesName: 'Fixture Notes',
-    picked: (label: string) => `Picked from the tab menu: ${label}`,
-    countTap: 'Count a tap',
-    swapOrder: 'Move Pinned tab to the end',
-    restoreOrder: 'Move Pinned tab next to Chats',
-    taps: (count: number) => `Taps on this tab: ${count}`,
-    row: (index: number) => `Fixture row ${index}`,
-    botName: (index: number) => `Fixture Bot ${index}`,
-    preview: (index: number) => `Fixture message ${index}`,
+  pinnedTab: {
+    title: 'Pinned',
+    tabLabel: (name: string, unread?: string) =>
+      unread === undefined ? `${name}, pinned tab` : `${name}, pinned tab, ${unread} unread`,
+    emptyTitle: 'Nothing to pin yet',
+    emptyBody: 'Add a computer and its Steward appears here.',
+    emptyAction: 'Add a computer',
   },
 };
 
 export const zh: typeof en = {
-  pinnedTabFixture: {
-    title: '固定标签页原型',
-    pinnedSelected: '已选中固定标签页',
-    chatsSelected: '已选中聊天',
-    channelUnread: '频道，有未读',
-    tabLabel: (name: string) => `${name}，固定标签页`,
-    unread: (count: string) => `${count} 条未读`,
-    stewardName: 'Fixture Steward',
-    channelName: 'Fixture Launch',
-    opsName: 'Fixture Ops',
-    notesName: 'Fixture Notes',
-    picked: (label: string) => `已从标签页菜单选择：${label}`,
-    countTap: '记一次点击',
-    swapOrder: '把固定标签页移到末尾',
-    restoreOrder: '把固定标签页移回聊天右侧',
-    taps: (count: number) => `本标签页点击次数：${count}`,
-    row: (index: number) => `示例行 ${index}`,
-    botName: (index: number) => `Fixture Bot ${index}`,
-    preview: (index: number) => `示例消息 ${index}`,
+  pinnedTab: {
+    title: '固定',
+    tabLabel: (name: string, unread?: string) =>
+      unread === undefined ? `${name}，固定标签页` : `${name}，固定标签页，${unread} 条未读`,
+    emptyTitle: '还没有可固定的对话',
+    emptyBody: '添加电脑后，它的主管会出现在这里。',
+    emptyAction: '添加电脑',
   },
 };

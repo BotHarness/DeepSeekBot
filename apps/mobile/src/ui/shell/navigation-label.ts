@@ -1,12 +1,26 @@
+import { badgeCount } from '../primitives/badge-count';
 import type { useStrings } from '../strings';
-import type { NavigationDestination } from './navigation-destination';
+import type { TabSlot } from './tab-slots';
 
 type Strings = ReturnType<typeof useStrings>;
-type Kind = Pick<NavigationDestination, 'activity' | 'settings' | 'sessions'>;
 
-export function navigationLabel(t: Strings, item: Kind): string {
-  if (item.settings) return t.settings;
-  if (item.activity) return t.activity;
-  if (item.sessions) return t.hostSessions.title;
+export function navigationLabel(t: Strings, slot: TabSlot, pinnedName?: string): string {
+  if (slot === 'settings') return t.settings;
+  if (slot === 'activity') return t.activity;
+  if (slot === 'sessions') return t.hostSessions.title;
+  if (slot === 'pinned') return pinnedName ?? t.pinnedTab.title;
   return t.chats;
+}
+
+export function navigationAccessibilityLabel(
+  t: Strings,
+  slot: TabSlot,
+  count: number,
+  pinnedLabel?: string,
+): string {
+  if (slot === 'pinned') return pinnedLabel ?? t.pinnedTab.title;
+  const name = navigationLabel(t, slot);
+  return slot === 'activity' && count > 0
+    ? `${name}, ${t.activityPendingLabel(badgeCount(count))}`
+    : name;
 }

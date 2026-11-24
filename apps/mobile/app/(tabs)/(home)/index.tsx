@@ -77,6 +77,7 @@ import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 import { useHideChromeOnScroll } from '../../../src/ui/shell/tab-chrome';
+import { useTabOrder } from '../../../src/ui/interface-preferences';
 import { TobEntryBar, tobEntryBarHeight } from '../../../src/ui/shell/tob-entry-bar';
 
 import {
@@ -256,8 +257,9 @@ const HomeContent = memo(function HomeContent({
     ?.snapshot.roster?.bots.find((bot) => bot.slug === tobHref?.params.slug)?.displayName;
   const browsing = !searching && !searchFocused && query === '';
   const hideChrome = useHideChromeOnScroll(browsing);
+  const pinnedTab = useTabOrder().includes('pinned');
   const tobEntry =
-    tobHref !== undefined && browsing
+    tobHref !== undefined && browsing && !pinnedTab
       ? { href: tobHref, name: tobName ?? tobHref.params.slug }
       : undefined;
   const collapseScope =

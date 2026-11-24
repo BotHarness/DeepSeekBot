@@ -1,61 +1,86 @@
 import { useState } from 'react';
 import { PixelRatio, View, type ImageSourcePropType, type ViewInstance } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
-import { navigationBar } from '../../ui/design/tokens';
+import type { Conversation } from '../../ui/chat/conversations';
+import { useDesignTheme } from '../../ui/design/theme';
+import { navigationBar, pinnedTabIcon } from '../../ui/design/tokens';
 import { useMounted } from '../../ui/mounted';
 import { PinnedAvatar } from './pinned-avatar';
-import type { PinnedTarget } from './prototype-model';
 
 export type AvatarIcons = { default: ImageSourcePropType; selected: ImageSourcePropType };
 
-export function useAvatarIcons(target: PinnedTarget, enabled: boolean) {
-  const [plainUri, setPlainUri] = useState<string>();
-  const [ringUri, setRingUri] = useState<string>();
-  const plain = useCapture(enabled, setPlainUri);
-  const ringed = useCapture(enabled, setRingUri);
+export function avatarIconKey(scheme: string, conversation: Conversation | undefined): string {
+  if (conversation === undefined) return `${scheme}:none`;
+  const face =
+    conversation.kind === 'bot'
+      ? [
+          conversation.bot.displayName,
+          conversation.bot.avatarUrl,
+          conversation.bot.appearance,
+          conversation.bot.primaryColor,
+          conversation.bot.paused,
+        ]
+      : [conversation.channel.name, conversation.channel.avatar];
+  return JSON.stringify([scheme, conversation.key, ...face]);
+}
+
+export function useAvatarIcons(conversation: Conversation | undefined) {
+  const theme = useDesignTheme();
+  const key = avatarIconKey(theme.scheme, conversation);
+  const [shots, setShots] = useState<{ key: string; plain?: string; ring?: string }>({ key });
+  const shot = (field: 'plain' | 'ring') => (uri: string) =>
+    setShots((previous) =>
+      previous.key === key ? { ...previous, [field]: uri } : { key, [field]: uri },
+    );
+  const plain = useCapture(key, shot('plain'));
+  const ringed = useCapture(key, shot('ring'));
   const scale = PixelRatio.get();
+  const current = shots.key === key ? shots : { key };
   const icons: AvatarIcons | undefined =
-    plainUri !== undefined && ringUri !== undefined
-      ? { default: { uri: plainUri, scale }, selected: { uri: ringUri, scale } }
+    current.plain !== undefined && current.ring !== undefined
+      ? { default: { uri: current.plain, scale }, selected: { uri: current.ring, scale } }
       : undefined;
-  const capture = enabled ? (
+  const capture = (
     <View
       pointerEvents="none"
       accessible={false}
       importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
       style={{ position: 'absolute', left: -navigationBar.height * 4, top: 0 }}
     >
       {[plain, ringed].map((ref, index) => (
-        <View key={index} ref={ref} collapsable={false}>
+        <View key={`${key}:${index}`} ref={ref} collapsable={false}>
           <PinnedAvatar
-            target={{ ...target, unread: 0 }}
+            conversation={conversation}
             size={navigationBar.symbolBox}
             selected={index === 1}
-            ring={index === 1}
-            unread={false}
           />
         </View>
       ))}
     </View>
-  ) : null;
-  return { icons, capture, key: `${plainUri ?? ''}-${ringUri ?? ''}` };
+  );
+  return { icons, capture };
 }
 
-function useCapture(enabled: boolean, done: (uri: string) => void) {
+function useCapture(key: string, done: (uri: string) => void) {
   return useMounted<ViewInstance>(
     (view) => {
-      if (!enabled) return;
       let live = true;
-      const timer = setTimeout(() => {
-        void captureRef(view, { format: 'png', quality: 1, result: 'tmpfile' }).then((uri) => {
-          if (live) done(uri);
-        });
-      }, 300);
+      const timers = pinnedTabIcon.captureDelays.map((delay) =>
+        setTimeout(() => {
+          captureRef(view, { format: 'png', quality: 1, result: 'tmpfile' }).then(
+            (uri) => {
+              if (live) done(uri);
+            },
+            () => undefined,
+          );
+        }, delay),
+      );
       return () => {
         live = false;
-        clearTimeout(timer);
+        for (const timer of timers) clearTimeout(timer);
       };
     },
-    [enabled],
+    [key],
   );
 }

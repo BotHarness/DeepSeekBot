@@ -66,6 +66,7 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
 vi.mock('../src/cloud/prepare-creation', () => ({ prepareCloudCreation: vi.fn() }));
+vi.mock('../src/features/pinned-tab/use-pinned-tab', () => ({ usePinnedTab: () => undefined }));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => undefined }));
 vi.mock('../src/ui/mounted', () => ({ useMounted: () => undefined }));
 vi.mock('../src/ui/shell/navigation-destinations', () => ({

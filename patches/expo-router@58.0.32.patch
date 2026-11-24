@@ -55,6 +55,18 @@ index 0000000000000000000000000000000000000000..74a703340994ebd3a41614c5aa3d0cbb
 +    }
 +  };
 +}
+diff --git a/build/native-tabs/NativeBottomTabsNavigator.js b/build/native-tabs/NativeBottomTabsNavigator.js
+--- a/build/native-tabs/NativeBottomTabsNavigator.js
++++ b/build/native-tabs/NativeBottomTabsNavigator.js
+@@ -213,7 +213,7 @@ function NativeTabsNavigatorWrapper(props) {
+     const nonTriggerChildren = (0, _react().useMemo)(()=>(0, _children.getAllChildrenNotOfType)(props.children, _NativeTabTrigger.NativeTabTrigger), [
+         props.children
+     ]);
+-    const tabConfigurationKey = triggerChildren.map((child)=>child.props.name).join(';');
++    const tabConfigurationKey = triggerChildren.map((child)=>child.props.name).sort().join(';');
+     const { backBehavior = defaultBackBehavior, labelStyle, iconColor, blurEffect, backgroundColor, badgeBackgroundColor, indicatorColor, badgeTextColor, shadowColor, rippleColor, disableIndicator, labelVisibilityMode, tintColor, disableTransparentOnScrollEdge } = props;
+     const screenOptions = (0, _react().useMemo)(()=>{
+         const processedLabelStyle = (0, _utils.convertLabelStylePropToObject)(labelStyle);
 diff --git a/build/link/LinkWithPreview.js b/build/link/LinkWithPreview.js
 index 50b62d147187574f939666ffa58f6cd14ed63c15..82870aacf69b51ce5611483c31aa442ce88eed90 100644
 --- a/build/link/LinkWithPreview.js
