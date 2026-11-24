@@ -1,12 +1,14 @@
 import type { ProfileActivitySource } from './profile-paging';
 import { Stack, useIsFocused, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { use, useCallback, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { Keyboard, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
+import { ChatIslandInset } from '../primitives/chat-keyboard';
 import { leaveScreen } from '../shell/leave-screen';
+import { useHideChromeWhile } from '../shell/tab-chrome';
 import { useConversationPagePair } from './conversation-page-pair';
 import { ConversationScreen } from './conversation-screen';
 
@@ -21,6 +23,7 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
   const hostId = props.expectedHostId ?? origin;
   const pager = useRef<PagerView>(null);
   const [visible, setVisible] = useState(false);
+  useHideChromeWhile(visible && use(ChatIslandInset) > 0);
   const [enabled, setEnabled] = useState(false);
   const [activity, setActivity] = useState<ProfileActivitySource>();
   const move = useCallback(
