@@ -42,7 +42,7 @@ function Chip({
         backgroundColor: pressed ? theme.layer.well.pressed : theme.layer.well.fill,
       })}
     >
-      <Icon color={theme.color.muted} size={rowGlyph.size} />
+      <Icon color={theme.color.muted} size={rowGlyph.size * theme.fontScale} />
       <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
         {title}
       </Text>
