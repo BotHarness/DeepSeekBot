@@ -23,14 +23,16 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spring } from '../design/motion';
 import { useDesignTheme } from '../design/theme';
-import { creationCard, fab, radius, space, swipeOpen } from '../design/tokens';
+import { creationCard, fab, headerBarItem, radius, space, swipeOpen } from '../design/tokens';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { useStrings } from '../strings';
 import { PlusIcon } from './icons';
-import { fabGlyphSize } from './navigation-action-pressable';
 import { NavigationMaterial } from './navigation-material';
 
 type CreationLevel = 'actions' | 'sources';
+
+export type CreationAnchor = { top: number; right: number; size: number };
 
 export type CreationPanelControls = {
   level: CreationLevel;
@@ -41,11 +43,11 @@ export type CreationPanelControls = {
 };
 
 export function CreationPanel({
-  bottom,
+  anchor,
   onDismiss,
   children,
 }: {
-  bottom: number;
+  anchor: CreationAnchor;
   onDismiss(action?: () => void): void;
   children(controls: CreationPanelControls): ReactNode;
 }) {
@@ -55,11 +57,14 @@ export function CreationPanel({
   const viewport = useWindowDimensions();
   const reduced = useSystemReducedMotion();
   const android = Platform.OS === 'android';
-  const width = Math.min(
-    fab.menuWidth * Math.max(1, theme.fontScale),
-    viewport.width - insets.left - insets.right - fab.margin * 2,
+  const width = Math.max(
+    anchor.size,
+    Math.min(
+      fab.menuWidth * Math.max(1, theme.fontScale),
+      viewport.width - anchor.right - insets.left - fab.margin,
+    ),
   );
-  const maxHeight = viewport.height - bottom - insets.top - space.x4;
+  const maxHeight = viewport.height - anchor.top - Math.max(insets.bottom, space.x4) - space.x4;
   const [visible, setVisible] = useState(true);
   const [level, setLevel] = useState<CreationLevel>('actions');
   const [interactive, setInteractive] = useState(false);
@@ -75,11 +80,13 @@ export function CreationPanel({
   const firstAction = useRef<ComponentRef<typeof Pressable>>(null);
   const progress = useSharedValue(0);
   const shapeStyle = useAnimatedStyle(() => ({
-    width: reduced ? width : interpolate(progress.value, [0, 1], [fab.size, width]),
-    height: reduced ? height.value : interpolate(progress.value, [0, 1], [fab.size, height.value]),
+    width: reduced ? width : interpolate(progress.value, [0, 1], [anchor.size, width]),
+    height: reduced
+      ? height.value
+      : interpolate(progress.value, [0, 1], [anchor.size, Math.max(anchor.size, height.value)]),
     borderRadius: reduced
       ? radius.xl
-      : interpolate(progress.value, [0, 1], [android ? fab.radius : fab.size / 2, radius.xl]),
+      : interpolate(progress.value, [0, 1], [anchor.size / 2, radius.xl]),
     opacity: reduced ? progress.value : 1,
   }));
   const contentStyle = useAnimatedStyle(() => ({
@@ -225,12 +232,12 @@ export function CreationPanel({
           <View
             testID="chats-create-card"
             pointerEvents="box-none"
-            style={{ position: 'absolute', right: insets.right + fab.margin, bottom, width }}
+            style={{ position: 'absolute', right: anchor.right, top: anchor.top, width }}
           >
             <Animated.View
               pointerEvents="none"
               style={[
-                { position: 'absolute', right: 0, bottom: 0, overflow: 'hidden' },
+                { position: 'absolute', right: 0, top: 0, overflow: 'hidden' },
                 android && { backgroundColor: theme.layer.raised.fill },
                 shapeStyle,
               ]}
@@ -266,16 +273,20 @@ export function CreationPanel({
                 {
                   position: 'absolute',
                   right: 0,
-                  bottom: 0,
-                  width: fab.size,
-                  height: fab.size,
+                  top: 0,
+                  width: anchor.size,
+                  height: anchor.size,
                   alignItems: 'center',
                   justifyContent: 'center',
                 },
                 iconStyle,
               ]}
             >
-              <PlusIcon color={theme.color.fg} size={fabGlyphSize(theme)} />
+              {Platform.OS === 'ios' ? (
+                <SystemSymbol name="plus" size={headerBarItem.glyph} color={theme.color.fg} />
+              ) : (
+                <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
+              )}
             </Animated.View>
           </View>
         </View>

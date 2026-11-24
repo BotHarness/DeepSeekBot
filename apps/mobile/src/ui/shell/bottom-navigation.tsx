@@ -6,17 +6,12 @@ import { useMemo, useState, type ComponentProps } from 'react';
 import { Platform, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useHostSession } from '../../host/host-session';
-import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
 import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import { useDesignTheme } from '../design/theme';
-import { fab, materialNavigationBar, navigationBar, space } from '../design/tokens';
+import { materialNavigationBar, navigationBar, space } from '../design/tokens';
 import { NavigationDestinations } from './navigation-destinations';
-import { ChatsCreate } from './chats-create';
-import { tabCreateAction, tabStackRoot, openNewSession } from './page-create-actions';
-import { SessionCreateFab } from './session-create-fab';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter } from './tab-name-pill';
@@ -103,12 +98,7 @@ type NavigationBarLayout = TabBarProps & {
   onNativeHeight(height: number): void;
 };
 
-function NavigationBar(props: NavigationBarLayout) {
-  const [scope] = useConversationFilter();
-  return <ScopedNavigationBar key={scope} {...props} scope={scope} />;
-}
-
-function ScopedNavigationBar({
+function NavigationBar({
   state,
   emitter,
   navigateToTab,
@@ -116,8 +106,7 @@ function ScopedNavigationBar({
   bottom,
   onNativeHeight,
   sessionsTab,
-  scope,
-}: NavigationBarLayout & { scope: string }) {
+}: NavigationBarLayout) {
   const t = useStrings();
   const currentKey = state.routes[state.index]?.key;
   const selectTab = useSelectionFeedback(currentKey, (key) => {
@@ -127,14 +116,9 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { saved, client } = useHostSession();
   const chrome = useTabChrome();
   const hiddenNow = useChromeHidden(chrome?.hidden);
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
-  const focusedTab = state.routes[state.index];
-  const create = tabStackRoot(focusedTab)
-    ? tabCreateAction(focusedTab?.name, sessionsTab, client ? saved : undefined)
-    : undefined;
   const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
   const items: NavigationDestination[] = routes.map((route, index) => {
     const item = {
@@ -163,7 +147,6 @@ function ScopedNavigationBar({
       onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
     };
   });
-  const fabBottom = size + bottom + fab.margin;
   const android = Platform.OS === 'android';
   const band = size + bottom;
   const slots = android
@@ -181,51 +164,37 @@ function ScopedNavigationBar({
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * band }],
   }));
   return (
-    <>
-      <Animated.View
-        onLayout={
-          android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
-        }
-        pointerEvents={hiddenNow ? 'none' : 'box-none'}
-        style={[
-          {
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: android ? undefined : band,
-            paddingBottom: android ? undefined : bottom,
-            paddingLeft: android ? undefined : slots.left,
-            paddingRight: android ? undefined : insets.right + space.x5,
-            flexDirection: android ? undefined : 'row',
-            backgroundColor: theme.color.base,
-          },
-          slide,
-        ]}
-      >
-        <NavigationDestinations items={items} />
-        {pill ? (
-          <TabNamePill
-            key={pill.seq}
-            label={pill.label}
-            center={tabSlotCenter(slots, pill.index)}
-            screenWidth={width}
-            bottom={iconTop + space.x1}
-          />
-        ) : null}
-      </Animated.View>
-      {create ? (
-        <View
-          pointerEvents="box-none"
-          style={{ position: 'absolute', right: insets.right + fab.margin, bottom: fabBottom }}
-        >
-          {create === 'chats' ? (
-            <ChatsCreate scope={scope} bottom={fabBottom} />
-          ) : (
-            <SessionCreateFab onPress={openNewSession} />
-          )}
-        </View>
+    <Animated.View
+      onLayout={
+        android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
+      }
+      pointerEvents={hiddenNow ? 'none' : 'box-none'}
+      style={[
+        {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: android ? undefined : band,
+          paddingBottom: android ? undefined : bottom,
+          paddingLeft: android ? undefined : slots.left,
+          paddingRight: android ? undefined : insets.right + space.x5,
+          flexDirection: android ? undefined : 'row',
+          backgroundColor: theme.color.base,
+        },
+        slide,
+      ]}
+    >
+      <NavigationDestinations items={items} />
+      {pill ? (
+        <TabNamePill
+          key={pill.seq}
+          label={pill.label}
+          center={tabSlotCenter(slots, pill.index)}
+          screenWidth={width}
+          bottom={iconTop + space.x1}
+        />
       ) : null}
-    </>
+    </Animated.View>
   );
 }

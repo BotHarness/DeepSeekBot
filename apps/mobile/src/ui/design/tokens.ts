@@ -85,6 +85,7 @@ export const accountActionIcon = {
 } as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
+export const headerBarItem = { top: 0, margin: 16, size: 44, glyph: 20 } as const;
 export const navigationBar = {
   height: 64,
   itemWidth: 80,
