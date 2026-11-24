@@ -18,28 +18,23 @@ import type { SheetAddButtonProps } from './sheet-add-button';
 export function SheetAddButton({ label, actions, testID }: SheetAddButtonProps) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
-  const shape = [
+  const modifiers = [
     buttonStyle(glass ? 'glassProminent' : 'borderedProminent'),
     buttonBorderShape('circle'),
     tint(theme.color.accent),
     accessibilityLabel(label),
     ...(testID === undefined ? [] : [accessibilityIdentifier(testID)]),
+    frame({ minWidth: theme.touch, minHeight: theme.touch }),
   ];
-  const plus = (
-    <Image
-      systemName="plus"
-      size={theme.type.title.line}
-      modifiers={[frame({ minWidth: theme.touch, minHeight: theme.touch })]}
-    />
-  );
+  const plus = <Image systemName="plus" size={theme.type.title.line} />;
   return (
-    <Host matchContents key={theme.scheme} colorScheme={theme.scheme}>
+    <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
       {actions.length === 1 ? (
-        <Button onPress={actions[0]!.run} modifiers={shape}>
+        <Button onPress={actions[0]!.run} modifiers={modifiers}>
           {plus}
         </Button>
       ) : (
-        <Menu label={plus} modifiers={shape}>
+        <Menu label={plus} modifiers={modifiers}>
           {actions.map((action) => (
             <Button
               key={action.label}
