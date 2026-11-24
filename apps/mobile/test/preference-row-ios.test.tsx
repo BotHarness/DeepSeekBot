@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
@@ -14,6 +14,7 @@ vi.mock('@expo/ui/swift-ui', () => {
   return {
     Host: pass,
     RNHostView: pass,
+    Spacer: () => <span data-spacer />,
     Menu: ({
       label,
       children,
@@ -59,15 +60,22 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityElement: () => ({}),
   accessibilityLabel: (label: string) => ({ label }),
   buttonStyle: () => ({}),
+  contentShape: () => ({}),
   frame: () => ({}),
   pickerStyle: () => ({}),
+  shapes: { rectangle: () => ({}) },
   tag: (value: string) => ({ value }),
 }));
 
+import { Dimensions } from 'react-native';
 import { PreferenceRow } from '../src/ui/primitives/preference-row.ios';
 import { DesignThemeProvider } from '../src/ui/design/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 it.each(['light', 'dark'] as const)(
   'shows the icon, label, current value and pop-up chevrons on the native menu trigger in %s appearance',
@@ -177,6 +185,65 @@ it.each(['light', 'dark'] as const)(
         expect(host.querySelector('[data-testid="settings-language"]')).toBe(trigger);
         expect(trigger.getAttribute('aria-label')).toBe(`Language, ${label}`);
       }
+    } finally {
+      await act(async () => root.unmount());
+    }
+  },
+);
+
+it.each(['light', 'dark'] as const)(
+  'puts the current value under the title as wrapping row text at accessibility sizes in %s appearance',
+  async (scheme) => {
+    vi.spyOn(Dimensions, 'get').mockReturnValue({
+      width: 390,
+      height: 844,
+      scale: 3,
+      fontScale: 3.1,
+    });
+    const changed = vi.fn();
+    function Screen() {
+      const [value, setValue] = useState<'bearer' | 'query'>('bearer');
+      return (
+        <DesignThemeProvider appearance={{ scheme }}>
+          <PreferenceRow
+            title="Authentication"
+            testID="voice-template-auth"
+            value={value}
+            options={[
+              { value: 'bearer', label: 'Authorization: Bearer', icon: 'access' },
+              { value: 'query', label: 'Query parameter', icon: 'access' },
+            ]}
+            onChange={(next) => {
+              changed(next);
+              setValue(next);
+            }}
+          />
+        </DesignThemeProvider>
+      );
+    }
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<Screen />));
+      const trigger = host.querySelector('[data-testid="voice-template-auth"]')!;
+      const label = trigger.querySelector('[data-native-label]')!;
+      expect(label.textContent).toBe('');
+      expect(label.querySelector('[data-spacer]')).not.toBeNull();
+      expect(trigger.getAttribute('aria-label')).toBe('Authentication, Authorization: Bearer');
+      const row = host.firstElementChild!.firstElementChild!;
+      expect(trigger.contains(row)).toBe(false);
+      expect(row.textContent).toBe('AuthenticationAuthorization: Bearer');
+      expect(row.querySelector('[data-symbol="chevron.up.chevron.down"]')).not.toBeNull();
+      const picker = host.querySelector('select')!;
+      await act(async () => {
+        picker.value = 'query';
+        picker.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(changed).toHaveBeenCalledExactlyOnceWith('query');
+      expect(trigger.getAttribute('aria-label')).toBe('Authentication, Query parameter');
+      expect(host.firstElementChild!.firstElementChild!.textContent).toBe(
+        'AuthenticationQuery parameter',
+      );
     } finally {
       await act(async () => root.unmount());
     }
