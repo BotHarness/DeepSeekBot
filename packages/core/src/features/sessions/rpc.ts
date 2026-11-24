@@ -324,6 +324,10 @@ export const sessionListRpc = {
     return unwrapAsync(this.methods.sessionList({ search, sort, source, queryVersion }));
   },
 
+  sessionCreate(cwd?: string, workspaceId?: string, text?: string, choice?: unknown) {
+    return unwrapAsync(this.methods.sessionCreate({ cwd, workspaceId, text, choice }));
+  },
+
   botToolTrace(
     slug: string,
     sessionId?: string,
