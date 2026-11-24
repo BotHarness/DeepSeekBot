@@ -24,7 +24,6 @@ import { createConnectAccountStorage } from './connect-account-storage.js';
 import {
   connectedHostsSchema,
   hostIdSchema,
-  hostListSchema,
   relaySchema,
   revokedHostSchema,
   type AccountRecord,
@@ -64,26 +63,33 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const sleep = (ms: number, signal: AbortSignal) =>
     options.sleep?.(ms) ?? delay(ms, undefined, { signal });
   const record = options.record ?? (() => {});
-  const { requestError, post, relayCall, clientId } = createConnectAccountRequests(
+  const { requestError, post, relayCall, clientId, ownsHost } = createConnectAccountRequests(
     relay,
     fetcher,
     record,
   );
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
+  let signingIn: AccountStatus | undefined;
+  const visibleStatus = () => signingIn ?? status;
   const setStatus = (next: AccountStatus): void => {
+    const previous = visibleStatus();
     const changed =
-      next.state !== status.state ||
-      next.email !== status.email ||
-      next.hostId !== status.hostId ||
-      next.userCode !== status.userCode ||
-      next.verificationUri !== status.verificationUri ||
-      next.expiresAt !== status.expiresAt ||
-      next.issue !== status.issue ||
-      next.protectedUntil !== status.protectedUntil ||
-      JSON.stringify(next.wait) !== JSON.stringify(status.wait) ||
-      JSON.stringify(next.pool) !== JSON.stringify(status.pool);
-    status = next;
+      next.state !== previous.state ||
+      next.email !== previous.email ||
+      next.hostId !== previous.hostId ||
+      next.userCode !== previous.userCode ||
+      next.verificationUri !== previous.verificationUri ||
+      next.expiresAt !== previous.expiresAt ||
+      next.issue !== previous.issue ||
+      next.protectedUntil !== previous.protectedUntil ||
+      JSON.stringify(next.wait) !== JSON.stringify(previous.wait) ||
+      JSON.stringify(next.pool) !== JSON.stringify(previous.pool);
+    if (next.state === 'signing-in') signingIn = next;
+    else {
+      signingIn = undefined;
+      status = next;
+    }
     if (changed) options.onAccountChanged?.();
   };
   let attempt = 0;
@@ -361,9 +367,8 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
     });
   };
 
-  const sync = (): Promise<void> => {
-    const signal = attemptAbort.signal;
-    return serial(async () => {
+  const sync = (signal = attemptAbort.signal): Promise<void> =>
+    serial(async () => {
       if (signal.aborted || sessionBlocked() || !canResumeSession) return;
       let current: AccountRecord | undefined;
       try {
@@ -421,7 +426,6 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         if (!signal.aborted) await revoke(error, current);
       }
     });
-  };
 
   const poll = async (
     signal: AbortSignal,
@@ -492,12 +496,11 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         return;
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;
+      let completionSignal = signal;
       try {
         const saved = await serial(async () => {
           if (signal.aborted) return false;
           const previous = await readStored();
-          if (signal.aborted) return false;
-          await retireSession(previous);
           if (signal.aborted) return false;
           const current: AccountRecord = {
             kind: 'session',
@@ -506,41 +509,42 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
             refreshToken,
             ...(typeof email === 'string' ? { email } : {}),
           };
-          if (previous?.relay === relay && previous.clientId === id && previous.hostId) {
-            const access = reply.body['access_token'];
-            if (typeof access !== 'string') throw new AccountError('session-expired');
-            const listed = await relayCall(
-              'list-hosts',
-              'GET',
-              '/v1/hosts',
-              access,
-              undefined,
-              undefined,
-              signal,
-            );
-            const hosts = hostListSchema.safeParse(listed.body);
-            if (listed.status !== 200 || !hosts.success)
-              throw requestError('relay', 'list-hosts', {
-                reason: 'invalid-response',
-                status: listed.status,
-              });
-            if (hosts.data.hosts.some((host) => host.id === previous.hostId))
+          try {
+            if (
+              previous?.relay === relay &&
+              previous.clientId === id &&
+              previous.hostId &&
+              (await ownsHost(previous.hostId, reply.body['access_token'], signal))
+            )
               current.hostId = previous.hostId;
+            if (signal.aborted) return false;
+            await save(current, signal);
+          } catch (error) {
+            if (signal.aborted) return false;
+            if (previous?.kind !== 'session' || sessionBlocked() || !canResumeSession) throw error;
+            setStatus(status);
+            record(
+              'sign-in-failed',
+              `error=${error instanceof AccountError ? error.issue : 'relay-unavailable'}`,
+            );
+            return false;
           }
-          if (signal.aborted) return false;
-          await save(current);
-          if (signal.aborted) return false;
+          cached = undefined;
+          status = { state: 'signed-out' };
+          if (!signal.aborted) completionSignal = advanceAttempt();
+          await connect.disable();
+          if (completionSignal.aborted) return false;
           signOutRequested = false;
           canResumeSession = true;
           return true;
         });
-        if (!saved || signal.aborted) return;
+        if (!saved || completionSignal.aborted) return;
       } catch (saveError) {
-        if (!signal.aborted) fail(saveError);
+        if (!completionSignal.aborted) fail(saveError);
         return;
       }
       record('signed-in');
-      await sync();
+      await sync(completionSignal);
       return;
     }
   };
@@ -548,7 +552,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const startWatch = () => {
     if (shutdown.signal.aborted || watch !== undefined) return;
     watch = setInterval(() => {
-      if (sessionBlocked()) return;
+      if (sessionBlocked() || signingIn !== undefined) return;
       const tunnel = connect.status().state;
       if (
         (status.state === 'signed-in' && (tunnel === 'error' || tunnel === 'off')) ||
@@ -711,7 +715,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       },
       call: activityCall,
     },
-    status: () => ({ ...status }),
+    status: () => ({ ...visibleStatus() }),
     connectedHosts: (signal) =>
       serial(async (): Promise<ConnectedHostsResult> => {
         if (sessionBlocked()) return { ok: false, code: 'signed-out' };
@@ -891,8 +895,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       if (shutdown.signal.aborted) return { ok: false, code: 'relay-unavailable' };
       const signal = advanceAttempt();
       const refuse = (): AccountResult => {
-        if (!signal.aborted && status.state === 'signing-in')
-          fail(new AccountError('relay-unavailable'));
+        if (!signal.aborted && signingIn !== undefined) fail(new AccountError('relay-unavailable'));
         return { ok: false, code: 'relay-unavailable' };
       };
       let id: ConnectClientId;
@@ -940,7 +943,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       record('sign-in-started');
       startWatch();
       void poll(signal, id, deviceCode, interval, expires);
-      return { ok: true, status: { ...status } };
+      return { ok: true, status: { ...visibleStatus() } };
     },
     signOut: () => {
       signOutRequested = true;

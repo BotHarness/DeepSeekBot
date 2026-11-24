@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   clientIdSchema,
+  hostListSchema,
   type AccountIssue,
   type ConnectClientId,
   type ConnectPool,
@@ -210,5 +211,26 @@ export function createConnectAccountRequests(
     return parsed.data;
   };
 
-  return { requestError, post, relayCall, clientId };
+  const ownsHost = async (
+    hostId: string,
+    access: unknown,
+    signal: AbortSignal,
+  ): Promise<boolean> => {
+    if (typeof access !== 'string') throw new AccountError('session-expired');
+    const { status, body } = await relayCall(
+      'list-hosts',
+      'GET',
+      '/v1/hosts',
+      access,
+      undefined,
+      undefined,
+      signal,
+    );
+    const hosts = hostListSchema.safeParse(body);
+    if (status !== 200 || !hosts.success)
+      throw requestError('relay', 'list-hosts', { reason: 'invalid-response', status });
+    return hosts.data.hosts.some((host) => host.id === hostId);
+  };
+
+  return { requestError, post, relayCall, clientId, ownsHost };
 }

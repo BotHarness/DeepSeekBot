@@ -1,4 +1,3 @@
-import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createConnectAccount } from '../src/devices/connect-account.js';
 import { CONNECT_ZONES } from '@botharness/host-protocol/connect-zones';
@@ -313,6 +312,8 @@ describe('Connect account lifecycle', () => {
     try {
       await account.signIn();
       await settle(account);
+      const original = [...credentials.records.values()];
+      const connected = tunnel.connect.status();
       options.onList = async () => {
         checking.resolve();
         await proceed.promise;
@@ -322,14 +323,51 @@ describe('Connect account lifecycle', () => {
       const closing = account.close();
       proceed.resolve();
       await closing;
-      expect([...credentials.records.values()]).toEqual([
-        {
-          kind: 'grant',
-          payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
-        },
-      ]);
+      expect([...credentials.records.values()]).toEqual(original);
       expect(tunnel.enabled).toHaveLength(1);
-      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+      expect(tunnel.connect.status()).toEqual(connected);
+    } finally {
+      proceed.resolve();
+      await account.close();
+    }
+  });
+
+  it('does not write a replacement superseded while waiting for the credential store', async () => {
+    const options: Parameters<typeof fakeServices>[0] = { pending: 0 };
+    const { account, credentials, tunnel } = setup(fakeServices(options));
+    const writing = deferred();
+    const proceed = deferred();
+    try {
+      await account.signIn();
+      await settle(account);
+      const incumbent = account.status();
+      expect(incumbent.state).toBe('signed-in');
+      const original = [...credentials.records.values()];
+      const connected = tunnel.connect.status();
+      const write = credentials.provider.modifyRecord;
+      const candidateWritten = vi.fn();
+      vi.spyOn(credentials.provider, 'modifyRecord').mockImplementationOnce((key, mutate) =>
+        write(key, async (current) => {
+          writing.resolve();
+          await proceed.promise;
+          const next = await mutate(current);
+          candidateWritten();
+          return next;
+        }),
+      );
+      options.email = 'superseded@example.com';
+      await account.signIn();
+      await writing.promise;
+      options.listStatus = 503;
+      options.email = 'replacement@example.com';
+      await account.signIn();
+      proceed.resolve();
+      await settle(account);
+      expect(candidateWritten).not.toHaveBeenCalled();
+      expect(account.status()).toEqual(incumbent);
+      expect(await account.accessToken()).toBe('access-1');
+      expect(tunnel.connect.status()).toEqual(connected);
+      expect([...credentials.records.values()]).toEqual(original);
     } finally {
       proceed.resolve();
       await account.close();
@@ -509,71 +547,141 @@ describe('Connect account lifecycle', () => {
       }
     });
 
-  for (const failure of [
+  it.each([
     { listStatus: 503, listBody: {} },
     { listStatus: 401, listBody: {} },
     { listStatus: 200, listBody: {} },
     { listStatus: 200, listBody: { hosts: [null] } },
-  ])
-    it(`does not create a registration when ownership cannot be verified (${JSON.stringify(failure)})`, async () => {
-      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  ])(
+    'keeps the incumbent usable when replacement ownership cannot be verified (%j)',
+    async (failure) => {
       const options: Parameters<typeof fakeServices>[0] = { pending: 0 };
       const services = fakeServices(options);
       const { account, credentials, tunnel } = setup(services);
       try {
         await account.signIn();
         await settle(account);
+        const incumbent = account.status();
+        expect(incumbent.state).toBe('signed-in');
+        const stored = [...credentials.records.values()];
+        const connected = tunnel.connect.status();
+        expect(await account.accessToken()).toBe('access-1');
+        const disable = vi.spyOn(tunnel.connect, 'disable');
         Object.assign(options, failure, { userId: 'user_bob', hostId: 'hstudiobbbbb' });
         await account.signIn();
         await settle(account);
-        expect(account.status()).toMatchObject({
-          state: 'error',
-          issue: failure.listStatus === 401 ? 'session-expired' : 'relay-unavailable',
-          recovery: 'sign-in',
-        });
-        expect(
-          services.calls.filter(
-            (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
-          ),
-        ).toHaveLength(1);
-        expect(await account.accessToken()).toBeUndefined();
-        expect(tunnel.connect.status()).toEqual({ state: 'off' });
-        expect([...credentials.records.values()]).toEqual([
-          {
-            kind: 'grant',
-            payload: {
-              kind: 'registration',
-              relay: RELAY,
-              clientId: CLIENT,
-              hostId: 'hstudioaaaaa',
-            },
-          },
-        ]);
-        const body = JSON.stringify({
-          hostId: 'hstudioaaaaa',
-          account: 'user_alice',
-          verifierHash: Buffer.alloc(32, 3).toString('base64url'),
-          issuedAt: new Date().toISOString(),
-        });
-        const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
-        expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
-        delete options.listBody;
-        options.listStatus = 200;
-        const failedStatus = account.status();
-        const count = services.calls.length;
-        await vi.advanceTimersByTimeAsync(120_000);
-        await account.start();
-        expect(account.status()).toEqual(failedStatus);
-        expect(services.calls).toHaveLength(count);
-        await account.signIn();
-        await settle(account);
-        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudiobbbbb' });
-        expect(services.calls.some((call) => call.method === 'DELETE')).toBe(false);
+        expect(account.status()).toEqual(incumbent);
+        expect(await account.accessToken()).toBe('access-1');
+        expect(tunnel.connect.status()).toEqual(connected);
+        expect(disable).not.toHaveBeenCalled();
+        expect([...credentials.records.values()]).toEqual(stored);
+        expect([...services.hosts]).toEqual(['hstudioaaaaa']);
       } finally {
         await account.close();
-        vi.useRealTimers();
       }
-    });
+    },
+  );
+
+  it('keeps the incumbent usable when the verified replacement cannot be stored', async () => {
+    const options = { pending: 0, userId: 'user_alice', email: 'alice@example.com' };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const incumbent = account.status();
+      expect(incumbent.state).toBe('signed-in');
+      const stored = [...credentials.records.values()];
+      const connected = tunnel.connect.status();
+      expect(await account.accessToken()).toBe('access-1');
+      const disable = vi.spyOn(tunnel.connect, 'disable');
+      const write = credentials.provider.modifyRecord;
+      const rejectReplacement = vi.fn(() => {
+        throw new Error('fixture replacement write failed');
+      });
+      options.userId = 'user_bob';
+      options.email = 'bob@example.com';
+      vi.spyOn(credentials.provider, 'modifyRecord').mockImplementation((key, mutate) =>
+        write(key, async (current) => {
+          const next = await mutate(current);
+          if (
+            next !== null &&
+            typeof next === 'object' &&
+            'payload' in next &&
+            next.payload !== null &&
+            typeof next.payload === 'object' &&
+            'email' in next.payload &&
+            next.payload.email === options.email
+          )
+            rejectReplacement();
+          return next;
+        }),
+      );
+      await account.signIn();
+      await settle(account);
+      expect(rejectReplacement).toHaveBeenCalledTimes(1);
+      expect(account.status()).toEqual(incumbent);
+      expect(await account.accessToken()).toBe('access-1');
+      expect(tunnel.connect.status()).toEqual(connected);
+      expect(disable).not.toHaveBeenCalled();
+      expect([...credentials.records.values()]).toEqual(stored);
+      expect([...services.hosts]).toEqual(['hstudioaaaaa']);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retires the incumbent exactly once after verification and storage', async () => {
+    const options = {
+      pending: 0,
+      userId: 'user_alice',
+      email: 'alice@example.com',
+      hostId: 'hstudioaaaaa',
+    };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'signed-in', email: 'alice@example.com' });
+      const replacement = { userId: 'user_bob', email: 'bob@example.com', hostId: 'hstudiobbbbb' };
+      Object.assign(options, replacement);
+      const disable = tunnel.connect.disable;
+      const retiredWith = vi.fn();
+      vi.spyOn(tunnel.connect, 'disable').mockImplementation(() => {
+        retiredWith([...credentials.records.values()], [...services.calls]);
+        return disable();
+      });
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({
+        state: 'signed-in',
+        email: replacement.email,
+        hostId: replacement.hostId,
+      });
+      expect(retiredWith).toHaveBeenCalledExactlyOnceWith(
+        [
+          expect.objectContaining({
+            payload: expect.objectContaining({ kind: 'session', email: replacement.email }),
+          }),
+        ],
+        expect.arrayContaining([
+          expect.objectContaining({
+            method: 'GET',
+            path: `${RELAY}/v1/hosts`,
+            auth: 'Bearer access-0',
+          }),
+        ]),
+      );
+      expect(await account.accessToken()).toBe('access-2');
+      expect(tunnel.connect.status()).toMatchObject({
+        state: 'connected',
+        hostname: 'hstudiobbbbb.deepseekbot.dev',
+      });
+    } finally {
+      await account.close();
+    }
+  });
 
   it('resumes from the stored session, relinks a Host the relay forgot, and signs out', async () => {
     const services = fakeServices({ pending: 0 });
