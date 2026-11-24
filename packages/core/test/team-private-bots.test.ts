@@ -430,8 +430,8 @@ describe('M2 private Bot boundaries', () => {
       ok: true,
       value: { botSlug: formerTob.botSlug },
     });
-    expect(f.team.transferPreview(bob, owner.humanId).bots.map((bot) => bot.slug)).not.toContain(
-      formerTob.botSlug,
+    expect(f.team.transferPreview(bob, owner.humanId).bots).toEqual(
+      expect.arrayContaining([{ slug: formerTob.botSlug, displayName: 'Tob' }]),
     );
     expect(incoming.create({ displayName: 'Owner with no roles' })).toMatchObject({ ok: true });
     expect(incoming.list({ administration: true })).toMatchObject({ ok: true });
@@ -443,9 +443,7 @@ describe('M2 private Bot boundaries', () => {
       ok: true,
       value: { botSlug: newTob },
     });
-    expect(f.team.transferPreview(bob, owner.humanId).bots).toEqual(
-      expect.arrayContaining([{ slug: formerTob.botSlug, displayName: 'Tob' }]),
-    );
+    expect(f.core.tob.isSteward(formerTob.botSlug)).toBe(false);
     expect(await incoming.onboarding({})).toMatchObject({
       ok: true,
       value: { tutorial: 'skipped', defaultBotSlug: f.core.tob.slug(bob) },

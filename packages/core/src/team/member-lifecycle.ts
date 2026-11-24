@@ -174,7 +174,7 @@ export function ownedBots(this: MemberLifecycleHost, humanId: string, transferab
       db
         .prepare(`SELECT b.slug, json_extract(b.body, '$.displayName') AS displayName FROM persona_bots b
         WHERE b.owner_human_id = ?
-        ${transferable ? 'AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug) AND NOT EXISTS (SELECT 1 FROM steward_role WHERE bot_slug = b.slug)' : ''}
+        ${transferable ? 'AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug)' : ''}
         ORDER BY b.slug`)
         .all(humanId),
     ),
