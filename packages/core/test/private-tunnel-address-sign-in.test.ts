@@ -1,18 +1,21 @@
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { createServer, type IncomingMessage } from 'node:http';
+import { connect as tcpConnect, type AddressInfo } from 'node:net';
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { discoverHostAddress, signInWithPassword } from '@botharness/host-client/password-sign-in';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
-import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
+import { CONNECT_CHANNEL_PATH, ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { afterEach, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
+import { createPrivateTunnel, createTunnelOrigin } from '../src/devices/private-tunnel.js';
+import { ADDRESS_PENDING_LIMIT } from '../src/devices/address-slots.js';
 import {
-  ADDRESS_SOCKET_LIMIT,
-  createPrivateTunnel,
-  createTunnelOrigin,
-} from '../src/devices/private-tunnel.js';
+  DEVICE_NOISE_PEER_HEADER,
+  DEVICE_ROUTE_HEADER,
+  isAddressRouteRequest,
+} from '../src/devices/route-context.js';
 import {
   fakeCloudflared,
   memoryCredentials,
@@ -118,6 +121,56 @@ async function addressHost(
     });
     return { ws, opened };
   };
+  const noise = (origin: string, staticKey: Uint8Array = randomBytes(32)) => {
+    const channel = new ConnectChannel({
+      role: 'initiator',
+      route: 'connect',
+      hostId: f.pairing.host().id,
+      staticKey,
+      ephemeralKey: randomBytes(32),
+      hostKey: noisePublicKey(Uint8Array.from(f.privateKey)),
+    });
+    const ws = new WebSocket(`ws://127.0.0.1:${originPort(origin)}${CONNECT_CHANNEL_PATH}`);
+    const answers: Record<string, unknown>[] = [];
+    const waiters: ((value: Record<string, unknown>) => void)[] = [];
+    let secured!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      secured = resolve;
+    });
+    const send = (value: unknown) => {
+      for (const frame of channel.send(JSON.stringify(value))) ws.send(frame);
+    };
+    ws.on('message', (data) => {
+      const result = channel.receive(data.toString());
+      if (result.reply) ws.send(result.reply);
+      if (result.ready) secured();
+      if (result.message) {
+        const value = JSON.parse(result.message) as Record<string, unknown>;
+        const waiter = waiters.shift();
+        if (waiter) waiter(value);
+        else answers.push(value);
+      }
+    });
+    ws.once('open', () => ws.send(channel.start()));
+    const next = () =>
+      answers.length
+        ? Promise.resolve(answers.shift()!)
+        : new Promise<Record<string, unknown>>((resolve) => waiters.push(resolve));
+    return {
+      ws,
+      ready,
+      send,
+      next,
+      publicKey: Buffer.from(noisePublicKey(staticKey)).toString('hex'),
+    };
+  };
+  const admitted = async (origin: string, saved: { credential: string; deviceKey: string }) => {
+    const peer = noise(origin, Uint8Array.from(Buffer.from(saved.deviceKey, 'hex')));
+    await peer.ready;
+    peer.send({ type: 'admit', credential: saved.credential });
+    expect(await peer.next()).toEqual({ type: 'admitted' });
+    return peer;
+  };
   return {
     f,
     host,
@@ -128,6 +181,8 @@ async function addressHost(
     discover,
     signIn,
     socket,
+    noise,
+    admitted,
     credentials,
     originPort,
   };
@@ -433,7 +488,7 @@ it('closes the route in memory when turning sign-in by address off cannot be sav
 it('caps channels opened by address without limiting token-admitted channels', async () => {
   const { tunnel, socket } = await addressRoute();
   await tunnel.setAddressSignIn('custom', true);
-  const sockets = Array.from({ length: ADDRESS_SOCKET_LIMIT }, () => socket(custom));
+  const sockets = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
   expect(await Promise.all(sockets.map((entry) => entry.opened))).toEqual(sockets.map(() => true));
   expect(await socket(custom).opened).toBe(false);
   const token = tunnel.admissions()[0]!.token;
@@ -491,4 +546,172 @@ it('drops the address route from sign-in origins while it is disconnected or sto
   expect(tunnel.addressSignInOrigins()).toEqual([custom]);
   expect(await tunnel.stop('custom')).toMatchObject({ ok: true });
   expect(tunnel.addressSignInOrigins()).toEqual([]);
+});
+
+it('never counts channels admitted by address against the unadmitted cap', async () => {
+  const { f, tunnel, signIn, socket, admitted } = await addressRoute();
+  await tunnel.setAddressSignIn('custom', true);
+  const member = await signIn(f.initialPassword);
+  if (!member.ok || !member.value.encryption) throw new Error('sign-in-failed');
+  const saved = {
+    credential: member.value.credential,
+    deviceKey: member.value.encryption.deviceKey,
+  };
+  const members = [];
+  for (let index = 0; index < ADDRESS_PENDING_LIMIT + 1; index++)
+    members.push(await admitted(custom, saved));
+  const pending = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
+  expect(await Promise.all(pending.map((entry) => entry.opened))).toEqual(pending.map(() => true));
+  expect(await socket(custom).opened).toBe(false);
+  for (const entry of members) expect(entry.ws.readyState).toBe(WebSocket.OPEN);
+  const freed = once(pending[0]!.ws, 'close');
+  pending[0]!.ws.close();
+  await freed;
+  await expect
+    .poll(async () => (await admitted(custom, saved)).ws.readyState, { timeout: 2_000 })
+    .toBe(WebSocket.OPEN);
+  for (const entry of [...members, ...pending]) entry.ws.close();
+});
+
+it('keeps an Owner pairing channel opened by address while it waits for approval', async () => {
+  const { f, tunnel, noise, socket } = await addressRoute({ addressDeadlineMs: 200 });
+  await tunnel.setAddressSignIn('custom', true);
+  const offer = f.pairing.createOffer();
+  const peer = noise(custom);
+  await peer.ready;
+  peer.send({ type: 'pair', offer: offer.offer, name: 'Address phone' });
+  expect(await peer.next()).toEqual({ type: 'pair-pending', receipt: offer.receipt });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(peer.ws.readyState).toBe(WebSocket.OPEN);
+  const others = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
+  expect(await Promise.all(others.map((entry) => entry.opened))).toEqual(others.map(() => true));
+  f.pairing.approveKey(offer.receipt, peer.publicKey);
+  expect(await peer.next()).toMatchObject({ type: 'paired' });
+  for (const entry of [peer, ...others]) entry.ws.close();
+});
+
+it('lets unadmitted address channels expire once password sign-in becomes unavailable', async () => {
+  const { f, tunnel, socket, discover } = await addressRoute({ addressDeadlineMs: 200 });
+  await tunnel.setAddressSignIn('custom', true);
+  const open = socket(custom);
+  expect(await open.opened).toBe(true);
+  const closed = once(open.ws, 'close');
+  await f.team.setMode(OWNER_HUMAN_CONTEXT, false);
+  expect(await socket(custom).opened).toBe(false);
+  await closed;
+  expect(await discover(custom)).toEqual({ status: 404, body: { code: 'private-route' } });
+});
+
+it('ignores a stored address sign-in flag on an HTTPS ingress that listens on the LAN', async () => {
+  const credentials = memoryCredentials();
+  const key = credentialKey('botharness-core', 'private-tunnel');
+  const first = await addressHost(credentials);
+  await first.tunnel.add({ mode: 'ingress', origin: custom, lan: true });
+  await first.connected('custom');
+  await first.tunnel.close();
+  const record = credentials.records.get(key) as {
+    payload: { routes: Record<string, unknown>[] };
+  };
+  record.payload.routes[0]!['addressSignIn'] = true;
+
+  const second = await addressHost(credentials);
+  await second.tunnel.restore();
+  await second.connected('custom');
+  expect(second.tunnel.statuses()).toMatchObject([{ id: 'custom', addressSignIn: false }]);
+  expect(second.tunnel.addressSignInOrigins()).toEqual([]);
+  expect(await second.discover(custom)).toEqual({ status: 404, body: { code: 'private-route' } });
+  expect(await second.socket(custom).opened).toBe(false);
+  expect(await second.tunnel.setAddressSignIn('custom', false)).toMatchObject({ ok: true });
+  expect(credentials.records.get(key)).not.toMatchObject({
+    payload: { routes: [{ addressSignIn: true }] },
+  });
+});
+
+async function capturingOrigin() {
+  const seen: { headers: IncomingMessage['headers']; address: boolean }[] = [];
+  const upstream = createServer();
+  upstream.on('upgrade', (request: IncomingMessage, socket) => {
+    seen.push({ headers: request.headers, address: isAddressRouteRequest(request) });
+    socket.destroy();
+  });
+  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const token = 'a'.repeat(64);
+  const origin = createTunnelOrigin({
+    port: () => (upstream.address() as AddressInfo).port,
+    phoneToken: () => token,
+    probe: () => undefined,
+    addressSignIn: () => true,
+  });
+  await new Promise<void>((resolve) => origin.listen(0, '127.0.0.1', resolve));
+  const port = (origin.address() as AddressInfo).port;
+  return {
+    seen,
+    token,
+    port,
+    close: async () => {
+      origin.closeAllConnections();
+      upstream.closeAllConnections();
+      await new Promise<void>((resolve) => origin.close(() => resolve()));
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    },
+  };
+}
+
+it('strips a forged route or Noise peer header and classifies only its own address stamp', async () => {
+  const origin = await capturingOrigin();
+  try {
+    const forged = { [DEVICE_ROUTE_HEADER]: 'forged', [DEVICE_NOISE_PEER_HEADER]: 'forged.peer' };
+    const open = (headers: Record<string, string>) =>
+      new Promise<void>((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${String(origin.port)}${CONNECT_CHANNEL_PATH}`, {
+          headers,
+        });
+        ws.once('error', () => resolve());
+        ws.once('close', () => resolve());
+      });
+    await open(forged);
+    await open({ ...forged, authorization: `Bearer ${origin.token}` });
+    await expect.poll(() => origin.seen.length).toBe(2);
+    const [byAddress, byToken] = origin.seen;
+    expect(byAddress?.address).toBe(true);
+    expect(byAddress?.headers[DEVICE_ROUTE_HEADER]).not.toBe('forged');
+    expect(byAddress?.headers[DEVICE_NOISE_PEER_HEADER]).toBeUndefined();
+    expect(byToken?.address).toBe(false);
+    expect(byToken?.headers[DEVICE_ROUTE_HEADER]).toBeUndefined();
+    expect(byToken?.headers[DEVICE_NOISE_PEER_HEADER]).toBeUndefined();
+  } finally {
+    await origin.close();
+  }
+});
+
+it('refuses a non-GET WebSocket upgrade by address before it reaches the Host', async () => {
+  const origin = await capturingOrigin();
+  try {
+    const reply = await new Promise<string>((resolve) => {
+      const socket = tcpConnect(origin.port, '127.0.0.1', () => {
+        socket.write(
+          [
+            `POST ${CONNECT_CHANNEL_PATH} HTTP/1.1`,
+            'host: team.example.test',
+            'connection: Upgrade',
+            'upgrade: websocket',
+            'sec-websocket-version: 13',
+            `sec-websocket-key: ${randomBytes(16).toString('base64')}`,
+            '',
+            '',
+          ].join('\r\n'),
+        );
+      });
+      let text = '';
+      socket.setEncoding('utf8');
+      socket.on('data', (chunk: string) => {
+        text += chunk;
+      });
+      socket.on('close', () => resolve(text));
+    });
+    expect(reply.startsWith('HTTP/1.1 404')).toBe(true);
+    expect(origin.seen).toEqual([]);
+  } finally {
+    await origin.close();
+  }
 });

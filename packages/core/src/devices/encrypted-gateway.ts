@@ -24,7 +24,8 @@ import {
 } from '../voice/call-contract.js';
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
-import { ADDRESS_ROUTE_SOURCE, isAddressRouteRequest, noisePeerHeaders } from './route-context.js';
+import { ADDRESS_ROUTE_SOURCE, noisePeerHeaders } from './route-context.js';
+import { createAddressSlots, type AddressSlot } from './address-slots.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -143,8 +144,14 @@ export function createEncryptedGateway(options: {
   let negotiating = 0,
     encrypted = 0,
     upgrading = 0;
+  const addressSlot = createAddressSlots();
   const changed = () => options.changed?.({ negotiating, encrypted });
-  const serve = (socket: WebSocket, key: Uint8Array, remoteAddress: string, byAddress: boolean) => {
+  const serve = (
+    socket: WebSocket,
+    key: Uint8Array,
+    remoteAddress: string,
+    address: AddressSlot | undefined,
+  ) => {
     const channel = new ConnectChannel({
       role: 'responder',
       hostId: options.pairing.host().id,
@@ -253,11 +260,15 @@ export function createEncryptedGateway(options: {
       socket.terminate();
     };
     const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
-    const addressDeadline = byAddress
+    const addressDeadline = address
       ? setTimeout(() => {
           if (!admitted) close('address-admission-timeout');
         }, options.addressDeadlineMs ?? ADDRESS_ADMISSION_DEADLINE)
       : undefined;
+    const progressed = () => {
+      clearTimeout(addressDeadline);
+      address?.release();
+    };
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
       if (Date.now() - lastMessage > 60_000) close('idle-timeout');
@@ -787,6 +798,7 @@ export function createEncryptedGateway(options: {
           const paired = redeem();
           if (!paired.ok && paired.code === 'device-approval-required') {
             if (!send({ type: 'pair-pending', receipt: proposed.receipt })) return;
+            progressed();
             unwatchKey = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
               if (closed || admitted) return;
               try {
@@ -810,6 +822,7 @@ export function createEncryptedGateway(options: {
         if (admission.device.enrollment === 'owner-password')
           channelHeaders = noisePeerHeaders(publicKey);
         admitted = true;
+        progressed();
         negotiating--;
         encrypted++;
         changed();
@@ -938,6 +951,13 @@ export function createEncryptedGateway(options: {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
+      const address = addressSlot(request, socket);
+      if (address === 'full') {
+        socket.end(
+          'HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
+        );
+        return;
+      }
       upgrading++;
       let key: Uint8Array | undefined;
       try {
@@ -948,16 +968,16 @@ export function createEncryptedGateway(options: {
           return;
         }
         const identity = key;
-        const byAddress = isAddressRouteRequest(request);
         server.handleUpgrade(request, socket, head, (client) =>
           serve(
             client,
             identity,
-            byAddress ? ADDRESS_ROUTE_SOURCE : (request.socket.remoteAddress ?? 'unknown'),
-            byAddress,
+            address ? ADDRESS_ROUTE_SOURCE : (request.socket.remoteAddress ?? 'unknown'),
+            address,
           ),
         );
       } catch {
+        address?.release();
         socket.destroy();
       } finally {
         key?.fill(0);

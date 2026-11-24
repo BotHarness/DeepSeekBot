@@ -196,7 +196,6 @@ export function addressSignInAllowed(record: TunnelRecord): boolean {
 type TunnelOrigin = Server & { upgraded: Set<Duplex>; addressed: Set<Duplex> };
 
 const DISCOVERY_HEADERS = ['content-type', 'cache-control', 'access-control-allow-origin'];
-export const ADDRESS_SOCKET_LIMIT = 8;
 const STRIPPED_UPGRADE_HEADERS = new Set([
   'authorization',
   'x-botharness-admission',
@@ -298,12 +297,6 @@ export function createTunnelOrigin(options: {
         (!admission || !timingSafeEqual(digest(admission.token), digest(options.phoneToken()))))
     ) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
-      return;
-    }
-    if (byAddress && addressed.size >= ADDRESS_SOCKET_LIMIT) {
-      socket.end(
-        'HTTP/1.1 503 Service Unavailable\r\nconnection: close\r\ncontent-length: 0\r\n\r\n',
-      );
       return;
     }
     let raw = `GET ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;

@@ -93,7 +93,11 @@ function decode(input: unknown): OwnedRoutes | undefined {
       id: value.id,
       enabled: value.enabled,
       configuration,
-      ...(value.id === 'custom' && value.addressSignIn === true ? { addressSignIn: true } : {}),
+      ...(value.id === 'custom' &&
+      value.addressSignIn === true &&
+      addressSignInAllowed(configuration)
+        ? { addressSignIn: true }
+        : {}),
     });
   }
   return { version: 2, phoneToken: input.phoneToken, routes };
@@ -211,7 +215,12 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
         id: route.id,
         enabled: route.enabled,
         revision: revisions.get(route.id)!,
-        ...(route.id === 'custom' ? { addressSignIn: route.addressSignIn === true } : {}),
+        ...(route.id === 'custom'
+          ? {
+              addressSignIn:
+                route.addressSignIn === true && addressSignInAllowed(route.configuration),
+            }
+          : {}),
       };
     });
   const status = (): PrivateTunnelStatus => {
@@ -234,9 +243,14 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     if (!entry?.enabled) return;
     const runtime = createPrivateTunnelRuntime({
       ...options,
-      addressSignIn: () =>
-        state?.routes.find((route) => route.id === id)?.addressSignIn === true &&
-        options.passwordSignInAvailable?.() === true,
+      addressSignIn: () => {
+        const route = state?.routes.find((route) => route.id === id);
+        return (
+          route?.addressSignIn === true &&
+          addressSignInAllowed(route.configuration) &&
+          options.passwordSignInAvailable?.() === true
+        );
+      },
       record: (phase, detail) =>
         options.record?.(phase, `route=${id}${detail ? ` ${detail}` : ''}`),
       storage: {
