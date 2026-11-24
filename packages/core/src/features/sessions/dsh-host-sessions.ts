@@ -26,27 +26,40 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
       return query;
     }),
     async list() {
-      const { items } = await controller().list({}, new AbortController().signal);
-      return items
-        .filter((row) => row.origin !== 'subagent')
-        .map((row) => {
-          const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
-          const metadata = row.projections?.values;
-          const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
-          return {
-            sessionId,
-            ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-            ...((metadata?.userQuestions?.active.length ?? 0) > 0
-              ? { waiting: true as const }
-              : {}),
-            ...(cwd === undefined ? {} : { cwd }),
-            ...(parentSessionId === undefined ? {} : { parentSessionId }),
-            ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
-            lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
-            running,
-            updatedAt,
-          };
-        });
+      const service = controller();
+      const signal = new AbortController().signal;
+      const { items } = await service.list({}, signal);
+      const roots = items.filter((row) => row.origin !== 'subagent');
+      const waiting = new Set(
+        (
+          await Promise.all(
+            roots
+              .filter((row) => row.running)
+              .map((row) =>
+                service.state({ sessionId: row.sessionId }, signal).then(
+                  (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
+                  () => undefined,
+                ),
+              ),
+          )
+        ).filter((id) => id !== undefined),
+      );
+      return roots.map((row) => {
+        const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
+        const metadata = row.projections?.values;
+        const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
+        return {
+          sessionId,
+          ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+          ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
+          ...(cwd === undefined ? {} : { cwd }),
+          ...(parentSessionId === undefined ? {} : { parentSessionId }),
+          ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
+          lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
+          running,
+          updatedAt,
+        };
+      });
     },
     async isRoot(id) {
       const sessionId = SessionId(id);
