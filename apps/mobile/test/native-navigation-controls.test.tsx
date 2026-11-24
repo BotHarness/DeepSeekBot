@@ -108,7 +108,7 @@ it('native controls preserve selection, unread label and distinct navigation/cre
         </>,
       ),
     );
-    const buttons = [...host.querySelectorAll('button')];
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label]')];
     expect(buttons[0]!.getAttribute('aria-pressed')).toBe('true');
     expect(buttons[1]!.getAttribute('aria-label')).toContain('4');
     expect(buttons[1]!.querySelector('i')).toBeNull();
@@ -157,7 +157,8 @@ it('shows the native Settings gear and opens it without selecting a new tab', as
     const button = host.querySelector('button')!;
     expect(button.querySelector('i')?.title).toBe('gearshape');
     expect(button.getAttribute('aria-pressed')).toBe('false');
-    expect(button.getAttribute('aria-label')).toBe(button.textContent);
+    expect(button.getAttribute('aria-label')).toBe('Settings');
+    expect(button.textContent).toBe('');
     await act(async () => button.click());
     expect(open).toHaveBeenCalledOnce();
   } finally {
@@ -197,7 +198,7 @@ it('opens the optional Sessions tab from its own native icon and label', async (
   }
 });
 
-it('hides every label together, keeps the spoken name and offers each name in a context menu', async () => {
+it('shows icons only, keeps the spoken name and offers each name in a context menu', async () => {
   const host = document.createElement('div');
   const root = createRoot(host);
   const selected: string[] = [];
@@ -216,7 +217,7 @@ it('hides every label together, keeps the spoken name and offers each name in a 
     item('settings', { settings: true }),
   ];
   try {
-    await act(async () => root.render(<NavigationDestinations labels={false} items={items} />));
+    await act(async () => root.render(<NavigationDestinations items={items} />));
     expect(host.querySelectorAll('[data-testid="tab-label"]')).toHaveLength(0);
     const tabs = [...host.querySelectorAll('[data-context-menu] button[aria-label]')];
     expect(tabs.map((b) => b.getAttribute('aria-label'))).toEqual([
@@ -229,11 +230,6 @@ it('hides every label together, keeps the spoken name and offers each name in a 
     expect(entry.textContent).toBe('Sessions');
     await act(async () => entry.click());
     expect(selected).toEqual(['sessions']);
-    await act(async () => root.render(<NavigationDestinations items={items} />));
-    expect(
-      [...host.querySelectorAll('[data-testid="tab-label"]')].map((label) => label.textContent),
-    ).toEqual(['Chats', 'Sessions', 'Settings']);
-    expect(host.querySelector('[data-context-menu]')).toBeNull();
   } finally {
     act(() => root.unmount());
   }

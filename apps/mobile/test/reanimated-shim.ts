@@ -114,3 +114,5 @@ export function useComposedEventHandler(handlers: unknown[]) {
     ]),
   );
 }
+export const withSequence = <T>(...values: T[]) => values.at(-1);
+export const withDelay = <T>(_delay: number, value: T) => value;

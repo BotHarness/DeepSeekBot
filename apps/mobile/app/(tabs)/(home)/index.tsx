@@ -75,7 +75,9 @@ import { useConnectionPresence } from '../../../src/ui/primitives/connection-pro
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
-import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
+import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
+import { useHideChromeOnScroll } from '../../../src/ui/shell/tab-chrome';
+import { TobEntryBar, tobEntryBarHeight } from '../../../src/ui/shell/tob-entry-bar';
 
 import {
   environmentChatList,
@@ -244,8 +246,20 @@ const HomeContent = memo(function HomeContent({
     recentHostIds(recent),
     saved?.hostId,
   );
-  const tobHref = tobModeHref(tobHostId, tobComputers);
-  const pullFocused = useIsFocused();
+  const tobHref = tobModeHref(
+    tobHostId,
+    tobComputers,
+    Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'web',
+  );
+  const tobName = hosts
+    .find((host) => host.saved.hostId === tobHostId)
+    ?.snapshot.roster?.bots.find((bot) => bot.slug === tobHref?.params.slug)?.displayName;
+  const browsing = !searching && !searchFocused && query === '';
+  const hideChrome = useHideChromeOnScroll(browsing);
+  const tobEntry =
+    tobHref !== undefined && browsing
+      ? { href: tobHref, name: tobName ?? tobHref.params.slug }
+      : undefined;
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -682,21 +696,20 @@ const HomeContent = memo(function HomeContent({
             )}
             travel={lastChatTravel}
           >
-            <PullToTob
-              enabled={pullFocused && !searching && !searchFocused && query === ''}
-              scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
-              hostId={tobHostId}
-              href={tobHref}
-              refreshing={refreshing}
-              onRefresh={() => void refresh()}
-              onOpen={(href) => router.push(href)}
-            >
+            <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
               {(pull) => (
                 <Animated.FlatList<HomeItem>
-                  {...pull}
+                  {...(browsing ? pull : {})}
+                  onScroll={hideChrome}
                   renderScrollComponent={renderKeyboardFormScroll}
                   scrollEventThrottle={1}
-                  contentContainerStyle={{ paddingBottom: bottom + fab.size + space.x6 }}
+                  contentContainerStyle={{
+                    paddingBottom:
+                      bottom +
+                      fab.size +
+                      space.x6 +
+                      (tobEntry ? tobEntryBarHeight(theme) + space.x3 : 0),
+                  }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                   data={listItems}
@@ -881,10 +894,17 @@ const HomeContent = memo(function HomeContent({
                   }
                 />
               )}
-            </PullToTob>
+            </PullToRefresh>
           </LastChatSwipe>
         </HomeHeader>
       </HostDrawerEdge>
+      {tobEntry ? (
+        <TobEntryBar
+          href={tobEntry.href}
+          name={tobEntry.name}
+          trailing={fab.margin * 2 + fab.size}
+        />
+      ) : null}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet

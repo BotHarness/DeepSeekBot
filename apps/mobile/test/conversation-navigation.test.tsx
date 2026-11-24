@@ -442,13 +442,13 @@ it('keeps the native glass fade with the shared-height iOS Back control', async 
 });
 
 it.each([
-  ['Tob Mode leaves', true, ['/']],
+  ['Tob Mode stays and composes', true, ['/', '/dm-tob/ada']],
   ['an ordinary chat stays', false, ['/', '/dm/ada']],
 ])('on a pull up from the latest message, %s', async (_, entered, history) => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
-    state.history = entered ? ['/', '/dm-top/ada'] : ['/', '/dm/ada'];
+    state.history = entered ? ['/', '/dm-tob/ada'] : ['/', '/dm/ada'];
     state.host.roster.bots = [
       {
         slug: 'ada',

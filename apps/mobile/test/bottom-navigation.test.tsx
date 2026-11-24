@@ -41,10 +41,7 @@ vi.mock('react-native', async () => ({
   },
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Rect: () => null }));
-vi.mock('react-native-reanimated', async () => ({
-  default: { View: (await import('./react-native-shim')).View },
-  useAnimatedStyle: () => ({}),
-}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));

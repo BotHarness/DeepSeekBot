@@ -1,5 +1,4 @@
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { topEntrance } from '../design/tokens';
 
 export type TobComputer = { hostId: string; tob: string | null | undefined };
 
@@ -39,20 +38,24 @@ export function tobModeHostId(
 }
 
 export type TobModeHref = {
-  pathname: '/dm-top/[slug]';
-  params: { slug: string; hostId: string };
+  pathname: '/dm/[slug]' | '/dm-tob/[slug]';
+  params: { slug: string; hostId: string; compose: '1' };
 };
 
 export function tobModeHref(
   hostId: string | undefined,
   computers: readonly TobComputer[],
+  os: 'ios' | 'android' | 'web',
 ): TobModeHref | undefined {
   const slug = computers.find((computer) => computer.hostId === hostId)?.tob;
   if (hostId === undefined || typeof slug !== 'string') return undefined;
-  return { pathname: '/dm-top/[slug]', params: { slug, hostId } };
+  return {
+    pathname: os === 'android' ? '/dm-tob/[slug]' : '/dm/[slug]',
+    params: { slug, hostId, compose: '1' },
+  };
 }
 
-export const topEntranceScreenOptions = {
+export const tobEntranceScreenOptions = {
   headerShown: false,
   presentation: 'transparentModal',
   animation: 'none',
@@ -60,13 +63,33 @@ export const topEntranceScreenOptions = {
   contentStyle: { backgroundColor: 'transparent' },
 } as const;
 
-export function topEntranceDrag(translationX: number): number {
+export type EntranceRect = { x: number; y: number; width: number; height: number };
+
+export function containerTransformFrame(
+  origin: EntranceRect | undefined,
+  screen: { width: number; height: number },
+  progress: number,
+): EntranceRect & { radius: number } {
   'worklet';
-  return Math.max(0, translationX);
+  const from = origin ?? {
+    x: screen.width * 0.05,
+    y: screen.height * 0.05,
+    width: screen.width * 0.9,
+    height: screen.height * 0.9,
+  };
+  const p = Math.min(1, Math.max(0, progress));
+  const mix = (a: number, b: number) => a + (b - a) * p;
+  return {
+    x: mix(from.x, 0),
+    y: mix(from.y, 0),
+    width: mix(from.width, screen.width),
+    height: mix(from.height, screen.height),
+    radius: mix(origin === undefined ? 0 : from.height / 2, 0),
+  };
 }
 
-export function closesTopEntrance(translationX: number, velocityX: number): boolean {
+export function containerTransformFade(progress: number): { content: number; origin: number } {
   'worklet';
-  if (velocityX < -topEntrance.flick) return false;
-  return velocityX > topEntrance.flick || translationX >= topEntrance.commit;
+  const p = Math.min(1, Math.max(0, progress));
+  return { content: Math.min(1, Math.max(0, (p - 0.2) / 0.5)), origin: Math.max(0, 1 - p / 0.3) };
 }
