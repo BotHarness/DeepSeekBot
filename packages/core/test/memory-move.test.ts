@@ -342,6 +342,43 @@ describe('Memory move rollback', () => {
     }
   });
 
+  it('agrees on the target when the registry committed before the failure', async () => {
+    const f = await fixture();
+    try {
+      await f.send();
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-move-target-');
+      const target = join(location, 'ada');
+      const parent = dirname(before);
+      const real = f.core.registry.setMemoryDir.bind(f.core.registry);
+      let restricted = false;
+      const setMemoryDir = vi
+        .spyOn(f.core.registry, 'setMemoryDir')
+        .mockImplementation((slug, dir) => {
+          real(slug, dir);
+          chmodSync(parent, 0o500);
+          restricted = true;
+          throw new Error('ownership transfer failed');
+        });
+      try {
+        const result = await f.methods.memoryMove({ slug: 'ada', location });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('expected refusal');
+        expect(f.core.registry.memoryDirFor('ada')).toBe(target);
+        expect(existsSync(target)).toBe(true);
+        expect(existsSync(before)).toBe(false);
+        expect(result.error.message).toContain(
+          `Memory is at ${target} and the registry names it too`,
+        );
+      } finally {
+        if (restricted) chmodSync(parent, 0o700);
+        setMemoryDir.mockRestore();
+      }
+    } finally {
+      await f.close();
+    }
+  });
+
   it('leaves the directory and the registry naming one path after a failed rollback', async () => {
     const f = await fixture();
     try {
