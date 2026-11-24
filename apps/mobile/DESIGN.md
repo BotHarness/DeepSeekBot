@@ -300,7 +300,7 @@ Settings → Interface has an off-by-default Sessions switch (iOS Toggle ↔ And
   - A cloud service is an instance/address; its organization is a cloud workspace; a channel belongs to that organization. An invitation already identifies its service and scope: workspace membership or access to only one channel. The existing preview and acceptance flow keeps this distinction explicit.
 - **Computer workspaces.** Each paired computer is a Host.
   - The app stays connected to every paired Host at once.
-  - The Chats list and every chat show one Host at a time.
+  - A selected Computer view and every chat show one Host at a time. All is a multi-Host view: it shows a section for each online Computer, as described under Chats.
   - **Customize computer** sets how each Host looks, kept on the phone per Host. It is a form sheet with the shared `DrawerHeader` (× close, centred title), opened from that Host's ⋯ menu in the Environment sheet (or a long press on its row). Changes apply immediately; there is no confirm.
     - Preview: the Chats environment strip in miniature (All, then this Computer's tab with its icon, name and underline), so the result is judged where it shows.
     - Name: a local name shown in the Chats header and the Environment sheet instead of the Host's own name; clearing it goes back to the Host's name.
