@@ -9,6 +9,7 @@ export type InterfacePreferences = {
   appearance: AppearancePreference;
   sessionsTab: boolean;
   sessionSort: HostSessionSort;
+  hideBotSessions: boolean;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -32,6 +33,7 @@ export function createInterfacePreferences() {
     appearance: 'system',
     sessionsTab: false,
     sessionSort: 'last-human-turn',
+    hideBotSessions: false,
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
@@ -87,6 +89,12 @@ export function createInterfacePreferences() {
           )
             value.sessionSort = saved.sessionSort;
           if (
+            !touched.has('hideBotSessions') &&
+            'hideBotSessions' in saved &&
+            typeof saved.hideBotSessions === 'boolean'
+          )
+            value.hideBotSessions = saved.hideBotSessions;
+          if (
             !touched.has('inAppAlerts') &&
             'inAppAlerts' in saved &&
             typeof saved.inAppAlerts === 'boolean'
@@ -133,6 +141,9 @@ export function createInterfacePreferences() {
     setSessionSort(sessionSort: HostSessionSort) {
       change('sessionSort', sessionSort);
     },
+    setHideBotSessions(hideBotSessions: boolean) {
+      change('hideBotSessions', hideBotSessions);
+    },
     setInAppAlerts(inAppAlerts: boolean) {
       change('inAppAlerts', inAppAlerts);
     },
@@ -156,6 +167,16 @@ export const interfacePreferences = createInterfacePreferences();
 
 const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
 const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
+
+const hideBotSessionsSnapshot = () => interfacePreferences.getSnapshot().hideBotSessions;
+
+export function useHideBotSessions() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    hideBotSessionsSnapshot,
+    hideBotSessionsSnapshot,
+  );
+}
 
 export function useSessionSort() {
   return useSyncExternalStore(

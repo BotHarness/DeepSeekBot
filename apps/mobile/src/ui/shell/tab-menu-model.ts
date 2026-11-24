@@ -1,3 +1,4 @@
+import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import type { RosterView } from '@botharness/host-client/client';
 import { includesComputerActivity } from '../../host/conversation-environments';
@@ -81,4 +82,11 @@ export function activityLabel(item: HumanAttentionItem, roster: RosterView | und
   const summary = item.summary.trim();
   if (bot === undefined) return summary;
   return summary === '' ? bot : `${bot}: ${summary}`;
+}
+
+export function recentSessionsShown(
+  rows: readonly HostSessionRow[] | undefined,
+  hideBotSessions: boolean,
+): readonly HostSessionRow[] | undefined {
+  return hideBotSessions ? rows?.filter((row) => row.source.kind !== 'bot') : rows;
 }

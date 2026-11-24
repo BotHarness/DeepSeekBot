@@ -115,6 +115,7 @@ describe('phone interface preferences', () => {
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
     });
   });
 
@@ -180,6 +181,7 @@ describe('phone interface preferences', () => {
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
     });
   });
 
@@ -237,4 +239,16 @@ it('uses overlay for a new install and old settings without a style', async () =
     language: 'zh',
     inAppAlerts: false,
   });
+});
+
+it('remembers the Hide Bot Sessions choice on the phone', async () => {
+  const writes: unknown[] = [];
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => undefined, write: (value) => writes.push(value) });
+  expect(preferences.getSnapshot().hideBotSessions).toBe(false);
+  preferences.setHideBotSessions(true);
+  expect(writes.at(-1)).toMatchObject({ hideBotSessions: true });
+  const restarted = createInterfacePreferences();
+  await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
+  expect(restarted.getSnapshot().hideBotSessions).toBe(true);
 });

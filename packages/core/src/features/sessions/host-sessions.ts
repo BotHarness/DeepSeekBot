@@ -38,6 +38,8 @@ export interface DshSessionListRow {
   parentSessionId?: string;
   title?: string;
   running: boolean;
+  waiting?: true;
+  model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
 }
@@ -65,6 +67,9 @@ export interface NativeSessions {
     choice: Extract<SessionModelChoice, { kind: 'model' }> | null | undefined,
   ): Promise<SessionModelState>;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
+  create?(
+    target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
+  ): Promise<{ sessionId: string }>;
 }
 
 export function normalizeSessionSearch(text: string): string {
@@ -172,6 +177,8 @@ export function createHostSessionsMethods(
           sessionId: row.sessionId,
           ...(row.title === undefined ? {} : { title: row.title }),
           ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
+          ...(row.waiting === true ? { waiting: true as const } : {}),
+          ...(row.model === undefined ? {} : { model: row.model }),
           running: row.running,
           lastPromptAt: row.lastPromptAt,
           updatedAt: row.updatedAt,
@@ -204,6 +211,9 @@ export function createHostSessionsMethods(
           ...base,
           ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
           running: row.running || (engine !== undefined && engine.state !== 'idle'),
+          ...(row.waiting === true || engine?.state === 'waiting-approval'
+            ? { waiting: true as const }
+            : {}),
           source: {
             kind: 'bot',
             botSlug: bot.slug,
@@ -265,6 +275,7 @@ export function createHostSessionsMethods(
           b.updatedAt - a.updatedAt ||
           a.sessionId.localeCompare(b.sessionId),
       );
+      if (queryVersion === 1) for (const row of sessions) row.sortedAt = clock(row);
       return {
         ok: true,
         value: {
@@ -330,6 +341,61 @@ export function createHostSessionsMethods(
           return invalidInput('Native Sessions require a model provider and model');
         return { ok: true, value: await service.model(id, choice) };
       });
+    },
+    async sessionCreate(
+      payload: unknown,
+    ): Promise<BridgeResult<{ sessionId: string; requestId: string }>> {
+      if (!nativeAllowed()) return denied;
+      const source = asObject(payload);
+      const cwd = asNonBlank(source, 'cwd');
+      const workspaceId = asNonBlank(source, 'workspaceId');
+      const { text } = source;
+      if ((cwd === undefined) === (workspaceId === undefined))
+        return invalidInput('Exactly one of cwd and workspaceId is required');
+      if (typeof text !== 'string' || text.trim() === '')
+        return invalidInput('A non-blank text is required');
+      const proposed = source['choice'];
+      const parsed = proposed == null ? undefined : sessionModelChoice(proposed);
+      if (proposed != null && parsed?.kind !== 'model')
+        return invalidInput('Native Sessions require a model provider and model');
+      const choice = parsed?.kind === 'model' ? parsed : undefined;
+      const reuse = asNonBlank(source, 'sessionId');
+      const service = deps.nativeSessions;
+      if (service?.create === undefined) return unavailable;
+      if (choice !== undefined && service.model === undefined) return unavailable;
+      let created: string | undefined;
+      try {
+        const place = cwd === undefined ? { workspaceId: workspaceId! } : { cwd };
+        const { sessionId } = await service.create(
+          reuse === undefined ? place : { ...place, sessionId: reuse },
+        );
+        created = sessionId;
+        if (choice !== undefined)
+          try {
+            await service.model!(sessionId, choice);
+          } catch (cause) {
+            const failure = dshFailure(cause);
+            const error =
+              remoteErrorOf(cause) === undefined
+                ? {
+                    code: 'session/model-unavailable',
+                    message: cause instanceof Error ? cause.message : String(cause),
+                  }
+                : failure.ok
+                  ? { code: 'session/model-unavailable', message: 'Model choice failed' }
+                  : failure.error;
+            return { ok: false, error: { ...error, details: { ...error.details, sessionId } } };
+          }
+        const { requestId } = await service.send(sessionId, text);
+        return { ok: true, value: { sessionId, requestId } };
+      } catch (cause) {
+        const failure = dshFailure(cause);
+        if (created === undefined || failure.ok) return failure;
+        return {
+          ok: false,
+          error: { ...failure.error, details: { ...failure.error.details, sessionId: created } },
+        };
+      }
     },
     sessionSend(payload: unknown) {
       return native(payload, async (service, id) => {

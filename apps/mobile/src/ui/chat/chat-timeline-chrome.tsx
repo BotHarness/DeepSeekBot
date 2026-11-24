@@ -64,6 +64,7 @@ export function chatTimelineListLayout({
   nativeSpacer,
   viewportHeight,
   composerHeight,
+  islandFloor = 0,
   ready,
 }: {
   headerOverlap: number;
@@ -72,6 +73,7 @@ export function chatTimelineListLayout({
   nativeSpacer: boolean;
   viewportHeight: number;
   composerHeight: number;
+  islandFloor?: number;
   ready: boolean;
 }) {
   const android = Platform.OS === 'android';
@@ -89,7 +91,9 @@ export function chatTimelineListLayout({
     contentContainerStyle: {
       minHeight: Math.max(0, viewportHeight - headerOverlap + (android ? edge.hairline : 0)),
       justifyContent: android ? ('flex-start' as const) : ('flex-end' as const),
-      paddingTop: android ? composerHeight + edgeFade.bottom : space.x3 + headerPadding,
+      paddingTop: android
+        ? composerHeight + islandFloor + edgeFade.bottom
+        : space.x3 + headerPadding,
       paddingBottom: android
         ? space.x3 + headerPadding
         : nativeSpacer

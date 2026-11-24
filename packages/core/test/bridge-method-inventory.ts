@@ -247,6 +247,7 @@ export const bridgeMethodInventory = [
   'sessionSubagents',
   'sessionProgress',
   'sessionList',
+  'sessionCreate',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',

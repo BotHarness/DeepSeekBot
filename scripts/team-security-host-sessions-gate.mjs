@@ -97,8 +97,36 @@ export async function runHostSessionGate(s, fx, check) {
       result.error?.code,
     );
   }
+  const memberCreate = s.cli(
+    ['session-create', '--cwd', fx.sharedFinance, '--message', 'M15 member create'],
+    member,
+  );
+  check(
+    'Member session-create refused before the Host creates anything',
+    memberCreate.error?.code === 'remote-access/denied' && memberCreate.sessionId === undefined,
+    memberCreate.error?.code,
+  );
   const accepted = s.cli(['session-send', sessionId, 'Reply with exactly M15-4932-OK.']);
   check('Owner prompt admitted', typeof accepted.requestId === 'string');
   const transcript = s.cli(['session-transcript', '--session', sessionId]);
   check('Owner can read the native transcript', transcript.role === 'native');
+  const created = s.cli([
+    'session-create',
+    '--cwd',
+    fx.sharedFinance,
+    '--message',
+    'Reply with exactly M15-5109-OK.',
+  ]);
+  check('Owner can create a native Session', typeof created.sessionId === 'string');
+  const listed = s.cli(['session-list', '--source', 'native']);
+  check(
+    'The created Session is listed as native',
+    listed.sessions?.some((row) => row.sessionId === created.sessionId),
+  );
+  const hidden = s.cli(['session-list'], member);
+  check(
+    'Member inventory does not show the created native Session',
+    Array.isArray(hidden.sessions) &&
+      !hidden.sessions.some((row) => row.sessionId === created.sessionId),
+  );
 }
