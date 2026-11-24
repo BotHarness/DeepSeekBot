@@ -381,11 +381,12 @@ describe('Connect account lifecycle', () => {
     try {
       await account.signIn();
       await settle(account);
+      const incumbent = account.status();
       const original = [...credentials.records.values()];
       options.deviceError = 'expired_token';
       await account.signIn();
       await settle(account);
-      expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' });
+      expect(account.status()).toEqual(incumbent);
       expect([...credentials.records.values()]).toEqual(original);
       options.deviceError = '';
       await account.signIn();

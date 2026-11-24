@@ -25,6 +25,15 @@ export class AccountError extends Error {
   }
 }
 
+const MAX_TIMER_SECONDS = 2_147_483_647 / 1000;
+const authorizationSeconds = z
+  .union([z.number(), z.string().trim().min(1).transform(Number)])
+  .pipe(z.number().positive().max(MAX_TIMER_SECONDS));
+const authorizationTimingSchema = z.object({
+  interval: authorizationSeconds.default(5),
+  expires_in: authorizationSeconds,
+});
+
 const responseBodySchema = z.record(z.string(), z.unknown());
 const relayErrorSchema = z.object({ code: z.string() });
 
@@ -211,6 +220,35 @@ export function createConnectAccountRequests(
     return parsed.data;
   };
 
+  const authorizeDevice = async (id: ConnectClientId, signal: AbortSignal) => {
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+    requestSignal.throwIfAborted();
+    const reply = await post(
+      'device-authorization',
+      DEVICE_ENDPOINT,
+      { client_id: id },
+      requestSignal,
+    );
+    requestSignal.throwIfAborted();
+    const timing = authorizationTimingSchema.safeParse(reply.body);
+    const deviceCode = reply.body['device_code'];
+    const userCode = reply.body['user_code'];
+    const uri = reply.body['verification_uri_complete'] ?? reply.body['verification_uri'];
+    if (
+      !reply.ok ||
+      !timing.success ||
+      typeof deviceCode !== 'string' ||
+      typeof userCode !== 'string' ||
+      typeof uri !== 'string'
+    )
+      throw requestError('identity', 'device-authorization', {
+        reason: 'invalid-response',
+        status: reply.status,
+      });
+    const { interval, expires_in: lifetime } = timing.data;
+    return { deviceCode, userCode, uri, interval, lifetime };
+  };
+
   const ownsHost = async (
     hostId: string,
     access: unknown,
@@ -232,5 +270,5 @@ export function createConnectAccountRequests(
     return hosts.data.hosts.some((host) => host.id === hostId);
   };
 
-  return { requestError, post, relayCall, clientId, ownsHost };
+  return { requestError, post, relayCall, clientId, authorizeDevice, ownsHost };
 }
