@@ -206,6 +206,7 @@ export function SessionModelLogo({ control, disabled }: { control: Control; disa
       accessibilityState={{ disabled, expanded: control.visible }}
       disabled={disabled}
       onPress={control.show}
+      hitSlop={space.x3}
       android_ripple={{ color: pressTint(theme.color.fg), foreground: true, borderless: true }}
       style={({ pressed }) => ({
         width: size,

@@ -96,6 +96,7 @@ import type { ComposerTextareaFit } from './composer-input-layout.js';
 import { handleComposerKeyDown } from './composer-keyboard.js';
 import type { ChannelComposerUpload } from './composer-types.js';
 import { renderComposerAttachments, renderComposerAttachmentIcon } from './composer-attachments.js';
+import { composerCompactPadding } from '../../ds/composer-reserve.js';
 import {
   renderComposerChannelOptions,
   renderComposerMentionOptions,
@@ -744,13 +745,14 @@ export function ChannelComposer({
           composer.surface,
         )}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
+        data-model-reserve={modelControl === undefined ? undefined : ''}
         data-dictation={voice.snapshot.status}
         style={
           {
             '--bh-composer-body-height': `${fit.height}px`,
             ...(modelControl === undefined || hasFooter
               ? {}
-              : { '--bh-composer-compact-padding-right': voice.ready ? '124px' : '88px' }),
+              : { '--bh-composer-padding': composerCompactPadding() }),
             ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
           } as CSSProperties
         }
