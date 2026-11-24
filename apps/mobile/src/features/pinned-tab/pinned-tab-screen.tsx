@@ -6,7 +6,7 @@ import { useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
 import { Button } from '../../ui/primitives/button';
 import { Text } from '../../ui/primitives/text';
-import { StackRoot } from '../../ui/shell/stack-root';
+import { StackRoot, TabRoot } from '../../ui/shell/stack-root';
 import { TabIslandScreen } from '../../ui/shell/tab-island-screen';
 import { useStrings } from '../../ui/strings';
 import { usePinnedTabState } from './use-pinned-tab';
@@ -18,12 +18,14 @@ export function PinnedTabScreen() {
     return (
       <TabIslandScreen>
         <StackRoot value>
-          <ConversationPages
-            key={state.tab.key}
-            expectedHostId={state.tab.hostId}
-            place={state.tab.place}
-            focus={undefined}
-          />
+          <TabRoot value>
+            <ConversationPages
+              key={state.tab.key}
+              expectedHostId={state.tab.hostId}
+              place={state.tab.place}
+              focus={undefined}
+            />
+          </TabRoot>
         </StackRoot>
       </TabIslandScreen>
     );
