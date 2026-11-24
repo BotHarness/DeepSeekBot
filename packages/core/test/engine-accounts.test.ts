@@ -4,6 +4,7 @@ import { DEFAULT_CODEX_ACCOUNT } from '@botharness/host-protocol/subscription-en
 import { describe, expect, it, vi } from 'vitest';
 
 import { runEngineCommand } from '../src/bots/cli-engine.js';
+import * as claudeStatus from '../src/engines/claude-status.js';
 import { createEngineAccountBridge } from '../src/engines/engine-account-bridge.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineHostOptions } from '../src/engines/engine-host.js';
@@ -373,6 +374,41 @@ describe('named Claude Code subscription accounts', () => {
     expect(host.removeAccount('claude', 4)).toEqual({ id: 'claude' });
     expect(existsSync(home)).toBe(false);
     expect(() => createEngineStore(path).resolveAccount('claude')).toThrow('was not found');
+  });
+
+  it('accepts Claude paste-back after three minutes and refuses it after ten minutes', async () => {
+    const { host } = setup();
+    const submit = vi.fn(async () => {});
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), ms);
+      return controller.signal;
+    });
+    const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
+      options.onCodeInput?.(submit);
+      options.signal?.addEventListener('abort', () => options.onExit?.(), { once: true });
+      return { url: 'https://claude.ai/oauth/authorize?fixture=1' };
+    });
+    try {
+      await host.login('claude');
+      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).resolves.toEqual({
+        submitted: true,
+      });
+      expect(submit).toHaveBeenCalledWith('fixture#state');
+      await vi.advanceTimersByTimeAsync(6 * 60_000);
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
+        code: 'engine-login-not-pending',
+        message: expect.stringContaining('Start sign-in again'),
+      });
+      expect(submit).toHaveBeenCalledTimes(1);
+    } finally {
+      await host.close();
+      start.mockRestore();
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it.skipIf(process.platform === 'win32')(

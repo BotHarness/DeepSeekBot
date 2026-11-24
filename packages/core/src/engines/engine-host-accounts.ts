@@ -53,6 +53,7 @@ import type { EngineStore, StoredEngineAccount } from './engine-store.js';
 const MODELS_TTL_MS = 5 * 60_000;
 const QUOTA_TTL_MS = 30_000;
 const QUOTA_TIMEOUT_MS = 15_000;
+const BROWSER_SIGN_IN_WINDOW_MS = 10 * 60_000;
 
 interface DeviceLogin {
   attemptId: string;
@@ -63,6 +64,7 @@ interface AccountLogin {
   controller: AbortController;
   closed: Promise<void>;
   submitCode?: EngineLoginCodeInput;
+  browserSignal?: AbortSignal;
   device?: DeviceLogin;
 }
 
@@ -507,10 +509,12 @@ export class EngineHostAccounts {
           started: true,
           attemptId: this.#deviceLogin(account, login, onExit),
         };
-      const process = {
-        signal: AbortSignal.any([login.controller.signal, AbortSignal.timeout(3 * 60_000)]),
-        onExit,
-      };
+      const signal = AbortSignal.any([
+        login.controller.signal,
+        AbortSignal.timeout(BROWSER_SIGN_IN_WINDOW_MS),
+      ]);
+      login.browserSignal = signal;
+      const process = { signal, onExit };
       const started =
         engine === 'codex'
           ? await (this.#options.startCodexLogin ?? startCodexLogin)({
@@ -589,10 +593,10 @@ export class EngineHostAccounts {
     this.#requireLocal();
     const account = this.#store.resolveAccount('claude', id);
     const login = this.#logins.get(account.id);
-    if (login === undefined)
+    if (login === undefined || login.browserSignal?.aborted === true)
       throw new EngineRefusal(
         'engine-login-not-pending',
-        'Start sign-in for this Claude Code account before submitting a code.',
+        'This Claude Code sign-in is no longer pending. Start sign-in again before submitting a new code.',
       );
     if (login.submitCode === undefined)
       throw new EngineRefusal(
