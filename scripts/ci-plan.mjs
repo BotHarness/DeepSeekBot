@@ -36,7 +36,8 @@ export {
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REQUIRED_CHECK = 'lint, format, typecheck, test, build, docs';
 export const FULL_LABEL = 'ci:full';
-export const SHARDS = 3;
+export const SHARDS = 4;
+const PLANNED_MATRIX = '${{ fromJSON(needs.plan.outputs.matrix) }}';
 export const MAX_CHANGED_FILES = 3000;
 export const DOCS_SITE_TEST = 'apps/docs/test/changelog-public-surfaces.test.ts';
 export const DOCS_SITE_ENTRIES = [
@@ -567,9 +568,16 @@ export function checkWorkflow(workflow) {
     if (!(event in triggers)) problems.push(`${WORKFLOW} must run on ${event}`);
   if (!triggers.pull_request?.types?.includes('labeled'))
     problems.push(`pull_request must include the labeled type so ${FULL_LABEL} starts a full run`);
-  const shards = jobs['test-full']?.strategy?.matrix?.shard;
-  if (!Array.isArray(shards) || shards.length !== SHARDS)
-    problems.push(`test-full must run a matrix of ${SHARDS} shards to match SHARDS`);
+  if (jobs['test-full']?.strategy?.matrix !== PLANNED_MATRIX)
+    problems.push('test-full must take its duration-balanced matrix from the plan job');
+  if (!String(jobs['test-affected']?.if ?? '').includes(`shards == '${SHARDS}'`))
+    problems.push(`test-affected must run when the plan selects ${SHARDS} shards`);
+  const aggregateScript = (aggregate.steps ?? []).map((step) => step.run ?? '').join('\n');
+  if (
+    !aggregateScript.includes(`plan.shards !== '${SHARDS}'`) ||
+    !aggregateScript.includes(`shards === '${SHARDS}'`)
+  )
+    problems.push(`The aggregate job must expect ${SHARDS} full and affected shards`);
   return problems;
 }
 
