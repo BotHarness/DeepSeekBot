@@ -39,6 +39,7 @@ async function mount(
   options?: {
     observe?: ObserveResource;
     respond(url: string): Promise<Response>;
+    save?(field: string, value: unknown): Promise<void>;
   },
 ) {
   let value: ComputerSettings = {
@@ -58,6 +59,7 @@ async function mount(
     },
     set: async (field, next) => {
       writes.push({ field, value: next });
+      await options?.save?.(field, next);
       value = { ...value, [field]: next };
       listener();
     },
@@ -88,8 +90,8 @@ async function mount(
     await act(async () => root.unmount());
     container.remove();
   });
-  const click = async (label: string) => {
-    const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+  const click = async (label: string, scope: HTMLElement = container) => {
+    const button = [...scope.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
       (node) => node.textContent?.trim() === label,
     );
     expect(button, label).toBeDefined();
@@ -184,6 +186,76 @@ describe('Computer Settings transfer interaction', () => {
       expect(view.container.querySelector('[class*="bh-settings-"]')).toBeNull();
     },
   );
+});
+
+describe('Computer settings current desktop', () => {
+  it.each([() => Response.json({ platform: 42 }), () => new Response(null, { status: 503 })])(
+    'offers the Linux desktop after the Host status read recovers',
+    async (failedStatus) => {
+      vi.useFakeTimers();
+      const events = resourceEvents();
+      let recovered = false;
+      try {
+        const view = await mount(undefined, 'container', {
+          observe: (resource, refresh) => observeResource(resource, refresh, 10_000, 60_000, true),
+          respond: async () => (recovered ? Response.json({ platform: 'linux' }) : failedStatus()),
+        });
+        await view.click(en['rows.target.container']);
+        const menuText = () => document.querySelector('[role="menu"]')?.textContent;
+        expect(menuText()).toBeDefined();
+        expect(menuText()).not.toContain(en['rows.target.current-desktop']);
+        recovered = true;
+        await act(async () => {
+          events.emit('computer');
+          await vi.advanceTimersByTimeAsync(30);
+        });
+        expect(menuText()).toContain(en['rows.target.current-desktop']);
+      } finally {
+        events.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('disables Check desktop during Enable and reports when only the start failed', async () => {
+    let finishStart = (_response: Response): void => {};
+    const start = new Promise<Response>((resolve) => {
+      finishStart = resolve;
+    });
+    const view = await mount(undefined, 'container', {
+      respond: async (url) =>
+        url.endsWith('/start') ? start : Response.json({ platform: 'linux' }),
+    });
+    await view.click(en['rows.target.container']);
+    await view.click(en['rows.target.current-desktop'], document.body);
+    await view.click(en['rows.target.enable'], document.body);
+    expect(view.prefs.getSnapshot().target).toBe('current-desktop');
+    const buttons = () => [...view.container.querySelectorAll('button')];
+    expect(buttons().find((button) => button.textContent === en['local.checking'])?.disabled).toBe(
+      true,
+    );
+    expect(view.requests.filter((url) => url.endsWith('/start'))).toHaveLength(1);
+    await act(async () => finishStart(new Response(null, { status: 503 })));
+    expect(view.container.textContent).toContain(en['rows.target.startFailed']);
+    expect(
+      buttons().find((button) => button.textContent === en['local.desktop.check'])?.disabled,
+    ).toBe(false);
+  });
+
+  it('reports a target save failure without requesting a desktop start', async () => {
+    const view = await mount(undefined, 'container', {
+      respond: async () => Response.json({ platform: 'linux' }),
+      save: async () => {
+        throw new Error('target save refused');
+      },
+    });
+    await view.click(en['rows.target.container']);
+    await view.click(en['rows.target.local'], document.body);
+    expect(view.prefs.getSnapshot().target).toBe('container');
+    expect(view.container.textContent).toContain(en['rows.target.failed']);
+    expect(view.container.textContent).not.toContain(en['rows.target.startFailed']);
+    expect(view.requests.filter((url) => url.endsWith('/start'))).toHaveLength(0);
+  });
 });
 
 function labelOf(element: HTMLElement): string {

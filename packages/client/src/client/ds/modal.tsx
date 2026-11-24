@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { ReactElement, ReactNode } from 'react';
 
 import { useMountedResource } from '../mounted-resource.js';
-import { Dialog } from './dialog.js';
+import { Dialog, DialogDescription } from './dialog.js';
 import { Icon } from './icon.js';
 import { IconButton } from './icon-button.js';
 import { ink, space, type } from './tobs.stylex.js';
@@ -114,7 +114,9 @@ export function Modal(props: ModalProps): ReactElement | null {
             <div {...stylex.props(styles.heading)}>
               <h2 {...stylex.props(styles.title)}>{title}</h2>
               {description === undefined ? null : (
-                <p {...stylex.props(styles.description)}>{description}</p>
+                <DialogDescription {...stylex.props(styles.description)}>
+                  {description}
+                </DialogDescription>
               )}
             </div>
             <IconButton aria-label={props.closeLabel} onClick={onClose}>

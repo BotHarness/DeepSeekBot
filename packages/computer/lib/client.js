@@ -2405,7 +2405,8 @@ window.__ModuleLoader__.load({
 			"rows.target.desktopNotice": "开通后，Bot 和已配对的手机都能看到整块桌面，包括其他应用和通知。",
 			"rows.target.enable": "启用桌面",
 			"rows.target.cancel": "取消",
-			"rows.target.failed": "无法保存或启动桌面。请检查当前操作目标后重试。",
+			"rows.target.failed": "无法保存操作目标。检查后重试。",
+			"rows.target.startFailed": "已保存操作目标。点「检查桌面」重新尝试启动。",
 			"local.desktop.ready": "当前桌面已就绪",
 			"local.desktop.check": "检查桌面",
 			"local.desktop.description": "使用当前登录的 Linux 桌面。",
@@ -2550,7 +2551,8 @@ window.__ModuleLoader__.load({
 			"rows.target.desktopNotice": "Bots and paired phones can see the whole desktop, including other apps and notifications.",
 			"rows.target.enable": "Enable desktop",
 			"rows.target.cancel": "Cancel",
-			"rows.target.failed": "Could not save or start the desktop. Check the selected target and retry.",
+			"rows.target.failed": "Could not save the Computer Target. Check your selection and retry.",
+			"rows.target.startFailed": "Computer Target saved. Choose Check desktop to try starting again.",
 			"local.desktop.ready": "Current desktop is ready",
 			"local.desktop.check": "Check desktop",
 			"local.desktop.description": "Uses the Linux desktop you are signed in to.",
@@ -13996,6 +13998,24 @@ window.__ModuleLoader__.load({
 			return store;
 		}
 		//#endregion
+		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/description/DialogDescription.mjs
+		/**
+		* A paragraph with additional information about the dialog.
+		* Renders a `<p>` element.
+		*
+		* Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+		*/
+		const DialogDescription$1 = /*#__PURE__*/ react.forwardRef(function DialogDescription(componentProps, forwardedRef) {
+			const { render, className, style, id: idProp, ...elementProps } = componentProps;
+			const store = useDialogRootContext();
+			const id = useBaseUiId(idProp);
+			store.useSyncedValueWithCleanup("descriptionElementId", id);
+			return useRenderElement("p", componentProps, {
+				ref: forwardedRef,
+				props: [{ id }, elementProps]
+			});
+		});
+		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/dialog/portal/DialogPortalContext.mjs
 		const DialogPortalContext = /*#__PURE__*/ react.createContext(void 0);
 		function useDialogPortalContext() {
@@ -14341,9 +14361,10 @@ window.__ModuleLoader__.load({
 		});
 		//#endregion
 		//#region packages/client/src/client/ds/dialog-input.ts
-		const keyboardInput = /* @__PURE__ */ new WeakSet();
+		const keyboardInput = Symbol.for("@botharness/dialog-keyboard-input");
 		function dialogOpenedFromKeyboard() {
-			return typeof document !== "undefined" && keyboardInput.has(document);
+			if (typeof document === "undefined") return false;
+			return document[keyboardInput] === true;
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/window-class.ts
@@ -14381,6 +14402,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/dialog.tsx
+		const DialogDescription = DialogDescription$1;
 		const styles$2 = {
 			viewport: {
 				kfzvcC: "bhx67bb7w",
@@ -14608,7 +14630,7 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
 								className: "bhx1ghz6dp bhx103lb5k bhxqpvupg bhx1ywp6bw bhxxbg3y6 bhxj0a0fe",
 								children: title
-							}), description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							}), description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DialogDescription, {
 								className: "bhx1ghz6dp bhx14lg19 bhx131gmco bhx14brhrh bhxj0a0fe",
 								children: description
 							})]
@@ -14974,7 +14996,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/computer/src/client/local-computer.tsx
-		function LocalComputerStatus({ t, observeResource, target = "local" }) {
+		function LocalComputerStatus({ t, observeResource, target = "local", startPending = false }) {
 			const current = target === "current-desktop";
 			const [payload, setPayload] = (0, react.useState)();
 			const [busy, setBusy] = (0, react.useState)(false);
@@ -14999,7 +15021,7 @@ window.__ModuleLoader__.load({
 				}
 			}), [observeResource, refresh]);
 			const installing = payload?.install?.state === "installing";
-			const preparing = busy || installing || payload?.status?.phase === "starting";
+			const preparing = startPending || busy || installing || payload?.status?.phase === "starting";
 			const missing = payload?.status?.missing;
 			const failure = (error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail) === void 0 ? void 0 : localSetupFailure(error ?? payload?.status?.refusal, t);
 			const waitingForGnome = preparing && current && failure !== void 0;
@@ -15243,6 +15265,10 @@ window.__ModuleLoader__.load({
 			if (!response.ok) throw new Error(`${String(response.status)} ${await response.text()}`);
 			return await response.json();
 		}
+		function parseHostPlatformStatus(payload) {
+			if (typeof payload !== "object" || payload === null || !("platform" in payload) || typeof payload.platform !== "string" || payload.platform.trim() === "") throw new Error("The Computer status did not identify the Host platform");
+			return { platform: payload.platform };
+		}
 		async function postAuthorized(url, body = {}) {
 			await requestJson$1(url, {
 				method: "POST",
@@ -15363,12 +15389,14 @@ window.__ModuleLoader__.load({
 			const [livePhase, setLivePhase] = (0, react.useState)(void 0);
 			const [liveElapsed, setLiveElapsed] = (0, react.useState)(0);
 			const platformResource = useMountedResource(() => {
-				const controller = new AbortController();
-				requestJson$1(STATUS_ENDPOINT$1, { signal: controller.signal }).then((payload) => {
-					if (!controller.signal.aborted) setHostPlatform(payload.platform);
-				}).catch(() => void 0);
-				return () => controller.abort();
-			}, []);
+				if (hostPlatform !== void 0) return;
+				return watchComputerStatus(observeResource, async (signal) => {
+					try {
+						const payload = parseHostPlatformStatus(await requestJson$1(STATUS_ENDPOINT$1, { signal }));
+						if (!signal.aborted) setHostPlatform(payload.platform);
+					} catch {}
+				});
+			}, [hostPlatform, observeResource]);
 			const hostDirResource = useMountedResource(() => {
 				if (snapshot.target !== "container") return;
 				if (snapshot.status !== "unavailable" && snapshot.exportDir !== "") return;
@@ -15554,15 +15582,12 @@ window.__ModuleLoader__.load({
 				setTargetError(void 0);
 				prefs.setTarget(id).then(async () => {
 					if (id !== "current-desktop") return;
-					await requestJson$1("./api/computer/start", {
-						method: "POST",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({
-							authorize: true,
-							target: id
-						})
-					});
-				}).catch(() => setTargetError(t("rows.target.failed"))).finally(() => setTargetSaving(false));
+					try {
+						await postAuthorized("./api/computer/start", { target: id });
+					} catch {
+						setTargetError(t("rows.target.startFailed"));
+					}
+				}, () => setTargetError(t("rows.target.failed"))).finally(() => setTargetSaving(false));
 			};
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsGroupPart, {
 				rootRef: settingsPart,
@@ -15630,7 +15655,8 @@ window.__ModuleLoader__.load({
 					snapshot.target !== "container" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
 						t,
 						observeResource,
-						target: snapshot.target
+						target: snapshot.target,
+						startPending: targetSaving && snapshot.target === "current-desktop"
 					}, snapshot.target) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
 							title: t("rows.exportDir.title"),

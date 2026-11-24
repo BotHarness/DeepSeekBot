@@ -61,6 +61,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let client: CdpClient | undefined;
   let starting: Promise<void> | undefined;
   let stopping: Promise<void> | undefined;
+  let stopRevision = 0;
   let binary: string | undefined;
   let lastUrl: string | undefined;
   let foreground = false;
@@ -235,27 +236,31 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   };
 
   const ensure = async (): Promise<void> => {
+    const revision = stopRevision;
     if (stopping !== undefined) await stopping;
     if (starting !== undefined) await starting;
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
     const headless =
       options.execution === undefined &&
       (typeof options.headless === 'function' ? options.headless() : options.headless === true);
     foreground = !headless && options.foregroundTabs?.() === true;
-    if (isRunning()) {
-      if (options.execution !== undefined || launchedHeadless === headless) return;
-      await stop();
-    }
-    if (starting === undefined && child !== undefined) {
-      if (closedChildren.has(child)) child = undefined;
-      else await stop();
-    }
+    if (isRunning() && (options.execution !== undefined || launchedHeadless === headless)) return;
+    if (starting === undefined && child !== undefined && !closedChildren.has(child))
+      await shutdown();
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
+    starting ??= launchAfterCleanup(headless);
+    await starting;
+    if (stopRevision !== revision) throw new Error('Browser start was cancelled');
+  };
+
+  const launchAfterCleanup = (headless: boolean): Promise<void> => {
+    child = undefined;
     client?.close();
     client = undefined;
     sessions.clear();
-    starting ??= launch(headless).finally(() => {
+    return launch(headless).finally(() => {
       starting = undefined;
     });
-    await starting;
   };
 
   const attach = async (targetId: string): Promise<string> => {
@@ -946,7 +951,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     onEvent('stopped');
   };
 
-  const stop = (): Promise<void> => {
+  const shutdown = (): Promise<void> => {
     stopping ??= stopRuntime().finally(() => {
       stopping = undefined;
     });
@@ -987,6 +992,9 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     currentUrl: () => lastUrl,
     binaryPath: () => binary,
     viewerUrl: () => options.execution?.viewerUrl?.(),
-    stop,
+    stop() {
+      stopRevision += 1;
+      return shutdown();
+    },
   };
 }

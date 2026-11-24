@@ -50,10 +50,12 @@ export function LocalComputerStatus({
   t,
   observeResource,
   target = 'local',
+  startPending = false,
 }: {
   t: ComputerTranslate;
   observeResource?: ObserveResource | undefined;
   target?: 'local' | 'current-desktop';
+  startPending?: boolean;
 }): ReactElement {
   const current = target === 'current-desktop';
   const [payload, setPayload] = useState<LocalStatus>();
@@ -83,7 +85,7 @@ export function LocalComputerStatus({
     [observeResource, refresh],
   );
   const installing = payload?.install?.state === 'installing';
-  const preparing = busy || installing || payload?.status?.phase === 'starting';
+  const preparing = startPending || busy || installing || payload?.status?.phase === 'starting';
   const missing = payload?.status?.missing;
   const failureDetail =
     error ??

@@ -1,17 +1,24 @@
-const keyboardInput = new WeakSet<Document>();
+const keyboardInput = Symbol.for('@botharness/dialog-keyboard-input');
+type DialogDocument = Document & { [keyboardInput]?: true };
 
-export function trackDialogInput(document: Document): () => void {
-  const onKey = () => keyboardInput.add(document);
-  const onPointer = () => keyboardInput.delete(document);
+export function trackDialogInput(document: DialogDocument): () => void {
+  const onKey = () => {
+    document[keyboardInput] = true;
+  };
+  const onPointer = () => {
+    delete document[keyboardInput];
+  };
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('pointerdown', onPointer, true);
   return () => {
     document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('pointerdown', onPointer, true);
-    keyboardInput.delete(document);
+    onPointer();
   };
 }
 
 export function dialogOpenedFromKeyboard(): boolean {
-  return typeof document !== 'undefined' && keyboardInput.has(document);
+  if (typeof document === 'undefined') return false;
+  const owner: DialogDocument = document;
+  return owner[keyboardInput] === true;
 }

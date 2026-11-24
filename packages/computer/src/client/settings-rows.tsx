@@ -214,6 +214,22 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+interface HostPlatformStatus {
+  readonly platform: string;
+}
+
+function parseHostPlatformStatus(payload: unknown): HostPlatformStatus {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('platform' in payload) ||
+    typeof payload.platform !== 'string' ||
+    payload.platform.trim() === ''
+  )
+    throw new Error('The Computer status did not identify the Host platform');
+  return { platform: payload.platform };
+}
+
 async function postAuthorized(url: string, body: Record<string, unknown> = {}): Promise<void> {
   await requestJson(url, {
     method: 'POST',
@@ -377,14 +393,16 @@ export function ComputerSettingsRows({
   const [liveElapsed, setLiveElapsed] = useState(0);
 
   const platformResource = useMountedResource<HTMLSpanElement>(() => {
-    const controller = new AbortController();
-    void requestJson<{ platform?: string }>(STATUS_ENDPOINT, { signal: controller.signal })
-      .then((payload) => {
-        if (!controller.signal.aborted) setHostPlatform(payload.platform);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, []);
+    if (hostPlatform !== undefined) return;
+    return watchComputerStatus(observeResource, async (signal) => {
+      try {
+        const payload = parseHostPlatformStatus(
+          await requestJson<unknown>(STATUS_ENDPOINT, { signal }),
+        );
+        if (!signal.aborted) setHostPlatform(payload.platform);
+      } catch {}
+    });
+  }, [hostPlatform, observeResource]);
 
   const hostDirResource = useMountedResource<HTMLSpanElement>(() => {
     if (snapshot.target !== 'container') return;
@@ -587,15 +605,17 @@ export function ComputerSettingsRows({
     setTargetError(undefined);
     void prefs
       .setTarget(id)
-      .then(async () => {
-        if (id !== 'current-desktop') return;
-        await requestJson('./api/computer/start', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ authorize: true, target: id }),
-        });
-      })
-      .catch(() => setTargetError(t('rows.target.failed')))
+      .then(
+        async () => {
+          if (id !== 'current-desktop') return;
+          try {
+            await postAuthorized('./api/computer/start', { target: id });
+          } catch {
+            setTargetError(t('rows.target.startFailed'));
+          }
+        },
+        () => setTargetError(t('rows.target.failed')),
+      )
       .finally(() => setTargetSaving(false));
   };
 
@@ -658,6 +678,7 @@ export function ComputerSettingsRows({
           t={t as ComputerTranslate}
           observeResource={observeResource}
           target={snapshot.target}
+          startPending={targetSaving && snapshot.target === 'current-desktop'}
         />
       ) : (
         <>
