@@ -48,6 +48,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('../src/ui/shell/use-tab-menus', () => ({
   useTabMenus: () => ({ menus: {}, load: () => {} }),
 }));
+vi.mock('../src/features/sessions/last-session', () => ({ lastSession: () => undefined }));
 vi.mock('expo-router', () => ({
   router: { push: vi.fn() },
   useIsFocused: () => true,

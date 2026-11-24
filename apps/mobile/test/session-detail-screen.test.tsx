@@ -9,6 +9,7 @@ import type { SessionTranscriptItem } from '@botharness/host-client/session-deta
 import type { Composer } from '../src/ui/chat/composer';
 import { edgeFade, space } from '../src/ui/design/tokens';
 import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 const platform = vi.hoisted(() => ({ OS: 'ios' }));
 const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
@@ -18,6 +19,8 @@ const place = vi.hoisted(() => ({
   segments: ['(tabs)', '(home)', 'session', '[id]'],
   index: 1,
   replace: vi.fn(),
+  push: vi.fn(),
+  dismissTo: vi.fn(),
 }));
 
 vi.mock('react-native', async () => ({
@@ -63,8 +66,9 @@ vi.mock('expo-router', () => ({
   useSegments: () => place.segments,
   useLocalSearchParams: () => ({ hostId: place.hostId }),
   useNavigation: () => ({ getState: () => ({ index: place.index }) }),
-  router: { replace: place.replace },
+  router: { replace: place.replace, push: place.push, dismissTo: place.dismissTo },
 }));
+vi.mock('../src/features/sessions/last-session', () => ({ rememberLastSession: vi.fn() }));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('react-native-svg', () => ({
   default: () => null,
@@ -747,6 +751,27 @@ it('keeps Back with ✎ for a Session pushed inside the Sessions tab, and no ✎
     (button) => button.getAttribute('aria-label') ?? button.textContent,
   );
   expect(labels).not.toContain('New Session');
+});
+
+it('shows Back · capsule · ✎ at the Sessions root in Stacked style', async () => {
+  interfacePreferences.setSessionNavigation('stacked');
+  place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
+  place.index = 1;
+  place.replace.mockClear();
+  try {
+    const { view } = await open({ role: 'native' });
+    const labels = [...view.querySelectorAll('button')].map(
+      (button) => button.getAttribute('aria-label') ?? button.textContent,
+    );
+    expect(labels).toContain('Back');
+    expect(labels).toContain('New Session');
+    expect(labels).not.toContain('Show Sessions');
+    await act(async () => view.querySelector<HTMLElement>('[data-testid="session-new"]')?.click());
+    expect(place.replace).toHaveBeenCalledExactlyOnceWith('/new-session');
+  } finally {
+    interfacePreferences.setSessionNavigation('drawer');
+    place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+  }
 });
 
 it('offers New Session from the Host that owns the open Session, not the selected one', async () => {

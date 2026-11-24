@@ -51,7 +51,13 @@ function client(call: ReturnType<typeof vi.fn>): HostClient {
 }
 
 async function render(
-  props: { onOpen?(): void; onNew?(): void; canCreate?: boolean; second?: boolean } = {},
+  props: {
+    onOpen?(): void;
+    onNew?(): void;
+    canCreate?: boolean;
+    second?: boolean;
+    variant?: 'drawer' | 'page';
+  } = {},
 ) {
   const call = vi.fn(async (_method: string, args: { search?: string }) => ({
     queryVersion: 1,
@@ -113,6 +119,7 @@ async function render(
         canCreate={props.canCreate ?? true}
         onOpen={props.onOpen ?? (() => {})}
         onNew={props.onNew ?? (() => {})}
+        {...(props.variant === undefined ? {} : { variant: props.variant })}
       />,
     ),
   );
@@ -218,4 +225,29 @@ it('hides Bot Sessions when the device preference says so and keeps native ones'
   } finally {
     await act(async () => interfacePreferences.setHideBotSessions(false));
   }
+});
+
+it('renders the Stacked-style Session list with ✎ in the header and Search above the rows', async () => {
+  const onNew = vi.fn();
+  const onOpen = vi.fn();
+  const { view } = await render({ variant: 'page', onNew, onOpen });
+  expect(view.querySelector('[data-testid="session-list"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="session-drawer"]')).toBeNull();
+  expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
+  const search = view.querySelector('[data-testid="session-drawer-search"]')!;
+  const list = view.querySelector('[data-testid="host-session-fresh"]')!;
+  expect(search.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="session-list-new"]')!.click(),
+  );
+  expect(onNew).toHaveBeenCalledOnce();
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="host-session-fresh"]')!.click(),
+  );
+  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'fresh' }));
+});
+
+it('hides ✎ from a member on the Stacked-style Session list', async () => {
+  const { view } = await render({ variant: 'page', canCreate: false });
+  expect(view.querySelector('[data-testid="session-list-new"]')).toBeNull();
 });

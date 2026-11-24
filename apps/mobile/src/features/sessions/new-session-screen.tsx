@@ -38,10 +38,23 @@ import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
 import { useStrings } from '../../ui/strings';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
+import { HeaderBackButton } from '../../ui/chat/header-chrome';
+import { useSessionsStackFit } from './drawer-root';
 import { SessionDrawerButton } from './session-drawer-button';
 import { enterDrawerRoot } from './session-drawer-state';
 
-export function NewSessionScreen() {
+function NewSessionLeading({ stacked }: { stacked: boolean }) {
+  const router = useRouter();
+  if (!stacked) return <SessionDrawerButton />;
+  return (
+    <HeaderBackButton
+      testID="new-session-back"
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/sessions'))}
+    />
+  );
+}
+
+export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
   const enabled = useSessionsTab();
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
@@ -66,7 +79,8 @@ export function NewSessionScreen() {
       saved?.hostId,
     );
   const target = computers.find((host) => host.saved.hostId === hostId);
-  useFocusEffect(useCallback(() => enterDrawerRoot(), []));
+  useFocusEffect(useCallback(() => (stacked ? undefined : enterDrawerRoot()), [stacked]));
+  useSessionsStackFit();
   if (!enabled) return <Redirect href="/" />;
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }} testID="new-session-screen">
@@ -74,7 +88,7 @@ export function NewSessionScreen() {
       {target === undefined ? (
         <>
           <View style={{ paddingTop: insets.top + space.x2, paddingHorizontal: space.x5 }}>
-            <SessionDrawerButton />
+            <NewSessionLeading stacked={stacked} />
           </View>
           <View style={{ flex: 1, justifyContent: 'center', padding: space.x5 }}>
             <Text tone="muted" style={{ textAlign: 'center' }}>
@@ -93,6 +107,7 @@ export function NewSessionScreen() {
             name: host.saved.hostName,
           }))}
           onComputer={setChosen}
+          stacked={stacked}
           draft={draft}
           onDraft={setDraft}
         />
@@ -123,9 +138,11 @@ function NewSessionForm({
   hostName,
   computers,
   onComputer,
+  stacked,
   draft,
   onDraft: setDraft,
 }: {
+  stacked: boolean;
   client: HostClient;
   hostId: string;
   hostName: string;
@@ -239,7 +256,7 @@ function NewSessionForm({
     >
       <View ref={mount} />
       <View style={{ paddingTop: insets.top + space.x2, paddingHorizontal: space.x5 }}>
-        <SessionDrawerButton />
+        <NewSessionLeading stacked={stacked} />
       </View>
       <View
         style={{ flex: 1, justifyContent: 'center', paddingHorizontal: space.x5, gap: space.x3 }}

@@ -1262,7 +1262,7 @@ _避免使用_：首页、会话列表、Chat list
 _避免使用_：通知 tab、收件箱
 
 **Sessions tab**：
-手机上可选开启的 Host Session tab。点进来落在 New Session screen；已有的 Session 列在 Session drawer 里。
+手机上可选开启的 Host Session tab。根页面取决于 Session navigation style：Drawer 样式是 New Session screen，已有 Session 列在 Session drawer 里；Stacked 样式是 Session 列表。每台手机的落点设置决定启动时和从其他 tab 回来时打开哪里。
 _避免使用_：Session 列表 tab、Sessions 页
 
 **New Session screen**：
