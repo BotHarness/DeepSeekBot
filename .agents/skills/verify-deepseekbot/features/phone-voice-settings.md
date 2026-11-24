@@ -43,7 +43,7 @@ An Owner's phone manages the Host's TTS and ASR Voice Providers in **Settings â†
 2. Pair a Simulator through the loopback route (see shared device QA) and open Settings â†’ Voice with the device tools.
 3. Add a Fish Audio service with a placeholder key, open the voice picker, check account voices, switch to Public library, search and Load more. Read back with `deepseekbot voice-providers`.
 4. Tap a sample button and assert the button's selected state; tap another and assert only one is selected; go back and assert none plays.
-5. Add a Custom request service from the Google Cloud TTS example with a placeholder key; open its actions, **Edit request**, change the URL and save. Read back with `deepseekbot voice-provider-template <id>`.
+5. Add a Custom request service from the Google Cloud TTS example with a placeholder key; open its actions, **Edit request**, change the URL and save. Read back with `deepseekbot voice-provider-template <id>`. At Android's maximum font size, check that both the edit heading and service name are visible and that Save and test can be reached with the keyboard open.
 6. Set the default service and voice, and read back `defaults` with `deepseekbot voice-providers`.
 
 ## Gotchas
