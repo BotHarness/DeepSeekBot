@@ -85,7 +85,7 @@ describe('affected test selection', () => {
         related: ['packages/core/src/shared.ts'],
         watch: false,
         run: true,
-        exclude: [DOCS_SITE_TEST],
+        project: ['!docs-site'],
       }),
     );
     expect(result.matrix.include[0].files).toEqual([otherFile, testFile].sort());

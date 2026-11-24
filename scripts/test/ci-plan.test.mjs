@@ -677,8 +677,8 @@ describe('local test plan commands', () => {
         'related',
         '--run',
         '--passWithNoTests',
-        '--exclude',
-        DOCS_SITE_TEST,
+        '--project',
+        '!docs-site',
         'scripts/a.mjs',
       ],
     ]);
@@ -686,7 +686,7 @@ describe('local test plan commands', () => {
 
   it('runs the full suite and the docs site test when the plan asks for them', () => {
     expect(localCommands({ tests: 'full', related: [], docsSite: true })).toEqual([
-      ['vitest', 'run', '--exclude', DOCS_SITE_TEST],
+      ['vitest', 'run', '--project', '!docs-site'],
       ['slides:build'],
       ['vitest', 'run', DOCS_SITE_TEST],
     ]);

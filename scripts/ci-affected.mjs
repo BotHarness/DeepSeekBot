@@ -54,7 +54,7 @@ export async function selectAffected(inputs, { root = ROOT, create = createRunne
     watch: false,
     run: true,
     related,
-    exclude: [DOCS_SITE_TEST],
+    project: ['!docs-site'],
   });
   try {
     const specs = await runner.getRelevantTestSpecifications();
@@ -73,7 +73,7 @@ export async function runSelected(inputs, { root = ROOT, create = createRunner }
   if (!files.length || files.includes(DOCS_SITE_TEST))
     throw new Error('A test shard must contain tests and must exclude the docs-site test');
   const wanted = new Set(files);
-  const runner = await create({ root, watch: false, run: true, exclude: [DOCS_SITE_TEST] });
+  const runner = await create({ root, watch: false, run: true, project: ['!docs-site'] });
   try {
     await runner.standalone();
     const specs = (await runner.globTestSpecifications()).filter((spec) =>
