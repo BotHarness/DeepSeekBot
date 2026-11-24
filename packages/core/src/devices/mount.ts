@@ -818,6 +818,7 @@ export function mountDevicePairing(
     const privateTunnel = createPrivateTunnel({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
+      passwordSignInAvailable: () => memberDevices?.passwordSignInAvailable() ?? false,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
       record: (phase, info) =>

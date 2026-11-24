@@ -6,14 +6,28 @@ export const DEVICE_NOISE_PEER_HEADER = 'x-botharness-device-noise-peer';
 const connectTag = randomBytes(32).toString('base64url');
 const managedTlsTag = randomBytes(32).toString('base64url');
 const noisePeerTag = randomBytes(32).toString('base64url');
+const addressRouteTag = randomBytes(32).toString('base64url');
+const LOOPBACK = ['127.0.0.1', '::ffff:127.0.0.1', '::1'];
+
+export const ADDRESS_ROUTE_SOURCE = 'private-route:address';
+
+export function addressRouteHeader(): string {
+  return `${DEVICE_ROUTE_HEADER}: ${addressRouteTag}`;
+}
+
+export function isAddressRouteRequest(request: IncomingMessage): boolean {
+  return (
+    LOOPBACK.includes(request.socket.remoteAddress ?? '') &&
+    request.headers[DEVICE_ROUTE_HEADER] === addressRouteTag
+  );
+}
 
 export function noisePeerHeaders(publicKey: string): Record<string, string> {
   return { [DEVICE_NOISE_PEER_HEADER]: `${noisePeerTag}.${publicKey}` };
 }
 
 export function noisePeerKey(request: IncomingMessage): string | undefined {
-  if (!['127.0.0.1', '::ffff:127.0.0.1', '::1'].includes(request.socket.remoteAddress ?? ''))
-    return;
+  if (!LOOPBACK.includes(request.socket.remoteAddress ?? '')) return;
   const header = request.headers[DEVICE_NOISE_PEER_HEADER];
   if (typeof header !== 'string') return;
   const [tag, publicKey, extra] = header.split('.');

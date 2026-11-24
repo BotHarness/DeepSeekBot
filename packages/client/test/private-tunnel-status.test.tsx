@@ -304,3 +304,60 @@ it('offers sign-in by address only on the custom route and explains the trade-of
     confirm: true,
   });
 });
+
+it('blocks sign-in by address on a LAN ingress and explains a refused opt-in', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json(
+        { ok: false, code: 'private-route-address-sign-in-unavailable' },
+        { status: 409 },
+      ),
+    ),
+  );
+  const refresh = vi.fn(async () => undefined);
+  const show = (lan: boolean) =>
+    act(async () =>
+      root.render(
+        <PrivateTunnelSettings
+          t={t}
+          routes={[
+            {
+              id: 'custom',
+              enabled: true,
+              state: 'connected',
+              mode: 'ingress',
+              origin: 'https://team.example.com',
+              lan,
+              addressSignIn: false,
+            },
+          ]}
+          refresh={refresh}
+          pair={() => undefined}
+          advanced={() => undefined}
+          step="choose"
+          setStep={() => undefined}
+          method="ingress"
+        />,
+      ),
+    );
+  const details = () =>
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find((item) =>
+      item.textContent?.includes(t('privateTunnel.panel.manageHint')),
+    )!;
+  await show(true);
+  await act(async () => details().click());
+  const lanRow = host.querySelector('[data-private-route-address-sign-in]')!;
+  expect(lanRow.textContent).toContain(t('privateTunnel.addressSignInLan'));
+  expect(lanRow.querySelector('[role="switch"]')!.hasAttribute('disabled')).toBe(true);
+
+  await show(false);
+  const row = host.querySelector('[data-private-route-address-sign-in]')!;
+  expect(row.textContent).toContain(t('privateTunnel.addressSignInHint'));
+  await act(async () => row.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+  expect(
+    host.querySelector('[data-private-tunnel-failure="private-route-address-sign-in-unavailable"]')
+      ?.textContent,
+  ).toContain(t('privateTunnel.addressSignInUnavailable'));
+  expect(refresh).not.toHaveBeenCalled();
+});

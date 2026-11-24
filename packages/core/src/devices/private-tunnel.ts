@@ -22,6 +22,11 @@ import { validTunnelToken, type SpawnTunnel, type TunnelProcess } from './connec
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { PrivateRelayAdmission } from './private-relay.js';
 import { isConnectZoneHost } from './routes.js';
+import {
+  addressRouteHeader,
+  DEVICE_NOISE_PEER_HEADER,
+  DEVICE_ROUTE_HEADER,
+} from './route-context.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -64,6 +69,8 @@ export type PrivateTunnelRefusal =
   | 'private-route-changed'
   | 'private-route-limit'
   | 'private-route-address-sign-in-unsupported'
+  | 'private-route-address-sign-in-lan'
+  | 'private-route-address-sign-in-unavailable'
   | 'private-tunnel-credential-invalid';
 
 export type PrivateTunnelResult =
@@ -182,9 +189,19 @@ export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
   return { mode, phoneToken, originPort, ...(hostname === undefined ? {} : { hostname }) };
 }
 
+export function addressSignInAllowed(record: TunnelRecord): boolean {
+  return record.mode !== 'quick' && !(record.mode === 'ingress' && record.lan === true);
+}
+
 type TunnelOrigin = Server & { upgraded: Set<Duplex>; addressed: Set<Duplex> };
 
 const DISCOVERY_HEADERS = ['content-type', 'cache-control', 'access-control-allow-origin'];
+const STRIPPED_UPGRADE_HEADERS = new Set([
+  'authorization',
+  'x-botharness-admission',
+  DEVICE_ROUTE_HEADER,
+  DEVICE_NOISE_PEER_HEADER,
+]);
 
 function withoutAdmission(request: IncomingMessage): boolean {
   const protocol = request.headers['sec-websocket-protocol'];
@@ -273,6 +290,7 @@ export function createTunnelOrigin(options: {
           request.headers['sec-websocket-protocol'],
         );
     if (
+      request.method !== 'GET' ||
       request.url !== CONNECT_CHANNEL_PATH ||
       request.headers.cookie !== undefined ||
       (!byAddress &&
@@ -281,11 +299,12 @@ export function createTunnelOrigin(options: {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }
-    let raw = `${request.method ?? 'GET'} ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;
+    let raw = `GET ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;
+    if (byAddress) raw += `${addressRouteHeader()}\r\n`;
     for (let index = 0; index < request.rawHeaders.length; index += 2) {
       const name = request.rawHeaders[index] ?? '';
       const lower = name.toLowerCase();
-      if (lower === 'authorization' || lower === 'x-botharness-admission') continue;
+      if (STRIPPED_UPGRADE_HEADERS.has(lower)) continue;
       if (lower === 'sec-websocket-protocol') {
         const protocol = byAddress ? BROWSER_ADMISSION_PROTOCOL : admission?.protocol;
         if (protocol) raw += `${name}: ${protocol}\r\n`;
@@ -394,6 +413,7 @@ export interface PrivateTunnelOptions {
   probeWindowMs?: number;
   reprobeMs?: number;
   record?: (phase: string, detail?: string) => void;
+  passwordSignInAvailable?: () => boolean;
 }
 
 export function createPrivateTunnelRuntime(
@@ -653,7 +673,7 @@ export function createPrivateTunnelRuntime(
       port: options.port,
       phoneToken: () => next.phoneToken,
       probe: () => nonce,
-      addressSignIn: () => next.mode !== 'quick' && options.addressSignIn?.() === true,
+      addressSignIn: () => addressSignInAllowed(next) && options.addressSignIn?.() === true,
     });
     const lan = next.mode === 'ingress' && next.lan === true;
     const bound =

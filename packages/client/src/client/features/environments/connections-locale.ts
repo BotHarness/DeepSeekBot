@@ -104,7 +104,11 @@ export const zh = {
   'privateTunnel.panel.turnOff': '关闭',
   'privateTunnel.panel.turnOffHint': '关闭后手机不能再从外网连到这台电脑。',
   'privateTunnel.addressSignIn': '允许凭地址登录',
-  'privateTunnel.addressSignInHint': '地址会在公网上可被发现，任何人都可以尝试密码。',
+  'privateTunnel.addressSignInHint':
+    '地址会在公网上可被发现，任何人都可以尝试密码。多次猜错会让该用户名短时间内无法凭地址登录。',
+  'privateTunnel.addressSignInLan':
+    '这个 HTTPS 入口的源端口也在局域网监听，不能凭地址登录。先把它替换为不开放局域网的入口。',
+  'privateTunnel.addressSignInUnavailable': '先打开团队模式或 Owner 密码登录。',
   'privateRelay.panel.offTitle': '连到你自己的中继服务器',
   'privateRelay.panel.steps': '私有中继步骤',
   'privateRelay.panel.stepDeploy': '部署中继',
@@ -432,7 +436,10 @@ export const en = {
     'Phones can no longer reach this computer from outside your network.',
   'privateTunnel.addressSignIn': 'Allow sign-in by address',
   'privateTunnel.addressSignInHint':
-    'The address becomes discoverable on the public internet, and anyone can try a password.',
+    'The address becomes discoverable on the public internet, and anyone can try a password. Repeated wrong guesses briefly block sign-in by address for that username.',
+  'privateTunnel.addressSignInLan':
+    'This HTTPS ingress also listens on your local network, so sign-in by address is unavailable. Replace it with an ingress that stays off the local network first.',
+  'privateTunnel.addressSignInUnavailable': 'Turn on Team mode or Owner password sign-in first.',
   'privateRelay.panel.offTitle': 'Connect through your own relay server',
   'privateRelay.panel.steps': 'Private relay steps',
   'privateRelay.panel.stepDeploy': 'Deploy relay',
