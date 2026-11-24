@@ -3,6 +3,7 @@
 ## Sources
 
 - `packages/core/src/features/models/plugin.ts`
+- `packages/core/test/model-routing-plugin.test.ts`
 - `packages/core/src/runtime/{native-subagent-wake,subagent-compat,subagent-model-tools}.ts`
 - `packages/core/src/models/subagent-route.ts`
 - `packages/client/src/client/session-subagents.tsx`
@@ -31,6 +32,8 @@ Open a Bot DM and ask it to delegate an independent calculation. The Orchestrato
 Launch an isolated Host using `scripts/verify-app.mjs`. Open the Bot DM through `shot`, ask it to delegate a short calculation, and inspect its reply. Use `deepseekbot bot-tool <slug> bot_subagent --session <assignment-session-id> --args-stdin` against the same Host to exercise the native pipeline directly; omit `agent_preset` to test the system default. Inspect the child Session's `agent-preset/selected` event and compare it with the registry default. Choose a different parent preset so inheritance cannot accidentally pass. Test a rejected raw `agent_preset`, a direct call without `--session`, and one with the Orchestrator Session id; both must return `parent-unavailable`. Use `bot-trace --session direct` for CLI outcomes.
 
 ## Gotchas
+
+For a Bot that inherits the Default Model Preset, call `deepseekbot bot-tool <slug> list_bot_subagent_models --session <assignment-session-id> --args-stdin` with `{}` during an active Assignment. Compare `default` and `allowed` with `deepseekbot model-preset-sub default`. The focused replay in `model-routing-plugin.test.ts` checks the model list installed when DSH creates the Assignment Agent.
 
 A model route is not an Agent preset. Tool success alone does not establish the child's composition: read the child's canonical selection. A fork inherits its parent. A system-default change applies to the next independent child. No external IM sending is needed for this journey. Stop only the task-owned Host and preserve evidence.
 

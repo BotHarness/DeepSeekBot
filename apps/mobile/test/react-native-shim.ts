@@ -74,6 +74,10 @@ export const Pressable = (props: Props) =>
 export const TextInput = (props: Props) =>
   createElement('textarea', {
     ...a11y(props),
+    ref: props['ref'],
+    onKeyDown: (event: { key: string }) => {
+      if (event.key === 'Enter') (props['onSubmitEditing'] as (() => void) | undefined)?.();
+    },
     value: props['value'] as string,
     placeholder: props['placeholder'] as string,
     onBlur: props['onBlur'] as (() => void) | undefined,

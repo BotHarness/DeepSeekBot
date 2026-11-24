@@ -49,7 +49,7 @@ The built-in local Steward Bot, with a persistent identity distinct from any ord
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+On mobile, the Tob DM's normal Conversation screen opened from the Tob entry bar on Chats. Only the entry and transition differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The entry always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
@@ -1258,6 +1258,26 @@ _Avoid_: home, conversation list, Chat list
 The tab that shows Activity.
 _Avoid_: notifications tab, inbox
 
+**Sessions tab**:
+The optional tab for the phone's Host Sessions. Tapping it lands on the New Session screen; existing Sessions are listed in the Session drawer.
+_Avoid_: Session list tab, Sessions page
+
+**New Session screen**:
+The empty state of the Sessions tab where the Human picks a computer Environment and working folder and writes the first prompt of a new Session. Its Session does not exist until that first prompt is sent.
+_Avoid_: create Session form, blank Session
+
+**Session drawer**:
+The left navigation drawer of the Sessions tab, opened by swiping from the left edge or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
+_Avoid_: Session sidebar, Session list page, Host drawer
+
+**Session navigation style**:
+A per-phone preference for how the Sessions tab moves between Sessions: Drawer (default; the New Session screen is the root, the Session drawer lists Sessions, and a chosen Session replaces the content without Back) or Stacked (the Session list is the root and a chosen Session is pushed with Back). In both, the tab island stays visible inside a Session.
+_Avoid_: Session mode, layout mode
+
+**Tob entry bar**:
+The Composer-shaped tap target above the tab island on Chats that opens Tob Mode. It is only an entry: nothing is typed into it in place.
+_Avoid_: Tob input, quick composer, pull to Tob
+
 **Settings**:
 The tab for the phone's own preferences and the Human's account, models, usage and storage.
 _Avoid_: preferences page, gear menu
@@ -1269,6 +1289,10 @@ _Avoid_: -1 screen, sidebar, Host drawer
 **Workspace drawer**:
 The navigation drawer, opened from the Host chip, that lists paired Computers and cloud workspaces and switches between them.
 _Avoid_: Host drawer, sidebar, menu
+
+**Environment sheet**:
+The bottom sheet, opened from the first row of Settings, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together; once shipped it replaces the Workspace panel and Workspace drawer ([ADR-0364](docs/adr/0364-environment-switching-lives-in-settings.md)).
+_Avoid_: Host drawer, Host chip, sidebar
 
 **Conversation screen**:
 The screen that shows one DM or Channel: a header, the Conversation Timeline and, where the Human can post, the Composer (a read-only Bot-to-Bot DM has none). Tob Mode opens this same screen.
