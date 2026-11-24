@@ -242,15 +242,11 @@ export async function mockSectionCollapse() {
 export async function mockHostDrawer() {
   const { createHostDrawer } = await import('../src/ui/shell/host-drawer-model');
   return {
-    HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
     hostDrawer: createHostDrawer({
       switchTo: async () => true,
       showView: () => {},
       pair: () => {},
       notifications: () => {},
     }),
-    focusOn: () => {},
-    openHostDrawer: () => {},
-    useHostDrawerOpen: () => false,
   };
 }

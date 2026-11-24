@@ -17,7 +17,7 @@ import { Platform } from 'react-native';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
-import { hostDrawer } from '../src/ui/shell/host-drawer';
+import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { refreshMemberPermissions } from '../src/host/member-permissions';
 import { ChatsCreate } from '../src/ui/shell/chats-create';
@@ -133,8 +133,6 @@ vi.mock('../src/host/host-session', mockHostSession);
 
 vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
 
-vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
-
 vi.mock('../src/ui/shell/creation-panel', () => ({
   CreationPanel: ({ children }: { children: (controls: CreationPanelControls) => ReactNode }) =>
     children({
@@ -160,7 +158,7 @@ vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
 
-vi.mock('../src/ui/shell/host-drawer', mockHostDrawer);
+vi.mock('../src/ui/shell/host-drawer-state', mockHostDrawer);
 
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 
@@ -341,7 +339,7 @@ describe('Search in the Chats header', () => {
     conversationFilter.set(computerEnvironmentKey('h1'));
     const view = await home();
     expect(client.getSnapshot().connection.status).toBe('connecting');
-    const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
+    const identity = () => view.querySelector('[data-testid="chats-environment-name"]')!;
     expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
     await act(async () => vi.advanceTimersByTime(CONNECTION_QUIET_MS));
     expect(identity().getAttribute('aria-label')).toContain(t.connecting);
@@ -783,7 +781,7 @@ describe('Search in the Chats header', () => {
       expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
       await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
       expect(rows(view).join(' ')).not.toContain('Cloud general');
-      expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
+      expect(view.querySelector('[data-testid="chats-environment-name"]')?.textContent).toBe(
         'Cloud team',
       );
       await act(async () => conversationFilter.set('all'));
@@ -831,7 +829,9 @@ describe('Search in the Chats header', () => {
         });
       }
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
-      expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('studio');
+      expect(view.querySelector('[data-testid="chats-environment-name"]')?.textContent).toBe(
+        'studio',
+      );
       expect(rows(view).join(' ')).not.toContain('Cloud general');
       expect(view.textContent).toContain('Ada');
       await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
@@ -849,7 +849,7 @@ describe('Search in the Chats header', () => {
     const view = await home();
     await act(async () => conversationFilter.set(computerEnvironmentKey('removed-host')));
     expect(conversationFilter.getSnapshot()).toBe('all');
-    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(t.chats);
+    expect(view.querySelector('[data-testid="chats-environment-name"]')?.textContent).toBe(t.chats);
     expect(rows(view)).toHaveLength(3);
   });
   it('keeps the Tob conversation and removes the header shortcut', async () => {
@@ -905,10 +905,10 @@ describe('Selected view header accessibility', () => {
             </DesignThemeProvider>,
           ),
         );
-        const button = host.querySelector('[data-testid="chats-view-button"]')!;
-        expect(button.getAttribute('aria-label')).toBe(
-          `${t.workspaces}, ${accessibilityLabel ?? title}`,
-        );
+        const button = host.querySelector('[data-testid="chats-environment-name"]')!;
+        expect(button.tagName).not.toBe('BUTTON');
+        expect(button.getAttribute('role')).toBe('header');
+        expect(button.getAttribute('aria-label')).toBe(accessibilityLabel ?? title);
         const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(

@@ -6,13 +6,9 @@ import type { SavedHost } from '@botharness/host-client/hosts';
 import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import {
-  addressLines,
   createHostDrawer,
-  drawerSwipe,
-  drawerWidth,
   hostDrawerRows,
   hostRowBadge,
-  settleOpen,
   unpairedAccountHosts,
 } from '../src/ui/shell/host-drawer-model';
 import { badgeCount } from '../src/ui/primitives/badge-count';
@@ -307,33 +303,6 @@ describe('Host drawer', () => {
     expect(notifications).toHaveBeenCalledTimes(1);
     expect(drawer.getSnapshot().open).toBe(false);
   });
-
-  it('settles a released drag by distance, or by a fling either way', () => {
-    expect(settleOpen(0.6, 0)).toBe(true);
-    expect(settleOpen(0.2, 0)).toBe(false);
-    expect(settleOpen(0.1, 900)).toBe(true);
-    expect(settleOpen(0.9, -900)).toBe(false);
-  });
-
-  it('opens from anywhere on a mostly horizontal drag and pushes Android Chats, and keeps the edge elsewhere', () => {
-    const edge = { push: false, activeX: 10, failY: 15, hitSlop: { left: 0, width: 24 } };
-    expect(drawerSwipe('android', true)).toEqual({ push: true, activeX: 24, failY: 8 });
-    expect(drawerSwipe('android', false)).toEqual(edge);
-    expect(drawerSwipe('ios', true)).toEqual(edge);
-    const anywhere = drawerSwipe('android', true);
-    expect(anywhere.activeX / anywhere.failY).toBeGreaterThanOrEqual(3);
-  });
-
-  it('covers about 85% of the screen', () => {
-    expect(drawerWidth(390)).toBe(332);
-    expect(drawerWidth(900)).toBe(360);
-  });
-
-  it('follows the Material 3 modal drawer on Android: up to 360dp, leaving 56dp of scrim', () => {
-    expect(drawerWidth(390, 'android')).toBe(334);
-    expect(drawerWidth(411, 'android')).toBe(355);
-    expect(drawerWidth(900, 'android')).toBe(360);
-  });
 });
 
 describe('Host rows', () => {
@@ -442,22 +411,6 @@ describe('Host glances', () => {
     await Promise.resolve();
     expect(glances.getSnapshot()['tower']).toEqual({ status: 'checking' });
     expect(listener).toHaveBeenCalled();
-  });
-});
-
-describe('addressLines', () => {
-  it('keeps an Android address on one line and shrinks it instead of splitting the port', () => {
-    expect(addressLines(true, 'android')).toEqual({
-      numberOfLines: 1,
-      adjustsFontSizeToFit: true,
-      minimumFontScale: 0.6,
-    });
-    expect(addressLines(false, 'android').numberOfLines).toBe(1);
-  });
-
-  it('lets iOS wrap the address only at large text', () => {
-    expect(addressLines(false, 'ios')).toEqual({ numberOfLines: 1 });
-    expect(addressLines(true, 'ios')).toEqual({});
   });
 });
 

@@ -115,8 +115,6 @@ vi.mock('../src/host/host-session', mockHostSession);
 
 vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
 
-vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
-
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
@@ -129,7 +127,7 @@ vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
 
-vi.mock('../src/ui/shell/host-drawer', mockHostDrawer);
+vi.mock('../src/ui/shell/host-drawer-state', mockHostDrawer);
 
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 

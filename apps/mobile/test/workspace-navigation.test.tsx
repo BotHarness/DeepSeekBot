@@ -10,7 +10,14 @@ import {
 } from '../src/ui/shell/workspace-navigation';
 
 const stack = StackRouter({ initialRouteName: '(tabs)' });
-const routeNames = ['(tabs)', 'dm/[slug]', 'bot/[slug]', 'cloud-channels', 'cloud-services'];
+const routeNames = [
+  '(tabs)',
+  'dm/[slug]',
+  'bot/[slug]',
+  'cloud-channels',
+  'cloud-services',
+  'host-look',
+];
 const options = { routeNames, routeParamList: {}, routeGetIdList: {} };
 function navigator() {
   let state: Parameters<typeof stack.getStateForAction>[0] = {
@@ -152,7 +159,7 @@ describe('workspace selection through the root navigator', () => {
     ).toBe(false);
     expect(navigation.getRootState()).toBe(before);
   });
-  it('the drawer removes previous details and sheets only after a successful Host selection', async () => {
+  it('the Environment sheet removes previous details and sheets only after a successful Host selection and keeps the selected tab', async () => {
     const { navigation, push } = navigator();
     push('dm/[slug]', { slug: 'ada', hostId: 'old' });
     push('bot/[slug]', { slug: 'ada', hostId: 'old' });
@@ -178,10 +185,23 @@ describe('workspace selection through the root navigator', () => {
     expect(navigation.getRootState().routes).toHaveLength(1);
     expect(navigation.getRootState().routes[0]).toMatchObject({
       key: 'tabs',
-      state: { key: 'tabs-state', index: 0 },
+      state: { key: 'tabs-state', index: 1, history: [{ type: 'route', key: 'activity' }] },
     });
     navigation.dispatch({ type: 'GO_BACK' });
     expect(navigation.getRootState().routes[0]?.name).toBe('(tabs)');
+  });
+
+  it('a newly paired Computer opens its look sheet above Chats', () => {
+    const { navigation, push } = navigator();
+    push('dm/[slug]', { slug: 'ada', hostId: 'old' });
+    resetWorkspaceRoot(navigation, undefined, 'new');
+    expect(navigation.getRootState().routes.map((route) => route.name)).toEqual([
+      '(tabs)',
+      'host-look',
+    ]);
+    expect(navigation.getRootState().routes[0]).toMatchObject({
+      state: { index: 0, history: [{ type: 'route', key: 'home' }] },
+    });
   });
 
   it('a failed Host selection retains the exact current page and tab state', async () => {

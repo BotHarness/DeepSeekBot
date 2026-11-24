@@ -125,3 +125,12 @@ export function containerTransformFade(progress: number): { content: number; ori
   const p = Math.min(1, Math.max(0, progress));
   return { content: Math.min(1, Math.max(0, (p - 0.2) / 0.5)), origin: Math.max(0, 1 - p / 0.3) };
 }
+
+export const exitRevealStart = 0.15;
+export const exitDone = 0.02;
+
+export function containerTransformExit(progress: number, leaving: boolean): number {
+  'worklet';
+  if (!leaving) return 1;
+  return Math.min(1, Math.max(0, (progress - exitDone) / (exitRevealStart - exitDone)));
+}

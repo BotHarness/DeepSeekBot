@@ -51,9 +51,6 @@ vi.mock('../src/host/native-host-look', () => ({ hostLooks: looks }));
 vi.mock('../src/cloud/native', () => ({
   useCloudSnapshot: () => ({ ready: true, rows: [] }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
-}));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 async function settle() {
