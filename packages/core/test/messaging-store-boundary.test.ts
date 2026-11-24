@@ -12,9 +12,12 @@ const SQLITE_OPENERS = [
 const MESSAGING_TABLE_WRITERS = [
   'channels/question-answer-receipts.ts',
   'channels/sqlite-store.ts',
+  'database/migrations/assignments.ts',
+  'database/migrations/bot-inbox.ts',
+  'database/migrations/bot-runtime.ts',
   'database/migrations/messaging-channels.ts',
   'database/migrations/messaging-history.ts',
-  'database/schema-plan.ts',
+  'database/migrations/voice.ts',
   'features/activity/events.ts',
   'features/activity/inbox-harvest.ts',
   'features/activity/runtime-admission-recovery.ts',

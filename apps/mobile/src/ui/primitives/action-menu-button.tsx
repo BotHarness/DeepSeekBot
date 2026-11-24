@@ -22,9 +22,11 @@ export type MenuAction = {
     | 'archive'
     | 'unarchive'
     | 'model'
+    | 'join'
     | 'stop';
   run(): void;
   destructive?: boolean;
+  testID?: string;
 };
 
 export type ActionMenuButtonProps = {

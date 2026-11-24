@@ -16,5 +16,6 @@ export const MENU_SYMBOL = {
   archive: 'archivebox',
   unarchive: 'arrow.uturn.backward',
   model: 'cpu',
+  join: 'link',
   stop: 'stop.circle',
 } as const satisfies Record<MenuAction['icon'], string>;

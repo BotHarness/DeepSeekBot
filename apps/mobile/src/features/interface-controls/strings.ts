@@ -1,6 +1,7 @@
 import { productName } from '../../ui/product-name';
 
 export const en = {
+  tabMenuAction: 'Recent items',
   interfacePreferences: {
     language: 'Language',
     appearance: 'Appearance',
@@ -40,6 +41,7 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  tabMenuAction: '最近项目',
   interfacePreferences: {
     language: '语言',
     appearance: '外观',

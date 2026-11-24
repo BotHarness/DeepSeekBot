@@ -34,6 +34,18 @@ Use the shared primitives in the [desktop/Web component catalogue](../../package
 
 Settings-row slots and primary actions within one dialog are enforced by [UI rule 11](../../scripts/check-ui-rules.mjs). Review descriptions at large text sizes and verify one primary action per surface, including actions added by separate components or runtime data.
 
+## Large text
+
+Content grows with the system text size; fixed chrome stays its size and offers another way to read it. Each control falls in one of three cases:
+
+| Where                                                            | At large text                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Body text, list rows, forms                                      | Everything grows. Text wraps and is never truncated to save room; at accessibility sizes (AX1–AX5, `theme.largeText`) side-by-side items stack.                                                                                                            |
+| Buttons and rows with an icon and a label                        | Keep the icon and grow it with the label: size it from the label's text role times `theme.fontScale`, or give a SwiftUI symbol a `textStyle` font. When the row runs out of room, wrap the label or stack the controls; do not hide the icon.              |
+| Icon-only buttons in navigation bars, toolbars and sheet headers | Do not grow with text. Use the native bar button where one exists, so iOS shows its Large Content Viewer on long press; custom ones share the header-action `xxxLarge` ceiling. Every one has an accessible name and a 44pt (iOS) / 48dp (Android) target. |
+
+`node scripts/check-ui-rules.mjs` (in `pnpm lint`) rejects a glyph with a fixed size beside a text label (`unscaledLabelIcon`), a scaled glyph inside a fixed box (`fixedIconScale`) and a text-scaled Compose icon button (`scaledActionBox`). [Mobile code rule 2](../../apps/mobile/DESIGN.md#code-rules) and the [large-text acceptance contract](../../apps/mobile/DESIGN.md#system-text-and-large-text-acceptance) hold the platform details.
+
 ## Examples
 
 | Situation                        | What communicates it                                                                                    | Text that remains                                                                                                 |

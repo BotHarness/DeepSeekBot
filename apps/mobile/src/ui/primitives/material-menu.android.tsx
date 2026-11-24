@@ -45,6 +45,7 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
         background(colors.surfaceContainerLow),
         paddingAll(materialMenu.groupPadding),
+        testID('action-menu-group'),
       ]}
     >
       {items.map((item, index) => {

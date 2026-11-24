@@ -12,7 +12,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityElement: () => ({}),
   accessibilityHidden: () => ({}),
   accessibilityAddTraits: (traits: string[]) => ({ $type: 'accessibilityAddTraits', traits }),
-  onLongPressGesture: (onLongPress: () => void) => ({ $type: 'onLongPressGesture', onLongPress }),
+  tint: () => ({}),
   buttonStyle: () => ({}),
   background: () => ({}),
   buttonBorderShape: () => ({}),
@@ -32,6 +32,7 @@ vi.mock('@expo/ui/swift-ui', () => {
     Host: container,
     HStack: container,
     VStack: container,
+    Section: ({ children }: { children: ReactNode }) => createElement('section', null, children),
     Text: ({ children, testID }: { children: ReactNode; testID?: string }) =>
       createElement('span', { 'data-testid': testID }, children),
     ContextMenu: Object.assign(
@@ -52,13 +53,12 @@ vi.mock('@expo/ui/swift-ui', () => {
       onPress(): void;
       children?: ReactNode;
       label?: string;
-      modifiers?: { $type: string; label?: string; traits?: string[]; onLongPress?: () => void }[];
+      modifiers?: { $type: string; label?: string; traits?: string[] }[];
     }) =>
       createElement(
         'button',
         {
           onClick: onPress,
-          onContextMenu: modifiers.find((m) => m.$type === 'onLongPressGesture')?.onLongPress,
           'aria-label': modifiers.find((m) => m.$type === 'accessibilityLabel')?.label,
           'aria-pressed': modifiers.some(
             (m) => m.$type === 'accessibilityAddTraits' && m.traits?.includes('isSelected'),
@@ -75,7 +75,8 @@ it('native controls preserve selection, unread label and distinct navigation/cre
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
-  const longPress = vi.fn();
+  const recent = vi.fn();
+  const newGroup = vi.fn();
   const chats = vi.fn(),
     activity = vi.fn(),
     create = vi.fn(),
@@ -92,7 +93,10 @@ it('native controls preserve selection, unread label and distinct navigation/cre
                 activity: false,
                 count: 0,
                 onPress: chats,
-                onLongPress: longPress,
+                menu: [
+                  { key: 'design', label: 'Design', glyph: 'channel', run: recent },
+                  { key: 'new-group', label: 'New Group', glyph: 'new', run: newGroup },
+                ],
               },
               {
                 key: 'activity',
@@ -100,7 +104,6 @@ it('native controls preserve selection, unread label and distinct navigation/cre
                 activity: true,
                 count: 4,
                 onPress: activity,
-                onLongPress: longPress,
               },
             ]}
           />
@@ -115,8 +118,16 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     expect(buttons[1]!.querySelector('i')).toBeNull();
     expect(buttons[1]!.textContent).toContain('4');
     expect(buttons[0]!.querySelector('i')?.title).toBe('bubble.left.and.bubble.right.fill');
+    const menus = host.querySelectorAll('[data-context-menu]');
+    expect(menus).toHaveLength(1);
+    expect(menus[0]!.contains(buttons[0]!)).toBe(true);
+    expect(menus[0]!.contains(buttons[1]!)).toBe(false);
+    const rows = [...menus[0]!.querySelectorAll('menu button')];
+    expect(rows.map((row) => row.textContent)).toEqual(['Design', 'New Group']);
+    expect(menus[0]!.querySelector('menu section')?.textContent).toBe('Design');
     await act(async () => {
-      buttons[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+      (rows[0] as HTMLButtonElement).click();
+      (rows[1] as HTMLButtonElement).click();
       buttons[1]!.click();
       buttons[2]!.click();
       buttons[3]!.click();
@@ -125,7 +136,8 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     expect(create).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
     expect(chats).not.toHaveBeenCalled();
-    expect(longPress).toHaveBeenCalledOnce();
+    expect(recent).toHaveBeenCalledOnce();
+    expect(newGroup).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     host.remove();
@@ -149,7 +161,6 @@ it('shows the native Settings gear and opens it without selecting a new tab', as
               settings: true,
               count: 0,
               onPress: open,
-              onLongPress: () => {},
             },
           ]}
         />,
@@ -184,7 +195,6 @@ it('opens the optional Sessions tab from its own native icon and label', async (
               sessions: true,
               count: 0,
               onPress: open,
-              onLongPress: () => {},
             },
           ]}
         />,
@@ -210,7 +220,6 @@ it('shows icons only and keeps each spoken name on a plain tab button', async ()
     ...kind,
     count: 0,
     onPress: () => selected.push(key),
-    onLongPress: () => {},
   });
   const items = [
     item('chats', {}),

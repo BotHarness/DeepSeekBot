@@ -6,6 +6,7 @@ At 961px and wider on a structurally qualified rc.2 Web/macOS/Windows shell, the
 
 - `packages/client/src/client/{channel-dock,channel-dock-layout,channel-dock-styles,dock-panels,dockview-css}.{ts,tsx}`
 - `packages/client/src/client/channel-dock/*.{ts,tsx}`
+- `packages/client/src/client/features/schedules/{schedules-entry.tsx,schedule-form.ts,locale.ts}`
 - `scripts/dockview-css-plugin.mjs`
 - `packages/client/src/client/{bot-settings,keyboard-settings}.tsx`
 - `packages/client/src/client/ds/{settings-dialog.tsx,window-class.ts}`
@@ -16,6 +17,7 @@ At 961px and wider on a structurally qualified rc.2 Web/macOS/Windows shell, the
 
 - Bot mode layout
 - Workspace Control Rail
+- Bot Schedule
 - Channel list panel
 - Messages panel
 - Panel
@@ -134,6 +136,8 @@ The former flat Sessions scripts are retained only as historical evidence; the n
 
 - `bot-channel-subpanels`: capture a real v4 layout with Memory files, Memory evolution and Schedules open in a task-owned Bot DM before upgrading. Run `scripts/e2e-bot-subpanels.mjs` with `BH_E2E_INSTANCE`, `BH_BROWSER_PROFILE` and `BH_LEGACY_LAYOUT` pointing to that saved JSON. The prepared profile has two disposable Bot DMs named Sessions QA Ada/Bob and a Group named Sessions QA Group. The journey restores only the captured local layout as its migration precondition; it sends no model request and never edits Memory or schedules. Verify the v5 raw backup, absence from the outer rail, real existing file/evolution content or scoped empty states, simultaneous child layout, stable nodes through resizing, refresh after selecting the same Bot, separate states for two Bots, Group exclusion, and right-click/keyboard recovery of hidden header switches. No selection-persistence claim is implied.
 - `bot-channel-shortcuts`: verify Primary+Alt+Shift+6 / E / 9 individually: closed parent restores parent plus requested child; visible parent toggles only that child. Customize Memory files, reload and inspect effective binding, then restore the default. Native supplement `scripts/e2e-channel-sessions-desktop.mjs` now also drives all three child commands through Electron input on the task-owned macOS window and checks persistence after reload. Command identities/config authority are unchanged; regression coverage retains native null/custom handling.
+
+- `bot-schedule-editor`: In an isolated Web Host, create a weekly Bot Schedule and a paused 90-second schedule through the public schedule API. Open the Bot DM, enable the Subpanel column, and open Schedules. Use Tab to focus the first weekday in the weekly editor in light and dark. Check that Recent firings exposes an empty state or the recorded firings. Open the 90-second schedule, rename it, and save. Compare the title and the unchanged 90-second cadence with `botharness/scheduleList`. Collapse Schedules, press New schedule in its header, expand if needed, and verify the editor opens once. Dismiss the editor and repeat the collapse and expansion to verify that the request was consumed. The mounted component tests drive delayed replies, history errors and retry, Bot changes, and overlapping Run now acknowledgements.
 
 The v5 migration passes v1–v4 through the existing owner and preserves earlier Sessions state, unknown plugins, hidden switches, closed parents and unrelated geometry. Each child has a fixed content container and splits the remaining message area; moves use its four sides. Browser/Computer migration remains outside this slice. Keep first failed runs and report which layer failed; screenshots must omit private Memory or local authorization IDs.
 

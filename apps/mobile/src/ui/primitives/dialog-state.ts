@@ -6,6 +6,7 @@ export type DialogAction = {
   text: string;
   style?: 'default' | 'cancel' | 'destructive';
   icon?: MenuGlyph;
+  group?: number;
   onPress?: () => unknown;
 };
 

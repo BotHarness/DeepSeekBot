@@ -1,8 +1,7 @@
-import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
+import { Stack, useIsFocused, useNavigationContainerRef, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { markChannelRead } from '@botharness/host-client/channel-messages';
 import { useCloudSnapshot } from '../../../src/cloud/native';
 import { Text } from '../../../src/ui/primitives/text';
 import { space } from '../../../src/ui/design/tokens';
@@ -10,7 +9,7 @@ import { useConversationFilter } from '../../../src/host/native-conversation-fil
 import { useHostSessions } from '../../../src/host/host-session';
 import { useActivitySources } from '../../../src/host/native-activity-sources';
 import { activitySelection, type ActivityItem } from '../../../src/host/activity-sources';
-import { channelDestination, navigateChannel } from '../../../src/ui/shell/channel-navigation';
+import { openActivityItem } from '../../../src/ui/shell/open-activity-item';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
 import { useStrings } from '../../../src/ui/strings';
@@ -68,43 +67,7 @@ export default function ActivityScreen() {
   const open = useCallback(
     (item: ActivityItem) => {
       const source = sources.find((source) => source.client === item.activitySource?.client);
-      if (!source) return;
-      const opensChannel = [
-        'channel-unread',
-        'channel-reply',
-        'channel-mention',
-        'tool-approval',
-        'user-question',
-        'workspace-grant-request',
-      ].includes(item.kind);
-      const destination = opensChannel
-        ? channelDestination(source.hostId, item, source.roster)
-        : undefined;
-      if (destination && navigateChannel(navigation, destination)) {
-        if (
-          (item.kind === 'channel-reply' || item.kind === 'channel-mention') &&
-          item.isUnread === true &&
-          item.channelId !== undefined &&
-          item.messageId !== undefined
-        )
-          void markChannelRead(source.client, item.channelId, item.messageId).catch(
-            () => undefined,
-          );
-        return;
-      }
-      router.push({
-        pathname: '/inbox/[id]',
-        params: {
-          hostId: source.hostId,
-          id: item.id,
-          kind: item.kind,
-          botSlug: item.botSlug,
-          summary: item.summary,
-          ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
-          ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
-          ...(item.kind === 'bot-message-needs-repair' ? { clearOnOpen: '1' } : {}),
-        },
-      });
+      if (source) openActivityItem(navigation, source, item, (href) => router.push(href));
     },
     [sources, router, navigation],
   );

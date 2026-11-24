@@ -1176,6 +1176,8 @@ Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加
 
 在另一台设备上登录 Codex 时，运行 `engine login codex --device-auth`，并用 `--account` 指定要登录的账号。先在 ChatGPT 安全设置中启用设备码授权，再打开标准错误输出中的验证链接，并在有效期内输入一次性登录码。命令会等待 Host 确认登录，然后在标准输出写入一份 JSON 结果。使用 `--json` 时输出格式相同。成功返回 `{"engine":"codex","status":"completed"}`。过期、取消或其他失败分别返回 `engine-login-expired`、`engine-login-cancelled` 和 `engine-failed`。若要停止 Host 上等待中的进程，请在另一终端运行 `engine login-cancel <account-id>`。在模型提供商页面，可在 Codex 账号上选择 **在其他设备上登录**。
 
+与 Claude Code 和 Codex CLI 一致，Host 不给浏览器登录额外设时限：登录会一直等待，直到引擎完成或你运行 `engine login-cancel`。如果提交 Claude Code 授权码前登录已结束，请重新发起登录以获取新授权码。
+
 如果 Claude 的浏览器回调无法连接 Host，且页面给出授权码，可在模型提供商页面使用 **粘贴授权码**，或运行 `engine login claude --code-stdin` 从标准输入读取授权码。指定与发起登录时相同的 `--account`。Claude Code 的登录进程必须先提示输入授权码。如果没有提示，Host 返回 `engine-code-not-requested`。登录未开始或已结束时返回 `engine-login-not-pending`。成功写入标准输入后返回 `{"submitted":true}`。用 `engine status` 确认登录结果。
 
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。运行 `engine use <bot> none --role orchestrator` 切回 DSH 模型后，会在同一个 Session 中继续，并能看到引擎执行的轮次。

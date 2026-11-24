@@ -23,7 +23,7 @@ export function GroupUnavailable({ onBack }: GroupUnavailableProps) {
         <Column horizontalAlignment="center" verticalArrangement={{ spacedBy: space.x5 }}>
           <Icon
             source={require('../../../assets/button/message-square.xml')}
-            size={groupUnavailable.icon}
+            size={groupUnavailable.icon * theme.fontScale}
             tint={roles.onSurfaceVariant}
           />
           <Text

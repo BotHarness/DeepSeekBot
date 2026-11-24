@@ -1,21 +1,29 @@
 import { Stack } from 'expo-router';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import type { ColorValue } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { swipeEntryListeners, swipeEntryOptions } from './swipe-entry';
 
+export const sessionRouteOptions = {
+  headerLargeTitleEnabled: false,
+  headerBackButtonDisplayMode: 'minimal',
+} as const;
+
 export function TabStack({
   background,
+  router,
   children,
 }: {
   background?: ColorValue;
+  router?: ComponentProps<typeof Stack>['UNSTABLE_router'];
   children?: ReactNode;
 } = {}) {
   const theme = useDesignTheme();
   const fill = background ?? theme.color.base;
   return (
     <Stack
+      {...(router === undefined ? {} : { UNSTABLE_router: router })}
       screenOptions={({ route }) => ({
         headerLargeTitleEnabled: true,
         headerShadowVisible: false,

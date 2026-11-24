@@ -1,4 +1,4 @@
-import { Button, Host, HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, Section, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   accessibilityElement,
@@ -12,15 +12,17 @@ import {
   frame,
   lineLimit,
   monospacedDigit,
-  onLongPressGesture,
   shapes,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
+import type { ReactElement } from 'react';
 import { useDesignTheme } from '../design/theme';
 import { navigationBar, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 import { navigationLabel } from './navigation-label';
+import type { TabMenuEntry, TabMenuGlyph } from './tab-menu-model';
 
 export const tabSymbols = {
   chats: ['bubble.left.and.bubble.right', 'bubble.left.and.bubble.right.fill'],
@@ -64,7 +66,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
         {items.map((item) => {
           const label = navigationLabel(t, item);
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
-          return (
+          const tab = (
             <Button
               key={item.key}
               testID={
@@ -78,7 +80,6 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               modifiers={[
                 buttonStyle('plain'),
                 background(navigationBar.hitFill, shapes.capsule()),
-                onLongPressGesture(item.onLongPress),
                 frame({ maxWidth: Infinity, maxHeight: Infinity }),
                 accessibilityElement('ignore'),
                 accessibilityLabel(accessibility),
@@ -120,8 +121,56 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               </VStack>
             </Button>
           );
+          return item.menu === undefined ? (
+            tab
+          ) : (
+            <TabMenu key={item.key} entries={item.menu}>
+              {tab}
+            </TabMenu>
+          );
         })}
       </HStack>
     </Host>
+  );
+}
+
+const menuSymbols = {
+  bot: 'bubble.left',
+  channel: 'bubble.left.and.bubble.right',
+  person: 'person',
+  session: 'list.bullet.rectangle',
+  activity: 'bell',
+  new: 'plus',
+} as const satisfies Record<TabMenuGlyph, string>;
+
+function TabMenu({
+  entries,
+  children,
+}: {
+  entries: readonly TabMenuEntry[];
+  children: ReactElement;
+}) {
+  const theme = useDesignTheme();
+  const recent = entries.filter((entry) => entry.glyph !== 'new');
+  const create = entries.filter((entry) => entry.glyph === 'new');
+  const row = (entry: TabMenuEntry) => (
+    <Button
+      key={entry.key}
+      label={entry.label}
+      systemImage={menuSymbols[entry.glyph]}
+      onPress={entry.run}
+      modifiers={[foregroundStyle(theme.color.fg)]}
+    />
+  );
+  return (
+    <ContextMenu
+      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity }), tint(theme.color.fg)]}
+    >
+      <ContextMenu.Trigger>{children}</ContextMenu.Trigger>
+      <ContextMenu.Items>
+        {recent.length > 0 ? <Section>{recent.map(row)}</Section> : null}
+        {create.map(row)}
+      </ContextMenu.Items>
+    </ContextMenu>
   );
 }

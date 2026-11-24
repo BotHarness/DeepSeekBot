@@ -341,7 +341,7 @@ export function VoiceCatalogList({
                 leading={
                   <ModelBrandIcon
                     brand={entry.brand}
-                    size={theme.type.title.line}
+                    size={theme.type.title.line * theme.fontScale}
                     color={theme.color.fg}
                   />
                 }

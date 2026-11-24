@@ -3,9 +3,14 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { View } from 'react-native';
-import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { HostSnapshot } from '@botharness/host-client/client';
-import { channelRouteId } from '../src/ui/shell/channel-navigation';
+import {
+  appNavigationState,
+  chatsRoutes,
+  reduceAppNavigation,
+  rootRouteNames,
+  visibleRoute,
+} from './channel-navigation-harness';
 import { t } from '../src/ui/strings';
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 import { resetWorkspaceRoot } from '../src/ui/shell/workspace-navigation';
@@ -108,46 +113,28 @@ vi.mock('expo-router', () => ({
 }));
 import { usePushRouting } from '../src/host/push-routing';
 
-const stack = StackRouter({ initialRouteName: '(tabs)' });
-const options = {
-  routeNames: ['(tabs)', 'inbox/[id]', 'channel/[id]', 'dm/[slug]'],
-  routeParamList: {},
-  routeGetIdList: {
-    'channel/[id]': ({ params }: { params?: object }) =>
-      channelRouteId('channel/[id]', { ...params }),
-  },
-};
-function initialState(): Parameters<typeof stack.getStateForAction>[0] {
+type NavigationState = ReturnType<typeof appNavigationState>;
+function initialState(): NavigationState {
   return {
     stale: false,
     type: 'stack',
     key: 'root',
     routeKeySeq: 0,
     index: 0,
-    routeNames: options.routeNames,
+    routeNames: rootRouteNames,
     routes: [{ key: 'tabs', name: '(tabs)' }],
-  };
+  } as NavigationState;
 }
 let state = initialState();
 function hydrateTabs(index = 0) {
+  const hydrated = appNavigationState({ tab: index === 1 ? '(activity)' : '(home)' }).routes[0]!
+    .state;
   state = {
     ...state,
-    routes: state.routes.map((route) => ({
-      ...route,
-      state: {
-        stale: false,
-        type: 'tab',
-        key: 'initial-tabs',
-        routeKeySeq: 0,
-        index,
-        routeNames: ['(home)', '(activity)'],
-        routes: [
-          { key: 'home', name: '(home)' },
-          { key: 'activity', name: '(activity)' },
-        ],
-      },
-    })),
-  };
+    routes: state.routes.map((route) =>
+      route.name === '(tabs)' ? { ...route, state: hydrated } : route,
+    ),
+  } as NavigationState;
 }
 const navigation = {
   isReady: () => fixture.navigationReady,
@@ -156,9 +143,8 @@ const navigation = {
     return () => fixture.navigationListeners.delete(listener);
   },
   getRootState: () => state,
-  dispatch(action: Parameters<typeof stack.getStateForAction>[1]) {
-    const next = stack.getStateForAction(state, action, options);
-    if (typeof next === 'object') state = next.state;
+  dispatch(action: Parameters<typeof reduceAppNavigation>[1]) {
+    state = reduceAppNavigation(state, action);
   },
 };
 const router = {
@@ -176,7 +162,11 @@ const workspace = createHostDrawer({
       ...navigation,
       dispatch(action) {
         if (action.type !== 'RESET') throw new Error('Unexpected workspace action');
-        navigation.dispatch({ type: 'RESET', payload: { ...state, ...action.payload } });
+        navigation.dispatch({
+          type: 'RESET',
+          target: state.key,
+          payload: { ...state, ...action.payload },
+        });
       },
     });
   },
@@ -237,7 +227,7 @@ it('waits for the cold navigator to mount before dispatching', async () => {
     fixture.navigationReady = true;
     for (const listener of fixture.navigationListeners) listener();
   });
-  expect(state.routes[state.index]).toMatchObject({ name: 'channel/[id]' });
+  expect(visibleRoute(state)).toMatchObject({ name: 'channel/[id]' });
   expect(fixture.navigationListeners.size).toBe(1);
 });
 
@@ -245,14 +235,14 @@ it('opens interruption details without waiting for the conversation list', async
   delete fixture.snapshot.roster;
   await mount();
   await act(async () => fixture.tap?.({ ...notification(), kind: 'repair' }));
-  expect(state.routes[state.index]).toMatchObject({
+  expect(visibleRoute(state)).toMatchObject({
     name: 'inbox/[id]',
     params: { hostId: 'host-a' },
   });
   expect(fixture.alerts).toEqual([]);
 });
 
-it('two notification taps reuse one scoped Channel and Back returns to the origin', async () => {
+it('two notification taps reuse one scoped Channel in Chats over the origin page', async () => {
   vi.useFakeTimers();
   state = initialState();
   fixture.hostId = 'host-a';
@@ -274,13 +264,14 @@ it('two notification taps reuse one scoped Channel and Back returns to the origi
       await vi.runAllTimersAsync();
     });
   }
-  expect(state.routes).toHaveLength(3);
-  expect(state.routes[state.index]).toMatchObject({
+  expect(state.routes).toHaveLength(1);
+  expect(chatsRoutes(state)).toHaveLength(2);
+  expect(visibleRoute(state)).toMatchObject({
     name: 'channel/[id]',
     params: { hostId: 'host-a', id: 'group-a' },
   });
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]).toMatchObject({ name: 'inbox/[id]', params: { id: 'origin' } });
+  expect(visibleRoute(state)).toMatchObject({ name: 'index' });
 });
 
 it('unwinds intervening routes when another notification targets an older Channel', async () => {
@@ -289,7 +280,7 @@ it('unwinds intervening routes when another notification targets an older Channe
     fixture.tap?.(notification());
     await vi.runAllTimersAsync();
   });
-  const key = state.routes[state.index]?.key;
+  const key = visibleRoute(state)?.key;
   navigation.dispatch({
     type: 'PUSH',
     payload: { name: 'channel/[id]', params: { id: 'other', hostId: 'host-a' } },
@@ -298,8 +289,8 @@ it('unwinds intervening routes when another notification targets an older Channe
     fixture.tap?.(notification());
     await vi.runAllTimersAsync();
   });
-  expect(state.routes).toHaveLength(2);
-  expect(state.routes[state.index]?.key).toBe(key);
+  expect(chatsRoutes(state)).toHaveLength(2);
+  expect(visibleRoute(state)?.key).toBe(key);
 });
 
 it('repeats an explicit notification focus without replacing its retained Channel', async () => {
@@ -309,23 +300,23 @@ it('repeats an explicit notification focus without replacing its retained Channe
     fixture.tap?.(target);
     await vi.runAllTimersAsync();
   });
-  const original = state.routes[state.index]!;
+  const original = visibleRoute(state)!;
   const params = original.params;
   const request = params && 'focusRequest' in params ? params.focusRequest : undefined;
   expect(request).toEqual(expect.any(String));
   navigation.dispatch({ type: 'PUSH', payload: { name: 'inbox/[id]', params: { id: 'next' } } });
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]).toEqual(original);
+  expect(visibleRoute(state)).toEqual(original);
   await act(async () => {
     fixture.tap?.(target);
     await vi.runAllTimersAsync();
   });
-  expect(state.routes).toHaveLength(2);
-  expect(state.routes[state.index]).toMatchObject({
+  expect(chatsRoutes(state)).toHaveLength(2);
+  expect(visibleRoute(state)).toMatchObject({
     key: original.key,
     params: { hostId: 'host-a', id: 'group-a', focus: 'original-message' },
   });
-  expect(state.routes[state.index]?.params).not.toHaveProperty('focusRequest', request);
+  expect(visibleRoute(state)?.params).not.toHaveProperty('focusRequest', request);
 });
 
 it('waits for cold source initialization and its Roster before opening', async () => {
@@ -343,7 +334,7 @@ it('waits for cold source initialization and its Roster before opening', async (
     fixture.snapshot.roster = originalRoster;
     for (const listener of fixture.listeners) listener();
   });
-  expect(state.routes[state.index]).toMatchObject({
+  expect(visibleRoute(state)).toMatchObject({
     name: 'channel/[id]',
     params: { hostId: 'host-a' },
   });
@@ -361,7 +352,7 @@ it('keeps cold notification intent when the initial tabs state is hydrated', asy
     for (const listener of fixture.sessionListeners) listener();
   });
   expect(fixture.hostId).toBe('host-a');
-  expect(state.routes[state.index]).toMatchObject({
+  expect(visibleRoute(state)).toMatchObject({
     name: 'channel/[id]',
     params: { hostId: 'host-a', id: 'group-a' },
   });
@@ -410,15 +401,15 @@ it('a later notification wins a pending Host switch without conflating same-name
     release();
     await vi.runAllTimersAsync();
   });
-  expect(state.routes).toHaveLength(2);
+  expect(chatsRoutes(state)).toHaveLength(2);
   expect(fixture.hostId).toBe('host-b');
-  expect(state.routes[state.index]).toMatchObject({ params: { hostId: 'host-b', id: 'group-a' } });
+  expect(visibleRoute(state)).toMatchObject({ params: { hostId: 'host-b', id: 'group-a' } });
   await act(async () => {
     fixture.tap?.(notification('host-a'));
     await vi.runAllTimersAsync();
   });
-  expect(state.routes).toHaveLength(3);
-  expect(state.routes[state.index]).toMatchObject({ params: { hostId: 'host-a', id: 'group-a' } });
+  expect(chatsRoutes(state)).toHaveLength(3);
+  expect(visibleRoute(state)).toMatchObject({ params: { hostId: 'host-a', id: 'group-a' } });
 });
 
 it('cancels Host adoption as well as navigation when the notification owner unmounts', async () => {
@@ -517,6 +508,7 @@ it('a newer ordinary page navigation wins over a pending notification approval',
   fixture.approvalGate = new Promise<void>((resolve) => {
     release = resolve;
   });
+  hydrateTabs();
   await mount();
   await act(async () =>
     fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
@@ -532,7 +524,7 @@ it('a newer ordinary page navigation wins over a pending notification approval',
     await vi.runAllTimersAsync();
   });
   expect(state).toBe(selected);
-  expect(state.routes[state.index]).toMatchObject({ name: 'dm/[slug]', params: { slug: 'grace' } });
+  expect(visibleRoute(state)).toMatchObject({ name: 'dm/[slug]', params: { slug: 'grace' } });
   expect(fixture.alerts).toEqual([]);
 });
 
@@ -611,7 +603,7 @@ it.each([
       await vi.runAllTimersAsync();
     });
     expect(fixture.hostId).toBe('host-a');
-    expect(state.routes[state.index]).toMatchObject({
+    expect(visibleRoute(state)).toMatchObject({
       ...destination,
       params: { hostId: 'host-a' },
     });

@@ -46,7 +46,7 @@ export function PairingVerification({
             {progress}
           </Text>
         ) : null}
-        <RowIcon name="computer" size={theme.type.display.line} />
+        <RowIcon name="computer" size={theme.type.display.line * theme.fontScale} />
         <Text variant="display" accessibilityRole="header" style={{ textAlign: 'center' }}>
           {title}
         </Text>

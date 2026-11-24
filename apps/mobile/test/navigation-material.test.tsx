@@ -5,6 +5,10 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('../src/ui/primitives/app-dialog', () => ({ showActionMenu: vi.fn() }));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
   async () => (await import('./compose-menu-shim')).modifiers,
@@ -86,7 +90,6 @@ it('shows the Activity icon without a label, marks pending items with a Material
               count: 0,
               focused: !focused,
               onPress: select,
-              onLongPress() {},
             },
             {
               key: 'activity',
@@ -94,7 +97,6 @@ it('shows the Activity icon without a label, marks pending items with a Material
               count,
               focused,
               onPress: select,
-              onLongPress() {},
             },
             {
               key: 'settings',
@@ -103,7 +105,6 @@ it('shows the Activity icon without a label, marks pending items with a Material
               count: 0,
               focused: false,
               onPress: () => router.push('/settings'),
-              onLongPress() {},
             },
           ],
         }),
@@ -183,7 +184,6 @@ it('shows no Material label, fills only the selected icon and keeps each content
     ...kind,
     count: 0,
     onPress() {},
-    onLongPress() {},
   });
   try {
     act(() =>
@@ -205,6 +205,17 @@ it('shows no Material label, fills only the selected icon and keeps each content
       t.chats,
       t.hostSessions.title,
       t.settings,
+    ]);
+    expect(
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => [
+        tab.getAttribute('aria-label'),
+        tab.getAttribute('aria-selected'),
+        tab.getAttribute('data-testid'),
+      ]),
+    ).toEqual([
+      [t.chats, 'true', 'navigation-chats-a11y'],
+      [t.hostSessions.title, 'false', 'sessions-tab-a11y'],
+      [t.settings, 'false', 'settings-button-a11y'],
     ]);
   } finally {
     act(() => root.unmount());

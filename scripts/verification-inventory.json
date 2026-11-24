@@ -273,6 +273,14 @@
       "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues."
     },
     {
+      "id": "phone.tab-menus",
+      "label": "Long-press a phone tab for its recent conversations, Sessions or pending Activity",
+      "source": "apps/mobile/src/ui/shell/use-tab-menus.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-tab-menus.md",
+      "task": 5111,
+      "gap": "iOS Simulator qualified with agent-device longpress; a physical iPhone and the Android emulator lane are not yet run."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",
@@ -2848,15 +2856,15 @@
       "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
       "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates.",
       "task": 4197,
-      "sha256": "39d3731489e5c830b0a8bb4dc97881b93102c05c59c15c3522443ebc62f0f950"
+      "sha256": "cc16b08fbf62099eac3d20eff1bb42a3b52409e4915907f7982e14c0a7e598f1"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",
       "category": "mapped",
       "behaviors": ["team.security-suite"],
-      "reason": "M15 B4 and B5 drive a disposable owner Bot on each Subscription Engine and verify files, Session tool results and approval state.",
-      "task": 4655,
-      "sha256": "80b1d27c1245ac43ed244166a908b1d1264909a766dd5e84ac97668c9aae1342"
+      "reason": "M15 B4 and B5 drive a disposable owner Bot on each Subscription Engine and verify files, Session tool results and approval state. B5 gives Codex an exact authorized patch and preserves each attempt, retrying only inconclusive tool evidence and never a recorded permission refusal.",
+      "task": 5158,
+      "sha256": "b53e3b49656bf1091a09e4e8bb71a0a45e901b065195b30812689d576cd9acb3"
     }
   ],
   "native": [

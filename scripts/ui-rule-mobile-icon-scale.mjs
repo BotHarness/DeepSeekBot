@@ -87,7 +87,7 @@ function isFontScale(path) {
   );
 }
 
-function scaleInSize(value, checkReference = false) {
+export function scaleInSize(value, checkReference = false) {
   const path = resolveValue(value);
   if (!path) return false;
   if (isFontScale(path)) return true;
