@@ -207,6 +207,13 @@ vi.mock('expo-router', () => ({
         type: 'PUSH',
         payload: { name: href.pathname.slice(1), params: href.params },
       }),
+    dismissTo: (href: { pathname: string; params?: object }) => {
+      navigation.dispatch({ type: 'POP_TO', payload: { name: '(tabs)' } });
+      navigation.dispatch({
+        type: 'PUSH',
+        payload: { name: href.pathname.slice(1), params: href.params },
+      });
+    },
   }),
 }));
 import BotProfileScreen from '../app/bot/[slug]/index';
@@ -902,6 +909,7 @@ it('retries the Bot Profile Session list and opens the selected Orchestrator', a
     name: 'session/[id]',
     params: { id: 'older-root', slug: 'ada', hostId: 'host-a', title: 'Review the release' },
   });
+  expect(state.routes.map((route) => route.key)).not.toContain('profile');
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('profile');
+  expect(state.routes[state.index]?.key).toBe('tabs');
 });

@@ -17,6 +17,9 @@ const native = vi.hoisted(() => ({
   queue: [] as Array<() => void>,
 }));
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 vi.mock(
   '../src/ui/primitives/chat-scroll',
   () => import('../src/ui/primitives/chat-scroll.android'),
