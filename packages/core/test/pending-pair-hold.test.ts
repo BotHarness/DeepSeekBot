@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
-import { expect, it } from 'vitest';
+import { expect, it, onTestFinished } from 'vitest';
 import { WebSocket } from 'ws';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -40,6 +40,11 @@ it.each(['connect', 'lan'] as const)(
     server.on('upgrade', upgradeListener(gateway));
     const offer = pairing.createOffer();
     const sockets: WebSocket[] = [];
+    onTestFinished(async () => {
+      for (const ws of sockets) ws.terminate();
+      gateway.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    });
     const peer = async () => {
       const channel = new ConnectChannel({
         role: 'initiator',
@@ -83,22 +88,16 @@ it.each(['connect', 'lan'] as const)(
       await pair();
       return { ws, next, pair };
     };
-    try {
-      const waiting = [await peer()];
-      for (let index = 0; index < 3; index++) {
-        const replaced = once(waiting.at(-1)!.ws, 'close');
-        waiting.push(await peer());
-        await replaced;
-      }
-      const latest = waiting.at(-1)!;
-      await latest.pair();
-      expect(latest.ws.readyState).toBe(WebSocket.OPEN);
-      pairing.approveKey(offer.receipt, Buffer.from(noisePublicKey(deviceKey)).toString('hex'));
-      expect(await latest.next()).toMatchObject({ type: 'paired' });
-    } finally {
-      for (const ws of sockets) ws.terminate();
-      gateway.close();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+    const waiting = [await peer()];
+    for (let index = 0; index < 3; index++) {
+      const replaced = once(waiting.at(-1)!.ws, 'close');
+      waiting.push(await peer());
+      await replaced;
     }
+    const latest = waiting.at(-1)!;
+    await latest.pair();
+    expect(latest.ws.readyState).toBe(WebSocket.OPEN);
+    pairing.approveKey(offer.receipt, Buffer.from(noisePublicKey(deviceKey)).toString('hex'));
+    expect(await latest.next()).toMatchObject({ type: 'paired' });
   },
 );
