@@ -67,6 +67,7 @@ import {
   CALL_VISUAL_UNSAVED_MIGRATION,
   CALL_VISUAL_TIMELINE_MIGRATION,
   MODEL_SWITCH_NOTICE_MIGRATION,
+  STEWARD_ROLE_MIGRATION,
 } from './migrations/messaging-history.js';
 import {
   ASSIGNMENT_ACCESS_MIGRATION,
@@ -207,7 +208,6 @@ import {
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
 } from './migrations/team.js';
-import { STEWARD_ROLE_MIGRATION } from './migrations/steward.js';
 import { TOB_IDENTITY_MIGRATION, TOB_MEMORY_LEASE_MIGRATION } from './migrations/tob.js';
 import {
   TOOL_APPROVAL_RULE_MIGRATION,

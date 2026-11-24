@@ -100,6 +100,8 @@ export const bridgeMethodInventory = [
   'messagingConversation',
   'messagingSend',
   'tobHome',
+  'steward',
+  'stewardTransfer',
   'onboarding',
   'acknowledgements',
   'acknowledge',

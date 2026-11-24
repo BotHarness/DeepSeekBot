@@ -24,8 +24,9 @@ export function createChannelNotices({
   revisionOf: ReturnType<typeof createChannelPlacements>['revisionOf'];
   options: SqliteChannelStoreOptions;
   sql: {
+    insertSystemSourceEvent: string;
     insertMemorySourceEvent: string;
-    insertMemoryPlacement: string;
+    insertPlacement: string;
     insertMirroredMemoryPlacement: string;
     insertHandledMemoryAdmission: string;
     insertBotCreateSourceEvent: string;
@@ -41,11 +42,7 @@ export function createChannelNotices({
           return notices.map(({ channelId, message }) => {
             const revision = revisionOf(channelId) + 1;
             const sourceEventId = randomUUID();
-            db.prepare(`
-              INSERT INTO source_events (
-                source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json
-              ) VALUES (?, 'system-message', ?, ?, ?, ?, ?)
-            `).run(
+            db.prepare(sql.insertSystemSourceEvent).run(
               sourceEventId,
               channelId,
               message.id,
@@ -53,12 +50,7 @@ export function createChannelNotices({
               message.at,
               eventPayload(message),
             );
-            db.prepare(sql.insertMemoryPlacement).run(
-              channelId,
-              revision,
-              sourceEventId,
-              message.id,
-            );
+            db.prepare(sql.insertPlacement).run(channelId, revision, sourceEventId, message.id);
             return { channelId, message, revision };
           });
         },
@@ -114,12 +106,7 @@ export function createChannelNotices({
                 causeSourceEventId: input.causeSourceEventId,
               }),
             );
-            db.prepare(sql.insertMemoryPlacement).run(
-              channel.id,
-              revision,
-              sourceEventId,
-              message.id,
-            );
+            db.prepare(sql.insertPlacement).run(channel.id, revision, sourceEventId, message.id);
             if (humanDm !== undefined && humanDmRevision !== undefined)
               db.prepare(sql.insertMirroredMemoryPlacement).run(
                 humanDm.id,

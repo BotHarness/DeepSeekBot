@@ -216,13 +216,18 @@ const groupMembershipSql = {
 };
 
 const noticesSql = {
+  insertSystemSourceEvent: `
+              INSERT INTO source_events (
+                source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json
+              ) VALUES (?, 'system-message', ?, ?, ?, ?, ?)
+            `,
   insertMemorySourceEvent: `
               INSERT INTO source_events (
                 source_event_id, source_kind, bot_slug, channel_id, message_id,
                 body, created_at, payload_json
               ) VALUES (?, 'self-record', ?, ?, ?, '', ?, ?)
             `,
-  insertMemoryPlacement: `
+  insertPlacement: `
               INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
               VALUES (?, ?, ?, ?)
             `,
