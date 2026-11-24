@@ -51,6 +51,7 @@ export function MaterialMenuGroup({
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
         background(colors.surfaceContainerLow),
         paddingAll(materialMenu.groupPadding),
+        testID('action-menu-group'),
       ]}
     >
       {header === undefined ? null : (
