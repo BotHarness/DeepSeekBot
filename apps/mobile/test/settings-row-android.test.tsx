@@ -3,13 +3,19 @@ import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const device = vi.hoisted(() => ({ fontScale: 1 }));
+const device = vi.hoisted(() => ({
+  fontScale: 1,
+  listeners: new Set<() => void>(),
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android' },
   Dimensions: {
     get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
-    addEventListener: () => ({ remove() {} }),
+    addEventListener: (_event: string, listener: () => void) => {
+      device.listeners.add(listener);
+      return { remove: () => device.listeners.delete(listener) };
+    },
   },
   View: (props: {
     children?: ReactNode;
@@ -219,6 +225,36 @@ it('hosts avatars inside the item and keeps React Native buttons outside it', as
   expect(item.querySelector('button')).toBeNull();
   expect(slot(item, 'trailing')).toBeNull();
   expect(screen.querySelector('button')!.textContent).toBe('Remove');
+});
+
+it('updates Android Settings row font scale and wrapping on the mounted Compose host', async () => {
+  const screen = await render(
+    <SettingsRow
+      title="A long Environment name that needs room to wrap"
+      detail="A longer status description"
+      detailDot="green-token"
+      singleLine
+      control={{ kind: 'value', text: 'Follow system settings', chevron: true }}
+    />,
+  );
+  const nativeHost = screen.querySelector('[data-host]')!;
+  const item = nativeHost.querySelector('[data-list-item]')!;
+  const headline = slot(item, 'headline')!.querySelector('span')!;
+  for (const scale of [2, 1.3, 1]) {
+    await act(async () => {
+      device.fontScale = scale;
+      for (const notify of device.listeners) notify();
+    });
+    expect(screen.querySelector('[data-host]')).toBe(nativeHost);
+    expect(nativeHost.getAttribute('data-system-font-scale')).toBe(String(scale));
+    expect(headline.getAttribute('data-max-lines')).toBe(scale === 1 ? '1' : null);
+    const detail = [...slot(item, 'supporting')!.querySelectorAll('span')].find(
+      (text) => text.textContent === 'A longer status description',
+    );
+    expect(detail?.getAttribute('data-max-lines')).toBe(scale === 1 ? '1' : null);
+    const valueSlot = scale === 1 ? 'trailing' : 'supporting';
+    expect(slot(item, valueSlot)!.textContent).toContain('Follow system settings');
+  }
 });
 
 it.each([

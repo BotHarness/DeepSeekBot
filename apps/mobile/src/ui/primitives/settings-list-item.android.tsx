@@ -86,12 +86,13 @@ export function SettingsListItem(props: SettingsRowProps) {
     onPress,
   } = props;
   const theme = useDesignTheme();
-  const oneLine = singleLine && !theme.largeText;
+  const enlargedText = theme.fontScale > 1;
+  const oneLine = singleLine && !enlargedText;
   const colors = settingsColors(theme, on);
   const fill = selected === true ? colors.selected : theme.layer[on].fill;
   const control: SettingsRowControl | undefined =
     props.control ?? (disclosure && trailing === undefined ? { kind: 'chevron' } : undefined);
-  const below = valueBelowTitle(control, theme.largeText) ? control : undefined;
+  const below = valueBelowTitle(control, enlargedText) ? control : undefined;
   const end: SettingsRowControl | undefined =
     below === undefined ? control : below.chevron === true ? { kind: 'chevron' } : undefined;
   const toggle = control?.kind === 'switch' ? control : undefined;
@@ -135,6 +136,7 @@ export function SettingsListItem(props: SettingsRowProps) {
       <View importantForAccessibility="no-hide-descendants">
         <Host
           matchContents={{ vertical: true }}
+          systemFontScale={theme.fontScale}
           colorScheme={theme.scheme}
           seedColor={theme.color.accent}
         >

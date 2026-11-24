@@ -4,6 +4,7 @@
 
 - `apps/mobile/src/ui/chat/{chat-header-surface.android,chat-header-row,dictation,dictation-problem,zoom-math}.{ts,tsx}`
 - `apps/mobile/src/ui/primitives/environment-picker.android.tsx`
+- `apps/mobile/src/ui/primitives/settings-list-item.android.tsx`
 - `apps/mobile/src/ui/shell/{chats-sheet-root.android,chats-search-bar.android}.tsx`
 
 ## Terms
@@ -20,6 +21,8 @@ Run `pnpm exec vitest run apps/mobile/test/zoom-math.test.ts` to execute the ins
 The Android development app uses native form sheets for Bot and group profiles, Android nested scrolling for their lists, and keyboard-frame animation for the chat composer. iOS keeps its existing form-sheet grabber and dedicated chat frame; forms on both platforms use the shared keyboard controller.
 
 ## Sub-features
+
+- `settings-row-system-text` (#5167): install a fresh Android build with the patched Expo UI Host. In the Settings tab, use the same Environment before and after. Capture light and dark at Android system font scales 1.0, 1.3, and 2.0 in English and Chinese. Compare the Model providers, Voice, Model configuration, and Environment labels with their supporting text. Confirm the lettering grows, long labels wrap, values have a full row under the label, and chevrons remain reachable. Scroll to the last row, open a destination, return to Settings, and toggle one preference. Change from default to maximum and back with Settings open to check row height and live reflow. Restore the original system preference.
 
 - `chat-header-soft-edge`: use a native build containing `expo-blur` and masked-view. Scroll varied chat content under the Android native top bar in both themes: buttons/title stay sharp, the status edge uses the opaque theme background, and the lower edge fades fully into the conversation without a seam or touch interception. Check opening, Back/reopen, keyboard and large-text inset changes. Verify the new localized idle input hint, enlarged attachment/microphone/Send targets, and retained manual-send draft after a hold/release. On Android below 12, record the translucent fallback separately from real blur. Do not infer native blur or scroll performance from Web/Node tests.
 

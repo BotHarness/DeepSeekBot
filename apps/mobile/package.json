@@ -96,5 +96,14 @@
   "enriched-markdown": {
     "enableCodeHighlight": false,
     "enableMath": false
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-ui"
+        ]
+      }
+    }
   }
 }

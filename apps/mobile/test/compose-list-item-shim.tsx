@@ -9,10 +9,17 @@ const slot =
     createElement('span', { 'data-slot': name }, children);
 
 export const components = {
-  Host: ({ children, matchContents }: Children & { matchContents?: { vertical?: boolean } }) =>
+  Host: ({
+    children,
+    matchContents,
+    systemFontScale,
+  }: Children & { matchContents?: { vertical?: boolean }; systemFontScale?: number }) =>
     createElement(
       'div',
-      { 'data-host': matchContents?.vertical === true ? 'match-vertical' : 'fixed' },
+      {
+        'data-host': matchContents?.vertical === true ? 'match-vertical' : 'fixed',
+        'data-system-font-scale': systemFontScale,
+      },
       children,
     ),
   ListItem: Object.assign(
@@ -41,8 +48,8 @@ export const components = {
       TrailingContent: slot('trailing'),
     },
   ),
-  Text: ({ children, color }: Children & { color?: string }) =>
-    createElement('span', { 'data-color': color }, children),
+  Text: ({ children, color, maxLines }: Children & { color?: string; maxLines?: number }) =>
+    createElement('span', { 'data-color': color, 'data-max-lines': maxLines }, children),
   Icon: ({ source, tint }: { source: string; tint?: string }) =>
     createElement('i', { 'data-icon': source, 'data-tint': tint }),
   Switch: ({ value, enabled }: { value: boolean; enabled?: boolean }) =>
