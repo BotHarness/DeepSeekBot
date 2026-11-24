@@ -278,7 +278,7 @@
       "source": "apps/mobile/src/ui/shell/use-tab-menus.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-tab-menus.md",
       "task": 5111,
-      "gap": "A real touch-and-hold is needed on iOS (agent-device longpress taps on the Simulator); Android needs the shared emulator queue."
+      "gap": "iOS Simulator qualified with agent-device longpress; a physical iPhone and the Android emulator lane are not yet run."
     },
     {
       "id": "browser.remote-hosts",

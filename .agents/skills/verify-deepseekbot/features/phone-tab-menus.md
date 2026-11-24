@@ -28,7 +28,7 @@ Pair a Computer with a few conversations, a pending approval and some Sessions, 
 
 Use the designated [shared device QA runner](../../../../docs/agents/device-qa.md). Seed a task-owned Host with `verify-app` (two Bots with DMs, a Group, one pending tool approval, two Sessions) and pair the app; no model is needed for the menus, only for creating real Sessions.
 
-1. On iOS, a real touch-and-hold opens the menu. agent-device `longpress` acts as a tap on the iOS 27.2 Simulator, so drive the hold with XCUITest (`press(forDuration:)`) or the Xcode device-interaction tools, and record the menu.
+1. On iOS, hold the tab with agent-device `longpress <x> <y> 1500` (agent-device 0.21.36 opens the SwiftUI context menu on the iOS 27.2 Simulator; the snapshot shows `_UIContextMenuActionsOnlyView`), and record the menu.
 2. Check each row: Chats rows open the DM or Group on the Chats tab, New Group opens the Group form, Sessions rows open the Session on the Sessions tab, Activity rows open the conversation or request.
 3. Change the Environment Scope to another Computer and confirm the Chats and Activity menus follow it; as a Team member without Group creation, New Group is absent.
 4. On Android (Windows or Linux lane), long-press each tab: the Expressive dropdown is anchored above the tab, the tab is not selected by the press, and TalkBack's actions menu on the tab lists "Recent items".
@@ -36,5 +36,5 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 
 ## Gotchas
 
-- agent-device `longpress` on the iOS Simulator selects the tab like a tap; it cannot prove the menu.
+- Older agent-device builds turned `longpress` into a tap on the iOS Simulator; if the snapshot shows no context menu, check the agent-device version before suspecting the app.
 - The Sessions list is read from the Host when the island mounts, when the Host comes online and on every tab change, so a Session created a moment ago appears after the next tab switch.
