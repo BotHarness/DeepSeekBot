@@ -48,6 +48,7 @@ function NewSessionLeading({ stacked }: { stacked: boolean }) {
   if (!stacked) return <SessionDrawerButton />;
   return (
     <HeaderBackButton
+      testID="new-session-back"
       onPress={() => (router.canGoBack() ? router.back() : router.replace('/sessions'))}
     />
   );

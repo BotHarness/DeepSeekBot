@@ -18,7 +18,7 @@
 
 - `stacked`: in Stacked style the Sessions tab root is the Session list (the drawer's rows, Filter and sort, Search under the header, ✎ for the Host Owner). A Session is pushed with Back · name capsule · ✎; ✎ in the list pushes the New Session screen with Back; ✎ in a Session replaces it with the New Session screen. No drawer and no edge swipe.
 - `settings`: Settings › This phone › Sessions (only while the Sessions tab is on) has Session navigation style (Drawer / Stacked), On launch (New Session / Session list / Last Session) and Returning to Sessions (Stay where you were / New Session / Session list). All are kept on the phone only.
-- `switch`: changing the style needs no restart and keeps the open Session: going back to Sessions shows it with the other style's header.
+- `switch`: changing the style needs no restart and keeps the open Session. With Returning to Sessions on Stay where you were, going back to Sessions shows it with the other style's header; with New Session or Session list, that destination is shown instead.
 - `landing`: the first entry to Sessions after a cold launch follows On launch, later entries from another tab follow Returning to Sessions. In Drawer style, Session list is the New Session screen with the drawer open. Re-tapping the selected Sessions tab goes to the root.
 
 ## How to get to it (user POV)
