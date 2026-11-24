@@ -17,6 +17,27 @@ import {
 afterEach(cleanup);
 
 describe('Local Computer owner authority', () => {
+  it('exposes the current runtime for explicit Resume after switching to Linux Local Computer', async () => {
+    let video = true;
+    const { owner } = harness({ supported: () => video, pauseRecovery: () => !video });
+    const initial = await owner.handle(caller, { kind: 'status' });
+    await owner.pauseUnavailable();
+    video = false;
+    await owner.resetRuntime();
+    const recovery = await owner.handle(caller, { kind: 'status' });
+    expect(recovery.paused).toBe(true);
+    expect(recovery.runtimeId).not.toBe(initial.runtimeId);
+    await expect(owner.handle(caller, { kind: 'open' })).rejects.toMatchObject({
+      code: 'unsupported-platform',
+    });
+    await expect(
+      owner.handle(caller, { kind: 'resume', runtimeId: initial.runtimeId }),
+    ).rejects.toMatchObject({ code: 'stale-attempt' });
+    await expect(
+      owner.handle(caller, { kind: 'resume', runtimeId: recovery.runtimeId }),
+    ).resolves.toMatchObject({ paused: false });
+  });
+
   it('advances the control epoch on takeover and hand-back so the Bot Browser re-observes (#3378)', async () => {
     const h = harness({});
     const binding = await h.connect();

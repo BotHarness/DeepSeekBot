@@ -16,7 +16,8 @@ import {
 } from '../src/tool/local-driver.js';
 import { LocalDesktopMissingError } from '../src/tool/local-display.js';
 import type { CuaDriver } from '../src/tool/driver.js';
-import type { ComputerProvider, ComputerRuntimeRunner } from '../src/provider.js';
+import type { ComputerProvider, ComputerRuntimeRunner, ComputerStatus } from '../src/provider.js';
+import { deferred } from './local-video-owner-fixture.js';
 
 vi.mock('../src/media/install-macos.js', () => ({
   ensureMacVideoHelper: vi.fn(async () => undefined),
@@ -421,6 +422,42 @@ describe('Local Computer missing parts', () => {
 });
 
 describe('Profile Computer Target lifecycle', () => {
+  it.each(['status', 'start'] as const)(
+    'discards retired readiness through %s',
+    async (operation) => {
+      let target: ComputerTarget = 'local';
+      const old = fakeRuntime('local');
+      const next = fakeRuntime('current-desktop');
+      vi.mocked(next.provider.status).mockResolvedValue({ state: 'stopped' });
+      const reading = deferred<void>();
+      const complete = deferred<ComputerStatus>();
+      vi.mocked(old.provider.status).mockImplementationOnce(async () => {
+        reading.resolve();
+        return complete.promise;
+      });
+      const runtime = createComputerTargetRuntime({
+        target: () => target,
+        create: (selected) => (selected === 'local' ? old : next),
+        onChange: vi.fn(),
+      });
+      try {
+        const result = runtime.provider[operation]();
+        const checked =
+          operation === 'start'
+            ? expect(result).rejects.toThrow('Computer Target changed')
+            : expect(result).resolves.toMatchObject({ state: 'stopped' });
+        await reading.promise;
+        target = 'current-desktop';
+        await runtime.sync();
+        complete.resolve({ state: 'running' });
+        await checked;
+        expect(runtime.isRunning()).toBe(false);
+      } finally {
+        await runtime.dispose();
+      }
+    },
+  );
+
   it('creates only the selected strategy and refuses archive transfer in local mode', async () => {
     const factory = vi.fn(fakeRuntime);
     const runtime = createComputerTargetRuntime({

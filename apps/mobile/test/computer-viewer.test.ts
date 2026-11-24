@@ -49,6 +49,68 @@ const frame = (seq: number): HostApiAnswer => ({
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+it.each(['transport', 'refusal'])(
+  'rediscovers the desktop after an initial %s failure',
+  async (failure) => {
+    let probeCount = 0;
+    const operations: string[] = [];
+    const binding = {
+      computerId: 'local',
+      runtimeId: 'runtime',
+      viewerId: 'viewer',
+      attemptId: 'attempt',
+    };
+    const viewer = createPhoneComputerViewer({
+      async api(path, init) {
+        const kind = String(init?.body?.['kind']);
+        operations.push(`${path} ${kind}`);
+        if (kind === 'status' && ++probeCount === 1) {
+          if (failure === 'transport') throw new Error('Connection interrupted');
+          return { status: 409, body: { ok: false, code: 'not-ready', error: 'Host is starting' } };
+        }
+        if (kind === 'frame' && init?.body?.['after'] === 1)
+          await new Promise<void>((resolve) =>
+            init?.signal?.addEventListener('abort', () => resolve(), { once: true }),
+          );
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            state: {
+              transport: 'frames',
+              binding,
+              paused: false,
+              controller: false,
+              ...(kind === 'frame'
+                ? {
+                    frame: { seq: 1, data: 'test', mimeType: 'image/jpeg', width: 100, height: 50 },
+                  }
+                : {}),
+            },
+          },
+        };
+      },
+    });
+    try {
+      const interrupted = watch(viewer, (state) => state.status === 'unreachable');
+      viewer.start();
+      expect(await interrupted).toMatchObject({ control: false, notice: expect.any(String) });
+      expect(operations).toEqual(['/api/computer/video status']);
+      const live = watch(viewer, (state) => state.status === 'live');
+      viewer.start();
+      await live;
+      expect(operations.slice(0, 4)).toEqual([
+        '/api/computer/video status',
+        '/api/computer/video status',
+        '/api/computer/video open',
+        '/api/computer/video frame',
+      ]);
+    } finally {
+      viewer.stop();
+    }
+  },
+);
+
 it('observes a current desktop without acquiring control and resumes separately from release', async () => {
   const operations: string[] = [];
   const binding = {

@@ -260,6 +260,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     isRunning: () => migratedLocal() && runtime.isRunning(),
     unavailable: runtime.unavailable,
     supported: migratedLocal,
+    pauseRecovery: () => target() === 'local',
     driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
     ...(process.platform === 'darwin'
       ? { scrollMotion: createMacScroll((detail) => diagnostics.record('lifecycle', detail)) }

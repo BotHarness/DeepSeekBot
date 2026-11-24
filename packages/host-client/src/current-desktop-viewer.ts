@@ -39,6 +39,12 @@ async function command(client: Client, input: LocalVideoCommand, signal?: AbortS
     body: input,
     ...(signal === undefined ? {} : { signal }),
   });
+  if (input.kind === 'status' && answer.status === 404)
+    return {
+      ok: false,
+      code: 'unsupported-platform',
+      error: 'The Host has no Computer video endpoint.',
+    } satisfies LocalVideoResult;
   if (answer.body === null || typeof answer.body !== 'object' || !('ok' in answer.body))
     throw new Error(`The Host answered ${answer.status}.`);
   return answer.body as LocalVideoResult;
@@ -49,7 +55,9 @@ export async function currentDesktopAvailable(
   signal: AbortSignal,
 ): Promise<boolean> {
   const result = await command(client, { kind: 'status' }, signal);
-  return result.ok && result.state.transport === 'frames';
+  if (result.ok === true) return result.state.transport === 'frames';
+  if (result.code === 'unsupported-platform') return false;
+  throw new Error(result.error);
 }
 
 export function createCurrentDesktopViewer(client: Client): ComputerViewer {

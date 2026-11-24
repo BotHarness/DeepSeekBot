@@ -254,7 +254,8 @@ export const LIVE_COMMANDS = [
   },
   {
     command: 'computer-target',
-    description: 'read or select the Computer Target (--target current-desktop|local|container)',
+    description:
+      'read the Computer Target with no flags, or select --target current-desktop|local|container (current-desktop requires --confirm)',
   },
   {
     command: 'computer-status',
@@ -263,7 +264,7 @@ export const LIVE_COMMANDS = [
   {
     command: 'computer-video',
     description:
-      'Local Computer viewer status/open/frame/signal/heartbeat/takeover/input/release/resume/close',
+      'Local Computer viewer status/open/frame/signal/heartbeat/takeover/input/release/resume/close (open and frame require --out <absolute-file>; every operation except status and open requires --args-stdin JSON)',
   },
   {
     command: 'computer-frame',

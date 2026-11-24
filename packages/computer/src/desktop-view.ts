@@ -276,25 +276,27 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
   let revision = 0;
 
   const capture = (): Promise<DesktopFrame | undefined> => {
-    capturing ??= (async () => {
+    if (capturing !== undefined) return capturing;
+    const pending = (async () => {
       const attempt = revision;
       const gap = lastStarted + intervalMs - now();
       if (gap > 0) await wait(gap);
       if (attempt !== revision) return undefined;
-      lastStarted = now();
+      const capturedAt = now();
+      lastStarted = capturedAt;
       captures += 1;
       const result = await options.driver.call('get_desktop_state', {
         ...(options.scales?.() === false ? {} : { max_image_dimension: VIEWER_MAX_DIMENSION }),
         session: VIEWER_SESSION,
       });
-      lastCaptureMs = now() - lastStarted;
+      if (attempt !== revision) return undefined;
+      lastCaptureMs = now() - capturedAt;
       const shot = desktopCapture(result);
       if (shot === undefined)
         throw new DesktopViewError(
           'capture-failed',
           refusalText(result) ?? 'The desktop driver returned no screenshot.',
         );
-      if (attempt !== revision) return undefined;
       if (latestCapture === shot.data) {
         unchanged += 1;
         return undefined;
@@ -311,13 +313,14 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
         ...(encoded === undefined
           ? {}
           : { data: encoded.bytes.toString('base64'), mimeType: encoded.mimeType }),
-        capturedAt: lastStarted,
+        capturedAt,
       };
       return latest;
     })().finally(() => {
-      capturing = undefined;
+      if (capturing === pending) capturing = undefined;
     });
-    return capturing;
+    capturing = pending;
+    return pending;
   };
 
   const requireRunning = (): void => {
@@ -328,11 +331,14 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
   return {
     async next(after: number | undefined, signal?: AbortSignal) {
       requireRunning();
+      const attempt = revision;
       if (latest !== undefined && after !== undefined && latest.seq > after) return latest;
       const deadline = now() + waitMs;
       while (signal?.aborted !== true) {
         requireRunning();
-        const current = (await untilAborted(capture(), signal)) ?? latest;
+        const captured = await untilAborted(capture(), signal);
+        if (attempt !== revision || signal?.aborted) return undefined;
+        const current = captured ?? latest;
         if (current !== undefined && (after === undefined || current.seq > after)) return current;
         if (now() >= deadline) return undefined;
       }
@@ -346,6 +352,8 @@ export function createDesktopFrameStream(options: DesktopFrameStreamOptions) {
       revision += 1;
       latest = undefined;
       latestCapture = undefined;
+      capturing = undefined;
+      lastStarted = 0;
     },
     stats: () => ({ captures, unchanged, published, lastCaptureMs }),
   };

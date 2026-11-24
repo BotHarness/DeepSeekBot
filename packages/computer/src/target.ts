@@ -57,8 +57,10 @@ export function createComputerTargetRuntime(options: {
     });
     return changing.then(sync);
   };
-  const requireCurrent = (): void => {
-    if (disposed || changing !== undefined || target !== options.target())
+  const isCurrent = (observed: number): boolean =>
+    revision === observed && !disposed && changing === undefined && target === options.target();
+  const requireCurrent = (observed = revision): void => {
+    if (!isCurrent(observed))
       throw new Error(
         'Computer Target changed; ask the Human to check the selected Computer and authorize a new action.',
       );
@@ -73,15 +75,20 @@ export function createComputerTargetRuntime(options: {
     },
     status: async () => {
       await sync();
+      const observed = revision;
       const status = await active.provider.status();
+      if (!isCurrent(observed)) return provider.status();
       running = status.state === 'running';
       return status;
     },
     start: async () => {
       await sync();
+      const observed = revision;
       await active.provider.start();
-      requireCurrent();
-      running = (await active.provider.status()).state === 'running';
+      requireCurrent(observed);
+      const status = await active.provider.status();
+      requireCurrent(observed);
+      running = status.state === 'running';
     },
     stop: async () => {
       await sync();

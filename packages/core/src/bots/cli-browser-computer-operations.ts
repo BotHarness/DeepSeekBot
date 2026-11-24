@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { connectLiveHost, record } from './cli-live-host.js';
@@ -22,6 +23,22 @@ export const DEVICE_COMMANDS = [
   'computer-input',
   'computer-video',
 ] as const;
+
+function writeDesktopFrame(path: string, bytes: Buffer): void {
+  try {
+    writeFileSync(path, bytes, { mode: 0o600, flag: 'wx' });
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST')
+      throw new CliLiveError(
+        'output-exists',
+        'The desktop output file already exists. Choose a new path.',
+      );
+    throw new CliLiveError(
+      'desktop-file-failed',
+      'Could not save the desktop frame. Choose a new writable absolute file.',
+    );
+  }
+}
 
 export async function runDeviceCommand(
   command: (typeof DEVICE_COMMANDS)[number],
@@ -66,12 +83,7 @@ export async function runDeviceCommand(
       usage('--args-stdin must be a JSON object of tool arguments.');
     }
   }
-  if (
-    direct &&
-    values.out !== undefined &&
-    !values.out.startsWith('/') &&
-    !/^[A-Za-z]:[\\/]/u.test(values.out)
-  )
+  if (direct && values.out !== undefined && !isAbsolute(values.out))
     usage('--out must be an absolute file path.');
   const slug = rest[0]?.trim() ?? '';
   if (video) {
@@ -94,17 +106,12 @@ export async function runDeviceCommand(
       );
     if (toolArgs['force'] === true && values.confirm !== true)
       usage('Forced takeover requires --confirm.');
-    if (
-      (slug === 'open' || slug === 'frame') &&
-      (values.out === undefined ||
-        (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
-    )
+    if ((slug === 'open' || slug === 'frame') && !isAbsolute(values.out ?? ''))
       usage(`computer-video ${slug} requires --out <absolute-file>.`);
   }
   if (command === 'browser-frame' || command === 'computer-frame') {
     const out = values.out ?? '';
-    if (!out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(out))
-      usage(`${command} requires --out <absolute-file>.`);
+    if (!isAbsolute(out)) usage(`${command} requires --out <absolute-file>.`);
   }
   if (
     (command === 'browser-takeover' || command === 'computer-takeover') &&
@@ -136,7 +143,8 @@ export async function runDeviceCommand(
       if (item['type'] !== 'image' || typeof item['data'] !== 'string') return item;
       const bytes = Buffer.from(item['data'], 'base64');
       if (values.out !== undefined && !saved) {
-        writeFileSync(values.out, bytes, { mode: 0o600 });
+        if (command === 'computer-tool') writeDesktopFrame(values.out, bytes);
+        else writeFileSync(values.out, bytes, { mode: 0o600 });
         saved = true;
         return {
           type: 'image',
@@ -182,7 +190,7 @@ export async function runDeviceCommand(
     }
     const { data, ...frameInfo } = record(frame);
     if (typeof data === 'string' && values.out !== undefined)
-      writeFileSync(values.out, Buffer.from(data, 'base64'), { mode: 0o600 });
+      writeDesktopFrame(values.out, Buffer.from(data, 'base64'));
     return {
       ...result,
       ...(result['state'] === undefined
@@ -260,7 +268,7 @@ export async function runDeviceCommand(
     if (typeof desktop['data'] !== 'string')
       throw new CliLiveError('host-protocol-error', 'The Host returned no Computer frame.');
     const bytes = Buffer.from(desktop['data'], 'base64');
-    writeFileSync(values.out!, bytes, { mode: 0o600 });
+    writeDesktopFrame(values.out!, bytes);
     return {
       path: values.out,
       bytes: bytes.byteLength,

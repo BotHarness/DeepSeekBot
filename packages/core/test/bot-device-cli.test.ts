@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -181,6 +181,34 @@ describe('Agent Browser and Computer commands', () => {
     expect(live.calls).toEqual([
       { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
     ]);
+  });
+
+  it('only saves desktop video frames to new private files on the CLI machine', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'computer-frame-cli-'));
+    dirs.push(dir);
+    const frame = {
+      data: Buffer.from('fixture').toString('base64'),
+      seq: 1,
+      mimeType: 'image/jpeg',
+    };
+    const live = await host(() => ({ json: { ok: true, state: { frame } } }));
+    const invokeFrame = (out: string) =>
+      invokeWithStdin(['computer-video', 'frame', '--args-stdin', '--out', out], live.url, '{}');
+    const foreignPath =
+      process.platform === 'win32' ? 'C:captures\\frame.jpg' : 'C:\\captures\\frame.jpg';
+    expect((await invokeFrame(foreignPath)).code).not.toBe(0);
+    expect(live.calls).toHaveLength(0);
+    const existing = join(dir, 'existing.jpg');
+    writeFileSync(existing, 'keep', { mode: 0o644 });
+    const refused = await invokeFrame(existing);
+    expect(refused.json.error.code).toBe('output-exists');
+    expect(readFileSync(existing, 'utf8')).toBe('keep');
+    const path = join(dir, 'new.jpg');
+    const saved = await invokeFrame(path);
+    expect(saved.code).toBe(0);
+    expect(saved.json.state.frame).toEqual({ seq: 1, mimeType: 'image/jpeg', path });
+    expect(readFileSync(path, 'utf8')).toBe('fixture');
+    if (process.platform !== 'win32') expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
   it('sends continuous scrolling and its explicit stop through the existing authenticated video input command', async () => {

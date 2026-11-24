@@ -31,12 +31,13 @@ export function createPhoneComputerViewer(client: Pick<HostClient, 'api'>): Comp
   const idle: ComputerViewerState = { status: 'loading', control: false };
   const listeners = new Set<() => void>();
   let discovery: AbortController | undefined;
+  let discoveryState = idle;
   let viewer: ComputerViewer | undefined;
   const publish = () => {
     for (const listener of listeners) listener();
   };
   return {
-    getState: () => viewer?.getState() ?? idle,
+    getState: () => viewer?.getState() ?? discoveryState,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -49,20 +50,34 @@ export function createPhoneComputerViewer(client: Pick<HostClient, 'api'>): Comp
       }
       const attempt = new AbortController();
       discovery = attempt;
-      void currentDesktopAvailable(client, attempt.signal)
-        .catch(() => false)
-        .then((current) => {
+      discoveryState = idle;
+      publish();
+      void currentDesktopAvailable(client, attempt.signal).then(
+        (current) => {
           if (attempt.signal.aborted) return;
           discovery = undefined;
           viewer = current ? createCurrentDesktopViewer(client) : createComputerViewer({ client });
           viewer.subscribe(publish);
           viewer.start();
           publish();
-        });
+        },
+        (error: unknown) => {
+          if (attempt.signal.aborted) return;
+          discovery = undefined;
+          discoveryState = {
+            status: deviceRefusal(error) === undefined ? 'unreachable' : 'refused',
+            explicit: true,
+            control: false,
+            notice: error instanceof Error ? error.message : String(error),
+          };
+          publish();
+        },
+      );
     },
     stop() {
       discovery?.abort();
       discovery = undefined;
+      discoveryState = idle;
       viewer?.stop();
       publish();
     },

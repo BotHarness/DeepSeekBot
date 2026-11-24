@@ -111,6 +111,7 @@ export function createLocalVideoOwner(options: {
   readonly isRunning: () => boolean;
   readonly unavailable?: () => DesktopAccessIssue | undefined;
   readonly supported?: () => boolean;
+  readonly pauseRecovery?: () => boolean;
   readonly driverPlatform?: 'darwin' | 'win32';
   readonly scrollMotion?: ScrollMotion;
   readonly now?: () => number;
@@ -530,7 +531,7 @@ export function createLocalVideoOwner(options: {
     try {
       sweep();
       if (command.kind === 'status') {
-        if (options.supported?.() === false)
+        if (options.supported?.() === false && !(paused && options.pauseRecovery?.() === true))
           refuse('unsupported-platform', 'This Computer does not support a Local Computer viewer.');
         return state(caller);
       }
