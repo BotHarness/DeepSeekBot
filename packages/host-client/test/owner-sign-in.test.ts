@@ -297,6 +297,16 @@ describe('HTTPS address discovery and unified sign-in', () => {
     expect(test.request).not.toHaveBeenCalled();
     test.request.mockRejectedValueOnce(new Error('discovery redirect'));
     expect(await discover()).toEqual({ ok: false, code: 'unreachable' });
+    test.request.mockResolvedValueOnce({
+      status: 404,
+      text: async () => JSON.stringify({ code: 'private-route' }),
+    });
+    expect(await discover()).toEqual({ ok: false, code: 'private-route' });
+    test.request.mockResolvedValueOnce({
+      status: 404,
+      text: async () => JSON.stringify({ code: 'not-found' }),
+    });
+    expect(await discover()).toEqual({ ok: false, code: 'unreachable' });
     test.request.mockResolvedValueOnce({ status: 200, text: async () => '{' });
     expect(await discover()).toEqual({ ok: false, code: 'response-invalid' });
     test.request.mockResolvedValueOnce({

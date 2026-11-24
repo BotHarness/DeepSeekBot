@@ -23,15 +23,21 @@ export async function approveTobCliOperation(options: {
   const generic = 'via' in operation && operation.via === 'cli';
   const requireExplicitApproval =
     generic ||
-    ['release-install', 'release-restart', 'bot-delete-confirm', 'bot-delete-retry'].includes(
-      command,
-    );
+    [
+      'release-install',
+      'release-restart',
+      'bot-delete-confirm',
+      'bot-delete-retry',
+      'memory-save',
+      'memory-restore-commit',
+    ].includes(command);
   const scope =
     !generic &&
     'target' in operation &&
     (command.startsWith('model-plan-') ||
       command === 'model-preset-apply' ||
       command.startsWith('bot-') ||
+      command.startsWith('memory-') ||
       command === 'voice-set' ||
       command === 'voice-asr-set' ||
       ['update', 'pause', 'resume'].includes(command))
@@ -76,7 +82,9 @@ export async function approveTobCliOperation(options: {
       callId: call.callId,
       reason: generic
         ? 'Tob wants to run this exact deepseekbot command on this Host as you. Review patch.argv (and the stdin size and hash, if any); approve only if it is what you asked for.'
-        : 'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
+        : command.startsWith('memory-')
+          ? `Tob wants to change the Memory of ${'target' in operation ? operation.target : 'a Bot'}. Review patch.diff against previousValue.revision, the base commit it applies to; patch.takesEffect says when Sessions see it. If Memory changes before you decide, nothing is written.`
+          : 'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
       signal,
     });
     if (outcome !== 'allowed-once')

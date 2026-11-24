@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createRequire } from 'node:module';
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -30,6 +31,8 @@ vi.mock('react-native', async () => ({
   ),
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('@expo/ui/jetpack-compose', () => ({}));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({}));
 vi.mock('expo-router', () => ({
   Stack: {
     Screen: ({
@@ -38,11 +41,13 @@ vi.mock('expo-router', () => ({
       options: {
         title: string;
         headerTitle?(): ReactNode;
+        headerShown?: boolean;
         headerTransparent?: boolean;
         scrollEdgeEffects?: { top?: string; bottom?: string };
       };
     }) => (
       <header
+        data-shown={options.headerShown}
         data-transparent={options.headerTransparent}
         data-top-edge={options.scrollEdgeEffects?.top}
         data-bottom-edge={options.scrollEdgeEffects?.bottom}
@@ -205,6 +210,7 @@ async function open({
   sendGate,
   beforeAssignmentRead,
   beforeArchive,
+  Body = SessionDetailBody,
 }: {
   role?: 'orchestrator' | 'assignment' | 'native';
   running?: boolean;
@@ -214,6 +220,7 @@ async function open({
   sendGate?: Promise<void>;
   beforeAssignmentRead?: (readNumber: number) => Promise<void>;
   beforeArchive?: () => Promise<void>;
+  Body?: typeof SessionDetailBody;
 } = {}) {
   const view = document.createElement('div');
   root = createRoot(view);
@@ -283,7 +290,7 @@ async function open({
   });
   await act(async () =>
     root!.render(
-      <SessionDetailBody
+      <Body
         client={client}
         slug={role === 'native' ? null : 'ada'}
         id="chosen"
@@ -548,6 +555,45 @@ it('leaves room for the overlay composer and top app bar in Android list order',
       },
     });
   } finally {
+    platform.OS = 'ios';
+  }
+});
+
+it('renders the Android Session header with Back, title, and options', async () => {
+  platform.OS = 'android';
+  navigation.back.mockClear();
+  const { extensions } = createRequire(import.meta.url);
+  const loadXml = extensions['.xml'];
+  extensions['.xml'] = (asset, path) => {
+    asset.exports = path;
+  };
+  vi.doUnmock('../src/ui/chat/chat-header-actions');
+  vi.doMock('../src/ui/shell/header-icon-button', async () => {
+    const android = await import('../src/ui/shell/header-icon-button.android');
+    return { ...android, HeaderIconGlyph: Reflect.get(android, 'HeaderIconGlyph') };
+  });
+  vi.resetModules();
+
+  try {
+    const { SessionDetailBody: AndroidSessionDetailBody } =
+      await import('../src/ui/chat/session-detail-screen');
+    const { view } = await open({ role: 'native', Body: AndroidSessionDetailBody });
+    const header = view.querySelector('header');
+    expect(header?.dataset['shown']).toBe('false');
+    expect(header?.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
+      'Review the release',
+    );
+    expect(
+      header?.querySelector('[data-testid="session-options"]')?.getAttribute('aria-label'),
+    ).toBe('Session options');
+    const back = header?.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
+    expect(back).toBeDefined();
+    await act(async () => back?.click());
+    expect(navigation.back).toHaveBeenCalledOnce();
+  } finally {
+    if (loadXml === undefined) delete extensions['.xml'];
+    else extensions['.xml'] = loadXml;
+    vi.doUnmock('../src/ui/shell/header-icon-button');
     platform.OS = 'ios';
   }
 });
