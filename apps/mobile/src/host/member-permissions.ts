@@ -4,40 +4,30 @@ import type { HostClient } from '@botharness/host-client/client';
 
 const BOT_CREATION = ['bots.createPrivate', 'bots.createPublic'];
 
-const creation = new Map<string, boolean>();
-const listeners = new Set<() => void>();
-let version = 0;
+type CreationPermissions = { bots: boolean; channels: boolean };
 
-function publish(): void {
-  version++;
-  for (const listener of listeners) listener();
+const creation = new WeakMap<HostClient, CreationPermissions>();
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
-export async function refreshMemberPermissions(hostId: string, client: HostClient): Promise<void> {
+export async function refreshMemberPermissions(client: HostClient): Promise<void> {
   const {
     viewer: { permissions },
   } = await readTeamMode(client);
-  const allowed = BOT_CREATION.some((permission) => permissions.includes(permission));
-  if (creation.get(hostId) === allowed) return;
-  creation.set(hostId, allowed);
-  publish();
+  const next = {
+    bots: BOT_CREATION.some((permission) => permissions.includes(permission)),
+    channels: permissions.includes('channels.create'),
+  };
+  const previous = creation.get(client);
+  if (previous?.bots === next.bots && previous.channels === next.channels) return;
+  creation.set(client, next);
+  for (const listener of listeners) listener();
 }
 
-export function forgetMemberPermissions(hostId: string): void {
-  if (creation.delete(hostId)) publish();
-}
-
-export function memberCanCreateBots(hostId: string | undefined): boolean {
-  return hostId === undefined || creation.get(hostId) !== false;
-}
-
-export function useMemberCanCreateBots(hostId: string | undefined): boolean {
-  useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    () => version,
-  );
-  return memberCanCreateBots(hostId);
+export function useMemberCreationPermissions(client: HostClient | undefined) {
+  return useSyncExternalStore(subscribe, () => (client ? creation.get(client) : undefined));
 }

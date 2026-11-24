@@ -1,5 +1,6 @@
 import { Host, Picker, Text } from '@expo/ui/swift-ui';
 import {
+  accessibilityIdentifier,
   accessibilityLabel,
   disabled as disabledModifier,
   pickerStyle,
@@ -7,6 +8,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { useDesignTheme } from '../design/theme';
+import { segmentTestID } from './segment-test-id';
 import type { SegmentedProps } from './segmented';
 
 export function Segmented<T extends string>({
@@ -15,6 +17,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   disabled = false,
+  testID,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   return (
@@ -36,7 +39,15 @@ export function Segmented<T extends string>({
         ]}
       >
         {options.map((option) => (
-          <Text key={option.value} modifiers={[tag(option.value)]}>
+          <Text
+            key={option.value}
+            modifiers={[
+              tag(option.value),
+              ...(testID === undefined
+                ? []
+                : [accessibilityIdentifier(segmentTestID(testID, option.value)!)]),
+            ]}
+          >
             {option.label}
           </Text>
         ))}

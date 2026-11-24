@@ -39,6 +39,7 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
+import { VoiceProviders } from '../src/voice/providers.js';
 import { createTempRoot, createTestOwnership } from './helpers.js';
 
 export const closes: Array<() => Promise<void>> = [];
@@ -49,6 +50,7 @@ export function teamFixture(
     routes?: () => Promise<string[]>;
     now?: () => number;
     warn?: (message: string) => void;
+    voice?: boolean;
     liveRosterChanges?: boolean;
   } = {},
 ) {
@@ -145,8 +147,15 @@ export function teamFixture(
   });
   const unbindDevices = team.bindDevices(devices);
   closes.push(async () => unbindDevices());
+  const voiceProviders = options.voice
+    ? new VoiceProviders({
+        database: attachOperationalModule(db, 'voice'),
+        credentials: () => undefined,
+      })
+    : undefined;
   const methods = createBridgeMethodsForHumans({
     ...(options.warn ? { warn: options.warn } : {}),
+    ...(voiceProviders ? { voiceProviders } : {}),
     registry,
     channels,
     attachments,
@@ -432,8 +441,8 @@ export async function memberDeviceHost(
   return { origin, post, signIn, mintOwner, carrier };
 }
 
-export async function actors() {
-  const f = await enabledFixture();
+export async function actors(options?: Parameters<typeof teamFixture>[0]) {
+  const f = await enabledFixture(options);
   await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
   const alice = await f.team.createMember(owner, 'alice', 'Alice');
   await f.team.changePassword(

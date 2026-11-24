@@ -116,8 +116,13 @@ export function mountDevicePairing(
     logs = undefined;
   }
   ctx.effect(() => () => logs?.close(), 'botharness: device pairing logs');
-  const write = (plugin: string, kind: string, message: string): void => {
-    ctx.logger.info(message);
+  const write = (
+    plugin: string,
+    kind: string,
+    message: string,
+    level: 'info' | 'warn' = 'info',
+  ): void => {
+    ctx.logger[level](message);
     try {
       logs?.write({ plugin, owner: 'profile-shared', kind, detail: message });
     } catch {}
@@ -270,6 +275,7 @@ export function mountDevicePairing(
             'bot-network',
             event.phase,
             JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
+            event.phase === 'withdrawal-refused' ? 'warn' : 'info',
           ),
       });
       const detach = botNetworks.attach({ ...bridge, membership: bridge.probeMembership });

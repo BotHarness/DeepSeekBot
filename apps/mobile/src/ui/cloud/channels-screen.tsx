@@ -1,5 +1,6 @@
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { cloudDraftKey } from '../../host/source-drafts';
+import { canCreateCloudChannel } from '../../host/creation-targets';
 import {
   router,
   useFocusEffect,
@@ -114,6 +115,9 @@ function ChannelWorkspace({
     insets = useSafeAreaInsets();
   const row = snapshot.rows.find((r) => r.config.instanceId === instanceId);
   const allowed = !!row?.hasSession && !!row.sessionUserId;
+  const canCreateChannel =
+    row?.organization?.organizationId === organizationId &&
+    canCreateCloudChannel(row.organization.role, guest);
   const [channels, setChannels] = useState<CloudChannel[]>();
   const [channelCursor, setChannelCursor] = useState<string | null>(null);
   const [channel, setChannel] = useState<CloudChannel>();
@@ -392,7 +396,7 @@ function ChannelWorkspace({
             </>
           ) : !channelId ? (
             <>
-              {!guest && row.organization?.role === 'owner' && (
+              {canCreateChannel && (
                 <View style={box}>
                   <TextField
                     accessibilityLabel={t.cloudChannels.name}
@@ -468,7 +472,9 @@ function ChannelWorkspace({
               ? t.cloudChannels.noMessages
               : guest
                 ? t.cloudGuests.empty
-                : t.cloudChannels.empty}
+                : canCreateChannel
+                  ? t.cloudChannels.empty
+                  : t.cloudChannels.emptyMember}
           </Text>
         ) : undefined
       }

@@ -93,6 +93,7 @@ import { edgeScrollStep, insertEntryBefore, resolveEntryOrder } from './channel-
 import { rowDropHalf } from './roster-order.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { useLayoutSettingsControl } from './layout-settings-control.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelHeader } from './ds/panel-header.js';
 import { border, space, color, radius, size, text } from './ds/tokens.stylex.js';
@@ -1705,6 +1706,7 @@ export interface ChannelDockProps {
   shows(entry: ChannelSidebarEntry): boolean;
   t: BotHarnessTranslate;
   storage?: ChannelDockStorage | undefined;
+  channelIds?: (() => readonly string[]) | undefined;
 }
 
 let workspaceDocks = 0;
@@ -1733,6 +1735,7 @@ export function ChannelDock({
   shows,
   t,
   storage,
+  channelIds,
 }: ChannelDockProps): ReactElement {
   const workspace = useContext(WorkspaceContext);
   const [layoutMode, updateLayoutMode] = useState<SimpleLayout>(() => {
@@ -2580,6 +2583,87 @@ export function ChannelDock({
   };
   const actions = useRef(handlers);
   actions.current = handlers;
+  const settingsMount = useLayoutSettingsControl(workspaceMode && api !== undefined, {
+    snapshot: () => ({
+      global: simpleRef.current,
+      rail: { order: orderRef.current, hidden: hiddenControlsRef.current },
+      channels: channelWorkspacesRef.current,
+      seed: seed.current,
+      activeChannelId: channelRef.current?.id,
+      knownChannelIds: channelIds?.() ?? [],
+      gap: gapRef.current,
+      members: membersRef.current,
+      splits: channelSplitsRef.current,
+      splitOf: (id, saved) => {
+        let tree =
+          saved ??
+          legacyChannelSplit({
+            ...Object.fromEntries(
+              botPanelIds.map((panel) => [
+                panel,
+                botWorkspacesRef.current[id]?.[panel] ??
+                  botSeeds.current[panel] ?? { ...DEFAULT_CHANNEL_WORKSPACE, open: false },
+              ]),
+            ),
+            sessions: channelWorkspacesRef.current[id] ?? seed.current,
+          });
+        const showing =
+          id === channel?.id && session !== undefined
+            ? [...channelPanelIds, SESSION_DETAIL]
+            : channelPanelIds;
+        for (const panel of showing)
+          if (!splitPanels(tree).includes(panel))
+            tree = { axis: 'horizontal', ratio: 0.7, first: tree, second: { panel } };
+        return tree;
+      },
+    }),
+    apply: ({ global, rail, channel: edit, gap: nextGap, members: nextMembers }) => {
+      if (edit?.state) {
+        const state = edit.state;
+        channelWorkspacesRef.current = { ...channelWorkspacesRef.current, [edit.id]: state };
+        if (edit.id === channelRef.current?.id) sessionStateRef.current = state;
+        updateChannelWorkspaces(channelWorkspacesRef.current);
+      }
+      if (edit?.split !== undefined) {
+        const { [edit.id]: _previous, ...rest } = channelSplitsRef.current;
+        channelSplitsRef.current = edit.split === null ? rest : { ...rest, [edit.id]: edit.split };
+        updateChannelSplits(channelSplitsRef.current);
+      }
+      if (nextGap !== undefined) {
+        gapRef.current = nextGap;
+        updateGap(nextGap);
+      }
+      if (nextMembers) {
+        if (nextMembers.open && channelRef.current?.type === 'group') {
+          files?.setOpen(false);
+          inbox?.setOpen(false);
+        }
+        membersRef.current = nextMembers;
+        updateMembers(nextMembers);
+      }
+      if (rail) {
+        const hiding = rail.hidden.filter((id) => !hiddenControlsRef.current.includes(id));
+        orderRef.current = rail.order;
+        updateOrder(rail.order);
+        hiddenControlsRef.current = rail.hidden;
+        updateHiddenControls(rail.hidden);
+        for (const id of hiding) close(id);
+      }
+      const switching = global !== undefined && global.mode !== simpleRef.current.mode;
+      if (global) {
+        const previous = simpleRef.current;
+        setSimpleLayout({ ...global, mode: previous.mode });
+        if (switching) setMode(global.mode);
+        else if (api && isSimple()) {
+          if (global.sideColumn !== previous.sideColumn) showSimpleView(api, global.sideColumn);
+          sideSizedAt.current = 0;
+          fitSideColumn(api);
+        }
+        if (api) reportOpen(api);
+      }
+      if (api && !switching) save(api);
+    },
+  });
   const [stable] = useState(() => ({
     setTree: (next: ChannelSplit) => actions.current.setTree(next),
     setFilesOpen: (open: boolean) => actions.current.setFilesOpen(open),
@@ -2829,6 +2913,7 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={layoutMount} hidden />
+          <span ref={settingsMount} hidden />
           <span ref={geometryMount} hidden />
           {dropX !== undefined && <span className="bh-workspace-drop" style={{ left: dropX }} />}
           <DockviewReact

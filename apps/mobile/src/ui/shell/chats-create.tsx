@@ -30,7 +30,7 @@ import { useCreationTargets } from './use-creation-targets';
 export function ChatsCreate({ scope, bottom }: { scope: string; bottom: number }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const targets = useCreationTargets();
+  const targets = useCreationTargets(scope);
   const actions = chatsCreationActions(scope, targets);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);

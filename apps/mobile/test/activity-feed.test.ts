@@ -38,6 +38,7 @@ import { observeInbox, type InboxSnapshot } from '@botharness/host-client/inbox'
 import type { HumanAttentionItem, WireHumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ActivityFeed, feedRows } from '../src/ui/shell/activity-feed';
 import { t } from '../src/ui/strings';
+import { Dimensions } from './react-native-shim';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import inboxWire from './fixtures/inbox-wire.json';
 
@@ -367,6 +368,32 @@ describe('Activity feed', () => {
       expect.objectContaining({ id: unread.id, summary: unread.summary }),
     );
   });
+  it.each([
+    [1, 2],
+    [3.571, 1],
+  ] as const)(
+    'at text scale %s keeps %s element(s) on the row title line',
+    async (fontScale, titleLine) => {
+      vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+      const unread: HumanAttentionItem = {
+        ...reply,
+        id: 'large-unread',
+        unreadCount: 1,
+        category: 'unread',
+        kind: 'channel-unread',
+      };
+      const view = await feed(
+        host(),
+        { status: 'ready', sections: { action: [], replies: [], unread: [unread], handled: [] } },
+        'host-one',
+      );
+      await showAll(view);
+      const row = view.querySelector<HTMLElement>('[data-testid="inbox-row-large-unread"]')!;
+      const title = row.querySelector<HTMLElement>(`[aria-label$="${t.computerChannel}"]`)!;
+      expect(title.parentElement!.children).toHaveLength(titleLine);
+      vi.restoreAllMocks();
+    },
+  );
   it('names a tool approval by its tool, not the Host’s stored Chinese line', async () => {
     const approval: HumanAttentionItem = {
       ...question,

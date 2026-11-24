@@ -12,7 +12,7 @@ import {
   type TemplateDraft,
   type TemplateErrors,
   type TemplateKind,
-} from './template-draft.js';
+} from '@botharness/host-client/shared/voice-template-draft';
 import { checkTemplate, TemplateFields } from './template-form.js';
 
 type TemplateActions = Required<

@@ -222,6 +222,7 @@ export function QuickSwitcher({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();
+  const toggleText = shortcutBindings.text('quick-switcher');
   const results = useMemo(() => rankQuickSwitcher(entries, query), [entries, query]);
   const settingResults = useMemo(
     () =>
@@ -550,10 +551,12 @@ export function QuickSwitcher({
           <KeyCombo keys={['Esc']} />
           {t('quickSwitcher.hint.close')}
         </span>
-        <span {...stylex.props(styles.hint)}>
-          <KeyCombo keys={[shortcutBindings.text('quick-switcher')]} />
-          {t('quickSwitcher.hint.toggle')}
-        </span>
+        {toggleText === undefined ? null : (
+          <span {...stylex.props(styles.hint)}>
+            <KeyCombo keys={[toggleText]} />
+            {t('quickSwitcher.hint.toggle')}
+          </span>
+        )}
       </div>
     </Modal>
   );

@@ -27,8 +27,9 @@ import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/s
 import { LoadFailed, Loading, Notice } from '../request-parts';
 import { useStrings } from '../strings';
 import { VoiceServiceSheet, type VoiceServiceSheetPort } from './voice-service-sheet';
+import { VoiceTemplateSheet, type VoiceTemplatePort } from './voice-template-sheet';
 
-export interface VoiceSettingsPort extends VoiceServiceSheetPort {
+export interface VoiceSettingsPort extends VoiceServiceSheetPort, VoiceTemplatePort {
   load(): Promise<VoiceServicesView>;
   remove(id: string): Promise<void>;
   test(id: string): Promise<VoiceServiceHealth>;
@@ -149,6 +150,7 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
   const [loadError, setLoadError] = useState<string>();
   const [denied, setDenied] = useState(false);
   const [creating, setCreating] = useState<VoiceKind>();
+  const [editing, setEditing] = useState<{ kind: VoiceKind; service: VoiceServiceView }>();
   const [choosing, setChoosing] = useState<Choosing>();
   const [busy, setBusy] = useState(false);
   const [choiceError, setChoiceError] = useState<string>();
@@ -236,7 +238,9 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
             : copy.unhealthy(state.message)
           : missingKey
             ? copy.missingKey
-            : (preset?.name ?? service.preset);
+            : service.hasTemplate === true
+              ? copy.template.service
+              : (preset?.name ?? service.preset);
     const dot =
       state === undefined || state === 'testing'
         ? missingKey
@@ -265,6 +269,15 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
         onPress={() =>
           showActionMenu(copy.serviceActions(service.name), [
             { text: copy.test, icon: 'connection', onPress: () => test(service) },
+            ...(service.hasTemplate === true
+              ? [
+                  {
+                    text: copy.template.edit,
+                    icon: 'edit' as const,
+                    onPress: () => setEditing({ kind, service }),
+                  },
+                ]
+              : []),
             {
               text: copy.remove,
               icon: 'delete',
@@ -436,6 +449,19 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
           onClose={() => setCreating(undefined)}
           onAdded={(service) => {
             setCreating(undefined);
+            load();
+            test(service);
+          }}
+        />
+      )}
+      {editing === undefined ? null : (
+        <VoiceTemplateSheet
+          kind={editing.kind}
+          service={editing.service}
+          port={port}
+          onClose={() => setEditing(undefined)}
+          onSaved={(service) => {
+            setEditing(undefined);
             load();
             test(service);
           }}

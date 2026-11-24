@@ -121,6 +121,7 @@ function optionalText(value: unknown): string | undefined {
 export function createVoiceBridgeMethods(deps: {
   providers: VoiceProviders | undefined;
   registry: PersonaBotRegistry;
+  isHostOwner?: () => boolean;
   dictations?: VoiceDictations | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
 }): VoiceBridgeMethods {
@@ -159,13 +160,22 @@ export function createVoiceBridgeMethods(deps: {
           ok: false,
           error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
         };
+      const showEndpoints = deps.isHostOwner?.() ?? true;
+      const presets = providers.presets();
+      const tts = providers.list();
+      const asrPresets = providers.asrPresets();
+      const asr = providers.listAsr();
       return {
         ok: true,
         value: {
-          presets: providers.presets(),
-          providers: providers.list(),
-          asrPresets: providers.asrPresets(),
-          asrProviders: providers.listAsr(),
+          presets: showEndpoints
+            ? presets
+            : presets.map(({ baseUrl: _, docsUrl: _docs, ...preset }) => preset),
+          providers: showEndpoints ? tts : tts.map((provider) => ({ ...provider, baseUrl: '' })),
+          asrPresets: showEndpoints
+            ? asrPresets
+            : asrPresets.map(({ baseUrl: _, docsUrl: _docs, ...preset }) => preset),
+          asrProviders: showEndpoints ? asr : asr.map((provider) => ({ ...provider, baseUrl: '' })),
           defaults: providers.defaults(),
           speechThreshold: providers.speechThreshold(),
           ...(bot === undefined

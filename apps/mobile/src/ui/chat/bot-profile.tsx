@@ -9,6 +9,7 @@ import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes'
 import type { BotScheduleSummary } from '@botharness/host-protocol/wire';
 import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
@@ -163,6 +164,7 @@ function BotIdentity({
   onChangeAvatar?: (() => void) | undefined;
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   return (
     <ProfileHero
       banner={{ source: botBanner(bot), headers: bot.bannerHeaders }}
@@ -184,7 +186,12 @@ function BotIdentity({
         {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
       </Text>
       {bot.description === undefined || bot.description.trim() === '' ? null : (
-        <Text pointerEvents="none" tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
+        <Text
+          pointerEvents="none"
+          tone="muted"
+          numberOfLines={accessibilityTextSize(theme.fontScale) ? undefined : 3}
+          style={{ textAlign: 'center' }}
+        >
           {bot.description}
         </Text>
       )}

@@ -17,6 +17,10 @@ export type CreationTarget =
     }
   | { kind: 'cloud'; key: string; name: string; workspace: ConversationWorkspace };
 
+export function canCreateCloudChannel(role: ConversationWorkspace['role'], guest: boolean) {
+  return !guest && role === 'owner';
+}
+
 export function creationTargets(
   computer: { hostId: string; name: string } | undefined,
   workspaces: readonly ConversationWorkspace[],
@@ -32,7 +36,7 @@ export function creationTargets(
       ? [{ ...computer, key: computerEnvironmentKey(computer.hostId), kind: 'computer' as const }]
       : []),
     ...workspaces
-      .filter((w) => !w.guest && w.role === 'owner')
+      .filter((w) => canCreateCloudChannel(w.role, w.guest))
       .map((workspace) => ({
         kind: 'cloud' as const,
         key: cloudEnvironmentKey(workspace.scope, workspace.organizationId),
