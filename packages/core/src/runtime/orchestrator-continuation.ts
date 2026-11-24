@@ -341,7 +341,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
       );
     const messageId = failure.requestMessageId;
     const continuing = input.action === 'continue';
-    const assertAllowed = () => {
+    const assertAllowed = (requireCurrent = false) => {
       const bot = ports.registry.get(botSlug);
       if (
         !bot ||
@@ -354,6 +354,11 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         !ports.memberBotEnabled(bot)
       )
         throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
+      if (requireCurrent && ports.currentOrchestratorSessionId(botSlug) !== failure.sessionId)
+        throw new SessionRecoveryError(
+          'session-changed',
+          'The Session has changed. Retry the message without resetting it.',
+        );
       ports.requireExecution?.(botSlug);
       if (continuing) {
         if (continuableDmEvent(input.channelId, messageId) === undefined)
@@ -372,14 +377,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         );
       }
     };
-    const assertCurrent = () => {
-      if (ports.currentOrchestratorSessionId(botSlug) !== failure.sessionId)
-        throw new SessionRecoveryError(
-          'session-changed',
-          'The Session has changed. Retry the message without resetting it.',
-        );
-      assertAllowed();
-    };
+    const assertCurrent = () => assertAllowed(true);
     assertCurrent();
     if (ports.tails.has(botSlug))
       throw new SessionRecoveryError(

@@ -60,7 +60,7 @@ Connect Bot transport is mounted beside the existing Human device gateway at `/b
 
 双路由连续性复用同一个 application-defined Bot network capability：每次明确发送前刷新各 Provider 的目录与可达事实，然后只选择一个 Provider 发送。若断网已清空联系人缓存，Runtime 先查询当前目录再解析远端标识；地址缓存不提供成员权限。路线变化不改变 Host/Bot 身份、Channel 或已接收历史，失败或未知结果不会触发另一路线发送。组合路线的真实双设备验证由 [#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254) 跟踪。
 
-[#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0277](../decisions/messaging.md#adr-0277) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。
+[#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0277](../decisions/messaging.md#adr-0277) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。 Tailnet 撤销清理失败时，该路由保持退出状态，Owner 可在诊断日志查看对应 Host。当前快照确认该 Host 已重新加入时，桥接层先重试清理，成功后才恢复该路由。
 
 通信只在目标在线且网络可用时尝试：确定不可达返回无法送达，发送后丢失确认返回结果未知；不建立或复用持久待送队列，不自动重试，不在重连、上线或重启后补发，包括回复。Bot 按用户设定决定后续行动。已接收的 DM 历史和 Inbox 仍按现有语义保存与恢复，去重不构成补发机制。正式退出协作范围后阻止新收发和尚未开始的关系内工作；已开始的工作可按本地权限完成，但不向离开的对方回传结果。临时断网不等同于成员资格撤销。
 
@@ -702,7 +702,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 
-Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。 DSH 未保存旧 Orchestrator Session 时，Host 先在独立表中保留替换记录。变更成功后，Host 在同一事务写入 Session Ownership 并删除预留记录。Memory 已迁移时，即使发布失败也会返回新路径，有预留记录指向当前 Memory 时，后续回合会跳过 cwd 不匹配的旧 Session。Host 启动时发布符合当前 Memory 位置且尚未被更新 Session 取代的迁移记录，并清理其余预留记录。
 
 [Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
 

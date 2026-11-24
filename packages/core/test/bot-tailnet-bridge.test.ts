@@ -7,6 +7,7 @@ import {
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
+import { createBotNetworkRoutes } from '../src/devices/bot-network-routes.js';
 import { createTailnetBotBridge } from '../src/devices/bot-tailnet-bridge.js';
 import type { BotTailnet } from '../src/devices/bot-tailnet.js';
 import type { TailnetChange } from '../src/devices/bot-tailnet-watch.js';
@@ -145,6 +146,125 @@ it.skipIf(!withdrawalAliases).each([false, true])(
       await bridge.close();
     }
     expect(stopped).toBe(true);
+  },
+);
+
+it.skipIf(!withdrawalAliases)(
+  'retries a rejoined Host withdrawal before the Inbox sees membership',
+  async () => {
+    const self = { nodeId: 'self', address: '127.0.0.8' };
+    const peer = { nodeId: 'peer', address: '127.0.0.9' };
+    let snapshot: 'member' | 'absent' | 'unavailable' = 'member';
+    let notify: ((change: TailnetChange) => void) | undefined;
+    let refusal = true;
+    const attempts: string[] = [];
+    const events: unknown[] = [];
+    const routes = createBotNetworkRoutes({
+      async withdrawn(host) {
+        attempts.push(host);
+        if (refusal) throw new Error('revocation failed');
+      },
+    });
+    const bridge = createTailnetBotBridge({
+      hostId: 'local',
+      key: async () => randomBytes(32),
+      directory: () => [],
+      async receive() {},
+      ports: [43275],
+      knownMemberships: () => [
+        {
+          hostId: 'returning',
+          membership: { kind: 'tailnet', localNodeId: self.nodeId, remoteNodeId: peer.nodeId },
+        },
+      ],
+      withdrawn: routes.observeWithdrawal,
+      record: (event) => events.push(event),
+      tailnet: {
+        watch(changed) {
+          notify = changed;
+          return async () => {};
+        },
+        async snapshot() {
+          if (snapshot === 'unavailable') throw new Error('daemon-unreachable');
+          return { self, peers: snapshot === 'member' ? [peer] : [] };
+        },
+        async admit() {
+          return peer;
+        },
+      },
+    });
+    const peerListener = createServer((_request, response) => {
+      response.end(
+        JSON.stringify({
+          hostId: 'returning',
+          publicKey: 'a'.repeat(64),
+          contacts: [
+            {
+              hostId: 'returning',
+              botSlug: 'bot',
+              displayName: 'Returning Bot',
+              device: { model: null, platform: 'test' },
+              capabilities: [],
+            },
+          ],
+        }),
+      );
+    });
+    const detach = routes.attach({ ...bridge, membership: bridge.probeMembership });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        peerListener.once('error', reject);
+        peerListener.listen(43275, peer.address, resolve);
+      });
+      await bridge.start();
+      expect(routes.contacts()).toHaveLength(1);
+      snapshot = 'absent';
+      notify?.({ removedNodeIds: [peer.nodeId] });
+      await expect
+        .poll(() => events)
+        .toContainEqual(expect.objectContaining({ code: 'network-withdrawal-unavailable' }));
+      expect(attempts).toEqual(['returning']);
+      expect(await routes.membership?.('returning')).toBe('withdrawn');
+      snapshot = 'unavailable';
+      expect(await routes.membership?.('returning')).toBe('withdrawn');
+      expect(attempts).toEqual(['returning']);
+
+      snapshot = 'member';
+      expect(await routes.membership?.('returning')).toBe('withdrawn');
+      expect(attempts).toEqual(['returning', 'returning']);
+      expect(bridge.availability?.('returning', 'bot')).toBe('withdrawn');
+      expect(
+        events.filter(
+          (event) => typeof event === 'object' && event !== null && 'remoteHostId' in event,
+        ),
+      ).toEqual(
+        Array.from({ length: 2 }, () =>
+          expect.objectContaining({
+            code: 'network-withdrawal-unavailable',
+            remoteHostId: 'returning',
+            message: expect.stringContaining('Bot DMs on this route are blocked'),
+          }),
+        ),
+      );
+
+      await bridge.refresh?.();
+      expect(routes.contacts()).toEqual([]);
+      expect(attempts).toHaveLength(3);
+
+      refusal = false;
+      expect(await routes.membership?.('returning')).toBe('member');
+      expect(attempts).toEqual(['returning', 'returning', 'returning', 'returning']);
+      expect(await routes.membership?.('returning')).toBe('member');
+      await bridge.refresh?.();
+      expect(routes.contacts()).toHaveLength(1);
+      expect(attempts).toHaveLength(4);
+    } finally {
+      detach();
+      await bridge.close();
+      peerListener.closeAllConnections();
+      if (peerListener.listening)
+        await new Promise<void>((resolve) => peerListener.close(() => resolve()));
+    }
   },
 );
 
