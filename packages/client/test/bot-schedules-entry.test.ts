@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { type BotScheduleView } from '../src/client/bridge.js';
+import { type BotScheduleFiringView, type BotScheduleView } from '../src/client/bridge.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
@@ -170,6 +170,196 @@ describe('Bot Schedule form helpers', () => {
 });
 
 describe('Bot Schedules sidebar entry', () => {
+  async function mountSidebar(actions: Partial<BridgeActions>) {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const render = async (botSlug = 'ada', collapsed = false): Promise<void> => {
+      const props = {
+        scope: 'personabot' as const,
+        channelId: `dm-${botSlug}`,
+        botSlug,
+        actions: actions as BridgeActions,
+        t: zhTranslate,
+      };
+      await act(async () => {
+        root.render(
+          createElement(
+            'div',
+            null,
+            createElement(BotSchedulesHeaderAction, props),
+            collapsed ? null : createElement(BotSchedulesEntry, props),
+          ),
+        );
+      });
+    };
+    const done = async (): Promise<void> => {
+      await act(async () => root.unmount());
+      host.remove();
+    };
+    return { host, render, done };
+  }
+
+  it('opens a collapsed Add request on expansion and consumes it once', async () => {
+    const { host, render, done } = await mountSidebar({
+      botSchedules: vi.fn(async () => [schedule]),
+      botSchedulePreview: vi.fn(async () => []),
+    });
+    try {
+      await render('ada', true);
+      await act(async () => buttonNamed('新建定时任务', host).click());
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      await render();
+      expect(dialog().getAttribute('aria-label')).toBe('新建定时任务');
+      await act(async () => buttonNamed('取消', dialog()).click());
+      await render('ada', true);
+      await render();
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      await done();
+    }
+  });
+
+  it.each(['rows', 'error'])('ignores superseded poll %s after Pause', async (result) => {
+    vi.useFakeTimers();
+    const poll = Promise.withResolvers<BotScheduleView[]>();
+    const paused = { ...schedule, enabled: false };
+    const botSchedules = vi
+      .fn<BridgeActions['botSchedules']>()
+      .mockResolvedValueOnce([schedule])
+      .mockReturnValueOnce(poll.promise)
+      .mockResolvedValue([paused]);
+    const { host, render, done } = await mountSidebar({
+      botSchedules,
+      updateBotSchedule: vi.fn(async () => paused),
+    });
+    try {
+      await render();
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      expect(botSchedules).toHaveBeenCalledTimes(2);
+      const toggle = buttonNamed('启用「每日早报」', host);
+      expect(toggle.getAttribute('aria-checked')).toBe('true');
+      await act(async () => toggle.click());
+      expect(host.textContent).toContain('已暂停');
+      await act(async () => {
+        if (result === 'rows') poll.resolve([schedule]);
+        else poll.reject(new Error('Old poll failed'));
+      });
+      expect(host.textContent).toContain('已暂停');
+      expect(host.textContent).not.toContain('Old poll failed');
+      expect(toggle.getAttribute('aria-checked')).toBe('false');
+    } finally {
+      await done();
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows only the current Bot list after switching away and back', async () => {
+    const previousAda = Promise.withResolvers<BotScheduleView[]>();
+    const bob = Promise.withResolvers<BotScheduleView[]>();
+    const currentAda = Promise.withResolvers<BotScheduleView[]>();
+    const { host, render, done } = await mountSidebar({
+      botSchedules: vi
+        .fn<BridgeActions['botSchedules']>()
+        .mockResolvedValueOnce([schedule])
+        .mockReturnValueOnce(previousAda.promise)
+        .mockReturnValueOnce(bob.promise)
+        .mockReturnValueOnce(currentAda.promise),
+    });
+    vi.useFakeTimers();
+    try {
+      await render();
+      expect(host.textContent).toContain(schedule.title);
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      await render('bob');
+      expect(host.textContent).not.toContain(schedule.title);
+      await render();
+      await act(async () => currentAda.resolve([{ ...schedule, title: 'Updated Ada' }]));
+      await act(async () => bob.resolve([{ ...schedule, title: 'Bob schedule', botSlug: 'bob' }]));
+      await act(async () => previousAda.resolve([schedule]));
+      expect(host.textContent).toContain('Updated Ada');
+      expect(host.textContent).not.toContain(schedule.title);
+      expect(host.textContent).not.toContain('Bob schedule');
+    } finally {
+      await done();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the second Run now acknowledgement visible for its own four seconds', async () => {
+    vi.useFakeTimers();
+    const firing: BotScheduleFiringView = {
+      id: 'manual-1',
+      scheduleId: schedule.id,
+      trigger: 'manual',
+      occurrenceAt: schedule.createdAt,
+      firedAt: schedule.createdAt,
+      state: 'pending',
+    };
+    const { host, render, done } = await mountSidebar({
+      botSchedules: vi.fn(async () => [schedule]),
+      runBotScheduleNow: vi.fn(async () => firing),
+    });
+    try {
+      await render();
+      const runNow = buttonNamed('立即运行「每日早报」', host);
+      await act(async () => runNow.click());
+      expect(host.textContent).toContain('已触发，Bot 马上处理');
+      await act(async () => vi.advanceTimersByTimeAsync(2000));
+      await act(async () => runNow.click());
+      await act(async () => vi.advanceTimersByTimeAsync(2000));
+      expect(host.textContent).toContain('已触发，Bot 马上处理');
+      await act(async () => vi.advanceTimersByTimeAsync(2000));
+      expect(host.textContent).not.toContain('已触发，Bot 马上处理');
+    } finally {
+      await done();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a replacement editor open when an earlier save finishes', async () => {
+    const saved = Promise.withResolvers<BotScheduleView>();
+    const updateBotSchedule = vi.fn(() => saved.promise);
+    const { host, render, done } = await mountSidebar({
+      botSchedules: vi.fn(async () => [schedule]),
+      botScheduleHistory: vi.fn(async () => []),
+      botSchedulePreview: vi.fn(async () => []),
+      updateBotSchedule,
+    });
+    try {
+      await render();
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"].bh-card-main')
+          ?.click(),
+      );
+      await act(async () => buttonNamed('保存', dialog()).click());
+      expect(updateBotSchedule).toHaveBeenCalledOnce();
+      await act(async () => buttonNamed('新建定时任务', host).click());
+      expect(dialog().getAttribute('aria-label')).toBe('新建定时任务');
+      await act(async () => saved.resolve(schedule));
+      expect(dialog().getAttribute('aria-label')).toBe('新建定时任务');
+    } finally {
+      await done();
+    }
+  });
+
+  it('exposes the schedule creator on the edit button without a nested tab stop', async () => {
+    const { host, render, done } = await mountSidebar({
+      botSchedules: vi.fn(async () => [schedule]),
+    });
+    try {
+      await render();
+      const creator = host.querySelector('[aria-label="由你创建"]');
+      const edit = creator?.closest('button');
+      expect(edit?.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(edit?.querySelector('[tabindex]')).toBeNull();
+    } finally {
+      await done();
+    }
+  });
+
   it('lists schedules with cadence, last firing and creator chips', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const actions = {
@@ -362,6 +552,85 @@ describe('Bot Schedule editor dialog', () => {
       area.dispatchEvent(new Event('input', { bubbles: true }));
     });
   }
+
+  it.each([61, 90])(
+    'saves a title change without changing a %i-second cadence',
+    async (everySeconds) => {
+      const trigger = { kind: 'every', everySeconds } satisfies BotScheduleView['trigger'];
+      const { actions, done } = await open('sch-1', {
+        botSchedules: vi.fn(async () => [{ ...schedule, trigger }]),
+      });
+      try {
+        await typeInto(fieldNamed('名称'), 'New title');
+        const save = buttonNamed('保存', dialog());
+        expect(save.disabled).toBe(false);
+        await act(async () => save.click());
+        expect(actions.updateBotSchedule).toHaveBeenCalledWith('ada', 'sch-1', {
+          title: 'New title',
+          prompt: schedule.prompt,
+          trigger,
+        });
+      } finally {
+        await done();
+      }
+    },
+  );
+
+  it('loads a fresh preview when the cadence returns to an earlier error', async () => {
+    vi.useFakeTimers();
+    const first = Promise.withResolvers<string[]>();
+    const next = Promise.withResolvers<string[]>();
+    const botSchedulePreview = vi
+      .fn<BridgeActions['botSchedulePreview']>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(next.promise);
+    const { done } = await open('sch-1', { botSchedulePreview });
+    const preview = () => dialog().querySelector('[data-schedule-preview]')?.textContent;
+    try {
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      await act(async () => first.reject(new Error('Old preview error')));
+      expect(preview()).toContain('Old preview error');
+      await typeInto(fieldNamed('每隔几小时'), '3');
+      await typeInto(fieldNamed('每隔几小时'), '2');
+      expect(preview()).toContain('正在计算');
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(preview()).toContain('正在计算');
+      await act(async () => next.resolve(['2026-10-06T09:00:00.000Z']));
+      expect(dialog().querySelectorAll('[data-schedule-preview] li')).toHaveLength(1);
+    } finally {
+      await done();
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a history error and retries without discarding unsaved edits', async () => {
+    const retry = Promise.withResolvers<BotScheduleFiringView[]>();
+    const botScheduleHistory = vi
+      .fn<BridgeActions['botScheduleHistory']>()
+      .mockRejectedValueOnce(new Error('History unavailable'))
+      .mockReturnValueOnce(retry.promise);
+    const { actions, onClose, done } = await open('sch-1', { botScheduleHistory });
+    try {
+      const history = dialog().querySelector('[aria-label="最近触发"]');
+      expect(history?.querySelector('[role="alert"]')?.textContent).toBe(
+        '无法读取触发记录：History unavailable',
+      );
+      expect(history?.textContent).not.toContain('还没有触发记录');
+      await typeInto(fieldNamed('名称'), 'Draft title');
+      await act(async () => buttonNamed('重试', dialog()).click());
+      expect(botScheduleHistory).toHaveBeenCalledTimes(2);
+      expect(actions.updateBotSchedule).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(history?.querySelector('[role="alert"]')).toBeNull();
+      expect(history?.textContent).not.toContain('还没有触发记录');
+      await act(async () => retry.resolve([]));
+      expect(history?.textContent).toContain('还没有触发记录');
+      expect(fieldNamed('名称').value).toBe('Draft title');
+      expect(actions.botSchedules).toHaveBeenCalledTimes(1);
+    } finally {
+      await done();
+    }
+  });
 
   it('creates a schedule only once the name, task and cadence are complete', async () => {
     const { actions, onClose, done } = await open(undefined);

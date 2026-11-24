@@ -4,7 +4,7 @@ import { Button } from '../../ds/button.js';
 import { SegmentedControl } from '../../ds/segmented.js';
 import { Switch } from '../../ds/switch.js';
 import { PanelEmptyState } from '../../ds/empty-state.js';
-import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Tooltip } from '../../ds/tooltip.js';
 import type { ChannelSidebarEntryProps } from '../../channel-sidebar.js';
@@ -18,7 +18,10 @@ import {
 import { Callout } from '../../ds/callout.js';
 import { Field, TextAreaField, TextField } from '../../ds/field.js';
 import { DangerTextButton, FormDialog } from '../../ds/form-dialog.js';
+import { dimension } from '../../ds/dimensions.stylex.js';
+import { edge, layer, line, size } from '../../ds/tobs.stylex.js';
 import { Note } from '../../ds/note.js';
+import { ReadFailure } from '../../ds/read-failure.js';
 import { SettingsRow } from '../../ds/settings-row.js';
 import { border, color, radius, space, text } from '../../ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from '../../locale.js';
@@ -32,6 +35,7 @@ import {
   WEEKDAYS,
   type ScheduleForm,
   emptyScheduleForm,
+  isIntervalUnit,
   scheduleFormOf,
   scheduleTriggerOf,
   scheduleCadenceLabel,
@@ -70,7 +74,7 @@ const styles = stylex.create({
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
-    minWidth: '40px',
+    minWidth: size.rowComfortable,
     paddingBlock: space.x3,
     paddingInline: 0,
     borderWidth: border.hairline,
@@ -87,16 +91,16 @@ const styles = stylex.create({
     },
     color: {
       default: color.muted,
-      ':is([aria-pressed=true])': 'var(--tobs-layer-canvas)',
+      ':is([aria-pressed=true])': layer.canvas,
     },
     fontFamily: 'inherit',
     fontSize: text.metaSize,
     cursor: 'pointer',
     outline: {
       default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
+      ':focus-visible': `${edge.focus} solid ${line.focus}`,
     },
-    outlineOffset: '1px',
+    outlineOffset: edge.focusOffset,
   },
   preview: {
     display: 'flex',
@@ -141,7 +145,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: space.x3,
-    maxHeight: '200px',
+    maxHeight: dimension.scheduleHistoryMaxHeight,
     margin: 0,
     padding: 0,
     overflow: 'auto',
@@ -171,18 +175,12 @@ const styles = stylex.create({
   },
 });
 
-const createRequests = new Map<string, number>();
-
-const listeners = new Set<() => void>();
+const pendingCreates = new Set<string>();
+const createListeners = new Set<() => void>();
 
 function requestCreate(slug: string): void {
-  createRequests.set(slug, (createRequests.get(slug) ?? 0) + 1);
-  for (const listener of listeners) listener();
-}
-
-function subscribeCreate(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  pendingCreates.add(slug);
+  for (const listener of createListeners) listener();
 }
 
 const STATE_TONE = {
@@ -203,7 +201,11 @@ function FiringTag({
   return <Tag tone={STATE_TONE[firing.state]}>{t(`schedule.state.${firing.state}`)}</Tag>;
 }
 
-export function BotSchedulesHeaderAction({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
+export function BotSchedulesHeaderAction({
+  botSlug,
+  setExpanded,
+  t,
+}: ChannelSidebarEntryProps): ReactElement {
   if (botSlug === undefined) return <></>;
   return (
     <Tooltip label={t('schedule.add')} side="bottom" delayMs={500}>
@@ -212,7 +214,10 @@ export function BotSchedulesHeaderAction({ botSlug, t }: ChannelSidebarEntryProp
         tone="subtle"
         aria-label={t('schedule.add')}
         aria-haspopup="dialog"
-        onClick={() => requestCreate(botSlug)}
+        onClick={() => {
+          requestCreate(botSlug);
+          setExpanded?.(true);
+        }}
       >
         <Icon name="plus" size={16} />
       </IconButton>
@@ -229,22 +234,25 @@ function SchedulePreview({
   preview: (trigger: BotScheduleTrigger) => Promise<string[]>;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const key = trigger === undefined ? '' : JSON.stringify(trigger);
-  const [result, setResult] = useState<{
-    key: string;
-    occurrences?: string[];
-    error?: string;
-  }>();
+  const key = JSON.stringify(trigger);
+  const [request, setRequest] = useState({ key, preview });
+  const [result, setResult] = useState<
+    { kind: 'success'; occurrences: string[] } | { kind: 'error'; reason: string }
+  >();
+  if (request.key !== key || request.preview !== preview) {
+    setRequest({ key, preview });
+    setResult(undefined);
+  }
   const mount = useMountedResource<HTMLDivElement>(() => {
     if (trigger === undefined) return;
     let live = true;
     const timer = setTimeout(() => {
       void preview(trigger)
         .then((occurrences) => {
-          if (live) setResult({ key, occurrences });
+          if (live) setResult({ kind: 'success', occurrences });
         })
         .catch((cause: unknown) => {
-          if (live) setResult({ key, error: errorMessage(cause) });
+          if (live) setResult({ kind: 'error', reason: errorMessage(cause) });
         });
     }, PREVIEW_DELAY_MS);
     return () => {
@@ -252,21 +260,20 @@ function SchedulePreview({
       clearTimeout(timer);
     };
   }, [key, preview]);
-  const current = result?.key === key ? result : undefined;
   return (
     <div ref={mount} aria-live="polite" data-schedule-preview="" {...stylex.props(styles.preview)}>
       <span {...stylex.props(styles.muted)}>{t('schedule.preview')}</span>
       {trigger === undefined ? (
         <span {...stylex.props(styles.muted)}>{t('schedule.preview.incomplete')}</span>
-      ) : current === undefined ? (
+      ) : result === undefined ? (
         <span {...stylex.props(styles.muted)}>{t('schedule.preview.loading')}</span>
-      ) : current.error !== undefined ? (
+      ) : result.kind === 'error' ? (
         <span role="alert" {...stylex.props(styles.danger)}>
-          {t('schedule.preview.invalid', { reason: current.error })}
+          {t('schedule.preview.invalid', { reason: result.reason })}
         </span>
       ) : (
         <ol {...stylex.props(styles.list)}>
-          {current.occurrences!.map((occurrence) => (
+          {result.occurrences.map((occurrence) => (
             <li key={occurrence}>{formatSchedulePreview(occurrence)}</li>
           ))}
         </ol>
@@ -284,7 +291,6 @@ function ScheduleEditor({
   onSave,
   onDelete,
   history,
-  onOpenSession,
   preview,
   t,
 }: {
@@ -295,8 +301,7 @@ function ScheduleEditor({
   onClose: () => void;
   onSave: (form: ScheduleForm) => void;
   onDelete: () => void;
-  history: BotScheduleFiringView[] | undefined;
-  onOpenSession: (sessionId: string) => void;
+  history: ReactElement | undefined;
   preview: (trigger: BotScheduleTrigger) => Promise<string[]>;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -304,6 +309,12 @@ function ScheduleEditor({
   const [form, setForm] = useState(initial);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const trigger = scheduleTriggerOf(form);
+  const interval = isIntervalUnit(form.unit);
+  const everyLabel = {
+    seconds: 'schedule.form.everySeconds',
+    minutes: 'schedule.form.everyMinutes',
+    hours: 'schedule.form.everyHours',
+  } as const;
   const costly = trigger?.kind === 'every' && trigger.everySeconds < SCHEDULE_COST_WARNING_SECONDS;
   const valid =
     trigger !== undefined && form.title.trim().length > 0 && form.prompt.trim().length > 0;
@@ -355,6 +366,7 @@ function ScheduleEditor({
             label={t('schedule.form.cadence')}
             value={form.unit}
             options={[
+              { value: 'seconds', label: t('schedule.form.unit.seconds') },
               { value: 'minutes', label: t('schedule.form.unit.minutes') },
               { value: 'hours', label: t('schedule.form.unit.hours') },
               { value: 'daily', label: t('schedule.form.unit.daily') },
@@ -366,13 +378,11 @@ function ScheduleEditor({
           />
         )}
       </Field>
-      {form.unit === 'minutes' || form.unit === 'hours' ? (
+      {interval ? (
         <TextField
-          label={
-            form.unit === 'hours' ? t('schedule.form.everyHours') : t('schedule.form.everyMinutes')
-          }
+          label={t(everyLabel[form.unit])}
           type="number"
-          min={1}
+          min={form.unit === 'seconds' ? 60 : 1}
           step={1}
           value={form.every}
           onChange={(every) => set({ every })}
@@ -417,7 +427,7 @@ function ScheduleEditor({
           onChange={(expression) => set({ expression })}
         />
       ) : null}
-      {form.unit === 'minutes' || form.unit === 'hours' ? null : (
+      {interval ? null : (
         <div {...stylex.props(styles.row)}>
           {form.unit === 'once' ? (
             <div {...stylex.props(styles.grow)}>
@@ -466,40 +476,85 @@ function ScheduleEditor({
           {t('schedule.form.cost')}
         </Callout>
       ) : null}
-      {editing === undefined ? null : (
-        <section aria-label={t('schedule.history')} {...stylex.props(styles.history)}>
-          <h4 {...stylex.props(styles.historyTitle)}>{t('schedule.history')}</h4>
-          {history === undefined ? (
-            <LoadingSkeleton kind="sidebar" label={t('schedule.loading')} />
-          ) : history.length === 0 ? (
-            <p {...stylex.props(styles.muted)}>{t('schedule.historyEmpty')}</p>
-          ) : (
-            <ol {...stylex.props(styles.firings)}>
-              {history.map((firing) => (
-                <li key={firing.id} {...stylex.props(styles.firing)}>
-                  <span {...stylex.props(styles.firingTime)}>
-                    {formatScheduleTime(firing.occurrenceAt)}
-                  </span>
-                  {firing.trigger === 'manual' ? (
-                    <Tag tone="outline">{t('schedule.history.manual')}</Tag>
-                  ) : null}
-                  <FiringTag firing={firing} t={t} />
-                  {firing.sessionId === undefined ? null : (
-                    <button
-                      type="button"
-                      onClick={() => onOpenSession(firing.sessionId!)}
-                      {...stylex.props(styles.link)}
-                    >
-                      {t('schedule.openSession')}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      )}
+      {history}
     </FormDialog>
+  );
+}
+
+function ScheduleHistory({
+  botSlug,
+  scheduleId,
+  loadHistory,
+  onOpenSession,
+  t,
+}: {
+  botSlug: string;
+  scheduleId: string;
+  loadHistory: ChannelSidebarEntryProps['actions']['botScheduleHistory'];
+  onOpenSession: (sessionId: string) => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<
+    { kind: 'success'; rows: BotScheduleFiringView[] } | { kind: 'error'; reason: string }
+  >();
+  const mount = useMountedResource<HTMLElement>(() => {
+    setResult(undefined);
+    let live = true;
+    void loadHistory(botSlug, scheduleId)
+      .then((rows) => {
+        if (live) setResult({ kind: 'success', rows });
+      })
+      .catch((cause: unknown) => {
+        if (live) setResult({ kind: 'error', reason: errorMessage(cause) });
+      });
+    return () => {
+      live = false;
+    };
+  }, [botSlug, scheduleId, loadHistory, attempt]);
+
+  return (
+    <section ref={mount} aria-label={t('schedule.history')} {...stylex.props(styles.history)}>
+      <h4 {...stylex.props(styles.historyTitle)}>{t('schedule.history')}</h4>
+      {result === undefined ? (
+        <LoadingSkeleton kind="sidebar" label={t('schedule.loading')} />
+      ) : result.kind === 'error' ? (
+        <ReadFailure
+          retryLabel={t('schedule.historyRetry')}
+          onRetry={() => setAttempt((value) => value + 1)}
+        >
+          {t('schedule.historyError', { reason: result.reason })}
+        </ReadFailure>
+      ) : result.rows.length === 0 ? (
+        <p {...stylex.props(styles.muted)}>{t('schedule.historyEmpty')}</p>
+      ) : (
+        <ol {...stylex.props(styles.firings)}>
+          {result.rows.map((firing) => {
+            const sessionId = firing.sessionId;
+            return (
+              <li key={firing.id} {...stylex.props(styles.firing)}>
+                <span {...stylex.props(styles.firingTime)}>
+                  {formatScheduleTime(firing.occurrenceAt)}
+                </span>
+                {firing.trigger === 'manual' ? (
+                  <Tag tone="outline">{t('schedule.history.manual')}</Tag>
+                ) : null}
+                <FiringTag firing={firing} t={t} />
+                {sessionId === undefined ? null : (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSession(sessionId)}
+                    {...stylex.props(styles.link)}
+                  >
+                    {t('schedule.openSession')}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -521,45 +576,45 @@ export function ScheduleDialog({
   const [schedule, setSchedule] = useState<BotScheduleView | null | undefined>(
     scheduleId === undefined ? null : undefined,
   );
-  const [history, setHistory] = useState<BotScheduleFiringView[] | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const lifetime = useRef(0);
   const mount = useMountedResource<HTMLSpanElement>(() => {
-    if (scheduleId === undefined) return;
-    let live = true;
-    void actions
-      .botSchedules(botSlug)
-      .then((rows) => {
-        if (live) setSchedule(rows.find((row) => row.id === scheduleId) ?? null);
-      })
-      .catch((cause: unknown) => {
-        if (!live) return;
-        setSchedule(null);
-        setError(errorMessage(cause));
-      });
-    void actions
-      .botScheduleHistory(botSlug, scheduleId)
-      .then((rows) => {
-        if (live) setHistory(rows);
-      })
-      .catch(() => {
-        if (live) setHistory([]);
-      });
+    const version = ++lifetime.current;
+    setBusy(false);
+    if (scheduleId !== undefined) {
+      void actions
+        .botSchedules(botSlug)
+        .then((rows) => {
+          if (lifetime.current === version)
+            setSchedule(rows.find((row) => row.id === scheduleId) ?? null);
+        })
+        .catch((cause: unknown) => {
+          if (lifetime.current !== version) return;
+          setSchedule(null);
+          setError(errorMessage(cause));
+        });
+    }
     return () => {
-      live = false;
+      ++lifetime.current;
     };
   }, [actions, botSlug, scheduleId]);
 
   const run = (action: () => Promise<unknown>): void => {
+    const version = lifetime.current;
     setBusy(true);
     setError(undefined);
     void action()
       .then(() => {
         onChanged?.();
-        onClose();
+        if (lifetime.current === version) onClose();
       })
-      .catch((cause: unknown) => setError(errorMessage(cause)))
-      .finally(() => setBusy(false));
+      .catch((cause: unknown) => {
+        if (lifetime.current === version) setError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (lifetime.current === version) setBusy(false);
+      });
   };
 
   if (schedule === undefined)
@@ -593,7 +648,20 @@ export function ScheduleDialog({
         editing={editing}
         busy={busy}
         error={error}
-        history={history}
+        history={
+          editing === undefined ? undefined : (
+            <ScheduleHistory
+              botSlug={botSlug}
+              scheduleId={editing.id}
+              loadHistory={actions.botScheduleHistory}
+              onOpenSession={(sessionId) => {
+                onClose();
+                void actions.openSession(sessionId);
+              }}
+              t={t}
+            />
+          )
+        }
         onClose={onClose}
         onSave={(form) => {
           const trigger = scheduleTriggerOf(form);
@@ -617,10 +685,6 @@ export function ScheduleDialog({
         onDelete={() => {
           if (editing !== undefined) run(() => actions.deleteBotSchedule(botSlug, editing.id));
         }}
-        onOpenSession={(sessionId) => {
-          onClose();
-          void actions.openSession(sessionId);
-        }}
         preview={actions.botSchedulePreview}
         t={t}
       />
@@ -629,92 +693,93 @@ export function ScheduleDialog({
 }
 
 export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
+  if (botSlug === undefined) return <div />;
+  return <BotScheduleList key={botSlug} botSlug={botSlug} actions={actions} t={t} />;
+}
+
+function BotScheduleList({
+  botSlug,
+  actions,
+  t,
+}: Pick<ChannelSidebarEntryProps, 'actions' | 't'> & { botSlug: string }): ReactElement {
   const [schedules, setSchedules] = useState<BotScheduleView[] | undefined>();
   const [loadError, setLoadError] = useState<string | undefined>();
-  const [editor, setEditor] = useState<{
-    key: number;
-    scheduleId: string | undefined;
-  }>();
-  const [toggling, setToggling] = useState<string | undefined>();
+  const [editor, setEditor] = useState<{ key: number; scheduleId: string | undefined }>();
+  const [mutating, setMutating] = useState(false);
   const [started, setStarted] = useState<string | undefined>();
-  const active = useRef<string | undefined>(undefined);
-  const createRevision = useSyncExternalStore(
-    subscribeCreate,
-    () => (botSlug === undefined ? 0 : (createRequests.get(botSlug) ?? 0)),
-    () => 0,
-  );
-  const [seenCreate, setSeenCreate] = useState({
-    botSlug,
-    revision: createRevision,
-  });
-  if (seenCreate.botSlug !== botSlug) {
-    setSeenCreate({ botSlug, revision: createRevision });
-    if (editor !== undefined) setEditor(undefined);
-  } else if (seenCreate.revision !== createRevision) {
-    setSeenCreate({ botSlug, revision: createRevision });
-    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId: undefined }));
-  }
+  const nextEditorKey = useRef(0);
+  const active = useRef<
+    | {
+        refresh: () => Promise<void>;
+        acknowledge: (scheduleId: string) => void;
+      }
+    | undefined
+  >(undefined);
 
-  const refresh = async (slug: string): Promise<void> => {
-    try {
-      const rows = await actions.botSchedules(slug);
-      if (active.current !== slug) return;
-      setSchedules(rows);
-      setLoadError(undefined);
-    } catch (cause) {
-      if (active.current === slug) setLoadError(errorMessage(cause));
-    }
+  const openEditor = (scheduleId: string | undefined): void => {
+    setEditor({ key: ++nextEditorKey.current, scheduleId });
   };
 
   const mount = useMountedResource<HTMLDivElement>(() => {
-    active.current = botSlug;
+    let latest = 0;
+    let startedTimer: ReturnType<typeof setTimeout> | undefined;
+    const resource = {
+      refresh: async (): Promise<void> => {
+        const request = ++latest;
+        try {
+          const rows = await actions.botSchedules(botSlug);
+          if (active.current !== resource || request !== latest) return;
+          setSchedules(rows);
+          setLoadError(undefined);
+        } catch (cause) {
+          if (active.current === resource && request === latest) setLoadError(errorMessage(cause));
+        }
+      },
+      acknowledge: (scheduleId: string): void => {
+        setStarted(scheduleId);
+        clearTimeout(startedTimer);
+        startedTimer = setTimeout(() => setStarted(undefined), STARTED_MS);
+      },
+    };
+    const consumeCreate = (): void => {
+      if (pendingCreates.delete(botSlug)) openEditor(undefined);
+    };
+    active.current = resource;
     setSchedules(undefined);
     setLoadError(undefined);
-    if (botSlug === undefined) return;
-    void refresh(botSlug);
-    const stopRefresh = visibleInterval(() => void refresh(botSlug), REFRESH_MS);
-    const unsubscribe = subscribeMessagingDefaults(() => void refresh(botSlug));
+    setMutating(false);
+    setStarted(undefined);
+    createListeners.add(consumeCreate);
+    consumeCreate();
+    void resource.refresh();
+    const stopRefresh = visibleInterval(() => void resource.refresh(), REFRESH_MS);
+    const unsubscribe = subscribeMessagingDefaults(() => void resource.refresh());
     return () => {
+      active.current = undefined;
+      createListeners.delete(consumeCreate);
+      clearTimeout(startedTimer);
       stopRefresh();
       unsubscribe();
-      active.current = undefined;
     };
   }, [actions, botSlug]);
 
-  if (botSlug === undefined) return <div ref={mount} />;
-
-  const openEditor = (scheduleId: string): void => {
-    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId }));
-  };
-
-  const change = (
-    schedule: BotScheduleView,
-    patch: { enabled?: boolean; locked?: boolean },
-  ): void => {
-    setToggling(schedule.id);
+  const mutate = (action: () => Promise<unknown>, acknowledge?: string): void => {
+    const resource = active.current;
+    if (resource === undefined) return;
+    setMutating(true);
     setLoadError(undefined);
-    void actions
-      .updateBotSchedule(botSlug, schedule.id, patch)
-      .then(() => refresh(botSlug))
-      .catch((cause: unknown) => setLoadError(errorMessage(cause)))
-      .finally(() => setToggling(undefined));
-  };
-
-  const runNow = (schedule: BotScheduleView): void => {
-    setToggling(schedule.id);
-    setLoadError(undefined);
-    void actions
-      .runBotScheduleNow(botSlug, schedule.id)
+    void action()
       .then(() => {
-        setStarted(schedule.id);
-        setTimeout(
-          () => setStarted((current) => (current === schedule.id ? undefined : current)),
-          STARTED_MS,
-        );
-        return refresh(botSlug);
+        if (active.current !== resource) return;
+        if (acknowledge !== undefined) resource.acknowledge(acknowledge);
+        return resource.refresh();
       })
-      .catch((cause: unknown) => setLoadError(errorMessage(cause)))
-      .finally(() => setToggling(undefined));
+      .catch((cause: unknown) => {
+        if (active.current === resource) setLoadError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (active.current === resource) setMutating(false);
+      });
   };
 
   return (
@@ -765,7 +830,7 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                   >
                     <span
                       className="bh-card-glyph"
-                      tabIndex={0}
+                      role="img"
                       aria-label={t(`schedule.creator.${schedule.creator}`)}
                     >
                       <ChannelSidebarIcon
@@ -798,11 +863,13 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                     <IconButton
                       size="inline"
                       data-schedule-run-now=""
-                      disabled={toggling !== undefined}
+                      disabled={mutating}
                       aria-label={t('schedule.runNow', {
                         title: schedule.title,
                       })}
-                      onClick={() => runNow(schedule)}
+                      onClick={() =>
+                        mutate(() => actions.runBotScheduleNow(botSlug, schedule.id), schedule.id)
+                      }
                     >
                       <ChannelSidebarIcon name="play" size={14} />
                     </IconButton>
@@ -818,13 +885,19 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                       data-schedule-lock=""
                       xstyle={schedule.locked ? styles.locked : styles.unlocked}
                       aria-pressed={schedule.locked}
-                      disabled={toggling !== undefined}
+                      disabled={mutating}
                       aria-label={
                         schedule.locked
                           ? t('schedule.unlock', { title: schedule.title })
                           : t('schedule.lock', { title: schedule.title })
                       }
-                      onClick={() => change(schedule, { locked: !schedule.locked })}
+                      onClick={() =>
+                        mutate(() =>
+                          actions.updateBotSchedule(botSlug, schedule.id, {
+                            locked: !schedule.locked,
+                          }),
+                        )
+                      }
                     >
                       <ChannelSidebarIcon name={schedule.locked ? 'lock' : 'lock-open'} size={14} />
                     </IconButton>
@@ -840,9 +913,11 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                     <span className="bh-schedule-switch">
                       <Switch
                         checked={schedule.enabled}
-                        disabled={toggling !== undefined}
+                        disabled={mutating}
                         label={t('schedule.enable', { title: schedule.title })}
-                        onChange={(enabled) => change(schedule, { enabled })}
+                        onChange={(enabled) =>
+                          mutate(() => actions.updateBotSchedule(botSlug, schedule.id, { enabled }))
+                        }
                       />
                     </span>
                   </Tooltip>
@@ -859,8 +934,8 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
           scheduleId={editor.scheduleId}
           actions={actions}
           t={t}
-          onClose={() => setEditor(undefined)}
-          onChanged={() => void refresh(botSlug)}
+          onClose={() => setEditor((current) => (current === editor ? undefined : current))}
+          onChanged={() => void active.current?.refresh()}
         />
       )}
     </div>
