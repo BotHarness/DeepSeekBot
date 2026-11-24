@@ -127,7 +127,7 @@ export type ComposerSkillOption = SkillCatalogEntry & {
 };
 
 export interface ChannelComposerProps {
-  modelControl?: React.ReactNode;
+  modelControl?: ((compact: boolean) => React.ReactNode) | undefined;
   onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
@@ -394,11 +394,7 @@ export function ChannelComposer({
     animateFirstExpand: false,
   });
   const hasFooter =
-    modelControl !== undefined ||
-    fit.expanded ||
-    reply !== undefined ||
-    quotes.length > 0 ||
-    attachments.length > 0;
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     measureComposerInput(element, setFit);
@@ -752,6 +748,9 @@ export function ChannelComposer({
         style={
           {
             '--bh-composer-body-height': `${fit.height}px`,
+            ...(modelControl === undefined || hasFooter
+              ? {}
+              : { '--bh-composer-compact-padding-right': voice.ready ? '124px' : '88px' }),
             ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
           } as CSSProperties
         }
@@ -948,7 +947,7 @@ export function ChannelComposer({
 
         <div {...hooked('bh-composer-footer', modelControl !== undefined && sessionStyles.footer)}>
           {modelControl === undefined ? null : (
-            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
+            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl(!hasFooter)}</div>
           )}
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (

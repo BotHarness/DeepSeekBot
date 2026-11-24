@@ -148,7 +148,12 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   const trigger = host.querySelector<HTMLButtonElement>(
     '[data-session-composer] .bh-composer-footer [data-session-model-control] button',
   );
-  expect(trigger?.textContent).toContain('GPT-6.2-Sol');
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-compact')).toBe(true);
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-with-footer')).toBe(
+    false,
+  );
+  expect(trigger?.textContent).toBe('');
+  expect(trigger?.getAttribute('aria-label')).toContain('GPT-6.2-Sol');
   expect(trigger?.closest('.bh-composer-footer')?.querySelector('.bh-send-btn')).not.toBeNull();
   await act(async () => trigger?.click());
   const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((item) =>
@@ -156,8 +161,8 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   );
   await act(async () => option?.click());
   expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', { ...model, effort: 'medium' });
-  expect(trigger?.textContent).toContain('下一轮使用 Opus 5.5');
-  expect(trigger?.textContent).toContain('中');
+  expect(trigger?.getAttribute('aria-label')).toContain('下一轮使用 Opus 5.5');
+  expect(trigger?.getAttribute('aria-label')).toContain('中');
 });
 
 function label(node: HTMLElement): string {

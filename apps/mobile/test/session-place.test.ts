@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import {
+  breakablePath,
   folderName,
   sessionMenuHeader,
   sessionPlace,
@@ -27,7 +28,7 @@ it('keeps the full path for the menu and only the folder name for the header', (
   });
   expect(sessionPlaceLabel('Launch plan', place)).toBe('Launch plan, Studio Mac, app');
   expect(sessionMenuHeader('Launch plan', place)).toBe(
-    'Launch plan\nStudio Mac\n/Users/me/code/app',
+    'Launch plan\nStudio Mac\n/\u200bUsers/\u200bme/\u200bcode/\u200bapp',
   );
 });
 
@@ -37,4 +38,11 @@ it('shows only the Host when the Session has no folder', () => {
   expect(sessionPlaceLabel('Launch plan', place)).toBe('Launch plan, Studio Mac');
   expect(sessionMenuHeader('Launch plan', place)).toBe('Launch plan\nStudio Mac');
   expect(sessionMenuHeader('Launch plan', undefined)).toBe('Launch plan');
+});
+
+it('lets a long folder path wrap at its separators instead of mid-word', () => {
+  expect(breakablePath('/Users/me/botharness-feat-5187-session-header')).toBe(
+    '/\u200bUsers/\u200bme/\u200bbotharness-feat-5187-session-header',
+  );
+  expect(breakablePath('C:\\code\\app\\')).toBe('C:\\\u200bcode\\\u200bapp\\');
 });

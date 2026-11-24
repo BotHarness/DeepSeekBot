@@ -721,6 +721,7 @@ export function SessionDetail({
     },
     [actions, botSlug, sessionId, revision],
   );
+  const sessionModelAction = actions.sessionModel;
   const composerMount = useMountedResource<HTMLDivElement>(
     (composer) => {
       let live = true;
@@ -933,20 +934,23 @@ export function SessionDetail({
             sending={sending}
             disabled={savingModel}
             modelControl={
-              actions.sessionModel === undefined ? undefined : (
-                <SessionModelComposer
-                  action={actions.sessionModel}
-                  botSlug={botSlug}
-                  sessionId={sessionId}
-                  catalog={catalog}
-                  groups={groups ?? []}
-                  target={transcript?.currentTarget}
-                  running={running}
-                  onSaving={setSavingModel}
-                  onError={setSendError}
-                  t={t}
-                />
-              )
+              sessionModelAction === undefined
+                ? undefined
+                : (compact) => (
+                    <SessionModelComposer
+                      compact={compact}
+                      action={sessionModelAction}
+                      botSlug={botSlug}
+                      sessionId={sessionId}
+                      catalog={catalog}
+                      groups={groups ?? []}
+                      target={transcript?.currentTarget}
+                      running={running}
+                      onSaving={setSavingModel}
+                      onError={setSendError}
+                      t={t}
+                    />
+                  )
             }
             t={t}
             quotes={quotes}

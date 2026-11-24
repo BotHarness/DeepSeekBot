@@ -40,6 +40,7 @@ const styles = stylex.create({
     fontWeight: 400,
   },
   open: { backgroundColor: hoverState.selected },
+  compact: { width: style.controlHeightSmall, paddingInline: 0, justifyContent: 'center' },
   wrap: { display: 'inline-flex', minWidth: 0 },
   name: {
     minWidth: 0,
@@ -79,8 +80,10 @@ export function SessionModelComposer({
   running,
   onSaving,
   onError,
+  compact = false,
   t,
 }: {
+  compact?: boolean;
   action: NonNullable<BridgeActions['sessionModel']>;
   botSlug: string;
   sessionId: string;
@@ -299,7 +302,7 @@ export function SessionModelComposer({
         title={accessible}
         disabled={saving || (state === undefined && !retry)}
         onClick={() => (retry ? setReload((value) => value + 1) : setOpen(!open))}
-        xstyle={[styles.chip, open && styles.open]}
+        xstyle={[styles.chip, compact && styles.compact, open && styles.open]}
         icon={
           label !== undefined ? (
             <ModelBrandIcon brand={label.brand} size={14} />
@@ -308,8 +311,12 @@ export function SessionModelComposer({
           )
         }
       >
-        {shown === undefined ? null : <span {...stylex.props(styles.name)}>{shown}</span>}
-        {effort === undefined ? null : <span {...stylex.props(styles.effort)}>{effort}</span>}
+        {shown === undefined || compact ? null : (
+          <span {...stylex.props(styles.name)}>{shown}</span>
+        )}
+        {effort === undefined || compact ? null : (
+          <span {...stylex.props(styles.effort)}>{effort}</span>
+        )}
       </Button>
       {open && items !== undefined ? (
         <ModelMenu
