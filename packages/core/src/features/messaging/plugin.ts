@@ -1,3 +1,4 @@
+import { messagingPlatformIds } from '../../messaging/platforms/types.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { BridgeMethods } from '../../bridge/methods.js';
 import type { ModelCatalog } from '../../models/catalog.js';
@@ -20,7 +21,7 @@ type MessagingOwner = Pick<
 
 export function mountProviders(ctx: Context, core: MessagingOwner) {
   ctx.inject(['dshIm'], (child) => {
-    for (const platform of ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const) {
+    for (const platform of messagingPlatformIds) {
       const provider = createDshImProvider(child.get('dshIm'), platform);
       if (provider !== undefined) child.effect(() => core.externalMessaging.register(provider));
     }
