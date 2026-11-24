@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement, useRef, useState, type ReactNode } from 'react';
+import { act, createElement, createRef, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { TextFieldProps } from '../src/ui/primitives/text-field';
+import type { TextFieldHandle, TextFieldProps } from '../src/ui/primitives/text-field';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 vi.mock('react-native', () => ({
@@ -19,6 +19,7 @@ const native = vi.hoisted(() => ({
   writes: [] as string[],
   mounts: 0,
   blurs: 0,
+  focuses: 0,
   props: {} as FieldProps,
 }));
 vi.mock('@expo/ui/jetpack-compose', async () => {
@@ -33,6 +34,9 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
       useImperativeHandle(ref as never, () => ({
         blur: async () => {
           native.blurs++;
+        },
+        focus: async () => {
+          native.focuses++;
         },
       }));
       return createElement('div', null, children);
@@ -81,6 +85,7 @@ beforeEach(() => {
   native.writes = [];
   native.mounts = 0;
   native.blurs = 0;
+  native.focuses = 0;
   native.props = {};
   container = document.createElement('div');
   document.body.append(container);
@@ -256,4 +261,11 @@ it('submits the current native text while retaining focus for tag entry', async 
   expect(submitted).toHaveBeenCalledWith('旅行');
   expect(native.blurs).toBe(0);
   expect(native.mounts).toBe(1);
+});
+
+it('lets the next field take focus when the previous field submits', async () => {
+  const handle = createRef<TextFieldHandle>();
+  await render({ ref: handle, value: '' });
+  handle.current?.focus();
+  expect(native.focuses).toBe(1);
 });
