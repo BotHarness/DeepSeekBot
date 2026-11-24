@@ -461,6 +461,15 @@ it('renders user input, saved and live replies, compact activity and the model s
   expect(view.querySelector('[data-testid="composer-session-model"]')).not.toBeNull();
 });
 
+it('shows the native Session switch once with just the model names', async () => {
+  const { view } = await open({ role: 'native' });
+  const markers = view.querySelectorAll('[data-testid="turn-model-switch"]');
+  expect(markers).toHaveLength(1);
+  const label = 'Switched from deepseek-v4.1-flash to deepseek-v4.1-pro';
+  expect(markers[0]?.textContent).toBe(label);
+  expect(markers[0]?.getAttribute('aria-label')).toBe(label);
+});
+
 it('sends a draft to the selected Orchestrator', async () => {
   const { view, call } = await open();
   await press(view, 'Draft');

@@ -133,6 +133,7 @@ import { WindowCompanions } from './window-companions.js';
 import { WindowCompanionsView } from './window-companions-view.js';
 
 import { mountClientLive } from './client-live.js';
+import { registerNativeSessionModelSwitch } from './native-session-model-switch.js';
 import { panelInfoOf, registerClientPanels } from './client-panel-registration.js';
 import { registerClientSettings } from './client-settings-registration.js';
 import { installStyles } from './install-client-styles.js';
@@ -151,6 +152,7 @@ export const inject = [
   'theme',
   'sessions',
   'uiWorkspace',
+  'uiConversation',
   'workspaces',
   'remote',
   'remote.session',
@@ -834,6 +836,7 @@ export function apply(ctx: ClientContext): void {
     updateRuns,
   });
 
+  registerNativeSessionModelSwitch(ctx, actions);
   registerClientPanels(ctx, {
     panelId: PANEL_ID,
     t,

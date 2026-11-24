@@ -16,6 +16,12 @@ import {
 } from './inbound-envelope.js';
 import { isPublicToolDetail, isSessionActivityName } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
+import {
+  isDshModelSwitchEvent,
+  isModelSelectionNotice,
+  projectDshModelSwitch,
+  type DshModelSwitchProjection,
+} from '@botharness/host-protocol/dsh-model-switch';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
 
 export type SessionTranscriptTrigger =
@@ -249,6 +255,20 @@ function parsedArgs(raw: unknown): unknown {
   }
 }
 
+function sameDshSwitch(left: TurnModelSwitch | undefined, right: TurnModelSwitch): boolean {
+  const { from, to } = right;
+  return (
+    left?.from.kind === 'dsh' &&
+    left.to.kind === 'dsh' &&
+    from.kind === 'dsh' &&
+    to.kind === 'dsh' &&
+    left.from.provider === from.provider &&
+    left.from.model === from.model &&
+    left.to.provider === to.provider &&
+    left.to.model === to.model
+  );
+}
+
 function transcriptInput(
   event: DshSessionEvent,
 ): Extract<SessionTranscriptItem, { kind: 'input' }> | undefined {
@@ -256,6 +276,7 @@ function transcriptInput(
   const source = object(data['source'] ?? object(data['message'])['source']);
   const kind = source['kind'];
   if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) return undefined;
+  if (isModelSelectionNotice(data)) return undefined;
   const raw = rawJoined(blocks(data), 'text').trim();
   const direct = sessionDirectBody(raw);
   const fromHuman = direct !== undefined || kind === undefined || kind === 'user';
@@ -401,10 +422,19 @@ export function summarizeSessionTranscript(input: {
   let running = false;
   let seq = 0;
   let usage: SessionTurnUsage | undefined;
+  let dshSwitch: DshModelSwitchProjection | undefined;
   for (const event of input.events) {
     const data = object(event.data);
     const at = isoTime(event.time);
     if (typeof event.seq === 'number') seq = Math.max(seq, event.seq);
+    if (isDshModelSwitchEvent(event)) {
+      dshSwitch = projectDshModelSwitch(dshSwitch, event);
+      const marker = dshSwitch.marker;
+      if (marker !== undefined && !sameDshSwitch(switches.get(recordedTurn), marker)) {
+        const { from, to, time } = marker;
+        items.push({ kind: 'model-switch', at: isoTime(time), from, to });
+      }
+    }
     if (event.type === 'turn/start') {
       turn += 1;
       recordedTurn = typeof data['turn'] === 'number' ? data['turn'] : turn;
@@ -418,8 +448,8 @@ export function summarizeSessionTranscript(input: {
       running = true;
       usage = undefined;
     } else if (event.type === 'user/message') {
-      const input = transcriptInput(event);
-      if (input !== undefined) items.push({ ...input, turn: Math.max(turn, 1) });
+      const message = transcriptInput(event);
+      if (message !== undefined) items.push({ ...message, turn: Math.max(turn, 1) });
     } else if (event.type === 'step/start') {
       if (typeof data['step'] === 'number') advanceTargets(data['step']);
     } else if (event.type === 'assistant/message') {

@@ -5,6 +5,7 @@ import { type SessionDetailPrefs } from '../src/client/session-detail.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import { SessionSeq } from '@deepseek-ai/dsh-session/types';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -20,6 +21,8 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
+import { SessionModelSwitch } from '../src/client/session-model-switch.js';
+import { nativeModelSwitchDefinition } from '../src/client/native-session-model-switch.js';
 import {
   cachedSessionDetail,
   clearSessionDetailCache,
@@ -105,6 +108,57 @@ it('shows one localized model switch and keeps model names out of replies and th
   );
   expect(host.querySelector('[data-transcript="reply"] [data-turn-targets]')).toBeNull();
   expect(host.querySelector('[data-session-meta-chip="engine"]')).toBeNull();
+});
+
+it('renders the native Session model switch as one localized marker', async () => {
+  const from = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
+  const to = { kind: 'dsh', provider: 'deepseek', model: 'deepseek-v4-pro' } as const;
+  const start = {
+    role: 'start',
+    location: { kind: 'session' },
+    event: {
+      seq: SessionSeq(2),
+      time: 0,
+      type: 'turn/start',
+      data: { turn: 1 },
+    },
+  } as const;
+  const node = nativeModelSwitchDefinition.buildViewNode?.({
+    key: 'switch',
+    kind: nativeModelSwitchDefinition.kind,
+    id: '2',
+    start,
+    matches: [start],
+    state: { state: {}, marker: { from, to, time: 0 } },
+    current: new Map(),
+  });
+  expect(node).toMatchObject({
+    kind: 'botharness-model-switch',
+    groupTree: 'turn',
+    data: { from, to },
+  });
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  mounted.push(() => act(() => root.unmount()));
+  await act(async () => {
+    root.render(
+      createElement(SessionModelSwitch, {
+        native: true,
+        item: { from, to },
+        t: zhTranslate,
+        catalog: {
+          models: [
+            { ...from, providerName: 'OpenCode Go', modelName: 'DeepSeek V4.1 Flash' },
+            { ...to, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Pro' },
+          ],
+        },
+      }),
+    );
+  });
+  const markers = host.querySelectorAll('[data-session-model-switch]');
+  expect(markers).toHaveLength(1);
+  expect(markers[0]?.textContent).toBe('从 V4.1 Flash 切换到 V4 Pro');
+  expect(markers[0]?.getAttribute('aria-label')).toBe('从 V4.1 Flash 切换到 V4 Pro');
 });
 
 it('applies a picker change through the Host and shows the next Turn while a Turn is active', async () => {
