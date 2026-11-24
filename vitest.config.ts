@@ -102,7 +102,7 @@ export default defineConfig({
           ...testDefaults,
           name: 'docs-site',
           include: [docsSiteTest],
-          sequence: { groupOrder: 3 },
+          sequence: { groupOrder: 0 },
         },
       },
     ],
