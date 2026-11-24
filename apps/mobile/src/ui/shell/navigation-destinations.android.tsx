@@ -186,6 +186,7 @@ function openTabMenu(title: string, entries: readonly TabMenuEntry[]) {
     entries.map((entry) => ({
       text: entry.label,
       icon: menuGlyphs[entry.glyph],
+      group: entry.glyph === 'new' ? 1 : 0,
       onPress: entry.run,
     })),
   );
