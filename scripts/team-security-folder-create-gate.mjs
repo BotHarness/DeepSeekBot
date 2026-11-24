@@ -94,4 +94,20 @@ export function runFolderCreateGate(s, fx, tag, check) {
       typeof owner.id === 'string' &&
       existsSync(owner.path),
   );
+  const privateWorkspace = create(other, 'owner-created-in-other-account');
+  check(
+    'The Owner created a Workspace in the other account',
+    typeof privateWorkspace.id === 'string',
+  );
+  if (privateWorkspace.id) {
+    const refused = s.cli(['grant-create', fx.bots.alice, '--workspace', privateWorkspace.id], {
+      as,
+      allowFail: true,
+    });
+    check(
+      'Member cannot grant their Bot a registered Workspace from another account',
+      refused.error?.code === 'grant-foreign-space',
+      refused.error?.code,
+    );
+  }
 }
