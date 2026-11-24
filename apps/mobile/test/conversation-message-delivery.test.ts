@@ -368,7 +368,14 @@ describe('DM conversation', () => {
         author: { kind: 'bridged', source: 'lark' },
         body: '',
         bridgeMedia: { items: [{ id: 'img-1', kind: 'image', name: 'photo.jpg' }] },
-        bridgeOrigin: { sourceEventId: 'evt-9' } as never,
+        bridgeOrigin: {
+          sourceEventId: 'evt-9',
+          platform: 'lark',
+          conversationId: 'chat-1',
+          conversationName: 'Lark chat',
+          messageId: 'bridged-1',
+          senderId: 'sender-1',
+        },
       },
       false,
     );
@@ -434,7 +441,14 @@ describe('DM conversation', () => {
             { id: 'cover', kind: 'image', name: 'cover' },
           ],
         },
-        bridgeOrigin: { sourceEventId: 'video-event' } as never,
+        bridgeOrigin: {
+          sourceEventId: 'video-event',
+          platform: 'lark',
+          conversationId: 'chat-1',
+          conversationName: 'Lark chat',
+          messageId: 'native-video',
+          senderId: 'sender-1',
+        },
       },
       false,
     );

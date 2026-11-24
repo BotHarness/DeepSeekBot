@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ConversationMessage } from '@botharness/host-client/conversation';
@@ -6,17 +8,11 @@ import { type ConversationMessage } from '@botharness/host-client/conversation';
 const { native, mockGestureHandler, mockReactNative, mockEnrichedMarkdown, resetNative } =
   await vi.hoisted(() => import('./message-bubble-mocks'));
 
-import {
-  MessageActions,
-  MessageBubble,
-  dismissQueue,
-  human,
-  menuTime,
-  messageMenuActions,
-  replyable,
-  secondTap,
-  t,
-} from './message-bubble-fixtures';
+import { MessageBubble, human, replyable, secondTap, t } from './message-bubble-fixtures';
+import { dateLocale } from '../src/ui/strings';
+
+const { MessageActions, dismissQueue, menuTime, messageMenuActions } =
+  await import('../src/ui/chat/message-actions');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -134,16 +130,39 @@ describe('reactions', () => {
     expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
   });
 
-  it('lets a committed attachment-only message take reactions, but not a pending one', () => {
-    const image = human({ author: 'bot', body: '', revision: 3 });
-    expect(renderToStaticMarkup(<MessageBubble message={image} onReact={() => {}} />)).toContain(
-      `data-accessibilityhint="${t.messageActionsHint}"`,
-    );
-    expect(
-      renderToStaticMarkup(
-        <MessageBubble message={human({ body: '', delivery: 'pending' })} onReact={() => {}} />,
-      ),
-    ).not.toContain('data-accessibilityhint');
+  it('reacts to a committed attachment-only message and leaves a pending one alone', () => {
+    const attachment: ConversationMessage['attachments'][number] = {
+      key: 'photo',
+      kind: 'image',
+      name: 'photo.jpg',
+      source: { uri: 'file:///photo.jpg', headers: {} },
+      local: true,
+    };
+    const message = human({ body: '', revision: 3, attachments: [attachment] });
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const onReact = vi.fn();
+    const doubleTap = (message: ConversationMessage) => {
+      act(() => root.render(<MessageBubble message={message} onReact={onReact} />));
+      expect(container.querySelector('[data-testid="message-album-tile"]')).not.toBeNull();
+      const bubble = container.querySelector<HTMLElement>(
+        `[data-accessibilityhint="${t.messageActionsHint}"]`,
+      );
+      if (!bubble) throw new Error('Missing attachment message surface');
+      act(() => {
+        bubble.click();
+        bubble.click();
+      });
+    };
+    try {
+      doubleTap(message);
+      expect(onReact).toHaveBeenCalledExactlyOnceWith(message.id, '👍', true);
+      onReact.mockClear();
+      doubleTap({ ...message, delivery: 'pending' });
+      expect(onReact).not.toHaveBeenCalled();
+    } finally {
+      act(() => root.unmount());
+    }
   });
 });
 
@@ -369,11 +388,12 @@ describe('the long-press menu', () => {
   });
 
   it('heads the actions with the message time, marking today', () => {
-    const now = new Date('2026-10-14T09:00:00.000Z');
-    expect(menuTime(bot.at, now).startsWith(`${t.today} `)).toBe(true);
+    const now = new Date(2026, 9, 14, 9);
+    const sent = new Date(2026, 9, 14, 8);
+    expect(menuTime(sent.toISOString(), now).startsWith(`${t.today} `)).toBe(true);
     const earlier = new Date(2026, 9, 13, 8);
     expect(menuTime(earlier.toISOString(), now)).toBe(
-      new Intl.DateTimeFormat(undefined, {
+      new Intl.DateTimeFormat(dateLocale(), {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',

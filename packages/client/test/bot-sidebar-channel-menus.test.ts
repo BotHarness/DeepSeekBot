@@ -587,6 +587,7 @@ describe('bot sidebar rows', () => {
     menu.onSelect?.('unpin');
     expect(onSetPinned).toHaveBeenLastCalledWith(DM_CHANNEL.id, false);
     menu.onSelect?.('hide');
+    expect(onHide).toHaveBeenCalledTimes(2);
     expect(onHide).toHaveBeenLastCalledWith(DM_CHANNEL.id);
   });
 
