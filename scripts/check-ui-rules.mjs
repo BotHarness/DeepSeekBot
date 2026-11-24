@@ -11,6 +11,7 @@ import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { mobileFixedButtonHeight } from './ui-rule-mobile-button-height.mjs';
 import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
+import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -116,6 +117,10 @@ export const RULES = {
   fixedButtonHeight: {
     help: 'give a Compose text button a minimum height (defaultMinSize) instead of height/size, so a label that wraps at large text grows the button instead of being clipped',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
+  },
+  unscaledLabelIcon: {
+    help: 'size a glyph that sits beside a text label from the label role times theme.fontScale (or a SwiftUI textStyle font), so icon and label grow together; keep the icon and reflow the row instead of hiding it',
+    section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
   },
   wrappingCapsule: {
     help: 'shape a SwiftUI capsule button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes',
@@ -273,6 +278,7 @@ export function scan(fix = false) {
             ? mobileActionScale(file, ast)
             : []),
           ...(/buttonBorderShape/u.test(source) ? mobileWrappingCapsule(file, ast) : []),
+          ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];
       let styles = desktopStyles(source, file, ast, walk);

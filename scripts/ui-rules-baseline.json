@@ -1507,5 +1507,26 @@
     "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
     "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
     "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"]
+  },
+  "unscaledLabelIcon": {
+    "apps/mobile/src/ui/chat/action-card.android.tsx": ["Icon"],
+    "apps/mobile/src/ui/chat/activity-glance.tsx": ["ChevronRightIcon"],
+    "apps/mobile/src/ui/chat/assignment-screen.tsx": ["AssignmentActivityIcon"],
+    "apps/mobile/src/ui/chat/composer.tsx": ["FileIcon"],
+    "apps/mobile/src/ui/chat/computer-controls.tsx": ["Icon"],
+    "apps/mobile/src/ui/chat/computer-video-header.android.tsx": ["SystemSymbol", "SystemSymbol"],
+    "apps/mobile/src/ui/chat/computer-video-header.ios.tsx": ["Image", "Image"],
+    "apps/mobile/src/ui/chat/delivery-sheet.tsx": ["ChevronRightIcon"],
+    "apps/mobile/src/ui/chat/group-unavailable.android.tsx": ["Icon"],
+    "apps/mobile/src/ui/chat/message-attachments.tsx": ["PhotoIcon"],
+    "apps/mobile/src/ui/chat/message-popover.tsx": ["ActionIcon"],
+    "apps/mobile/src/ui/chat/session-link-chips.tsx": ["Icon"],
+    "apps/mobile/src/ui/chat/turn-model-switch.tsx": ["ModelBrandIcon"],
+    "apps/mobile/src/ui/primitives/creation-tags-field.tsx": ["CloseIcon"],
+    "apps/mobile/src/ui/share/share-screen.tsx": ["FileIcon"],
+    "apps/mobile/src/ui/shell/desktop-path.tsx": ["RowIcon"],
+    "apps/mobile/src/ui/shell/marketplace-heading.tsx": ["ChevronRightIcon"],
+    "apps/mobile/src/ui/shell/pairing-verification.tsx": ["RowIcon"],
+    "apps/mobile/src/ui/shell/usage-card.tsx": ["ChevronRightIcon"]
   }
 }
