@@ -40,6 +40,7 @@ export async function discoverHostAddress(options: {
     HostAddressDiscovery,
     | 'insecure-transport'
     | 'unreachable'
+    | 'private-route'
     | 'response-invalid'
     | 'fingerprint-mismatch'
     | 'request-cancelled'

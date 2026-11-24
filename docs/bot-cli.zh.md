@@ -1614,7 +1614,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 `deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
+Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、Memory 修改、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 
 在具备权限的 Tob Shell 执行中：
 
@@ -1651,7 +1651,7 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 Host 先通过持久创建回执保留一个身份，再创建 Memory Repository 和 DM。响应丢失后重复**同一个 operation key 和同一份 payload**：已完成的回执返回原 Bot 与 DM，部分完成的操作沿用预留身份进行核对。受限模式已完成的重试走权限检查后的读取，不再申请一次创建审批。相同 key 配不同 payload 返回 `creation-key-conflict`；身份已归档或删除返回 `creation-identity-unavailable`，不会因重放而重建。`creation-memory-conflict` 表示预留目录已经存在但 Registry 身份未落地，应保留现场修复，不要删除目录或换 key 再建。回执不构成文件系统与数据库之间的原子事务，也不承诺自动修复该中断状态。
 
-已认证 Human 的在线 `create` 同样支持 `--operation-key`，适用于受管 Memory 中的空白创建或已检查的 Git 来源，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+已认证 Human 的在线 `create` 同样支持 `--operation-key`，适用于受管 Memory 中的空白创建或已检查的 Git 来源，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为。本片不向 Tob 授予 Git／Zip／目录导入或市场搜索权限；Tob 只能通过[Tob 修改 Memory 与 Soul](#tob-修改-memory-与-soul)中的审核修改来改动其他 Bot 既有的 Memory。
 
 Human 在线命令 `create-status` 在原 Host 只读查询创建回执。名称、人格、简介、标签等空白创建输入和 key 必须与原请求一致；不同输入会被拒绝。尚无操作时返回 `{receipt:null}`，否则返回 `{receipt:{operationKey,botSlug,status,channelId?}}`。`reserved` 可用完全相同的输入和 key 再次执行 `create` 恢复；`created` 指向已创建的同一个 Bot 和私聊。结果不确定时不要换 Host 或生成新 key。移动端在首次创建前先查询，以免旧 Host 不支持恢复却仍创建 Bot。
 
@@ -1675,6 +1675,22 @@ deepseekbot bot-delete-retry <bot-id> --confirm
 删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。Tob 自身不能归档或删除（`protected-bot`）；名称、人格文本和导入内容都不能赋予其权限。
 
 详见 [ADR-0225](decisions/tob.md#adr-0225) 与[覆盖清单](agents/cli-ui-coverage.md#2089-bot-management-scope)。直接 CLI、真实 Tob 对话、Web 导航和 macOS Desktop 是独立验收入口，命令契约不代表这些验证已通过。
+
+### Tob 修改 Memory 与 Soul
+
+Tob 可从已接受的 Human 私聊修改 Human 所拥有 Bot 的一个 Memory 文件（包括 `SOUL.md` 与 `MEMORY.md`），或恢复较早的 Memory 提交。两者都以 Bot 所有者身份经现有 Memory owner 执行，与 Human 自己 CLI 的 `memory-save`、`memory-restore-commit` 相同，只是审批卡片换成带类型的审核卡片，而非通用卡片（[#4828](https://github.com/BotHarness/DeepSeekBot/issues/4828)）。Assignment 可以把新文本起草到文件里；由 Tob Orchestrator 读取并执行命令，所以只有已准入的 Orchestrator 能应用它。
+
+```bash
+deepseekbot memory-file <bot-id> --path SOUL.md    # 读取文件与当前 head
+deepseekbot memory-save <bot-id> --path SOUL.md --body-stdin --expected-head <head> --edit-id soul-2026-11-23 < draft.md
+deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <head> [--restore-id <uuid>] [--name <版本名>]
+```
+
+受限模式必须传 `--expected-head`。出卡片之前，Host 会拒绝已经移动的 head、有未提交改动或正忙的 Memory（`memory-conflict`）、没有改动的写入或无法按文本审核的文件（`memory-invalid`），以及超过 256 KiB 的审核 diff（`memory-review-too-large`；请拆分修改，或在 Memory 面板中恢复）。Tob 自身（`protected-bot`）、已归档 Bot（`archived-bot`）和 Human 不拥有的 Bot（`permission-required`）也会被拒绝。卡片展示 `previousValue`（路径、基准 `revision`、当前文本的字节数与 SHA-256）和 `patch`（新文本的字节数与 SHA-256、相对该基准的 unified `diff`，以及 `takesEffect`）；Web 卡片按 Bot、路径和基准版本渲染该 diff。恢复使用自己的卡片，展示从当前 head 到目标提交的 diff、变化的 `paths`，以及是否会先备份未提交改动。Full Access 与 Approval Template 都不能跳过这两种卡片。
+
+批准后，Host 会重新检查 Tob 的来源权限、所有权与基准版本；卡片打开期间发生的修改会以 `memory-conflict` 拒绝且不写入。随后经 Memory owner 提交并回读文件；结果包含 `commit`、`file` 来源信息（路径、版本、字节数、SHA-256）和 `takesEffect`。回读不一致返回 `readback-mismatch`；结果丢失返回 `operation-outcome-uncertain`。用**同一个** `--edit-id` 与正文（或 `--restore-id`）重复执行即可回读不确定的写入：若该修改已被接受，Host 返回其提交并标注 `replayed: true`，不再出卡片也不再写入；同一 id 配不同正文以 `memory-conflict` 拒绝。
+
+`SOUL.md` 与 `MEMORY.md` 会冻结进运行中 Session 的提示词：新 Session 立即使用改动，运行中的 Session 在下一次压缩后获得改动。其他 Memory 文件按需读取，下一次读取即可看到改动。
 
 ### Tob 建群与邀请
 
@@ -1802,6 +1818,23 @@ deepseekbot release-restart --confirm
 这些命令与设置页复用同一套 telemetry、Git 和 release owner。环境锁定的 telemetry 不能覆盖；应读取实际生效／锁定状态，不能假定已保存的偏好一定控制数据收集。Git 仅覆盖可用性和安装，不新增全局 Git 身份编辑器。
 
 受限 `release-install` 和 `release-restart` 必须带显式 `--confirm`，而且每次调用都需要新的 Human 决定。Full access、记住的允许规则和自动审批都不能替代这次决定；该参数本身不等于审批。`git-install` 不使用 `--confirm`，继续沿用其既有审核策略。重启可能中断运行中的轮次并断开请求 CLI；结果不确定时不得自动重复安装或重启，应重新连接并读取发布状态后再决定下一步。仅在自己拥有的隔离 Profile 中验证这些操作，保留 Human 当前 Desktop。
+
+### Tob Assignment 的 Memory 租约
+
+```bash
+# Tob 的 Orchestrator，在它的 Human DM 回合里
+deepseekbot assignment-memory-lease <assignment-session-id> <bot-id> <bot-id> --operation-key <key>
+deepseekbot assignment-memory-leases [<assignment-session-id>]
+deepseekbot assignment-memory-revoke <lease-id> [--reason <说明>]
+# 在这个 Tob Assignment 的 Shell 里
+deepseekbot memory-snapshot <bot-id>
+deepseekbot memory-file <bot-id> --path <文件>
+deepseekbot memory-history <bot-id> [--limit <1-50>]
+deepseekbot memory-diff <bot-id> --sha <commit>
+deepseekbot assignment-memory-leases
+```
+
+租约让一个 Tob 自己的 Assignment 只读访问 Human 拥有的最多八个 Bot 的 Memory，只为当前这次 Human 请求。Assignment 被归档、这次请求的 DM 消息被清除或结束、或 Tob 撤销租约时，租约结束。每次读取返回 `provenance`（`revision`、`path`、`bytes`、`sha256`、`truncated`）；超过 64 KiB 的正文和 diff 会被截断。`assignment-memory-leases` 显示 `state`（`active`、`revoked`、`expired`）、`status`（`complete` 或 `partial`）和每个 Bot 的 `read`、`unread` 或 `refused`；Assignment Report 末尾带同样的摘要。Memory 写入和 `--out` 返回 `lease-read-only`，其他命令返回 `tob-authority-required`；不在租约里的 Bot 返回 `lease-target-denied`，已归档或被替换的 Bot 返回 `lease-target-unavailable`。用同一个 `--operation-key` 会拿回同一个租约。Human 可以用 `deepseekbot tob-cli start --args-stdin` 和 `{"argv":["assignment-memory-lease",…]}` 无模型地运行这些 Tob 命令（[无模型的 Tob CLI 请求](#无模型的-tob-cli-请求)）。见 [Tob 决策 §10](decisions/tob.md#tob-memory-lease)。
 
 ### 恢复已耗尽复核额度的群聊草稿
 

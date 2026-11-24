@@ -4,6 +4,8 @@ import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { BotCreationService } from '../bots/creation.js';
 import { createTobBotCreationOperations } from './cli-bot-create.js';
 import { createTobBotProfileOperations } from './cli-bot-profile-operations.js';
+import { createTobMemoryEditOperations } from './cli-memory-edit-operations.js';
+import type { MemoryService } from '../memory/service.js';
 import type { PrepareTobOperation } from './cli-operations.js';
 import { TobError } from './service.js';
 
@@ -12,6 +14,7 @@ export function createMemberTobOperations(deps: {
   bridge: BridgeMethods;
   registry: PersonaBotRegistry;
   creations: BotCreationService;
+  memory?: () => MemoryService | undefined;
   isProtectedBot(slug: string): boolean;
 }): PrepareTobOperation {
   const creation = createTobBotCreationOperations(deps);
@@ -19,6 +22,12 @@ export function createMemberTobOperations(deps: {
     ...deps,
     human: () => deps.human,
     bridge: () => deps.bridge,
+  });
+  const memory = createTobMemoryEditOperations({
+    registry: deps.registry,
+    memory: () => deps.memory?.(),
+    human: () => deps.human,
+    isProtectedBot: deps.isProtectedBot,
   });
   return async (command, args, signal) => {
     const authorizeCreation = () => {
@@ -30,7 +39,9 @@ export function createMemberTobOperations(deps: {
     if (typeof args.slug === 'string' && !deps.registry.get(args.slug))
       throw new TobError('bot-not-found');
     const prepared =
-      (await creation(command, args, signal)) ?? (await profile(command, args, signal));
+      (await creation(command, args, signal)) ??
+      (await profile(command, args, signal)) ??
+      (await memory(command, args, signal));
     if (prepared)
       return {
         ...prepared,
