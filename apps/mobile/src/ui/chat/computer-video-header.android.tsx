@@ -96,7 +96,7 @@ export function ComputerVideoHeader({
           size={theme.type.body.line * theme.fontScale}
           color={theme.color.fg}
         />
-        <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text strong numberOfLines={theme.largeText ? undefined : 1} style={{ flexShrink: 1 }}>
           {name}
         </Text>
         <View

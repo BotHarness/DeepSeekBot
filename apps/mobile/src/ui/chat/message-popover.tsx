@@ -444,7 +444,7 @@ function MessageMenu({
                       backgroundColor: pressed ? rowFill.pressed : rowFill.fill,
                     })}
                   >
-                    <Text numberOfLines={1} style={{ flex: 1 }}>
+                    <Text numberOfLines={theme.largeText ? undefined : 1} style={{ flex: 1 }}>
                       {action.label}
                     </Text>
                     <ActionIcon
