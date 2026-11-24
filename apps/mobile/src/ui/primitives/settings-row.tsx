@@ -4,6 +4,7 @@ import { Platform, Pressable, View } from 'react-native';
 import type { LayerName } from '../design/layers';
 import { settingsColors } from '../design/controls';
 import { androidSettings, edge, radius, space } from '../design/tokens';
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
 import { LoadingIndicator } from './loading-indicator';
@@ -106,6 +107,54 @@ function ReactNativeSettingsRow({
   const theme = useDesignTheme();
   const layer = theme.layer[on];
   const oneLine = singleLine && !theme.largeText;
+  const stacked =
+    accessibilityTextSize(theme.fontScale) && (icon !== undefined || leading !== undefined);
+  const glyph =
+    icon === undefined && leading === undefined ? null : (
+      <>
+        {icon === undefined ? null : (
+          <RowIcon
+            name={icon}
+            size={theme.type.title.line * theme.fontScale}
+            {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
+          />
+        )}
+        {leading}
+      </>
+    );
+  const text = (
+    <View
+      style={
+        stacked ? { alignSelf: 'stretch', gap: space.x1 } : { flex: 1, minWidth: 0, gap: space.x1 }
+      }
+    >
+      <Text variant="body" tone={tone} strong={strong} {...(oneLine ? { numberOfLines: 1 } : {})}>
+        {title}
+      </Text>
+      {detail === undefined ? null : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+          {detailDot === undefined ? null : (
+            <View
+              style={{
+                width: space.x3,
+                height: space.x3,
+                borderRadius: radius.round,
+                backgroundColor: detailDot,
+              }}
+            />
+          )}
+          <Text
+            variant="meta"
+            tone="muted"
+            {...(oneLine ? { numberOfLines: 1 } : {})}
+            style={{ flexShrink: 1 }}
+          >
+            {detail}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
   const row = (
     <Pressable
       testID={testID}
@@ -132,41 +181,17 @@ function ReactNativeSettingsRow({
         backgroundColor: pressed ? layer.pressed : layer.fill,
       })}
     >
-      {icon === undefined ? null : (
-        <RowIcon
-          name={icon}
-          size={theme.type.title.line * theme.fontScale}
-          {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
-        />
+      {stacked ? (
+        <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-start', gap: space.x3 }}>
+          {glyph}
+          {text}
+        </View>
+      ) : (
+        <>
+          {glyph}
+          {text}
+        </>
       )}
-      {leading}
-      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text variant="body" tone={tone} strong={strong} {...(oneLine ? { numberOfLines: 1 } : {})}>
-          {title}
-        </Text>
-        {detail === undefined ? null : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-            {detailDot === undefined ? null : (
-              <View
-                style={{
-                  width: space.x3,
-                  height: space.x3,
-                  borderRadius: radius.round,
-                  backgroundColor: detailDot,
-                }}
-              />
-            )}
-            <Text
-              variant="meta"
-              tone="muted"
-              {...(oneLine ? { numberOfLines: 1 } : {})}
-              style={{ flexShrink: 1 }}
-            >
-              {detail}
-            </Text>
-          </View>
-        )}
-      </View>
       {trailing ??
         (control === undefined ? null : (
           <ControlView control={control} label={accessibilityLabel ?? title} on={on} />

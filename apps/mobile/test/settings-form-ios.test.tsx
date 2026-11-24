@@ -398,6 +398,30 @@ it('stacks a hosted leading tile above the text only at accessibility sizes', as
   expect(await tile(2)).toBe('vstack');
 });
 
+it('stacks a React Native row icon above its text and grows the chevron at accessibility sizes', async () => {
+  const row = async (fontScale: number) => {
+    vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+    const host = await render(
+      <SettingsRow
+        title="Default"
+        detail="Main: V4.1 Flash"
+        leading={<img alt="" />}
+        control={{ kind: 'chevron' }}
+        testID="preset-row"
+        onPress={() => undefined}
+      />,
+    );
+    vi.restoreAllMocks();
+    const button = host.querySelector('[data-testid="preset-row"]')!;
+    return { button, tile: button.querySelector('img')! };
+  };
+  const regular = await row(1.353);
+  expect(regular.tile.parentElement).toBe(regular.button);
+  const large = await row(2);
+  expect(large.tile.parentElement).not.toBe(large.button);
+  expect(large.tile.parentElement!.textContent).toContain('Main: V4.1 Flash');
+});
+
 it('renders a preference as a native menu picker inside a form', async () => {
   const change = vi.fn();
   const host = await render(
