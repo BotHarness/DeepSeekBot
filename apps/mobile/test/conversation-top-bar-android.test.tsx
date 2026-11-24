@@ -227,7 +227,7 @@ describe('Android Session header', () => {
     const place = view.querySelector('[data-test-id="session-header-place"]');
     expect(place?.textContent).toBe('app-5187');
     expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
-      `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-5187`,
+      `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-\u200b5187`,
     );
   });
 });

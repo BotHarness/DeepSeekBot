@@ -92,7 +92,7 @@ it('names the Host and folder for screen readers and puts the full path in the m
   expect(capsule.getAttribute('aria-label')).toBe('Launch plan, Studio Mac, app-5187');
   await act(async () => capsule.click());
   expect(dialog.showActionMenu).toHaveBeenCalledExactlyOnceWith(
-    'Launch plan\nStudio Mac\n/\u200bUsers/\u200bme/\u200bworktrees/\u200bapp-5187',
+    'Launch plan\nStudio Mac\n/\u200bUsers/\u200bme/\u200bworktrees/\u200bapp-\u200b5187',
     [{ text: 'Model choice', icon: 'model', onPress: run }],
   );
   act(() => root.unmount());

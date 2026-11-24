@@ -26,7 +26,7 @@ export function sessionPlaceLabel(title: string, place: SessionPlace | undefined
 }
 
 export function breakablePath(path: string): string {
-  return path.replace(/([\\/])(?=.)/gu, '$1\u200b');
+  return path.replace(/([\\/_-])(?=.)/gu, '$1\u200b');
 }
 
 export function sessionMenuHeader(title: string, place: SessionPlace | undefined): string {

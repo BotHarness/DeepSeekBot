@@ -41,8 +41,11 @@ it('shows only the Host when the Session has no folder', () => {
 });
 
 it('lets a long folder path wrap at its separators instead of mid-word', () => {
-  expect(breakablePath('/Users/me/botharness-feat-5187-session-header')).toBe(
-    '/\u200bUsers/\u200bme/\u200bbotharness-feat-5187-session-header',
+  expect(breakablePath('/Users/me/botharness-feat-5214-compact-session-composer')).toBe(
+    '/\u200bUsers/\u200bme/\u200bbotharness-\u200bfeat-\u200b5214-\u200bcompact-\u200bsession-\u200bcomposer',
+  );
+  expect(breakablePath('/srv/my_long_worktree_name')).toBe(
+    '/\u200bsrv/\u200bmy_\u200blong_\u200bworktree_\u200bname',
   );
   expect(breakablePath('C:\\code\\app\\')).toBe('C:\\\u200bcode\\\u200bapp\\');
 });
