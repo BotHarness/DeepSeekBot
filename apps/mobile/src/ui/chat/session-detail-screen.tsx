@@ -58,8 +58,10 @@ import { Composer } from './composer';
 import { ConversationTopBar } from './conversation-top-bar';
 import {
   SessionModelChip,
+  SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
+  useSessionModelMenuLabel,
 } from './session-model-composer';
 import { SessionTranscriptRow } from './session-transcript-row';
 import { SheetFailed, SheetLoading, SheetNote } from './sheet';
@@ -330,6 +332,7 @@ export function SessionDetailBody({
     running: view.running,
     target: transcript?.currentTarget,
   });
+  const modelMenuLabel = useSessionModelMenuLabel(model);
   const chrome = useChatTimelineChrome();
   const islandFloor = useTimelineIslandFloor();
   const { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight } = chrome;
@@ -480,7 +483,7 @@ export function SessionDetailBody({
                 ]
               : []),
             {
-              label: t.sessionModel.choice,
+              label: modelMenuLabel,
               testID: 'session-model-choice',
               icon: 'model',
               disabled: busy !== undefined,
@@ -717,6 +720,9 @@ function SessionComposer({
             width={width}
             disabled={!online || busy !== undefined}
           />
+        ),
+        renderCompact: () => (
+          <SessionModelLogo control={model} disabled={!online || busy !== undefined} />
         ),
       }}
     />

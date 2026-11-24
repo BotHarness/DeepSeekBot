@@ -49,7 +49,7 @@ export function MaterialMenuGroup({
           shape: Shapes.RoundedCorner(materialMenu.containerRadius),
         }),
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
-        background(colors.surfaceContainerLow),
+        background(theme.scheme === 'dark' ? colors.surfaceContainerHigh : colors.surfaceContainer),
         paddingAll(materialMenu.groupPadding),
         testID('action-menu-group'),
       ]}

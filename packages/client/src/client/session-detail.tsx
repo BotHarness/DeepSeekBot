@@ -33,7 +33,7 @@ import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cac
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { SessionDetailHeaderChips } from './session-detail-header.js';
 import { sessionComposerFrame } from './session-composer-frame.js';
-import { SessionModelComposer } from './session-model-composer.js';
+import { sessionModelControl } from './session-model-composer.js';
 import { SessionModelSwitch } from './session-model-switch.js';
 import { SessionJump } from './session-jump.js';
 import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
@@ -932,22 +932,18 @@ export function SessionDetail({
             )}
             sending={sending}
             disabled={savingModel}
-            modelControl={
-              actions.sessionModel === undefined ? undefined : (
-                <SessionModelComposer
-                  action={actions.sessionModel}
-                  botSlug={botSlug}
-                  sessionId={sessionId}
-                  catalog={catalog}
-                  groups={groups ?? []}
-                  target={transcript?.currentTarget}
-                  running={running}
-                  onSaving={setSavingModel}
-                  onError={setSendError}
-                  t={t}
-                />
-              )
-            }
+            modelControl={sessionModelControl({
+              action: actions.sessionModel,
+              botSlug,
+              sessionId,
+              catalog,
+              groups: groups ?? [],
+              target: transcript?.currentTarget,
+              running,
+              onSaving: setSavingModel,
+              onError: setSendError,
+              t,
+            })}
             t={t}
             quotes={quotes}
             onRemoveQuote={(quote) =>

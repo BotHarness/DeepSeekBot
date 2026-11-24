@@ -42,8 +42,13 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({
   LoadingIndicator: () => <span role="progressbar" />,
 }));
 
-const { SessionModelChip, SessionModelPicker, useSessionModelControl } =
-  await import('../src/ui/chat/session-model-composer');
+const {
+  SessionModelChip,
+  SessionModelLogo,
+  SessionModelPicker,
+  useSessionModelControl,
+  useSessionModelMenuLabel,
+} = await import('../src/ui/chat/session-model-composer');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -165,4 +170,40 @@ it('does not reload the Session or catalog for layout-only composer updates', as
   await act(async () => root.render(<ComposerModel host={host} width={205} />));
   expect(button('composer-session-model').textContent).toBe('');
   expect(call.mock.calls).toHaveLength(2);
+});
+
+function CompactModel({ host }: { host: HostCall }) {
+  const control = useSessionModelControl({
+    host,
+    slug: 'ada',
+    enabled: true,
+    sessionId: 'current',
+    running: true,
+    target: { ...target, kind: 'dsh' },
+  });
+  const menu = useSessionModelMenuLabel(control);
+  return (
+    <>
+      <SessionModelLogo control={control} disabled={false} />
+      <span data-testid="menu-row">{menu}</span>
+      <SessionModelPicker control={control} />
+    </>
+  );
+}
+
+it('shows the pending model as a logo, names it in the title menu and explains the next turn in the sheet', async () => {
+  const pending: SessionModelState = { override: engine, default: api, active: api };
+  const call = vi.fn(async (method: string) => (method === 'modelCatalog' ? catalog : pending));
+  await act(async () => root.render(<CompactModel host={{ call }} />));
+  const logo = button('composer-session-model');
+  expect(logo.textContent).toBe('');
+  expect(logo.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('claude');
+  expect(logo.getAttribute('aria-label')).toContain('Next turn: Opus 5.5');
+  expect(container.querySelector('[data-testid="menu-row"]')?.textContent).toBe(
+    'Model: Next turn: Opus 5.5 · High',
+  );
+  await act(async () => logo.click());
+  expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+    'Next turn: Opus 5.5 · This turn keeps its model. Your pick applies from the next turn.',
+  );
 });
