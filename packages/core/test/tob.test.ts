@@ -331,7 +331,7 @@ describe('Tob canonical identity and settings', () => {
     const f = fixture(async (run) => {
       try {
         const authorize = f.core.runtime.captureTobCliAuthority!(run.sessionId);
-        expect(run.tobCli).toBe(true);
+        expect(run.stewardActive?.()).toBe(true);
         authorize();
         outcomes.push(f.core.tob.readSetting());
         outcomes.push(await f.core.tob.writeSetting(3, 0, authorize));
@@ -583,16 +583,13 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
-  it('keeps ordinary Group tools working but prevents inviting or approving protected Tob', async () => {
+  it('keeps ordinary Group tools working for Groups that include the Steward', async () => {
     let checked = false;
     let tobSlug!: string;
     const f = fixture(async (run) => {
       if (run.bot.slug !== 'owner') return;
       const group = run.channels.createGroup('Ordinary Group');
       expect(group.members).toContain('owner');
-      expect(() =>
-        run.channels.inviteGroup({ channelId: group.id, targetBotSlug: tobSlug }),
-      ).toThrow('protected-bot');
       const invitation = run.channels.inviteGroup({ channelId: group.id, targetBotSlug: 'peer' });
       expect(invitation.targetBotSlug).toBe('peer');
       const request = f.core.channels.requestGroupJoin({
@@ -600,10 +597,8 @@ describe('Tob canonical identity and settings', () => {
         requesterBotSlug: tobSlug,
         requesterBotCreatedAt: f.core.registry.get(tobSlug)!.createdAt,
       });
-      expect(() =>
-        run.channels.decideGroupJoin!({ channelId: group.id, requestId: request.id, accept: true }),
-      ).toThrow('protected-bot');
-      expect(f.core.channels.get(group.id)?.members).not.toContain(tobSlug);
+      run.channels.decideGroupJoin!({ channelId: group.id, requestId: request.id, accept: true });
+      expect(f.core.channels.get(group.id)?.members).toContain(tobSlug);
       const peerRequest = f.core.channels.requestGroupJoin({
         channelId: group.id,
         requesterBotSlug: 'another-peer',

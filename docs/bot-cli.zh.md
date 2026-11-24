@@ -1617,7 +1617,9 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
+`deepseekbot steward` 向已认证的 Owner 或 Team 成员返回 `{ "botSlug": "<id>" }`。Host Owner 本人可运行 `deepseekbot steward-transfer <bot-id> --confirm`，将 Owner DM 中的受限 Host 管理和委派能力转给自己拥有的活跃 Bot。双方的 Human DM 都会收到系统提示。CLI broker 会以 `cli-command-refused` 拒绝此命令，Team 成员会收到 `permission-required`。
+
+`deepseekbot tob-home` 幂等准备本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
 Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、Memory 修改、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 

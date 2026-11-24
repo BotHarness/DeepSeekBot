@@ -10,7 +10,7 @@ const deps = {
   registry: { getHistorical: () => undefined },
   channels: { get: () => undefined },
   human: humanContext('owner'),
-  isTob: (slug: string) => slug === TOB,
+  isSteward: (slug: string) => slug === TOB,
 };
 const known = Object.keys(CLI_EFFECTS);
 const word = fc.stringMatching(/^[a-z][a-z0-9-]{0,15}$/u).filter((value) => value !== TOB);

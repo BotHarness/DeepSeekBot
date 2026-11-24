@@ -41,11 +41,11 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。Team mode 下，只有当前 Host Owner 拥有 Tob。
+担任 [Steward](#steward) 角色的 PersonaBot。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。 它默认担任 Steward（主管）角色；ADR-0365（提议中）让该角色可以转移。
+Environment 中默认担任主管的内置 PersonaBot。名称是 Bot 的倒写，也寓意 Thousands of Bot。名称、头像、Soul 与 Memory 均可编辑。Owner 转移主管角色后，即可归档或删除 Tob。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
@@ -53,11 +53,11 @@ Tob 模式。手机端从 Chats 上的 Tob 入口栏打开的 Tob DM 普通 Conv
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：
-Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+主管通过 Bot-to-Bot DM 把 Human 的请求交给合适的同事 PersonaBot，再在 Human DM 中回报结果。每次发送都会给 Human 显示操作提示。同事的审批仍由 Human 决定。
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **Steward**：
-主管。让一个 Bot 通过 Human 的 CLI 管理所在 Environment、把请求委派给同事（Tob Delegation）并使用后续主管能力的角色。每个 Environment 始终正好有一个主管，默认由 Tob 担任。ADR-0365（提议中，#5191）让 Owner 可以转移它：整套能力一起转移，新主管保留自己的 Soul、Memory 与 prompt，原主管变回普通 Bot。主管身份不等于管理员权限。
+主管。每个 Environment 始终只有一个 PersonaBot 担任此角色，默认由 Tob 担任。Host 只在已准入的 Owner DM 执行中启用受限的 Human CLI 管理和 Tob 委派。Host Owner 本人可以将角色转移给自己拥有的活跃 Bot。现任主管不可归档或删除。转移会保留双方的 Soul、Memory、Group 和 Session。参见 [ADR-0365](docs/adr/0365-steward-is-a-transferable-role.md)。
 _避免使用_：Admin、管理员、Chief、Orchestrator（那是 Bot 的运行时，不是这个角色）
 
 **PersonaBot**：

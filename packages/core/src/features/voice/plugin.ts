@@ -194,7 +194,7 @@ export function mountCalls(
   const tobVoiceOperations = createTobVoiceOperations({
     providers: () => core.voiceProviders,
     registry: core.registry,
-    isProtectedBot: (slug) => core.tob.isTob(slug),
+    isProtectedBot: (slug) => core.tob.isSteward(slug),
   });
   return tobVoiceOperations;
 }

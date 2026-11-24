@@ -7,6 +7,7 @@ import {
   isChannelTurnStopRests,
   isChannelTurnStopTarget,
 } from './turn-stop.js';
+import { isChannelStewardTransfer } from './steward-transfer.js';
 import { isChannelModelSwitch } from './model-switch.js';
 import { isChannelVoiceCallRecord } from './voice-call-record.js';
 import { isChannelAttachmentRef, isChannelClearedAttachment } from '../attachments/ref.js';
@@ -456,6 +457,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
+    )
+      return false;
+  } else if (message['stewardTransfer'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelStewardTransfer(message['stewardTransfer'])
     )
       return false;
   } else if (message['modelSwitch'] !== undefined) {

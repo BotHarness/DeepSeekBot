@@ -416,8 +416,8 @@ export function orchestratorTools(
         const active = adapter.runs.get(run.sessionId);
         if (active?.role !== 'orchestrator' || active.run.channels.createBot === undefined)
           throw new Error('bot_create: Orchestrator run is unavailable');
-        if (active.run.tobCli)
-          throw new Error('bot_create: Tob must use the scoped deepseekbot CLI');
+        if (active.run.stewardActive?.())
+          throw new Error('bot_create: The Steward must use the scoped deepseekbot CLI');
         const created = active.run.channels.createBot({
           displayName: args.display_name,
           ...(args.description === undefined ? {} : { description: args.description }),

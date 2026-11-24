@@ -1,4 +1,4 @@
-# The protected Tob DM
+# Tob DM and the Steward role
 
 ## Sources
 
@@ -19,11 +19,11 @@
 
 - Home was removed in #3089. Desktop has no Tob Mode or Tob rail switch (ADR-0268, ADR-0269): the Tob DM is a normal Channel list row. Home's stable shortcut command ID and default binding (primary+Alt+Shift+H; Linux Desktop uses O) now open the Tob DM in Messages without changing the Simple Side column (`Open Tob` / `打开托布`). Custom bindings keep working. Saved rail order and hidden-control entries for `bh:home` or `bh:tob-mode` are dropped on read.
 - Layout v9 drops Home from saved Simple and Advanced documents and keeps every other placement. The pre-upgrade document is kept once in `botharness.bot-mode-layout.before-tob-mode-v9` (a saved Simple Home view becomes the Channel list in the Side column; see `simple-side-column` in [the workspace feature](bot-mode-dock.md) for the `botharness.bot-mode-layout-mode.before-side-column-v10` backup). Invalid and future documents are not overwritten.
-- Tob is one protected local identity with canonical Memory, Workspace and Human DM. Re-entry does not repeat its welcome.
+- The Profile provisions one built-in Tob with canonical Memory, Workspace and Human DM. Tob initially holds the Steward role. Re-entry keeps the existing history.
 - The default model is set in Bot settings › Models (the `home-model-set` CLI command remains). While the onboarding journey is active, the Tob DM shows a Configure a model action that opens that setting and returns without sending.
 - The Tob DM sends through the shared Messages composer and the existing Human DM path. The last onboarding step finishes once the layout tips are done and the Human is in the loaded Tob DM, in Simple and Advanced.
 - Tob uses native Shell to discover and invoke the DSB CLI. Scoped management covers default and per-Bot models, presets (create/read/update/apply), four native runtime fields, telemetry, Git availability/install and release operations through existing owners and review; the former dedicated management tools are absent.
-- CLI management is authorized only for the protected Tob root Orchestrator and its current accepted Human DM. Shell authority expires when that execution finishes; other Bots, delegation, revoked sources and direct runners cannot borrow it.
+- CLI management is authorized only for the current Steward’s root Orchestrator and its accepted Owner DM. Shell authority expires when that execution finishes; other Bots, delegation, revoked sources and direct runners cannot borrow it.
 - Old nested layouts and custom/disabled shortcuts remain preserved.
 
 ## How to get to it (user POV)
@@ -163,3 +163,10 @@ In an isolated Profile, ask Tob to prepare a `settings-set botharness-client` wr
 ## Model-free typed CLI parity (#4212)
 
 Use the authenticated Owner `tob-cli start --args-stdin` with private JSON `{argv,stdin}`; read its request ID with `tob-cli status` and cancel with `tob-cli cancel`. This creates a genuine Human DM and accepted Admission, prepares the actual owned Tob root Agent and executes the typed `deepseekbot_cli` through native Tools.execute without a model. A historical source or temporary direct Session cannot substitute. For a local nondestructive fixture, request an approval-template selection, inspect the real pending card in the Tob DM (exact argv and stdin size/hash), decide with existing Human `tool-approval-decide`, and read both the result and selected template. Match source/build hashes; no model request should appear. Repeat denial, cancellation, stale revision and authority-revoke fences. A template readback alone is not broker approval proof. Capture actual Client light/dark pending/settled states separately; Web evidence does not qualify native mobile.
+
+
+## Transfer through the Host CLI
+
+Use an isolated Host and a second active Bot owned by the Owner. Record the output of `deepseekbot steward`, then transfer with `deepseekbot steward-transfer <bot-id> --confirm`. Read the role back and inspect both Human DMs with `channel-messages` for the committed system markers. Existing Groups, Memory and Sessions should keep their ids. Transfer again after restart to verify that the last committed holder persisted.
+
+The Team suite scenario C8 verifies the same Owner command, a Team member’s id-only read and denied transfer, and the current Steward’s model-free broker refusal before any approval. Run `node scripts/e2e-team-security.mjs --name steward-5193 --launch --scenario C8` through the heavy-job wrapper and retain the report.

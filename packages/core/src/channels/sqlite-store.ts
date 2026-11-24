@@ -500,6 +500,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     removeGroupMember: groupMembership.removeGroupMember,
     appendMemoryCommits: notices.appendMemoryCommits,
     appendBotCreateAction: notices.appendBotCreateAction,
+    appendSystemNotices: notices.appendSystemNotices,
     deleteGroup: groupMembership.deleteGroup,
     setGroupAvatar: records.methods.setGroupAvatar,
     rename: records.methods.rename,

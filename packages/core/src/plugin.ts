@@ -276,12 +276,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     get agentAdapter() {
       return agentAdapter;
     },
-    get team() {
-      return team;
-    },
-    get invocationBridgeMethods() {
-      return invocationBridgeMethods;
-    },
     get tobSettingsOperations() {
       return tobSettingsOperations;
     },
@@ -361,6 +355,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     'botharness: purge ledger and operational database',
   );
+  ctx.inject(['workspaceRegistry'], (workspaceCtx) => {
+    if (core.operationalDatabase.mode !== 'ready') return;
+    void core.tob.steward().catch(() => {
+      workspaceCtx.logger.warn('Could not initialize the Profile Steward');
+    });
+  });
   const storage = profileStorage.mountStorage(ctx, core, dshHome);
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
@@ -374,6 +374,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (topics.includes('host-relationships'))
           core.live.publishResourceChanged('relationships');
         if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
+        if (topics.includes('steward')) core.live.publishRosterCommitted();
         if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
       }),
     'botharness: live resource changes',

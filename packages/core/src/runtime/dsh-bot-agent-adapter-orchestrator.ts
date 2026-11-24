@@ -11,7 +11,6 @@ import { replyReminderText } from '../features/messaging/prompt.js';
 import { GENUI_AUTHORING_SECTION } from '../features/genui/prompt.js';
 import { nativeScheduleToolRefusal } from '../features/schedules/tools.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
-import { TOB_CLI_PROMPT } from '../tob/service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
   Agent,
@@ -644,9 +643,15 @@ export async function orchestratorHandle(
     if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
     const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
     if (borrowed) borrowedDisposers.push(disposeSelection);
+    const isStewardTurn = () => {
+      const current = adapter.runs.get(run.sessionId);
+      return current?.role === 'orchestrator' && current.run.stewardActive?.() === true;
+    };
     const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-      if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
-      const dispose = agentCtx.tools.register(tool);
+      const dispose = agentCtx.tools.register(
+        tool,
+        TOB_CLI_ONLY_TOOLS.has(tool.name) ? { when: () => !isStewardTurn() } : undefined,
+      );
       if (borrowed) borrowedDisposers.push(dispose);
       return dispose;
     };
@@ -675,21 +680,15 @@ export async function orchestratorHandle(
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
       text: () =>
-        orchestratorPromptSections(adapter.promptText(run.sessionId), run.tobCli === true).role,
+        orchestratorPromptSections(adapter.promptText(run.sessionId), isStewardTurn()).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
-    if (run.tobCli) {
-      const disposeLegacyManagement = agentCtx.tools.guard(({ name }) =>
-        TOB_CLI_ONLY_TOOLS.has(name) ? 'Tob must use the scoped deepseekbot CLI' : undefined,
-      );
-      if (borrowed) borrowedDisposers.push(disposeLegacyManagement);
-      const disposeTobPrompt = agentCtx.systemPrompt.section({
-        name: 'botharness:tob-cli',
-        order: ROLE_PROMPT_ORDER + 1,
-        text: TOB_CLI_PROMPT,
-      });
-      if (borrowed) borrowedDisposers.push(disposeTobPrompt);
-    }
+    const disposeLegacyManagement = agentCtx.tools.guard(({ name }) =>
+      isStewardTurn() && TOB_CLI_ONLY_TOOLS.has(name)
+        ? 'The Steward must use the scoped deepseekbot CLI'
+        : undefined,
+    );
+    if (borrowed) borrowedDisposers.push(disposeLegacyManagement);
     const disposeReplyPrompt = agentCtx.systemPrompt.section({
       name: 'botharness:reply-delivery',
       order: 10_450,

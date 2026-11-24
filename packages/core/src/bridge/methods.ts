@@ -765,6 +765,8 @@ function buildBridgeMethods(
     messagingRevoke: messagingMethods.messagingRevoke,
     messagingConversation: messagingMethods.messagingConversation,
     messagingSend: messagingMethods.messagingSend,
+    steward: tobAdapterMethods.steward,
+    stewardTransfer: tobAdapterMethods.stewardTransfer,
     tobCli: tobAdapterMethods.tobCli,
     tobHome: tobAdapterMethods.tobHome,
     onboarding: personabotsMethods.onboarding,

@@ -34,6 +34,45 @@ export function createChannelNotices({
   };
 }) {
   return {
+    appendSystemNotices(notices, commit) {
+      const placements = database.transaction(
+        (db) => {
+          if (!commit(db)) return undefined;
+          return notices.map(({ channelId, message }) => {
+            const revision = revisionOf(channelId) + 1;
+            const sourceEventId = randomUUID();
+            db.prepare(`
+              INSERT INTO source_events (
+                source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json
+              ) VALUES (?, 'system-message', ?, ?, ?, ?, ?)
+            `).run(
+              sourceEventId,
+              channelId,
+              message.id,
+              message.body,
+              message.at,
+              eventPayload(message),
+            );
+            db.prepare(sql.insertMemoryPlacement).run(
+              channelId,
+              revision,
+              sourceEventId,
+              message.id,
+            );
+            return { channelId, message, revision };
+          });
+        },
+        ['source-event', 'channel', 'steward'],
+      );
+      if (placements === undefined) return false;
+      for (const placement of placements)
+        try {
+          options.onCommitted?.(placement);
+        } catch (error) {
+          options.warn?.(`Channel post-commit notification failed: ${String(error)}`);
+        }
+      return true;
+    },
     appendMemoryCommits(input) {
       const cause = causeChannel(input.causeSourceEventId, input.botSlug, '');
       const dm = humanBotDm(input.botSlug);
@@ -164,5 +203,8 @@ export function createChannelNotices({
       }
       return message;
     },
-  } satisfies Pick<ChannelStore, 'appendMemoryCommits' | 'appendBotCreateAction'>;
+  } satisfies Pick<
+    ChannelStore,
+    'appendMemoryCommits' | 'appendBotCreateAction' | 'appendSystemNotices'
+  >;
 }

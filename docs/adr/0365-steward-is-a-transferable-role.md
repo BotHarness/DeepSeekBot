@@ -1,5 +1,5 @@
 ---
-Status: Proposed
+Status: Accepted
 Date: 2026-11-25
 ---
 
@@ -25,7 +25,7 @@ Transfer is a swap. The new Steward keeps its Soul, Memory and prompt and gains 
 
 Transfer does not compact either context. Each side's Human DM gets a system marker naming the new Steward, so the model sees the change in its timeline.
 
-Only the Owner can transfer, from Bot settings on desktop and phone or through the Human's CLI, after a confirmation that lists what the Bot will be able to manage. The transfer command is Human-only: a Steward request for it is refused before any approval card, like browser pairing (§8). Importing a Bot never makes it the Steward, even if it was the Steward where it came from. Team members never see the transfer entry.
+Only the Owner can transfer the role to an active Bot they own, from Bot settings on desktop and phone or through the Human's CLI, after a confirmation that lists what the Bot will be able to manage. The transfer command is Human-only: a Steward request for it is refused before any approval card, like browser pairing (§8). Importing a Bot never makes it the Steward, even if it was the Steward where it came from. Team members never see the transfer entry.
 
 On the phone, the Tob entry bar and Tob Mode are replaced by a **Pinned tab**: one tab-island slot bound per Environment to any conversation, defaulting to the Steward's DM (#5191).
 
@@ -39,6 +39,6 @@ On the phone, the Tob entry bar and Tob Mode are replaced by a **Pinned tab**: o
 
 ## Consequences
 
-The Host's Tob special-casing (about 175 non-test references) moves to the role (#5193). The self-escalation guard and the M15 security suite (#4197) key on the current Steward, and the suite gains transfer cases. Tob decisions §1, §2 and §8 are rewritten when the Pinned tab ships (#5198). The slice that implements transfer marks this ADR Accepted.
+The Host persists the role and transfers it in #5193. The self-escalation guard and the M15 security suite (#4197) check the current Steward. The Pinned tab and the retirement of Tob Mode ship separately (#5195 and #5198).
 
-Open: today Tob never joins a Group. A Bot that becomes the Steward may already be in Groups. Proposed: it stays in them, since its Steward capability is only active in its Human DM turns.
+A Bot that becomes the Steward stays in its Groups. Its Steward capability activates only in accepted Human DM turns.

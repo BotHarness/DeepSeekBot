@@ -213,12 +213,12 @@ function createFailure(
 function summarize(
   record: PersonaBotRecord,
   snapshot: BotStateSnapshot,
-  protectedTob = false,
+  builtInTob = false,
 ): PersonaBotSummary {
   return {
     slug: record.slug,
     displayName: record.displayName,
-    ...(protectedTob
+    ...(builtInTob
       ? {
           tob: {
             defaultName: record.displayNameCustomized !== true && record.displayName === 'Tob',
@@ -267,10 +267,10 @@ function summarize(
 export function detail(
   record: PersonaBotRecord,
   snapshot: BotStateSnapshot,
-  protectedTob = false,
+  builtInTob = false,
 ): PersonaBotDetail {
   return {
-    ...summarize(record, snapshot, protectedTob),
+    ...summarize(record, snapshot, builtInTob),
     sessions: { ...snapshot.sessions },
     ...(record.model === undefined ? {} : { model: record.model }),
     ...(record.modelPlan === undefined ? {} : { modelPlan: record.modelPlan }),
@@ -331,10 +331,10 @@ export function createPersonaBotsBridgeMethods(
   ): BridgeResult<{ bot: PersonaBotDetail }> => {
     const slug = asSlug(payload);
     if (slug === undefined) return invalidInput('slug is required');
-    if (paused && deps.tob?.isTob(slug))
+    if (paused && deps.tob?.isSteward(slug))
       return {
         ok: false,
-        error: { code: 'protected-bot', message: 'Tob cannot be archived' },
+        error: { code: 'protected-bot', message: 'The current Steward cannot be archived' },
       };
     const result = deps.registry.setPaused(slug, paused);
     if (!result.ok) return unknownBot(slug);
@@ -352,10 +352,10 @@ export function createPersonaBotsBridgeMethods(
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
+        if (deps.tob?.isSteward(slug))
           return {
             ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
+            error: { code: 'protected-bot', message: 'The current Steward cannot be deleted' },
           };
         return { ok: true, value: { preview: deps.deletions.preview(slug) } };
       } catch (error) {
@@ -375,10 +375,10 @@ export function createPersonaBotsBridgeMethods(
         return invalidInput('Explicit deletion scope is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
+        if (deps.tob?.isSteward(slug))
           return {
             ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
+            error: { code: 'protected-bot', message: 'The current Steward cannot be deleted' },
           };
         const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
         deps.computerAccess?.changed(slug);

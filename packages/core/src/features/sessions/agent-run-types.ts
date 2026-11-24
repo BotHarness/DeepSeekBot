@@ -61,7 +61,7 @@ export interface OrchestratorAgentRun {
   ):
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
-  tobCli?: boolean;
+  stewardActive?: () => boolean;
   tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
   triage?: OrchestratorInboxTriage;

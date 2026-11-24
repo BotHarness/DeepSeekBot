@@ -25,7 +25,8 @@ import type { SessionOwnership } from '../sessions/ownership.js';
 import { botOwner } from '../team/bot-access.js';
 import { TeamError } from '../team/error.js';
 import type { TeamService } from '../team/service.js';
-import { TobError, type TobService } from '../tob/service.js';
+import { isStewardDmSource } from '../tob/steward-role.js';
+import { TobError } from '../tob/service.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import type { WorkspaceGrantStore } from '../workspaces/grants.js';
 import type { createCausalSending } from './causal-sending.js';
@@ -85,7 +86,6 @@ interface ChannelAccessPorts {
   requireMembership: (botSlug: string, channelId: string) => ChannelRecord;
   requireTurnAccess: (botSlug: string, ids: Iterable<string>) => void;
   team: TeamService | undefined;
-  tob: TobService | undefined;
   turnSources: ReadonlyMap<
     string,
     {
@@ -200,7 +200,8 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
       authorize(database);
     };
     const requireOrdinaryGroupActor = () => {
-      if (ports.tob?.isTob(botSlug)) throw new TobError('tob-cli-required');
+      if (isStewardDmSource(ports.database, botSlug, sourceEventId))
+        throw new TobError('tob-cli-required');
     };
     const resolve = (requested?: string): ChannelRecord => {
       const id = requested ?? defaultChannelId;
@@ -292,7 +293,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           (target && botOwner(target) !== botOwner(ports.registry.get(botSlug)!))
         )
           throw new TobError('bot-not-found');
-        if (ports.tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
         if (
           channel?.type !== 'group' ||
           channel.ownerBotSlug !== botSlug ||
@@ -395,8 +395,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           request === undefined ? undefined : ports.registry.get(request.requesterBotSlug);
         if (requester && botOwner(requester) !== botOwner(ports.registry.get(botSlug)!))
           throw new TobError('bot-not-found');
-        if (request !== undefined && ports.tob?.isTob(request.requesterBotSlug))
-          throw new TobError('protected-bot');
         if (
           target?.type !== 'group' ||
           target.ownerBotSlug !== botSlug ||

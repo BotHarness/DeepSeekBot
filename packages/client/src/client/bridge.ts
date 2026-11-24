@@ -43,6 +43,7 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
+import { isChannelStewardTransfer } from '../../../core/src/channels/steward-transfer.js';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -864,6 +865,7 @@ export {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
   isChannelModelSwitch,
+  isChannelStewardTransfer,
   isChannelAttachmentRef,
   isChannelClearedAttachment,
   isChannelMessageVoice,

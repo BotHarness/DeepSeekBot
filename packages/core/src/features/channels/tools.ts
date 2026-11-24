@@ -2,7 +2,7 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import type { GroupInvitation, GroupJoinRequest } from '../../channels/channel.js';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
 
-type ChannelToolRun = Pick<OrchestratorAgentRun, 'tobCli'> & {
+type ChannelToolRun = Pick<OrchestratorAgentRun, 'stewardActive'> & {
   channels: Pick<
     OrchestratorAgentRun['channels'],
     | 'list'
@@ -270,7 +270,8 @@ export function createGroupCreateTool(
     execute: async (args) => {
       const active = currentRun();
       if (active === undefined) throw new Error('group_create: Orchestrator run is unavailable');
-      if (active.tobCli) throw new Error('group_create: Tob must use the scoped deepseekbot CLI');
+      if (active.stewardActive?.())
+        throw new Error('group_create: The Steward must use the scoped deepseekbot CLI');
       return JSON.stringify(groupCommandResult(active.channels.createGroup(args.name), 'created'));
     },
   });
@@ -297,8 +298,8 @@ export function registerGroupChannelTools(
         const active = currentRun();
         if (active === undefined)
           throw new Error('group_invite_bot: Orchestrator run is unavailable');
-        if (active.tobCli)
-          throw new Error('group_invite_bot: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_invite_bot: The Steward must use the scoped deepseekbot CLI');
         const invitation = active.channels.inviteGroup({
           channelId: args.channel_id,
           targetBotSlug: args.bot_id,
@@ -331,8 +332,8 @@ export function registerGroupChannelTools(
         const active = currentRun();
         if (active === undefined)
           throw new Error('group_invite_respond: Orchestrator run is unavailable');
-        if (active.tobCli)
-          throw new Error('group_invite_respond: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_invite_respond: The Steward must use the scoped deepseekbot CLI');
         const result = active.channels.respondToGroupInvite({
           invitationId: args.invite_id,
           accept: args.accept,
@@ -364,8 +365,8 @@ export function registerGroupChannelTools(
         const active = currentRun();
         if (active === undefined || active.channels.requestGroupJoin === undefined)
           throw new Error('group_join_request: Orchestrator run is unavailable');
-        if (active.tobCli)
-          throw new Error('group_join_request: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_join_request: The Steward must use the scoped deepseekbot CLI');
         const request = active.channels.requestGroupJoin({ channelId: args.channel_id });
         return JSON.stringify(groupJoinResult(args.channel_id, request));
       },
@@ -388,8 +389,8 @@ export function registerGroupChannelTools(
         const active = currentRun();
         if (active === undefined || active.channels.decideGroupJoin === undefined)
           throw new Error('group_join_decide: Orchestrator run is unavailable');
-        if (active.tobCli)
-          throw new Error('group_join_decide: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_join_decide: The Steward must use the scoped deepseekbot CLI');
         const result = active.channels.decideGroupJoin({
           channelId: args.channel_id,
           requestId: args.request_id,
@@ -417,7 +418,8 @@ export function registerGroupChannelTools(
       execute: async (args) => {
         const active = currentRun();
         if (active === undefined) throw new Error('group_rename: Orchestrator run is unavailable');
-        if (active.tobCli) throw new Error('group_rename: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_rename: The Steward must use the scoped deepseekbot CLI');
         const channel = active.channels.renameGroup({
           channelId: args.channel_id,
           name: args.name,
@@ -446,8 +448,8 @@ export function registerGroupChannelTools(
         const active = currentRun();
         if (active === undefined)
           throw new Error('group_remove_member: Orchestrator run is unavailable');
-        if (active.tobCli)
-          throw new Error('group_remove_member: Tob must use the scoped deepseekbot CLI');
+        if (active.stewardActive?.())
+          throw new Error('group_remove_member: The Steward must use the scoped deepseekbot CLI');
         const channel = active.channels.removeGroupMember({
           channelId: args.channel_id,
           botSlug: args.bot_id,
@@ -539,7 +541,8 @@ export function createGroupLeaveTool(currentRun: () => ChannelToolRun | undefine
     execute: async (args) => {
       const active = currentRun();
       if (active === undefined) throw new Error('group_leave: Orchestrator run is unavailable');
-      if (active.tobCli) throw new Error('group_leave: Tob must use the scoped deepseekbot CLI');
+      if (active.stewardActive?.())
+        throw new Error('group_leave: The Steward must use the scoped deepseekbot CLI');
       const result = active.channels.leaveGroup({ channelId: args.channel_id });
       return JSON.stringify(
         result.left

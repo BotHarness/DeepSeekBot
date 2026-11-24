@@ -174,7 +174,6 @@ export function teamFixture(
       database,
       registry,
       channels,
-      isProtectedBot: () => false,
     }),
     createBotId: () => 'ada',
   });

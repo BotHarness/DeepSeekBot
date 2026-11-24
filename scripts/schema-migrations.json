@@ -738,5 +738,9 @@
   {
     "id": "tob-memory-leases",
     "sha256": "8520f1204dc8d9cc8f65f1106f835df568cc86c3edcc7726dc67c6d247980fae"
+  },
+  {
+    "id": "steward-role",
+    "sha256": "280049d24c77e59a95b9eb3dfe697243b97f1d5e5b89fc6568f29a04b1d912b5"
   }
 ]
