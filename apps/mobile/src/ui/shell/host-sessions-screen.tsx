@@ -449,7 +449,7 @@ function HostSessionListItem({
           {[row.folderName, state].filter(Boolean).join(' · ')}
         </Text>
       </View>
-      <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line} />
+      <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line * theme.fontScale} />
     </Pressable>
   );
 }

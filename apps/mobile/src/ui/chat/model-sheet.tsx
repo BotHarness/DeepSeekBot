@@ -158,7 +158,7 @@ export function ModelSheet({
           leading={
             <ModelBrandIcon
               brand={modelEntryLabel(item.entry).brand}
-              size={theme.type.title.line}
+              size={theme.type.title.line * theme.fontScale}
               color={usable ? theme.color.fg : theme.color.muted}
             />
           }

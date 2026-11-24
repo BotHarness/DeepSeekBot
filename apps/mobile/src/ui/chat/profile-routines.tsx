@@ -141,15 +141,21 @@ function RoutineRow({
         })}
       >
         <View style={{ flex: 1, gap: space.x1 }}>
-          <Text numberOfLines={1} tone={routine.enabled ? 'fg' : 'muted'}>
+          <Text
+            {...(theme.largeText ? {} : { numberOfLines: 1 })}
+            tone={routine.enabled ? 'fg' : 'muted'}
+          >
             {routine.title}
           </Text>
-          <Text variant="meta" tone="muted" numberOfLines={2}>
+          <Text variant="meta" tone="muted" {...(theme.largeText ? {} : { numberOfLines: 2 })}>
             {detail}
           </Text>
         </View>
         {onOpen === undefined ? null : (
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
+          <ChevronRightIcon
+            color={theme.color.muted}
+            size={theme.type.title.line * theme.fontScale}
+          />
         )}
       </Pressable>
     </SwipeRow>
