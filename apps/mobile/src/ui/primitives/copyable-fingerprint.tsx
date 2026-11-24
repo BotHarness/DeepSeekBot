@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, View } from 'react-native';
+import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -56,7 +56,10 @@ export function CopyableFingerprint({
         </Text>
       ) : null}
       <View testID={`${testID}-rows`} style={{ gap: space.x1 }}>
-        {fingerprintRows(fingerprint).map((row, index) => (
+        {fingerprintRows(
+          fingerprint,
+          Platform.OS === 'android' && theme.largeText ? 2 : undefined,
+        ).map((row, index) => (
           <Text key={index} style={{ fontFamily: theme.mono, textAlign: 'center' }}>
             {row}
           </Text>
