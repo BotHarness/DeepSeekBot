@@ -39,6 +39,7 @@ it.each(['connect', 'lan'] as const)(
     });
     server.on('upgrade', upgradeListener(gateway));
     const offer = pairing.createOffer();
+    const sockets: WebSocket[] = [];
     const peer = async () => {
       const channel = new ConnectChannel({
         role: 'initiator',
@@ -49,6 +50,7 @@ it.each(['connect', 'lan'] as const)(
         hostKey: noisePublicKey(hostKey),
       });
       const ws = new WebSocket(`ws://127.0.0.1:${port}/botharness-device/channel`);
+      sockets.push(ws);
       const answers: Record<string, unknown>[] = [];
       const waiters: ((value: Record<string, unknown>) => void)[] = [];
       let secured!: () => void;
@@ -81,19 +83,22 @@ it.each(['connect', 'lan'] as const)(
       await pair();
       return { ws, next, pair };
     };
-    const waiting = [await peer()];
-    for (let index = 0; index < 3; index++) {
-      const replaced = once(waiting.at(-1)!.ws, 'close');
-      waiting.push(await peer());
-      await replaced;
+    try {
+      const waiting = [await peer()];
+      for (let index = 0; index < 3; index++) {
+        const replaced = once(waiting.at(-1)!.ws, 'close');
+        waiting.push(await peer());
+        await replaced;
+      }
+      const latest = waiting.at(-1)!;
+      await latest.pair();
+      expect(latest.ws.readyState).toBe(WebSocket.OPEN);
+      pairing.approveKey(offer.receipt, Buffer.from(noisePublicKey(deviceKey)).toString('hex'));
+      expect(await latest.next()).toMatchObject({ type: 'paired' });
+    } finally {
+      for (const ws of sockets) ws.terminate();
+      gateway.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
-    const latest = waiting.at(-1)!;
-    await latest.pair();
-    expect(latest.ws.readyState).toBe(WebSocket.OPEN);
-    pairing.approveKey(offer.receipt, Buffer.from(noisePublicKey(deviceKey)).toString('hex'));
-    expect(await latest.next()).toMatchObject({ type: 'paired' });
-    latest.ws.close();
-    gateway.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   },
 );
