@@ -249,6 +249,7 @@ export const RULES = [
     'Mobile app prose, agent rules and ignores',
   ),
   related('scripts/test/**', 'Script tests'),
+  related('scripts/windows-lock-probe-native/**', 'Windows console observer'),
   related('.github/workflows/readme-status.yml', 'README status collection and publication'),
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
