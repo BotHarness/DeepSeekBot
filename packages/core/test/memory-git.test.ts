@@ -1,11 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import { createMemoryStore } from '../src/index.js';
-import { createMemoryGit, initializeMemoryRepositoryAsync } from '../src/memory/git.js';
+import {
+  createMemoryGit,
+  initializeMemoryGit,
+  initializeMemoryRepositoryAsync,
+} from '../src/memory/git.js';
 import { FIXED_NOW, createTempRoot } from './helpers.js';
 
 function createRoot(): string {
@@ -36,6 +40,37 @@ function commitCount(root: string): number {
 }
 
 describe('memory git repository', () => {
+  it.each(['sync', 'async'] as const)(
+    'keeps a template identity and sets single policy values when a Git template supplies config (%s)',
+    async (mode) => {
+      const template = createRoot();
+      mkdirSync(template, { recursive: true });
+      writeFileSync(
+        join(template, 'config'),
+        '[user]\n\tname = Template User\n[core]\n\tautocrlf = true\n',
+        'utf8',
+      );
+      const previous = process.env.GIT_TEMPLATE_DIR;
+      process.env.GIT_TEMPLATE_DIR = template;
+      try {
+        const root = createRoot();
+        const initialize = async () =>
+          mode === 'sync' ? initializeMemoryGit(root) : await initializeMemoryRepositoryAsync(root);
+        expect(await initialize()).toEqual({ created: true });
+        expect(await initialize()).toEqual({ created: false });
+        expect(git(root, ['config', '--local', '--get', 'user.name'])).toBe('Template User');
+        expect(git(root, ['config', '--local', '--get', 'user.email'])).toBe(
+          'bot@botharness.local',
+        );
+        expect(git(root, ['config', '--local', '--get-all', 'core.autocrlf'])).toBe('false');
+        expect(git(root, ['config', '--local', '--get-all', 'commit.gpgsign'])).toBe('false');
+      } finally {
+        if (previous === undefined) delete process.env.GIT_TEMPLATE_DIR;
+        else process.env.GIT_TEMPLATE_DIR = previous;
+      }
+    },
+  );
+
   it('prepares the same durable Git repository asynchronously and preserves its existing HEAD', async () => {
     const root = createRoot();
     let ready = false;
