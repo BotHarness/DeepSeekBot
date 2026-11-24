@@ -23,3 +23,10 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
+
+## Cindy macOS Computer unlock
+
+`native/unlock/MacScreenUnlock.swift` and `native/unlock/MacSystemAccount.swift`
+adapt code from [Cindy](https://github.com/makecindy/cindy/tree/945abae2b8a2ebf05ebb9a5d3d04fa14b55420fc/packages/remote-credentials-native/Sources/CindyRemoteCredentials).
+Copyright 2026 XD Inc. The adapted sources use the Apache License, Version 2.0.
+See [LICENSE-CINDY](native/unlock/LICENSE-CINDY) and [NOTICE-CINDY](native/unlock/NOTICE-CINDY).

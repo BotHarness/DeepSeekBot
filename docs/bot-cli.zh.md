@@ -564,6 +564,7 @@ deepseekbot browser-takeover <bot-id> --enabled
 deepseekbot browser-takeover <bot-id> --disabled
 deepseekbot browser-stop <bot-id>
 deepseekbot computer-status
+deepseekbot computer-unlock-status
 deepseekbot computer-start --target local
 deepseekbot computer-stop
 deepseekbot computer-frame --out /tmp/desktop.jpg
@@ -574,6 +575,10 @@ deepseekbot grants <bot-id>
 ```
 
 `browser-open` 启动 Bot 的浏览器（需要已开启浏览器权限），返回标签页和查看地址。`browser-frame` 把当前画面保存到一个绝对路径，并报告大小和视口，Agent 可以借此看到 Bot 看到的内容。`browser-takeover --enabled` 暂停 Bot 的浏览器以便人工操作，`--disabled` 交还。`computer-start` 带上面板按钮发送的同一个显式授权；用 `computer-status` 读取结果，被拒时 `status.detail` 会说明原因，例如缺少系统权限或显示器。`grants` 从在线 Host 列出 Bot 的工作区授权。路由拒绝时保留 Host 的错误码，或返回 `host-refused` 加上它的说明。
+
+`computer-unlock-status` 查询 Mac 原生助手的能力和锁屏状态。`ready` 表示已连接签名助手。
+`accessibility-required` 表示需要在 Mac 的系统设置中允许助手使用辅助功能。解锁时，在已配对的
+iPhone 上打开 Computer。
 
 `computer-frame` 把 Computer 桌面（本机或容器）的当前画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
 

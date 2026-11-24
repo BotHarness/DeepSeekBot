@@ -29,6 +29,8 @@ import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { ComputerClickFeedback } from './computer-click-ripple';
 import { ComputerPointerControls } from './computer-pointer-controls.ios';
+import { ComputerSecurity, computerUnlockMessage, useComputerUnlock } from './computer-unlock.ios';
+import { Button } from '../primitives/button';
 import { ComputerVideoControls } from './computer-video-controls.ios';
 import { ComputerVideoHeader } from './computer-video-header.ios';
 import { computerVideoStatus } from './computer-video-status';
@@ -101,6 +103,16 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       });
     }, [viewer, connected]),
   );
+  const afterUnlock = useCallback(() => {
+    void viewer?.reconnect();
+  }, [viewer]);
+  const unlock = useComputerUnlock({
+    ...(client === undefined ? {} : { api: client.api }),
+    ...(saved && !saved.member ? { host: saved.hostId, device: saved.deviceId } : {}),
+    route: connected ? snapshot.connection.route : '',
+    onUnlocked: afterUnlock,
+  });
+  const unlockNotice = unlock.security ? undefined : computerUnlockMessage(t, unlock.message);
   const host = state.host;
   const binding = host?.binding;
   const actions = localVideoActions({ state, connection: snapshot.connection });
@@ -111,7 +123,13 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     host?.offer !== undefined &&
     (state.status === 'observing' || state.status === 'controlling');
   const controlling = mediaMounted && state.status === 'controlling';
-  const driving = controlling && state.presenting && host?.media.status === 'live' && !state.busy;
+  const driving =
+    controlling &&
+    !unlock.locked &&
+    !unlock.busy &&
+    state.presenting &&
+    host?.media.status === 'live' &&
+    !state.busy;
   const frame = { width: host?.media.width ?? 0, height: host?.media.height ?? 0 };
   const keyboardOpen =
     driving &&
@@ -346,7 +364,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             gap: space.x2,
           }}
         >
-          {message || keyboardIncomplete ? (
+          {message || keyboardIncomplete || unlockNotice ? (
             <ScrollView
               keyboardShouldPersistTaps="always"
               style={{ flexShrink: 1, flexGrow: 0 }}
@@ -361,6 +379,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                   {message}
                 </Text>
               ) : null}
+              {unlockNotice ? <Text accessibilityLiveRegion="polite">{unlockNotice}</Text> : null}
               {keyboardIncomplete ? (
                 <Text
                   tone="muted"
@@ -401,10 +420,19 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               }
             />
           ) : null}
+          {unlock.unlockAllowed ? (
+            <Button
+              label={t.computerUnlockAction}
+              testID="computer-unlock"
+              busy={unlock.busy}
+              onPress={() => void unlock.manual()}
+            />
+          ) : null}
           <ComputerVideoControls
+            {...(unlock.securityAction ? { security: unlock.securityAction } : {})}
             control={{
               label: actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover,
-              disabled: toggleDisabled,
+              disabled: toggleDisabled || unlock.locked || unlock.busy,
               onPress: () => void (actions.handBack ? viewer?.resume() : viewer?.takeover()),
             }}
             controlling={controlling}
@@ -439,6 +467,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               : {})}
           />
         </View>
+        <ComputerSecurity unlock={unlock} />
       </KeyboardAvoidingView>
     </DesignThemeProvider>
   );

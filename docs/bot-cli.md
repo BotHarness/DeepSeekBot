@@ -582,6 +582,7 @@ deepseekbot browser-takeover <bot-id> --enabled
 deepseekbot browser-takeover <bot-id> --disabled
 deepseekbot browser-stop <bot-id>
 deepseekbot computer-status
+deepseekbot computer-unlock-status
 deepseekbot computer-start --target local
 deepseekbot computer-stop
 deepseekbot computer-frame --out /tmp/desktop.jpg
@@ -592,6 +593,11 @@ deepseekbot grants <bot-id>
 ```
 
 `browser-open` starts the Bot's Browser (Browser Access must be on) and returns its tab and viewer URL. `browser-frame` saves the current picture to an absolute path and reports its size and viewport, so an agent can look at what the Bot sees. `browser-takeover --enabled` pauses the Bot's Browser for Human input and `--disabled` hands it back. `computer-start` carries the explicit authorization the panel button sends; read the result with `computer-status`, whose `status.detail` explains a refusal such as a missing OS permission or display. `grants` lists a Bot's Workspace Grants from a live Host. Route refusals keep the Host's code, or `host-refused` with its message.
+
+`computer-unlock-status` reads the Mac helper capability and observed lock state.
+`ready` means the signed helper can be reached. `accessibility-required` means the
+Human needs to enable the helper in macOS System Settings. Open Computer on the
+paired iPhone to unlock it.
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 

@@ -1665,6 +1665,16 @@ On the phone, Connect sign-in collects the email and the 6-digit WorkOS Magic Au
 
 The same application-defined Computer owner now supports a macOS sender and an iOS receiver over the existing Device LAN carrier. Explicit setup installs a checksum-pinned Electron bundle; an owned process group supervises capture and cleanup. The iOS Expo module uses pinned WebRTC with one retiring peer slot and bounded latest-frame Metal presentation. No new DSH interception, identity or durable control store is introduced. Mac geometry validation compares logical display size and backing scale with physical capture size; input remains in capture pixels because the pinned driver performs the logical-point conversion; stale geometry, missing presentation or a missing grant refuses clicks. Foreground watching, explicit takeover and handback preserve ADR-0245 pause semantics. Builds, visible output and Human acceptance are recorded separately.
 
+### iPhone unlock for macOS Local Computer (#5138)
+
+The approved owner device sends signed challenge and sealed credential messages
+through the Noise LAN gateway to a signed macOS Aqua LaunchAgent. The iPhone
+native module owns password entry, Mac key continuity and Face ID-protected
+Keychain storage. The Host persists Computer Pause before dispatch and exposes
+read-only capability and lock state to the CLI. The helper verifies the console
+account and password, then observes the lock-state transition after one validated
+AX submit. See [the Computer decision](../decisions/computer.md#6-iphone-unlock-for-a-locked-mac).
+
 ### Android control and navigation presentation
 
 Android conversation profile entry retains the actual profile beside the conversation in a native Material side-sheet container. Native code owns drag and settling; profile visibility separately owns refresh and subscription lifetime. Shared route controllers preserve Host scope and nested editor routes. Activity registers its filter panel above the entire tab navigator in the same native container: a modal side sheet with native scrim, fixed heading and reachable options. Neither creates a new Host or persistence authority. See [ADR-0271](../decisions/mobile-ui.md#adr-0271).

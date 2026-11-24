@@ -26,6 +26,12 @@ import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
 import { noisePeerHeaders } from './route-context.js';
 
+import {
+  COMPUTER_UNLOCK_PATH,
+  type ComputerUnlockOwner,
+} from '../../../computer/src/unlock-contract.js';
+import { dispatchComputerUnlock } from './computer-unlock-channel.js';
+
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
 const DEADLINE = 10_000;
@@ -110,6 +116,7 @@ export function createEncryptedGateway(options: {
   changed?: (state: { negotiating: number; encrypted: number }) => void;
   log?: (phase: string) => void;
   callDiagnostic?: (event: CallChannelDiagnostic) => void;
+  computerUnlock?: () => ComputerUnlockOwner | undefined;
   localVideo?: (input: {
     deviceId: string;
     command: unknown;
@@ -585,6 +592,16 @@ export function createEncryptedGateway(options: {
         (method !== 'GET' && method !== 'POST')
       )
         throw new Error('channel-request-invalid');
+      if (path === `/botharness-device${COMPUTER_UNLOCK_PATH}`)
+        return dispatchComputerUnlock({
+          owner: options.computerUnlock?.(),
+          ownerLan: options.route === 'lan' && !credential?.startsWith('member.'),
+          caller: { host: options.pairing.host().id, device: deviceId! },
+          requests,
+          id,
+          input,
+          send,
+        });
       if (
         credential?.startsWith('member.') &&
         /\/(?:computer|browser|voice|direct)(?:\/|$)/u.test(path)

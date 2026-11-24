@@ -257,6 +257,11 @@ export const LIVE_COMMANDS = [
     description: 'read the profile Computer target and state',
   },
   {
+    command: 'computer-unlock-status',
+    description:
+      'read whether the Mac can be unlocked from a paired iPhone and whether it is locked',
+  },
+  {
     command: 'computer-video',
     description:
       'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
