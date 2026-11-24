@@ -3,7 +3,13 @@ import type { BotHarnessCore } from '../src/plugin.js';
 
 export function placeGroupSource(
   core: BotHarnessCore,
-  input: { channelId: string; fingerprint: string; conversationId: string; messageId: string },
+  input: {
+    channelId: string;
+    fingerprint: string;
+    conversationId: string;
+    messageId: string;
+    revision?: number;
+  },
 ) {
   attachOperationalModule(core.operationalDatabase, 'messaging').transaction((db) => {
     const id = `src-${input.messageId}`;
@@ -36,6 +42,6 @@ export function placeGroupSource(
       ).revision ?? 0;
     db.prepare(
       'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
-    ).run(input.channelId, revision + 1, id, `placed-${input.messageId}`);
+    ).run(input.channelId, input.revision ?? revision + 1, id, `placed-${input.messageId}`);
   });
 }

@@ -8,7 +8,7 @@ import {
   type MessagingPlatformId,
 } from './platforms/index.js';
 import { messagingDefaults } from './defaults.js';
-import type { ExternalSource } from './inbound-types.js';
+import { z } from 'zod';
 import { MessagingError, type MessagingProvider, type MessagingReplyRoute } from './provider.js';
 
 export interface InteractionGrant {
@@ -51,6 +51,25 @@ export interface InteractionAuthority {
   groupDestination(grant: InteractionGrant, channelId: string): InteractionDestination | undefined;
 }
 
+const groupSourcePayload = z.object({
+  external: z.object({
+    event: z.object({
+      channel: z.string(),
+      botId: z.string(),
+      fingerprint: z.string(),
+      conversation: z.object({ kind: z.literal('group'), id: z.string().min(1) }),
+      reply: z.object({
+        messageId: z.string(),
+        conversationId: z.string(),
+        actorId: z.string(),
+        threadId: z.string().optional(),
+        rootId: z.string().optional(),
+        parentId: z.string().optional(),
+      }),
+    }),
+  }),
+});
+
 export function createInteractionAuthority(options: {
   database: OperationalDatabaseModulePort;
   pairing: BotPairing;
@@ -86,19 +105,24 @@ export function createInteractionAuthority(options: {
           if (messagingDefaults(db, platform).groupInteractions === false) return undefined;
           const row = db
             .prepare(
-              "SELECT e.payload_json FROM source_events e WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (e.channel_id = ? OR EXISTS (SELECT 1 FROM channel_placements p WHERE p.source_event_id = e.source_event_id AND p.channel_id = ?)) ORDER BY e.rowid DESC LIMIT 1",
+              "SELECT e.payload_json FROM source_events e LEFT JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = ? WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (p.channel_id IS NOT NULL OR e.channel_id = ?) ORDER BY p.revision IS NULL, p.revision DESC, e.rowid DESC LIMIT 1",
             )
-            .get(grant.botSlug, channelId, channelId) as
+            .get(channelId, grant.botSlug, channelId) as
             | { payload_json: string | null }
             | undefined;
-          const event = row?.payload_json
-            ? (JSON.parse(row.payload_json) as { external?: ExternalSource }).external?.event
+          const parsed = row?.payload_json
+            ? groupSourcePayload.safeParse(JSON.parse(row.payload_json))
             : undefined;
-          return event?.conversation.kind === 'group' &&
+          const event = parsed?.success ? parsed.data.external.event : undefined;
+          return event &&
             event.channel === platform &&
             event.botId === identity.accountRef &&
             event.fingerprint === identity.fingerprint
-            ? { kind: 'group' as const, conversationId: event.conversation.id, reply: event.reply }
+            ? {
+                kind: 'group' as const,
+                conversationId: event.conversation.id,
+                reply: event.reply as MessagingReplyRoute,
+              }
             : undefined;
         });
       } catch {

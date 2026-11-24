@@ -462,6 +462,13 @@ it('a question raised from a Lark group conversation is answered in that group b
     conversationId: 'oc_team',
     messageId: 'om_team_ask',
   });
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_stale',
+    messageId: 'om_stale_ask',
+    revision: 0,
+  });
   const asked = await f.start();
   expect(asked.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_team' });
   expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
