@@ -13,7 +13,7 @@ export const zh = {
   'takeover.expiresAt': '{time} 前有效',
   'takeover.note': '完成后点“完成”，Bot 会重新查看并继续。',
   'takeover.details': '详细信息',
-  'takeover.passwordNote': '密码只在实时画面里输入，不要发到聊天里。',
+  'takeover.passwordNote': '密码只在实时画面里输入，不要在消息里发送。',
   'takeover.unavailable': '这个视图不在当前窗口，请从 Bot 的侧栏打开。',
 } as const;
 
@@ -32,6 +32,6 @@ export const en = {
   'takeover.expiresAt': 'Open until {time}',
   'takeover.note': 'Press Done when finished; the Bot checks again and continues.',
   'takeover.details': 'Details',
-  'takeover.passwordNote': 'Type passwords only in the live view, never in chat.',
+  'takeover.passwordNote': 'Type passwords only in the live view, never in a message.',
   'takeover.unavailable': 'This view is not in this window; open it from the Bot sidebar.',
 } satisfies Record<keyof typeof zh, string>;
