@@ -25,7 +25,8 @@ import {
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
 import { ADDRESS_ROUTE_SOURCE, noisePeerHeaders } from './route-context.js';
-import { createAddressRoute, type AddressSlot } from './address-slots.js';
+import { createAddressSlots, type AddressSlot } from './address-slots.js';
+import { createPendingPairs } from './pending-pairs.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -84,7 +85,7 @@ type CloseTrigger =
   | 'idle-timeout'
   | 'handshake-timeout'
   | 'address-admission-timeout'
-  | 'address-pair-replaced'
+  | 'pair-replaced'
   | 'gateway-dispose'
   | 'invalid-frame'
   | 'request-failed'
@@ -145,7 +146,8 @@ export function createEncryptedGateway(options: {
   let negotiating = 0,
     encrypted = 0,
     upgrading = 0;
-  const addressRoute = createAddressRoute();
+  const addressSlot = createAddressSlots();
+  const waitForApproval = createPendingPairs();
   const changed = () => options.changed?.({ negotiating, encrypted });
   const serve = (
     socket: WebSocket,
@@ -809,9 +811,7 @@ export function createEncryptedGateway(options: {
                 close('invalid-frame');
               }
             });
-            unwatchKey = address
-              ? addressRoute.wait(proposed.receipt, unwatch, () => close('address-pair-replaced'))
-              : unwatch;
+            unwatchKey = waitForApproval(proposed.receipt, unwatch, () => close('pair-replaced'));
           }
           return;
         }
@@ -956,7 +956,7 @@ export function createEncryptedGateway(options: {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
-      const address = addressRoute.slot(request, socket);
+      const address = addressSlot(request, socket);
       if (address === 'full') {
         socket.end(
           'HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',

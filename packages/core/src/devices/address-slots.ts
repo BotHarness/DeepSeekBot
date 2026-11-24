@@ -6,10 +6,9 @@ export const ADDRESS_PENDING_LIMIT = 8;
 
 export type AddressSlot = { release(): void };
 
-export function createAddressRoute(limit = ADDRESS_PENDING_LIMIT) {
+export function createAddressSlots(limit = ADDRESS_PENDING_LIMIT) {
   let pending = 0;
-  const waiting = new Map<string, () => void>();
-  const slot = (request: IncomingMessage, socket: Duplex): AddressSlot | 'full' | undefined => {
+  return (request: IncomingMessage, socket: Duplex): AddressSlot | 'full' | undefined => {
     if (!isAddressRouteRequest(request)) return;
     if (pending >= limit) return 'full';
     pending++;
@@ -24,14 +23,4 @@ export function createAddressRoute(limit = ADDRESS_PENDING_LIMIT) {
     socket.once('close', slot.release);
     return slot;
   };
-  const wait = (receipt: string, unwatch: () => void, replace: () => void) => {
-    const older = waiting.get(receipt);
-    waiting.set(receipt, replace);
-    older?.();
-    return () => {
-      unwatch();
-      if (waiting.get(receipt) === replace) waiting.delete(receipt);
-    };
-  };
-  return { slot, wait };
 }
