@@ -629,6 +629,7 @@ function renderSidebar(wide = true): string {
 
 function openSidebarMenu(label: string): HTMLElement {
   if (document.querySelector(`button[aria-label="${label}"]`) === null) {
+    disposeMenuView();
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
@@ -656,7 +657,7 @@ function openSidebarMenu(label: string): HTMLElement {
   return menu;
 }
 
-async function renderRailPreviews(): Promise<string> {
+async function renderRailPreviews() {
   disposeMenuView();
   const host = document.createElement('div');
   document.body.append(host);
@@ -678,19 +679,22 @@ async function renderRailPreviews(): Promise<string> {
         }),
       ),
     );
-    let markup = host.innerHTML;
+    const markup = host.innerHTML;
+    const previews = new Map<string, string>();
     for (const button of host.querySelectorAll<HTMLElement>('.bh-rail-channel')) {
-      const trigger = button.parentElement!;
+      const { channelId } = button.dataset;
+      const trigger = button.parentElement;
+      if (!channelId || !trigger) throw new Error('No Channel trigger for rail preview');
       await hoverTooltip(trigger, vi.advanceTimersByTimeAsync, 350);
       const preview = document.querySelector('.bh-rail-preview');
       if (preview === null) throw new Error('No rail preview after hover');
-      markup += preview.outerHTML;
+      previews.set(channelId, preview.outerHTML);
       await act(async () => {
         trigger.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: document.body }));
         await vi.advanceTimersByTimeAsync(1000);
       });
     }
-    return markup;
+    return { markup, previews };
   } finally {
     disposeMenuView();
     vi.useRealTimers();

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
 import { WindowCompanionView } from '../src/client/window-companion-view.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -12,8 +12,15 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 it('keeps the bubble tail on the Avatar head through resize and the first reduced-motion release commit', async () => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -126,15 +133,17 @@ it('keeps the bubble tail on the Avatar head through resize and the first reduce
     expect(companionPosition(node.querySelector<HTMLElement>('.bh-companion')!).bottom).toBe('0px');
     expect(tailX()).toBe(164);
     const visibility = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
-    await act(() => document.dispatchEvent(new Event('visibilitychange')));
-    expect(frames.size).toBe(0);
-    visibility.mockRestore();
+    try {
+      await act(() => document.dispatchEvent(new Event('visibilitychange')));
+      expect(frames.size).toBe(0);
+    } finally {
+      visibility.mockRestore();
+    }
   } finally {
     await act(() => root.unmount());
     companion.dispose();
     node.remove();
     measurement.mockRestore();
-    vi.unstubAllGlobals();
     delete document.documentElement.dataset['botharnessMotion'];
   }
 });
@@ -227,7 +236,6 @@ it('turns the Avatar toward its walk and faces front without walking while it sp
     companion.dispose();
     node.remove();
     measurement.mockRestore();
-    vi.unstubAllGlobals();
   }
 });
 
@@ -240,7 +248,6 @@ it.each([
 ])(
   'returns a fast upward throw with %i ms frames, %i ms before release and late movement %s',
   async (interval, beforeRelease, lateMovement) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     vi.useFakeTimers();
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0;
@@ -323,8 +330,10 @@ it.each([
         });
         heights.push(Number.parseFloat(companionPosition(surface).bottom));
       }
-      expect(heights.some((height) => height > releasedBottom)).toBe(true);
-      expect(heights.slice(0, 2000 / interval).some((height) => height === 0)).toBe(true);
+      const firstRise = heights.findIndex((height) => height > releasedBottom);
+      const firstLanding = heights.slice(0, 2000 / interval).findIndex((height) => height === 0);
+      expect(firstRise).toBeGreaterThanOrEqual(0);
+      expect(firstLanding).toBeGreaterThan(firstRise);
       expect(surface.dataset['motion']).toBe('rest');
       expect(companionPosition(surface).bottom).toBe('0px');
       expect(openDm).not.toHaveBeenCalled();
@@ -334,13 +343,11 @@ it.each([
       node.remove();
       measurement.mockRestore();
       vi.useRealTimers();
-      vi.unstubAllGlobals();
     }
   },
 );
 
 it('drags inside the shell, lands on the floor without opening DM, persists keyboard movement and releases frames', async () => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
@@ -353,21 +360,27 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     return id;
   });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
-  let intersect: ((entries: { target: Element; isIntersecting: boolean }[]) => void) | undefined;
+  type Entry = { target: Element; isIntersecting: boolean };
+  const observers = new Map<Element, (entries: Entry[]) => void>();
   const disconnected = vi.fn();
+  const intersect = (target: Element, isIntersecting: boolean) => {
+    const notify = observers.get(target);
+    if (!notify) throw new Error(`IntersectionObserver did not observe ${target.className}`);
+    notify([{ target, isIntersecting }]);
+  };
   vi.stubGlobal(
     'IntersectionObserver',
     class {
-      constructor(
-        private readonly callback: (
-          entries: { target: Element; isIntersecting: boolean }[],
-        ) => void,
-      ) {}
+      constructor(private readonly callback: (entries: Entry[]) => void) {}
       observe(target: Element) {
-        if (target.matches('.bh-companion-stage')) intersect = this.callback;
+        observers.set(target, this.callback);
       }
       disconnect() {
-        if (this.callback === intersect) disconnected();
+        for (const [target, callback] of observers) {
+          if (callback !== this.callback) continue;
+          observers.delete(target);
+          if (target.matches('.bh-companion-stage')) disconnected();
+        }
       }
     },
   );
@@ -445,25 +458,28 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     await act(() => {
       for (const callback of [...frames.values()]) callback(performance.now());
     });
-    await act(() => intersect!([{ target: stage, isIntersecting: false }]));
+    await act(() => intersect(stage, false));
     for (let tick = 0; tick < 2; tick++)
       await act(() => {
         for (const callback of [...frames.values()]) callback(performance.now());
       });
     expect(frames.size).toBe(0);
-    await act(() => intersect!([{ target: stage, isIntersecting: true }]));
+    await act(() => intersect(stage, true));
     expect(frames.size).toBe(1);
     const visibility = vi.spyOn(document, 'hidden', 'get');
-    visibility.mockReturnValue(true);
-    await act(() => document.dispatchEvent(new Event('visibilitychange')));
-    expect(frames.size).toBe(0);
-    visibility.mockReturnValue(false);
-    await act(() => {
-      vi.advanceTimersByTime(30_000);
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    expect(frames.size).toBe(1);
-    visibility.mockRestore();
+    try {
+      visibility.mockReturnValue(true);
+      await act(() => document.dispatchEvent(new Event('visibilitychange')));
+      expect(frames.size).toBe(0);
+      visibility.mockReturnValue(false);
+      await act(() => {
+        vi.advanceTimersByTime(30_000);
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(frames.size).toBe(1);
+    } finally {
+      visibility.mockRestore();
+    }
     character.setPointerCapture = vi.fn();
     character.releasePointerCapture = vi.fn();
     const pointer = (type: string, x: number, y: number, id = 1) => {
@@ -585,7 +601,8 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
         pointer(release, 450, -50);
       });
       await advanceFrames(1);
-      await act(() => intersect!([{ target: surface, isIntersecting: false }]));
+      stop.mockClear();
+      await act(() => intersect(surface, false));
       expect(stop).toHaveBeenLastCalledWith('ada');
       interact.mockClear();
       const shown = owner.getSnapshot().cards[0]!.shown;
@@ -595,8 +612,8 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
       expect(companionPosition(surface).bottom).toBe('0px');
       expect(owner.getSnapshot().cards[0]!.shown).toBe(shown);
       expect(interact).not.toHaveBeenCalled();
+      await act(() => intersect(surface, true));
     }
-    await act(() => intersect!([{ target: surface, isIntersecting: true }]));
     await act(() =>
       character.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })),
     );
@@ -642,17 +659,16 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
   } finally {
     await act(() => root.unmount());
     owner.dispose();
-    expect(close).toHaveBeenCalledOnce();
     node.remove();
     measurement.mockRestore();
-    vi.unstubAllGlobals();
     delete document.documentElement.dataset['botharnessMotion'];
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   }
+  expect(close).toHaveBeenCalledOnce();
 });
 
 it('keeps the avatar above the composer status and follows its disappearing inset', async () => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   document.documentElement.dataset['botharnessMotion'] = 'reduce';
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
@@ -728,7 +744,6 @@ it('keeps the avatar above the composer status and follows its disappearing inse
     obstacle.remove();
     measurement.mockRestore();
     clock.mockRestore();
-    vi.unstubAllGlobals();
     delete document.documentElement.dataset['botharnessMotion'];
   }
 });
