@@ -507,7 +507,11 @@ export function ModelsView({
                     on={SHEET_GROUP}
                     testID={`model-preset-${preset.id}`}
                     leading={
-                      <RowIcon name="preset" size={theme.type.title.line} color={theme.color.fg} />
+                      <RowIcon
+                        name="preset"
+                        size={theme.type.title.line * theme.fontScale}
+                        color={theme.color.fg}
+                      />
                     }
                     title={preset.name}
                     detail={t.modelSettings.presetRoutes(

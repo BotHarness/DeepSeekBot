@@ -14,7 +14,8 @@ import {
   hostTileFill,
   shownHostName,
 } from '@botharness/host-client/ui/design/host-look';
-import { useDesignTheme } from '../design/theme';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
+import { useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius, space, workspaceStack } from '../design/tokens';
 import { SettingsRow } from '../primitives/settings-row';
 import { CountBadge } from '../primitives/count-badge';
@@ -203,6 +204,14 @@ function hostRowLabel(
     .join(', ');
 }
 
+function tileSize(theme: DesignTheme): number {
+  return clampScaledIconSize(
+    workspaceStack.tile,
+    theme.fontScale,
+    workspaceStack.tile * workspaceStack.tileMaxScale,
+  );
+}
+
 export const loadAccountName = () => connectAccount.email().then((email) => email ?? undefined);
 
 function StackedHostTile({ row, first }: { row: HostDrawerRow; first: boolean }) {
@@ -220,7 +229,7 @@ function StackedHostTile({ row, first }: { row: HostDrawerRow; first: boolean })
       <HostTile
         hostName={shownHostName(look, row.hostName)}
         icon={look.icon}
-        size={workspaceStack.tile}
+        size={tileSize(theme)}
         fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
         ink={
           look.color === undefined
@@ -260,7 +269,7 @@ export function HostFormRow({ row, selected }: { row: HostDrawerRow; selected: b
             look={look}
             name={name}
             current={selected}
-            size={workspaceStack.tile}
+            size={tileSize(theme)}
             rest="transparent"
           />
         </BadgedHostTile>
@@ -328,7 +337,7 @@ export function WorkspaceFormRow({
       leading={
         <HostTile
           hostName={workspace.name}
-          size={workspaceStack.tile}
+          size={tileSize(theme)}
           fill={theme.layer.sheet.inset}
           ink={theme.color.fg}
         />
@@ -358,7 +367,7 @@ export function CloudServiceFormRow({
       title={name}
       detail={[t.cloudJoin.signIn, address].join(' · ')}
       singleLine
-      leading={<CloudIcon color={theme.color.muted} size={workspaceStack.tile} />}
+      leading={<CloudIcon color={theme.color.muted} size={tileSize(theme)} />}
       accessibilityLabel={[name, t.cloudJoin.signIn, address].join(', ')}
       onPress={onPress}
     />

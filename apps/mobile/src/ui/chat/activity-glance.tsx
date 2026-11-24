@@ -49,7 +49,7 @@ function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): voi
         <Text strong style={{ flex: 1 }}>
           {t.activityTokensLabel}
         </Text>
-        <ChevronRightIcon color={theme.color.muted} size={space.x5} />
+        <ChevronRightIcon color={theme.color.muted} size={space.x5 * theme.fontScale} />
       </View>
       <Text variant="display" numberOfLines={1}>
         {tokenTotalText(glance.total)}

@@ -255,7 +255,7 @@ export function ModelProvidersSettings({
                 leading={
                   <ModelBrandIcon
                     brand={modelBrand({ provider: provider.id, model: provider.name })}
-                    size={theme.type.title.line}
+                    size={theme.type.title.line * theme.fontScale}
                     color={theme.color.fg}
                   />
                 }

@@ -55,7 +55,7 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
               <InputChip.TrailingIcon>
                 <Icon
                   source={require('../../../assets/toolbar/close.png')}
-                  size={theme.type.meta.line}
+                  size={theme.type.meta.line * theme.fontScale}
                 />
               </InputChip.TrailingIcon>
             </InputChip>

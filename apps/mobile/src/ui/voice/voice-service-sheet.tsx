@@ -285,7 +285,11 @@ export function VoiceServiceSheet({
               on={SHEET_GROUP}
               testID={`voice-service-${field}`}
               leading={
-                <ModelBrandIcon brand={brand} size={theme.type.title.line} color={theme.color.fg} />
+                <ModelBrandIcon
+                  brand={brand}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={theme.color.fg}
+                />
               }
               title={choiceLabel(state, names, t.custom)}
               detail={label}
@@ -318,7 +322,7 @@ export function VoiceServiceSheet({
                   leading={
                     <ModelBrandIcon
                       brand={providerBrand(entry.id, entry.name)}
-                      size={theme.type.title.line}
+                      size={theme.type.title.line * theme.fontScale}
                       color={theme.color.fg}
                     />
                   }
@@ -342,7 +346,7 @@ export function VoiceServiceSheet({
                 leading={
                   <ModelBrandIcon
                     brand={providerBrand('custom')}
-                    size={theme.type.title.line}
+                    size={theme.type.title.line * theme.fontScale}
                     color={theme.color.fg}
                   />
                 }
@@ -396,7 +400,7 @@ export function VoiceServiceSheet({
                   leading={
                     <ModelBrandIcon
                       brand={brand}
-                      size={theme.type.title.line}
+                      size={theme.type.title.line * theme.fontScale}
                       color={theme.color.fg}
                     />
                   }

@@ -190,6 +190,19 @@ function FileHeader({
   const name = file.path.slice(slash + 1);
   const folder = slash === -1 ? '' : file.path.slice(0, slash + 1);
   const status = file.kind === 'modified' ? '' : t.memoryFileChange[file.kind];
+  const path = (
+    <Text {...(theme.largeText ? {} : { numberOfLines: 1, style: { flex: 1 } })}>
+      {folder === '' ? null : <Text tone="muted">{folder}</Text>}
+      <Text strong>{name}</Text>
+    </Text>
+  );
+  const badge =
+    status === '' ? null : (
+      <Text variant="meta" strong tone={file.kind === 'deleted' ? 'danger' : 'success'}>
+        {status}
+      </Text>
+    );
+  const counts = file.binary ? null : <DiffCounts added={file.added} removed={file.removed} />;
   return (
     <View
       style={{
@@ -220,18 +233,28 @@ function FileHeader({
         })}
       >
         <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line} />
+          <ChevronRightIcon
+            color={theme.color.muted}
+            size={theme.type.meta.line * theme.fontScale}
+          />
         </View>
-        <Text numberOfLines={1} style={{ flex: 1 }}>
-          {folder === '' ? null : <Text tone="muted">{folder}</Text>}
-          <Text strong>{name}</Text>
-        </Text>
-        {status === '' ? null : (
-          <Text variant="meta" strong tone={file.kind === 'deleted' ? 'danger' : 'success'}>
-            {status}
-          </Text>
+        {theme.largeText ? (
+          <View style={{ flex: 1, gap: space.x1 }}>
+            {path}
+            {status === '' && file.binary ? null : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+                {badge}
+                {counts}
+              </View>
+            )}
+          </View>
+        ) : (
+          <>
+            {path}
+            {badge}
+            {counts}
+          </>
         )}
-        {file.binary ? null : <DiffCounts added={file.added} removed={file.removed} />}
       </Pressable>
     </View>
   );

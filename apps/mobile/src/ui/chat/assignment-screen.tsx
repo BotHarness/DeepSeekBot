@@ -243,7 +243,10 @@ export function AssignmentDetail({
           backgroundColor: theme.layer.raised.fill,
         }}
       >
-        <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
+        <AssignmentActivityIcon
+          activity={assignment.activity}
+          size={rowGlyph.size * theme.fontScale}
+        />
         <Text variant="meta" tone={assignmentTone(assignment.activity)} strong>
           {t.profileAssignmentState[assignment.activity]}
         </Text>

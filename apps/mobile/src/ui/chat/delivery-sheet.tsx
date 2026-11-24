@@ -79,7 +79,7 @@ export function DeliverySheet({
               <Text variant="meta" tone="muted">
                 {t.delivery.state[item.state]}
               </Text>
-              <ChevronRightIcon color={theme.color.subtle} size={rowGlyph.size} />
+              <ChevronRightIcon color={theme.color.subtle} size={rowGlyph.size * theme.fontScale} />
             </Pressable>
           );
         }}

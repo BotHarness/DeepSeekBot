@@ -365,7 +365,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
                     leading={
                       <ModelBrandIcon
                         brand={item.brand}
-                        size={theme.type.title.line}
+                        size={theme.type.title.line * theme.fontScale}
                         color={theme.color.muted}
                       />
                     }

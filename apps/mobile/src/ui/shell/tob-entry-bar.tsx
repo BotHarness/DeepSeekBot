@@ -30,7 +30,7 @@ export function TobEntryBar({ href, name }: { href: TobModeHref; name: string })
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * (bottom + height) }],
   }));
   const ios = Platform.OS === 'ios';
-  const icon = theme.type.title.line;
+  const icon = theme.type.title.line * theme.fontScale;
   const open = () => {
     bar.current?.measureInWindow((x, y, width, measured) => {
       tobEntryOrigin.set(width > 0 ? { x, y, width, height: measured } : undefined);
