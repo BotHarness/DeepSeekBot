@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createHostClient, MethodRefused } from '@botharness/host-client/client';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
+import type { HostSessionPendingInput } from '@botharness/host-protocol/host-sessions';
 import type { Composer } from '../src/ui/chat/composer';
 import { edgeFade, space } from '../src/ui/design/tokens';
 import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions';
@@ -36,6 +37,7 @@ vi.mock('react-native', async () => ({
   ),
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('@expo/ui/jetpack-compose', () => ({}));
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({}));
 vi.mock('expo-router', () => ({
@@ -68,7 +70,15 @@ vi.mock('expo-router', () => ({
   useNavigation: () => ({ getState: () => ({ index: place.index }) }),
   router: { replace: place.replace, push: place.push, dismissTo: place.dismissTo },
 }));
-vi.mock('../src/features/sessions/last-session', () => ({ rememberLastSession: vi.fn() }));
+vi.mock('../src/features/sessions/last-session', () => ({
+  rememberLastSession: vi.fn(),
+  forgetLastSession: vi.fn(),
+}));
+const dialog = vi.hoisted(() => ({ confirm: vi.fn(async () => true) }));
+vi.mock('../src/ui/primitives/app-dialog', async (load) => ({
+  ...(await load<typeof import('../src/ui/primitives/app-dialog')>()),
+  confirmAppDialog: dialog.confirm,
+}));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('react-native-svg', () => ({
   default: () => null,
@@ -305,7 +315,11 @@ async function open({
   Body = SessionDetailBody,
   fresh = false,
   transcript = () => ({ displayTitle: 'Review the release' }),
+  pendingInput,
+  livePendingInput,
 }: {
+  pendingInput?: HostSessionPendingInput[];
+  livePendingInput?: HostSessionPendingInput[];
   role?: 'orchestrator' | 'assignment' | 'native';
   running?: boolean;
   live?: boolean;
@@ -329,6 +343,7 @@ async function open({
   let assignmentReads = 0;
   let archived = false;
   let sessionRunning = running;
+  let pending = pendingInput;
   const call = vi.spyOn(client, 'call').mockImplementation(async (method, args) => {
     if (method === 'sessionTranscript') {
       if (refused) throw new MethodRefused('forbidden', 'Restricted Session');
@@ -339,6 +354,7 @@ async function open({
         items,
         currentTarget: to,
         ...transcript(),
+        ...(pending === undefined ? {} : { pendingInput: pending }),
       };
     }
     if (method === 'sessionLive') {
@@ -347,6 +363,7 @@ async function open({
         seq: 4,
         revision: 1,
         items: live ? [{ kind: 'reply', at, text: 'Live reply' }, items[2]] : [],
+        ...(livePendingInput === undefined ? {} : { pendingInput: livePendingInput }),
       };
     }
     if (method === 'sessionModel') return { override: null, default: null };
@@ -354,6 +371,15 @@ async function open({
       await sendGate;
       return {};
     }
+    if (method === 'sessionAnswerApproval' || method === 'sessionAnswerQuestion') {
+      pending = pending?.filter((item) => item.requestId !== args?.['requestId']);
+      return { sessionId: 'chosen', accepted: true };
+    }
+    if (method === 'sessionNativeStop') {
+      sessionRunning = false;
+      return { sessionId: 'chosen', accepted: true };
+    }
+    if (method === 'sessionNativeArchive') return { sessionId: 'chosen', accepted: true };
     if (method === 'sessionStop') {
       sessionRunning = false;
       return { stopped: [], alreadyIdle: [] };
@@ -424,9 +450,117 @@ it('continues a native Session in the shared detail without offering Bot managem
     text: 'Follow up',
   });
   expect(call.mock.calls.some(([method]) => method === 'assignmentTimeline')).toBe(false);
-  expect([...view.querySelectorAll('button')].some((button) => button.textContent === 'Stop')).toBe(
-    false,
+  expect(call.mock.calls.some(([method]) => method === 'sessionStop')).toBe(false);
+});
+
+const approval: HostSessionPendingInput = {
+  kind: 'approval',
+  requestId: 'req-1',
+  toolName: 'read',
+  callId: 'read-1',
+};
+const question: HostSessionPendingInput = {
+  kind: 'question',
+  requestId: 'q-1',
+  questions: [
+    { id: 'pick', question: 'Which file?', options: [{ label: 'a.md' }, { label: 'b.md' }] },
+  ],
+};
+
+function buttons(view: HTMLElement) {
+  return [...view.querySelectorAll('button')].map((button) => button.textContent);
+}
+
+it('answers a native approval with Allow once, then drops the card', async () => {
+  const { view, call } = await open({ role: 'native', running: true, pendingInput: [approval] });
+  expect(view.querySelector('[data-testid="session-pending-input"]')).not.toBeNull();
+  expect(buttons(view)).toEqual(expect.arrayContaining(['Allow once', 'Reject']));
+  expect(buttons(view)).not.toContain('Always allow');
+  await press(view, 'Allow once');
+  expect(call).toHaveBeenCalledWith('sessionAnswerApproval', {
+    sessionId: 'chosen',
+    requestId: 'req-1',
+    decision: 'allowed-once',
+  });
+  expect(view.querySelector('[data-testid="session-pending-input"]')).toBeNull();
+});
+
+it('shows a request that arrives on the live read before the next transcript read', async () => {
+  const { view } = await open({
+    role: 'native',
+    running: true,
+    pendingInput: [],
+    livePendingInput: [approval],
+  });
+  expect(view.querySelector('[data-testid="session-pending-input"]')).not.toBeNull();
+});
+
+it('answers a native question from its option', async () => {
+  const { view, call } = await open({ role: 'native', running: true, pendingInput: [question] });
+  expect(view.textContent).toContain('Which file?');
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="question-option-1"]')!.click(),
   );
+  expect(call).toHaveBeenCalledWith('sessionAnswerQuestion', {
+    sessionId: 'chosen',
+    requestId: 'q-1',
+    answer: { answers: [{ id: 'pick', selected: ['b.md'] }] },
+  });
+  expect(view.querySelector('[data-testid="session-pending-input"]')).toBeNull();
+});
+
+it('stops a running native Session from the options menu', async () => {
+  const { view, call } = await open({ role: 'native', running: true });
+  await press(view, 'Review the release');
+  const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu.querySelector('[data-testid="session-archive"]')).toBeNull();
+  await press(menu, 'Stop');
+  expect(call).toHaveBeenCalledWith('sessionNativeStop', { sessionId: 'chosen' });
+});
+
+it('archives an idle native Session after confirmation and leaves it', async () => {
+  navigation.back.mockClear();
+  dialog.confirm.mockClear();
+  const { view, call } = await open({ role: 'native' });
+  await press(view, 'Review the release');
+  const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu.querySelector('[data-testid="session-stop"]')).toBeNull();
+  await press(menu, 'Archive');
+  expect(dialog.confirm).toHaveBeenCalledWith(
+    'Archive this Session?',
+    expect.any(String),
+    'Archive',
+  );
+  expect(call).toHaveBeenCalledWith('sessionNativeArchive', { sessionId: 'chosen' });
+  expect(navigation.back).toHaveBeenCalled();
+});
+
+it('keeps a native Session when Archive is cancelled', async () => {
+  dialog.confirm.mockResolvedValueOnce(false);
+  const { view, call } = await open({ role: 'native' });
+  await press(view, 'Review the release');
+  await press(view.querySelector<HTMLElement>('[role="menu"]')!, 'Archive');
+  expect(call.mock.calls.some(([method]) => method === 'sessionNativeArchive')).toBe(false);
+});
+
+it('never shows native answers, Stop or Archive to a Team member', async () => {
+  place.hostId = 'member-host';
+  place.member.add('member-host');
+  try {
+    for (const running of [true, false]) {
+      const { view } = await open({ role: 'native', running, pendingInput: [approval, question] });
+      expect(view.querySelector('[data-testid="session-pending-input"]')).toBeNull();
+      await press(view, 'Review the release');
+      const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
+      expect(menu.querySelector('[data-testid="session-stop"]')).toBeNull();
+      expect(menu.querySelector('[data-testid="session-archive"]')).toBeNull();
+      expect(buttons(view)).not.toContain('Stop');
+      await act(async () => root?.unmount());
+    }
+  } finally {
+    place.hostId = undefined;
+    place.member.delete('member-host');
+  }
 });
 
 it('renders user input, saved and live replies, compact activity and the model switch', async () => {
@@ -684,7 +818,16 @@ it('renders the Android Session header with Back, title, and options', async () 
   try {
     const { SessionDetailBody: AndroidSessionDetailBody } =
       await import('../src/ui/chat/session-detail-screen');
-    const { view } = await open({ role: 'native', Body: AndroidSessionDetailBody });
+    const { view } = await open({
+      role: 'native',
+      running: true,
+      pendingInput: [approval],
+      Body: AndroidSessionDetailBody,
+    });
+    expect(view.querySelector('[data-testid="session-pending-input"]')?.textContent).toContain(
+      'Allow once',
+    );
+    expect(buttons(view)).toContain('Stop');
     const header = view.querySelector('header');
     expect(header?.dataset['shown']).toBe('false');
     expect(header?.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
@@ -746,7 +889,7 @@ it('shows ☰ and ✎ at the Sessions root and opens Session options from the na
     expect(view.querySelector('[data-testid="session-menu-title"]')?.textContent).toBe(
       'Review the release',
     );
-    expect(view.querySelector('[role="menu"]')?.textContent).toBe('Model choice');
+    expect(view.querySelector('[role="menu"]')?.textContent).toBe('ArchiveModel choice');
     await act(async () => view.querySelector<HTMLElement>('[data-testid="session-new"]')?.click());
     expect(place.replace).toHaveBeenCalledExactlyOnceWith('/sessions');
   } finally {

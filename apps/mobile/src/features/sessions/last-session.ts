@@ -48,3 +48,13 @@ export function rememberLastSession(next: LastSession): void {
     file().writeSync(JSON.stringify(next));
   } catch {}
 }
+
+/** An archived Session is no longer a place to land; forget it if it was the last one. */
+export function forgetLastSession(hostId: string, sessionId: string): void {
+  const current = lastSession();
+  if (current?.hostId !== hostId || current.sessionId !== sessionId) return;
+  last = null;
+  try {
+    file().delete();
+  } catch {}
+}

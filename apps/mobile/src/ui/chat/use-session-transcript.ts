@@ -8,7 +8,9 @@ import {
   type SessionLiveSnapshot,
   type SessionTranscript,
 } from '@botharness/host-client/session-detail';
+import type { HostSessionPendingInput } from '@botharness/host-protocol/host-sessions';
 import { sessionReadHost } from '../../host/session-detail';
+import { pendingInputKey } from '../../features/sessions/native-session-input';
 
 const LIVE_RETRY_MS = 10_000;
 const TRANSCRIPT_REFRESH_MS = 15_000;
@@ -16,6 +18,7 @@ const TRANSCRIPT_REFRESH_MS = 15_000;
 type View = {
   transcript?: SessionTranscript;
   live?: SessionLiveSnapshot | undefined;
+  pendingInput?: HostSessionPendingInput[] | undefined;
   error?: 'unavailable' | 'load';
 };
 
@@ -36,6 +39,7 @@ export function useSessionTranscript(
       const host = sessionReadHost(client, abort.signal);
       let latest: SessionLiveSnapshot | undefined;
       let durable: SessionTranscript | undefined;
+      let pending: HostSessionPendingInput[] | undefined;
       let loading = false;
       let again = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -44,7 +48,7 @@ export function useSessionTranscript(
       function publish() {
         if (durable === undefined) return;
         const live = latest !== undefined && latest.seq <= durable.seq ? latest : undefined;
-        setView({ transcript: durable, live });
+        setView({ transcript: durable, live, pendingInput: pending });
       }
 
       function fail(error: unknown) {
@@ -69,6 +73,7 @@ export function useSessionTranscript(
           .then((value) => {
             if (abort.signal.aborted) return;
             durable = value;
+            if (value.pendingInput !== undefined) pending = value.pendingInput;
             publish();
           }, fail)
           .finally(() => {
@@ -90,9 +95,14 @@ export function useSessionTranscript(
           if (abort.signal.aborted) return;
           const previous = latest;
           latest = next;
+          const asked =
+            next.pendingInput !== undefined &&
+            pendingInputKey(next.pendingInput) !== pendingInputKey(pending);
+          if (next.pendingInput !== undefined) pending = next.pendingInput;
           if (durable !== undefined && next.seq > durable.seq) {
             if (previous?.seq !== next.seq) load();
-          } else if (previous?.revision !== next.revision) {
+            else if (asked) publish();
+          } else if (asked || previous?.revision !== next.revision) {
             publish();
           }
           void follow(next.revision);
@@ -114,6 +124,7 @@ export function useSessionTranscript(
     }, [client, slug, id, online, attempt]),
   );
 
+  const refresh = useCallback(() => reload.current?.(), []);
   const live = view.live?.items;
   const transcript = view.transcript;
   const items = useMemo(() => {
@@ -132,7 +143,7 @@ export function useSessionTranscript(
       transcript?.running === true ||
       transcript?.engine?.state === 'running' ||
       (live?.length ?? 0) > 0,
-    refresh: () => reload.current?.(),
+    refresh,
     retry: () => {
       setView({});
       setAttempt((value) => value + 1);
