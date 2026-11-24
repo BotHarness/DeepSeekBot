@@ -62,7 +62,10 @@ export function SearchField({
         }}
       >
         {floating ? <DrawerMaterial /> : null}
-        <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+        <ActivitySearchIcon
+          color={theme.color.subtle}
+          size={theme.type.body.size * theme.fontScale}
+        />
         <TextInput
           testID={testID}
           maxLength={maxLength}

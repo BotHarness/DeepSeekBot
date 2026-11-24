@@ -11,7 +11,9 @@ import {
 } from './keyboard-form-context';
 import { useNativeFormScroll } from './keyboard-form-native-focus';
 
-export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardAwareScrollView>) {
+export function KeyboardFormScroll(
+  props: ComponentPropsWithRef<typeof KeyboardAwareScrollView> & { revealPast?: number },
+) {
   const theme = useDesignTheme();
   const footerHeight = useContext(KeyboardFormFooterSpace);
   const [nativeHeight, setNativeHeight] = useState(0);
@@ -24,6 +26,7 @@ export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardA
     onScroll,
     onLayout,
     children,
+    revealPast = 0,
     ...rest
   } = props;
   const clipped = clippedHeight(nativeHeight, layoutHeight);
@@ -32,7 +35,7 @@ export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardA
       Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x6) + space.x6,
     footerHeight + space.x3,
   );
-  const native = useNativeFormScroll(ref, enabled, clearance);
+  const native = useNativeFormScroll(ref, enabled, clearance, revealPast);
   return (
     <KeyboardFormNativeFocus.Provider value={native.focus}>
       <KeyboardAwareScrollView

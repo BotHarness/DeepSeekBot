@@ -10,6 +10,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
   ChevronRightIcon: () => null,
 }));
 
+import { Dimensions } from 'react-native';
 import { splitUnifiedDiff, type MemoryCommit } from '../src/host/memory-changes';
 import { MemoryCommitView } from '../src/ui/chat/memory-changes';
 import { t } from '../src/ui/strings';
@@ -68,5 +69,29 @@ describe('Memory commit view', () => {
     await act(async () => header.click());
     expect(host.querySelectorAll('[data-testid^="memory-diff-"]')).toHaveLength(0);
     expect(host.textContent).toContain(t.memoryChangeBinary);
+  });
+
+  it('stacks the status and counts under a wrapping path at large text sizes', async () => {
+    const header = async (fontScale: number) => {
+      vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+      act(() => root?.unmount());
+      host?.remove();
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      await act(async () => root!.render(<MemoryCommitView load={async () => commit} />));
+      await act(async () => undefined);
+      vi.restoreAllMocks();
+      return host.querySelector<HTMLButtonElement>(
+        '[data-testid="memory-commit-file-notes/MEMORY.md"]',
+      )!;
+    };
+    const regular = await header(1);
+    expect(regular.children).toHaveLength(3);
+    const large = await header(2);
+    expect(large.children).toHaveLength(2);
+    const column = large.children[1]!;
+    expect(column.textContent).toContain('MEMORY.md');
+    expect(column.lastElementChild!.textContent).toContain('+1');
   });
 });

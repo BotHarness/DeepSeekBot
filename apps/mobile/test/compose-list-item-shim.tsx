@@ -41,8 +41,8 @@ export const components = {
       TrailingContent: slot('trailing'),
     },
   ),
-  Text: ({ children, color }: Children & { color?: string }) =>
-    createElement('span', { 'data-color': color }, children),
+  Text: ({ children, color, maxLines }: Children & { color?: string; maxLines?: number }) =>
+    createElement('span', { 'data-color': color, 'data-max-lines': maxLines }, children),
   Icon: ({ source, tint }: { source: string; tint?: string }) =>
     createElement('i', { 'data-icon': source, 'data-tint': tint }),
   Switch: ({ value, enabled }: { value: boolean; enabled?: boolean }) =>

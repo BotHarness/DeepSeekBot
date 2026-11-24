@@ -17,10 +17,11 @@ export function useNativeFormScroll(
   forwardedRef: Ref<KeyboardAwareScrollViewRef> | undefined,
   enabled: boolean,
   bottomOffset: number,
+  revealPast: number,
 ) {
   const scroll = useAnimatedRef<KeyboardAwareScrollViewRef>();
   const offset = useScrollOffset(scroll);
-  const { height } = useReanimatedKeyboardAnimation();
+  const { height, progress } = useReanimatedKeyboardAnimation();
   const inputBottom = useSharedValue(0);
   const active = useRef<ViewInstance | undefined>(undefined);
   const focus = useCallback(
@@ -41,16 +42,19 @@ export function useNativeFormScroll(
     [enabled, inputBottom, offset],
   );
   useAnimatedReaction(
-    () => ({ keyboard: height.get(), bottom: inputBottom.get() }),
-    ({ keyboard, bottom }) => {
-      if (!enabled || keyboard >= 0 || bottom === 0) return;
+    () => ({ keyboard: height.get(), shown: progress.get(), bottom: inputBottom.get() }),
+    ({ keyboard, shown, bottom }) => {
+      if (!enabled || keyboard >= 0 || shown <= 0 || bottom === 0) return;
       const viewport = measure(scroll);
       if (!viewport) return;
-      const overlap =
-        bottom - offset.get() - (viewport.pageY + viewport.height + keyboard - bottomOffset);
-      if (overlap > 0) scrollTo(scroll, 0, offset.get() + overlap, false);
+      const revealFor = (cover: number) =>
+        bottom - (viewport.pageY + viewport.height + cover - bottomOffset);
+      const open = revealFor(keyboard / shown);
+      const settled = open > 0 && open < revealPast ? revealPast : open;
+      const target = Math.max(revealFor(keyboard), settled * shown);
+      if (target > offset.get()) scrollTo(scroll, 0, target, false);
     },
-    [enabled, bottomOffset],
+    [enabled, bottomOffset, revealPast],
   );
   const ref = useCallback(
     (node: KeyboardAwareScrollViewRef | null) => {

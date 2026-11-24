@@ -9,6 +9,7 @@ import { useHostLook } from '../../host/native-host-look';
 import { hostDraftKey } from '../../host/source-drafts';
 import { ConversationRow } from '../chat/conversation-row';
 import { conversations, type Conversation } from '../chat/conversations';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
@@ -138,7 +139,14 @@ export default function ShareScreen() {
                               backgroundColor: theme.layer.raised.inset,
                             }}
                           >
-                            <FileIcon color={theme.color.muted} size={theme.type.title.line} />
+                            <FileIcon
+                              color={theme.color.muted}
+                              size={clampScaledIconSize(
+                                theme.type.title.line,
+                                theme.fontScale,
+                                thumb - space.x3 * 2,
+                              )}
+                            />
                             <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
                               {file.name}
                             </Text>

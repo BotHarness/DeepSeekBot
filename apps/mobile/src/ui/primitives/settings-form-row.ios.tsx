@@ -35,6 +35,7 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import type { ColorValue, StyleProp, TextStyle } from 'react-native';
 import { View, StyleSheet } from 'react-native';
 
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { CheckIcon } from '../shell/icons';
@@ -236,10 +237,17 @@ export function FormRow({
         {text}
       </Label>
     ) : leading !== undefined && isValidElement(leading) ? (
-      <HStack spacing={space.x4}>
-        <Hosted>{leading}</Hosted>
-        {text}
-      </HStack>
+      accessibilityTextSize(theme.fontScale) ? (
+        <VStack alignment="leading" spacing={space.x3}>
+          <Hosted>{leading}</Hosted>
+          {text}
+        </VStack>
+      ) : (
+        <HStack spacing={space.x4}>
+          <Hosted>{leading}</Hosted>
+          {text}
+        </HStack>
+      )
     ) : (
       text
     );

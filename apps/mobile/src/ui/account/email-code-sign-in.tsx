@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { Image, Platform, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   visibleBrowserRefusal,
@@ -24,10 +24,23 @@ const APP_ICON = {
   dark: require('../../../assets/app-icons/deepseekbot-dark-preview.png'),
 };
 
-function Heading({ title, detail, icon }: { title: string; detail: string; icon?: boolean }) {
+function Heading({
+  title,
+  detail,
+  icon,
+  onLayout,
+}: {
+  title: string;
+  detail: string;
+  icon?: boolean;
+  onLayout(event: LayoutChangeEvent): void;
+}) {
   const theme = useDesignTheme();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}>
+    <View
+      onLayout={onLayout}
+      style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}
+    >
       {icon ? (
         <Image
           source={APP_ICON[theme.scheme]}
@@ -96,6 +109,9 @@ export function EmailCodeSignIn({
   const [error, setError] = useState<EmailCodeRefusal>();
   const working = useRef(false);
   const submit = useKeyboardFormSubmit();
+  const [headingEnd, setHeadingEnd] = useState(0);
+  const measureHeading = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setHeadingEnd(layout.y + layout.height);
 
   const run = async (work: () => Promise<void>) => {
     if (working.current) return;
@@ -184,6 +200,7 @@ export function EmailCodeSignIn({
       {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
+      revealPast={headingEnd}
       contentContainerStyle={{
         paddingHorizontal: space.x5,
         paddingTop: space.x3,
@@ -195,6 +212,7 @@ export function EmailCodeSignIn({
         <>
           <Heading
             icon
+            onLayout={measureHeading}
             title={
               mode === 'register'
                 ? copy.register
@@ -317,7 +335,11 @@ export function EmailCodeSignIn({
         </>
       ) : (
         <>
-          <Heading title={copy.codeTitle} detail={copy.codeHint(sentTo)} />
+          <Heading
+            title={copy.codeTitle}
+            detail={copy.codeHint(sentTo)}
+            onLayout={measureHeading}
+          />
           <View onLayout={submit.onFieldLayout}>
             <TextField
               testID="email-sign-in-code"

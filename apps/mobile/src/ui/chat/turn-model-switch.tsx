@@ -23,7 +23,11 @@ export function TurnModelSwitchMarker({
   const line = t[change.reason ?? 'switched'];
   const model = (target: TurnTarget, label: ReturnType<typeof turnTargetLabel>) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1 }}>
-      <ModelBrandIcon brand={label.brand} size={theme.type.meta.size} color={theme.color.muted} />
+      <ModelBrandIcon
+        brand={label.brand}
+        size={theme.type.meta.size * theme.fontScale}
+        color={theme.color.muted}
+      />
       <Text variant="meta" tone="muted">
         {label.short}
       </Text>

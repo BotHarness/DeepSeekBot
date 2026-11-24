@@ -23,6 +23,7 @@ import { useChatBottom } from '../primitives/chat-keyboard';
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { edge, radius, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
@@ -91,7 +92,10 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
             backgroundColor: theme.layer.raised.inset,
           }}
         >
-          <FileIcon color={theme.color.muted} size={theme.type.title.line} />
+          <FileIcon
+            color={theme.color.muted}
+            size={clampScaledIconSize(theme.type.title.line, theme.fontScale, tile - space.x3 * 2)}
+          />
           <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
             {file.name}
           </Text>
