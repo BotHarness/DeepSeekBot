@@ -2,7 +2,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useReducer, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
-import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
 import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
@@ -15,6 +14,7 @@ import { clearsPastedLink } from '../pairing-failure';
 import { Button } from '../primitives/button';
 import { ConnectionNameField } from '../primitives/connection-name-field';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import { useKeyboardFormSubmit } from '../primitives/keyboard-form-submit';
 import { labelInField } from '../primitives/field-label';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
@@ -59,17 +59,8 @@ export function PairScanner({
   }, []);
   const pairing = usePairing({ deferLeave: () => pendingDeepLinks.current.size > 0 });
   const { abort } = pairing;
-  const scroll = useRef<KeyboardAwareScrollViewRef>(null);
-  const [linkBottom, setLinkBottom] = useState(0);
-  const [submitBottom, setSubmitBottom] = useState(0);
+  const submit = useKeyboardFormSubmit();
   const named = link.trim() !== '' && connectInput(link).kind === 'pairing';
-  const submitClearance =
-    submitBottom > linkBottom
-      ? Math.max(
-          theme.touch + space.x6 * 2,
-          submitBottom - linkBottom + space.x6 * Math.max(1, theme.fontScale),
-        )
-      : undefined;
 
   const pair = async (text: string, method: PairingMethod): Promise<void> => {
     if (!active.current || imageOperation.current || submitting.current) return;
@@ -156,8 +147,7 @@ export function PairScanner({
 
   return (
     <KeyboardFormScroll
-      ref={scroll}
-      {...(submitClearance === undefined ? {} : { bottomOffset: submitClearance })}
+      {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
@@ -224,12 +214,7 @@ export function PairScanner({
       {pairing.canRetry && imageError === undefined ? (
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />
       ) : null}
-      <View
-        style={{ gap: space.x2 }}
-        onLayout={({ nativeEvent }) =>
-          setLinkBottom(nativeEvent.layout.y + nativeEvent.layout.height)
-        }
-      >
+      <View style={{ gap: space.x2 }} onLayout={submit.onFieldLayout}>
         {labelInField ? null : (
           <Text variant="meta" tone="muted" accessibilityRole="header">
             {t.pasteLink}
@@ -261,14 +246,7 @@ export function PairScanner({
           disabled={pairing.busy || readingImage}
         />
       ) : null}
-      <View
-        onLayout={({ nativeEvent }) => {
-          const bottom = nativeEvent.layout.y + nativeEvent.layout.height;
-          if (bottom === submitBottom) return;
-          setSubmitBottom(bottom);
-          requestAnimationFrame(() => scroll.current?.assureFocusedInputVisible());
-        }}
-      >
+      <View onLayout={submit.onSubmitLayout}>
         <Button
           testID="pair-link-submit"
           label={t.pairContinue}
