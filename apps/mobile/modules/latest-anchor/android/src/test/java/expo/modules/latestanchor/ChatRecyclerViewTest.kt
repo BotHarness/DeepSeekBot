@@ -3,6 +3,7 @@ package expo.modules.latestanchor
 import android.app.Activity
 import android.os.Looper
 import android.view.View
+import android.widget.FrameLayout
 import androidx.recyclerview.widget.RecyclerView
 import com.facebook.react.bridge.BridgeReactContext
 import expo.modules.core.ModuleRegistry
@@ -55,6 +56,43 @@ class ChatRecyclerViewTest {
     list.scrollToIndex(5000, 0.5)
     list.layout(0, 0, 300, 500)
     assertTrue(recycler.childCount <= 30)
+    controller.pause().stop().destroy()
+  }
+
+  @Test fun cellRegisteredAfterNativeRelayoutIsBound() {
+    val controller = Robolectric.buildActivity(Activity::class.java).setup().visible()
+    val activity = controller.get()
+    val react = BridgeReactContext(activity)
+    val modules = object : ModulesProvider { override fun getModulesMap(): Map<Class<out Module>, String?> = emptyMap() }
+    val app = AppContext(modules, ModuleRegistry(emptyList(), emptyList()), WeakReference(react))
+    // Like ReactRootView: the host never lays out its children; Fabric sets their frames.
+    val root = object : FrameLayout(activity) { override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) = Unit }
+    val list = ChatRecyclerView(react, app)
+    root.addView(list)
+    activity.setContentView(root)
+    val looper = shadowOf(Looper.getMainLooper())
+    list.setRows(listOf("header", "input", "footer"))
+    list.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(500, View.MeasureSpec.EXACTLY))
+    list.layout(0, 0, 300, 500)
+    fun cell(key: String) = ChatRecyclerCell(react, app).apply { rowKey = key }
+    val header = cell("header")
+    list.register(header, 0)
+    list.register(cell("input"), 1)
+    list.register(cell("footer"), 2)
+    looper.idle()
+    // The first send: React unmounts the window's tail, the rows grow, then React mounts it again.
+    list.unregister(list.cells[2])
+    list.unregister(list.cells[1])
+    list.register(cell("turn-end"), 1)
+    list.register(cell("reply"), 2)
+    list.setRows(listOf("header", "turn-end", "reply", "input", "footer"))
+    looper.idle()
+    val input = cell("input")
+    list.register(input, 3)
+    list.register(cell("footer"), 4)
+    looper.idle()
+    val recycler = list.getChildAt(0) as RecyclerView
+    assertSame(recycler, input.parent?.parent)
     controller.pause().stop().destroy()
   }
 }
