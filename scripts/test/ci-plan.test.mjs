@@ -316,13 +316,19 @@ describe('CI test plan', () => {
     expect(result.reason).toContain('matches no rule');
   });
 
-  it('runs everything when a code file is removed or renamed', () => {
-    const removed = {
-      ...pr(),
-      changes: [{ status: 'removed', path: 'packages/client/src/client/old.tsx' }],
-    };
-    expect(plan(removed).tests).toBe('full');
-    const renamed = {
+  it('selects related tests when a removed or renamed code file has no remaining references', () => {
+    const removed = plan({
+      ...pr('packages/client/test/chip.test.ts'),
+      changes: [
+        { status: 'removed', path: 'packages/client/src/client/old.tsx' },
+        { status: 'modified', path: 'packages/client/test/chip.test.ts' },
+      ],
+    });
+    expect(removed).toMatchObject({
+      tests: 'affected',
+      related: ['packages/client/test/chip.test.ts'],
+    });
+    const renamed = plan({
       ...pr(),
       changes: [
         {
@@ -331,10 +337,90 @@ describe('CI test plan', () => {
           previous: 'packages/client/src/client/old.tsx',
         },
       ],
-    };
-    expect(plan(renamed).tests).toBe('full');
+    });
+    expect(renamed).toMatchObject({
+      tests: 'affected',
+      related: ['packages/client/src/client/chip.tsx'],
+    });
     const prose = { ...pr(), changes: [{ status: 'removed', path: 'docs/adr/0002-gone.md' }] };
     expect(plan(prose).tests).not.toBe('full');
+  });
+
+  it('selects files that still import or name a removed code file', () => {
+    const files = {
+      ...repo,
+      'packages/client/src/client/uses-old.ts': "export * from './old.js';",
+      'packages/client/test/old-path.test.ts': "vi.mock('../src/client/old.tsx');",
+      'packages/client/test/old-root.test.ts':
+        'const file = resolve(ROOT, "packages/client/src/client/old.tsx");',
+      'packages/host-client/package.json': JSON.stringify({
+        name: '@botharness/host-client',
+        exports: { './*': './src/*.ts' },
+      }),
+      'packages/host-client/src/kept.ts': '',
+      'packages/core/src/uses-host.ts': "import { gone } from '@botharness/host-client/gone';",
+      'apps/docs/test/uses-alias.test.ts': "import page from '@/pages/gone.ts';",
+      'packages/client/test/unrelated.test.ts': "import { old } from 'old';",
+    };
+    const staleIndex = createIndex(Object.keys(files), (file) => files[file]);
+    const result = plan({
+      event: 'pull_request',
+      index: staleIndex,
+      changes: [
+        { status: 'removed', path: 'packages/client/src/client/old.tsx' },
+        { status: 'removed', path: 'packages/host-client/src/gone.ts' },
+        {
+          status: 'renamed',
+          path: 'apps/docs/src/pages/kept.ts',
+          previous: 'apps/docs/src/pages/gone.ts',
+        },
+      ],
+    });
+    expect(result.tests).toBe('affected');
+    expect(result.related).toEqual(
+      expect.arrayContaining([
+        'apps/docs/test/uses-alias.test.ts',
+        'packages/client/src/client/uses-old.ts',
+        'packages/client/test/old-path.test.ts',
+        'packages/client/test/old-root.test.ts',
+        'packages/core/src/uses-host.ts',
+      ]),
+    );
+    expect(result.related).not.toContain('packages/client/test/unrelated.test.ts');
+  });
+
+  it('runs everything when a config listing still names a removed code file', () => {
+    const files = {
+      ...repo,
+      'apps/mobile/app.json': JSON.stringify({ plugins: ['packages/core/src/plugin.ts'] }),
+    };
+    const listingIndex = createIndex(
+      Object.keys(files).filter((file) => file !== 'packages/core/src/plugin.ts'),
+      (file) => files[file],
+    );
+    const result = plan({
+      event: 'pull_request',
+      index: listingIndex,
+      changes: [{ status: 'removed', path: 'packages/core/src/plugin.ts' }],
+    });
+    expect(result.tests).toBe('full');
+    expect(result.reason).toContain('apps/mobile/app.json still names');
+  });
+
+  it('selects the Core source-scanning helper when a Core source file is removed', () => {
+    const helper = 'packages/core/test/source-files.ts';
+    const files = {
+      'packages/core/src/features/activity/kept.ts': '',
+      [helper]: readFileSync(join(ROOT, helper), 'utf8'),
+    };
+    const sourceIndex = createIndex(Object.keys(files), (file) => files[file]);
+    expect(
+      plan({
+        event: 'pull_request',
+        index: sourceIndex,
+        changes: [{ status: 'removed', path: 'packages/core/src/features/activity/events.ts' }],
+      }).related,
+    ).toContain(helper);
   });
 
   it('selects a helper that reads a changed data file, so its importing tests run', () => {

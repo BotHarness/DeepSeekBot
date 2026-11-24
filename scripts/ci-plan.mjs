@@ -416,12 +416,15 @@ export function pathReferences(index, file) {
 
 function resolveSpecifier(index, from, specifier) {
   if (!specifier.startsWith('.')) return null;
-  const target = normalize(posix.join(posix.dirname(from), specifier));
+  return resolveTarget(index, normalize(posix.join(posix.dirname(from), specifier)));
+}
+
+function resolveTarget(index, target) {
   if (!target) return null;
   const candidates = [target];
   for (const extension of ['.ts', '.tsx', '.mjs', '.js', '.json'])
     candidates.push(target + extension);
-  if (/\.js$/.test(target))
+  if (target.endsWith('.js'))
     candidates.push(target.replace(/\.js$/, '.ts'), target.replace(/\.js$/, '.tsx'));
   for (const extension of ['/index.ts', '/index.tsx', '/index.mjs', '/index.js'])
     candidates.push(target + extension);
@@ -471,6 +474,69 @@ export function referencingFiles(map, paths) {
   return [...found].sort();
 }
 
+export const TEST_ALIASES = [['@/', 'apps/docs/src/']];
+const LISTING = /\.(?:json|ya?ml)$/;
+
+function subpathAliases(index) {
+  const aliases = [...TEST_ALIASES];
+  for (const manifest of index.files) {
+    if (!/^(?:apps|packages)\/[^/]+\/package\.json$/.test(manifest)) continue;
+    let data;
+    try {
+      data = JSON.parse(index.source(manifest));
+    } catch {
+      continue;
+    }
+    const target = data.exports?.['./*'];
+    if (!data.name || typeof target !== 'string' || !target.startsWith('./')) continue;
+    const [before, after = ''] = target.slice(2).split('*');
+    aliases.push([`${data.name}/`, `${posix.dirname(manifest)}/${before}`, after]);
+  }
+  return aliases;
+}
+
+export function staleReferences(index, removed) {
+  const gone = new Set(removed);
+  const result = { files: [], listing: null };
+  if (!gone.size) return result;
+  const ghost = { ...index, tracked: new Set([...index.tracked, ...gone]) };
+  const aliases = subpathAliases(index);
+  const stems = [...gone].map((path) => posix.basename(path).replace(/\.[^.]+$/, ''));
+  const targetsOf = (file, literal) => {
+    if (literal.startsWith('.')) return [resolveSpecifier(ghost, file, literal)];
+    const targets = [
+      resolveTarget(ghost, normalize(literal)),
+      resolveTarget(ghost, normalize(posix.join(posix.dirname(file), literal))),
+    ];
+    for (const [prefix, directory, suffix = ''] of aliases) {
+      if (!literal.startsWith(prefix)) continue;
+      const target = normalize(directory + literal.slice(prefix.length));
+      if (target) targets.push(ghost.tracked.has(target + suffix) ? target + suffix : null);
+      targets.push(resolveTarget(ghost, target));
+    }
+    return targets;
+  };
+  for (const file of index.files) {
+    if (gone.has(file) || !(CODE.test(file) || LISTING.test(file))) continue;
+    const source = index.source(file);
+    if (!stems.some((stem) => source.includes(stem))) continue;
+    if (LISTING.test(file)) {
+      if ([...gone].some((path) => source.includes(path))) {
+        result.listing = { file, path: [...gone].find((path) => source.includes(path)) };
+        return result;
+      }
+      continue;
+    }
+    for (const [, , literal] of source.matchAll(STRING))
+      if (targetsOf(file, literal).some((target) => target && gone.has(target))) {
+        result.files.push(file);
+        break;
+      }
+  }
+  result.files.sort();
+  return result;
+}
+
 export function docsSiteInputs(index) {
   const inputs = new Set();
   for (const entry of DOCS_SITE_ENTRIES)
@@ -507,16 +573,19 @@ export function plan({ event, labels = [], changes = [], truncated = false, inde
     return result('full', 'the changed file list is too long to select from');
 
   const paths = [];
+  const removed = [];
   let docsSite = false;
   let docsReason = '';
   const docsInputs = docsSiteInputs(index);
   for (const change of changes) {
+    const gone = REMOVED.has(statusOf(change.status))
+      ? (change.previous ?? change.path)
+      : undefined;
     for (const path of [change.path, change.previous].filter(Boolean)) {
       const rule = classify(path);
       if (!rule) return result('full', `${path} matches no rule in scripts/ci-plan.mjs`);
       if (rule.tests === 'full') return result('full', `${path} is a full-run input (${rule.why})`);
-      if (rule.tests === 'related' && REMOVED.has(statusOf(change.status)) && CODE.test(path))
-        return result('full', `${path} was removed or renamed, so its importers cannot be traced`);
+      if (path === gone && !index.tracked.has(path) && CODE.test(path)) removed.push(path);
       if (!docsSite && (rule.docsSite || docsInputs.has(path))) {
         docsSite = true;
         docsReason = path;
@@ -531,7 +600,13 @@ export function plan({ event, labels = [], changes = [], truncated = false, inde
     docsSite = true;
     docsReason = DOCS_SITE_TEST;
   }
-  const inputs = new Set(referencing);
+  const stale = staleReferences(index, removed);
+  if (stale.listing)
+    return result(
+      'full',
+      `${stale.listing.file} still names the removed ${stale.listing.path}, which no test traces`,
+    );
+  const inputs = new Set([...referencing, ...stale.files]);
   for (const { path, rule } of paths)
     if (rule.tests === 'related' && index.tracked.has(path)) inputs.add(path);
   inputs.delete(DOCS_SITE_TEST);
