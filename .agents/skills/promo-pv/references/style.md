@@ -8,7 +8,7 @@
 
 ## Palette
 
-Brand, accent and status colours come from Tobs core: `setup.mjs` copies `design/tokens/tobs-core.generated.css` to `kit/tobs-core.css`, and scenes read them with `TOBS('<name>')` (light values; the PV ground is light). Never hard-code these hex values; a brand change then reaches the next render. The ground, ink, rainbow and space colours below are the PV's own.
+Brand, accent and status colours come from Tobs core: `setup.mjs` copies `design/tokens/tobs-core.generated.css` to `kit/tobs-core.css`, and scenes read them with `TOBS('<name>')` (light values; the PV ground is light). Never hard-code these hex values. A new workspace picks up a brand change on its first render; an existing workspace keeps its copied `kit/tobs-core.css` until you re-run `setup.mjs` on it (the re-run keeps `scenes.js` and `beats.js`). The ground, ink, rainbow and space colours below are the PV's own.
 
 | Role | Value |
 | --- | --- |

@@ -4,7 +4,7 @@ Brand theme for Tobs decks. Colours come from Tobs core, the same values the app
 
 ## Palette
 
-Import the generated values; never copy hex codes by hand:
+Import the generated values; never copy hex codes by hand, except the one accent literal below:
 
 ```tsx
 import type { DesignSystem } from '@open-slide/core';
