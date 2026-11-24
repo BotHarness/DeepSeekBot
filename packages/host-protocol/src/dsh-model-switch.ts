@@ -1,4 +1,4 @@
-import type { TurnModelSwitch, TurnTarget } from './turn-target';
+import { isTurnTarget, type TurnModelSwitch, type TurnTarget } from './turn-target';
 
 interface DshSessionEvent {
   type: string;
@@ -51,15 +51,12 @@ function readNotice(event: DshSessionEvent): Notice | undefined {
 }
 
 function target(data: unknown): DshTurnTarget | undefined {
-  const provider = field(data, 'provider');
-  const model = field(data, 'model');
-  if (
-    typeof provider === 'string' &&
-    provider.trim() !== '' &&
-    typeof model === 'string' &&
-    model.trim() !== ''
-  )
-    return { kind: 'dsh', provider, model };
+  const candidate: unknown = {
+    kind: 'dsh',
+    provider: field(data, 'provider'),
+    model: field(data, 'model'),
+  };
+  return isTurnTarget(candidate) && candidate.kind === 'dsh' ? candidate : undefined;
 }
 
 function qualified(label: string): DshTurnTarget | undefined {
