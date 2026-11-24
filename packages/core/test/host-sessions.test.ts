@@ -284,7 +284,14 @@ it('reports the created Session when its model choice fails, and reuses it on re
   const owner = f.bridge(OWNER_HUMAN_CONTEXT);
   const choice = { kind: 'model', provider: 'opencode-go', model: 'kimi-k2' };
   const failed = await owner.sessionCreate({ cwd: '/work/app', text: 'Map', choice });
-  expect(failed).toMatchObject({ ok: false, error: { details: { sessionId: 'blank' } } });
+  expect(failed).toMatchObject({
+    ok: false,
+    error: {
+      code: 'session/model-unavailable',
+      message: 'model unavailable',
+      details: { sessionId: 'blank' },
+    },
+  });
   expect(send).not.toHaveBeenCalled();
   expect(
     await owner.sessionCreate({ cwd: '/work/app', text: 'Map', choice, sessionId: 'blank' }),

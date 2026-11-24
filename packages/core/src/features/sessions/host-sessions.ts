@@ -370,7 +370,22 @@ export function createHostSessionsMethods(
           reuse === undefined ? place : { ...place, sessionId: reuse },
         );
         created = sessionId;
-        if (choice !== undefined) await service.model!(sessionId, choice);
+        if (choice !== undefined)
+          try {
+            await service.model!(sessionId, choice);
+          } catch (cause) {
+            const failure = dshFailure(cause);
+            const error =
+              remoteErrorOf(cause) === undefined
+                ? {
+                    code: 'session/model-unavailable',
+                    message: cause instanceof Error ? cause.message : String(cause),
+                  }
+                : failure.ok
+                  ? { code: 'session/model-unavailable', message: 'Model choice failed' }
+                  : failure.error;
+            return { ok: false, error: { ...error, details: { ...error.details, sessionId } } };
+          }
         const { requestId } = await service.send(sessionId, text);
         return { ok: true, value: { sessionId, requestId } };
       } catch (cause) {

@@ -191,6 +191,32 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(live.calls).toHaveLength(3);
   });
 
+  it('prints the created Session id when session-create fails after DSH created it', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: {
+        code: 'session/model-unavailable',
+        message: 'model x is not configured',
+        details: { sessionId: 'blank-1' },
+      },
+    }));
+    const result = await invoke(
+      [
+        'session-create',
+        '--cwd',
+        '/work/app',
+        '--model',
+        '{"kind":"model","provider":"p","model":"x"}',
+        '--message',
+        'Map',
+      ],
+      live.url,
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('session/model-unavailable');
+    expect(result.text).toContain('blank-1');
+  });
+
   it('sends raw text straight into the Orchestrator Session with session-send', async () => {
     const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
     const result = await invoke(
