@@ -4,6 +4,7 @@ import { DEFAULT_CODEX_ACCOUNT } from '@botharness/host-protocol/subscription-en
 import { describe, expect, it, vi } from 'vitest';
 
 import { runEngineCommand } from '../src/bots/cli-engine.js';
+import * as claudeStatus from '../src/engines/claude-status.js';
 import { createEngineAccountBridge } from '../src/engines/engine-account-bridge.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineHostOptions } from '../src/engines/engine-host.js';
@@ -373,6 +374,60 @@ describe('named Claude Code subscription accounts', () => {
     expect(host.removeAccount('claude', 4)).toEqual({ id: 'claude' });
     expect(existsSync(home)).toBe(false);
     expect(() => createEngineStore(path).resolveAccount('claude')).toThrow('was not found');
+  });
+
+  it('keeps Claude paste-back open until sign-in ends, like the Claude Code CLI', async () => {
+    const { host } = setup();
+    const submit = vi.fn(async () => {});
+    vi.useFakeTimers();
+    const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
+      options.onCodeInput?.(submit);
+      options.signal?.addEventListener('abort', () => options.onExit?.(), { once: true });
+      return { url: 'https://claude.ai/oauth/authorize?fixture=1' };
+    });
+    try {
+      await host.login('claude');
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).resolves.toEqual({
+        submitted: true,
+      });
+      expect(submit).toHaveBeenCalledWith('fixture#state');
+      await expect(host.cancelLogin('claude')).resolves.toEqual({ cancelled: true });
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
+        code: 'engine-login-not-pending',
+        message: expect.stringContaining('Start sign-in again'),
+      });
+      expect(submit).toHaveBeenCalledTimes(1);
+    } finally {
+      await host.close();
+      start.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses Claude paste-back once sign-in is cancelled even before cleanup', async () => {
+    const { host } = setup();
+    const submit = vi.fn(async () => {});
+    let exit: (() => void) | undefined;
+    const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
+      options.onCodeInput?.(submit);
+      exit = options.onExit;
+      return { url: 'https://claude.ai/oauth/authorize?fixture=1' };
+    });
+    try {
+      await host.login('claude');
+      const cancelled = host.cancelLogin('claude');
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
+        code: 'engine-login-not-pending',
+      });
+      expect(submit).not.toHaveBeenCalled();
+      exit?.();
+      await expect(cancelled).resolves.toEqual({ cancelled: true });
+    } finally {
+      exit?.();
+      await host.close();
+      start.mockRestore();
+    }
   });
 
   it.skipIf(process.platform === 'win32')(
