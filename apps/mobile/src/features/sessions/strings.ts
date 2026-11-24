@@ -43,6 +43,9 @@ export const en = {
     waiting: 'Needs you',
     done: 'Done',
     allEnvironments: 'All environments',
+    botSessionsLabel: 'Bot Sessions',
+    botSessionsShow: 'Show',
+    botSessionsHide: 'Hide',
   },
   sessionModel: {
     choice: 'Model choice',
@@ -236,6 +239,9 @@ export const zh: typeof en = {
     waiting: '需要你',
     done: '已完成',
     allEnvironments: '全部环境',
+    botSessionsLabel: 'Bot 会话',
+    botSessionsShow: '显示',
+    botSessionsHide: '隐藏',
   },
   sessionModel: {
     choice: '模型选择',

@@ -8,18 +8,21 @@ import {
 } from '@botharness/host-client/ui/design/host-look';
 import { BotPortrait } from '../../ui/bot-avatar';
 import { ModelBrandIcon } from '../../ui/chat/model-brand-icon';
+import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
+import { useHostLook } from '../../host/native-host-look';
+import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
-import { cornerBadge, edge, radius, space, statusChip } from '../../ui/design/tokens';
+import { cornerBadge, edge, radius, space } from '../../ui/design/tokens';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { folderColorIndex, folderMonogram, type SessionQueryRow } from './session-query-model';
 
-export type SessionRowStatus = 'running' | 'waiting' | 'done';
+export type SessionRowStatus = 'working' | 'needs-you' | 'done';
 
 export function sessionRowStatus(
   row: Pick<SessionQueryRow, 'running' | 'waiting'>,
 ): SessionRowStatus {
-  return row.waiting === true ? 'waiting' : row.running ? 'running' : 'done';
+  return row.waiting === true ? 'needs-you' : row.running ? 'working' : 'done';
 }
 
 export function SessionDrawerRow({
@@ -40,19 +43,13 @@ export function SessionDrawerRow({
   const strings = useStrings();
   const t = strings.hostSessions;
   const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
   const title = row.title ?? (row.source.kind === 'bot' ? row.source.displayName : t.untitled);
   const status = sessionRowStatus(row);
-  const statusText = { running: t.running, waiting: t.waiting, done: t.done }[status];
-  const statusColor = {
-    running: theme.color.accent,
-    waiting: theme.color.warning,
-    done: theme.color.subtle,
-  }[status];
-  const place = [
-    showHost ? row.hostName : undefined,
-    row.folderName,
-    row.source.kind === 'bot' ? row.source.displayName : undefined,
-  ].filter((part): part is string => part !== undefined && part !== '');
+  const statusText = { working: t.running, 'needs-you': t.waiting, done: t.done }[status];
+  const place = [showHost ? row.hostName : undefined, row.folderName].filter(
+    (part): part is string => part !== undefined && part !== '',
+  );
   const minutes = Math.max(0, Math.floor((now - (row.lastPromptAt ?? row.updatedAt)) / 60_000));
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
@@ -62,7 +59,14 @@ export function SessionDrawerRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[title, ...place, statusText, when, row.model?.model]
+      accessibilityLabel={[
+        title,
+        ...place,
+        row.source.kind === 'bot' ? row.source.displayName : undefined,
+        statusText,
+        when,
+        row.model?.model,
+      ]
         .filter(Boolean)
         .join(', ')}
       accessibilityState={{ selected }}
@@ -138,14 +142,24 @@ export function SessionDrawerRow({
         ) : null}
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text strong numberOfLines={theme.largeText ? undefined : 2}>
+        <Text strong numberOfLines={2} ellipsizeMode="tail">
           {title}
         </Text>
-        {place.length === 0 ? null : (
-          <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
-            {place.join(' · ')}
+        <View
+          testID={`session-place-${row.sessionId}`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2, minWidth: 0 }}
+        >
+          <HostGlyph icon={look.icon} size={theme.type.meta.line} color={theme.color.muted} />
+          <Text
+            variant="meta"
+            tone="muted"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            {place.length === 0 ? row.hostName : place.join(' · ')}
           </Text>
-        )}
+        </View>
       </View>
       <View
         style={{
@@ -156,25 +170,13 @@ export function SessionDrawerRow({
           gap: space.x1,
         }}
       >
-        <View style={{ alignItems: 'flex-end', gap: space.x1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1 }}>
-            <View
-              style={{
-                width: statusChip.dot,
-                height: statusChip.dot,
-                borderRadius: radius.round,
-                backgroundColor: statusColor,
-              }}
-            />
-            <Text
-              variant="meta"
-              testID={`session-status-${row.sessionId}`}
-              style={{ color: statusColor }}
-            >
-              {statusText}
-            </Text>
-          </View>
-          <Text variant="meta" tone="subtle">
+        <View
+          testID={`session-status-${row.sessionId}`}
+          accessibilityLabel={statusText}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
+        >
+          <RowStatusGlyph status={status} />
+          <Text variant="meta" tone="subtle" numberOfLines={1}>
             {when}
           </Text>
         </View>

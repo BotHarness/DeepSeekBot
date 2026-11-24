@@ -8,7 +8,11 @@ import {
   type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import { sessionReadHost } from '../../host/session-detail';
-import { interfacePreferences, useSessionSort } from '../../ui/interface-preferences';
+import {
+  interfacePreferences,
+  useHideBotSessions,
+  useSessionSort,
+} from '../../ui/interface-preferences';
 import type { SessionOptionGroup } from '../../ui/shell/host-session-options';
 import { useStrings } from '../../ui/strings';
 import { mergeSessionRows, mergeSessionSources, type SessionQueryRow } from './session-query-model';
@@ -31,7 +35,10 @@ function onlineSource(hosts: readonly SessionQueryHost[]) {
 export function useSessionQuery(hosts: readonly SessionQueryHost[], active = true) {
   const t = useStrings().hostSessions;
   const sort = useSessionSort();
-  const [source, setSource] = useState<HostSessionFilter>('all');
+  const hideBots = useHideBotSessions();
+  const [chosenSource, setSource] = useState<HostSessionFilter>('all');
+  const source: HostSessionFilter =
+    hideBots && chosenSource.startsWith('bot:') ? 'all' : chosenSource;
   const [sources, setSources] = useState<HostSessionSourceOption[]>();
   const [draft, setDraft] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -44,7 +51,8 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   }>();
   const search = draft.trim();
   const searchReady = search === '' || search === debounced;
-  const rows = result?.search === search && result.source === source ? result.rows : undefined;
+  const read = result?.search === search && result.source === source ? result.rows : undefined;
+  const rows = hideBots ? read?.filter((row) => row.source.kind !== 'bot') : read;
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -147,14 +155,33 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
       selected: source,
       choices: [
         { id: 'all', label: t.all, select: () => setSource('all') },
-        ...(sources ?? []).map((item) => {
-          const id: HostSessionFilter = item.kind === 'native' ? 'native' : `bot:${item.botSlug}`;
-          return {
-            id,
-            label: item.kind === 'native' ? t.nativeSource : item.displayName,
-            select: () => setSource(id),
-          };
-        }),
+        ...(sources ?? [])
+          .filter((item) => !hideBots || item.kind !== 'bot')
+          .map((item) => {
+            const id: HostSessionFilter = item.kind === 'native' ? 'native' : `bot:${item.botSlug}`;
+            return {
+              id,
+              label: item.kind === 'native' ? t.nativeSource : item.displayName,
+              select: () => setSource(id),
+            };
+          }),
+      ],
+    },
+    {
+      id: 'bots',
+      label: t.botSessionsLabel,
+      selected: hideBots ? 'hide' : 'show',
+      choices: [
+        {
+          id: 'show',
+          label: t.botSessionsShow,
+          select: () => interfacePreferences.setHideBotSessions(false),
+        },
+        {
+          id: 'hide',
+          label: t.botSessionsHide,
+          select: () => interfacePreferences.setHideBotSessions(true),
+        },
       ],
     },
   ];
@@ -172,7 +199,7 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     pullRefreshing,
     groups,
     canQuery: online && sources !== undefined,
-    optionsActive: sort !== 'last-human-turn' || source !== 'all',
+    optionsActive: sort !== 'last-human-turn' || source !== 'all' || hideBots,
     changeSearch,
     refresh,
   };

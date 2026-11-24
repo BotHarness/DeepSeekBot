@@ -18,12 +18,20 @@ vi.mock('expo-router', () => ({
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({ BotPortrait: () => null }));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
+vi.mock('../src/ui/chat/row-status-glyph', () => ({
+  RowStatusGlyph: ({ status }: { status: string }) => <span data-status={status} />,
+}));
+vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => <span data-host-glyph="" /> }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
 vi.mock('../src/ui/primitives/drawer-material', () => ({
   DrawerMaterial: () => null,
   useLiquidGlass: () => false,
 }));
 
 import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-panel';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
@@ -182,13 +190,32 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   );
   expect(ids).toEqual(['host-session-fresh', 'host-session-remote', 'host-session-old']);
   const remote = view.querySelector('[data-testid="host-session-remote"]')!;
-  expect(remote.textContent).toContain('Laptop · deploy-tools · Ada');
+  const place = remote.querySelector('[data-testid="session-place-remote"]')!;
+  expect(place.textContent).toBe('Laptop · deploy-tools');
+  expect(place.querySelector('[data-host-glyph]')).not.toBeNull();
   expect(remote.querySelector('[data-testid="session-bot-remote"]')).not.toBeNull();
   expect(view.querySelector('[data-testid="session-monogram-fresh"]')?.textContent).toBe('BO');
   expect(view.querySelector('[data-testid="session-monogram-old"]')?.textContent).toBe('笔');
-  expect(view.querySelector('[data-testid="session-status-fresh"]')?.textContent).toBe('Running');
-  expect(view.querySelector('[data-testid="session-status-old"]')?.textContent).toBe('Needs you');
-  expect(view.querySelector('[data-testid="session-status-remote"]')?.textContent).toBe('Done');
+  const status = (id: string) =>
+    view
+      .querySelector(`[data-testid="session-status-${id}"] [data-status]`)
+      ?.getAttribute('data-status');
+  expect(status('fresh')).toBe('working');
+  expect(status('old')).toBe('needs-you');
+  expect(status('remote')).toBe('done');
   expect(view.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
+});
+
+it('hides Bot Sessions when the device preference says so and keeps native ones', async () => {
+  await act(async () => interfacePreferences.setHideBotSessions(true));
+  try {
+    const { view } = await render({ second: true });
+    const ids = [...view.querySelectorAll('[data-testid^="host-session-"]')].map((row) =>
+      row.getAttribute('data-testid'),
+    );
+    expect(ids).toEqual(['host-session-fresh', 'host-session-old']);
+  } finally {
+    await act(async () => interfacePreferences.setHideBotSessions(false));
+  }
 });
