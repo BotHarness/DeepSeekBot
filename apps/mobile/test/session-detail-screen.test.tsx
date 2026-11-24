@@ -740,6 +740,8 @@ it('keeps Back with ✎ for a Session pushed inside the Sessions tab, and no ✎
   } finally {
     place.segments = ['(tabs)', '(home)', 'session', '[id]'];
   }
+  await act(async () => root?.unmount());
+  root = undefined;
   const elsewhere = await open({ role: 'native' });
   const labels = [...elsewhere.view.querySelectorAll('button')].map(
     (button) => button.getAttribute('aria-label') ?? button.textContent,

@@ -69,7 +69,7 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
     );
   return (
     <SessionDrawerPanel
-      key={key}
+      key={scope}
       hosts={hosts}
       title={scoped === undefined ? t.allEnvironments : hosts[0]!.hostName}
       showHost={scoped === undefined}

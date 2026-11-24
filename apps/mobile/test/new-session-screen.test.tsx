@@ -252,6 +252,9 @@ it('holds the Computer while a Session is being created and reuses a blank one o
   expect(
     view.querySelector<HTMLButtonElement>('[data-testid="new-session-computer"]')!.disabled,
   ).toBe(true);
+  expect(
+    view.querySelector<HTMLButtonElement>('[data-testid="new-session-folder"]')!.disabled,
+  ).toBe(true);
   const { MethodRefused } = await import('@botharness/host-client/client');
   await act(async () => {
     finish(

@@ -100,3 +100,17 @@ it('gives the panel new hosts when a Computer’s client is replaced', async () 
   await render();
   expect(fixture.panel.mock.lastCall?.[0].hosts).not.toBe(first);
 });
+
+it('keeps the same panel when a Computer under All goes offline', async () => {
+  mount();
+  fixture.scope = 'all';
+  fixture.hosts = [host('studio'), host('laptop')];
+  await render();
+  const first = view.querySelector('[data-testid="panel"]');
+  fixture.hosts = [host('studio'), host('laptop', 'offline')];
+  await render();
+  expect(view.querySelector('[data-testid="panel"]')).toBe(first);
+  expect(fixture.panel.mock.lastCall?.[0].hosts.map((h: { hostId: string }) => h.hostId)).toEqual([
+    'studio',
+  ]);
+});

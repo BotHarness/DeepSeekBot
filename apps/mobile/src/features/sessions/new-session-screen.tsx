@@ -1,5 +1,5 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -159,11 +159,14 @@ function NewSessionForm({
     enabled: online,
     running: false,
   });
-  const port: FolderPickerPort = {
-    listFolders: (path) => listHostFolders(client, path),
-    loadWorkspaceOptions: () => loadWorkspaceOptions(client),
-    resolveFolder: (path) => resolveWorkspaceFolder(client, path),
-  };
+  const port = useMemo<FolderPickerPort>(
+    () => ({
+      listFolders: (path) => listHostFolders(client, path),
+      loadWorkspaceOptions: () => loadWorkspaceOptions(client),
+      resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+    }),
+    [client],
+  );
 
   async function send() {
     const text = draft.trim();
@@ -261,7 +264,7 @@ function NewSessionForm({
               icon="folder"
               iconTone="muted"
               {...valueRow(theme.largeText, folder?.title ?? t.chooseFolder, true)}
-              onPress={online ? () => setPicking('folder') : undefined}
+              onPress={online && !busy ? () => setPicking('folder') : undefined}
             />
           </SettingsGroupItem>
         </View>
