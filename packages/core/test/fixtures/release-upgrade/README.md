@@ -1,6 +1,6 @@
 # Published release upgrade fixtures
 
-Each gzip file contains a SQLite database initialized by the indicated published `deepseekbot` CLI. The seed adds synthetic Bots, Channels, placed messages with attachment metadata, ownership and Memory snapshot records, a schedule, a preset, an approval rule, and usage data. All inputs are fixed strings or numbers. The fixtures contain no attachment files or user Profile exports.
+Each gzip file contains a SQLite database initialized by the indicated published `deepseekbot` CLI. The seed adds synthetic PersonaBots, Channels, placed messages with attachment metadata, ownership and Memory snapshot records, a schedule, a preset, an approval rule, and usage data. All inputs are fixed strings or numbers. The fixtures contain no attachment files or user Profile exports.
 
 After publishing, install the exact npm version into a scratch directory and run the generator with that package directory. The generator creates and deletes its own disposable `DSH_HOME`. Use the repository's pinned Node version.
 
