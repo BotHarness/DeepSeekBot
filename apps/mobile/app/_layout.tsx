@@ -4,11 +4,6 @@ import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
 import { useDeviceAlert } from '../src/ui/primitives/use-device-alert';
-import {
-  channelRouteId,
-  channelStackRouter,
-  conversationRouteOptions,
-} from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, type ViewInstance } from 'react-native';
@@ -26,7 +21,6 @@ import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
-import { tobEntranceScreenOptions } from '../src/ui/shell/tob-mode-model';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
@@ -132,7 +126,6 @@ function RootNavigator() {
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
               <SafeAreaProvider>
                 <Stack
-                  UNSTABLE_router={channelStackRouter}
                   screenOptions={{
                     orientation: 'portrait',
                     headerStyle: { backgroundColor: theme.background },
@@ -161,19 +154,6 @@ function RootNavigator() {
                     name="create-bot-avatar"
                     options={Platform.OS === 'ios' ? { presentation: 'modal' } : {}}
                   />
-                  <Stack.Screen
-                    name="dm/[slug]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen
-                    name="channel/[id]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen name="dm-tob" options={tobEntranceScreenOptions} />
                   <Stack.Screen
                     name="bot/[slug]"
                     options={({ route }) => ({
@@ -237,7 +217,6 @@ function RootNavigator() {
                       title: t.privateInputOpen,
                     }}
                   />
-                  <Stack.Screen name="session/[id]" />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
                   <Stack.Screen
                     name="conversation-section"

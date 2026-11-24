@@ -48,6 +48,7 @@ export function teamFixture(
   options: {
     urls?: () => string[];
     routes?: () => Promise<string[]>;
+    addressRoutes?: () => string[];
     now?: () => number;
     warn?: (message: string) => void;
     voice?: boolean;
@@ -144,6 +145,7 @@ export function teamFixture(
       options.routes ??
       (async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080']),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.addressRoutes ? { addressRoutes: options.addressRoutes } : {}),
   });
   const unbindDevices = team.bindDevices(devices);
   closes.push(async () => unbindDevices());
@@ -338,7 +340,7 @@ export async function memberHttp(
 
 export async function memberDeviceHost(
   f: ReturnType<typeof teamFixture>,
-  options: { tls?: boolean; remote?: boolean } = {},
+  options: { tls?: boolean; remote?: boolean; addressDeadlineMs?: number } = {},
 ) {
   const http = createTeamHttp({
     team: f.team,
@@ -364,6 +366,9 @@ export async function memberDeviceHost(
     memberDevices: f.devices,
     key: async () => Uint8Array.from(f.privateKey),
     port: () => port,
+    ...(options.addressDeadlineMs === undefined
+      ? {}
+      : { addressDeadlineMs: options.addressDeadlineMs }),
   });
   const discover = createChannelDiscovery({
     host: () => f.pairing.host(),

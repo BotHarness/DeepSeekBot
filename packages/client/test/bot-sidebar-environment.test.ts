@@ -22,6 +22,7 @@ import {
   setSectionSortMode,
   openSidebarMenu,
   menuWithItem,
+  rowNames,
   environmentProbe,
   captured,
   registerSidebarHooks,
@@ -142,15 +143,23 @@ describe('bot sidebar rows', () => {
         expect(host.querySelector('[data-channel-id="c-section"]')?.getAttribute('draggable')).toBe(
           'true',
         );
-        const sectionMenu = captured.menus.find(
-          (menu) =>
-            menu.items.some((item) => item['id'] === 'bot') &&
-            menu.items.some((item) => item['id'] === 'channel') &&
-            !menu.items.some((item) => item['id'] === 'section'),
+        captured.menus.length = 0;
+        const sectionCreateLabel = zhTranslate('roster.section.create', { name: '工作流' });
+        const sectionCreate = host.querySelector<HTMLButtonElement>(
+          `button[aria-label="${sectionCreateLabel}"]`,
         );
-        expect(
-          sectionMenu?.items.find((item) => item['id'] === 'bot')?.['submenu'],
-        ).toBeUndefined();
+        if (!sectionCreate) throw new Error('Missing section create trigger');
+        await act(() => sectionCreate.click());
+        const sectionMenu = document.querySelector<HTMLElement>('[role="menu"]');
+        if (!sectionMenu) throw new Error('Section create menu did not open');
+        expect(rowNames(sectionMenu)).toEqual([
+          zhTranslate('roster.menu.createBot'),
+          zhTranslate('roster.menu.createChannel'),
+        ]);
+        expect(menuItem(zhTranslate('roster.menu.createBot')).hasAttribute('aria-haspopup')).toBe(
+          false,
+        );
+        await act(() => sectionCreate.click());
         captured.menus.length = 0;
         await act(async () =>
           host
@@ -182,33 +191,31 @@ describe('bot sidebar rows', () => {
 });
 
 describe('All Environment local row interactions', () => {
-  async function mountMixed(pinned = true, includeRemote = true) {
+  async function mountMixed(pinned = true) {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     environmentProbe.snapshot = {
       tab: 'all',
       avatars: new Map(),
-      hosts: includeRemote
-        ? [
-            {
-              host: {
-                hostId: 'remote',
-                hostName: 'Remote',
-                routes: ['http://localhost:12345'],
-                credential: 'fixture',
-                deviceId: 'device',
-              },
-              snapshot: {
-                connection: { status: 'connected', route: 'http://localhost:12345' },
-                roster: { bots: [], channels: [] },
-              },
-              inbox: {
-                status: 'ready',
-                sections: { action: [], replies: [], unread: [], handled: [] },
-                unread: {},
-              },
-            },
-          ]
-        : [],
+      hosts: [
+        {
+          host: {
+            hostId: 'remote',
+            hostName: 'Remote',
+            routes: ['http://localhost:12345'],
+            credential: 'fixture',
+            deviceId: 'device',
+          },
+          snapshot: {
+            connection: { status: 'connected', route: 'http://localhost:12345' },
+            roster: { bots: [], channels: [] },
+          },
+          inbox: {
+            status: 'ready',
+            sections: { action: [], replies: [], unread: [], handled: [] },
+            unread: {},
+          },
+        },
+      ],
     };
     store.setRoster([], [SECTION_CHANNEL, FLAT_CHANNEL]);
     setRoster({
@@ -220,31 +227,52 @@ describe('All Environment local row interactions', () => {
     document.body.append(node);
     const root = createRoot(node);
     const actions = stubActions();
-    await act(() =>
-      root.render(
-        createElement(BotSidebar, {
-          wide: true,
-          actions,
-          useBotModePrefs: (selector) => selector(prefs),
-          setSortMode,
-          setSectionSortMode,
-          t: zhTranslate,
-        }),
-      ),
-    );
-    return { node, root, actions };
-  }
-  it('keeps pinned channels visible in All after the last remote is removed', async () => {
-    const { node, root } = await mountMixed(true, false);
+    const render = () =>
+      act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: (selector) => selector(prefs),
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+    const unmount = async () => {
+      try {
+        await act(() => root.unmount());
+      } finally {
+        node.remove();
+      }
+    };
     try {
-      expect(node.querySelector('[data-channel-id="c-flat"]')).not.toBeNull();
+      await render();
+    } catch (error) {
+      await unmount();
+      throw error;
+    }
+    return { node, render, unmount, actions };
+  }
+
+  it('keeps pinned channels visible in All after the last remote is removed', async () => {
+    const { node, render, unmount } = await mountMixed();
+    try {
+      expect(
+        node.querySelector('[data-environment-channel] [data-channel-id="c-flat"]'),
+      ).not.toBeNull();
+
+      environmentProbe.snapshot = { ...environmentProbe.snapshot, hosts: [] };
+      await render();
+
+      expect(node.querySelector('.bh-pin-zone [data-channel-id="c-flat"]')).not.toBeNull();
     } finally {
-      await act(() => root.unmount());
-      node.remove();
+      await unmount();
     }
   });
   it('keeps Host-owned Section membership unchanged when dragging in All', async () => {
-    const { node, root, actions } = await mountMixed(false);
+    const { node, unmount, actions } = await mountMixed(false);
     const dispatch = (target: Element, type: string) => {
       const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 0 });
       Object.defineProperty(event, 'dataTransfer', {
@@ -266,12 +294,11 @@ describe('All Environment local row interactions', () => {
         section('s1', 'Collapsed', [SECTION_CHANNEL.id]),
       ]);
     } finally {
-      await act(() => root.unmount());
-      node.remove();
+      await unmount();
     }
   });
   it('offers Unpin for a pinned channel presented as a mixed row', async () => {
-    const { node, root } = await mountMixed();
+    const { node, unmount } = await mountMixed();
     try {
       const row = node.querySelector('[data-channel-id="c-flat"]');
       if (!row) throw Error('missing pinned mixed row');
@@ -280,12 +307,11 @@ describe('All Environment local row interactions', () => {
       );
       expect(menuWithItem('unpin').items.some((item) => item['id'] === 'pin')).toBe(false);
     } finally {
-      await act(() => root.unmount());
-      node.remove();
+      await unmount();
     }
   });
   it('selects a displayed channel from a collapsed section and ranges in mixed order', async () => {
-    const { node, root } = await mountMixed();
+    const { node, unmount } = await mountMixed();
     try {
       const rows = [
         ...node.querySelectorAll<HTMLButtonElement>('[data-environment-channel] [data-channel-id]'),
@@ -304,8 +330,7 @@ describe('All Environment local row interactions', () => {
       );
       expect(rows.map((row) => row.getAttribute('aria-pressed'))).toEqual(['true', 'true']);
     } finally {
-      await act(() => root.unmount());
-      node.remove();
+      await unmount();
     }
   });
 });

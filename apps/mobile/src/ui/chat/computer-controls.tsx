@@ -270,7 +270,7 @@ export function ComputerDock({
               gap: space.x1,
             }}
           >
-            <Icon color={color} size={theme.touch / 2} focused={on} />
+            <Icon color={color} size={(theme.touch / 2) * theme.fontScale} focused={on} />
             <Text variant="meta" tone={on ? 'fg' : 'muted'} strong={on}>
               {label}
             </Text>

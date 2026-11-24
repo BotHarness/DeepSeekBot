@@ -4,11 +4,18 @@ import { isHostSessionSort, type HostSessionSort } from '@botharness/host-protoc
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
 export type InAppAlertStyle = 'inline' | 'overlay';
+export type SessionNavigationStyle = 'drawer' | 'stacked';
+export type SessionLaunchLanding = 'new' | 'list' | 'last';
+export type SessionReturnLanding = 'stay' | 'new' | 'list';
 export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
   sessionsTab: boolean;
   sessionSort: HostSessionSort;
+  hideBotSessions: boolean;
+  sessionNavigation: SessionNavigationStyle;
+  sessionLaunch: SessionLaunchLanding;
+  sessionReturn: SessionReturnLanding;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -32,6 +39,10 @@ export function createInterfacePreferences() {
     appearance: 'system',
     sessionsTab: false,
     sessionSort: 'last-human-turn',
+    hideBotSessions: false,
+    sessionNavigation: 'drawer',
+    sessionLaunch: 'new',
+    sessionReturn: 'stay',
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
@@ -87,6 +98,34 @@ export function createInterfacePreferences() {
           )
             value.sessionSort = saved.sessionSort;
           if (
+            !touched.has('hideBotSessions') &&
+            'hideBotSessions' in saved &&
+            typeof saved.hideBotSessions === 'boolean'
+          )
+            value.hideBotSessions = saved.hideBotSessions;
+          if (
+            !touched.has('sessionNavigation') &&
+            'sessionNavigation' in saved &&
+            (saved.sessionNavigation === 'drawer' || saved.sessionNavigation === 'stacked')
+          )
+            value.sessionNavigation = saved.sessionNavigation;
+          if (
+            !touched.has('sessionLaunch') &&
+            'sessionLaunch' in saved &&
+            (saved.sessionLaunch === 'new' ||
+              saved.sessionLaunch === 'list' ||
+              saved.sessionLaunch === 'last')
+          )
+            value.sessionLaunch = saved.sessionLaunch;
+          if (
+            !touched.has('sessionReturn') &&
+            'sessionReturn' in saved &&
+            (saved.sessionReturn === 'stay' ||
+              saved.sessionReturn === 'new' ||
+              saved.sessionReturn === 'list')
+          )
+            value.sessionReturn = saved.sessionReturn;
+          if (
             !touched.has('inAppAlerts') &&
             'inAppAlerts' in saved &&
             typeof saved.inAppAlerts === 'boolean'
@@ -133,6 +172,18 @@ export function createInterfacePreferences() {
     setSessionSort(sessionSort: HostSessionSort) {
       change('sessionSort', sessionSort);
     },
+    setHideBotSessions(hideBotSessions: boolean) {
+      change('hideBotSessions', hideBotSessions);
+    },
+    setSessionNavigation(sessionNavigation: SessionNavigationStyle) {
+      change('sessionNavigation', sessionNavigation);
+    },
+    setSessionLaunch(sessionLaunch: SessionLaunchLanding) {
+      change('sessionLaunch', sessionLaunch);
+    },
+    setSessionReturn(sessionReturn: SessionReturnLanding) {
+      change('sessionReturn', sessionReturn);
+    },
     setInAppAlerts(inAppAlerts: boolean) {
       change('inAppAlerts', inAppAlerts);
     },
@@ -157,6 +208,16 @@ export const interfacePreferences = createInterfacePreferences();
 const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
 const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
 
+const hideBotSessionsSnapshot = () => interfacePreferences.getSnapshot().hideBotSessions;
+
+export function useHideBotSessions() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    hideBotSessionsSnapshot,
+    hideBotSessionsSnapshot,
+  );
+}
+
 export function useSessionSort() {
   return useSyncExternalStore(
     interfacePreferences.subscribe,
@@ -170,5 +231,15 @@ export function useSessionsTab() {
     interfacePreferences.subscribe,
     sessionsTabSnapshot,
     sessionsTabSnapshot,
+  );
+}
+
+const sessionNavigationSnapshot = () => interfacePreferences.getSnapshot().sessionNavigation;
+
+export function useSessionNavigationStyle() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionNavigationSnapshot,
+    sessionNavigationSnapshot,
   );
 }

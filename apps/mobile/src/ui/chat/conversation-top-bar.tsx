@@ -1,5 +1,6 @@
 import type { RosterBot } from '@botharness/host-client/client';
 import type { ChatHeaderMenu } from './chat-header-actions';
+import type { SessionPlace } from './session-place';
 
 export type HeaderSelection = {
   count: number;
@@ -19,6 +20,11 @@ export type ConversationTopBarProps = {
   initial?: string | undefined;
   connectionLabel?: string | undefined;
   onBack(): void;
+  leading?: 'back' | 'drawer';
+  onCompose?: (() => void) | undefined;
+  titleMenu?: ChatHeaderMenu | undefined;
+  titlePending?: boolean;
+  place?: SessionPlace | undefined;
   onProfile?: (() => void) | undefined;
   onCall?: (() => void) | undefined;
   menu?: ChatHeaderMenu | undefined;

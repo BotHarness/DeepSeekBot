@@ -171,3 +171,218 @@ it('combines title and Human-message matches inside the authorized source and so
     error: { code: 'invalid-input' },
   });
 });
+
+it('lets only the Host Owner create a native Session in a folder and prompts it once', async () => {
+  const create = vi.fn(async () => ({ sessionId: 'created' }));
+  const model = vi.fn(async () => ({ override: null, default: null }));
+  const send = vi.fn(async () => ({ requestId: 'prompt-1' }));
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      create,
+      model,
+      send,
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const member = f.bridge(alice);
+  const request = { cwd: '/work/research', text: 'Map the repository' };
+  expect(await member.sessionCreate(request)).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
+  expect(create).not.toHaveBeenCalled();
+
+  for (const invalid of [
+    { text: 'Map' },
+    { cwd: '/work', workspaceId: 'ws-1', text: 'Map' },
+    { cwd: '/work', text: '   ' },
+    { cwd: '/work', text: 'Map', choice: { kind: 'group', id: 'fast' } },
+  ])
+    expect(await owner.sessionCreate(invalid)).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  expect(create).not.toHaveBeenCalled();
+
+  expect(await owner.sessionCreate(request)).toEqual({
+    ok: true,
+    value: { sessionId: 'created', requestId: 'prompt-1' },
+  });
+  expect(create).toHaveBeenCalledWith({ cwd: '/work/research' });
+  expect(model).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledExactlyOnceWith('created', 'Map the repository');
+
+  const choice = { kind: 'model', provider: 'opencode-go', model: 'kimi-k2' };
+  expect(
+    await owner.sessionCreate({ workspaceId: 'ws-1', text: 'Continue', choice }),
+  ).toMatchObject({ ok: true });
+  expect(create).toHaveBeenLastCalledWith({ workspaceId: 'ws-1' });
+  expect(model).toHaveBeenCalledExactlyOnceWith('created', choice);
+});
+
+it('carries the model, a waiting question and the sort time on each queried row', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [
+        {
+          sessionId: 'asking',
+          cwd: '/work/app',
+          running: false,
+          waiting: true,
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          lastPromptAt: 40,
+          updatedAt: 41,
+        },
+        { sessionId: 'fresh', running: true, lastPromptAt: null, updatedAt: 30 },
+      ],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'unused' }),
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  expect(await owner.sessionList({ queryVersion: 1 })).toMatchObject({
+    ok: true,
+    value: {
+      sessions: [
+        {
+          sessionId: 'asking',
+          waiting: true,
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          sortedAt: 40,
+        },
+        { sessionId: 'fresh', sortedAt: -1 },
+      ],
+    },
+  });
+  const legacy = await owner.sessionList({});
+  expect(legacy.ok && legacy.value.sessions[0]).not.toHaveProperty('sortedAt');
+});
+
+it('reports the created Session when its model choice fails, and reuses it on retry', async () => {
+  const create = vi.fn(async (target: { sessionId?: string }) => ({
+    sessionId: target.sessionId ?? 'blank',
+  }));
+  const model = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('model unavailable'))
+    .mockResolvedValue({ override: null, default: null });
+  const send = vi.fn(async () => ({ requestId: 'prompt-1' }));
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      create,
+      model,
+      send,
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const choice = { kind: 'model', provider: 'opencode-go', model: 'kimi-k2' };
+  const failed = await owner.sessionCreate({ cwd: '/work/app', text: 'Map', choice });
+  expect(failed).toMatchObject({
+    ok: false,
+    error: {
+      code: 'session/model-unavailable',
+      message: 'model unavailable',
+      details: { sessionId: 'blank' },
+    },
+  });
+  expect(send).not.toHaveBeenCalled();
+  expect(
+    await owner.sessionCreate({ cwd: '/work/app', text: 'Map', choice, sessionId: 'blank' }),
+  ).toEqual({ ok: true, value: { sessionId: 'blank', requestId: 'prompt-1' } });
+  expect(create).toHaveBeenLastCalledWith({ cwd: '/work/app', sessionId: 'blank' });
+});
+
+it('refuses a model choice before creating when the Host cannot set models', async () => {
+  const create = vi.fn(async () => ({ sessionId: 'never' }));
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      create,
+      send: async () => ({ requestId: 'unused' }),
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  expect(
+    await owner.sessionCreate({
+      cwd: '/work/app',
+      text: 'Map',
+      choice: { kind: 'model', provider: 'opencode-go', model: 'kimi-k2' },
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'unavailable' } });
+  expect(create).not.toHaveBeenCalled();
+});
+
+it('returns the native Session folder with its transcript', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({
+        events: [],
+        seq: 0,
+        running: false,
+        cwd: '/Users/me/code/app-worktree',
+      }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'prompt-1' }),
+    },
+  });
+  expect(
+    await f.bridge(OWNER_HUMAN_CONTEXT).sessionTranscript({ slug: null, sessionId: 'native' }),
+  ).toMatchObject({ ok: true, value: { cwd: '/Users/me/code/app-worktree' } });
+});
+
+it('marks a native Session title as a fallback until a generated title replaces it', async () => {
+  const userMessage = {
+    type: 'user/message',
+    time: 1,
+    seq: 1,
+    data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Plan the launch' }] },
+  };
+  const fallback = {
+    type: 'session/title',
+    time: 2,
+    seq: 2,
+    data: { title: 'Plan the launch', source: { kind: 'fallback' } },
+  };
+  const generated = {
+    type: 'session/title',
+    time: 3,
+    seq: 3,
+    data: { title: 'Launch plan', source: { kind: 'dsh-session-title-llm' } },
+  };
+  let events: unknown[] = [userMessage];
+  const read = vi.fn(async () => ({ events, seq: events.length, running: true }));
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: read as never,
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'prompt-1' }),
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const target = { slug: null, sessionId: 'native' };
+
+  expect(await owner.sessionTranscript(target)).toMatchObject({
+    ok: true,
+    value: { titleFallback: true },
+  });
+  events = [userMessage, fallback];
+  expect(await owner.sessionTranscript(target)).toMatchObject({
+    ok: true,
+    value: { displayTitle: 'Plan the launch', titleFallback: true },
+  });
+  events = [userMessage, fallback, generated];
+  const settled = await owner.sessionTranscript(target);
+  expect(settled).toMatchObject({ ok: true, value: { displayTitle: 'Launch plan' } });
+  expect(settled.ok && 'titleFallback' in settled.value).toBe(false);
+});

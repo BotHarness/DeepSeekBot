@@ -1,3 +1,5 @@
+import type { SessionModelChoice } from './session-model';
+
 export const HOST_SESSION_SORTS = ['last-human-turn', 'created', 'last-activity'] as const;
 export type HostSessionSort = (typeof HOST_SESSION_SORTS)[number];
 export type HostSessionFilter = 'all' | 'native' | `bot:${string}`;
@@ -20,6 +22,15 @@ export interface HostSessionListOptions {
   sort?: HostSessionSort;
   source?: HostSessionFilter;
 }
+
+export type HostSessionCreateRequest = (
+  | { cwd: string; workspaceId?: never }
+  | { workspaceId: string; cwd?: never }
+) & {
+  text: string;
+  sessionId?: string;
+  choice?: Extract<SessionModelChoice, { kind: 'model' }>;
+};
 
 export type HostSessionSource =
   | { kind: 'native' }
@@ -48,6 +59,9 @@ export interface HostSessionRow {
   title?: string;
   folderName?: string;
   running: boolean;
+  waiting?: true;
+  model?: { provider: string; model: string };
+  sortedAt?: number;
   lastPromptAt: number | null;
   updatedAt: number;
 }

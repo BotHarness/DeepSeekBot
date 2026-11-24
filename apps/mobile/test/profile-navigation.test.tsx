@@ -16,6 +16,7 @@ import {
   navigateChannel,
 } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
+import { channelNavigationHarness } from './channel-navigation-harness';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { ChannelFilesScreen } from '../src/ui/chat/channel-files-screen';
 import { ChannelFilesTab } from '../src/ui/chat/channel-files-tab';
@@ -206,6 +207,13 @@ vi.mock('expo-router', () => ({
         type: 'PUSH',
         payload: { name: href.pathname.slice(1), params: href.params },
       }),
+    dismissTo: (href: { pathname: string; params?: object }) => {
+      navigation.dispatch({ type: 'POP_TO', payload: { name: '(tabs)' } });
+      navigation.dispatch({
+        type: 'PUSH',
+        payload: { name: href.pathname.slice(1), params: href.params },
+      });
+    },
   }),
 }));
 import BotProfileScreen from '../app/bot/[slug]/index';
@@ -304,30 +312,18 @@ it('an old Host Profile cannot open a same-named Bot after the source changes', 
   expect(state.routes[state.index]?.key).toBe('profile');
 });
 
-it('a notification opened over Profile preserves that Profile as its Back destination', () => {
-  state = {
-    stale: false,
-    type: 'stack',
-    key: 'root',
-    routeKeySeq: 2,
-    index: 1,
-    routeNames: options.routeNames,
-    routes: [
-      { key: 'tabs', name: '(tabs)' },
-      {
-        key: 'profile',
-        name: 'bot/[slug]',
-        params: { slug: 'ada', hostId: 'host-a' },
-      },
-    ],
-  };
-  navigateChannel(navigation, {
+it('a notification opened over Profile shows its conversation in Chats', () => {
+  const history = channelNavigationHarness(false, {
+    root: [{ name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } }],
+  });
+  navigateChannel(history.navigation, {
     pathname: '/dm/[slug]',
     params: { slug: 'bob', hostId: 'host-b' },
   });
-  expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'bot/[slug]', 'dm/[slug]']);
-  navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('profile');
+  expect(history.state.routes.map((route) => route.name)).toEqual(['(tabs)']);
+  expect(history.visible).toMatchObject({ name: 'dm/[slug]', params: { slug: 'bob' } });
+  history.back();
+  expect(history.visible.name).toBe('index');
 });
 
 it('a retained Group Profile refuses a colliding group on a different Host', async () => {
@@ -913,6 +909,7 @@ it('retries the Bot Profile Session list and opens the selected Orchestrator', a
     name: 'session/[id]',
     params: { id: 'older-root', slug: 'ada', hostId: 'host-a', title: 'Review the release' },
   });
+  expect(state.routes.map((route) => route.key)).not.toContain('profile');
   navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('profile');
+  expect(state.routes[state.index]?.key).toBe('tabs');
 });

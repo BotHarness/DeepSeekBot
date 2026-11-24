@@ -7,7 +7,20 @@ import type { Conversation, ConversationSnapshot } from '@botharness/host-client
 
 export const visibility: { recent: Mock; read: Mock } = { recent: vi.fn(), read: vi.fn() };
 
+const initialSnapshots: { conversation: ConversationSnapshot; inbox: InboxSnapshot } = {
+  conversation: {
+    status: 'live',
+    messages: [],
+    drafts: [],
+    hasOlder: false,
+    loadingOlder: false,
+    fromCache: false,
+  },
+  inbox: { status: 'idle' },
+};
+
 export const state = {
+  ...initialSnapshots,
   history: [] as string[],
   hostId: 'computer_a',
   host: {
@@ -18,20 +31,11 @@ export const state = {
       activityChannels: [] as ChannelListItem[],
     },
   },
-  conversation: {
-    status: 'live',
-    messages: [],
-    drafts: [],
-    hasOlder: false,
-    loadingOlder: false,
-    fromCache: false,
-  } as ConversationSnapshot,
   active: false,
   target: undefined as Conversation | undefined,
   focused: true,
   display: { mode: 'streaming', loaded: true },
   receipts: false,
-  inbox: { status: 'idle' } as InboxSnapshot,
   glassHeader: true,
 };
 

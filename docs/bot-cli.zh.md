@@ -628,6 +628,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 ```bash
 deepseekbot session-list [--search <文本>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
+deepseekbot session-create (--cwd <路径> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <空白会话-id>] --message <文本>
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
@@ -635,6 +636,8 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 ```
 
 这些命令通过已认证的在线 Host 执行。`session-list` 默认按最近的 Human 消息时间降序列出根会话。用 `--sort created` 按创建时间降序排列，或用 `--sort last-activity` 按最近活动排序。`--search` 匹配会话标题和 Human 发送的消息，可与 `--source native` 或 `--source bot:<slug>` 组合。默认来源为 `all`。列表包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
+
+`session-create` 与手机的新会话页面一样启动原生会话：DSH 在文件夹（`--cwd`）或 DSH Workspace（`--workspace`，即 `workspace/create` 返回的 `workspaceId`；`spaces/local-human` 这类团队空间 id 不是 DSH Workspace，请用 `--cwd` 传它的文件夹）中创建会话，应用可选的 API 模型（`--model`，否则使用 Default 预设），再把 `--message` 作为第一条消息发送。命令返回 `{ sessionId, requestId }`，可用 `session-live --session <sessionId>` 跟踪回复。只有 Host Owner 可以创建原生会话；团队成员的请求在到达该方法之前就会以 `remote-access/denied` 被拒绝，该方法本身也会以 `permission-required` 拒绝非 Owner。Routing Group 或订阅引擎选择会在创建前以 `usage` 拒绝。若 DSH 已创建会话但随后选择模型失败，错误会带上 `details.sessionId`；用 `--session <该 id>` 重试，DSH 会复用这个空白会话，不会再新建一个。
 
 `session-send <bot-id> <orchestrator-session-id> <text>` 把 Human 的文字直接发进 Bot 当前的 Orchestrator Session，与该 Session 详情里的输入框相同。这是少用的主动 steer。任何 Channel 都不显示这段文字：Session 收到原文，前面只有一行说明这是 Human 在 Session 详情里写的；Bot Inbox 把它记为 Human 在其 DM 上的 Source Event，重启或 compaction 后仍在。无论 `human-dm` 投递设置如何，运行中的 turn 都在下一步收到它；Bot 正在准备或整理 Memory 时，它改为等到下一个 turn；空闲的 Orchestrator 会被唤醒。Bot 不必回复；带这个 `source_event_id` 的 `bot_send_message` 发到 Human 的 DM，不带引用。文字以 `-` 开头时，在它前面加 `--`；看起来像密钥参数的文字（如 `--token`、`--api-key=…`）仍以 `secret-in-argv` 拒绝，因为密钥从不经由参数传递。返回 `{ sourceEventId }`。Bot 能接收消息时，其他 Session 以 `invalid-input` 拒绝；Bot 此刻不能接收消息时（例如已暂停），以 `unavailable` 拒绝。
 
@@ -1175,6 +1178,8 @@ Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加
 关闭浏览器的登录标签页后，可用 `engine login-cancel <account-id>` 取消登录。命令需要 `modelSources.manage` 权限。Host 停止登录进程后返回 `{"cancelled":true}`，此时可以重试。如果没有正在进行的登录，则返回 `{"cancelled":false}`。默认账号可用 `codex` 或 `claude` 指定。
 
 在另一台设备上登录 Codex 时，运行 `engine login codex --device-auth`，并用 `--account` 指定要登录的账号。先在 ChatGPT 安全设置中启用设备码授权，再打开标准错误输出中的验证链接，并在有效期内输入一次性登录码。命令会等待 Host 确认登录，然后在标准输出写入一份 JSON 结果。使用 `--json` 时输出格式相同。成功返回 `{"engine":"codex","status":"completed"}`。过期、取消或其他失败分别返回 `engine-login-expired`、`engine-login-cancelled` 和 `engine-failed`。若要停止 Host 上等待中的进程，请在另一终端运行 `engine login-cancel <account-id>`。在模型提供商页面，可在 Codex 账号上选择 **在其他设备上登录**。
+
+与 Claude Code 和 Codex CLI 一致，Host 不给浏览器登录额外设时限：登录会一直等待，直到引擎完成或你运行 `engine login-cancel`。如果提交 Claude Code 授权码前登录已结束，请重新发起登录以获取新授权码。
 
 如果 Claude 的浏览器回调无法连接 Host，且页面给出授权码，可在模型提供商页面使用 **粘贴授权码**，或运行 `engine login claude --code-stdin` 从标准输入读取授权码。指定与发起登录时相同的 `--account`。Claude Code 的登录进程必须先提示输入授权码。如果没有提示，Host 返回 `engine-code-not-requested`。登录未开始或已结束时返回 `engine-login-not-pending`。成功写入标准输入后返回 `{"submitted":true}`。用 `engine status` 确认登录结果。
 
@@ -2300,7 +2305,11 @@ deepseekbot private-route stop quick --expected-route-revision <list返回的代
 deepseekbot private-route start quick --confirm
 deepseekbot private-route replace custom --hostname bot.example.com --token-stdin --confirm
 deepseekbot private-route remove custom --confirm
+deepseekbot private-route allow-address-sign-in custom --confirm
+deepseekbot private-route deny-address-sign-in custom --confirm
 ```
+
+`allow-address-sign-in custom` 让 custom 连接在没有私有准入令牌时也能响应 Host 的登录发现并承载加密通道，Host Member 输入它的 HTTPS 地址、用户名和密码即可登录。该地址会在公网上可被发现，任何人都可以尝试密码；团队登录限流同样作用于这条连接。`deny-address-sign-in custom` 恢复仅凭令牌准入，并关闭未带令牌打开的通道。Quick Tunnel 以 `private-route-address-sign-in-unsupported` 拒绝；用 `--lan` 创建的 HTTPS 入口以 `private-route-address-sign-in-lan` 拒绝；团队模式和 Owner 密码登录都未开启时，Host 以 `private-route-address-sign-in-unavailable` 拒绝。即使设置无法保存，关闭也会立即断开这些通道，随后返回 `credential-unavailable`。替换 custom 连接会关闭此设置。`list` 在 custom 连接上返回 `addressSignIn`。
 
 每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
 

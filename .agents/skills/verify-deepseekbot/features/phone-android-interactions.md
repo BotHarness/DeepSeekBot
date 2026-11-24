@@ -4,6 +4,7 @@
 
 - `apps/mobile/src/ui/chat/{chat-header-surface.android,chat-header-row,dictation,dictation-problem,zoom-math}.{ts,tsx}`
 - `apps/mobile/src/ui/primitives/environment-picker.android.tsx`
+- `apps/mobile/src/ui/primitives/settings-list-item.android.tsx`
 - `apps/mobile/src/ui/shell/{chats-sheet-root.android,chats-search-bar.android}.tsx`
 
 ## Terms
@@ -20,6 +21,10 @@ Run `pnpm exec vitest run apps/mobile/test/zoom-math.test.ts` to execute the ins
 The Android development app uses native form sheets for Bot and group profiles, Android nested scrolling for their lists, and keyboard-frame animation for the chat composer. iOS keeps its existing form-sheet grabber and dedicated chat frame; forms on both platforms use the shared keyboard controller.
 
 ## Sub-features
+
+- `settings-row-value` (#5167): open Settings with the same selected Environment on both revisions. At Android system font scale 1.0, confirm the Computer name sits at the trailing edge. At 1.3 and 2.0, confirm the full name wraps beneath Environment and the chevron remains reachable. Tap the row, return to Settings, and change font size from default to maximum and back with Settings open. Capture light and dark in English and Chinese, then restore the original system preference.
+
+- `settings-row-live-configuration` (#5219): open Settings at the default Android font size, then open a Session from the Sessions tab. With the app still running, use Android system settings to change the font scale to 2.0 and switch appearance. Return to the open Session after each change. Confirm the tab island stays visible and LogBox and Metro show no Compose `text` cast errors. Return to Settings, confirm the Environment value below its label, then restore the default font size and confirm the value moves back beside the label.
 
 - `chat-header-soft-edge`: use a native build containing `expo-blur` and masked-view. Scroll varied chat content under the Android native top bar in both themes: buttons/title stay sharp, the status edge uses the opaque theme background, and the lower edge fades fully into the conversation without a seam or touch interception. Check opening, Back/reopen, keyboard and large-text inset changes. Verify the new localized idle input hint, enlarged attachment/microphone/Send targets, and retained manual-send draft after a hold/release. On Android below 12, record the translucent fallback separately from real blur. Do not infer native blur or scroll performance from Web/Node tests.
 

@@ -14,7 +14,12 @@ vi.mock('../src/ui/shell/icons', async () => ({
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('../src/ui/voice/voice-catalog-list', () => ({ VoiceCatalogList: () => null }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
-  DrawerHeader: ({ title }: { title: string }) => createElement('h2', null, title),
+  DrawerHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
+    <>
+      <h2>{title}</h2>
+      {subtitle === undefined ? null : <p>{subtitle}</p>}
+    </>
+  ),
 }));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('../src/ui/chat/sheet', () => ({
@@ -259,6 +264,32 @@ it('edits an existing request and saves it', async () => {
   expect(vi.mocked(port.validate).mock.calls).toEqual([['tts', EDITED]]);
   expect(vi.mocked(port.saveTemplate).mock.calls).toEqual([['tts-9', EDITED]]);
   expect(saved).toHaveBeenCalledWith(SERVICE);
+});
+
+it('keeps the Android edit heading separate from the provider name', async () => {
+  const { Platform } = await import('./react-native-shim');
+  const original = Platform.OS;
+  Platform.OS = 'android';
+  try {
+    const name = 'A custom speech service with a long name';
+    const view = await render(
+      <VoiceTemplateSheet
+        kind="tts"
+        service={{ ...SERVICE, name }}
+        port={{
+          template: async () => TEMPLATE,
+          validate: vi.fn(),
+          saveTemplate: vi.fn(),
+        }}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    expect(view.querySelector('h2')?.textContent).toBe(copy.template.edit);
+    expect(view.querySelector('h2 + p')?.textContent).toBe(name);
+  } finally {
+    Platform.OS = original;
+  }
 });
 
 it('says only the Owner can read a template', async () => {

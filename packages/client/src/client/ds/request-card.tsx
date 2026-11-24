@@ -46,6 +46,7 @@ export const requestCardStyles = stylex.create({
     gap: space.x2,
   },
   caption: { color: ink.secondary, fontSize: type.captionSize, lineHeight: type.captionLine },
+  label: { display: 'inline-flex', alignItems: 'center', gap: space.x1 },
   prompt: {
     color: ink.primary,
     fontSize: type.bodySize,
@@ -112,18 +113,23 @@ export function RequestDetail({
 
 export function RequestHeading({
   children,
+  info,
   pending,
   urgent = false,
   pendingRef,
 }: {
   children: ReactNode;
+  info?: ReactNode;
   pending?: ReactNode;
   urgent?: boolean;
   pendingRef?: Ref<HTMLSpanElement>;
 }): ReactElement {
   return (
     <div {...hooked('bh-request-head', requestCardStyles.head)}>
-      <span {...hooked('bh-request-category', requestCardStyles.caption)}>{children}</span>
+      <span {...hooked('bh-request-category', requestCardStyles.caption, requestCardStyles.label)}>
+        {children}
+        {info}
+      </span>
       {pending === undefined ? null : (
         <Tag
           ref={pendingRef}

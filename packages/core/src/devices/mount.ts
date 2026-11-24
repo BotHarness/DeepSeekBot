@@ -202,12 +202,14 @@ export function mountDevicePairing(
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   let memberRoutes: () => Promise<string[]> = async () => [];
+  let addressRoutes: () => string[] = () => [];
   const memberDevices = options.team
     ? createMemberDevices({
         team: options.team,
         pairing,
         encryption: identity.publicIdentity,
         routes: () => memberRoutes(),
+        addressRoutes: () => addressRoutes(),
       })
     : undefined;
   if (options.team && memberDevices)
@@ -816,6 +818,7 @@ export function mountDevicePairing(
     const privateTunnel = createPrivateTunnel({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
+      passwordSignInAvailable: () => memberDevices?.passwordSignInAvailable() ?? false,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
       record: (phase, info) =>
@@ -851,6 +854,7 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    addressRoutes = () => privateTunnel.addressSignInOrigins();
     memberRoutes = async () => {
       await publishingReady;
       const status = await publishing.status();

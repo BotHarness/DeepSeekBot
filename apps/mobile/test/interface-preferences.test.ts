@@ -20,6 +20,36 @@ describe('phone interface preferences', () => {
     expect(restarted.getSnapshot().sessionsTab).toBe(true);
   });
 
+  it('remembers the Session navigation style and landing choices on the phone', async () => {
+    let stored: unknown = {
+      sessionNavigation: 'sideways',
+      sessionLaunch: 'last',
+      sessionReturn: 7,
+    };
+    const storage = {
+      read: async () => stored,
+      write: (value: unknown) => {
+        stored = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot()).toMatchObject({
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'last',
+      sessionReturn: 'stay',
+    });
+    preferences.setSessionNavigation('stacked');
+    preferences.setSessionReturn('list');
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({
+      sessionNavigation: 'stacked',
+      sessionLaunch: 'last',
+      sessionReturn: 'list',
+    });
+  });
+
   it('restores the saved Session sort when appearance changes during the read', async () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
@@ -115,6 +145,10 @@ describe('phone interface preferences', () => {
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
     });
   });
 
@@ -180,6 +214,10 @@ describe('phone interface preferences', () => {
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
     });
   });
 
@@ -237,4 +275,16 @@ it('uses overlay for a new install and old settings without a style', async () =
     language: 'zh',
     inAppAlerts: false,
   });
+});
+
+it('remembers the Hide Bot Sessions choice on the phone', async () => {
+  const writes: unknown[] = [];
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => undefined, write: (value) => writes.push(value) });
+  expect(preferences.getSnapshot().hideBotSessions).toBe(false);
+  preferences.setHideBotSessions(true);
+  expect(writes.at(-1)).toMatchObject({ hideBotSessions: true });
+  const restarted = createInterfacePreferences();
+  await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
+  expect(restarted.getSnapshot().hideBotSessions).toBe(true);
 });

@@ -108,6 +108,13 @@ export const materialNavigationBar = {
   indicatorWidth: 56,
   indicatorHeight: 32,
 } as const;
+export const floatingToolbar = {
+  item: 56,
+  height: 48,
+  icon: 24,
+  avatar: 32,
+  offset: 16,
+} as const;
 export const materialIconButton = {
   target: 48,
   container: 40,
@@ -336,7 +343,7 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 export const recentChats = { limit: 3 } as const;
 export const tabMenu = { recent: 4 } as const;
 
-export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+export const workspaceStack = { max: 3, tile: 28, tileMaxScale: 2, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
 export const environmentBadge = { size: 20, glyphRatio: 0.62 } as const;
 

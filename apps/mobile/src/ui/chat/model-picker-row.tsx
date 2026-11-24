@@ -60,7 +60,7 @@ export function ModelPickerRow({
       leading={
         <ModelBrandIcon
           brand={label.brand}
-          size={theme.type.title.line}
+          size={theme.type.title.line * theme.fontScale}
           color={usable ? theme.color.fg : theme.color.muted}
         />
       }
@@ -91,7 +91,7 @@ export function ModelEnginePickerRow({
       leading={
         <ModelTargetIcon
           target={{ brand: row.brand, external: true }}
-          size={theme.type.title.line}
+          size={theme.type.title.line * theme.fontScale}
           color={theme.color.fg}
         />
       }
@@ -199,13 +199,17 @@ export function ModelGroupPickerRow({
         .join(', ')}
       leading={
         executed !== undefined ? (
-          <ModelTargetIcon target={executed} size={theme.type.title.line} color={color} />
+          <ModelTargetIcon
+            target={executed}
+            size={theme.type.title.line * theme.fontScale}
+            color={color}
+          />
         ) : front === undefined || restful !== undefined ? (
-          <RowIcon name="model" size={theme.type.title.line} color={color} />
+          <RowIcon name="model" size={theme.type.title.line * theme.fontScale} color={color} />
         ) : (
           <ModelBrandIcon
             brand={modelEntryLabel(front).brand}
-            size={theme.type.title.line}
+            size={theme.type.title.line * theme.fontScale}
             color={color}
           />
         )

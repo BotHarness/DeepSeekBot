@@ -20,6 +20,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
+import { SessionModelSwitch } from '../src/client/session-model-switch.js';
 import {
   cachedSessionDetail,
   clearSessionDetailCache,
@@ -107,6 +108,33 @@ it('shows one localized model switch and keeps model names out of replies and th
   expect(host.querySelector('[data-session-meta-chip="engine"]')).toBeNull();
 });
 
+it('renders the native Session model switch as one localized marker', async () => {
+  const from = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
+  const to = { kind: 'dsh', provider: 'deepseek', model: 'deepseek-v4-pro' } as const;
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  mounted.push(() => act(() => root.unmount()));
+  await act(async () => {
+    root.render(
+      createElement(SessionModelSwitch, {
+        native: true,
+        item: { from, to },
+        t: zhTranslate,
+        catalog: {
+          models: [
+            { ...from, providerName: 'OpenCode Go', modelName: 'DeepSeek V4.1 Flash' },
+            { ...to, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Pro' },
+          ],
+        },
+      }),
+    );
+  });
+  const markers = host.querySelectorAll('[data-session-model-switch]');
+  expect(markers).toHaveLength(1);
+  expect(markers[0]?.textContent).toBe('从 V4.1 Flash 切换到 V4 Pro');
+  expect(markers[0]?.getAttribute('aria-label')).toBe('从 V4.1 Flash 切换到 V4 Pro');
+});
+
 it('applies a picker change through the Host and shows the next Turn while a Turn is active', async () => {
   const model = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
   const current = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
@@ -148,7 +176,12 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   const trigger = host.querySelector<HTMLButtonElement>(
     '[data-session-composer] .bh-composer-footer [data-session-model-control] button',
   );
-  expect(trigger?.textContent).toContain('GPT-6.2-Sol');
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-compact')).toBe(true);
+  expect(trigger?.closest('.bh-composer')?.classList.contains('bh-composer-with-footer')).toBe(
+    false,
+  );
+  expect(trigger?.textContent).toBe('');
+  expect(trigger?.getAttribute('aria-label')).toContain('GPT-6.2-Sol');
   expect(trigger?.closest('.bh-composer-footer')?.querySelector('.bh-send-btn')).not.toBeNull();
   await act(async () => trigger?.click());
   const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((item) =>
@@ -156,8 +189,8 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
   );
   await act(async () => option?.click());
   expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', { ...model, effort: 'medium' });
-  expect(trigger?.textContent).toContain('下一轮使用 Opus 5.5');
-  expect(trigger?.textContent).toContain('中');
+  expect(trigger?.getAttribute('aria-label')).toContain('下一轮使用 Opus 5.5');
+  expect(trigger?.getAttribute('aria-label')).toContain('中');
 });
 
 function label(node: HTMLElement): string {

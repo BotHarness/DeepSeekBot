@@ -4,8 +4,9 @@ import {
   type CreationTagDraft,
   type CreationTagEdit,
 } from '@botharness/host-client/bot-creation-tags';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { CloseIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { CreationField } from './creation-field';
@@ -37,12 +38,12 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
               alignItems: 'center',
               gap: space.x2,
               paddingHorizontal: space.x3,
-              borderRadius: radius.round,
+              borderRadius: capsuleRadius(theme.fontScale),
               backgroundColor: theme.layer.field.fill,
             }}
           >
             <Text>{tag}</Text>
-            <CloseIcon color={theme.color.muted} size={theme.type.meta.line} />
+            <CloseIcon color={theme.color.muted} size={theme.type.meta.line * theme.fontScale} />
           </Pressable>
         ))}
       </View>

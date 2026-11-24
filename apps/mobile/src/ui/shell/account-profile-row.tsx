@@ -53,6 +53,7 @@ export function AccountProfileRow({
               uri={chat?.avatar ?? profile?.avatar}
               name={named ?? profile?.name ?? email}
               size={theme.touch + space.x2}
+              layer="well"
             />
           </View>
         }

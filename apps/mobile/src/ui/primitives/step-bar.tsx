@@ -2,6 +2,7 @@ import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { buttonColors } from '../design/controls';
+import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space, stepBar } from '../design/tokens';
 import { ChevronLeftIcon } from '../shell/icons';
@@ -80,7 +81,7 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
             justifyContent: 'center',
             gap: space.x3,
             paddingHorizontal: space.x5,
-            borderRadius: radius.round,
+            borderRadius: capsuleRadius(theme.fontScale),
             backgroundColor: pressed ? colors.pressed : colors.fill,
             opacity: primary.disabled ? 0.45 : 1,
             overflow: 'hidden',

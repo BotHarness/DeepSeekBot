@@ -6,19 +6,23 @@ import {
   KeyboardStickyView,
   useKeyboardState,
 } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { composerKeyboardGap, nativeChatKeyboard } from './chat-keyboard';
+import {
+  chatKeyboardOffset,
+  composerKeyboardGap,
+  nativeChatKeyboard,
+  useChatBottom,
+} from './chat-keyboard';
 import type { KeyboardChatFrameProps } from './keyboard-frame';
 
 function usePaddedListBottomSafeArea(): number {
-  const bottom = useSafeAreaInsets().bottom;
+  const bottom = useChatBottom().safe;
   const open = useKeyboardState((state) => state.isVisible);
   return open ? 0 : bottom;
 }
 
 function useStickyListBottomSafeArea(): number {
-  return useSafeAreaInsets().bottom;
+  return useChatBottom().safe;
 }
 
 export const useListBottomSafeArea = nativeChatKeyboard
@@ -37,18 +41,20 @@ function StickyChatFrame({
   onMount,
   onComposerLayout,
 }: KeyboardChatFrameProps) {
-  const gap = composerKeyboardGap(useSafeAreaInsets().bottom);
+  const bottom = useChatBottom();
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
-      <View style={{ flex: 1 }}>{children}</View>
-      <KeyboardStickyView
-        offset={{ closed: 0, opened: gap }}
-        onLayout={onComposerLayout}
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-      >
-        {composer}
-      </KeyboardStickyView>
+      <View style={{ flex: 1, marginBottom: bottom.island }}>
+        <View style={{ flex: 1 }}>{children}</View>
+        <KeyboardStickyView
+          offset={{ closed: 0, opened: chatKeyboardOffset(bottom) }}
+          onLayout={onComposerLayout}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+        >
+          {composer}
+        </KeyboardStickyView>
+      </View>
     </View>
   );
 }
@@ -61,11 +67,15 @@ function PaddedChatFrame({
   onMount,
   onComposerLayout,
 }: KeyboardChatFrameProps) {
-  const gap = composerKeyboardGap(useSafeAreaInsets().bottom);
+  const bottom = useChatBottom();
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={-gap}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, marginBottom: bottom.island }}
+        behavior="padding"
+        keyboardVerticalOffset={-composerKeyboardGap(bottom.safe)}
+      >
         <View style={{ flex: 1 }}>
           {children}
           <View

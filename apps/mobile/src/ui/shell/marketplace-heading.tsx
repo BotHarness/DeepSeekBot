@@ -39,7 +39,10 @@ export function MarketplaceLink({
       <Text tone="accent" strong>
         {label}
       </Text>
-      <ChevronRightIcon color={theme.color.accentText} size={theme.type.meta.line} />
+      <ChevronRightIcon
+        color={theme.color.accentText}
+        size={theme.type.meta.line * theme.fontScale}
+      />
     </Pressable>
   );
 }

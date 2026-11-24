@@ -31,7 +31,13 @@ export type MaterialMenuItem = {
   testID?: string;
 };
 
-export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[] }) {
+export function MaterialMenuGroup({
+  items,
+  header,
+}: {
+  items: readonly MaterialMenuItem[];
+  header?: string | undefined;
+}) {
   const theme = useDesignTheme();
   const colors = useMaterialColors();
   return (
@@ -43,10 +49,29 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
           shape: Shapes.RoundedCorner(materialMenu.containerRadius),
         }),
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
-        background(colors.surfaceContainerLow),
+        background(theme.scheme === 'dark' ? colors.surfaceContainerHigh : colors.surfaceContainer),
         paddingAll(materialMenu.groupPadding),
+        testID('action-menu-group'),
       ]}
     >
+      {header === undefined ? null : (
+        <Text
+          color={colors.onSurfaceVariant}
+          style={{ typography: 'titleSmall' }}
+          modifiers={[
+            fillMaxWidth(),
+            testID('material-menu-header'),
+            padding(
+              materialMenu.horizontalPadding,
+              materialMenu.verticalPadding,
+              materialMenu.horizontalPadding,
+              materialMenu.verticalPadding,
+            ),
+          ]}
+        >
+          {header}
+        </Text>
+      )}
       {items.map((item, index) => {
         const shape = item.selected
           ? Shapes.RoundedCorner(materialMenu.outerItemRadius)

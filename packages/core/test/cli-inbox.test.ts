@@ -150,6 +150,73 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('creates a native Session in a folder or Workspace with session-create', async () => {
+    const live = await host(echo);
+    for (const argv of [
+      ['session-create', '--cwd', '/work/research', '--message', 'Map the repository'],
+      ['session-create', '--cwd', '/work/research', '--session', 'blank', '--message', 'Retry'],
+      [
+        'session-create',
+        '--workspace',
+        'ws-1',
+        '--model',
+        '{"kind":"model","provider":"opencode-go","model":"kimi-k2"}',
+        '--message',
+        'Continue',
+      ],
+    ])
+      expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionCreate', args: { cwd: '/work/research', text: 'Map the repository' } },
+      {
+        method: 'sessionCreate',
+        args: { cwd: '/work/research', text: 'Retry', sessionId: 'blank' },
+      },
+      {
+        method: 'sessionCreate',
+        args: {
+          workspaceId: 'ws-1',
+          text: 'Continue',
+          choice: { kind: 'model', provider: 'opencode-go', model: 'kimi-k2' },
+        },
+      },
+    ]);
+    for (const argv of [
+      ['session-create', '--message', 'Map'],
+      ['session-create', '--cwd', '/a', '--workspace', 'ws-1', '--message', 'Map'],
+      ['session-create', '--cwd', '/a'],
+      ['session-create', '--cwd', '/a', '--message', 'Map', '--model', '{"kind":"group","id":"g"}'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
+    expect(live.calls).toHaveLength(3);
+  });
+
+  it('prints the created Session id when session-create fails after DSH created it', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: {
+        code: 'session/model-unavailable',
+        message: 'model x is not configured',
+        details: { sessionId: 'blank-1' },
+      },
+    }));
+    const result = await invoke(
+      [
+        'session-create',
+        '--cwd',
+        '/work/app',
+        '--model',
+        '{"kind":"model","provider":"p","model":"x"}',
+        '--message',
+        'Map',
+      ],
+      live.url,
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('session/model-unavailable');
+    expect(result.text).toContain('blank-1');
+  });
+
   it('sends raw text straight into the Orchestrator Session with session-send', async () => {
     const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
     const result = await invoke(

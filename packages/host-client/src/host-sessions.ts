@@ -1,10 +1,17 @@
 import type {
+  HostSessionCreateRequest,
   HostSessionListOptions,
   HostSessionListResult,
   HostSessionRow,
   HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import { answerRecord, record, HostAnswerInvalid, type HostCall } from './host-answer';
+
+function modelOf(value: Record<string, unknown> | undefined) {
+  return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
+    ? { model: { provider: value['provider'], model: value['model'] } }
+    : {};
+}
 
 export async function listHostSessions(host: HostCall): Promise<HostSessionRow[]> {
   return (await readHostSessionList(host)).sessions;
@@ -38,6 +45,9 @@ export async function readHostSessionList(
       lastPromptAt: typeof row['lastPromptAt'] === 'number' ? row['lastPromptAt'] : null,
       ...(typeof row['title'] === 'string' ? { title: row['title'] } : {}),
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
+      ...(row['waiting'] === true ? { waiting: true as const } : {}),
+      ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
+      ...modelOf(record(row['model'])),
     };
     if (source['kind'] === 'native') return [{ ...base, source: { kind: 'native' } }];
     if (
@@ -78,4 +88,14 @@ export async function readHostSessionList(
     return [];
   });
   return { sessions, queryVersion: 1, sources };
+}
+
+export async function createHostSession(
+  host: HostCall,
+  request: HostSessionCreateRequest,
+): Promise<{ sessionId: string; requestId: string }> {
+  const answer = answerRecord(await host.call('sessionCreate', request), 'sessionCreate');
+  if (typeof answer['sessionId'] !== 'string' || typeof answer['requestId'] !== 'string')
+    throw new HostAnswerInvalid('invalid sessionCreate response');
+  return { sessionId: answer['sessionId'], requestId: answer['requestId'] };
 }

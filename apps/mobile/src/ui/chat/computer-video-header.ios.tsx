@@ -1,6 +1,13 @@
 import { Host } from '@expo/ui';
 import { HStack, Image, Text } from '@expo/ui/swift-ui';
-import { accessibilityLabel, font, frame, lineLimit } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityLabel,
+  dynamicTypeSize,
+  font,
+  frame,
+  imageScale,
+  lineLimit,
+} from '@expo/ui/swift-ui/modifiers';
 import { useWindowDimensions } from 'react-native';
 import type { DesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -44,7 +51,6 @@ export function ComputerVideoHeader({
           systemName={
             status.connection === 'disconnected' ? 'exclamationmark.circle.fill' : 'circle.fill'
           }
-          size={space.x3}
           color={
             status.connection === 'live'
               ? theme.color.success
@@ -52,7 +58,12 @@ export function ComputerVideoHeader({
                 ? theme.color.warning
                 : theme.color.danger
           }
-          modifiers={[accessibilityLabel(connectionLabel)]}
+          modifiers={[
+            font({ textStyle: 'caption2' }),
+            imageScale('small'),
+            dynamicTypeSize({ max: 'xxxLarge' }),
+            accessibilityLabel(connectionLabel),
+          ]}
         />
         <Text
           testID="computer-video-environment"
@@ -70,9 +81,12 @@ export function ComputerVideoHeader({
                   ? 'pause.circle.fill'
                   : 'questionmark.circle'
           }
-          size={theme.type.title.line}
           color={theme.color.fg}
-          modifiers={[accessibilityLabel(controlLabel)]}
+          modifiers={[
+            font({ textStyle: 'title2' }),
+            dynamicTypeSize({ max: 'xxxLarge' }),
+            accessibilityLabel(controlLabel),
+          ]}
         />
       </HStack>
     </Host>

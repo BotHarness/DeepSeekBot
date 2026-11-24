@@ -12,6 +12,7 @@ const navigation = vi.hoisted(() => ({
   navigate: vi.fn(),
   emit: vi.fn(),
 }));
+vi.mock('../src/features/sessions/last-session', () => ({ lastSession: () => undefined }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: {

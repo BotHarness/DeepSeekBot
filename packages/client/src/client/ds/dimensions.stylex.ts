@@ -11,5 +11,6 @@ export const dimension = stylex.defineConsts({
   pinnedTileMinWidth: '76px',
   pinnedTileAvatar: '54px',
   hiddenChannelListMaxHeight: '360px',
+  scheduleHistoryMaxHeight: '200px',
   questionCardWidth: '380px',
 });

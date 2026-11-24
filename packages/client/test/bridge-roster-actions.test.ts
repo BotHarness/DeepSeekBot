@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createActions } from '../src/client/actions.js';
 import { BridgeCallError, type BridgeCall } from '../src/client/bridge.js';
 import { createStore } from '../src/client/store.js';
@@ -725,6 +725,9 @@ describe('bridge actions', () => {
 
   it('marks the roster read-only when a write reports storage-unavailable', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
     const clientStore = createStore();
     const call: BridgeCall = async (endpoint) => {
       if (endpoint === 'rosterGet') {
@@ -747,11 +750,13 @@ describe('bridge actions', () => {
 
     await expect(actions.createSection('A')).resolves.toBeUndefined();
     expect(clientStore.getSnapshot().roster.readOnly).toBe(true);
-    warn.mockRestore();
   });
 
   it('marks the roster read-only on the first load and clears it when a later load succeeds', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
     const clientStore = createStore();
     let unavailable = true;
     const call: BridgeCall = async (endpoint) => {
@@ -787,6 +792,5 @@ describe('bridge actions', () => {
       topOrder: undefined,
       readOnly: false,
     });
-    warn.mockRestore();
   });
 });

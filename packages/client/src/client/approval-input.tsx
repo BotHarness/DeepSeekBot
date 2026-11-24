@@ -41,12 +41,14 @@ export function ApprovalInput({
   input,
   t,
   caption = true,
+  label = true,
   compact = false,
 }: {
   toolName: string;
   input: string;
   t: BotHarnessTranslate;
   caption?: boolean;
+  label?: boolean;
   compact?: boolean;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
@@ -108,15 +110,17 @@ export function ApprovalInput({
   const lines = folded ? fileChange.lines.slice(0, APPROVAL_INPUT_PREVIEW_LINES) : fileChange.lines;
   return (
     <figure {...hooked('bh-tool-approval-diff', card.group, styles.noMargin)}>
-      <figcaption {...stylex.props(card.caption, styles.file)}>
-        <code>{fileChange.path}</code>
-        <span {...stylex.props(card.added)} data-kind="add">
-          +{fileChange.added}
-        </span>
-        <span {...stylex.props(card.removed)} data-kind="remove">
-          −{fileChange.removed}
-        </span>
-      </figcaption>
+      {label ? (
+        <figcaption {...stylex.props(card.caption, styles.file)}>
+          <code>{fileChange.path}</code>
+          <span {...stylex.props(card.added)} data-kind="add">
+            +{fileChange.added}
+          </span>
+          <span {...stylex.props(card.removed)} data-kind="remove">
+            −{fileChange.removed}
+          </span>
+        </figcaption>
+      ) : null}
       <pre
         {...stylex.props(...inputStyles, styles.diff)}
         data-folded={folded || undefined}

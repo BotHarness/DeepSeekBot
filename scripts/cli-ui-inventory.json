@@ -126,6 +126,7 @@
         "setting:packages/client/src/client/connection-methods.tsx:{method.title}",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t(modeTitle(route.mode))}",
         "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
+        "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.addressSignIn')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
         "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",

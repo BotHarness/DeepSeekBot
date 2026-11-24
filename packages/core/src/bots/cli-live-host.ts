@@ -133,6 +133,8 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
       failure.details = { permission: scrub(details['permission']) };
     if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
       failure.details = { route: scrub(details['route']) };
+    if (typeof details['sessionId'] === 'string')
+      failure.details = { ...failure.details, sessionId: scrub(details['sessionId']) };
     const { path, spaceId } = details;
     if (typeof path === 'string' || typeof spaceId === 'string')
       failure.details = {

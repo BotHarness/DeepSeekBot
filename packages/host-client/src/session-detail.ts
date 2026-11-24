@@ -250,6 +250,8 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment' | 'native';
   displayTitle?: string;
+  titleFallback?: boolean;
+  cwd?: string;
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
@@ -421,6 +423,8 @@ export async function sessionTranscript(
     ...(typeof value['displayTitle'] === 'string' && value['displayTitle'].trim() !== ''
       ? { displayTitle: value['displayTitle'] }
       : {}),
+    ...(value['titleFallback'] === true ? { titleFallback: true } : {}),
+    ...(typeof value['cwd'] === 'string' && value['cwd'] !== '' ? { cwd: value['cwd'] } : {}),
     items: parseItems(items),
     omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
     running: value['running'] === true,

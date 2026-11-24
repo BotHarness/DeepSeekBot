@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Image, Platform, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   visibleBrowserRefusal,
@@ -13,21 +13,37 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import type { RevealBand } from '../primitives/keyboard-form-native-focus';
 import { useKeyboardFormSubmit } from '../primitives/keyboard-form-submit';
 import { Text } from '../primitives/text';
 import { TextField, type TextFieldHandle } from '../primitives/text-field';
 import { useStrings } from '../strings';
 import { SignInBrandButton } from './sign-in-brand-button';
 
+const noBands: readonly RevealBand[] = [];
+
 const APP_ICON = {
   light: require('../../../assets/app-icons/deepseekbot-light-preview.png'),
   dark: require('../../../assets/app-icons/deepseekbot-dark-preview.png'),
 };
 
-function Heading({ title, detail, icon }: { title: string; detail: string; icon?: boolean }) {
+function Heading({
+  title,
+  detail,
+  icon,
+  onLayout,
+}: {
+  title: string;
+  detail: string;
+  icon?: boolean;
+  onLayout(event: LayoutChangeEvent): void;
+}) {
   const theme = useDesignTheme();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}>
+    <View
+      onLayout={onLayout}
+      style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}
+    >
       {icon ? (
         <Image
           source={APP_ICON[theme.scheme]}
@@ -96,6 +112,25 @@ export function EmailCodeSignIn({
   const [error, setError] = useState<EmailCodeRefusal>();
   const working = useRef(false);
   const submit = useKeyboardFormSubmit();
+  const [headingEnd, setHeadingEnd] = useState(0);
+  const measureHeading = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setHeadingEnd(layout.y + layout.height);
+  const [providerBands, setProviderBands] = useState<Record<string, RevealBand>>({});
+  const measureProvider =
+    (id: SocialProvider) =>
+    ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+      setProviderBands((current) =>
+        current[id]?.start === layout.y && current[id]?.end === layout.y + layout.height
+          ? current
+          : { ...current, [id]: { start: layout.y, end: layout.y + layout.height } },
+      );
+  const [forgotBottom, setForgotBottom] = useState(0);
+  const measureForgot = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setForgotBottom(layout.y + layout.height);
+  const revealBands = useMemo(
+    () => Object.values(providerBands).sort((a, b) => a.start - b.start),
+    [providerBands],
+  );
 
   const run = async (work: () => Promise<void>) => {
     if (working.current) return;
@@ -184,6 +219,13 @@ export function EmailCodeSignIn({
       {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
+      revealPast={headingEnd}
+      revealBands={sentTo === undefined ? revealBands : noBands}
+      revealEnd={
+        submit.revealEnd > 0 && sentTo === undefined && (mode === 'password' || mode === 'register')
+          ? Math.max(submit.revealEnd, forgotBottom)
+          : submit.revealEnd
+      }
       contentContainerStyle={{
         paddingHorizontal: space.x5,
         paddingTop: space.x3,
@@ -195,6 +237,7 @@ export function EmailCodeSignIn({
         <>
           <Heading
             icon
+            onLayout={measureHeading}
             title={
               mode === 'register'
                 ? copy.register
@@ -205,14 +248,15 @@ export function EmailCodeSignIn({
             detail={mode === 'reset' ? copy.resetDetail : copy.headingDetail}
           />
           {providers.map((provider) => (
-            <SignInBrandButton
-              key={provider.id}
-              provider={provider.id}
-              testID={provider.testID}
-              label={provider.label}
-              disabled={busy}
-              onPress={() => void browser(provider.id)}
-            />
+            <View key={provider.id} onLayout={measureProvider(provider.id)}>
+              <SignInBrandButton
+                provider={provider.id}
+                testID={provider.testID}
+                label={provider.label}
+                disabled={busy}
+                onPress={() => void browser(provider.id)}
+              />
+            </View>
           ))}
           <OrDivider label={copy.or} />
           <View onLayout={submit.onFieldLayout}>
@@ -270,13 +314,15 @@ export function EmailCodeSignIn({
                   onPress={() => void submitPassword()}
                 />
               </View>
-              <Button
-                testID="email-sign-in-forgot"
-                label={copy.forgotPassword}
-                variant="text"
-                disabled={busy}
-                onPress={() => changeMode('reset')}
-              />
+              <View onLayout={measureForgot}>
+                <Button
+                  testID="email-sign-in-forgot"
+                  label={copy.forgotPassword}
+                  variant="text"
+                  disabled={busy}
+                  onPress={() => changeMode('reset')}
+                />
+              </View>
             </>
           ) : (
             <View onLayout={submit.onSubmitLayout}>
@@ -317,7 +363,11 @@ export function EmailCodeSignIn({
         </>
       ) : (
         <>
-          <Heading title={copy.codeTitle} detail={copy.codeHint(sentTo)} />
+          <Heading
+            title={copy.codeTitle}
+            detail={copy.codeHint(sentTo)}
+            onLayout={measureHeading}
+          />
           <View onLayout={submit.onFieldLayout}>
             <TextField
               testID="email-sign-in-code"

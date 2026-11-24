@@ -84,12 +84,17 @@ const browser = await puppeteer.launch({
   headless: true,
   pipe: true,
   protocolTimeout: 30000,
-  args: ['--no-sandbox'],
+  args: ['--no-sandbox', '--lang=zh-CN'],
 });
 const errors = [];
 let page;
 try {
   page = await browser.newPage();
+  await page.setExtraHTTPHeaders({ 'accept-language': 'zh-CN' });
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'language', { get: () => 'zh-CN' });
+    Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN'] });
+  });
   await page.setViewport({ width: 1440, height: 1000, deviceScaleFactor: 1 });
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
@@ -132,6 +137,18 @@ try {
   );
   await page.waitForSelector('.bh-root.bh-main', { timeout: 30000 });
   await page.keyboard.press('Escape');
+  await new Promise((done) => setTimeout(done, 500));
+  for (let i = 0; i < 6; i++) {
+    const skipped = await page.evaluate(() => {
+      const button = [...document.querySelectorAll('button')].find(
+        (node) => node.textContent?.trim() === '跳过' && node.getBoundingClientRect().height > 0,
+      );
+      button?.click();
+      return Boolean(button);
+    });
+    if (!skipped) break;
+    await new Promise((done) => setTimeout(done, 350));
+  }
   const visibleRow = await page.waitForFunction(
     (channelId) =>
       [...document.querySelectorAll('[data-channel-id]')].find(
@@ -143,12 +160,13 @@ try {
     fixture.channelId,
   );
   await visibleRow.asElement().click();
-  await page.waitForSelector(`.bh-selected[data-channel-id="${fixture.channelId}"]`, {
+  await page.waitForSelector(`[aria-current="page"][data-channel-id="${fixture.channelId}"]`, {
     timeout: 15000,
   });
-  await page.locator('::-p-aria("消息 · ⌥ ⇧ ⌘ 2")').click();
-  await new Promise((done) => setTimeout(done, 500));
-  await page.locator('::-p-aria("记忆演化")').click();
+  if (!(await page.$('::-p-aria("记忆演化")'))) await page.locator('::-p-aria(子面板栏)').click();
+  await page.waitForSelector('::-p-aria("记忆演化")', { visible: true });
+  if (!(await page.$('[data-sidebar-entry="memory-evolution"] .bh-memory-working-list')))
+    await page.locator('::-p-aria("记忆演化")').click();
   await page.waitForSelector('.bh-memory-working-list', { visible: true });
   const draftRow = await page.waitForFunction(() =>
     [...document.querySelectorAll('.bh-memory-working-list button')].find(

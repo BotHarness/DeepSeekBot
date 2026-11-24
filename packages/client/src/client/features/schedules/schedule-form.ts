@@ -1,7 +1,13 @@
 import { type BotScheduleTrigger, type BotScheduleView } from '../../bridge.js';
 import type { BotHarnessTranslate } from '../../locale.js';
 
-type CadenceUnit = 'minutes' | 'hours' | 'daily' | 'weekly' | 'once' | 'cron';
+const INTERVAL_SECONDS = { seconds: 1, minutes: 60, hours: 3600 } as const;
+type IntervalUnit = keyof typeof INTERVAL_SECONDS;
+type CadenceUnit = IntervalUnit | 'daily' | 'weekly' | 'once' | 'cron';
+
+export function isIntervalUnit(unit: CadenceUnit): unit is IntervalUnit {
+  return Object.hasOwn(INTERVAL_SECONDS, unit);
+}
 
 export const WEEKDAYS = [
   [1, 'schedule.weekday.1'],
@@ -70,12 +76,13 @@ export function scheduleFormOf(schedule: BotScheduleView): ScheduleForm {
   const trigger = schedule.trigger;
   switch (trigger.kind) {
     case 'every': {
-      const hours = trigger.everySeconds % 3600 === 0;
-      return {
-        ...base,
-        unit: hours ? 'hours' : 'minutes',
-        every: String(trigger.everySeconds / (hours ? 3600 : 60)),
-      };
+      const unit =
+        trigger.everySeconds % INTERVAL_SECONDS.hours === 0
+          ? 'hours'
+          : trigger.everySeconds % INTERVAL_SECONDS.minutes === 0
+            ? 'minutes'
+            : 'seconds';
+      return { ...base, unit, every: String(trigger.everySeconds / INTERVAL_SECONDS[unit]) };
     }
     case 'daily':
       return {
@@ -112,13 +119,12 @@ export function scheduleFormOf(schedule: BotScheduleView): ScheduleForm {
 
 export function scheduleTriggerOf(form: ScheduleForm): BotScheduleTrigger | undefined {
   const timeZone = form.timeZone.trim();
-  if (form.unit === 'minutes' || form.unit === 'hours') {
+  if (isIntervalUnit(form.unit)) {
     const every = Number(form.every);
-    if (!Number.isSafeInteger(every) || every < 1) return undefined;
-    return {
-      kind: 'every',
-      everySeconds: every * (form.unit === 'hours' ? 3600 : 60),
-    };
+    const everySeconds = every * INTERVAL_SECONDS[form.unit];
+    if (!Number.isSafeInteger(every) || !Number.isSafeInteger(everySeconds) || everySeconds < 60)
+      return undefined;
+    return { kind: 'every', everySeconds };
   }
   if (timeZone.length === 0) return undefined;
   if (form.unit === 'cron') {
@@ -154,11 +160,13 @@ export function scheduleCadenceLabel(trigger: BotScheduleTrigger, t: BotHarnessT
     });
   if (trigger.kind === 'cron')
     return t('schedule.cadence.cron', { expression: trigger.expression });
-  if (trigger.everySeconds % 3600 === 0) {
-    const n = trigger.everySeconds / 3600;
+  if (trigger.everySeconds % INTERVAL_SECONDS.hours === 0) {
+    const n = trigger.everySeconds / INTERVAL_SECONDS.hours;
     return n === 1 ? t('schedule.cadence.hour') : t('schedule.cadence.hours', { n });
   }
-  const n = Math.round(trigger.everySeconds / 60);
+  if (trigger.everySeconds % INTERVAL_SECONDS.minutes !== 0)
+    return t('schedule.cadence.seconds', { n: trigger.everySeconds });
+  const n = trigger.everySeconds / INTERVAL_SECONDS.minutes;
   return n === 1 ? t('schedule.cadence.minute') : t('schedule.cadence.minutes', { n });
 }
 

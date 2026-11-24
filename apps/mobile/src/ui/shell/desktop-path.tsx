@@ -18,7 +18,11 @@ export function DesktopPath({ steps }: { steps: readonly string[] }) {
       style={{ alignSelf: 'stretch', gap: space.x3 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-        <RowIcon name="computer" color={theme.color.muted} size={theme.type.body.line} />
+        <RowIcon
+          name="computer"
+          color={theme.color.muted}
+          size={theme.type.body.line * theme.fontScale}
+        />
         <Text variant="meta" tone="muted">
           {t.pairChoice.onComputer}
         </Text>
@@ -56,7 +60,10 @@ export function DesktopPath({ steps }: { steps: readonly string[] }) {
               </Text>
             </View>
             {index < steps.length - 1 ? (
-              <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line} />
+              <ChevronRightIcon
+                color={theme.color.muted}
+                size={theme.type.meta.line * theme.fontScale}
+              />
             ) : null}
           </View>
         ))}

@@ -624,6 +624,36 @@ describe('operational database owner', () => {
     original.close();
   });
 
+  it('preserves the error from a migration that closes its staging connection', () => {
+    const dshHome = createTempRoot('botharness-db-closed-staging-');
+    mountOperationalDatabase({ dshHome }).close();
+    const schemaPlan = defineSchemaPlan([
+      {
+        id: 'test-closed-staging',
+        module: 'broken-owner',
+        description: 'close the staging connection before failing',
+        migrate(database) {
+          database.close();
+          throw new Error('migration failed after closing the staging connection');
+        },
+      },
+    ]);
+
+    const owner = mountOperationalDatabase({ dshHome, schemaPlan });
+    try {
+      expect(owner.diagnostics()).toMatchObject({
+        mode: 'recovery',
+        startup: { stage: 'migration' },
+        recovery: {
+          code: 'migration-failed',
+          causes: [{ message: 'migration failed after closing the staging connection' }],
+        },
+      });
+    } finally {
+      owner.close();
+    }
+  });
+
   it('validates a complete ordered plan again at the mount seam', () => {
     const dshHome = createTempRoot('botharness-db-forged-plan-');
     mountOperationalDatabase({ dshHome }).close();
@@ -641,6 +671,32 @@ describe('operational database owner', () => {
       message: 'Schema plan for generation 2 is incomplete',
     });
     owner.close();
+  });
+
+  it('rejects a hole in the migration list during schema plan validation', () => {
+    const dshHome = createTempRoot('botharness-db-sparse-plan-');
+    const plan = planWithRecords();
+    const migrations = [...plan.migrations];
+    migrations.length += 1;
+    const schemaPlan: SchemaPlan = {
+      ...plan,
+      targetGeneration: plan.targetGeneration + 1,
+      migrations,
+    };
+
+    const owner = mountOperationalDatabase({ dshHome, schemaPlan });
+    try {
+      expect(owner.diagnostics()).toMatchObject({
+        mode: 'recovery',
+        startup: { stage: 'source-validation' },
+        recovery: {
+          code: 'migration-failed',
+          message: 'Schema plan must contain ordered generation 3',
+        },
+      });
+    } finally {
+      owner.close();
+    }
   });
 
   it('fails unknown newer generations with upgrade-required and never down-migrates', () => {

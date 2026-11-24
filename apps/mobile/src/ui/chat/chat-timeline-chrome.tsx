@@ -42,20 +42,7 @@ export function useChatTimelineChrome() {
   return { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight, listSafeArea };
 }
 
-export function useChatInitialScroll(openLatest: boolean, count: number) {
-  const openAtLatest =
-    Platform.OS === 'ios' && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST !== '0' && openLatest;
-  const [openedAtLatest, setOpenedAtLatest] = useState(false);
-  if (!openedAtLatest && openAtLatest && count > 0) setOpenedAtLatest(true);
-  return {
-    key: openedAtLatest || (openAtLatest && count > 0) ? 'rows' : 'list',
-    ...(Platform.OS === 'android'
-      ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-      : openAtLatest
-        ? { initialScrollIndex: Math.max(0, count - 1), initialNumToRender: 4 }
-        : {}),
-  };
-}
+export { useChatInitialScroll } from './chat-initial-scroll';
 
 export function chatTimelineListLayout({
   headerOverlap,
@@ -64,6 +51,7 @@ export function chatTimelineListLayout({
   nativeSpacer,
   viewportHeight,
   composerHeight,
+  islandFloor = 0,
   ready,
 }: {
   headerOverlap: number;
@@ -72,6 +60,7 @@ export function chatTimelineListLayout({
   nativeSpacer: boolean;
   viewportHeight: number;
   composerHeight: number;
+  islandFloor?: number;
   ready: boolean;
 }) {
   const android = Platform.OS === 'android';
@@ -89,7 +78,9 @@ export function chatTimelineListLayout({
     contentContainerStyle: {
       minHeight: Math.max(0, viewportHeight - headerOverlap + (android ? edge.hairline : 0)),
       justifyContent: android ? ('flex-start' as const) : ('flex-end' as const),
-      paddingTop: android ? composerHeight + edgeFade.bottom : space.x3 + headerPadding,
+      paddingTop: android
+        ? composerHeight + islandFloor + edgeFade.bottom
+        : space.x3 + headerPadding,
       paddingBottom: android
         ? space.x3 + headerPadding
         : nativeSpacer

@@ -582,21 +582,16 @@ function prepareDatabase(
     });
   }
 
+  internal.startup.stage = 'active-validation';
+  let database: DatabaseSync | undefined;
   try {
-    internal.startup.stage = 'active-validation';
-    const database = openDatabase(databasePath);
+    database = openDatabase(databasePath);
     configureActiveDatabase(database);
     assertPageIntegrity(database);
     const orphans = foreignKeyOrphans(database);
     const generation = readSchemaGeneration(database);
-    try {
-      verifyMigrationLedger(database, generation, plan, false);
-    } catch (error) {
-      closeDatabase(database);
-      throw error;
-    }
+    verifyMigrationLedger(database, generation, plan, false);
     if (generation !== plan.targetGeneration) {
-      closeDatabase(database);
       throw new OperationalDatabaseError(
         'migration-failed',
         `Expected schema generation ${plan.targetGeneration}, found ${generation}`,
@@ -604,6 +599,7 @@ function prepareDatabase(
     }
     return { database, generation, orphans };
   } catch (error) {
+    closeDatabase(database);
     if (error instanceof OperationalDatabaseError) throw error;
     throw toOperationalError('open-failed', 'Could not mount operational database', error);
   }

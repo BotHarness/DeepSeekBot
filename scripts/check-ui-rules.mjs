@@ -11,6 +11,7 @@ import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { mobileFixedButtonHeight } from './ui-rule-mobile-button-height.mjs';
 import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
+import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -117,8 +118,12 @@ export const RULES = {
     help: 'give a Compose text button a minimum height (defaultMinSize) instead of height/size, so a label that wraps at large text grows the button instead of being clipped',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
+  unscaledLabelIcon: {
+    help: 'size a glyph that sits beside a text label from the label role times theme.fontScale (or a SwiftUI textStyle font), so icon and label grow together; keep the icon and reflow the row instead of hiding it',
+    section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
+  },
   wrappingCapsule: {
-    help: 'shape a SwiftUI capsule button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes',
+    help: 'shape a capsule that grows with its text through capsuleRadius(theme.fontScale) or a SwiftUI button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes; give a fixed circle or pill a fixed height',
     section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };
@@ -272,7 +277,10 @@ export function scan(fix = false) {
           ...(/fontScale|getFontScale/u.test(source) && /IconButton/u.test(source)
             ? mobileActionScale(file, ast)
             : []),
-          ...(/buttonBorderShape/u.test(source) ? mobileWrappingCapsule(file, ast) : []),
+          ...(/buttonBorderShape|radius\.round/u.test(source)
+            ? mobileWrappingCapsule(file, ast)
+            : []),
+          ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];
       let styles = desktopStyles(source, file, ast, walk);
@@ -379,7 +387,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
   const fixedIconProblems = found.filter(({ rule }) =>
-    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight'].includes(rule),
+    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight', 'unscaledLabelIcon'].includes(rule),
   );
   if (fixedIconProblems.length) {
     for (const line of fixedIconProblems.map(describeFinding)) console.error(`ui rules: ${line}`);

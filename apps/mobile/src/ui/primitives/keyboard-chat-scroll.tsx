@@ -6,7 +6,7 @@ import {
   useReanimatedKeyboardAnimation,
 } from 'react-native-keyboard-controller';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useAnimatedStyle } from 'react-native-reanimated';
+import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 
 import type { ChatKeyboardCoordination } from './chat-scroll';
 
@@ -14,6 +14,7 @@ export interface ChatScrollShape {
   inverted: boolean;
   offset: number;
   inset: number;
+  floor: number;
 }
 
 function ChatScroll({
@@ -29,7 +30,8 @@ function ChatScroll({
   ref?: Ref<ScrollViewInstance>;
 }) {
   const { onStart, onEnd, onInsetChange } = keyboard;
-  const { inverted, offset, inset } = shape;
+  const { inverted, offset, inset, floor } = shape;
+  const blankSpace = useDerivedValue(() => floor, [floor]);
   const report = useCallback(
     (insets: { bottom: number }) => onInsetChange({ bottom: insets.bottom + inset }),
     [onInsetChange, inset],
@@ -59,6 +61,7 @@ function ChatScroll({
       {...props}
       inverted={inverted}
       offset={offset}
+      blankSpace={blankSpace}
       ref={ref}
       {...(inverted
         ? { automaticallyAdjustContentInsets: false, contentInsetAdjustmentBehavior: 'never' }
@@ -75,21 +78,21 @@ export function useKeyboardChatScroll(
   shape: ChatScrollShape,
 ) {
   const { onStart, onEnd, onInsetChange } = keyboard;
-  const { inverted, offset, inset } = shape;
+  const { inverted, offset, inset, floor } = shape;
   return useCallback(
     (props: ScrollViewProps) => (
       <ChatScroll
         {...props}
         held={held}
-        shape={{ inverted, offset, inset }}
+        shape={{ inverted, offset, inset, floor }}
         keyboard={{ onStart, onEnd, onInsetChange }}
       />
     ),
-    [held, inverted, offset, inset, onStart, onEnd, onInsetChange],
+    [held, inverted, offset, inset, floor, onStart, onEnd, onInsetChange],
   );
 }
 
-export function useKeyboardOverlayStyle(offset: number) {
+export function useKeyboardOverlayStyle(offset: number, floor = 0) {
   const { height } = useReanimatedKeyboardAnimation();
-  return useAnimatedStyle(() => ({ bottom: Math.max(0, -height.value - offset) }));
+  return useAnimatedStyle(() => ({ bottom: Math.max(floor, -height.value - offset) }));
 }

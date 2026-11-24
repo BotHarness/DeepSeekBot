@@ -108,6 +108,7 @@ export const zh = {
   'standingLimits.reset': '恢复默认',
   'approval.category.terminal': '终端',
   'approval.category.file': '文件',
+  'approval.category.memory': '记忆',
   'approval.category.browser': '浏览器',
   'approval.category.tool': '工具',
   'approval.category.bot': '新 Bot',
@@ -126,6 +127,8 @@ export const zh = {
   'approval.outcome.expired': '已过期',
   'approval.outcome.stopped': '会话已停止',
   'approval.summaryFile': '修改文件',
+  'approval.summaryMemory': '修改 {name} 的记忆',
+  'approval.details': '详细信息',
   'approval.summaryTool': '使用 {tool}',
   'approval.showDetails': '查看详情',
   'approval.hideDetails': '收起详情',
@@ -152,6 +155,8 @@ export const zh = {
   'approval.alwaysToolScope':
     '选择“始终允许”后，此 Bot 在当前授权范围使用 {tool} 不再询问，换参数也一样。终端命令可能访问当前目录之外。',
   'approval.alwaysServiceScope': '允许并记住这个服务，仍保留其独立访问限制。',
+  'approval.alwaysToolScopeShort': '始终允许后，此 Bot 在这里使用 {tool} 不再询问。',
+  'approval.alwaysMemoryScope': '始终允许后，此 Bot 修改你的 Bot 的记忆时不再询问。',
   'approval.alwaysUnavailable': '此操作需要单独确认，不能设为始终允许。',
   'approval.toolRule': '始终允许 {tool}',
   'approval.allowExact': '始终允许相同调用',
@@ -434,6 +439,7 @@ export const en = {
   'standingLimits.reset': 'Restore defaults',
   'approval.category.terminal': 'Terminal',
   'approval.category.file': 'File',
+  'approval.category.memory': 'Memory',
   'approval.category.browser': 'Browser',
   'approval.category.tool': 'Tool',
   'approval.category.bot': 'New Bot',
@@ -452,6 +458,8 @@ export const en = {
   'approval.outcome.expired': 'Expired',
   'approval.outcome.stopped': 'Session stopped',
   'approval.summaryFile': 'Edit a file',
+  'approval.summaryMemory': 'Edit {name}’s memory',
+  'approval.details': 'Details',
   'approval.summaryTool': 'Use {tool}',
   'approval.showDetails': 'Show details',
   'approval.hideDetails': 'Hide details',
@@ -478,6 +486,10 @@ export const en = {
   'approval.allowAlways': 'Always allow',
   'approval.alwaysToolScope':
     'Choose Always allow to let this Bot use {tool} in the current authorization scope without asking again, even with different inputs. Shell commands may access files outside the current folder.',
+  'approval.alwaysMemoryScope':
+    'Always allow lets this Bot change your Bots’ memory without asking again.',
+  'approval.alwaysToolScopeShort':
+    'Always allow lets this Bot use {tool} here without asking again.',
   'approval.alwaysServiceScope':
     'Allow and remember this service, keeping its independent access restrictions.',
   'approval.alwaysUnavailable':

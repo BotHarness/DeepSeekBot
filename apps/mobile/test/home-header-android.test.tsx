@@ -24,7 +24,12 @@ vi.mock('react-native', async () => ({
     testID?: string;
   }) => createElement('div', { style, 'data-testid': testID }, children),
 }));
-vi.mock('expo-router', () => ({ useIsFocused: () => true, Stack: { Screen: () => null } }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
+  useRouter: () => navigation,
+  Stack: { Screen: () => null },
+}));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));

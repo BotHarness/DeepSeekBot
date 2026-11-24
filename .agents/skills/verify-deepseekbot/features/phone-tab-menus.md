@@ -14,7 +14,7 @@
 ## Sub-features
 
 - `chats`: long-press Chats lists the four conversations (Bot DMs, Channels, people DMs) with the latest activity on connected Computers in the Environment Scope, then New Group when the scope allows creating a Group. A row selects Chats and opens the conversation; New Group opens the same form as the header +. Cloud workspace conversations have no activity time and are not listed.
-- `sessions`: with the Sessions tab on, long-press Sessions lists the selected Host's four Sessions with the latest Human turn, then New Session for the Host Owner only. A row selects Sessions and opens the Session; New Session opens `/create-session`.
+- `sessions`: with the Sessions tab on, long-press Sessions lists the selected Host's four Sessions with the latest Human turn, then New Session for the Host Owner only. Bot Sessions are left out while the phone hides them (drawer Filter and sort → Bot Sessions: Hide). A row selects Sessions and opens the Session in place of the current Sessions screen, as the Session drawer does; New Session opens the Sessions tab root, the New Session screen.
 - `activity`: long-press Activity lists the four newest pending items in the scope as "Bot: summary". A row selects Activity and opens the item as a tap in the Activity list does.
 - `settings`: Settings has no menu; a tab with nothing to list has none either.
 - `tap`: a plain tap still flashes the name pill and cross-fades.
