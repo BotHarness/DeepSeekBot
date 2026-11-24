@@ -27,7 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { cappedTextScale, cappedTextSize } from '../design/capped-text';
+import { cappedTextSize, headerLabelScaleCeiling } from '../design/capped-text';
 import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
@@ -68,13 +68,16 @@ export function ConversationTopBar({
         (theme.type.title.line + (withStatus ? theme.type.meta.line : 0)) * scale + space.x2 * 2,
       ),
     );
-  const islandHeight = identityHeight(cappedTextScale(theme.fontScale), showStatus);
+  const islandHeight = identityHeight(
+    Math.min(theme.fontScale, headerLabelScaleCeiling),
+    showStatus,
+  );
   const actionSize = Math.min(islandHeight, identityHeight(1, true));
   const titleStyle = {
     typography: 'titleMedium',
     fontWeight: 'bold',
-    fontSize: cappedTextSize(theme.type.title.size, theme.fontScale),
-    lineHeight: cappedTextSize(theme.type.title.line, theme.fontScale),
+    fontSize: cappedTextSize(theme.type.title.size, theme.fontScale, headerLabelScaleCeiling),
+    lineHeight: cappedTextSize(theme.type.title.line, theme.fontScale, headerLabelScaleCeiling),
   } as const;
   const action = (
     id: string,
