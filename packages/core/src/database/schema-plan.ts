@@ -4201,6 +4201,25 @@ const BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION: SchemaMigration = {
+  id: 'pending-orchestrator-replacements',
+  module: 'session-ownership',
+  description: 'Store Orchestrator reservations separately from committed Session ownership',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE pending_orchestrator_replacements (
+        session_id TEXT PRIMARY KEY NOT NULL,
+        bot_slug TEXT NOT NULL,
+        cwd_reference TEXT,
+        previous_cwd_reference TEXT,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX pending_orchestrator_replacements_bot
+        ON pending_orchestrator_replacements (bot_slug, created_at DESC, session_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4385,4 +4404,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
   BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION,
+  PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION,
 ]);

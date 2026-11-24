@@ -457,7 +457,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     recordOrchestratorPermission,
     agentAdapter,
   });
-  models.mountRetry(ctx, core, routeRests);
+  models.mountRetry(ctx, core, routeRests, routingDefaults.effectivePlan);
   sessionsFeature.mountContextOverflowRecovery(ctx, core);
   const { approvalTemplates, approvalReviewer } = approvalsFeature.apply(dshHome);
   const { liveAgent, idleCompaction, compactReservedSession, compactBot } =
@@ -744,6 +744,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     agentAdapter,
     dshSessions,
     openAssignmentRoutes,
+    effectivePlan: routingDefaults.effectivePlan,
   });
   usageFeature.mountReconciliation(ctx, core, dshSessions);
 
