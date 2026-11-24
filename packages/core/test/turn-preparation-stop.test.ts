@@ -67,11 +67,9 @@ describe('a Turn stuck before its Agent starts', () => {
       expect(host.createOptions).toHaveLength(0);
       expect(preparing.mock.calls.at(-1)).toEqual([BOT.slug, run.sessionId, false]);
 
-      await expect(adapter.runOrchestrator(run)).rejects.toMatchObject({ code: 'bot-busy' });
-      expect(host.createOptions).toHaveLength(0);
-      await pending.settle();
-
       await expect(adapter.runOrchestrator({ ...run, message: 'again' })).resolves.toBeUndefined();
+      await pending.settle();
+      expect(host.createOptions).toHaveLength(1);
       expect(host.received.get(run.sessionId)).toHaveLength(1);
     } finally {
       await pending.settle();
@@ -93,11 +91,9 @@ describe('a Turn stuck before its Agent starts', () => {
       expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBe(run.sessionId);
       await expect(stuck).resolves.toBeUndefined();
 
-      await expect(adapter.runOrchestrator(run)).rejects.toMatchObject({ code: 'bot-busy' });
-      expect(host.createOptions).toHaveLength(1);
-      await pending.settle();
-
       await expect(adapter.runOrchestrator({ ...run, message: 'third' })).resolves.toBeUndefined();
+      await pending.settle();
+      expect(host.createOptions).toHaveLength(1);
       expect(host.received.get(run.sessionId)).toHaveLength(2);
     } finally {
       await pending.settle();
@@ -143,11 +139,9 @@ describe('a Turn stuck before its Agent starts', () => {
       await expect(adapter.runOrchestrator(run)).rejects.toThrow(
         /Preparing this turn took longer than/,
       );
-      await expect(adapter.runOrchestrator(run)).rejects.toMatchObject({ code: 'bot-busy' });
-      expect(host.createOptions).toHaveLength(0);
-      await pending.settle();
-
       await expect(adapter.runOrchestrator(run)).resolves.toBeUndefined();
+      await pending.settle();
+      expect(host.createOptions).toHaveLength(1);
       expect(host.received.get(run.sessionId)).toHaveLength(1);
     } finally {
       await pending.settle();

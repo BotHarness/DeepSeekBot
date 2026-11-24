@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   repeat: vi.fn(),
   prevent: undefined as Prevent | undefined,
   stackRoot: [] as boolean[],
+  finished: true,
   settled: [] as (boolean | undefined)[],
   context: undefined as import('react').Context<boolean | undefined> | undefined,
 }));
@@ -42,7 +43,7 @@ vi.mock('react-native-reanimated', async () => {
     useReducedMotion: () => false,
     withSpring: (to: unknown, config: unknown, done?: (finished?: boolean) => void) => {
       state.springs.push({ to, config });
-      done?.(true);
+      done?.(state.finished);
       return to;
     },
   };
@@ -83,6 +84,7 @@ const { tobEntryOrigin } = await import('../src/ui/shell/tob-entry-origin');
 state.context = (await import('../src/ui/shell/entrance-settled')).EntranceSettled;
 const { useStackRoot } = await import('../src/ui/shell/stack-root');
 const {
+  containerTransform,
   containerTransformFade,
   containerTransformFrame,
   tobComputer,
@@ -199,6 +201,41 @@ describe('the container transform', () => {
     );
   });
 
+  it('moves only by transform: the container lands on the frame and the content keeps its size', () => {
+    for (const progress of [0, 0.3, 0.7, 1]) {
+      const frame = containerTransformFrame(bar, screen, progress);
+      const step = containerTransform(bar, screen, progress);
+      const cx = screen.width / 2;
+      const cy = screen.height / 2;
+      const container = (x: number, y: number) => [
+        cx + (x - cx) * step.container.scaleX + step.container.translateX,
+        cy + (y - cy) * step.container.scaleY + step.container.translateY,
+      ];
+      const content = (x: number, y: number) =>
+        container(
+          cx + (x - cx) * step.content.scaleX + step.content.translateX,
+          cy + (y - cy) * step.content.scaleY + step.content.translateY,
+        );
+      const [left, top] = container(0, 0);
+      const [right, bottom] = container(screen.width, screen.height);
+      expect(left).toBeCloseTo(frame.x);
+      expect(top).toBeCloseTo(frame.y);
+      expect(right! - left!).toBeCloseTo(frame.width);
+      expect(bottom! - top!).toBeCloseTo(frame.height);
+      const [contentLeft, contentTop] = content(0, 0);
+      const [contentRight, contentBottom] = content(screen.width, screen.height);
+      expect(contentLeft).toBeCloseTo(0);
+      expect(contentRight! - contentLeft!).toBeCloseTo(screen.width);
+      expect(contentBottom! - contentTop!).toBeCloseTo(screen.height);
+      expect(contentBottom).toBeCloseTo(frame.y + frame.height);
+    }
+    expect(containerTransform(bar, screen, 1)).toEqual({
+      container: { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 },
+      radius: 0,
+      content: { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 },
+    });
+  });
+
   it('starts near full size when the bar was not measured', () => {
     expect(containerTransformFrame(undefined, screen, 0).width).toBeCloseTo(screen.width * 0.9);
   });
@@ -276,6 +313,13 @@ describe('the Tob entrance', () => {
     await render();
     expect(state.settled[0]).toBe(false);
     expect(state.settled.at(-1)).toBe(true);
+  });
+
+  it('never settles when the entrance is cancelled, so Back cannot focus the Composer', async () => {
+    state.finished = false;
+    await render();
+    expect(state.settled.at(-1)).toBe(false);
+    state.finished = true;
   });
 
   it('does not animate with Reduce Motion', async () => {

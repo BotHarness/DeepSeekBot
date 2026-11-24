@@ -39,7 +39,7 @@ export type ActiveRun =
       dmMessageIds?: string[];
       linkedSessionIds?: Set<string>;
     }
-  | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
+  | { role: 'assignment'; run: AssignmentAgentRun; hasOutcome: boolean };
 
 export function linkForgottenSessions(active: Extract<ActiveRun, { role: 'orchestrator' }>): void {
   const [messageId, ...others] = active.dmMessageIds ?? [];
@@ -102,7 +102,7 @@ export function requireCompletedTurn(
   fromSeq: SessionLogOffset,
   cancelledTurn?: AssignmentAgentRun['cancelledTurn'],
   failedTurn?: AssignmentAgentRun['failedTurn'],
-  observeFailure?: (code: string) => void,
+  observeFailure?: (code: string, endSeq: number) => void,
   refusal?: string | Error,
 ): { turn: number; endSeq: number } {
   const turnEnd = handle.agent.session
@@ -117,7 +117,7 @@ export function requireCompletedTurn(
     cancelledTurn?.({ turn: turnEnd.data.turn, endSeq: turnEnd.seq });
   if (reason.kind === 'error') {
     failedTurn?.({ turn: turnEnd.data.turn, endSeq: turnEnd.seq });
-    observeFailure?.(reason.error.code);
+    observeFailure?.(reason.error.code, turnEnd.seq);
     const routeNeedsRepair =
       [
         'MISSING_CREDENTIAL',
@@ -210,7 +210,8 @@ export async function untilAborted<T>(
           ? signal.reason
           : new Error('Preparation stopped', { cause: signal.reason }),
       );
-    signal.addEventListener('abort', stop, { once: true });
+    if (signal.aborted) stop();
+    else signal.addEventListener('abort', stop, { once: true });
     work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
   });
 }

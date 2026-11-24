@@ -93,7 +93,7 @@
       "width: 8px"
     ],
     "packages/client/src/client/channel-delivery-receipt.tsx": ["boxShadow: 1.5px"],
-    "packages/client/src/client/channel-dock.tsx": ["outlineOffset: -2px"],
+    "packages/client/src/client/channel-dock/dock-styles.ts": ["outlineOffset: -2px"],
     "packages/client/src/client/channel-options.tsx": [
       "height: 16px",
       "height: 6px",
@@ -1274,7 +1274,7 @@
     "packages/client/src/client/bug-icon.tsx": ["<svg>"],
     "packages/client/src/client/bug-report-annotate-dialog.tsx": ["<svg>"],
     "packages/client/src/client/call-rail-button.tsx": ["ChannelSidebarIcon"],
-    "packages/client/src/client/channel-dock.tsx": ["ChannelSidebarIcon"],
+    "packages/client/src/client/channel-dock/dock-context.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-options.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-row-status.tsx": ["<svg>"],
     "packages/client/src/client/channel-settings.tsx": ["ChannelSidebarIcon"],

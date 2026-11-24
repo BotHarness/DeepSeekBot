@@ -299,7 +299,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、`genui_preview_id`、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
 
 直接 CLI 路径保留预览 owner 的错误码：`genui-preview-timeout`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-too-large`，以及按阶段区分的 `genui-preview-{assets,browser,document,renderer,capture}-failed`。已识别的 Browser owner 启动失败保留为 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），不包含进程 stderr 或 Profile 路径。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。渲染器拒绝使用 `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`。`genui-preview-image-unavailable` 表示渲染成功，但图片附件保存失败。这些分类不包含生成内容、私有服务细节或原始传输错误；再次诊断前保留首次失败。
 
@@ -309,13 +309,17 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 版本 2 的 `view.json` 形如 `{ "snapshotId": "<snapshot-id>", "expectedVersion": 0, "state": { "version": 1, "values": { "filter": "" } } }`，值必须严格匹配注册契约。`request.json` 形如 `{ "body": "继续处理我的视图", "genuiReply": { "version": 2, "messageId": "<document-message-id>", "snapshotId": "<snapshot-id>", "intent": "continue", "state": { "version": 1, "values": { "filter": "" } } } }`。沿用下文相同的 CAS、访问、普通消息、重试和刷新规则。生成脚本只能提出个人视图值，提交由外层可信控件负责。预览成功不代表发布、Web 渲染、原生或 Human 验收通过。
 
+在版本 2 的 `html` 里写 `<genui-diagram>Mermaid 源码</genui-diagram>`（可选 `width="240–1600"`），不要粘贴 SVG。预览和发送时会用固定的图表编译器把每个元素编译成与 `genui_diagram` 返回相同的离线 SVG；一份文档最多 8 个。元素格式不对时以 `genui-diagram-tag` 拒绝，编译失败保留 `genui-diagram-*` 错误码并指出是第几张图。
+
+要发布预览过的同一份文档，用预览结果里的 `genui_preview_id` 代替 `genui_json`，两者只能选一个。预览 id 只属于预览它的 Bot，在 Host 内存里保留两小时（最多 64 个最近预览）。未知、过期或其他 Bot 的 id 以 `genui-preview-expired` 拒绝：重新预览，或发送完整的 `genui_json`。
+
 `report-send.json` 包含 `channel_id`、可读摘要 `body`，以及将完整报告序列化成 JSON 字符串的 `genui_json`。版本 1 支持指标、表格和条形图；参见[明确标为 synthetic 的比较 fixture](../packages/core/test/fixtures/genui-report.ts)。上限为 64 KiB、100 行、8 列、12 个元素及 20 个选择项。本切片只支持 Bot 现有的 Human 私聊，完整验证通过后才追加 canonical 消息。
 
 `view.json` 格式为 `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`。先读取当前版本；旧版本保存返回 `genui-view-conflict`，重新读取后再决定是否覆盖。重置时，以当前版本保存空状态。视图属于 Host 的本地 Human 和精确报告，不写入浏览器存储或 Bot Memory。
 
 `request.json` 格式为 `{ "body": "比较我的选择", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`。`refresh` 表示请求关联的新快照。提交形成可见的普通 Human 消息，携带经过验证的快照上下文，走普通路由和准入。相同逻辑请求以同一 `human-<uuid>` 和不变的输入重试；修改内容复用标识会被拒绝。刷新发布必须使用新 `snapshotId`，并以 `predecessorMessageId` 指向旧报告，不改写旧消息。输入须在 `--genui-file` 与 `--genui-stdin` 中二选一，最大 32 KiB。三个命令均要求在线认证 Host，并重新检查访问权限。
 
-`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。将 SVG 原样放进 `html`，附可读说明或等价数据，再预览并显式发送同一完整文档。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
+`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。这个工具用于检查或排查图；发布时把源码写成 `<genui-diagram>` 嵌入，并附可读说明或等价数据。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
 
 默认样式提供 `.genui-surface`、`.genui-well`、`.genui-selection`、`.genui-grid`、`.genui-table`、`.genui-legend`，以及八色 `--chart-*` 和对应 Pele 变量。同一类别保持同色，并配数值、文字、形状等非颜色提示；用色块和留白分组，不画装饰性卡片边框。必要连接线／坐标线和键盘焦点保留。默认 CSS 可覆盖，不是 sanitizer，也不改写任意作者 HTML。参见 [ADR-0302](decisions/genui.md#adr-0302)。
 
