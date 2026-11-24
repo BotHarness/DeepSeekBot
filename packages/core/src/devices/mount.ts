@@ -1,4 +1,4 @@
-import { memberRoutes as eligibleMemberRoutes, memberUrls } from '../team/member-urls.js';
+import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
 import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
 import { deviceOwnsRequest } from '../team/device-audience.js';
@@ -202,12 +202,14 @@ export function mountDevicePairing(
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   let memberRoutes: () => Promise<string[]> = async () => [];
+  let addressRoutes: () => string[] = () => [];
   const memberDevices = options.team
     ? createMemberDevices({
         team: options.team,
         pairing,
         encryption: identity.publicIdentity,
         routes: () => memberRoutes(),
+        addressRoutes: () => addressRoutes(),
       })
     : undefined;
   if (options.team && memberDevices)
@@ -851,18 +853,16 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    addressRoutes = () => privateTunnel.addressSignInOrigins();
     memberRoutes = async () => {
       await publishingReady;
       const status = await publishing.status();
       const tunnel = connect.route();
       if (tunnel) status.routes.push(tunnel);
-      return memberUrls([
-        ...eligibleMemberRoutes(
-          webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
-          status,
-        ),
-        ...privateTunnel.addressSignInOrigins(),
-      ]);
+      return eligibleMemberRoutes(
+        webServer.getOrigin?.() ?? `http://127.0.0.1:${webServer.port}`,
+        status,
+      );
     };
     webCtx.effect(
       () =>

@@ -13,6 +13,7 @@ import {
   resolveBinary,
   tunnels,
 } from './private-tunnel-fixtures.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { cleanup, enabledFixture, memberDeviceHost } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
@@ -231,4 +232,27 @@ it('restores the setting after restart and turns it off when the custom route is
     status: 404,
     body: { code: 'private-route' },
   });
+});
+
+it('lists an address route in invitations and member pairing offers but never as a browser member page', async () => {
+  const addresses: string[] = [];
+  const f = await enabledFixture({
+    routes: async () => ['https://host.test'],
+    addressRoutes: () => addresses,
+  });
+  const decode = (link: string) =>
+    JSON.parse(Buffer.from(new URL(link).searchParams.get('i')!, 'base64url').toString()) as {
+      routes: string[];
+    };
+  expect(decode((await f.devices.invitation(f.human.humanId)).link).routes).toEqual([
+    'https://host.test',
+  ]);
+  addresses.push(custom);
+  expect(decode((await f.devices.invitation(f.human.humanId)).link).routes).toEqual([
+    'https://host.test',
+    custom,
+  ]);
+  expect((await f.team.modeStatus(OWNER_HUMAN_CONTEXT)).memberUrls).toEqual([
+    'https://host.test/botharness-device/team/',
+  ]);
 });

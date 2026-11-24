@@ -335,8 +335,9 @@ function PrivateTunnelRouteSettings({
             <StatusFact label={t('privateTunnel.panel.lastCheck')}>{status.probe}</StatusFact>
           ) : null}
           {routeId === 'custom' && status.mode !== 'quick' ? (
-            <StatusFact
-              label={t('privateTunnel.addressSignIn')}
+            <SettingsRow
+              title={t('privateTunnel.addressSignIn')}
+              description={t('privateTunnel.addressSignInHint')}
               data={{ 'data-private-route-address-sign-in': status.addressSignIn ? 'on' : 'off' }}
               control={
                 <Switch
@@ -346,9 +347,7 @@ function PrivateTunnelRouteSettings({
                   onChange={(next) => void setAddressSignIn(next)}
                 />
               }
-            >
-              {t('privateTunnel.addressSignInHint')}
-            </StatusFact>
+            />
           ) : null}
           <StatusFact
             label={t('privateTunnel.panel.turnOff')}
