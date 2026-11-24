@@ -4,10 +4,14 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { constants } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 
-function attemptProcesses(scope) {
+function attemptProcesses(scope, group) {
   return readdirSync('/proc').filter((pid) => {
     if (!/^\d+$/.test(pid)) return false;
     try {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const [state, , processGroup] = stat.slice(stat.lastIndexOf(') ') + 2).split(' ');
+      if (state === 'Z') return false;
+      if (group !== undefined && Number(processGroup) === group) return true;
       const environment = readFileSync(`/proc/${pid}/environ`, 'utf8');
       return environment.split('\0').includes(`${scope}=1`);
     } catch {
@@ -68,7 +72,7 @@ async function runAttempt(command, args, seconds, attempt, attempts) {
       resolve({ code: code ?? 128 + constants.signals[signal] }),
     );
   });
-  const terminate = (signal, pids = attemptProcesses(scope)) => {
+  const terminate = (signal, pids = attemptProcesses(scope, child.pid)) => {
     if (child.pid) signalProcess(-child.pid, signal);
     for (const pid of pids) signalProcess(Number(pid), signal);
   };
@@ -87,15 +91,15 @@ async function runAttempt(command, args, seconds, attempt, attempts) {
     if (result) return result;
 
     process.stderr.write(`CI timeout: attempt ${attempt}/${attempts} exceeded ${seconds}s\n`);
-    const pids = attemptProcesses(scope);
+    const pids = attemptProcesses(scope, child.pid);
     reportProcesses(pids);
     terminate('SIGTERM', pids);
     await delay(1000);
     terminate('SIGKILL');
     child.unref();
-    for (let wait = 0; wait < 100 && attemptProcesses(scope).length > 0; wait += 1)
+    for (let wait = 0; wait < 100 && attemptProcesses(scope, child.pid).length > 0; wait += 1)
       await delay(100);
-    const survivors = attemptProcesses(scope);
+    const survivors = attemptProcesses(scope, child.pid);
     if (survivors.length > 0) {
       process.stderr.write(
         `CI timeout: ${survivors.length} processes survived SIGKILL; not retrying\n`,
