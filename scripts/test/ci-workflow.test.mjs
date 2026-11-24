@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { SHARDS } from '../ci-plan.mjs';
+
 const workflow = parse(
   readFileSync(new URL('../../.github/workflows/verify.yml', import.meta.url), 'utf8'),
 );
@@ -21,7 +23,14 @@ const fixture = (tests = 'none', mobile = 'false', count = '0') =>
                 'docs-site': 'false',
                 'android-native': 'false',
                 count,
-                shards: count === '0' ? '0' : Number(count) < 60 ? '1' : '3',
+                shards:
+                  tests === 'full'
+                    ? String(SHARDS)
+                    : count === '0'
+                      ? '0'
+                      : Number(count) < 60
+                        ? '1'
+                        : String(SHARDS),
               }
             : {},
       },
@@ -56,11 +65,15 @@ describe('required CI aggregate', () => {
     ]) {
       const needs = fixture();
       needs.plan.outputs[output] = value;
+      if (output === 'tests') needs.plan.outputs.shards = String(SHARDS);
       needs['e2e-smoke'].result = 'success';
       expect(passes(needs), job).toBe(false);
       needs[job].result = 'success';
       expect(passes(needs), job).toBe(true);
       if (output === 'tests') {
+        needs.plan.outputs.shards = '3';
+        expect(passes(needs)).toBe(false);
+        needs.plan.outputs.shards = String(SHARDS);
         needs['e2e-smoke'].result = 'skipped';
         expect(passes(needs)).toBe(false);
       }
@@ -72,7 +85,7 @@ describe('required CI aggregate', () => {
     needs['e2e-smoke'].result = 'success';
     expect(passes(needs)).toBe(true);
     needs.plan.outputs.count = '158';
-    needs.plan.outputs.shards = '3';
+    needs.plan.outputs.shards = String(SHARDS);
     expect(passes(needs)).toBe(false);
     needs['test-affected'].result = 'success';
     expect(passes(needs)).toBe(true);
@@ -85,11 +98,15 @@ describe('required CI aggregate', () => {
     needs['e2e-smoke'].result = 'success';
     expect(passes(needs)).toBe(true);
     const step = workflow.jobs.plan.steps.at(-1);
-    expect(step.if).toBe("steps.select.outputs.shards == '1'");
+    expect(step.if).toBe(
+      "steps.plan.outputs.tests == 'affected' && steps.select.outputs.shards == '1'",
+    );
     expect(step.run).toMatch(/node scripts\/ci-affected\.mjs --run$/);
     const fallback = step.env.TEST_FILES.match(/\|\| '([^']+)'/)[1];
     expect(JSON.parse(fallback).include[0].files).toEqual([]);
-    expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '3'");
+    expect(workflow.jobs['test-affected'].if).toBe(
+      `needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '${SHARDS}'`,
+    );
   });
 
   it('rejects a missing or malformed plan', () => {
