@@ -1,5 +1,5 @@
 import { Link, router } from 'expo-router';
-import { useRef, type ComponentRef } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +32,7 @@ export function TobEntryBar({
   const chrome = useTabChrome();
   const hidden = useChromeHidden(chrome?.hidden);
   const bar = useRef<ComponentRef<typeof Pressable>>(null);
-  const height = tobEntryBarHeight(theme);
+  const [height, setHeight] = useState(tobEntryBarHeight(theme));
   const bottom = (chrome?.islandTop ?? 0) + space.x3;
   const slide = useAnimatedStyle(() => ({
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * (bottom + height) }],
@@ -53,10 +53,11 @@ export function TobEntryBar({
       accessibilityLabel={t.tobEntry(name)}
       accessibilityHint={t.tobEntryHint}
       onPress={ios ? undefined : open}
+      onLayout={({ nativeEvent }) => setHeight(nativeEvent.layout.height)}
       android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
       style={{
-        height,
-        minHeight: theme.touch,
+        minHeight: Math.max(theme.touch, tobEntryBarHeight(theme)),
+        paddingVertical: space.x2,
         borderRadius: height / 2,
         overflow: 'hidden',
         flexDirection: 'row',
