@@ -214,6 +214,17 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
 });
 
+it('puts the status beside the name and the model icon beside the place line', async () => {
+  const { view } = await render();
+  const titleLine = view.querySelector('[data-testid="session-title-line-fresh"]')!;
+  const placeLine = view.querySelector('[data-testid="session-place-line-fresh"]')!;
+  expect(titleLine.textContent).toContain('Fresh work');
+  expect(titleLine.querySelector('[data-testid="session-status-fresh"]')).not.toBeNull();
+  expect(placeLine.querySelector('[data-testid="session-place-fresh"]')).not.toBeNull();
+  expect(placeLine.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
+  expect(titleLine.querySelector('[data-testid="session-model-fresh"]')).toBeNull();
+});
+
 it('hides Bot Sessions when the device preference says so and keeps native ones', async () => {
   await act(async () => interfacePreferences.setHideBotSessions(true));
   try {

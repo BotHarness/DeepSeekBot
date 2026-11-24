@@ -155,11 +155,12 @@ In Drawer style (the default Session navigation style) the Sessions tab root is 
 
 The **Session drawer** opens from ☰, from a swipe that starts at the left edge on iOS (24 pt) or anywhere on Android, and dismisses the keyboard. It is the window width minus `materialDrawer.scrimGutter`, covers the island (the island fades out with the drawer) and leaves a strip of content on the right that closes it. As it opens the content slides right by the drawer's width. On iOS it also fades to half opacity and blurs under a SwiftUI `.thin` material while the drawer fades in; on Android the M3 drawer slides in over its scrim. A release uses `spring.release`. Android draws it with Compose `ModalNavigationDrawer` in `modules/dismissible-drawer` (`SessionDrawerView`), laid over the Sessions stack rather than wrapped around it. The Composer, island and keyboard insets of a Session therefore behave as on every other screen. On both platforms JavaScript holds Back while the drawer is open: Back closes the drawer and never pops the route. A development build without that view falls back to the React Native drawer. The drawer shows the listed Computer's name as plain text and the Filter and sort control (a SwiftUI pull-down menu on iOS, the Material sheet on Android) at the top, the Sessions grouped Today / Yesterday / Earlier with the open one highlighted, and at the bottom a Search pill that becomes the search field with the keyboard only when tapped, beside a filled round ✎ New Session. Its contents are `SessionDrawerPanel`, a standalone component kept for the later wide-screen sidebar.
 
-Each drawer row (Human decisions, 2026-11-24) has three columns:
+Each Session row (drawer and Stacked list; Human decisions, 2026-11-24) has the folder monogram on the leading edge and two lines beside it, so each trailing item lines up with the text it belongs to:
 
 - **Leading:** the folder monogram on a colour wash from the Host palette. A Bot Session adds the Bot's portrait at the badge's corner.
-- **Middle:** the Session name in at most two lines, then exactly one line with the Host's own icon and “Computer · folder”, ellipsized. The Computer name only shows under All.
-- **Trailing:** the Chats row status glyph (`RowStatusGlyph`: working, needs you, done) with the relative time, and the model's brand icon at the bottom. At large text sizes the trailing column moves into one line under the Host line, so the name keeps the row's full width.
+- **First line:** the Session name in at most two lines, and at the trailing edge, aligned to the top of the name, the Chats row status glyph (`RowStatusGlyph`: working, needs you, done) with the relative time.
+- **Second line:** exactly one line with the Host's own icon and “Computer · folder”, ellipsized, and at the trailing edge, centred on that line, the model's brand icon. The Computer name only shows under All.
+- At large text sizes the status and model move into one line under the Host line, so the name keeps the row's full width.
 
 Under All the drawer reads every **connected** Computer. Offline pairings are left out rather than reported as a failed read.
 

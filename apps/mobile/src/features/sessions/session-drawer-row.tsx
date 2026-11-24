@@ -160,23 +160,41 @@ export function SessionDrawerRow({
         ) : null}
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text strong numberOfLines={2} ellipsizeMode="tail">
-          {title}
-        </Text>
         <View
-          testID={`session-place-${row.sessionId}`}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2, minWidth: 0 }}
+          testID={`session-title-line-${row.sessionId}`}
+          style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}
         >
-          <HostGlyph icon={look.icon} size={theme.type.meta.line} color={theme.color.muted} />
-          <Text
-            variant="meta"
-            tone="muted"
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            {place.length === 0 ? row.hostName : place.join(' · ')}
+          <Text strong numberOfLines={2} ellipsizeMode="tail" style={{ flex: 1, minWidth: 0 }}>
+            {title}
           </Text>
+          {theme.largeText ? null : statusLine}
+        </View>
+        <View
+          testID={`session-place-line-${row.sessionId}`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3, minWidth: 0 }}
+        >
+          <View
+            testID={`session-place-${row.sessionId}`}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x2,
+              minWidth: 0,
+            }}
+          >
+            <HostGlyph icon={look.icon} size={theme.type.meta.line} color={theme.color.muted} />
+            <Text
+              variant="meta"
+              tone="muted"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={{ flex: 1, minWidth: 0 }}
+            >
+              {place.length === 0 ? row.hostName : place.join(' · ')}
+            </Text>
+          </View>
+          {theme.largeText ? null : modelIcon}
         </View>
         {theme.largeText ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
@@ -185,20 +203,6 @@ export function SessionDrawerRow({
           </View>
         ) : null}
       </View>
-      {theme.largeText ? null : (
-        <View
-          style={{
-            flexShrink: 0,
-            alignSelf: 'stretch',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: space.x1,
-          }}
-        >
-          {statusLine}
-          {modelIcon}
-        </View>
-      )}
     </Pressable>
   );
 }
