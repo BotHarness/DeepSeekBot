@@ -29,6 +29,8 @@ import { useMounted } from '../mounted';
 import { ReadFailure } from '../primitives/read-failure';
 import { SettingsForm, SettingsFormItem } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import type { MenuAction } from '../primitives/action-menu-button';
+import { SheetAddButton } from '../primitives/sheet-add-button';
 import { SheetHeader } from '../primitives/sheet-header';
 import { SheetScreen } from '../primitives/sheet-screen';
 import { Text } from '../primitives/text';
@@ -133,7 +135,33 @@ export function EnvironmentSheetScreen() {
   };
 
   const allSelected = filter === 'all';
-  const header = <SheetHeader title={t.environmentSheet.title} onClose={() => router.back()} />;
+  const adds: MenuAction[] = [
+    {
+      label: t.pairAnother,
+      icon: 'computer',
+      testID: 'environment-add-pair',
+      run: () => closeThen(() => hostDrawer.pairNew()),
+    },
+    ...(cloudAvailable
+      ? [
+          {
+            label: t.workspaceAdd.join,
+            icon: 'join' as const,
+            testID: 'environment-add-join',
+            run: () => closeThen(() => router.push('/cloud-join')),
+          },
+        ]
+      : []),
+  ];
+  const header = (
+    <SheetHeader
+      title={t.environmentSheet.title}
+      onClose={() => router.back()}
+      trailing={
+        <SheetAddButton testID="environment-add" label={t.environmentSheet.add} actions={adds} />
+      }
+    />
+  );
   return (
     <SheetScreen onMount={mount}>
       <View ref={accounts} collapsable={false} style={{ flex: 1 }}>
@@ -268,28 +296,8 @@ export function EnvironmentSheetScreen() {
                 />
               </SettingsFormItem>
             ) : null}
-            <SettingsSection on={SHEET_GROUP}>
-              <SettingsRow
-                on={SHEET_GROUP}
-                testID="environment-pair"
-                title={t.pairAnother}
-                tone="accent"
-                icon="add"
-                iconTone="accent"
-                onPress={() => closeThen(() => hostDrawer.pairNew())}
-              />
-              {cloudAvailable ? (
-                <SettingsRow
-                  on={SHEET_GROUP}
-                  testID="environment-join"
-                  title={t.workspaceAdd.join}
-                  tone="accent"
-                  icon="qr"
-                  iconTone="accent"
-                  onPress={() => closeThen(() => router.push('/cloud-join'))}
-                />
-              ) : null}
-              {cloudAvailable ? (
+            {cloudAvailable ? (
+              <SettingsSection on={SHEET_GROUP}>
                 <SettingsRow
                   on={SHEET_GROUP}
                   testID="environment-cloud-services"
@@ -298,8 +306,8 @@ export function EnvironmentSheetScreen() {
                   disclosure
                   onPress={() => closeThen(() => router.push('/cloud-services'))}
                 />
-              ) : null}
-            </SettingsSection>
+              </SettingsSection>
+            ) : null}
           </SettingsForm>
         </View>
       </View>

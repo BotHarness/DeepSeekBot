@@ -903,9 +903,10 @@ describe('Selected view header accessibility', () => {
           ),
         );
         const button = host.querySelector('[data-testid="chats-environment-name"]')!;
-        expect(button.tagName).not.toBe('BUTTON');
-        expect(button.getAttribute('role')).toBe('header');
         expect(button.getAttribute('aria-label')).toBe(accessibilityLabel ?? title);
+        push.mockClear();
+        await act(async () => (button as HTMLElement).click());
+        expect(push).toHaveBeenCalledWith('/environment');
         const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
