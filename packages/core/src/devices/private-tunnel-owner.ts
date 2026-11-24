@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { credentialKey } from '@deepseek-ai/dsh-credentials';
 import { validTunnelToken } from './connect.js';
 import {
+  addressSignInAllowed,
   createPrivateTunnelRuntime,
   parseTunnelRecord,
   privateIngressOrigin,
@@ -233,7 +234,9 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     if (!entry?.enabled) return;
     const runtime = createPrivateTunnelRuntime({
       ...options,
-      addressSignIn: () => state?.routes.find((route) => route.id === id)?.addressSignIn === true,
+      addressSignIn: () =>
+        state?.routes.find((route) => route.id === id)?.addressSignIn === true &&
+        options.passwordSignInAvailable?.() === true,
       record: (phase, detail) =>
         options.record?.(phase, `route=${id}${detail ? ` ${detail}` : ''}`),
       storage: {
@@ -343,19 +346,30 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
     if (id !== 'custom') return { ok: false, code: 'private-route-address-sign-in-unsupported' };
     if (closed || !(await load()) || !state) return unavailable();
     await writes;
-    if (!state.routes.some((route) => route.id === id))
-      return { ok: false, code: 'private-route-not-found' };
-    const written = await write((current) => ({
+    const route = state.routes.find((route) => route.id === id);
+    if (!route) return { ok: false, code: 'private-route-not-found' };
+    if (enabled && !addressSignInAllowed(route.configuration))
+      return { ok: false, code: 'private-route-address-sign-in-lan' };
+    if (enabled && options.passwordSignInAvailable?.() !== true)
+      return { ok: false, code: 'private-route-address-sign-in-unavailable' };
+    const change = (current: OwnedRoutes): OwnedRoutes => ({
       ...current,
       routes: current.routes.map((route) => {
         if (route.id !== id) return route;
         const { addressSignIn: _previous, ...rest } = route;
         return enabled ? { ...rest, addressSignIn: true } : rest;
       }),
-    }));
+    });
+    if (!enabled) {
+      state = change(state);
+      runtimes.get(id)?.closeAddressSignIn();
+    }
+    const written = await write(change);
+    options.record?.(
+      'address-sign-in',
+      `route=${id} enabled=${String(enabled)}${written ? '' : ' saved=false'}`,
+    );
     if (!written) return { ok: false, code: 'credential-unavailable' };
-    if (!enabled) runtimes.get(id)?.closeAddressSignIn();
-    options.record?.('address-sign-in', `route=${id} enabled=${String(enabled)}`);
     return { ok: true, status: runtimes.get(id)?.status() ?? { state: 'off' }, routeId: id };
   };
   const change = async (
@@ -428,11 +442,13 @@ export function createPrivateTunnel(options: PrivateTunnelOptions) {
         .map((runtime) => runtime.admission())
         .find((value) => value !== undefined),
     addressSignInOrigins: () =>
-      statuses().flatMap((route) =>
-        route.addressSignIn && route.enabled && route.state === 'connected' && route.origin
-          ? [route.origin]
-          : [],
-      ),
+      options.passwordSignInAvailable?.() === true
+        ? statuses().flatMap((route) =>
+            route.addressSignIn && route.enabled && route.state === 'connected' && route.origin
+              ? [route.origin]
+              : [],
+          )
+        : [],
     setAddressSignIn: (id: PrivateRouteId, enabled: boolean) =>
       serial(() => setAddressSignIn(id, enabled)),
     admissions: () =>

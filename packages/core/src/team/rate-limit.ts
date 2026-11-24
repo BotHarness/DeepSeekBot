@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { ADDRESS_ROUTE_SOURCE } from '../devices/route-context.js';
 
 export class SignInRateLimit {
   private readonly attempts = new Map<string, { count: number; until: number }>();
@@ -7,7 +8,8 @@ export class SignInRateLimit {
   admit(username: string, ip?: string): number {
     const now = this.now();
     for (const [key, entry] of this.attempts) if (entry.until <= now) this.attempts.delete(key);
-    const keys = [`u:${username}`, ...(ip === undefined ? [] : [`ip:${ip}`])].map((key) =>
+    const user = ip === ADDRESS_ROUTE_SOURCE ? `u:${ip}:${username}` : `u:${username}`;
+    const keys = [user, ...(ip === undefined ? [] : [`ip:${ip}`])].map((key) =>
       createHash('sha256').update(key).digest('hex'),
     );
     let retry = 0;

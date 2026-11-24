@@ -24,11 +24,12 @@ import {
 } from '../voice/call-contract.js';
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
-import { noisePeerHeaders } from './route-context.js';
+import { ADDRESS_ROUTE_SOURCE, isAddressRouteRequest, noisePeerHeaders } from './route-context.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
 const DEADLINE = 10_000;
+const ADDRESS_ADMISSION_DEADLINE = 30_000;
 const field = (input: Record<string, unknown>, name: string): string | undefined =>
   typeof input[name] === 'string' ? input[name] : undefined;
 function record(value: unknown): Record<string, unknown> {
@@ -81,6 +82,7 @@ type CloseTrigger =
   | 'revoked'
   | 'idle-timeout'
   | 'handshake-timeout'
+  | 'address-admission-timeout'
   | 'gateway-dispose'
   | 'invalid-frame'
   | 'request-failed'
@@ -105,6 +107,7 @@ export function createEncryptedGateway(options: {
   pairing: DevicePairing;
   memberDevices?: MemberDevices;
   route?: 'connect' | 'lan';
+  addressDeadlineMs?: number;
   key(): Promise<Uint8Array>;
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
@@ -141,7 +144,7 @@ export function createEncryptedGateway(options: {
     encrypted = 0,
     upgrading = 0;
   const changed = () => options.changed?.({ negotiating, encrypted });
-  const serve = (socket: WebSocket, key: Uint8Array, remoteAddress: string) => {
+  const serve = (socket: WebSocket, key: Uint8Array, remoteAddress: string, byAddress: boolean) => {
     const channel = new ConnectChannel({
       role: 'responder',
       hostId: options.pairing.host().id,
@@ -231,6 +234,7 @@ export function createEncryptedGateway(options: {
       if (observedCalls.size === 0 && callPending > 0) diagnostic('channel-close', trigger);
       for (const callId of observedCalls) diagnostic('channel-close', trigger, callId);
       clearTimeout(deadline);
+      clearTimeout(addressDeadline);
       clearInterval(keepalive);
       detach?.();
       stopWatchingKey();
@@ -249,6 +253,11 @@ export function createEncryptedGateway(options: {
       socket.terminate();
     };
     const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
+    const addressDeadline = byAddress
+      ? setTimeout(() => {
+          if (!admitted) close('address-admission-timeout');
+        }, options.addressDeadlineMs ?? ADDRESS_ADMISSION_DEADLINE)
+      : undefined;
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
       if (Date.now() - lastMessage > 60_000) close('idle-timeout');
@@ -939,8 +948,14 @@ export function createEncryptedGateway(options: {
           return;
         }
         const identity = key;
+        const byAddress = isAddressRouteRequest(request);
         server.handleUpgrade(request, socket, head, (client) =>
-          serve(client, identity, request.socket.remoteAddress ?? 'unknown'),
+          serve(
+            client,
+            identity,
+            byAddress ? ADDRESS_ROUTE_SOURCE : (request.socket.remoteAddress ?? 'unknown'),
+            byAddress,
+          ),
         );
       } catch {
         socket.destroy();
