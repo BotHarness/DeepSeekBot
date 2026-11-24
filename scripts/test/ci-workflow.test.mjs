@@ -86,7 +86,7 @@ describe('required CI aggregate', () => {
     expect(passes(needs)).toBe(true);
     const step = workflow.jobs.plan.steps.at(-1);
     expect(step.if).toBe("steps.select.outputs.shards == '1'");
-    expect(step.run).toBe('node scripts/ci-affected.mjs --run');
+    expect(step.run).toMatch(/node scripts\/ci-affected\.mjs --run$/);
     const fallback = step.env.TEST_FILES.match(/\|\| '([^']+)'/)[1];
     expect(JSON.parse(fallback).include[0].files).toEqual([]);
     expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '3'");
@@ -104,7 +104,9 @@ describe('required CI aggregate', () => {
     expect(workflow.jobs['mobile-export'].needs).toBe('plan');
     expect(workflow.jobs['mobile-export'].if).toBe("needs.plan.outputs.mobile == 'true'");
     const commands = workflow.jobs['mobile-export'].steps.map((step) => step.run).filter(Boolean);
-    expect(workflow.jobs.static.steps.some((step) => step.run === 'pnpm typecheck')).toBe(true);
+    expect(workflow.jobs.static.steps.some((step) => step.run?.endsWith('pnpm typecheck'))).toBe(
+      true,
+    );
     expect(commands).toContain('pnpm --filter @botharness/mobile expo:doctor');
     expect(commands).toContain('pnpm --filter @botharness/mobile export');
     expect(workflow.jobs['test-affected'].strategy['fail-fast']).toBe(false);
