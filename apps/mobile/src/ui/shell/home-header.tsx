@@ -100,7 +100,7 @@ export function HomeHeader({
         {title}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
-      <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+      <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line * theme.fontScale} />
     </Pressable>
   );
   const header = native ? (
