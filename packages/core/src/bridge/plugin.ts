@@ -319,6 +319,14 @@ export function createHostBridgeDependencies(
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
     nativeSessions: deps.nativeSessions,
+    async registerWorkspace(path) {
+      const registry = ctx.get('workspaceRegistry') as unknown as
+        | { create: NonNullable<BridgeMethodsDeps['registerWorkspace']> }
+        | undefined;
+      if (!registry) throw new Error('Workspace Registry is unavailable');
+      const { id, path: registeredPath, title } = await registry.create(path);
+      return { id, path: registeredPath, title };
+    },
     sessionModels: sessionModelChoices(
       attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
     ),

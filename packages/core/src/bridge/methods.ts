@@ -932,6 +932,7 @@ function buildBridgeMethods(
     channelMediaTarget: messagingMethods.channelMediaTarget,
     messageAttachmentTarget: channelFilesAdapterMethods.messageAttachmentTarget,
     folderBrowse: workspacesAdapterMethods.folderBrowse,
+    folderCreate: workspacesAdapterMethods.folderCreate,
     workspaceFileTarget: workspacesAdapterMethods.workspaceFileTarget,
     grants: workspacesMethods.grants,
     grantCreate: workspacesMethods.grantCreate,

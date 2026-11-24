@@ -246,6 +246,7 @@ deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
 deepseekbot folder-browse [<folder-path>] [--offset <n>]
+deepseekbot folder-create --parent <path> --name <name>
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -1637,6 +1638,8 @@ deepseekbot folder-browse 'D:\code' --offset 500
 ```
 
 `folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`: folder names and paths only, never files, at most 500 per page. While `truncated` is true, pass `nextOffset` back as `--offset` for the next page. `roots` holds the home folder and the drives (Windows, read from the OS drive table without opening any drive) or `/`. `nativePicker: true` means the Host shows the system folder dialog, so the desktop Client opens that instead of this browser. The Host reads folders in a separate process with a 5 second deadline. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory`, `folder-browse/denied` or `folder-browse/unreadable`; a folder that does not answer in time (for example a disconnected network drive) fails `folder-browse/timeout`. Browsing grants nothing: register the chosen path and grant it as above.
+
+Create one child directory and register it as a Workspace with `deepseekbot folder-create --parent <path> --name <name>`. Pass an absolute parent path and one folder name. The command returns the Workspace `{id, path, title}`. The Host Owner can create folders wherever the Host process has write access. A Team mode member needs `workspaces.createFolder` and access to the parent through their account files or a shared folder. The Host reports `permission-required` for a missing permission, `folder-create/outside-grant` for a parent outside the member's folders, and `folder-create/already-exists` when the child name is in use.
 
 ## Memory
 

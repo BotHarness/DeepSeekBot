@@ -1,4 +1,5 @@
 import { createGrant, readWorkspaceGrants } from '@botharness/host-client/access-readers';
+import { createHostFolder } from '@botharness/host-client/bot-settings';
 import {
   answerUserQuestion,
   decideToolApproval,
@@ -431,6 +432,17 @@ export async function runLiveCli(
       ...(path ? { path } : {}),
       ...(offset === undefined ? {} : { offset }),
     });
+  }
+  if (command === 'folder-create') {
+    const { parent, name } = values;
+    if (rest.length !== 0 || !parent || !name)
+      usage('folder-create needs --parent <path> and --name <name>.');
+    const { rpc } = await connectLiveHost(
+      values,
+      io,
+      AbortSignal.timeout(timeoutMs(values.timeout)),
+    );
+    return createHostFolder({ call: (method, args = {}) => rpc(method, args) }, { parent, name });
   }
   if (GENUI_COMMANDS.some((entry) => entry.command === command))
     return runGenuiCommand(command, rest, values, io, () =>

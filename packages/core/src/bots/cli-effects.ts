@@ -258,6 +258,7 @@ export const CLI_EFFECTS = {
   'feedback-preview': { effects: read, brokerRead: false },
   'feedback-submit': { effects: external, brokerRead: false },
   'folder-browse': { effects: read, brokerRead: true },
+  'folder-create': { effects: write, brokerRead: false },
   'genui-submit': { effects: external, brokerRead: false },
   'genui-view': { effects: read, brokerRead: true },
   'genui-view-save': { effects: write, brokerRead: false },
