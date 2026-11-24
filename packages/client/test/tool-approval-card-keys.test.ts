@@ -621,6 +621,45 @@ describe('Tool approval file diff', () => {
     });
   });
 
+  it('keeps a Memory edit card to its summary and diff, with details behind the info icon', async () => {
+    const value = message(
+      'deepseekbot memory-save',
+      JSON.stringify({
+        command: 'memory-save',
+        target: 'research',
+        patch: {
+          path: 'SOUL.md',
+          expectedHead: 'a'.repeat(40),
+          diff: '--- a/SOUL.md\n+++ b/SOUL.md\n@@ -1 +1 @@\n-old\n+new\n',
+        },
+      }),
+    );
+    value.toolApprovalRequest!.effects = {
+      changes: 'reversible',
+      reach: 'memory',
+      personalData: false,
+    };
+    const card = await render(value);
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('记忆');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe(
+      '修改 research 的记忆',
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('SOUL.md +1 −1');
+    expect(card.querySelectorAll('.bh-tool-approval-diff-line')).toHaveLength(3);
+    expect(card.querySelector('figcaption')).toBeNull();
+    expect(card.textContent).not.toContain('/qa');
+    expect(card.textContent).not.toContain('可撤销更改');
+    expect(card.textContent).toContain('始终允许后，此 Bot 修改你的 Bot 的记忆时不再询问。');
+    const info = card.querySelector<HTMLButtonElement>('button[aria-label="详细信息"]')!;
+    await act(async () => info.click());
+    const tip = document.querySelector('[role="tooltip"]')?.textContent ?? '';
+    expect(tip).toContain('research · SOUL.md @ aaaaaaa');
+    expect(tip).not.toContain('/qa');
+    expect(tip).toContain('可撤销更改 · 记忆');
+    expect(tip).toContain('deepseekbot memory-save');
+    expect(card.querySelectorAll('.bh-tool-approval-actions button')).toHaveLength(3);
+  });
+
   it('renders the diff and folds long input', async () => {
     const content = Array.from({ length: 30 }, (_, index) => 'line ' + index).join('\n');
     const card = await render(
