@@ -2,7 +2,7 @@ export type PinnedTarget =
   | { kind: 'bot'; slug: string; name: string; unread: number }
   | { kind: 'channel'; name: string; unread: number };
 
-export type PinnedPrototype = 'detached' | 'item' | 'avatar' | 'badge';
+export type PinnedPrototype = 'detached' | 'item' | 'avatar' | 'badge' | 'island';
 
 export type PinnedTabSlot = 'chats' | 'pinned' | 'activity' | 'sessions' | 'settings';
 

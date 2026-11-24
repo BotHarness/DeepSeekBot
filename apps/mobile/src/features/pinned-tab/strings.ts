@@ -16,6 +16,8 @@ export const en = {
     restoreOrder: 'Move Pinned tab next to Chats',
     taps: (count: number) => `Taps on this tab: ${count}`,
     row: (index: number) => `Fixture row ${index}`,
+    botName: (index: number) => `Fixture Bot ${index}`,
+    preview: (index: number) => `Fixture message ${index}`,
   },
 };
 
@@ -37,5 +39,7 @@ export const zh: typeof en = {
     restoreOrder: '把固定标签页移回聊天右侧',
     taps: (count: number) => `本标签页点击次数：${count}`,
     row: (index: number) => `示例行 ${index}`,
+    botName: (index: number) => `Fixture Bot ${index}`,
+    preview: (index: number) => `示例消息 ${index}`,
   },
 };

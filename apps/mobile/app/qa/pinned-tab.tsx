@@ -2,6 +2,7 @@ import * as Application from 'expo-application';
 import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
+import { IslandFixturePage } from '../../src/features/pinned-tab/island-page';
 import { PinnedIsland } from '../../src/features/pinned-tab/prototype-island';
 import type {
   PinnedPrototype,
@@ -13,7 +14,7 @@ import { space } from '../../src/ui/design/tokens';
 import { Text } from '../../src/ui/primitives/text';
 import { useStrings } from '../../src/ui/strings';
 
-const prototypes: readonly PinnedPrototype[] = ['detached', 'item', 'avatar', 'badge'];
+const prototypes: readonly PinnedPrototype[] = ['detached', 'item', 'avatar', 'badge', 'island'];
 
 export default function PinnedTabFixtureRoute() {
   if (!__DEV__ || !Application.applicationId?.endsWith('.dev')) return <Redirect href="/" />;
@@ -23,9 +24,20 @@ export default function PinnedTabFixtureRoute() {
 function PinnedTabFixture() {
   const t = useStrings();
   const theme = useDesignTheme();
-  const params = useLocalSearchParams<{ prototype?: string }>();
+  const params = useLocalSearchParams<{
+    prototype?: string;
+    selected?: string;
+    target?: string;
+  }>();
   const fallback: PinnedPrototype = Platform.OS === 'android' ? 'avatar' : 'detached';
   const prototype = prototypes.find((value) => value === params.prototype) ?? fallback;
+  if (prototype === 'island')
+    return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+        <IslandFixturePage key={`${params.selected ?? ''}-${params.target ?? ''}`} />
+      </>
+    );
   const steward: PinnedTarget = {
     kind: 'bot',
     slug: 'fixture-steward',
