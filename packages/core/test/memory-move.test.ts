@@ -333,6 +333,7 @@ describe('Memory move rollback', () => {
         expect(result.error.message).not.toContain('Memory was not moved');
         expect(existsSync(target)).toBe(true);
         expect(existsSync(before)).toBe(false);
+        expect(f.core.registry.memoryDirFor('ada')).toBe(before);
       } finally {
         if (restricted) chmodSync(parent, 0o700);
         setMemoryDir.mockRestore();
