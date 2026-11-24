@@ -14,7 +14,14 @@ import {
 } from '@botharness/host-client/requests';
 import type { ToolApprovalOutcome } from '@botharness/host-protocol/wire';
 import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
-import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
+import {
+  alwaysNote,
+  alwaysShortNote,
+  executionNote,
+  expiryLabel,
+  highRisk,
+  riskNote,
+} from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';
@@ -285,6 +292,11 @@ function ApprovalCardContent({
         ? { label: '', value: shown }
         : previewInput(request.input);
   const running = actionable && live !== undefined ? executionNote(live) : undefined;
+  const effects =
+    request.effects === undefined
+      ? undefined
+      : toolEffectLabels(request.effects, locale).join(' · ');
+  const scope = alwaysShortNote(request);
   return (
     <View ref={mount}>
       <ActionCard
@@ -315,16 +327,18 @@ function ApprovalCardContent({
                 <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
               ))
             )}
+            {effects === undefined ? null : <CardNote>{effects}</CardNote>}
             {highRisk(request.toolName) ? null : <CardNote>{riskNote(request.toolName)}</CardNote>}
+            <CardNote>{alwaysNote(request)}</CardNote>
           </>
         }
       >
-        {request.effects === undefined ? null : (
-          <CardNote>{toolEffectLabels(request.effects, locale).join(' · ')}</CardNote>
+        {request.effects?.changes !== 'irreversible' || effects === undefined ? null : (
+          <CardNote testID="approval-effects">{effects}</CardNote>
         )}
         {running === undefined ? null : <CardNote>{running}</CardNote>}
         {highRisk(request.toolName) ? <CardNote>{riskNote(request.toolName)}</CardNote> : null}
-        <CardNote>{alwaysNote(request)}</CardNote>
+        {scope === undefined ? null : <CardNote testID="approval-scope">{scope}</CardNote>}
         {line === undefined ? null : (
           <CardNote testID="approval-result" live>
             {line.text}
