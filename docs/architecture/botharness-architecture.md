@@ -60,7 +60,7 @@ Connect Bot transport is mounted beside the existing Human device gateway at `/b
 
 双路由连续性复用同一个 application-defined Bot network capability：每次明确发送前刷新各 Provider 的目录与可达事实，然后只选择一个 Provider 发送。若断网已清空联系人缓存，Runtime 先查询当前目录再解析远端标识；地址缓存不提供成员权限。路线变化不改变 Host/Bot 身份、Channel 或已接收历史，失败或未知结果不会触发另一路线发送。组合路线的真实双设备验证由 [#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254) 跟踪。
 
-[#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0277](../decisions/messaging.md#adr-0277) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。
+[#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0277](../decisions/messaging.md#adr-0277) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。 Tailnet 撤销清理失败时，该路由保持退出状态，Owner 可在诊断日志查看对应 Host。当前快照确认该 Host 已重新加入时，桥接层先重试清理，成功后才恢复该路由。
 
 通信只在目标在线且网络可用时尝试：确定不可达返回无法送达，发送后丢失确认返回结果未知；不建立或复用持久待送队列，不自动重试，不在重连、上线或重启后补发，包括回复。Bot 按用户设定决定后续行动。已接收的 DM 历史和 Inbox 仍按现有语义保存与恢复，去重不构成补发机制。正式退出协作范围后阻止新收发和尚未开始的关系内工作；已开始的工作可按本地权限完成，但不向离开的对方回传结果。临时断网不等同于成员资格撤销。
 
@@ -340,6 +340,8 @@ Message action presentation is owned by the Web `ds/action-button` and native `p
 
 Orchestrator context recovery reuses the application-defined Bot Runtime queue and canonical Channel failure reference. Web and mobile failure cards maintain the current Bot DM Orchestrator Session by compacting or replacing it, without retrying any message. The CLI recovery-and-retry path can still re-admit only the original safely retryable Human DM. The owner refuses busy Bots, stale Session references and requests that already began external effects; arrivals during maintenance queue normally. Explicit replacement archives the old Session and preserves Channel history, Memory and independent Assignments (ADR-0024). The Web `/new` command performs replacement without retry. Model-declared context capacity comes from DSH Model Info; native automatic compaction remains enabled by default. Unknown capacity uses an explicitly estimated 200,000-token fallback with output reservation and safety headroom, compacting balanced native Session regions before the next model step. The read-only `botContext` query and `bot-context` CLI expose current Session token estimates and capacity; the existing Web composer chip displays them while retaining cumulative usage in the details popover. That popover exposes explicit compact/new maintenance only in the Bot Human DM. Failed-turn feedback freezes a redacted, bounded projection of the canonical failed turn input and tool call/result records in the existing feedback preview token, then passes it to the existing uploader only on explicit submit. Missing turn correlation refuses; full diagnostic ZIPs remain download-only.
 
+The model retry hook and the tools installed on Assignment Agents read the same effective Model Plan as the execution adapter. A Bot that inherits the Default Model Preset can rest a rate-limited Routing Group member and expose its inherited Assignment choices to Subagents.
+
 Orchestrator turn attribution follows the DSH Session identity and physical turn numbers. The Bot Runtime records the native request route at the first assistant-stream frame and the Subscription Engine target at dispatch. A shared request identifier links successive physical turns in a mixed Routing Group continuation. The Operational Database stores one row per target change and refines an engine segment when the adapter reports its model. The Session transcript reads those rows in turn order and uses the native assistant source for earlier Sessions. Channel replies carry the path up to delivery as immutable message metadata, allowing phone message menus to render it without a per-message request. An indexed last-target read supplies the current Orchestrator model chip independently of Routing Group member order. See [ADR-0355](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md).
 
 [ADR-0140](../decisions/memory.md#adr-0140) 规定 Git 的来源：Host 每次启动时解析 Git，可运行且不低于 2.28 的系统 Git 优先；否则使用 Profile 中的 Managed Git。找不到、macOS 占位程序与版本过低都算不可用。进入 Bot 模式时先检查，不可用时只给一个「安装 Git」按钮并禁用创建与导入。Managed Git 是按 deepseekbot 版本固定版本号与 SHA-256 的便携构建，先从 `media.botharness.ai` 镜像、再从 GitHub 下载，无需管理员权限；使用它时 Host 把其目录加到 DSH 进程 PATH 最前，让 Orchestrator 的 Shell 也能用同一个 Git。SSH 导入地址克隆失败时，Host 自动转换为对应的 HTTPS 地址重试一次并告知 Human。
@@ -606,6 +608,8 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0363](../adr/0363-voice-http-request-templates.md)：OpenAI 兼容、Fish Audio、ElevenLabs 和小米 MiMo 的非实时 HTTP 请求统一通过声明式模板引擎构造及提取结果。`custom` 可存储 JSON、multipart 或结构化 SSML 模板；不含模板的旧配置保持 OpenAI 兼容行为。Host Owner 通过 Bridge 或 CLI 验证、读取和修改模板，密钥由凭据存储单独提供。`VoiceProviders` 管理超时、大小上限和健康检查，音频 URL 仅额外下载一次且不转发密钥。目录查询、账户写入与 Soniox 等实时协议保留厂商适配。
 
+Host Bridge 根据调用者身份返回 `voiceProviders` 列表。团队成员可查看绑定所需的服务元数据和 `hasTemplate` 标记。端点地址和模板内容仅供 Host Owner 查看。
+
 [ADR-0362](../adr/0362-voice-catalog-discovery-is-host-owned.md)：语音目录由 `VoiceProviders` 查询。厂商适配负责认证、模型能力筛选、音色来源和分页。添加表单可以用草稿密钥查询该厂商的官方端点，保存服务时才通过凭据存储写入密钥。公开音色需要写入外部账户时，由 Human 单独确认，并使用账户返回的音色 ID。MiMo ASR 复用同一厂商的 Chat Completions 协议，通过现有的批量转写路径处理 WAV 和 MP3。
 
 ### Bot 通话（ADR-0281）
@@ -700,7 +704,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要通过 Bot Runtime Service 进入共享的 Channel 与 Runtime 内核模块。[Activity 的准入与恢复模块](feature-map.md#activity-and-attention)通过 Runtime 的数据库端口处理准入、结算、忽略及恢复事务。Channel Store 负责消息追加。
 
-Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态和直接工具调用的 Source Event 写入。[Sessions 的 Orchestrator 模块](feature-map.md#sessions-trajectory-and-execution-maintenance)使用相同的实时状态与所有权端口处理会话选择、回合执行、工具绑定和故障提示。 DSH 未保存旧 Orchestrator Session 时，Host 先在独立表中保留替换记录。变更成功后，Host 在同一事务写入 Session Ownership 并删除预留记录。Memory 已迁移时，即使发布失败也会返回新路径，有预留记录指向当前 Memory 时，后续回合会跳过 cwd 不匹配的旧 Session。Host 启动时发布符合当前 Memory 位置且尚未被更新 Session 取代的迁移记录，并清理其余预留记录。
 
 [Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
 
@@ -1407,7 +1411,7 @@ The Expo app owns a device-local default and optional saved-Host-ID/Channel-ID o
 
 ### Anonymous Host token snapshots (#4255)
 
-The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../decisions/persistence.md#adr-0344) and [the query contract](../token-telemetry.md).
+The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots plus per provider kind and built-in model `app:model_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../decisions/persistence.md#adr-0344) and [the query contract](../token-telemetry.md).
 
 ### Per-turn Context Source telemetry
 
@@ -1603,6 +1607,8 @@ Managed Tailscale publishing belongs to the same device-access Plugin lifecycle.
 
 [ADR-0253](../decisions/connections.md#adr-0253) makes onboarding a Client-owned flow. Add connection distinguishes invitation to This Host from joining a Remote Host; LAN is enabled only in its preparation step. The existing ephemeral Client control relay targets CLI enrollment to one registered browser. Its RemoteHosts owner performs pairing and origin-local persistence; completion requires an actual Host Feed. Exact-key approval and receipt status remain owned by Device Pairing. The restricted LAN channel permits supported browser origins while refusing ambient credentials; origin never replaces pinned Noise authentication. No Host federation or remote credential store is introduced.
 
+[Selected-Client control](../decisions/client-control.md) reuses the same relay for a Client's own settings. One `settings` field carries `{domain, patch?}` with a caller deadline and, for writes, a revision; the Client's `clientSettings` registry hands it to the mounted owner adapter for `preferences` (`Appearance`, DSH `LocaleRuntime`, `DesktopNotificationPrefs`), `layout` (the Bot-mode `ChannelDock`) or `shortcuts` (`ShortcutBindings`). The Host stores none of these values. `client-<domain>-get` is a Tob broker read; `client-<domain>-set` waits for the approval card.
+
 The cloudflared-only origin accepts `/botharness-device/channel` and refuses legacy application HTTP, stream tickets and WebView paths. The shared phone/browser Host client carries unary RPCs, logical `remote.mux`, uploads, downloads, avatars, private input and push registration inside ciphertext. The encrypted adapter forwards to the existing Device Gateway on loopback; native DSH Typert/API Gateway remains the sole dispatcher. Loopback/Tailscale retain their contract. Legacy Connect pairings without pins fail closed and must be paired again; no failure clears a pin or retries plaintext through Connect.
 
 HTTPS device discovery publishes one password sign-in capability bit from Team settings and active member credentials. After the Client verifies the Host key, the Noise gateway hands the unified password attempt to Team authentication, which applies its shared limiter and issues the existing Owner device credential or member device grant. The Client uses the role in the encrypted reply to save the grant and preserve the member's first-password change requirement. [Connection decision](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route)
@@ -1632,6 +1638,10 @@ The application-defined Connect account owner keeps the local registration refer
 Once a new device authorization succeeds, the owner retires the old live session before ownership lookup. A failed lookup leaves only the registration reference, refuses offers and cannot resume the prior account through the background watcher. Another explicit sign-in is required. 新设备授权成功后先停用旧会话，再查询注册归属；查询失败仅保留注册引用，拒绝配对 offer，后台不能恢复旧账号，必须显式重新登录。
 
 The account error projection exposes `recovery: automatic | sign-in` to the existing Devices API, CLI and Client, so a saved-session provisioning retry is distinct from failed ownership verification. Device authorization retries transient transport/HTTP failures with backoff only until its original expiry; explicit OAuth refusals terminate the flow, and expiry cancels an in-flight request and rejects late tokens. 账号错误投影通过现有 Devices API、CLI 与 Client 标明自动恢复或重新登录；临时授权失败只在原期限内退避重试，明确拒绝、到期和过期后返回的令牌都不会续接登录。
+
+### Mobile pairing links
+
+Expo Router sends initial pairing URLs through the Pair chooser to the transport-specific scanner route. On a running app, native intent hands a pairing URL to the focused scanner when one is registered. The scanner queues distinct payloads in arrival order and starts each through the existing pairing flow after the preceding attempt settles. A successful attempt keeps the sheet open while links are queued. Leaving the scanner discards its pending links. [#5048](https://github.com/BotHarness/DeepSeekBot/issues/5048)
 
 ### Mobile Connect account actions
 
@@ -1890,6 +1900,7 @@ Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号�
 - **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照。重建在同一个 DSH Session 中留下系统消息，现有 Session detail 与 CLI 从同一条记录读取。
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。额度切换如果需要新线程，会沿用这条 Session 上下文路径，无需写入重建通知。切换时释放上一引擎进程并清除其空闲计时。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **混合路由组**：本地 Host 的 BotRuntime 在 Orchestrator 轮次开始时按组内顺序选择就绪的 DSH 路由或订阅引擎。引擎额度休息时间沿用 EngineHost 的持久化额度记录。目标报告额度用尽后，BotRuntime 保持当前准入，在同一个 DSH Session 按顺序切换到尚未尝试的就绪目标。继续时使用已持久化的工具调用与结果，并根据已提交的回复记录拦截重复发送。全组都在休息时，Channel 才显示组的额度卡片。显式引擎选择优先。Assignment 支持混合路由组的 API 与引擎执行；Subagent 使用已授权 Routing Group 的 API 路由投影。新 Orchestrator Session 记录 Bot 的 Memory 目录供 DSH Agent 恢复，引擎进程仍在隔离工作目录运行。
+- **Session 准备**：Adapter 按 Session 串行处理原生准备与引擎轮次；另一执行器已占用时返回 `bot-busy`。切回原生执行时，Human 可以在释放引擎的过程中停止轮次。路由校验超时或停止后释放准备登记；已启动的原生 Agent 获取仍保留登记，直到清理结束。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

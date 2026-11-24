@@ -18,7 +18,10 @@ export function SheetHeader(props: DrawerHeaderProps) {
         backgroundColor: theme.overlay.fill,
       }}
     >
-      <DrawerHeader titleLines={1} {...props} />
+      <DrawerHeader
+        {...(Platform.OS === 'android' && theme.largeText ? {} : { titleLines: 1 })}
+        {...props}
+      />
     </View>
   );
 }

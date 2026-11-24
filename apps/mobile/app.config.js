@@ -4,6 +4,7 @@ const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
 const withIosBrand = require('./with-ios-brand');
 const withAndroidBrand = require('./with-android-brand');
+const withDistinctGroupFiles = require('./with-distinct-group-files');
 const release = require('../../scripts/install-release.json');
 
 const mainCheckout = () => {
@@ -99,5 +100,5 @@ module.exports = ({ config }) => {
     },
     ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
   });
-  return withAndroidBrand(withIosBrand(resolved));
+  return withDistinctGroupFiles(withAndroidBrand(withIosBrand(resolved)));
 };

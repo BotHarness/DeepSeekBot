@@ -28,6 +28,7 @@ import {
   BROWSER_NOTIFICATION_COMMANDS,
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
+import { isClientSettingsCommand, runClientSettings } from './cli-client-settings.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { runDoctor } from './cli-doctor.js';
@@ -141,6 +142,19 @@ export async function runLiveCli(
     const expiresAt = Date.now() + duration;
     const signal = AbortSignal.timeout(duration);
     return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
+  if (isClientSettingsCommand(command)) {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runClientSettings(
+      command,
+      rest,
+      values,
+      io,
+      () => connectLiveHost(values, io, signal),
+      expiresAt,
+    );
   }
   if (command === 'device-activity') return runDeviceActivity(rest, values, io);
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
@@ -737,10 +751,14 @@ export async function runLiveCli(
     const limit = values.limit === undefined ? undefined : Number(values.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200))
       usage('--limit must be 1–200.');
+    const cursor = values.cursor === '' ? undefined : values.cursor;
+    if (cursor !== undefined && values.before !== undefined)
+      usage('--cursor and --before are mutually exclusive.');
     const result = await rpc<{ messages: ChannelMessage[]; revision: number }>('channelMessages', {
       channelId: target,
       ...(limit === undefined ? {} : { limit }),
       ...(values.before === undefined ? {} : { before: values.before }),
+      ...(cursor === undefined ? {} : { cursor }),
     });
     return {
       ...result,

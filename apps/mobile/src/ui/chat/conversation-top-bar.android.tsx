@@ -12,6 +12,7 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
+  defaultMinSize,
   fillMaxWidth,
   height as nativeHeight,
   padding,
@@ -58,10 +59,13 @@ export function ConversationTopBar({
   const [height, setHeight] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const mark = materialIconButton.container;
-  const islandHeight = Math.max(
-    theme.touch,
-    Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
-  );
+  const identityHeight = (scale: number) =>
+    Math.max(
+      theme.touch,
+      Math.ceil((theme.type.title.line + theme.type.meta.line) * scale + space.x2 * 2),
+    );
+  const islandHeight = identityHeight(theme.fontScale);
+  const actionSize = Math.min(islandHeight, identityHeight(1));
   const status = connectionLabel ?? subtitle;
   const action = (
     id: string,
@@ -75,7 +79,7 @@ export function ConversationTopBar({
       enabled={enabled}
       colors={{ contentColor: theme.color.fg }}
       modifiers={[
-        size(islandHeight, islandHeight),
+        size(actionSize, actionSize),
         testID(id),
         semantics({ contentDescription: label }),
       ]}
@@ -84,6 +88,7 @@ export function ConversationTopBar({
     </IconButton>
   );
   const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
+  const { modifiers: actionLook } = composeIsland(theme, actionSize);
   return (
     <View
       testID="android-chat-header"
@@ -119,7 +124,7 @@ export function ConversationTopBar({
             horizontalArrangement={{ spacedBy: space.x2 }}
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Surface {...island} modifiers={islandLook}>
+            <Surface {...island} modifiers={actionLook}>
               {action(
                 'chat-selection-close',
                 t.messageSelection.close,
@@ -138,7 +143,7 @@ export function ConversationTopBar({
               </Row>
             </Surface>
             <Spacer modifiers={[weight(1)]} />
-            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-actions')]}>
+            <Surface {...island} modifiers={[...actionLook, testID('chat-selection-actions')]}>
               <Row verticalAlignment="center">
                 {action(
                   'chat-selection-copy',
@@ -163,7 +168,7 @@ export function ConversationTopBar({
             horizontalArrangement={{ spacedBy: space.x2 }}
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Surface {...island} modifiers={islandLook}>
+            <Surface {...island} modifiers={actionLook}>
               {action(
                 'chat-back',
                 t.back,
@@ -187,7 +192,7 @@ export function ConversationTopBar({
                 verticalAlignment="center"
                 horizontalArrangement={{ spacedBy: space.x3 }}
                 modifiers={[
-                  nativeHeight(islandHeight),
+                  defaultMinSize({ minHeight: islandHeight }),
                   padding(
                     variant === 'session' ? space.x4 : space.x2,
                     space.x2,
@@ -215,7 +220,7 @@ export function ConversationTopBar({
                 <Column modifiers={[weight(1)]}>
                   <Text
                     style={{ typography: 'titleMedium', fontWeight: 'bold' }}
-                    maxLines={1}
+                    maxLines={theme.largeText ? 2 : 1}
                     overflow="ellipsis"
                   >
                     {title}
@@ -266,7 +271,7 @@ export function ConversationTopBar({
                 shadowElevation={0}
               >
                 <DropdownMenu.Trigger>
-                  <Surface {...island} modifiers={islandLook}>
+                  <Surface {...island} modifiers={actionLook}>
                     {action(
                       menu.testID,
                       menu.label,
@@ -301,7 +306,7 @@ export function ConversationTopBar({
                 </DropdownMenu.Items>
               </DropdownMenu>
             ) : onCall === undefined && onProfile === undefined ? null : (
-              <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
+              <Surface {...island} modifiers={[...actionLook, testID('chat-action-island')]}>
                 <Row verticalAlignment="center">
                   {onCall === undefined
                     ? null

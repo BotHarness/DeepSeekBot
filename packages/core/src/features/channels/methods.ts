@@ -34,6 +34,11 @@ import {
   type ChannelRecord,
 } from '../../channels/channel.js';
 import { ChannelReactionLimitError } from '../../channels/store.js';
+import {
+  readChannelMessagePage,
+  type ChannelMessagePage,
+} from '../../channels/read-continuation.js';
+import { ReadContinuationError } from '../../channels/read-cursor.js';
 import { ChannelAttachmentError } from '../../attachments/store.js';
 import { isChannelAttachmentRef } from '../../attachments/ref.js';
 import type { ChannelAttachmentRef } from '../../attachments/ref.js';
@@ -86,7 +91,7 @@ export interface ChannelsAdapterMethods {
     payload: unknown,
   ): BridgeResult<{ messages: ChannelMessage[]; nextCursor?: string }>;
   messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
-  channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
+  channelMessages(payload: unknown): BridgeResult<ChannelMessagePage>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
 }
@@ -421,15 +426,25 @@ export function createChannelsAdapterMethods(
         }
         limit = limitValue;
       }
-      const cursor = before.value?.trim();
-      const messages = deps.channels.readMessages(channelId, {
-        ...(cursor === undefined || cursor.length === 0 ? {} : { before: cursor }),
-        ...(limit === undefined ? {} : { limit }),
-      });
-      return {
-        ok: true,
-        value: { messages, revision: deps.channels.revision(channelId) },
-      };
+      const anchor = before.value?.trim();
+      const cursor = source['cursor'];
+      if (cursor !== undefined && anchor !== undefined && anchor.length > 0)
+        return invalidInput('cursor and before are mutually exclusive');
+      try {
+        const page = readChannelMessagePage(deps.channels, channelId, {
+          ...(anchor === undefined || anchor.length === 0 ? {} : { before: anchor }),
+          ...(limit === undefined ? {} : { limit }),
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        if (page === undefined) return unknownChannel(channelId);
+        return { ok: true, value: page };
+      } catch (error) {
+        if (!(error instanceof ReadContinuationError)) throw error;
+        return {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        };
+      }
     },
     channelTimeline(payload) {
       const source = asObject(payload);

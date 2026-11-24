@@ -23,14 +23,22 @@
       "commands": ["device-pair", "device-account-pair", "device-probe"]
     },
     {
-      "id": "client-preferences",
-      "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
+      "id": "client-preferences-selected",
+      "description": "Selected-Client locale (Host-scoped in DSH) and Device Notification Preference through the Client's owners, with theme read-only (appearance-set writes it); never opens the permission prompt.",
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/bot-settings-sections.tsx:{t('settings.language')}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('desktopNotify.row.title')}",
+        "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)"
+      ],
+      "commands": ["client-preferences-get", "client-preferences-set"]
+    },
+    {
+      "id": "client-preferences",
+      "description": "Remaining Client-local preferences without a selected-Client command: composer footer, DM actions and trace display, file opening and activity indicator.",
+      "scope": "Client",
+      "surfaces": [
         "storage:packages/client/src/client/composer-footer-preferences.ts:setItem(FOOTER_STORAGE_KEY)",
-        "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)",
         "storage:packages/client/src/client/dm-actions.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/file-open-preferences.ts:setItem(storageKey)",
         "setting:packages/client/src/client/channel-personal-settings.tsx:{t(`dmTrace.kind.${kind}`)}",
@@ -38,27 +46,35 @@
         "setting:packages/client/src/client/channel-personal-settings.tsx:{t('dmTrace.memoryDisplay')}",
         "storage:packages/client/src/client/dm-actions.ts:setItem(MEMORY_DISPLAY_STORAGE_KEY)"
       ],
-      "issue": "#2095"
+      "issue": "#4831"
+    },
+    {
+      "id": "client-layout-selected",
+      "description": "Selected-Client global Simple/Advanced layout, Subpanel heights, rail order/visibility, gap, members panel and one Channel workspace or split tree through the mounted Bot mode layout.",
+      "scope": "Client / Channel",
+      "surfaces": [
+        "setting:packages/client/src/client/workspace.tsx:{t('workspace.gap')}",
+        "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
+        "storage:packages/client/src/client/channel-dock-layout.ts:setItem(CHANNEL_DOCK_STORAGE_KEY)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)"
+      ],
+      "commands": ["client-layout-get", "client-layout-set"]
     },
     {
       "id": "client-layout",
-      "description": "Workspace, Channel Dock, roster, folders and view layouts; includes migration/backup keys owned by these preferences.",
+      "description": "Remaining layout without a selected-Client command: Bot mode layout reset, roster/folder/view preferences and migration backups.",
       "scope": "Client / Channel",
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('dock.reset')}",
-        "setting:packages/client/src/client/workspace.tsx:{t('workspace.gap')}",
-        "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
         "storage:packages/client/src/client/activity-feed.ts:setItem(preferenceKey)",
         "storage:packages/client/src/client/bot-session-folders.tsx:setItem(BOT_FOLDER_PREFERENCES_KEY)",
         "storage:packages/client/src/client/channel-activity-view.tsx:setItem('botharness/overview-statistics-collapsed.v1')",
         "storage:packages/client/src/client/channel-dock-layout.ts:removeItem(CHANNEL_DOCK_STORAGE_KEY)",
-        "storage:packages/client/src/client/channel-dock-layout.ts:setItem(CHANNEL_DOCK_STORAGE_KEY)",
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(backupKey)",
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(key)",
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/layout-mode.ts:setItem(backup)",
-        "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
         "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",
@@ -68,21 +84,29 @@
         "storage:packages/client/src/client/session-target.tsx:setItem(SESSION_TARGET_KEY)",
         "storage:packages/client/src/client/session-view-prefs.ts:setItem(SESSION_VIEW_PREFERENCES_KEY)"
       ],
-      "issue": "#2096"
+      "issue": "#4832"
     },
     {
-      "id": "client-shortcuts",
-      "description": "Custom bindings and native shortcut migration; target Client and conflict handling are required.",
+      "id": "client-shortcuts-selected",
+      "description": "Selected-Client navigation shortcuts: set, disable or reset one action with revision and conflict owner.",
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/keyboard-settings.tsx:{row.label}",
-        "setting:packages/client/src/client/notification-settings.tsx:{t('shortcuts.row.title')}",
         "setting:packages/client/src/client/shortcut-help.tsx:{label}",
-        "storage:packages/client/src/client/shortcut-bindings.ts:setItem(SHORTCUT_BINDINGS_KEY)",
+        "storage:packages/client/src/client/shortcut-bindings.ts:setItem(SHORTCUT_BINDINGS_KEY)"
+      ],
+      "commands": ["client-shortcuts-get", "client-shortcuts-set"]
+    },
+    {
+      "id": "client-shortcuts",
+      "description": "Remaining shortcuts without a selected-Client command: workspace panel shortcuts and their native migration.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/notification-settings.tsx:{t('shortcuts.row.title')}",
         "storage:packages/client/src/client/workspace-shortcuts.ts:setItem(key)",
         "storage:packages/client/src/client/workspace-shortcuts.ts:setItem(migrationKey)"
       ],
-      "issue": "#2097"
+      "issue": "#4833"
     },
     {
       "id": "owner-password-sign-in",
@@ -177,14 +201,22 @@
     },
     {
       "id": "browser-pairing",
-      "description": "Browser profile pair/forget, daily connect/grant/return and borrowed-browser pair/return routes lack matching Human CLI commands.",
+      "description": "Browser profile pair/forget, Daily Browser connect/grant/return and borrowed-Browser pair/return routes; pairing codes go only to a private --out file.",
       "scope": "Host / Bot",
       "surfaces": [
         "route:packages/browser/src/index.ts:`/api/browser/borrow/${action}` in ['pair', 'return'] as const",
         "route:packages/browser/src/index.ts:`/api/browser/daily/${action}` in ['connect', 'grant', 'return'] as const",
         "route:packages/browser/src/index.ts:`/api/browser/profile/${action}` in ['pair', 'forget'] as const"
       ],
-      "issue": "#2094"
+      "commands": [
+        "browser-profile-pair",
+        "browser-profile-forget",
+        "browser-daily-connect",
+        "browser-daily-grant",
+        "browser-daily-return",
+        "browser-borrow-pair",
+        "browser-borrow-return"
+      ]
     },
     {
       "id": "companion-preferences",
@@ -1336,6 +1368,13 @@
       ],
       "exemption": "These rows report load state, an empty list or a load error; they are not settings. The apps, platform defaults and paired devices they describe are covered by their existing CLI commands.",
       "configurable": false
+    },
+    {
+      "id": "group-member-selection",
+      "description": "Choosing Bots and Host members for a new or existing group in the two-section member picker.",
+      "scope": "Local Host",
+      "surfaces": ["setting:packages/client/src/client/group-member-picker.tsx:{row.displayName}"],
+      "commands": ["group-member-picker", "group-create", "group-members-add"]
     }
   ]
 }

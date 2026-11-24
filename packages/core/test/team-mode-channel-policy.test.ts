@@ -242,6 +242,124 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     });
   });
 
+  it('grants a connected Host member immediate access to a new group and invalidates once', async () => {
+    const f = await enabledFixture({ liveRosterChanges: true });
+    await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+    const login = await f.team.signIn('bob', 'member-password-1', 'review-ip');
+    f.registry.create({ slug: 'initial-bot', displayName: 'Initial Bot' });
+    const methods = f.methods(owner);
+    const callAsMember = (method: string, args: Record<string, unknown> = {}) =>
+      f.gateway.invoke({ namespace: 'botharness', method, args, peer: login.peer });
+    const input = {
+      name: 'Project crew',
+      members: ['initial-bot'],
+      humanIds: [f.human.humanId],
+      operationKey: 'create-project-crew',
+    };
+    expect(await callAsMember('channels')).toMatchObject({ channels: [] });
+    const since = f.channels.changeCursor?.();
+    if (!since) throw new Error('missing channel change cursor');
+    const abort = new AbortController();
+    const roster = (
+      await f.gateway.stream({
+        namespace: 'botharness',
+        method: 'followRoster',
+        args: {},
+        peer: login.peer,
+        signal: abort.signal,
+      })
+    )[Symbol.asyncIterator]();
+    const transactionStates: boolean[] = [];
+    f.invalidate.mockClear();
+    f.invalidate.mockImplementation(() => {
+      transactionStates.push(f.database.read((db) => db.isTransaction));
+      f.access.invalidate();
+    });
+    try {
+      expect((await roster.next()).value).toMatchObject({ type: 'baseline' });
+      const created = methods.channelCreate(input);
+      expect(created).toMatchObject({
+        ok: true,
+        value: {
+          receipt: { operationKey: input.operationKey, status: 'completed' },
+          wakePolicies: [{ botSlug: 'initial-bot' }],
+        },
+      });
+      if (!created.ok) throw new Error(created.error.code);
+      const channelId = created.value.channel.id;
+      expect((await roster.next()).value).toEqual({ type: 'changed' });
+      const listed = {
+        channels: expect.arrayContaining([expect.objectContaining({ id: channelId })]),
+      };
+      expect(await callAsMember('channels')).toMatchObject(listed);
+      expect(
+        await callAsMember('channelListChanges', { sinceSeq: since.seq, epoch: since.epoch }),
+      ).toMatchObject(listed);
+      expect(await callAsMember('channelGet', { channelId })).toMatchObject({
+        channel: {
+          members: ['initial-bot'],
+          humanMembers: expect.arrayContaining([{ humanId: f.human.humanId, displayName: 'Bob' }]),
+        },
+      });
+      expect(f.invalidate).toHaveBeenCalledOnce();
+      expect(transactionStates).toEqual([false]);
+      expect(methods.channelCreate(input)).toEqual(created);
+      await callAsMember('channelSend', { channelId, body: 'Ready to start' });
+      expect(await callAsMember('channelMessages', { channelId })).toMatchObject({
+        messages: [{ body: 'Ready to start', author: { kind: 'human', humanId: f.human.humanId } }],
+      });
+      expect(f.channels.list().filter((channel) => channel.name === input.name)).toHaveLength(1);
+      expect(methods.channelCreate({ ...input, humanIds: [] })).toMatchObject({
+        ok: false,
+        error: { code: 'operation-key-conflict' },
+      });
+      expect(methods.channelCreate({ name: 'Bot group', members: input.members })).toMatchObject({
+        ok: true,
+      });
+      expect(
+        methods.channelCreate({ name: 'Creator only', members: [], humanIds: [owner.humanId] }),
+      ).toMatchObject({ ok: true });
+      expect(f.invalidate).toHaveBeenCalledOnce();
+    } finally {
+      f.invalidate.mockReset();
+      abort.abort();
+      await roster.return?.();
+    }
+  });
+
+  it('refuses an initial member that the existing invite flow also refuses', async () => {
+    const f = await enabledFixture();
+    const methods = f.methods(owner);
+    const group = f.channels.createGroup(owner, { name: 'Existing group', members: [] });
+    const inactive = await f.team.createMember(owner, 'inactive', 'Inactive');
+    const humanId = inactive.member.humanId;
+    await f.team.suspend(owner, humanId);
+    expect(
+      methods.channelGroupMembersAdd({
+        channelId: group.id,
+        targets: [{ kind: 'human', id: humanId, operationKey: 'invite-inactive-member' }],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        results: [{ kind: 'human', id: humanId, status: 'failed', code: 'member-not-found' }],
+      },
+    });
+    const input = {
+      name: 'Refused group',
+      members: [],
+      humanIds: [f.human.humanId, humanId],
+      operationKey: 'create-refused-group',
+    };
+    f.invalidate.mockClear();
+    expect(methods.channelCreate(input)).toMatchObject({
+      ok: false,
+      error: { code: 'member-not-found' },
+    });
+    expect(f.channels.list().map((channel) => channel.name)).not.toContain(input.name);
+    expect(f.invalidate).not.toHaveBeenCalled();
+  });
+
   it('opens one Human DM per pair, permits files and denies every other Human including Owner', async () => {
     const f = await enabledFixture();
     const alice = await f.team.createMember(owner, 'm4alice', 'Alice');

@@ -18,7 +18,11 @@ import {
 import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
-import { queryTokenUsageDays, type UsageTelemetrySnapshot } from './telemetry.js';
+import {
+  queryModelUsageDays,
+  queryTokenUsageDays,
+  type UsageTelemetrySnapshot,
+} from './telemetry.js';
 
 export interface UsageDayRow {
   day: string;
@@ -236,9 +240,13 @@ function projectUsageEvent(event: DshSessionEvent): UsageFoldEvent | undefined {
     seq: event.seq,
     time: event.time,
     turn: typeof turn === 'number' && Number.isSafeInteger(turn) ? turn : undefined,
-    source: routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']),
+    source: assistantMessageRoute(event),
     buckets: reportedBuckets(event),
   };
+}
+
+export function assistantMessageRoute(event: DshSessionEvent): UsageRoute | undefined {
+  return routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']);
 }
 
 function routeOf(value: unknown): UsageRoute | undefined {
@@ -487,10 +495,12 @@ export function createUsageProjection(options: {
   return {
     telemetrySnapshot() {
       if (rebuilding || reconciledAt === null) return undefined;
+      const at = options.now?.() ?? new Date();
       return {
-        days: database.read((connection) =>
-          queryTokenUsageDays(connection, options.now?.() ?? new Date()),
-        ),
+        ...database.read((connection) => ({
+          days: queryTokenUsageDays(connection, at),
+          models: queryModelUsageDays(connection, at),
+        })),
         isReconciled: !reconciliationFailed,
       };
     },

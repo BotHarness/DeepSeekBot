@@ -474,6 +474,30 @@ export function createChannelPlacements({
       ) as unknown as PlacementRow[];
       return projectRows(id, rows);
     },
+    messagePosition(id, messageId) {
+      return placementsById(id, [messageId])[0]?.revision;
+    },
+    historyEpoch(id) {
+      if (!isValidChannelId(id)) return 0;
+      return database.read((db) => {
+        if (
+          !db
+            .prepare(
+              "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messaging_purge_facts'",
+            )
+            .get()
+        )
+          return 0;
+        const row = db
+          .prepare(
+            `SELECT COUNT(*) AS epoch FROM messaging_purge_facts f
+             JOIN channel_placements p ON p.source_event_id = f.source_event_id
+             WHERE p.channel_id = ?`,
+          )
+          .get(id) as { epoch: number };
+        return row.epoch;
+      });
+    },
     readTimeline(id, request) {
       return timelinePage(id, request);
     },
@@ -552,6 +576,8 @@ export function createChannelPlacements({
     | 'storedQuotes'
     | 'grantRequestResolution'
     | 'readMessages'
+    | 'messagePosition'
+    | 'historyEpoch'
     | 'readTimeline'
     | 'readHumanTimeline'
     | 'readHumanFilesPage'

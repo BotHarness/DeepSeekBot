@@ -20,6 +20,8 @@ import type { HumanContext } from '../../humans/context.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { purgeFailure } from '../profile-storage/methods.js';
 
+const initialHumanIds = z.array(z.string()).max(100).optional();
+
 export interface ChannelsManagementAdapterMethods {
   channelCreate(
     payload: unknown,
@@ -58,13 +60,16 @@ export function createChannelsManagementAdapterMethods(
         return invalidInput('members must be an array of PersonaBot IDs');
       }
       const operationKey = source['operationKey'];
+      const people = initialHumanIds.safeParse(source['humanIds']);
+      if (!people.success) return invalidInput('humanIds must be an array of Host member IDs');
+      const humanIds = people.data ?? [];
       if (operationKey !== undefined && (typeof operationKey !== 'string' || !operationKey.trim()))
         return invalidInput('operationKey must be a nonempty string');
       if (deps.channelManagement) {
         try {
           const result = deps.channelManagement.create(
             human,
-            { name, members: [...members] },
+            { name, members: [...members], ...(humanIds.length ? { humanIds } : {}) },
             operationKey,
           );
           if (
@@ -87,7 +92,7 @@ export function createChannelsManagementAdapterMethods(
           throw error;
         }
       }
-      if (operationKey !== undefined)
+      if (operationKey !== undefined || humanIds.length)
         return {
           ok: false,
           error: {

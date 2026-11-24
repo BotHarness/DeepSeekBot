@@ -2,7 +2,6 @@
 import { type Root } from 'react-dom/client';
 import { type DockviewApi } from 'dockview-react';
 import { type ChannelFilesView } from '../src/client/channel-dock.js';
-import { type DockPanelChannel } from '../src/client/dock-panels.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +17,9 @@ import { ChannelDock } from '../src/client/channel-dock.js';
 
 import { CHANNEL_BODY_PANEL, CHANNEL_DOCK_STORAGE_KEY } from '../src/client/channel-dock-layout.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
-import { createDockPanelRegistry } from '../src/client/dock-panels.js';
+import { createDockPanelRegistry, type DockPanelChannel } from '../src/client/dock-panels.js';
+import { moveChannelSplit, type ChannelSplit } from '../src/client/channel-split-layout.js';
+import { clientSettings } from '../src/client/client-settings-control.js';
 import { LAYOUT_MODE_STORAGE_KEY, readLayoutMode } from '../src/client/layout-mode.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { PinnedPanelCards } from '../src/client/pinned-panel-cards.js';
@@ -846,5 +847,120 @@ describe('Home command opens the Tob DM', () => {
     expect(command.resolve({ ...context, modal: 'settings' })).toEqual({ status: 'pass' });
     dispose();
     expect(commands.size).toBe(0);
+  });
+
+  it('applies a revision-bound CLI layout write through the dock and keeps the active Channel', async () => {
+    values = new Map();
+    const ws = mountWorkspace();
+    await ws.render();
+    const deadline = { expiresAt: Number.MAX_SAFE_INTEGER, signal: new AbortController().signal };
+    type View = { revision: string; activeChannelId: string; channels: Record<string, unknown> };
+    const run = (patch: unknown, revision?: string) =>
+      clientSettings.execute(
+        { domain: 'layout', ...(patch === undefined ? {} : { patch }) },
+        revision,
+        deadline,
+      ) as Promise<View>;
+    const first = await run(undefined);
+    await act(async () => {
+      await run(
+        { global: { sideColumn: 'market' }, channel: { id: 'dm-ada', ratio: 0.5 } },
+        first.revision,
+      );
+    });
+    await settle();
+    expect(ws.shown()).toEqual(['market', CHANNEL_BODY_PANEL]);
+    expect(ws.sideColumn()).toBe('market');
+    await ws.selectChannel({ id: 'dm-bob', type: 'dm', botSlug: 'bob' });
+    const second = await run(undefined);
+    expect(second.activeChannelId).toBe('dm-bob');
+    await act(async () => {
+      await run({ channel: { id: 'dm-ada', open: false } }, second.revision);
+    });
+    const after = await run(undefined);
+    expect(after.activeChannelId).toBe('dm-bob');
+    expect(after.channels['dm-ada']).toMatchObject({
+      open: false,
+      direction: 'right',
+      ratio: 0.5,
+    });
+    expect(after.channels['dm-bob']).toEqual(second.channels['dm-bob']);
+    const stored = JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!);
+    expect(stored.channelWorkspaces['dm-ada']).toMatchObject({ open: false, ratio: 0.5 });
+    await expect(
+      run({ channel: { id: 'dm-ada', open: true } }, second.revision),
+    ).rejects.toMatchObject({
+      code: 'client-settings-revision-conflict',
+    });
+    const beforeSwitch = new Map(values);
+    await act(async () => {
+      await run({ global: { mode: 'advanced' } }, after.revision);
+    });
+    await settle();
+    expect(ws.layoutMode().mode).toBe('advanced');
+    const viaCli = JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!).layout;
+    expect((await run(undefined)).channels['dm-ada']).toEqual(after.channels['dm-ada']);
+    act(() => root.unmount());
+    await expect(run(undefined)).rejects.toMatchObject({ code: 'client-settings-unavailable' });
+    root = createRoot(host);
+    values = beforeSwitch;
+    const viaUi = mountWorkspace();
+    await viaUi.render();
+    await viaUi.selectChannel({ id: 'dm-bob', type: 'dm', botSlug: 'bob' });
+    act(() => viaUi.layoutMode().setMode('advanced'));
+    await settle();
+    expect(viaCli).toEqual(JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!).layout);
+  });
+
+  it('moves a panel inside an inactive Channel split and stores the gap and members like the UI', async () => {
+    values = new Map();
+    const ws = mountWorkspace();
+    await ws.render();
+    const deadline = { expiresAt: Number.MAX_SAFE_INTEGER, signal: new AbortController().signal };
+    type View = {
+      revision: string;
+      activeChannelId: string;
+      gap: number;
+      members: { open: boolean; ratio: number };
+      channels: Record<string, { split: ChannelSplit; splitSaved: boolean }>;
+    };
+    const run = (patch: unknown, revision?: string) =>
+      clientSettings.execute(
+        { domain: 'layout', ...(patch === undefined ? {} : { patch }) },
+        revision,
+        deadline,
+      ) as Promise<View>;
+    await act(async () => {
+      await run({ channel: { id: 'dm-ada', open: true } }, (await run(undefined)).revision);
+    });
+    await ws.selectChannel({ id: 'dm-bob', type: 'dm', botSlug: 'bob' });
+    const first = await run(undefined);
+    const before = first.channels['dm-ada']!.split;
+    await act(async () => {
+      await run(
+        {
+          gap: 9,
+          members: { open: true, ratio: 0.4 },
+          channel: {
+            id: 'dm-ada',
+            move: { panel: 'schedules', target: 'messages', direction: 'below' },
+          },
+        },
+        first.revision,
+      );
+    });
+    await settle();
+    const after = await run(undefined);
+    expect(after.activeChannelId).toBe('dm-bob');
+    expect(after.channels['dm-ada']!.split).toEqual(
+      moveChannelSplit(before, 'schedules', 'messages', 'below'),
+    );
+    expect(after.channels['dm-ada']!.splitSaved).toBe(true);
+    expect(after.channels['dm-bob']).toEqual(first.channels['dm-bob']);
+    const stored = JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!);
+    expect(stored.gap).toBe(9);
+    expect(stored.members).toEqual({ open: true, ratio: 0.4 });
+    expect(stored.channelSplits['dm-ada']).toEqual(after.channels['dm-ada']!.split);
+    expect(stored.channelSplits['dm-bob']).toBeUndefined();
   });
 });

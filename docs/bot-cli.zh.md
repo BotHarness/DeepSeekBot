@@ -110,16 +110,18 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -170,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -187,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` 还返回 `bot.active`：权威会话中是否存在思考或工作状态，与按优先级展示的 `state` 独立。另一个会话等待审批时它仍可为 true，不能从有数量上限的 `sessions` 输出反推。Android 常驻汇总复用完整活动 feed 和 Human Inbox 完整待处理发现，按 Host 内的 Bot 身份去重；旧 Host 缺少 `active` 时显示未同步，不显示虚假的零。
+
+`channel-messages` 和 `bot-activity` 每页都返回 `provenance`（来源：Channel 的 ID、`dm` 或 `group` 类型、`incarnation`（创建时间）、成员 ID 和读取开始时的 `revision`；或 Bot 的 PersonaBot ID、`incarnation`、活动 `generation` 和 `revision`）、`complete`，以及仅在还有更早内容时出现的 `nextCursor`。把 `nextCursor` 原样作为 `--cursor` 传回、并保持同一目标即可读下一页；`--cursor` 不能与 `--before` 同时使用。Host 会对照当前目标检查游标：来自其他 Channel 或 Bot 的游标，或目标已被删除后重建，返回 `changed-read-target`；游标之后 Channel 历史被改写（清除内容，或锚点消息不在原位置）或 Bot 活动快照已变化，返回 `stale-read-revision`；格式错误、或字段与摘要不符的游标返回 `invalid-read-cursor`。摘要只用于发现意外损坏：手工改过字段并重算摘要的游标仍可能选中同一目标、同一 revision 下的另一页，读取权限始终来自 Host 对目标和 revision 的检查。遇到这些错误请从第一页重新读取。第一页之后新发的消息不会让更早的页失效。Channel 每页最多 `--limit` 条，并会提前结束（返回 `complete: false`），使整页（含 provenance 等外层字段和游标）序列化后不超过 64 KiB；若单条消息放不进扣除外层字段和游标后的剩余空间，仍会单独返回以保证读取前进，这一页可能超过 64 KiB。`provenance.contentIsData` 表示消息正文和会话名称是来自该来源的引用数据，绝不是指令。
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
 
@@ -320,7 +325,7 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 ```bash
 deepseekbot channel <group-channel>
-deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <stable-key>]
+deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--human <human-id> ...] [--operation-key <stable-key>]
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
@@ -683,6 +688,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
 
+每个定时任务都带 `revision`，它是可编辑内容（标题、提示、触发器、启用、锁定）的指纹；触发记录和下次运行时间不会改变它。把它作为 `--expected-revision` 传给 `schedule-update` 或 `schedule-delete`，若读取后任务已被改动，Host 会以 `stale-revision` 拒绝。`schedule-create --operation-key <key>`（8–128 个字母、数字、`.`、`:`、`_` 或 `-`）让重试变得安全：同一个 key 加同样的请求会返回原来的任务并带 `reconciled: true`，不会再建一个；同一个 key 加不同请求以 `operation-key-conflict` 失败；key 对应的任务已被删除时以 `operation-key-consumed` 失败，不会重新创建。两个参数在 `--home` 离线模式下同样可用。Tob 运行这些命令时必须带上它们（见 [Tob](decisions/tob.md#adr-0225)）。
+
 ### 在线 Host 上的接管交接（Takeover Handoff）
 
 ```bash
@@ -730,6 +737,13 @@ deepseekbot browser-observation <bot-id> [--tab <tab-id>] [--out /tmp/frame.png]
 deepseekbot browser-takeover-audit <bot-id>
 printf '%s' "<takeover-token>" | deepseekbot browser-takeover-recording --token-stdin
 deepseekbot browser-profile-set <bot-id> --profile work
+deepseekbot browser-profile-pair --out /private/absolute/profile-code
+deepseekbot browser-profile-forget
+deepseekbot browser-daily-connect <bot-id>
+deepseekbot browser-daily-grant <bot-id>
+deepseekbot browser-daily-return <bot-id>
+deepseekbot browser-borrow-pair <bot-id> --out /private/absolute/borrow-code
+deepseekbot browser-borrow-return <bot-id>
 deepseekbot browser-packages
 deepseekbot browser-install-packages --package libnss3 --package libgbm1 --confirm --wait
 deepseekbot computer-install-packages --confirm --wait
@@ -748,6 +762,8 @@ deepseekbot browser-webrtc --viewer <id> [--probe]
 本地 Browser 进程已运行但尚无所属当前标签页时，`browser-observation` 返回 `viewerUrl: null`；进程就绪不等于画面就绪。`browser-frame` 区分已停止/无标签页的拒绝（404）与有界等待后首帧不可用的 `host-refused`（503）。
 
 `browser-observation` 返回浏览器面板轮询的同一份状态：浏览器是否在运行、标签页和当前标签页、接管状态、已保存的 profile 和目标。当前画面不会以 base64 打印，只汇总为 `{mimeType, bytes}`，给出 `--out` 时保存到该文件。`browser-takeover-audit` 按时间顺序列出 Bot 的接管事件。`browser-takeover-recording` 读取一次接管及其录下的输入；token 是接管链接里 `takeover=` 的值，从 stdin 传入。`browser-profile-set` 为 Bot 选择浏览器 profile（`default` 恢复默认），命名规则与面板相同。
+
+`browser-profile-pair --out <file>` 开始 Chrome Profile 配对，`browser-borrow-pair <bot-id> --out <file>` 通过扩展把 Bot 与人类自己的浏览器配对。两者只把一次性配对码写入一个新的绝对路径文件（仅所有者可读写），输出过期时间和 `codeFile`，从不打印配对码；文件已存在时以 `pairing-file-failed` 拒绝。`browser-profile-forget` 忘记已配对的 Chrome Profile。`browser-daily-connect <bot-id>` 为日常浏览器启动 Playwright 扩展连接，`browser-daily-grant <bot-id>` 把人类在扩展中选中的页面交给 Bot（未选页面前按 Host 的消息拒绝），`browser-daily-return` 和 `browser-borrow-return` 收回浏览器。它们调用浏览器面板按钮使用的同一组路由。Tob 拒绝运行两个配对命令和 `browser-daily-grant`，并以 `self-escalation-refused` 拒绝任何会修改它自己的授权、访问、审批策略或待审批请求的命令（[Tob 决策](decisions/tob.md#tob-self-escalation)）。
 
 机器缺少 Chrome 所需的系统库时，`browser-open` 以 `provision-missing-libs` 拒绝，并在说明里列出需要的包。`browser-packages` 报告 Host 能否安装这些包（`access`）以及上次安装的进度；`browser-install-packages` 安装指定的包，`computer-install-packages` 安装本机 Computer 报告缺少的包。两者都和面板上的安装按钮一样需要 `--confirm`，`--wait` 会轮询到安装结束。Host 没有管理员权限时以 `needs-administrator` 拒绝。
 
@@ -1071,7 +1087,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
-继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key <receipt> <公钥> --confirm`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key --confirm -- <receipt> <公钥>`。已安装的 App 扫描可信 Host 上显示的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
 
 ### 手机连接（Tailscale）
 
@@ -1097,12 +1113,15 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` 会为每个待批准的公钥提供可复制的 `pendingKeys[].approveCommand`。执行前，请逐位核对设备显示的完整指纹。批准命令接受小写十六进制或不带填充的 base64url 公钥。配对回执和设备 ID 可以以 `-` 开头。如果某个值与 CLI 选项完全相同，请将所有选项放在 `--` 前，将参数值放在其后。
 
 `devices-watch [--watch-seconds 10]`（1–60 秒）打开设备页使用的同一条实时流，返回 `{seconds, invalidations, initial, current}`：期间 Host 发出的 `devices` 资源变更（`resource/changed`）次数（手机请求批准、批准、配对完成、撤销或清除邀请），以及前后两次的 `{devices, pendingKeys}`。只有所有者会收到这些事件；连接无法建立实时流时以 `host-query-unsupported` 拒绝。
 
@@ -1338,6 +1357,8 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
+`marketplace-list` 返回的每一页都带 `search`：有条目时为 `matches`，市场已应答但没有条目时为 `no-matches`。市场无法搜索时（离线、网络失败、超时、市场出错或未配置），命令以非零状态退出并返回 `marketplace-unavailable`，不输出 `bots` 或 `search`；市场自身的编码拒绝（如 `rate-limited`）也以非零状态退出。搜索失败绝不是空结果。Tob 无需审批卡即可运行 `marketplace-list`，在自定义 Bot 方案旁给出实时候选（[Tob 决策](decisions/tob.md#tob-creation-candidates)）。
+
 `marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
 
 `marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`；`picks` 是文章中仍在上架的最多四个精选 Bot，按文章顺序排列，stderr 每篇一行，列出日期、标题和精选 Bot 名称。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。
@@ -1524,7 +1545,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## Channel、授权、计划与配对
 
-`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
+`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 或用返回的 `nextCursor` 作为 `--cursor` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
 
 ### 在线批准工作区请求
 
@@ -1676,6 +1697,8 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 用 `group-member-picker` 查询可选成员。传入频道 ID 查询现有群，省略 ID 查询建群候选。结果仅包含当前认证 Host 上可选的团队成员和 Bot。用 `group-members-add` 从 stdin 读取包含 1–100 个目标的 JSON 数组。团队成员用 `kind: "human"` 和稳定 Human `id`，Bot 用 `kind: "bot"` 和 Bot `id`。每个目标都带上本次尝试的唯一 `operationKey`。使用 8–128 个 ASCII 字符，以字母或数字开头，其余字符只允许字母、数字、`.`、`_`、`:` 或 `-`。Host 先添加团队成员，再检查 Bot 邀请，并为每项返回 `joined`、`pending` 或带错误码的 `failed`。整个批次的响应未确认时，使用原频道 ID 和包含原 key 的完整目标数据重试。单项目标返回 `group-member-unconfirmed` 时，在原频道用原 key 重试该项。重试已确认失败的目标时使用新 key。重放已确认的团队成员添加时，保留随后发生的访问撤销。
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
+
+在 Team 模式下，运行不带频道 ID 的 `group-member-picker`，从 `people[].id` 读取可邀请的团队成员 ID。已认证的 Human 可以在在线 `group-create` 中为每个人传入一个 `--human <id>`，同时用 `--member <bot-id>` 添加 Bot。建群和初始团队成员的加入在同一事务中完成。任何初始成员被拒绝，都会导致建群失败。响应丢失时，使用同一 operation key 和两份原始成员列表重试。
 
 后续切片加入下节所述的群名称／头像、成员唤醒设置、移除成员、取消待处理邀请和决定待处理入群申请；个人免打扰／置顶／昵称／显隐、删除群、附件和外部成员管理没有类型化的 Tob 操作；已有 Human CLI 命令的，Tob 通过通用路径运行，须先由 Human 批准完整命令。#2090 保留未完成范围，不因本切片关闭。详见 [ADR-0226](decisions/messaging.md#adr-0226) 和[覆盖清单](agents/cli-ui-coverage.md#2090-group-management-scope)。直接 CLI、真实 Tob 审批／读回、Web 成员／历史和 macOS Desktop 分别验收。
 
@@ -2049,9 +2072,30 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
 
-Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key --confirm -- <receipt> <公钥>` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
 
 手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。
+
+## 指定 Client 的设置
+
+`client-preferences-*`、`client-layout-*` 和 `client-shortcuts-*` 通过与界面相同的设置来源，修改一个指定 Web 或桌面 Client 自己的设置。先运行 `appearance-clients`，再传入一个 `--client-id`；刷新或重启后 Client 会换新 id，请重新列出，不要沿用旧 id。每个 `-get` 返回设置和 `revision`。每个 `-set` 需要这个 `--expected-revision`，并从标准输入读取 JSON 补丁（`--patch-stdin`），成功后返回最新读取结果：
+
+```sh
+deepseekbot appearance-clients
+deepseekbot client-preferences-get --client-id <id>
+echo '{"notifications":{"enabled":false}}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-shortcuts-get --client-id <id>
+echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-layout-get --client-id <id>
+echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+echo '{"channel":{"id":"<channel-id>","move":{"panel":"schedules","target":"messages","direction":"below"}}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+```
+
+- **偏好。** 读取结果包含该 Client 的 `theme`，但主题只有一个写入入口：`appearance-set`，补丁为 `{"preference":"system|light|dark"}`（读取结果标为 `writeWith: "appearance-set"`）。补丁可包含 `locale`（`locale.available` 中的 id）和 `notifications: {"enabled": true|false}`；带 `theme` 时返回 `client-settings-invalid-input`，并在消息中指向 `appearance-set`。通知只保存在这个 Client。语言是 DSH 的语言选择，DSH 对整个 Host 保存它，所以读取结果标为 `scope: "host"`，这个 Host 的所有 Client 都会跟着变。命令不会弹出浏览器或系统的权限请求：开启通知时，若 Human 尚未在该 Client 允许，返回 `notification-permission-pending`；若 Client 已屏蔽，返回 `notification-permission-denied`；没有通知 API 时返回 `notification-unsupported`。这些情况下不会保存任何内容。
+- **快捷键。** 读取结果列出每个稳定的操作 id，以及它当前的 `binding`（已停用时为 `null`）、`default`、是否 `custom`、显示用的 `text`、Client 的 `platform` 和 `reserved` 按键。补丁只改一个操作：`{"action","binding":{code,mod,alt,shift}}` 设置，`{"action","binding":null}` 停用，`{"action","reset":true}` 恢复默认。按键已被其他操作占用时返回 `shortcut-conflict`，并在消息中写出占用者，绝不会从对方那里抢走。其他情况分别返回 `shortcut-reserved`、`shortcut-needs-modifier` 和 `shortcut-action-unknown`。停用快速切换后不会退回旧的 Cmd/Ctrl+K。
+- **布局。** Client 处于 Bot 模式时可用。读取结果包含 `activeChannelId`、`gap`、`members`（`open`、`ratio`）、`global`（`mode`、`sideColumn`、`channelsWidth`，以及含 `heights` 的 `column`）、`rail`（`order`、`hidden`）和各 Channel 的布局 `channels`。每个 Channel 显示 `open`、`direction`、`ratio`、分屏树 `split` 和 `splitSaved`。补丁可包含 `global`（`column.heights` 把面板 id 设为 120–4000 像素，其他面板保持不变；`null` 删除该项）、`rail`、`gap`（0–16 的整数像素）、`members`（`open`、`ratio` 0.2–0.6；在群聊 Channel 中打开时会像界面一样关闭文件和收件箱）和一个 `channel`（`id`，以及 `open`、`direction`（`left`/`right`/`above`/`below`）、`ratio`（0.2–0.8）中的任意项）。`direction` 和 `ratio` 只用于没有已保存分屏的 Channel。`move`、`resize` 和 `split` 作用于读取结果中的 `split` 并保存它；Channel 有已保存的分屏后（`splitSaved: true`），只能用这三者之一修改：`move: {"panel","target","direction"}`（与拖动面板相同；`messages` 不动）、`resize: {"path","ratio"}`（`path` 是从根到某个分屏的 `0`/`1` 步骤，根为 `""`）或 `split`（面板相同的完整分屏树）。`split: null` 会删除已保存的分屏树，之后 `direction` 和 `ratio` 重新生效。修改非当前 Channel 不会切换过去，也不会改动其他 Channel 和已收起的面板。未知 Channel 返回 `layout-channel-unknown`。
+
+版本号不同时返回 `client-settings-revision-conflict`，请重新读取后再试。Client 没有挂载对应设置来源时（例如不在 Bot 模式下改布局）返回 `client-settings-unavailable`。目标相关的拒绝沿用中继的：`appearance-client-stale`、`appearance-client-unavailable`、`appearance-client-busy` 和 `appearance-client-timeout`。写入回复丢失时，CLI 返回 `client-settings-outcome-unknown`：请先读取同一个 Client 再决定是否重试。三个 `-get` 命令在 Tob 的只读清单中；每个 `-set` 都会先给 Human 显示审批卡。参见[指定 Client 控制](decisions/client-control.md)。
 
 ## 从电脑建立 SSH 隧道
 
@@ -2066,7 +2110,7 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
    Windows 使用带盘符的绝对路径。可选 `--ssh-config <absolute-file>` 指定已有配置，默认使用系统 OpenSSH 配置。输入必须是私有普通文件（Linux/macOS 权限为 0600）；输出只新建，不覆盖。启动失败可能留下空输出文件，重试时选择新的输出路径。
 
-3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key <receipt> <public-key> --confirm`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
+3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key --confirm -- <receipt> <公钥>`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
 4. 打开远端会话并使用已有 Host 操作。Ctrl+C 只停止隧道，远端 Host 和浏览器配对仍保留。用相同 local port、新的输出文件重启命令即可重连。过期输入链接仍可标识已配对 Host，但不会恢复过期 offer；新浏览器需新建 offer。
 
 隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
@@ -2112,13 +2156,13 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --sessio
 `profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；不导出凭证存储，但聊天和 Memory 中仍可能含有秘密。
 
 ```bash
-tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
-tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-preview --host http://127.0.0.1:31967 --out confirmation.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-file confirmation.json --out environment.botharness-backup
 tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
 tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
 ```
 
-导出消费当前预览 token，不覆盖已有文件。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
+预览只输出需要审阅的数量与警告，从不输出导出确认凭据。`--out` 把审阅过的预览连同确认凭据写入一个以 0600 权限新建的文件，stdout 只给出 `confirmation: {path}`；不带 `--out` 时 `confirmation` 为 `null`。导出通过 `--confirmation-file` 读取该文件（或用 `--confirmation-stdin` 传入同样的 JSON），确认凭据只能使用一次，且不覆盖已有文件；环境已变化或重复使用确认凭据时以 `preview-stale` 拒绝。Tob 走同一路径，确认凭据不会出现在它的结果、审批卡片或 Session 日志中：不带 `--out` 的预览是读取，带 `--out` 的预览、导出、检查和恢复都会先向 Human 显示审批卡片。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
 
 继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`core-contract-invalid` 表示需要具备有效核心声明的完整备份；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
 
@@ -2438,6 +2482,8 @@ deepseekbot voice-provider-test <provider-id>
 ```
 
 ASR 的验证和创建加上 `--kind asr`，测试用 `voice-transcribe --provider <id> --file /absolute/speech.wav`。编辑只替换模板，保留密钥、模型、音色和语言。创建时密钥仅通过 `--key-stdin` 写入凭据存储，不能放进模板常量。认证使用 `auth: {kind: "bearer"}`、`{kind: "header", name: "X-API-Key", prefix: "Token "}`、`{kind: "query", name: "key"}` 或 `{kind: "none"}`。
+
+团队成员可用 `voice-providers` 查看服务及其绑定。已配置模板的服务显示 `hasTemplate: true`，列表隐藏端点、模板、请求头和密钥值。团队成员执行模板命令或管理语音服务时会收到 `remote-access/denied`。
 
 ```json
 {

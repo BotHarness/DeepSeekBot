@@ -1,6 +1,7 @@
 import type {
   VoiceRequestTemplate,
   VoiceTemplateJson,
+  VoiceTemplateValidation,
 } from '@botharness/host-protocol/voice-request-template';
 
 export type TemplateKind = 'tts' | 'asr';
@@ -43,6 +44,19 @@ export const ASR_PLACEHOLDERS = [
   '{model}',
   '{language}',
 ];
+
+export const TEMPLATE_AUTH_KINDS: readonly AuthKind[] = ['bearer', 'header', 'query', 'none'];
+export const TEMPLATE_BODY_KINDS: readonly BodyKind[] = ['json', 'ssml', 'multipart', 'none'];
+export const TTS_RESULT_KINDS: readonly Exclude<ResultKind, 'text'>[] = [
+  'audio',
+  'base64',
+  'hex',
+  'url',
+];
+
+export function placeholdersFor(kind: TemplateKind): readonly string[] {
+  return kind === 'tts' ? TTS_PLACEHOLDERS : ASR_PLACEHOLDERS;
+}
 
 function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -174,4 +188,22 @@ export function templateErrors(
     mapped[field] = mapped[field] === undefined ? detail : `${mapped[field]} ${detail}`;
   }
   return mapped;
+}
+
+export type TemplateCheck =
+  | { readonly ok: true; readonly template: VoiceRequestTemplate }
+  | { readonly ok: false; readonly errors: TemplateErrors };
+
+export async function checkTemplate(
+  validate: (kind: TemplateKind, template: unknown) => Promise<VoiceTemplateValidation>,
+  kind: TemplateKind,
+  draft: TemplateDraft,
+  messages: BuildMessages,
+): Promise<TemplateCheck> {
+  const built = buildTemplate(draft, messages);
+  if (!built.ok) return built;
+  const result = await validate(kind, built.template);
+  return result.valid
+    ? { ok: true, template: result.template }
+    : { ok: false, errors: templateErrors(result.errors) };
 }

@@ -44,7 +44,9 @@ function Container({
   });
   return (
     <>
-      {renderHeader?.()}
+      {renderHeader
+        ? createElement('div', { 'data-testid': 'collapsible-header' }, renderHeader())
+        : null}
       {renderTabBar({ containerRef })}
       {pages.map((page, position) => (
         <div key={page.props.name} hidden={position !== index}>

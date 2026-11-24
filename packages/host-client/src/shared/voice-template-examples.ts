@@ -1,5 +1,12 @@
 import type { VoiceRequestTemplate } from '@botharness/host-protocol/voice-request-template';
-import type { TemplateKind } from './template-draft.js';
+import {
+  blankDraft,
+  draftFromTemplate,
+  type TemplateDraft,
+  type TemplateKind,
+} from './voice-template-draft';
+
+export const BLANK_EXAMPLE = 'blank';
 
 export interface TemplateExample {
   readonly id: string;
@@ -185,4 +192,21 @@ export const TEMPLATE_EXAMPLES: readonly TemplateExample[] = [
 
 export function examplesFor(kind: TemplateKind): readonly TemplateExample[] {
   return TEMPLATE_EXAMPLES.filter((example) => example.kind === kind);
+}
+
+export interface ExampleStart {
+  readonly example: string;
+  readonly template: TemplateDraft;
+  readonly model: string;
+  readonly voice: string;
+}
+
+export function exampleStart(kind: TemplateKind, id: string): ExampleStart {
+  const found = examplesFor(kind).find((example) => example.id === id);
+  return {
+    example: found?.id ?? BLANK_EXAMPLE,
+    template: found === undefined ? blankDraft(kind) : draftFromTemplate(found.template),
+    model: found?.model ?? '',
+    voice: found?.voice ?? '',
+  };
 }

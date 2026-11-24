@@ -12,6 +12,7 @@
 - `packages/core/src/features/voice/*.ts`
 - `packages/core/src/voice/providers.ts`
 - `packages/core/src/bots/cli-voice.ts`
+- `scripts/team-security-voice-provider-gate.mjs`
 
 ## Terms
 

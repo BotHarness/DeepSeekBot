@@ -22,6 +22,7 @@ describe('Bot Schedule Tools', () => {
       enabled: true,
       creator: 'personabot' as const,
       locked: false,
+      revision: 'rev-1',
       createdAt: BOT.createdAt,
       updatedAt: BOT.createdAt,
     };

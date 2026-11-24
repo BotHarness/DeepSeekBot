@@ -23,11 +23,13 @@ const PATH = '/api/botharness/profile-backup';
 export const PROFILE_BACKUP_COMMANDS = [
   {
     command: 'profile-backup-preview',
-    description: 'preview a complete environment backup on the Host',
+    description:
+      'preview a complete environment backup on the Host; --out <new private file> saves its export confirmation',
   },
   {
     command: 'profile-backup-export',
-    description: 'download the preview on stdin with --confirmation-stdin --out <new file>',
+    description:
+      'download the reviewed preview with --confirmation-file <file> (or --confirmation-stdin) --out <new file>',
   },
   { command: 'profile-backup-inspect', description: 'inspect --file <backup> through the Host' },
   {
@@ -56,6 +58,7 @@ type Values = {
   out?: string;
   'new-home'?: string;
   'confirmation-stdin'?: boolean;
+  'confirmation-file'?: string;
   confirm?: boolean;
   'acknowledge-risk'?: boolean;
   host?: string;
@@ -63,6 +66,46 @@ type Values = {
 };
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
+}
+async function readConfirmation(values: Values, io: BotCreateCliIo): Promise<string> {
+  const file = values['confirmation-file'];
+  if ((file === undefined) === (values['confirmation-stdin'] !== true))
+    usage('Pass the saved preview with --confirmation-file <file> or --confirmation-stdin.');
+  const text =
+    file === undefined
+      ? ((await io.readStdin?.()) ?? 'null')
+      : statSync(file).size > 64 * 1024
+        ? usage('The confirmation file is not a saved preview.')
+        : readFileSync(file, 'utf8');
+  const parsed = z.object({ token: z.string().min(1).max(512) }).safeParse(JSON.parse(text));
+  if (!parsed.success)
+    usage(
+      'Save the preview with profile-backup-preview --out <new private file> and pass that file.',
+    );
+  return parsed.data.token;
+}
+async function preview(
+  values: Values,
+  connect: () => ReturnType<typeof connectLiveHost>,
+): Promise<unknown> {
+  const destination = values.out === undefined ? undefined : resolve(values.out);
+  if (destination && lstatSync(destination, { throwIfNoEntry: false }))
+    throw new CliLiveError('destination-exists', 'Choose a new confirmation filename.');
+  const host = await connect();
+  const { bytes } = await host.http(PATH);
+  const value = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  const { token, ...review } = value;
+  if (typeof token !== 'string' || token === '' || token.length > 512)
+    throw new CliLiveError(
+      'host-protocol-error',
+      'The Host returned a preview without an export confirmation; update the Host.',
+    );
+  if (!destination) return { ...review, confirmation: null };
+  writeFileSync(destination, JSON.stringify({ ...review, token }) + '\n', {
+    flag: 'wx',
+    mode: 0o600,
+  });
+  return { ...review, confirmation: { path: destination } };
 }
 function readArchive(file: string | undefined): Buffer {
   if (!file) usage('Pass --file <backup>.');
@@ -114,19 +157,15 @@ export async function runProfileBackupCommand(
       }
     }
     if (command === 'profile-backup-export') {
-      if (!values.out || !values['confirmation-stdin'])
-        usage('Pass --out <new file> and pipe the preview JSON using --confirmation-stdin.');
-      const parsed = z
-        .object({ token: z.string().min(1).max(512) })
-        .safeParse(JSON.parse((await io.readStdin?.()) ?? 'null'));
-      if (!parsed.success) usage('Stdin must contain the preview JSON and its token.');
+      if (!values.out) usage('Pass --out <new file>.');
+      const token = await readConfirmation(values, io);
       const destination = resolve(values.out);
       if (lstatSync(destination, { throwIfNoEntry: false }))
         throw new CliLiveError('destination-exists', 'Choose a new backup filename.');
       const stage = mkdtempSync(join(dirname(destination), '.backup-download-'));
       try {
         const host = await connect();
-        const { bytes, response } = await host.http(PATH, { token: parsed.data.token });
+        const { bytes, response } = await host.http(PATH, { token });
         const archive = Buffer.from(bytes);
         const { manifest } = inspectProfileBackup(archive);
         const sha256 = digest(archive);
@@ -159,6 +198,7 @@ export async function runProfileBackupCommand(
       });
       return await response.json();
     }
+    if (command === 'profile-backup-preview') return await preview(values, connect);
     const host = await connect();
     if (activation) {
       const action = command === 'profile-backup-authorize' ? '/authorize' : '/activate';
@@ -168,9 +208,7 @@ export async function runProfileBackupCommand(
       });
       return JSON.parse(Buffer.from(bytes).toString('utf8'));
     }
-    const { bytes } = await host.http(
-      PATH + (command === 'profile-backup-recovery' ? '/recovery' : ''),
-    );
+    const { bytes } = await host.http(PATH + '/recovery');
     return JSON.parse(Buffer.from(bytes).toString('utf8'));
   } catch (error) {
     const failure =

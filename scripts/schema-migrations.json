@@ -726,5 +726,13 @@
   {
     "id": "channel-human-add-receipts",
     "sha256": "a6fea0bb5e3dd63a854422c0a34d00e7cf0627709419c16ad47906e4c148dd3b"
+  },
+  {
+    "id": "bot-schedule-creation-receipts",
+    "sha256": "645281f35ccda914a5f53253861bf4a8076d5338f5cad9e03875625a17743c30"
+  },
+  {
+    "id": "pending-orchestrator-replacements",
+    "sha256": "0212155fd450e0d4030993a5e6bee01d90404edbb1af68b949e10e1612d40e21"
   }
 ]

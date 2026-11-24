@@ -1,11 +1,12 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useReducer, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
 import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
+import { registerPairingLinkReceiver } from '../../host/pairing-deep-link';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { HOST_NAME_MAX } from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme } from '../design/theme';
@@ -48,8 +49,16 @@ export function PairScanner({
   const imageOperation = useRef<AbortController | undefined>(undefined);
   const active = useRef(false);
   const submitting = useRef(false);
-  const deepLinked = useRef(false);
-  const pairing = usePairing();
+  const handledDeepLinks = useRef(new Set<string>());
+  const pendingDeepLinks = useRef(new Set<string>());
+  const [deepLinkRevision, checkDeepLinks] = useReducer((revision: number) => revision + 1, 0);
+  const enqueueDeepLink = useCallback((payload: string) => {
+    if (handledDeepLinks.current.has(payload) || pendingDeepLinks.current.has(payload)) return;
+    pendingDeepLinks.current.add(payload);
+    checkDeepLinks();
+  }, []);
+  const pairing = usePairing({ deferLeave: () => pendingDeepLinks.current.size > 0 });
+  const { abort } = pairing;
   const scroll = useRef<KeyboardAwareScrollViewRef>(null);
   const [linkBottom, setLinkBottom] = useState(0);
   const [submitBottom, setSubmitBottom] = useState(0);
@@ -81,6 +90,7 @@ export function PairScanner({
       if (active.current && failure !== undefined && clearsPastedLink(failure, method)) setLink('');
     } finally {
       submitting.current = false;
+      if (pendingDeepLinks.current.size > 0) checkDeepLinks();
     }
   };
 
@@ -108,6 +118,7 @@ export function PairScanner({
       await pairing.retry();
     } finally {
       submitting.current = false;
+      if (pendingDeepLinks.current.size > 0) checkDeepLinks();
     }
   };
 
@@ -115,19 +126,30 @@ export function PairScanner({
     useCallback(() => {
       active.current = true;
       setFocused(true);
-      if (deepLink !== undefined && !deepLinked.current) {
-        deepLinked.current = true;
-        void pair(`deepseekbot://pair?p=${deepLink}`, 'deep_link');
-      }
+      const unregister = registerPairingLinkReceiver(enqueueDeepLink);
       return () => {
+        unregister();
         active.current = false;
+        pendingDeepLinks.current.clear();
         imageOperation.current?.abort();
         imageOperation.current = undefined;
         setReadingImage(false);
         setFocused(false);
-        pairing.abort();
+        abort();
       };
-    }, [deepLink]),
+    }, [abort, enqueueDeepLink]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (deepLink !== undefined) enqueueDeepLink(deepLink);
+      if (!active.current || pairing.busy || imageOperation.current || submitting.current) return;
+      const payload = pendingDeepLinks.current.values().next().value;
+      if (payload === undefined) return;
+      pendingDeepLinks.current.delete(payload);
+      handledDeepLinks.current.add(payload);
+      void pair(`deepseekbot://pair?p=${encodeURIComponent(payload)}`, 'deep_link');
+    }, [deepLink, deepLinkRevision, enqueueDeepLink, pairing.busy, readingImage]),
   );
 
   if (pairing.busy) return <PairingVerification pairing={pairing} />;

@@ -17,7 +17,7 @@ import {
   type ChannelRecord,
 } from './channel.js';
 import type { ChannelStore } from './store.js';
-import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SqliteChannelStoreOptions, SqliteChannelAccess } from './sqlite-store.types.js';
 
 export function parseRecord(value: string, id: string): ChannelRecord | undefined {
@@ -109,8 +109,14 @@ export function createChannelRecords({
       : undefined;
   };
 
-  const writeRecord = (human: HumanContext, record: ChannelRecord): void => {
-    database.transaction(
+  const writeRecord = (
+    human: HumanContext,
+    record: ChannelRecord,
+    humanIds: readonly string[] = [],
+  ): void => {
+    const addInitialMembers = humanAccess.current?.addInitialMembers;
+    if (humanIds.length && !addInitialMembers) throw new TeamError('unavailable');
+    const notifyInitialMembers = database.transaction(
       (db) => {
         if (hasChannelAccessSchema())
           db.prepare(`INSERT INTO channel_records (channel_id, record_json, owner_human_id) VALUES (?, ?, ?)
@@ -131,9 +137,17 @@ export function createChannelRecords({
               (channel_id, human_id, display_name, visible_from_revision, joined_at)
             VALUES (?, ?, 'Human', 1, ?)
           `).run(record.id, human.humanId, record.createdAt);
+        return humanIds.length
+          ? addInitialMembers?.(db, human, record.id, humanIds, record.createdAt)
+          : undefined;
       },
       ['channel'],
     );
+    try {
+      notifyInitialMembers?.();
+    } catch (error) {
+      options.warn?.('Channel access notification failed: ' + String(error));
+    }
     publishRecordChanged();
   };
 
@@ -403,7 +417,17 @@ export function createChannelRecords({
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      writeRecord(human, record);
+      try {
+        writeRecord(human, record, input.humanIds);
+      } catch (error) {
+        if (
+          error instanceof OperationalDatabaseError &&
+          error.code === 'transaction-failed' &&
+          error.cause instanceof TeamError
+        )
+          throw error.cause;
+        throw error;
+      }
       return record;
     },
     setGroupAvatar(human: HumanContext, channelId, avatar) {

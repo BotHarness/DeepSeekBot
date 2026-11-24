@@ -9,7 +9,7 @@ import {
   type TextFieldRef,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
-import { useContext, useLayoutEffect, useReducer, useRef } from 'react';
+import { useContext, useImperativeHandle, useLayoutEffect, useReducer, useRef } from 'react';
 import {
   View,
   type NativeSyntheticEvent,
@@ -67,6 +67,7 @@ function event<T>(text: string) {
 
 export function TextField(props: TextFieldProps) {
   const {
+    ref,
     value = '',
     onChangeText,
     accessibilityLabel,
@@ -94,6 +95,7 @@ export function TextField(props: TextFieldProps) {
   const focus = useContext(KeyboardFormNativeFocus);
   const wrapper = useRef<ViewInstance | null>(null);
   const field = useRef<TextFieldRef | null>(null);
+  useImperativeHandle(ref, () => ({ focus: () => void field.current?.focus() }), []);
   const focused = useRef(false);
   const text = useNativeState(value);
   const pendingEchoes = useRef<string[]>([]);

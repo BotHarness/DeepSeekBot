@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createHostClient } from '@botharness/host-client/client';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import { afterEach, expect, it, vi } from 'vitest';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import type { HostSessionState } from '../src/host/host-session';
+import { emptyHostSession } from './support/host-session';
+
+const fakeHost = new FakeHost('host');
+const client = createHostClient({
+  routes: ['https://studio.tailnet-example.ts.net'],
+  credential: fakeHost.credential,
+  carrier: fakeHost.carrier,
+});
+
 const fixture = vi.hoisted(() => ({
   scope: 'all',
   platform: 'ios',
@@ -87,13 +99,11 @@ vi.mock('../src/ui/shell/creation-panel', () => ({
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
 vi.mock('../src/host/host-session', () => ({
-  useHostSession: () => ({
-    saved: fixture.saved,
-    client: fixture.saved
-      ? { subscribe: () => () => {}, getSnapshot: () => ({ connection: { status: 'idle' } }) }
-      : undefined,
-  }),
-  hostSession: { getState: () => ({ saved: undefined }) },
+  useHostSession: (): HostSessionState => {
+    const saved = fixture.saved;
+    return saved ? { ...emptyHostSession, saved, hosts: [saved], client } : emptyHostSession;
+  },
+  hostSession: { getState: () => emptyHostSession },
 }));
 vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => ({}) }));
 vi.mock('../src/host/native-conversation-filter', () => ({

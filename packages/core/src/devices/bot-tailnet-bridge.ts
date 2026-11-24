@@ -129,12 +129,20 @@ export function createTailnetBotBridge(options: {
   receive(sender: NetworkBotContact, message: NetworkBotMessage): Promise<void>;
   tailnet?: BotTailnet;
   ports?: readonly number[];
-  record?: (event: { phase: string; durationMs: number; code?: string; stage?: string }) => void;
+  record?: (event: {
+    phase: string;
+    durationMs: number;
+    code?: string;
+    stage?: string;
+    remoteHostId?: string;
+    message?: string;
+  }) => void;
 }): BotNetworkPort & {
   start(): Promise<void>;
   discover(): Promise<void>;
   close(): Promise<void>;
   probeMembership(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
+  probeWithdrawalMembership(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
 } {
   const tailnet = options.tailnet ?? createBotTailnet();
   const ports = options.ports ?? PORTS;
@@ -177,19 +185,31 @@ export function createTailnetBotBridge(options: {
   let closed = false;
   let lastSnapshot: Awaited<ReturnType<BotTailnet['snapshot']>> | undefined;
   const membershipChanges = new Map<string, Promise<void>>();
-  const observedWithdrawn = new Set<string>();
+  const observedWithdrawn = new Map<string, symbol>();
   const observedPending = new Map<string, Promise<void>>();
   let stopWatching: (() => void | Promise<void>) | undefined;
 
   function retireObserved(host: string): Promise<void> {
     const pending = observedPending.get(host);
     if (pending !== undefined) return pending;
-    if (!observedWithdrawn.has(host)) return Promise.resolve();
+    const withdrawal = observedWithdrawn.get(host);
+    if (withdrawal === undefined) return Promise.resolve();
     const work = Promise.resolve()
       .then(async () => {
         if (closed) return;
         await options.withdrawn?.(host);
-        observedWithdrawn.delete(host);
+        if (observedWithdrawn.get(host) === withdrawal) observedWithdrawn.delete(host);
+      })
+      .catch((error: unknown) => {
+        options.record?.({
+          phase: 'withdrawal-refused',
+          durationMs: 0,
+          code: 'network-withdrawal-unavailable',
+          remoteHostId: host,
+          message:
+            'Host membership revocation failed. Bot DMs on this route are blocked until cleanup succeeds.',
+        });
+        throw error;
       })
       .finally(() => {
         observedPending.delete(host);
@@ -210,15 +230,9 @@ export function createTailnetBotBridge(options: {
         .map(({ hostId }) => hostId),
     );
     for (const host of hosts) {
-      observedWithdrawn.add(host);
+      observedWithdrawn.set(host, Symbol());
       routes.delete(host);
-      void retireObserved(host).catch(() =>
-        options.record?.({
-          phase: 'withdrawal-refused',
-          durationMs: 0,
-          code: 'network-withdrawal-unavailable',
-        }),
-      );
+      void retireObserved(host).catch(() => undefined);
     }
   }
 
@@ -260,6 +274,7 @@ export function createTailnetBotBridge(options: {
       .catch(() => undefined)
       .then(async () => {
         await retireObserved(host);
+        if (observedWithdrawn.has(host)) throw new DeliveryError('network-denied');
         checkKey(host, key);
         const previousMemberships = memberships().filter((known) => known.hostId === host);
         if (
@@ -563,8 +578,10 @@ export function createTailnetBotBridge(options: {
       if (signal.aborted || closed) return;
       lastSnapshot = current;
       for (const host of new Set(memberships().map((item) => item.hostId))) {
-        await retireObserved(host);
-        if (membershipIn(host, current) === 'withdrawn') await options.withdrawn?.(host);
+        const state = membershipIn(host, current);
+        if (observedWithdrawn.has(host)) {
+          if (state === 'member') await retireObserved(host).catch(() => undefined);
+        } else if (state === 'withdrawn') await options.withdrawn?.(host);
       }
       await listen(current.self);
       if (closed) return;
@@ -596,7 +613,9 @@ export function createTailnetBotBridge(options: {
       );
       if (signal.aborted || closed) return;
       routes.clear();
-      if (!closed) for (const [id, route] of found) if (!collisions.has(id)) routes.set(id, route);
+      for (const [id, route] of found) {
+        if (!collisions.has(id) && !observedWithdrawn.has(id)) routes.set(id, route);
+      }
       options.record?.({ phase: 'discovery', durationMs: Date.now() - started });
     } catch {
       if (signal.aborted || closed) return;
@@ -606,6 +625,22 @@ export function createTailnetBotBridge(options: {
         durationMs: Date.now() - started,
         code: 'tailnet-unavailable',
       });
+    }
+  }
+
+  async function probeMembership(host: string) {
+    if (closed) return 'unavailable' as const;
+    try {
+      const current = await tailnet.snapshot();
+      const state = membershipIn(host, current);
+      if (!observedWithdrawn.has(host)) return state;
+      if (state !== 'member') return 'withdrawn' as const;
+      await retireObserved(host);
+      return (await bridge.probeWithdrawalMembership(host)) === 'member'
+        ? ('member' as const)
+        : ('withdrawn' as const);
+    } catch {
+      return observedWithdrawn.has(host) ? ('withdrawn' as const) : ('unavailable' as const);
     }
   }
 
@@ -643,21 +678,14 @@ export function createTailnetBotBridge(options: {
       });
       await refreshing;
     },
-    async probeMembership(host: string) {
+    membership: probeMembership,
+    probeMembership,
+    async probeWithdrawalMembership(host: string) {
       if (closed) return 'unavailable' as const;
       if (observedWithdrawn.has(host)) return 'withdrawn' as const;
       try {
-        return membershipIn(host, await tailnet.snapshot());
-      } catch {
-        return 'unavailable' as const;
-      }
-    },
-    async membership(host: string) {
-      try {
-        await retireObserved(host);
-        const state = membershipIn(host, await tailnet.snapshot());
-        if (state === 'withdrawn') await options.withdrawn?.(host);
-        return state;
+        const current = await tailnet.snapshot();
+        return observedWithdrawn.has(host) ? ('withdrawn' as const) : membershipIn(host, current);
       } catch {
         return observedWithdrawn.has(host) ? ('withdrawn' as const) : ('unavailable' as const);
       }

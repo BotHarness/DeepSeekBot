@@ -251,11 +251,12 @@ describe('bridge typert service', () => {
     const create = vi
       .spyOn(methods, 'channelCreate')
       .mockReturnValue({ ok: true, value: snapshot });
-    expect(service.channelCreate('Team', [], 'create-team-1')).toEqual(snapshot);
+    expect(service.channelCreate('Team', [], 'create-team-1', ['host-member'])).toEqual(snapshot);
     expect(create).toHaveBeenCalledWith({
       name: 'Team',
       members: [],
       operationKey: 'create-team-1',
+      humanIds: ['host-member'],
     });
     const invite = vi
       .spyOn(methods, 'channelGroupInvite')

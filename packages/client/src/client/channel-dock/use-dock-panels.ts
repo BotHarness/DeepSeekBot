@@ -828,5 +828,9 @@ export function useDockPanels(
     close,
     open,
     layoutMount,
+    channelRef,
+    fitSideColumn,
+    reportOpen,
+    showSimpleView,
   };
 }

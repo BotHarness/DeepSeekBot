@@ -25,7 +25,7 @@ import {
   telemetryDecision,
 } from '../../telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from '../../telemetry/daily-usage.js';
-import { startTokenUsage } from '../../telemetry/token-usage.js';
+import { startModelUsage, startTokenUsage } from '../../telemetry/token-usage.js';
 import { createBotTurnTelemetry } from '../../telemetry/bot-turn.js';
 import {
   createActiveDay,
@@ -237,6 +237,15 @@ export function mountTelemetryWatches(
           log: (message) => ctx.logger.info(message),
         }),
       'botharness: telemetry token usage',
+    );
+    ctx.effect(
+      () =>
+        startModelUsage({
+          telemetry,
+          snapshot: () => core.usage?.telemetrySnapshot(),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry model usage',
     );
     ctx.effect(
       () =>
