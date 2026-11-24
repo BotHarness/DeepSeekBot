@@ -115,7 +115,6 @@ function render(fontScale: number) {
   const view = document.createElement('div');
   view.innerHTML = renderToStaticMarkup(
     <ConversationTopBar
-      variant="group"
       title={TITLE}
       subtitle="Active 1 h ago"
       onBack={() => {}}
