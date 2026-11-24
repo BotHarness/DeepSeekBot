@@ -411,6 +411,37 @@ describe('named Claude Code subscription accounts', () => {
     }
   });
 
+  it('refuses Claude paste-back once the window ends even before sign-in cleanup', async () => {
+    const { host } = setup();
+    const submit = vi.fn(async () => {});
+    let exit: (() => void) | undefined;
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), ms);
+      return controller.signal;
+    });
+    const start = vi.spyOn(claudeStatus, 'startClaudeLogin').mockImplementation(async (options) => {
+      options.onCodeInput?.(submit);
+      exit = options.onExit;
+      return { url: 'https://claude.ai/oauth/authorize?fixture=1' };
+    });
+    try {
+      await host.login('claude');
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      await expect(host.submitClaudeCode('claude', 'fixture#state')).rejects.toMatchObject({
+        code: 'engine-login-not-pending',
+      });
+      expect(submit).not.toHaveBeenCalled();
+    } finally {
+      exit?.();
+      await host.close();
+      start.mockRestore();
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it.skipIf(process.platform === 'win32')(
     'forwards code via stdin only to the waiting account',
     async () => {

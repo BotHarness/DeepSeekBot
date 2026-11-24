@@ -60,13 +60,23 @@ interface DeviceLogin {
   progress: EngineDeviceLoginProgress;
 }
 
-interface AccountLogin {
+interface LoginProcess {
   controller: AbortController;
   closed: Promise<void>;
-  submitCode?: EngineLoginCodeInput;
-  browserSignal?: AbortSignal;
-  device?: DeviceLogin;
 }
+
+interface BrowserAccountLogin extends LoginProcess {
+  kind: 'browser';
+  signal: AbortSignal;
+  submitCode?: EngineLoginCodeInput;
+}
+
+interface DeviceAccountLogin extends LoginProcess {
+  kind: 'device';
+  device: DeviceLogin;
+}
+
+type AccountLogin = BrowserAccountLogin | DeviceAccountLogin;
 
 export class EngineHostAccounts {
   readonly #store: EngineStore;
@@ -491,7 +501,24 @@ export class EngineHostAccounts {
     const closed = new Promise<void>((resolve) => {
       resolveClosed = resolve;
     });
-    const login: AccountLogin = { controller: new AbortController(), closed };
+    const controller = new AbortController();
+    const login: AccountLogin =
+      mode === 'device-auth'
+        ? {
+            kind: 'device',
+            controller,
+            closed,
+            device: { attemptId: randomUUID(), progress: { status: 'starting' } },
+          }
+        : {
+            kind: 'browser',
+            controller,
+            closed,
+            signal: AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(BROWSER_SIGN_IN_WINDOW_MS),
+            ]),
+          };
     this.#logins.set(account.id, login);
     this.#models.delete(account.id);
     const onExit = () => {
@@ -503,18 +530,13 @@ export class EngineHostAccounts {
       resolveClosed();
     };
     try {
-      if (mode === 'device-auth')
+      if (login.kind === 'device')
         return {
           engine,
           started: true,
           attemptId: this.#deviceLogin(account, login, onExit),
         };
-      const signal = AbortSignal.any([
-        login.controller.signal,
-        AbortSignal.timeout(BROWSER_SIGN_IN_WINDOW_MS),
-      ]);
-      login.browserSignal = signal;
-      const process = { signal, onExit };
+      const process = { signal: login.signal, onExit };
       const started =
         engine === 'codex'
           ? await (this.#options.startCodexLogin ?? startCodexLogin)({
@@ -536,9 +558,13 @@ export class EngineHostAccounts {
     }
   }
 
-  #deviceLogin(account: StoredEngineAccount, login: AccountLogin, onExit: () => void): string {
+  #deviceLogin(
+    account: StoredEngineAccount,
+    login: DeviceAccountLogin,
+    onExit: () => void,
+  ): string {
     const target = this.codex(account);
-    const device: DeviceLogin = { attemptId: randomUUID(), progress: { status: 'starting' } };
+    const { device } = login;
     const startedAt = Date.now();
     const update = (progress: EngineDeviceLoginProgress) => {
       device.progress = progress;
@@ -552,7 +578,6 @@ export class EngineHostAccounts {
       update({ status: 'pending', ...challenge }),
     );
     this.#deviceLogins.set(account.id, device);
-    login.device = device;
     update({ status: 'starting' });
     void outcome.then(async (end) => {
       if (end.status === 'completed') {
@@ -580,12 +605,15 @@ export class EngineHostAccounts {
   async cancelLogin(id: string, attemptId?: string): Promise<{ cancelled: boolean }> {
     const account = this.target(id);
     const login = this.#logins.get(account.id);
-    if (login === undefined || (attemptId !== undefined && login.device?.attemptId !== attemptId))
+    if (
+      login === undefined ||
+      (attemptId !== undefined && (login.kind !== 'device' || login.device.attemptId !== attemptId))
+    )
       return { cancelled: false };
     login.controller.abort();
     await login.closed;
     return {
-      cancelled: login.device === undefined || login.device.progress.status === 'cancelled',
+      cancelled: login.kind === 'browser' || login.device.progress.status === 'cancelled',
     };
   }
 
@@ -593,7 +621,7 @@ export class EngineHostAccounts {
     this.#requireLocal();
     const account = this.#store.resolveAccount('claude', id);
     const login = this.#logins.get(account.id);
-    if (login === undefined || login.browserSignal?.aborted === true)
+    if (login === undefined || login.kind !== 'browser' || login.signal.aborted)
       throw new EngineRefusal(
         'engine-login-not-pending',
         'This Claude Code sign-in is no longer pending. Start sign-in again before submitting a new code.',
