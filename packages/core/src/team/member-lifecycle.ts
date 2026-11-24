@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { OperationalDatabaseError } from '../database/owner.js';
+import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import type { HumanContext } from '../humans/context.js';
 import { accountSpaceFiles, prepareSpaceTransfer } from '../workspaces/space-lifecycle.js';
-import { channelRoleMembershipEntrySql } from './channel-contract.js';
+import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import { TeamError } from './error.js';
 import type { TeamMember, TeamService } from './service.js';
 
@@ -33,6 +33,35 @@ export type MemberLifecycleHost = {
   stopBots: TeamService['stopBots'];
   transferPreview: TeamService['transferPreview'];
 };
+
+export function commitOwnerTransfer(
+  database: OperationalDatabaseModulePort,
+  from: string,
+  to: string,
+  at: string,
+): boolean {
+  return database.transaction(
+    (db) => {
+      db.prepare('DELETE FROM human_roles WHERE human_id IN (?, ?)').run(from, to);
+      db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(from);
+      db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(to);
+      db.prepare('UPDATE steward_role SET revision = revision + 1 WHERE singleton = 1').run();
+      db.prepare(`
+      UPDATE tob_memory_leases SET revoked_at = ?, revoke_reason = 'host-owner-transferred'
+      WHERE revoked_at IS NULL
+    `).run(at);
+      let roleAccessEnded = false;
+      for (const id of [from, to]) {
+        if (db.prepare(channelRoleMembershipExitSql('human')).run(at, id).changes > 0)
+          roleAccessEnded = true;
+        db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
+      }
+      db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(from, to);
+      return roleAccessEnded;
+    },
+    ['team'],
+  );
+}
 
 export async function suspend(
   this: MemberLifecycleHost,

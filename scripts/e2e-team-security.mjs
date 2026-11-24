@@ -18,6 +18,7 @@ import { runModelConfigurationGate } from './team-security-model-configuration-g
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
+import { runStewardGate } from './team-security-steward-gate.mjs';
 import { formatTeamSecurityReport } from './team-security-report.mjs';
 import { runScenarioAttempts } from './team-security-scenario.mjs';
 import {
@@ -929,68 +930,9 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
       runVoiceProviderGate(s, { as: fx.users.bob }, check),
     );
-    await define('C8', 'Steward transfer belongs to the Human Owner', async (check) => {
-      const member = { as: fx.users.bob };
-      const previous = s.cli(['steward']).botSlug;
-      const privateHome = s.cli(['tob-home'], member);
-      const memberId = s.cli(['steward'], member);
-      check(
-        'Member receives only the Steward Bot id',
-        Object.keys(memberId).join(',') === 'botSlug' && memberId.botSlug === previous,
-        memberId,
-      );
-      check(
-        'Member receives no Steward Home or Workspace data',
-        Object.keys(privateHome).join(',') === 'available' && privateHome.available === false,
-      );
-      const denied = s.cli(['steward-transfer', fx.vaultSlug, '--confirm'], {
-        ...member,
-        allowFail: true,
-      });
-      check(
-        'Member remote policy excludes Steward transfer',
-        denied.error?.code === 'remote-access/denied',
-        denied.error?.code,
-      );
-      check('Member denial preserves the Steward', s.cli(['steward']).botSlug === previous);
-
-      const transferred = s.cli(['steward-transfer', fx.vaultSlug, '--confirm']);
-      check('Owner moves the role', transferred.botSlug === fx.vaultSlug);
-      const from = s.messages(`dm-${previous}`);
-      const to = s.messages(`dm-${fx.vaultSlug}`);
-      check(
-        'Both Human DMs contain the same Host system marker',
-        [from, to].every((messages) =>
-          messages.some(
-            (message) =>
-              message.author?.kind === 'system' &&
-              message.stewardTransfer?.botSlug === fx.vaultSlug,
-          ),
-        ),
-      );
-      const approvals = s
-        .messages(`dm-${fx.vaultSlug}`)
-        .filter((message) => message.toolApprovalRequest).length;
-      let request = s.cli(['tob-cli', 'start', '--args-stdin'], {
-        input: JSON.stringify({ argv: ['steward-transfer', previous, '--confirm'] }),
-      });
-      const until = Date.now() + 30_000;
-      while (request.state === 'running' && Date.now() < until) {
-        await new Promise((done) => setTimeout(done, 250));
-        request = s.cli(['tob-cli', 'status', request.id]);
-      }
-      s.transcript('steward-cli-refusal', request);
-      let refusal = request.code;
-      try {
-        refusal ??= JSON.parse(request.result?.stdout ?? '').error?.code;
-      } catch {}
-      check('Steward broker refuses transfer', refusal === 'cli-command-refused', refusal);
-      check(
-        'Steward refusal creates no approval card or transfer',
-        s.messages(`dm-${fx.vaultSlug}`).filter((message) => message.toolApprovalRequest).length ===
-          approvals && s.cli(['steward']).botSlug === fx.vaultSlug,
-      );
-    });
+    await define('C8', 'Steward transfer belongs to the Human Owner', (check) =>
+      runStewardGate(s, { as: fx.users.bob, target: fx.vaultSlug }, check),
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;
