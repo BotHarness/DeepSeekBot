@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Image, Platform, View, type LayoutChangeEvent } from 'react-native';
 
 import {
@@ -38,7 +38,6 @@ function Heading({
   const theme = useDesignTheme();
   return (
     <View
-      testID="email-sign-in-heading"
       onLayout={onLayout}
       style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}
     >
@@ -85,7 +84,6 @@ function OrDivider({ label }: { label: string }) {
 }
 
 const CODE_LENGTH = 6;
-const SECTION_GAP = space.x4;
 const digits = (value: string) => value.replace(/\D/gu, '').slice(0, CODE_LENGTH);
 
 export function EmailCodeSignIn({
@@ -111,15 +109,9 @@ export function EmailCodeSignIn({
   const [error, setError] = useState<EmailCodeRefusal>();
   const working = useRef(false);
   const submit = useKeyboardFormSubmit();
-  const [headingHeight, setHeadingHeight] = useState(0);
-  const measureHeading = (event: LayoutChangeEvent) => {
-    const next = event.nativeEvent.layout.height;
-    setHeadingHeight((current) => (current === next ? current : next));
-  };
-  const headingSnaps = useMemo(
-    () => (headingHeight > 0 ? [headingHeight + SECTION_GAP] : undefined),
-    [headingHeight],
-  );
+  const [headingEnd, setHeadingEnd] = useState(0);
+  const measureHeading = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setHeadingEnd(layout.y + layout.height);
 
   const run = async (work: () => Promise<void>) => {
     if (working.current) return;
@@ -208,13 +200,12 @@ export function EmailCodeSignIn({
       {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
-      {...(headingSnaps ? { snapToOffsets: headingSnaps } : {})}
-      snapToEnd={false}
+      revealPast={headingEnd}
       contentContainerStyle={{
         paddingHorizontal: space.x5,
         paddingTop: space.x3,
         paddingBottom: space.x6,
-        gap: SECTION_GAP,
+        gap: space.x4,
       }}
     >
       {sentTo === undefined ? (

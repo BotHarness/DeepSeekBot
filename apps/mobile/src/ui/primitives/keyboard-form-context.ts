@@ -9,11 +9,3 @@ export const KeyboardFormNativeFocus = createContext<
 export function clippedHeight(nativeHeight: number, layoutHeight: number) {
   return layoutHeight > 0 ? Math.max(0, nativeHeight - layoutHeight) : 0;
 }
-
-export function revealSnap(offset: number, snaps: readonly number[]) {
-  'worklet';
-  if (offset <= 0) return undefined;
-  let next: number | undefined;
-  for (const snap of snaps) if (snap > offset && (next === undefined || snap < next)) next = snap;
-  return next;
-}

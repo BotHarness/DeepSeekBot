@@ -13,13 +13,11 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
-import { revealSnap } from './keyboard-form-context';
-
 export function useNativeFormScroll(
   forwardedRef: Ref<KeyboardAwareScrollViewRef> | undefined,
   enabled: boolean,
   bottomOffset: number,
-  snaps: readonly number[] = [],
+  revealPast: number,
 ) {
   const scroll = useAnimatedRef<KeyboardAwareScrollViewRef>();
   const offset = useScrollOffset(scroll);
@@ -44,25 +42,19 @@ export function useNativeFormScroll(
     [enabled, inputBottom, offset],
   );
   useAnimatedReaction(
-    () => ({ keyboard: height.get(), bottom: inputBottom.get() }),
-    ({ keyboard, bottom }) => {
-      if (!enabled || keyboard >= 0 || bottom === 0) return;
+    () => ({ keyboard: height.get(), shown: progress.get(), bottom: inputBottom.get() }),
+    ({ keyboard, shown, bottom }) => {
+      if (!enabled || keyboard >= 0 || shown <= 0 || bottom === 0) return;
       const viewport = measure(scroll);
       if (!viewport) return;
-      const overlap =
-        bottom - offset.get() - (viewport.pageY + viewport.height + keyboard - bottomOffset);
-      if (overlap > 0) scrollTo(scroll, 0, offset.get() + overlap, false);
+      const revealFor = (cover: number) =>
+        bottom - (viewport.pageY + viewport.height + cover - bottomOffset);
+      const open = revealFor(keyboard / shown);
+      const settled = open > 0 && open < revealPast ? revealPast : open;
+      const target = Math.max(revealFor(keyboard), settled * shown);
+      if (target > offset.get()) scrollTo(scroll, 0, target, false);
     },
-    [enabled, bottomOffset],
-  );
-  useAnimatedReaction(
-    () => progress.get() === 1 && inputBottom.get() !== 0,
-    (open, wasOpen) => {
-      if (!enabled || !open || wasOpen) return;
-      const next = revealSnap(offset.get(), snaps);
-      if (next !== undefined) scrollTo(scroll, 0, next, true);
-    },
-    [enabled, snaps],
+    [enabled, bottomOffset, revealPast],
   );
   const ref = useCallback(
     (node: KeyboardAwareScrollViewRef | null) => {
