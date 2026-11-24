@@ -5,7 +5,11 @@ import type { ChannelStore } from '../channels/store.js';
 import type { ChannelQuestionNotice, ChannelUserQuestions } from '../channels/user-questions.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ApprovalMessaging, ApprovalRoute } from './approval-messaging.js';
-import { createInteractionAuthority, type InteractionContext } from './authority.js';
+import {
+  createInteractionAuthority,
+  type InteractionContext,
+  type InteractionDestination,
+} from './authority.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
   explainQuestionReply,
@@ -36,6 +40,7 @@ export interface QuestionDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  destination?: InteractionDestination;
   submission: 'none' | 'submitting' | 'accepted' | 'refused' | 'unknown-outcome';
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
   reason?: string;
@@ -258,7 +263,16 @@ export function createQuestionMessaging(options: {
     write({ ...value, attempts: value.attempts + 1 });
     try {
       const { identity, paired, provider } = context(value);
-      if (!live(value) || !paired.messageIds?.[0])
+      const target =
+        value.destination?.reply ??
+        (paired.messageIds?.[0]
+          ? {
+              messageId: paired.messageIds[0],
+              actorId: paired.actorId,
+              conversationId: paired.conversationId,
+            }
+          : undefined);
+      if (!live(value) || !target)
         throw new MessagingProviderError('question-owner-unavailable', 'not-started');
       write({ ...value, attempts: value.attempts + 1, delivery: 'sending' });
       started = true;
@@ -266,11 +280,7 @@ export function createQuestionMessaging(options: {
         provider.questionCard!({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
-          route: {
-            messageId: paired.messageIds![0]!,
-            actorId: paired.actorId,
-            conversationId: paired.conversationId,
-          },
+          route: target,
           card: render(value),
           signal,
           beforeSend: () => safe(value) && live(value),
@@ -279,7 +289,7 @@ export function createQuestionMessaging(options: {
       if (
         result.sent !== true ||
         result.receipt?.version !== 1 ||
-        result.receipt.conversationId !== paired.conversationId
+        result.receipt.conversationId !== target.conversationId
       )
         throw new MessagingProviderError('provider-result-unknown', 'unknown');
       const latest = read(id);
@@ -315,7 +325,9 @@ export function createQuestionMessaging(options: {
       const route = options.approvals.snapshot(notice.botSlug).route;
       const question = channels?.message(notice.channelId, notice.messageId)?.userQuestionRequest;
       if (!route || !question) return;
+      const destination = authority.groupDestination(route, notice.channelId);
       write({
+        ...(destination ? { destination } : {}),
         id: notice.messageId,
         botSlug: notice.botSlug,
         channelId: notice.channelId,
@@ -354,12 +366,10 @@ export function createQuestionMessaging(options: {
     },
   ) =>
     safe(value) && live(value)
-      ? authority.authorize(
-          value.route,
-          { ...event, providerId },
-          'answer',
-          value.receipt?.conversationId ?? event.conversationId,
-        )
+      ? authority.authorize(value.route, { ...event, providerId }, 'answer', {
+          id: value.receipt?.conversationId ?? event.conversationId,
+          shared: value.destination !== undefined,
+        })
       : undefined;
   const authorized = (...input: Parameters<typeof answerer>) => answerer(...input) !== undefined;
   const submit = (
@@ -516,11 +526,10 @@ export function createQuestionMessaging(options: {
       const supported =
         isMessagingPlatform(event.channel) &&
         !!messagingPlatform(event.channel).features.interactions &&
-        event.conversation.kind === 'dm' &&
         !event.attachments?.length;
       const quoted = candidates.find((value) => value.receipt?.messageId === event.reply.parentId);
       if (!command && !quoted && !explicit) {
-        if (!supported || signal.aborted) return false;
+        if (!supported || event.conversation.kind !== 'dm' || signal.aborted) return false;
         const mine = candidates.filter((item) => authorized(item, providerId, sender));
         const only = mine.length === 1 ? mine[0]! : undefined;
         const question = only && request(only);

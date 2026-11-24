@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { fingerprint, fixture } from './lark-approval-fixtures.js';
+import { placeGroupSource } from './messaging-group-source.js';
 
 it('an IM-only Bot can request native approval before anyone opens its Web DM', async () => {
   const f = await fixture(true, true, true, true, false);
@@ -340,4 +341,32 @@ it('native Session-wide authorizations notify but remain Web-only', async () => 
     await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', pending.delivery.id, 'allowed-once'),
   ).toBe(true);
   expect(await pending.answer).toBe('allowed-once');
+});
+
+it('an approval raised from a Lark group is decided in that group by a paired person, never by an unpaired member or from another chat', async () => {
+  const f = await fixture(false, true);
+  placeGroupSource(f.core, {
+    channelId: 'dm-ada',
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  const first = await f.start();
+  await vi.waitFor(() => expect(f.cards).toHaveBeenCalled());
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
+    messageId: 'om_team_ask',
+    conversationId: 'oc_team',
+  });
+  expect(first.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_team' });
+  expect(await f.ruleAction(first.delivery.id, 'preview-exact', undefined)).toMatchObject({
+    status: 'refused',
+  });
+  expect(
+    await f.action(first.delivery.id, { actorId: 'ou_bob', conversationId: 'oc_team' }),
+  ).toMatchObject({ status: 'refused' });
+  expect(await f.action(first.delivery.id)).toMatchObject({ status: 'refused' });
+  expect(await f.action(first.delivery.id, { conversationId: 'oc_team' })).toMatchObject({
+    status: 'queued',
+  });
+  expect(await first.answer).toBe('allowed-once');
 });

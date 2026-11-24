@@ -14,6 +14,9 @@ import { createTempRoot } from './helpers.js';
 import { createQuestionMessaging } from '../src/messaging/question-messaging.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { dmChannelId } from '../src/channels/channel.js';
+import { placeGroupSource } from './messaging-group-source.js';
+import { commitMessagingDefaults, messagingDefaults } from '../src/messaging/defaults.js';
 
 const fingerprint = 'a'.repeat(64);
 const cores: BotHarnessCore[] = [];
@@ -192,15 +195,28 @@ async function fixture() {
       },
       { signal: receiver!.signal },
     );
-  const text = (text: string, parentId?: string) => {
+  const text = (
+    text: string,
+    parentId?: string,
+    from: { actorId?: string; conversation?: MessagingInboundEvent['conversation'] } = {},
+  ) => {
     const messageId = crypto.randomUUID();
+    const conversation = from.conversation ?? event.conversation;
+    const actorId = from.actorId ?? event.actor.id;
     return receiver!.onEvent(
       {
         ...event,
         eventId: crypto.randomUUID(),
         messageId,
         text,
-        reply: { ...event.reply, messageId, ...(parentId ? { parentId } : {}) },
+        actor: { ...event.actor, id: actorId },
+        conversation,
+        reply: {
+          messageId,
+          conversationId: conversation.id,
+          actorId,
+          ...(parentId ? { parentId } : {}),
+        },
       },
       { signal: receiver!.signal },
     );
@@ -435,4 +451,48 @@ it('text replies answer with letters, several questions, a #reference, or a bare
       { id: 'note', selected: [], custom: 'ship at 3 pm' },
     ],
   });
+});
+
+it('a question raised from a Lark group conversation is answered in that group by paired people only, and the default can send it back to the DM', async () => {
+  const f = await fixture();
+  const group = { kind: 'group' as const, id: 'oc_team' };
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  const asked = await f.start();
+  expect(asked.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_team' });
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
+    messageId: 'om_team_ask',
+    conversationId: 'oc_team',
+  });
+  const card = 'om_' + asked.delivery.id;
+  await f.text('A', card, { actorId: 'ou_bob', conversation: group });
+  await f.text('B', undefined, { conversation: group });
+  expect(f.owner.pending('ada', asked.delivery.id)).toBeDefined();
+  await f.text('B', card, { conversation: group });
+  expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+  const actor = f.core.channels
+    .readMessages(dmChannelId('ada'))
+    .find((message) => message.userQuestionResolution?.requestMessageId === asked.delivery.id)
+    ?.userQuestionResolution?.actor;
+  expect(actor).toMatchObject({
+    platform: 'feishu',
+    actorId: 'ou_alice',
+    conversationId: 'oc_team',
+  });
+
+  attachOperationalModule(f.core.operationalDatabase, 'messaging').transaction((db) => {
+    const { revision, changedAt: _at, ...preferences } = messagingDefaults(db, 'feishu');
+    commitMessagingDefaults(db, {
+      ...preferences,
+      expectedRevision: revision,
+      groupInteractions: false,
+    });
+  });
+  const private_ = await f.start();
+  expect(private_.delivery.destination).toBeUndefined();
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({ conversationId: 'oc_private' });
 });

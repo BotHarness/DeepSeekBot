@@ -9,7 +9,8 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
-import { createInteractionAuthority, type InteractionContext } from './authority.js';
+import { createInteractionAuthority } from './authority.js';
+import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import { assertMessagingIdentity, type MessagingIdentity } from './identity.js';
@@ -33,6 +34,7 @@ export interface ApprovalRoute {
 }
 export interface ApprovalDelivery {
   id: string;
+  destination?: InteractionDestination;
   botSlug: string;
   channelId?: string;
   requestMessageId?: string;
@@ -290,6 +292,7 @@ export function createApprovalMessaging(options: {
     kind: 'exact' | 'all-opaque' = 'exact',
   ): boolean => {
     try {
+      if (value.destination) return false;
       const context = resolve(value.route);
       if (context.provider.approvalRuleCardSupported !== true) return false;
       if (
@@ -479,18 +482,23 @@ export function createApprovalMessaging(options: {
       if (!safe(value) || !requestLive(value))
         throw new MessagingProviderError('request-expired', 'not-started');
       const messageId = context.paired.messageIds?.[0];
-      if (!messageId) throw new MessagingProviderError('source-unavailable', 'not-started');
+      const target =
+        value.destination?.reply ??
+        (messageId
+          ? {
+              messageId,
+              conversationId: context.paired.conversationId,
+              actorId: context.paired.actorId,
+            }
+          : undefined);
+      if (!target) throw new MessagingProviderError('source-unavailable', 'not-started');
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;
       const result = await bounded((signal) =>
         context.provider.approvalCard!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
-          route: {
-            messageId,
-            conversationId: context.paired.conversationId,
-            actorId: context.paired.actorId,
-          },
+          route: target,
           card: render(value),
           signal,
           beforeSend: () => safe(value) && requestLive(value),
@@ -565,7 +573,9 @@ export function createApprovalMessaging(options: {
       )
         return;
       if (!selected) return;
+      const destination = authority.groupDestination(selected, notice.channelId);
       write({
+        ...(destination ? { destination } : {}),
         id: notice.messageId,
         botSlug: notice.botSlug,
         channelId: notice.channelId,
@@ -783,7 +793,7 @@ export function createApprovalMessaging(options: {
               value.route,
               { ...event, providerId },
               event.action === 'rejected' ? 'reject' : 'approve',
-              value.receipt?.conversationId ?? '',
+              { id: value.receipt?.conversationId ?? '', shared: value.destination !== undefined },
             ) !== undefined &&
             value.delivery === 'sent' &&
             value.receipt?.conversationId === event.conversationId &&
@@ -873,7 +883,7 @@ export function createApprovalMessaging(options: {
         value.route,
         { ...event, providerId },
         event.action === 'rejected' ? 'reject' : 'approve',
-        event.conversationId,
+        { id: event.conversationId, shared: value.destination !== undefined },
       );
       if (!actor) return { accepted: true, status: 'refused' };
       queueMicrotask(
@@ -905,21 +915,17 @@ export function createApprovalMessaging(options: {
                     }
                   : {}),
                 authorized: () => {
-                  try {
-                    if (signal.aborted || !safe(value)) return false;
-                    const paired = pairing.assert(
-                      value.botSlug,
-                      context.identity.id,
-                      event.actorId,
-                      event.action === 'rejected' ? 'reject' : 'approve',
-                      value.route.pairingId,
-                    );
-                    return (
-                      paired.id === actor.pairingId && paired.revision === actor.pairingRevision
-                    );
-                  } catch {
-                    return false;
-                  }
+                  if (signal.aborted || !safe(value)) return false;
+                  const current = authority.authorize(
+                    value.route,
+                    { ...event, providerId },
+                    event.action === 'rejected' ? 'reject' : 'approve',
+                    { id: event.conversationId, shared: value.destination !== undefined },
+                  );
+                  return (
+                    current?.pairingId === actor.pairingId &&
+                    current.pairingRevision === actor.pairingRevision
+                  );
                 },
               },
             )

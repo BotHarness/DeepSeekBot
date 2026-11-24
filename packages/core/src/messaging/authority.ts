@@ -7,7 +7,9 @@ import {
   messagingPlatform,
   type MessagingPlatformId,
 } from './platforms/index.js';
-import { MessagingError, type MessagingProvider } from './provider.js';
+import { messagingDefaults } from './defaults.js';
+import type { ExternalSource } from './inbound-types.js';
+import { MessagingError, type MessagingProvider, type MessagingReplyRoute } from './provider.js';
 
 export interface InteractionGrant {
   botSlug: string;
@@ -25,6 +27,12 @@ export interface InteractionSource {
   messageId: string;
 }
 
+export interface InteractionDestination {
+  kind: 'group';
+  conversationId: string;
+  reply: MessagingReplyRoute;
+}
+
 export interface InteractionContext {
   identity: MessagingIdentity;
   platform: MessagingPlatformId;
@@ -38,8 +46,9 @@ export interface InteractionAuthority {
     grant: InteractionGrant,
     source: InteractionSource,
     capability: PairingCapability,
-    conversationId: string,
+    conversation: { id: string; shared?: boolean },
   ): ToolApprovalActor | undefined;
+  groupDestination(grant: InteractionGrant, channelId: string): InteractionDestination | undefined;
 }
 
 export function createInteractionAuthority(options: {
@@ -70,7 +79,33 @@ export function createInteractionAuthority(options: {
   };
   return {
     context,
-    authorize(grant, source, capability, conversationId) {
+    groupDestination(grant, channelId) {
+      try {
+        const { identity, platform } = context(grant);
+        return options.database.read((db) => {
+          if (messagingDefaults(db, platform).groupInteractions === false) return undefined;
+          const row = db
+            .prepare(
+              "SELECT e.payload_json FROM source_events e WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (e.channel_id = ? OR EXISTS (SELECT 1 FROM channel_placements p WHERE p.source_event_id = e.source_event_id AND p.channel_id = ?)) ORDER BY e.rowid DESC LIMIT 1",
+            )
+            .get(grant.botSlug, channelId, channelId) as
+            | { payload_json: string | null }
+            | undefined;
+          const event = row?.payload_json
+            ? (JSON.parse(row.payload_json) as { external?: ExternalSource }).external?.event
+            : undefined;
+          return event?.conversation.kind === 'group' &&
+            event.channel === platform &&
+            event.botId === identity.accountRef &&
+            event.fingerprint === identity.fingerprint
+            ? { kind: 'group' as const, conversationId: event.conversation.id, reply: event.reply }
+            : undefined;
+        });
+      } catch {
+        return undefined;
+      }
+    },
+    authorize(grant, source, capability, conversation) {
       try {
         const { identity, platform } = context(grant);
         const current = options.pairing.assert(
@@ -78,15 +113,16 @@ export function createInteractionAuthority(options: {
           identity.id,
           source.actorId,
           capability,
-          grant.pairingId,
+          conversation.shared ? undefined : grant.pairingId,
         );
         if (
           identity.providerId !== source.providerId ||
           identity.accountRef !== source.botId ||
           identity.fingerprint !== source.fingerprint ||
-          current.revision !== grant.pairingRevision ||
-          current.conversationId !== source.conversationId ||
-          conversationId !== source.conversationId
+          conversation.id !== source.conversationId ||
+          (!conversation.shared &&
+            (current.revision !== grant.pairingRevision ||
+              current.conversationId !== source.conversationId))
         )
           return undefined;
         return {
