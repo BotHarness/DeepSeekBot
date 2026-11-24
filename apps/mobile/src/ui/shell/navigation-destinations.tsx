@@ -33,7 +33,6 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             }
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
-            onLongPress={item.onLongPress}
             android_ripple={{
               color: pressTint(theme.color.fg),
               borderless: true,

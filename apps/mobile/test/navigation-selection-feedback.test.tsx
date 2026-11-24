@@ -21,6 +21,9 @@ vi.mock('react-native', async () => ({
   },
   Keyboard: { dismiss: vi.fn() },
 }));
+vi.mock('../src/ui/shell/use-tab-menus', () => ({
+  useTabMenus: () => ({ menus: {}, load: () => {} }),
+}));
 vi.mock('expo-router', () => ({
   router: { push: vi.fn() },
   useIsFocused: () => true,

@@ -334,6 +334,7 @@ export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
+export const tabMenu = { recent: 4 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
 export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
