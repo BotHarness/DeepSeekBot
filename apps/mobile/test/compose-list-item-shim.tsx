@@ -9,17 +9,10 @@ const slot =
     createElement('span', { 'data-slot': name }, children);
 
 export const components = {
-  Host: ({
-    children,
-    matchContents,
-    systemFontScale,
-  }: Children & { matchContents?: { vertical?: boolean }; systemFontScale?: number }) =>
+  Host: ({ children, matchContents }: Children & { matchContents?: { vertical?: boolean } }) =>
     createElement(
       'div',
-      {
-        'data-host': matchContents?.vertical === true ? 'match-vertical' : 'fixed',
-        'data-system-font-scale': systemFontScale,
-      },
+      { 'data-host': matchContents?.vertical === true ? 'match-vertical' : 'fixed' },
       children,
     ),
   ListItem: Object.assign(

@@ -3,10 +3,7 @@ import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const device = vi.hoisted(() => ({
-  fontScale: 1,
-  listeners: new Set<() => void>(),
-}));
+const device = vi.hoisted(() => ({ fontScale: 1, listeners: new Set<() => void>() }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android' },
@@ -227,66 +224,49 @@ it('hosts avatars inside the item and keeps React Native buttons outside it', as
   expect(screen.querySelector('button')!.textContent).toBe('Remove');
 });
 
-it('updates Android Settings row font scale and wrapping on the mounted Compose host', async () => {
+it('keeps the Android Settings row value visible with its label at font scale 2', async () => {
+  device.fontScale = 2;
+  const computer = 'A very long Computer name';
+  const open = vi.fn();
   const screen = await render(
     <SettingsRow
-      title="A long Environment name that needs room to wrap"
-      detail="A longer status description"
-      detailDot="green-token"
+      testID="environment-row"
+      title="Environment"
+      icon="computer"
       singleLine
-      control={{ kind: 'value', text: 'Follow system settings', chevron: true }}
+      control={{ kind: 'value', text: computer, chevron: true }}
+      onPress={open}
     />,
   );
-  const nativeHost = screen.querySelector('[data-host]')!;
-  const item = nativeHost.querySelector('[data-list-item]')!;
+  const item = screen.querySelector<HTMLElement>('[data-list-item]')!;
   const headline = slot(item, 'headline')!.querySelector('span')!;
-  for (const scale of [2, 1.3, 1]) {
-    await act(async () => {
+  const setFontScale = (scale: number) =>
+    act(async () => {
       device.fontScale = scale;
       for (const notify of device.listeners) notify();
     });
-    expect(screen.querySelector('[data-host]')).toBe(nativeHost);
-    expect(nativeHost.getAttribute('data-system-font-scale')).toBe(String(scale));
-    expect(headline.getAttribute('data-max-lines')).toBe(scale === 1 ? '1' : null);
-    const detail = [...slot(item, 'supporting')!.querySelectorAll('span')].find(
-      (text) => text.textContent === 'A longer status description',
-    );
-    expect(detail?.getAttribute('data-max-lines')).toBe(scale === 1 ? '1' : null);
-    const valueSlot = scale === 1 ? 'trailing' : 'supporting';
-    expect(slot(item, valueSlot)!.textContent).toContain('Follow system settings');
-  }
-});
 
-it.each([
-  [1, 'trailing'],
-  [2, 'supporting'],
-] as const)(
-  'keeps a value beside the title at font scale %s and moves it under the title at large text',
-  async (fontScale, place) => {
-    device.fontScale = fontScale;
-    const screen = await render(
-      <SettingsSection>
-        <SettingsRow
-          testID="environment-row"
-          title="Environment"
-          icon="computer"
-          control={{ kind: 'value', text: 'A very long Computer name', chevron: true }}
-          onPress={() => {}}
-        />
-      </SettingsSection>,
+  for (const scale of [2, 1.3]) {
+    await setFontScale(scale);
+    expect(headline.textContent).toBe(`Environment\n${computer}`);
+    expect(headline.hasAttribute('data-max-lines')).toBe(false);
+    expect(slot(item, 'supporting')).toBeNull();
+    expect(slot(item, 'trailing')!.textContent).toBe('');
+    expect(slot(item, 'trailing')!.querySelector('i')!.getAttribute('data-icon')).toBe(
+      'row-icon:chevron',
     );
-    const item = screen.querySelector<HTMLElement>('[data-list-item]')!;
-    expect(slot(item, 'headline')!.textContent).toBe('Environment');
-    expect(slot(item, place)!.textContent).toContain('A very long Computer name');
-    const trailing = slot(item, 'trailing')!;
-    expect(trailing.querySelector('i')!.getAttribute('data-icon')).toBe('row-icon:chevron');
-    if (place === 'supporting') expect(trailing.textContent).toBe('');
-    else expect(slot(item, 'supporting')).toBeNull();
-    expect(
-      screen.querySelector('[data-testid="environment-row"]')!.getAttribute('aria-label'),
-    ).toBe('Environment, A very long Computer name');
-  },
-);
+  }
+  expect(screen.querySelector('[data-testid="environment-row"]')!.getAttribute('aria-label')).toBe(
+    `Environment, ${computer}`,
+  );
+  await act(async () => headline.click());
+  expect(open).toHaveBeenCalledOnce();
+
+  await setFontScale(1);
+  expect(headline.textContent).toBe('Environment');
+  expect(headline.getAttribute('data-max-lines')).toBe('1');
+  expect(slot(item, 'trailing')!.textContent).toBe(computer);
+});
 
 it.each([1, 2])('keeps a detail status dot beside a value at font scale %s', async (fontScale) => {
   device.fontScale = fontScale;
@@ -301,10 +281,12 @@ it.each([1, 2])('keeps a detail status dot beside a value at font scale %s', asy
       />
     </SettingsSection>,
   );
-  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  const item = screen.querySelector('[data-list-item]')!;
+  const supporting = slot(item, 'supporting')!;
   expect(supporting.querySelector('[data-dot]')!.getAttribute('data-dot')).toBe('green-token');
   expect(supporting.textContent).toContain('Online');
-  expect(supporting.textContent?.includes('QA Host')).toBe(fontScale === 2);
+  expect(supporting.textContent).toBe('Online');
+  expect(slot(item, 'headline')!.textContent?.includes('QA Host')).toBe(fontScale === 2);
 });
 
 it('keeps a text-only detail without a dot', async () => {
