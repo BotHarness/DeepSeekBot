@@ -1,7 +1,6 @@
 import {
   Box,
   CircularProgressIndicator,
-  Column,
   Host,
   Icon,
   ListItem,
@@ -91,7 +90,7 @@ export function SettingsListItem(props: SettingsRowProps) {
   const fill = selected === true ? colors.selected : theme.layer[on].fill;
   const control: SettingsRowControl | undefined =
     props.control ?? (disclosure && trailing === undefined ? { kind: 'chevron' } : undefined);
-  const below = valueBelowTitle(control, theme.largeText) ? control : undefined;
+  const below = valueBelowTitle(control, theme.fontScale > 1) ? control : undefined;
   const end: SettingsRowControl | undefined =
     below === undefined ? control : below.chevron === true ? { kind: 'chevron' } : undefined;
   const toggle = control?.kind === 'switch' ? control : undefined;
@@ -151,23 +150,19 @@ export function SettingsListItem(props: SettingsRowProps) {
             <ListItem.HeadlineContent>
               <Text
                 {...(headline === undefined ? {} : { color: headline })}
-                {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}
+                {...(below === undefined ? lines : {})}
                 style={strong ? { fontWeight: 'bold' } : {}}
               >
                 {title}
+                {below === undefined ? null : (
+                  <Text color={theme.color.muted} style={{ fontWeight: 'normal' }}>
+                    {`\n${below.text}`}
+                  </Text>
+                )}
               </Text>
             </ListItem.HeadlineContent>
-            {below === undefined && detailLine === null ? null : (
-              <ListItem.SupportingContent>
-                {below === undefined ? (
-                  detailLine
-                ) : (
-                  <Column>
-                    {detailLine}
-                    <Text style={{ typography: 'bodyMedium' }}>{below.text}</Text>
-                  </Column>
-                )}
-              </ListItem.SupportingContent>
+            {detailLine === null ? null : (
+              <ListItem.SupportingContent>{detailLine}</ListItem.SupportingContent>
             )}
             {icon === undefined && leading === undefined ? null : (
               <ListItem.LeadingContent>
