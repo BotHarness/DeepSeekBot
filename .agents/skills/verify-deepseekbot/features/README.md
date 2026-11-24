@@ -56,6 +56,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone pairing, inbound Connections, onboarding Quick connect, QR images and route guidance | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs`, `scripts/e2e-phone-recovery.mjs` | [phone-pairing.md](phone-pairing.md) |
 | Phone Environment sheet, Chats header and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
 | Phone tab long-press menus (recent conversations, Sessions and pending Activity) | no | none (shared-device native path) | [phone-tab-menus.md](phone-tab-menus.md) |
+| Phone Sessions navigation style (Drawer / Stacked) and landing settings | no | none (shared-device native path) | [phone-sessions-navigation.md](phone-sessions-navigation.md) |
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |

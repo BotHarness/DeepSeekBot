@@ -281,6 +281,14 @@
       "gap": "iOS Simulator qualified with agent-device longpress; a physical iPhone and the Android emulator lane are not yet run."
     },
     {
+      "id": "phone.sessions-navigation",
+      "label": "Switch the phone Sessions tab between Drawer and Stacked style and choose where it lands",
+      "source": "apps/mobile/src/features/sessions/session-landing.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-sessions-navigation.md",
+      "task": 5110,
+      "gap": "iOS Simulator only; the Android emulator lane and a physical iPhone are not yet run."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",
