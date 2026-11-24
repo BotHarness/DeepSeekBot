@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import vm from 'node:vm';
 
 import { build } from 'tsdown';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
+import { Context } from '@deepseek-ai/cordis';
+import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client';
+import type { ConversationNodeDefinitionInput } from '@deepseek-ai/dsh-client-ui-conversation/client';
+import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session/types';
 
 import { clientBundleOptions } from '../../../tsdown.config.js';
 
@@ -86,6 +90,82 @@ function baselineModuleStub(id: string): Record<string, unknown> {
 
 const shellRequire = (id: string): unknown =>
   id.startsWith('@deepseek-ai/') ? baselineModuleStub(id) : requireFromTest(id);
+
+const requireFromCore = createRequire(new URL('../../core/package.json', import.meta.url));
+
+function readSdkFunctions<T extends object>(
+  name: string,
+  exports: unknown,
+  keys: readonly (keyof T & string)[],
+): T {
+  if (typeof exports !== 'object' || exports === null) {
+    throw new Error(`Expected ${name} to export a module`);
+  }
+  for (const key of keys) {
+    if (typeof Reflect.get(exports, key) !== 'function') {
+      throw new Error(`Expected ${name} to export ${key} as a function`);
+    }
+  }
+  return exports as T;
+}
+
+function loadDshBrowserBundle(path: string): Record<string, unknown> {
+  let loaded: LoadedEntry | undefined;
+  vm.runInNewContext(readFileSync(requireFromTest.resolve(path), 'utf8'), {
+    window: { __ModuleLoader__: { load: (value: LoadedEntry) => (loaded = value) } },
+  });
+  if (loaded === undefined) throw new Error(`The DSH browser bundle did not register: ${path}`);
+  const requireDshModule = (id: string) => {
+    if (id === '@deepseek-ai/cordis' || id === '@deepseek-ai/dsh-client-store')
+      return requireFromTest(id);
+    if (id === 'zod') return requireFromCore(id);
+    if (id === '@tanstack/react-virtual') return {};
+    return shellRequire(id);
+  };
+  return loaded.factory(Object.assign(requireDshModule, { asset: (name: string) => name }));
+}
+
+function assembleDshChat(definitions: ConversationNodeDefinitionInput[]) {
+  const conversationModule = '@deepseek-ai/dsh-client-ui-conversation/client';
+  const {
+    ConversationEventRegistry,
+    ConversationViewRegistry,
+    ConversationNodeAssembler,
+    inspectRequestPrompt,
+  } = readSdkFunctions<
+    Pick<
+      typeof import('@deepseek-ai/dsh-client-ui-conversation/client'),
+      | 'ConversationEventRegistry'
+      | 'ConversationViewRegistry'
+      | 'ConversationNodeAssembler'
+      | 'inspectRequestPrompt'
+    >
+  >(conversationModule, loadDshBrowserBundle(conversationModule), [
+    'ConversationEventRegistry',
+    'ConversationViewRegistry',
+    'ConversationNodeAssembler',
+    'inspectRequestPrompt',
+  ]);
+  const chatModule = '@deepseek-ai/dsh-client-ui-chat/client';
+  const { apply } = readSdkFunctions<
+    Pick<typeof import('@deepseek-ai/dsh-client-ui-chat/client'), 'apply'>
+  >(chatModule, loadDshBrowserBundle(chatModule), ['apply']);
+  const context = new Context();
+  onTestFinished(() => context.fiber.dispose());
+  const events = new ConversationEventRegistry(context);
+  const views = new ConversationViewRegistry(context);
+  context.provide('connection', { state: {} });
+  const chatContext = context.extend({
+    uiConversation: { events, views, inspectRequestPrompt, groups: { register: () => {} } },
+    uiSession: { provide: () => {} },
+    locale: { register: () => {}, bind: () => (key: string) => key },
+    configForms: { get: () => ({ getSnapshot: () => ({ value: {} }), subscribe: () => () => {} }) },
+    slots: { inject: () => {}, register: () => {}, registerFactory: () => {} },
+  });
+  apply(chatContext);
+  for (const definition of definitions) events.register(definition);
+  return new ConversationNodeAssembler(events, views);
+}
 
 let bundleCode = '';
 let entry: LoadedEntry | undefined;
@@ -193,7 +273,7 @@ describe('@botharness/ui browser bundle', () => {
     );
   });
 
-  it('exposes the plugin and registers the bot-mode panel plus the @ mention source', () => {
+  it('registers the Bot panel, @ mentions, and the native Chat model switch', () => {
     const plugin = loadedEntry().factory(shellRequire);
     expect(plugin['name']).toBe('botharness-client');
     expect(plugin['inject']).toEqual([
@@ -206,6 +286,7 @@ describe('@botharness/ui browser bundle', () => {
       'theme',
       'sessions',
       'uiWorkspace',
+      'uiConversation',
       'workspaces',
       'remote',
       'remote.session',
@@ -219,6 +300,7 @@ describe('@botharness/ui browser bundle', () => {
       label?: string;
     }[] = [];
     const sources: unknown[] = [];
+    const conversationDefinitions: ConversationNodeDefinitionInput[] = [];
     const scoped = {
       shortcuts: {
         register: () => () => undefined,
@@ -255,6 +337,14 @@ describe('@botharness/ui browser bundle', () => {
         registerSource: (source: unknown) => {
           sources.push(source);
           return () => undefined;
+        },
+      },
+      uiConversation: {
+        events: {
+          register: (definition: ConversationNodeDefinitionInput) => {
+            conversationDefinitions.push(definition);
+            return () => undefined;
+          },
         },
       },
       locale: {
@@ -302,6 +392,11 @@ describe('@botharness/ui browser bundle', () => {
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },
       {
+        name: 'conversation.chat.node',
+        key: 'botharness-model-switch',
+        locale: 'botharness',
+      },
+      {
         name: 'sidebar.panellist',
         id: 'botharness',
         order: 10,
@@ -338,6 +433,63 @@ describe('@botharness/ui browser bundle', () => {
         locale: 'botharness',
         inject: expect.any(Function),
       },
+    ]);
+    expect(conversationDefinitions).toEqual([
+      expect.objectContaining({ kind: 'botharness-model-switch', target: 'chat' }),
+    ]);
+    const conversation = assembleDshChat(conversationDefinitions);
+    const brandModule = '@deepseek-ai/dsh-llm/brand';
+    const { MessageId } = readSdkFunctions<{
+      MessageId(value: string): SessionEvent<'user/message'>['data']['id'];
+    }>(brandModule, requireFromCore(brandModule), ['MessageId']);
+    const notice =
+      '[model changed: assistant turns above this point were generated by deepseek-v4.1-flash; the session continues with deepseek-v4-pro]';
+    const entries: SessionEventLikeEntry[] = [
+      {
+        type: 'event',
+        event: {
+          type: 'request/header',
+          seq: SessionSeq(0),
+          time: 1,
+          data: {
+            reason: 'initial',
+            header: { config: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' } },
+          },
+        },
+      },
+      {
+        type: 'event',
+        event: {
+          type: 'user/message',
+          seq: SessionSeq(1),
+          time: 2,
+          surfaceOp: 'append',
+          data: {
+            id: MessageId('model-notice'),
+            role: 'user',
+            source: {
+              kind: 'model-selection',
+              form: 'notice',
+              summary: 'deepseek-v4.1-flash → deepseek-v4-pro',
+            },
+            content: [{ type: 'text', text: notice }],
+          },
+        },
+      },
+    ];
+    conversation.replaceWindow(entries, false);
+    conversation.activateTarget('chat');
+    const chat = conversation.get('chat');
+    expect(chat?.order.map((key) => chat.nodes.get(key))).toEqual([
+      expect.objectContaining({
+        kind: 'botharness-model-switch',
+        groupTree: 'turn',
+        data: {
+          from: { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          to: { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4-pro' },
+          time: 2,
+        },
+      }),
     ]);
     expect(sources).toHaveLength(1);
     expect((sources[0] as { trigger?: string }).trigger).toBe('@');

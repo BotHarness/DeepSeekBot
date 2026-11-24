@@ -8,6 +8,9 @@
 - `apps/mobile/src/ui/chat/{session-model-label,use-session-transcript,session-navigation}.ts`
 - `apps/mobile/src/host/session-detail.ts`
 - `packages/host-client/src/session-{detail,model,links}.ts`
+- `packages/core/src/runtime/session-transcript.ts`
+- `packages/host-protocol/src/dsh-model-switch.ts`
+- `packages/client/src/client/native-session-model-switch.tsx`
 
 ## Terms
 
@@ -26,6 +29,8 @@ Enable **Sessions** in Settings → Interface, then open the **Sessions** tab an
 ## Driving it with verify-app
 
 On Android, open a Session from the **Sessions** tab. Verify that the transcript opens and the Session top app bar shows Back, the Session title capsule, and the Session options button. Open the options menu, dismiss it, and use Back to return to **Sessions**.
+
+Open a native DSH Session and send a prompt. Open **Model Choice**, select a route that uses a different model, and send a second prompt. On phone and in the desktop DSH Chat view, the second exchange shows one localized switch marker with the two brand icons and short model names. The internal DSH model-selection notice is absent from the timeline. Reopen the Session to check the same result in saved history. Use `deepseekbot session-transcript --session <id>` to confirm one typed `model-switch` item.
 
 Use the assigned device in `docs/agents/device-qa.md` and a paired isolated Host with a working model. Use `deepseekbot bot-sessions`, `session-transcript`, and `session-model` to read the same canonical state. Compare a DM with a short draft to the base. Open a current Orchestrator, send a marked follow-up with the keyboard open, and verify it reaches the selected Session. Open a linked Assignment and verify its details, follow-up, and Stop. Open `composer-session-model`, save an allowed choice during an active Turn, and verify the pending label and the subsequent Turn's recorded model. Check English and Chinese, both themes, and a large-text logo-only chip beside Send. Open a long transcript, scroll away from the latest row, and compare its edges with the Bot Conversation screen on the same device. Tap **Jump to latest**, then open and dismiss the keyboard with an unsent draft.
 

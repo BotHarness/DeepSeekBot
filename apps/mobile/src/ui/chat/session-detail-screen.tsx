@@ -627,6 +627,7 @@ export function SessionDetailBody({
                   item={row.item}
                   id={`${id}:${row.index}`}
                   catalog={model.catalog}
+                  native={role === 'native'}
                 />
               </View>
             )}
