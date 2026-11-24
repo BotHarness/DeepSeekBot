@@ -60,6 +60,7 @@ describe('Session composer Model Choice', () => {
     expect(sessionModelLabel({ state, width: 390, strings: en.sessionModel })).toEqual({
       brand: 'claude',
       accessible: 'Model choice',
+      pending: false,
     });
   });
 
@@ -75,10 +76,12 @@ describe('Session composer Model Choice', () => {
       brand: 'claude',
       name: 'Opus 5.5',
       accessible: '模型选择，Opus 5.5，高',
+      pending: false,
     });
     expect(sessionModelLabel({ ...base, width: 205 })).toEqual({
       brand: 'claude',
       accessible: '模型选择，Opus 5.5，高',
+      pending: false,
     });
   });
 
