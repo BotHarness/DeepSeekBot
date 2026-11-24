@@ -432,7 +432,7 @@ jobs:
         timeout-minutes: 15
         run: >-
           exec node scripts/ci-with-deadline.mjs 885 1 pnpm vitest run
-          --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+          --project '!docs-site' --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   test-affected:
     name: test (affected shard ${{ matrix.shard }})

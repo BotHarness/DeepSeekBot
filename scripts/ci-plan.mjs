@@ -772,15 +772,15 @@ function githubPlan(changesFile) {
 
 export function localCommands(result) {
   const commands = [];
-  if (result.tests === 'full') commands.push(['vitest', 'run', '--exclude', DOCS_SITE_TEST]);
+  if (result.tests === 'full') commands.push(['vitest', 'run', '--project', '!docs-site']);
   if (result.tests === 'affected')
     commands.push([
       'vitest',
       'related',
       '--run',
       '--passWithNoTests',
-      '--exclude',
-      DOCS_SITE_TEST,
+      '--project',
+      '!docs-site',
       ...result.related,
     ]);
   if (result.docsSite) commands.push(['slides:build'], ['vitest', 'run', DOCS_SITE_TEST]);
