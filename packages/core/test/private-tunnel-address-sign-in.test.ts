@@ -590,6 +590,36 @@ it('keeps an Owner pairing channel opened by address while it waits for approval
   for (const entry of [peer, ...others]) entry.ws.close();
 });
 
+it('keeps one channel opened by address waiting on each pairing code', async () => {
+  const { f, tunnel, noise, socket } = await addressRoute();
+  await tunnel.setAddressSignIn('custom', true);
+  const offer = f.pairing.createOffer();
+  const key = randomBytes(32);
+  const pair = async () => {
+    const peer = noise(custom, key);
+    await peer.ready;
+    peer.send({ type: 'pair', offer: offer.offer, name: 'Address phone' });
+    expect(await peer.next()).toEqual({ type: 'pair-pending', receipt: offer.receipt });
+    return peer;
+  };
+  const waiting = [await pair()];
+  for (let index = 0; index < 3; index++) {
+    const replaced = once(waiting.at(-1)!.ws, 'close');
+    waiting.push(await pair());
+    await replaced;
+  }
+  const latest = waiting.at(-1)!;
+  latest.send({ type: 'pair', offer: offer.offer, name: 'Address phone' });
+  expect(await latest.next()).toEqual({ type: 'pair-pending', receipt: offer.receipt });
+  expect(latest.ws.readyState).toBe(WebSocket.OPEN);
+  const token = tunnel.admissions()[0]!.token;
+  const byToken = socket(custom, { authorization: `Bearer ${token}` });
+  expect(await byToken.opened).toBe(true);
+  f.pairing.approveKey(offer.receipt, latest.publicKey);
+  expect(await latest.next()).toMatchObject({ type: 'paired' });
+  for (const entry of [latest, byToken]) entry.ws.close();
+});
+
 it('lets unadmitted address channels expire once password sign-in becomes unavailable', async () => {
   const { f, tunnel, socket, discover } = await addressRoute({ addressDeadlineMs: 200 });
   await tunnel.setAddressSignIn('custom', true);
