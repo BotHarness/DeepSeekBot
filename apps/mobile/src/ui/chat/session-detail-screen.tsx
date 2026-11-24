@@ -361,7 +361,11 @@ export function SessionDetailBody({
     0,
     android,
   );
-  const { key, ...initialScrollProps } = useChatInitialScroll(true, rows.length);
+  const { key, ...initialScrollProps } = useChatInitialScroll(
+    true,
+    rows.length,
+    transcript !== undefined,
+  );
   const { composerHeight, viewportHeight } = latest;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [assignmentRead, setAssignmentRead] = useState<{
