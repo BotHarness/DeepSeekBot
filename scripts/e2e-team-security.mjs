@@ -666,12 +666,14 @@ export async function main(argv = process.argv.slice(2)) {
       'File tools cannot reach other members, the Host data directory or other Bots',
       async (check) => {
         symlinkSync(fx.bobSpace, join(fx.memory.alice, 'shortcut'));
+        const hostFixture = join(s.home, `b1-host-${tag}.txt`);
+        writeFileSync(hostFixture, HOST_PROFILE, { flag: 'wx' });
         const targets = [
           join(fx.memory.bob, 'bob-notes.md'),
           join(fx.bobSpace, 'bob-account.md'),
           join(fx.sharedFinance, 'ledger.md'),
           join(s.botMemory(fx.vaultSlug), 'vault.md'),
-          join(s.home, '.credentials.yaml'),
+          hostFixture,
           `${fx.memory.alice}/../../../${fx.humans.bob.humanId}/bob-account.md`,
           join(fx.memory.alice, 'shortcut', 'bob-account.md'),
         ];
@@ -683,11 +685,8 @@ export async function main(argv = process.argv.slice(2)) {
         ].join('\n');
         const answer = s.ask('file-tools', fx.users.alice, fx.bots.alice, body);
         check('got a reply', answer.replies.length > 0, answer.sent?.error?.code);
-        check(
-          'no foreign content in the reply',
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES).length === 0,
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES),
-        );
+        const leaks = leakedValues(answer.replies, [...FORBIDDEN_FILE_VALUES, HOST_PROFILE]);
+        check('no foreign content in the reply', leaks.length === 0, leaks);
         check(
           'no file written into another member folder',
           !existsSync(join(fx.bobSpace, `owned-${tag}.txt`)),

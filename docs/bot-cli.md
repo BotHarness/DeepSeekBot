@@ -671,8 +671,12 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
 deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
+deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
+deepseekbot session-answer-question --session <session-id> --request <request-id> --answer-stdin < answer.json
+deepseekbot session-stop --session <session-id>
+deepseekbot session-archive --session <session-id> --confirm
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
@@ -680,6 +684,10 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 ```
 
 These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+
+The Host Owner can read native approval and question cards in `pendingInput` from `session-transcript` and `session-live`. Pass the card's `requestId` to the matching answer command. For a question, send a JSON object such as `{"answers":[{"id":"format","selected":["Compact"]}]}` on stdin, with one answer per question. A free-text answer uses `"selected":[]` and a `custom` string. Omit `custom` with an empty selection to skip an individual question. An already settled request returns `session-input-not-pending`.
+
+`session-stop --session` asks DSH to cancel the active native turn. `session-archive` archives an idle native Session. Stop a running Session and let it settle before archiving it. Archived Sessions are hidden from list and search by default. Use `--include-archived` to include them with `archived: true`. Team members cannot view or act on native Session requests.
 
 `session-create` starts a native Session, as the phone's New Session screen does: DSH creates it in the folder (`--cwd`) or in a DSH Workspace (`--workspace`, the `workspaceId` that `workspace/create` returns; a Team space id such as `spaces/local-human` is not one, so pass its folder with `--cwd`), applies the optional direct API model (`--model`, otherwise the Default preset), then admits `--message` as its first prompt. It returns `{ sessionId, requestId }`; follow the reply with `session-live --session <sessionId>`. Only the Host Owner can create native Sessions; a Team member is refused with `remote-access/denied` before the request reaches the method, which also refuses non-Owners with `permission-required`, and a Routing Group or subscription engine choice is refused with `usage` before anything is created. If DSH creates the Session but the model choice then fails, the error carries `details.sessionId`; rerun with `--session <that id>` and DSH reuses the blank Session instead of creating another.
 

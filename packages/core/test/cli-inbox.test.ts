@@ -150,6 +150,50 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('maps native Session actions and archived inventory to the authenticated Host', async () => {
+    const live = await host((method, args) =>
+      method === 'sessionList'
+        ? { ok: true, value: { sessions: [], includeArchived: true } }
+        : echo(method, args),
+    );
+    const target = ['--session', 'native-1'];
+    const request = ['--request', 'request-1'];
+    const answer = { answers: [{ id: 'style', selected: ['Compact'] }] };
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'rejected'],
+      ['session-answer-question', ...target, ...request, '--answer-stdin'],
+      ['session-stop', ...target],
+      ['session-archive', ...target, '--confirm'],
+      ['session-list', '--include-archived'],
+    ]) {
+      const result = await invoke(argv, live.url, JSON.stringify(answer));
+      expect(result.code, `${argv[0]}: ${result.text}`).toBe(0);
+    }
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'always'],
+      ['session-answer-question', ...target, ...request],
+      ['session-archive', ...target],
+      ['session-stop', ...target, '--channel', 'dm-1'],
+    ])
+      expect((await invoke(argv, live.url)).code).toBe(2);
+
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionAnswerApproval',
+        args: { sessionId: 'native-1', requestId: 'request-1', decision: 'rejected' },
+      },
+      {
+        method: 'sessionAnswerQuestion',
+        args: { sessionId: 'native-1', requestId: 'request-1', answer },
+      },
+      { method: 'sessionNativeStop', args: { sessionId: 'native-1' } },
+      { method: 'sessionNativeArchive', args: { sessionId: 'native-1' } },
+      { method: 'sessionList', args: { includeArchived: true } },
+    ]);
+  });
+
   it('creates a native Session in a folder or Workspace with session-create', async () => {
     const live = await host(echo);
     for (const argv of [

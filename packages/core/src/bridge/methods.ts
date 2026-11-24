@@ -1,5 +1,6 @@
 import {
   createHostSessionsMethods,
+  type HostSessionBridgeMethods,
   type NativeSessions,
 } from '../features/sessions/host-sessions.js';
 import {
@@ -397,10 +398,7 @@ export interface BridgeMethods
     ReleaseAdapterMethods,
     HumansAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
-    Pick<
-      ReturnType<typeof createHostSessionsMethods>,
-      'sessionList' | 'sessionLive' | 'sessionCreate'
-    >,
+    HostSessionBridgeMethods,
     WorkspacesAdapterMethods,
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
@@ -688,7 +686,12 @@ function buildBridgeMethods(
   const promptsAdapterMethods = createPromptsAdapterMethods(deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
-  const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
+  const {
+    sessionTranscript: nativeSessionTranscript,
+    sessionModel: nativeSessionModel,
+    sessionSend: nativeSessionSend,
+    ...hostSessionMethods
+  } = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const humansAdapterMethods = createHumansAdapterMethods(deps);
   const releaseAdapterMethods = createReleaseAdapterMethods(deps);
   const diagnosticsAdapterMethods = createDiagnosticsAdapterMethods(deps);
@@ -782,7 +785,7 @@ function buildBridgeMethods(
     botStop: sessionsMethods.botStop,
     sessionMessageSend: (payload) =>
       asObject(payload)['botSlug'] === null
-        ? hostSessions.sessionSend(payload)
+        ? nativeSessionSend(payload)
         : sessionsAdapterMethods.sessionMessageSend(payload),
     sessionStop: sessionsMethods.sessionStop,
     ...modelSettings,
@@ -915,17 +918,15 @@ function buildBridgeMethods(
     assignment: assignmentsMethods.assignment,
     assignmentTimeline: assignmentsMethods.assignmentTimeline,
     sessionProgress: assignmentsMethods.sessionProgress,
-    sessionList: hostSessions.sessionList,
-    sessionCreate: hostSessions.sessionCreate,
+    ...hostSessionMethods,
     sessionTranscript: (payload) =>
       asObject(payload)['slug'] === null
-        ? hostSessions.sessionTranscript(payload)
+        ? nativeSessionTranscript(payload)
         : sessionsMethods.sessionTranscript(payload),
     sessionModel: (payload) =>
       asObject(payload)['slug'] === null
-        ? hostSessions.sessionModel(payload)
+        ? nativeSessionModel(payload)
         : sessionsMethods.sessionModel(payload),
-    sessionLive: hostSessions.sessionLive,
     sessionToolDetail: sessionsMethods.sessionToolDetail,
     sessionSubagents: assignmentsMethods.sessionSubagents,
     workspaceOptions: workspacesAdapterMethods.workspaceOptions,

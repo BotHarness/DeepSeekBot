@@ -97,6 +97,30 @@ export async function runHostSessionGate(s, fx, check) {
       result.error?.code,
     );
   }
+  for (const args of [
+    [
+      'session-answer-approval',
+      '--session',
+      sessionId,
+      '--request',
+      'pending',
+      '--decision',
+      'allowed-once',
+    ],
+    ['session-answer-question', '--session', sessionId, '--request', 'pending', '--answer-stdin'],
+    ['session-stop', '--session', sessionId],
+    ['session-archive', '--session', sessionId, '--confirm'],
+  ]) {
+    const result = s.cli(args, {
+      ...member,
+      input: '{"answers":[{"id":"choice","selected":["A"]}]}',
+    });
+    check(
+      `Member ${args[0]} refused at the Host boundary`,
+      result.error?.code === 'remote-access/denied',
+      result.error?.code,
+    );
+  }
   const memberCreate = s.cli(
     ['session-create', '--cwd', fx.sharedFinance, '--message', 'M15 member create'],
     member,
