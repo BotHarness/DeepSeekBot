@@ -17,13 +17,14 @@ import { errorMessage, type ToolApprovalExecutionState } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelMessage } from './store.js';
-import { useConversationStore } from './use-client-store.js';
+import { useClientStore, useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { subscribeWorkspaceGrantChanges } from './workspace-grant-events.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
 import { approvalCountdown } from './approval-countdown.js';
 import { ApprovalInput } from './approval-input.js';
-import { approvalSummary } from '@botharness/host-client/shared/approval-diff';
+import { approvalMemoryEdit, approvalSummary } from '@botharness/host-client/shared/approval-diff';
+import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 
 function isReadTimeout(error: unknown): boolean {
@@ -73,6 +74,12 @@ export function ToolApprovalCard({
   const store = useConversationStore();
   const host = useMessageHost()?.client;
   const request = message.toolApprovalRequest!;
+  const memoryEdit = approvalMemoryEdit(request.toolName, request.input);
+  const memoryBot = useClientStore((state) =>
+    memoryEdit === undefined
+      ? undefined
+      : state.bots.find((bot) => bot.slug === memoryEdit.target)?.displayName,
+  );
   const secretCli = request.toolName === 'secret_cli';
   const canAlwaysAllow = request.allowAlways ?? false;
   const [acceptedDecision, setAcceptedDecision] = useState<typeof decision>();
@@ -312,17 +319,22 @@ export function ToolApprovalCard({
       ? botCreateArgs(request.input)
       : undefined;
   const category = t(
-    botCreate !== undefined
-      ? 'approval.category.bot'
-      : request.toolName === 'bash' || request.toolName === 'shell'
-        ? 'approval.category.terminal'
-        : summary.file !== undefined
-          ? 'approval.category.file'
-          : request.toolName.startsWith('browser')
-            ? 'approval.category.browser'
-            : 'approval.category.tool',
+    memoryEdit !== undefined
+      ? 'approval.category.memory'
+      : botCreate !== undefined
+        ? 'approval.category.bot'
+        : request.toolName === 'bash' || request.toolName === 'shell'
+          ? 'approval.category.terminal'
+          : summary.file !== undefined
+            ? 'approval.category.file'
+            : request.toolName.startsWith('browser')
+              ? 'approval.category.browser'
+              : 'approval.category.tool',
   );
   const sentence =
+    (memoryEdit === undefined
+      ? undefined
+      : t('approval.summaryMemory', { name: memoryBot ?? memoryEdit.target })) ??
     (botCreate === undefined
       ? undefined
       : t('approval.botCreate.summary', { name: botCreate.displayName })) ??
@@ -339,7 +351,7 @@ export function ToolApprovalCard({
       </code>
     ) : summary.file !== undefined ? (
       <span {...hooked('bh-tool-approval-line', styles.well, styles.preview)}>
-        <code>{summary.file.path}</code>{' '}
+        <code>{memoryEdit?.label ?? summary.file.path}</code>{' '}
         <span {...stylex.props(styles.added)} data-kind="add">
           +{summary.file.added}
         </span>{' '}
@@ -359,38 +371,77 @@ export function ToolApprovalCard({
       : status === 'expired' || status === 'stopped'
         ? status
         : undefined;
-  const details = open ? (
-    <div id={detailsId} {...hooked('bh-tool-approval-details-body', styles.group)}>
-      <div {...stylex.props(styles.caption)}>
-        {request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')}
-        {' · '}
-        {request.toolName}
-      </div>
-      <div {...hooked('bh-tool-approval-cwd', styles.caption)}>
-        {t('approval.cwd', { path: request.cwd })}
-      </div>
+  const scope =
+    effectiveDecision !== undefined || actionable
+      ? canAlwaysAllow
+        ? t(
+            secretCli
+              ? 'approval.allowKindRisk'
+              : request.toolName === 'secret_mcp_connect'
+                ? 'approval.alwaysServiceScope'
+                : 'approval.alwaysToolScope',
+            { tool: request.toolName },
+          )
+        : t('approval.alwaysUnavailable')
+      : undefined;
+  const memoryInfo =
+    memoryEdit === undefined
+      ? undefined
+      : [
+          `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
+          request.effects === undefined
+            ? undefined
+            : `${t(`approval.effect.changes.${request.effects.changes}`)} · ${t(`approval.effect.reach.${request.effects.reach}`)}`,
+          `${request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')} · ${request.toolName}`,
+          scope,
+          message.approval?.masked === false && message.approval.opaque
+            ? t('approval.opaqueWarning')
+            : undefined,
+        ]
+          .filter((line) => line !== undefined)
+          .join('\n');
+  const details =
+    memoryEdit !== undefined ? (
       <ApprovalInput
         toolName={request.toolName}
         input={request.input}
         t={t}
-        caption={summary.description === undefined}
+        caption={false}
+        label={false}
         compact={compact}
       />
-      <div {...stylex.props(styles.caption)}>
-        {t(
-          request.toolName === 'channel_attachment_open'
-            ? 'approval.originalRisk'
-            : botCreate !== undefined
-              ? 'approval.botCreateRisk'
-              : request.toolName === 'secret_cli'
-                ? 'approval.secretCliRisk'
-                : request.toolName === 'secret_mcp_connect'
-                  ? 'approval.secretMcpRisk'
-                  : 'approval.risk',
-        )}
+    ) : open ? (
+      <div id={detailsId} {...hooked('bh-tool-approval-details-body', styles.group)}>
+        <div {...stylex.props(styles.caption)}>
+          {request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')}
+          {' · '}
+          {request.toolName}
+        </div>
+        <div {...hooked('bh-tool-approval-cwd', styles.caption)}>
+          {t('approval.cwd', { path: request.cwd })}
+        </div>
+        <ApprovalInput
+          toolName={request.toolName}
+          input={request.input}
+          t={t}
+          caption={summary.description === undefined}
+          compact={compact}
+        />
+        <div {...stylex.props(styles.caption)}>
+          {t(
+            request.toolName === 'channel_attachment_open'
+              ? 'approval.originalRisk'
+              : botCreate !== undefined
+                ? 'approval.botCreateRisk'
+                : request.toolName === 'secret_cli'
+                  ? 'approval.secretCliRisk'
+                  : request.toolName === 'secret_mcp_connect'
+                    ? 'approval.secretMcpRisk'
+                    : 'approval.risk',
+          )}
+        </div>
       </div>
-    </div>
-  ) : null;
+    ) : null;
   const onCardClick = (event: MouseEvent<HTMLDivElement>): void => {
     const target = event.target as HTMLElement;
     if (
@@ -399,7 +450,7 @@ export function ToolApprovalCard({
       ) !== null
     )
       return;
-    if ((window.getSelection()?.toString() ?? '') !== '') return;
+    if ((window.getSelection()?.toString() ?? '') !== '' || memoryEdit !== undefined) return;
     setOpen((current) => !current);
   };
   return (
@@ -430,6 +481,11 @@ export function ToolApprovalCard({
       <RequestHeading
         urgent={countdown?.urgent === true}
         pendingRef={countdownMount}
+        info={
+          memoryInfo === undefined ? undefined : (
+            <InfoTip label={t('approval.memoryDetails')} text={memoryInfo} />
+          )
+        }
         pending={
           !actionable ? undefined : countdown !== undefined && soon ? (
             <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
@@ -447,18 +503,25 @@ export function ToolApprovalCard({
         {category}
       </RequestHeading>
       <>
-        <Button
-          type="button"
-          className="bh-request-summary"
-          xstyle={styles.summary}
-          aria-expanded={open}
-          aria-controls={open ? detailsId : undefined}
-          title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
-          {preview}
-        </Button>
+        {memoryEdit !== undefined ? (
+          <div {...hooked('bh-request-summary', styles.group)}>
+            <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
+            {preview}
+          </div>
+        ) : (
+          <Button
+            type="button"
+            className="bh-request-summary"
+            xstyle={styles.summary}
+            aria-expanded={open}
+            aria-controls={open ? detailsId : undefined}
+            title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
+            {preview}
+          </Button>
+        )}
         {botCreate === undefined ? null : (
           <BotCreateApprovalPreview
             args={botCreate}
@@ -467,7 +530,7 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
-        {request.effects === undefined ? null : (
+        {request.effects === undefined || memoryEdit !== undefined ? null : (
           <div {...stylex.props(styles.caption)}>
             {t(`approval.effect.changes.${request.effects.changes}`)} ·{' '}
             {t(`approval.effect.reach.${request.effects.reach}`)}
@@ -497,20 +560,9 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {effectiveDecision !== undefined || actionable ? (
-        <div {...stylex.props(styles.caption)}>
-          {canAlwaysAllow
-            ? t(
-                secretCli
-                  ? 'approval.allowKindRisk'
-                  : request.toolName === 'secret_mcp_connect'
-                    ? 'approval.alwaysServiceScope'
-                    : 'approval.alwaysToolScope',
-                { tool: request.toolName },
-              )
-            : t('approval.alwaysUnavailable')}
-        </div>
-      ) : null}
+      {scope === undefined || memoryEdit !== undefined ? null : (
+        <div {...stylex.props(styles.caption)}>{scope}</div>
+      )}
       {settled !== undefined ? (
         <RequestOutcome
           outcome={settled}

@@ -36,7 +36,7 @@ const styles = stylex.create({
     fontSize: style.textUiSize,
     lineHeight: style.textUiLine,
     fontWeight: 400,
-    whiteSpace: 'normal',
+    whiteSpace: 'pre-line',
     pointerEvents: 'none',
   },
 });
