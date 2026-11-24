@@ -339,6 +339,15 @@ export function Composer({
       <PlusIcon color={theme.color.subtle} size={icon} />
     </ComposerActionButton>
   ) : null;
+  const placeholder = held
+    ? Platform.OS === 'android' || Platform.OS === 'ios'
+      ? t.dictationReleaseHint
+      : t.dictationHoldHint
+    : dictation === 'starting'
+      ? t.dictationStarting
+      : listening
+        ? t.dictationListening
+        : '';
   const field = (
     <TextInput
       key="field"
@@ -357,17 +366,7 @@ export function Composer({
         onFocusChange?.(true);
       }}
       onBlur={() => onFocusChange?.(false)}
-      placeholder={
-        held
-          ? Platform.OS === 'android' || Platform.OS === 'ios'
-            ? t.dictationReleaseHint
-            : t.dictationHoldHint
-          : dictation === 'starting'
-            ? t.dictationStarting
-            : listening
-              ? t.dictationListening
-              : ''
-      }
+      placeholder={placeholder}
       placeholderTextColor={theme.color.subtle}
       accessibilityLabel={t.messagePlaceholder}
       accessibilityHint={
@@ -378,7 +377,7 @@ export function Composer({
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
       style={{
         flex: 1,
-        ...(expanded
+        ...(expanded && (value !== '' || placeholder !== '')
           ? {
               minHeight: composerFieldHeight(
                 value === '' ? 0 : contentHeight,

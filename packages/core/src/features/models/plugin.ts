@@ -310,8 +310,13 @@ export function createFallback(
       allowed: (slug, target) => {
         if (!localEngines) return false;
         const id = engineAccountKey(target.engine, target.accountId);
-        requireBotEngineAccount(core().team, core().registry.get(slug), id);
-        return true;
+        try {
+          requireBotEngineAccount(core().team, core().registry.get(slug), id);
+          return true;
+        } catch (error) {
+          if (error instanceof TeamError && error.code === 'model-not-allowed') return false;
+          throw error;
+        }
       },
       limit: (engine, accountId) => engineHost.limit(engine, accountId),
     },
@@ -458,6 +463,7 @@ export function mountRetry(
   ctx: Context,
   core: BotHarnessCore,
   routeRests: ReturnType<typeof createRouteRests>,
+  effectivePlan: RoutingDefaults['effectivePlan'],
 ) {
   ctx.on(
     'agent/request-error',
@@ -465,7 +471,7 @@ export function mountRetry(
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
       onQuotaExhausted: (route, untilMs, reason, sessionId) => {
         const owner = sessionId === undefined ? undefined : core.ownership.resolve(sessionId);
-        const plan = owner === undefined ? undefined : core.registry.get(owner.botSlug)?.modelPlan;
+        const plan = owner === undefined ? undefined : effectivePlan(owner.botSlug);
         if (
           reason === 'quota' ||
           plan?.orchestratorGroupId !== undefined ||
@@ -484,13 +490,14 @@ export function installSubagentRouting(
   agent: ReturnType<Context['agents']['list']>[number],
   subagent: () => BotHarnessConfig['subagent'],
   openAssignmentRoutes: ReturnType<typeof createOpenAssignmentRoutes>,
+  effectivePlan: RoutingDefaults['effectivePlan'],
 ) {
   const owner = core.ownership.resolve(agent.session.id);
   if (owner?.rootRole === 'orchestrator') installOrchestratorSubagentGuard(agent.ctx);
   else if (owner !== undefined) {
     return installBotSubagentModelTools(
       agent.ctx,
-      () => core.registry.get(owner.botSlug)?.modelPlan,
+      () => effectivePlan(owner.botSlug),
       subagent(),
       async (route) => {
         requireBotModel(core.team, core.registry.get(owner.botSlug), route);

@@ -12,6 +12,7 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { androidSettings, space } from '../design/tokens';
 import { RadioMark } from './radio-mark';
 import { segmentCorners } from '../design/segment-corners';
+import { segmentTestID } from './segment-test-id';
 import type { SegmentedProps } from './segmented';
 import { Text } from './text';
 import { useSelectionFeedback } from '../selection-feedback';
@@ -40,6 +41,7 @@ export function Segmented<T extends string>({
   on = 'canvas',
   onChange,
   disabled = false,
+  testID: prefix,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
@@ -63,7 +65,7 @@ export function Segmented<T extends string>({
           return (
             <Pressable
               key={option.value}
-              testID={`button-group-${option.value}`}
+              testID={segmentTestID(prefix, option.value) ?? `button-group-${option.value}`}
               accessibilityRole="radio"
               accessibilityLabel={option.label}
               accessibilityState={{ checked: selected, disabled }}
@@ -113,7 +115,7 @@ export function Segmented<T extends string>({
               modifiers={[
                 weight(1),
                 defaultMinSize({ minHeight: theme.touch }),
-                testID(`button-group-${option.value}`),
+                testID(segmentTestID(prefix, option.value) ?? `button-group-${option.value}`),
               ]}
               colors={{
                 checkedContainerColor: layer.chosen,

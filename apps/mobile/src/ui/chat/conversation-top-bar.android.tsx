@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
+import { cappedTextSize, headerLabelScaleCeiling } from '../design/capped-text';
 import { composeIsland } from '../design/island-compose.android';
 import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
@@ -58,11 +59,26 @@ export function ConversationTopBar({
   const [height, setHeight] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const mark = materialIconButton.container;
-  const islandHeight = Math.max(
-    theme.touch,
-    Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
-  );
   const status = connectionLabel ?? subtitle;
+  const showStatus = status !== undefined && !theme.largeText;
+  const identityHeight = (scale: number, withStatus: boolean) =>
+    Math.max(
+      theme.touch,
+      Math.ceil(
+        (theme.type.title.line + (withStatus ? theme.type.meta.line : 0)) * scale + space.x2 * 2,
+      ),
+    );
+  const islandHeight = identityHeight(
+    Math.min(theme.fontScale, headerLabelScaleCeiling),
+    showStatus,
+  );
+  const actionSize = Math.min(islandHeight, identityHeight(1, true));
+  const titleStyle = {
+    typography: 'titleMedium',
+    fontWeight: 'bold',
+    fontSize: cappedTextSize(theme.type.title.size, theme.fontScale, headerLabelScaleCeiling),
+    lineHeight: cappedTextSize(theme.type.title.line, theme.fontScale, headerLabelScaleCeiling),
+  } as const;
   const action = (
     id: string,
     label: string,
@@ -75,7 +91,7 @@ export function ConversationTopBar({
       enabled={enabled}
       colors={{ contentColor: theme.color.fg }}
       modifiers={[
-        size(islandHeight, islandHeight),
+        size(actionSize, actionSize),
         testID(id),
         semantics({ contentDescription: label }),
       ]}
@@ -84,6 +100,7 @@ export function ConversationTopBar({
     </IconButton>
   );
   const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
+  const { modifiers: actionLook } = composeIsland(theme, actionSize);
   return (
     <View
       testID="android-chat-header"
@@ -119,7 +136,7 @@ export function ConversationTopBar({
             horizontalArrangement={{ spacedBy: space.x2 }}
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Surface {...island} modifiers={islandLook}>
+            <Surface {...island} modifiers={actionLook}>
               {action(
                 'chat-selection-close',
                 t.messageSelection.close,
@@ -132,13 +149,13 @@ export function ConversationTopBar({
                 verticalAlignment="center"
                 modifiers={[nativeHeight(islandHeight), padding(space.x5, 0, space.x5, 0)]}
               >
-                <Text style={{ typography: 'titleMedium', fontWeight: 'bold' }} maxLines={1}>
+                <Text style={titleStyle} maxLines={1} overflow="ellipsis">
                   {t.messageSelection.count(selection.count)}
                 </Text>
               </Row>
             </Surface>
             <Spacer modifiers={[weight(1)]} />
-            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-actions')]}>
+            <Surface {...island} modifiers={[...actionLook, testID('chat-selection-actions')]}>
               <Row verticalAlignment="center">
                 {action(
                   'chat-selection-copy',
@@ -163,7 +180,7 @@ export function ConversationTopBar({
             horizontalArrangement={{ spacedBy: space.x2 }}
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Surface {...island} modifiers={islandLook}>
+            <Surface {...island} modifiers={actionLook}>
               {action(
                 'chat-back',
                 t.back,
@@ -213,14 +230,10 @@ export function ConversationTopBar({
                   </RNHostView>
                 )}
                 <Column modifiers={[weight(1)]}>
-                  <Text
-                    style={{ typography: 'titleMedium', fontWeight: 'bold' }}
-                    maxLines={1}
-                    overflow="ellipsis"
-                  >
+                  <Text style={titleStyle} maxLines={1} overflow="ellipsis">
                     {title}
                   </Text>
-                  {status === undefined ? null : (
+                  {!showStatus ? null : (
                     <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
                       {activeBots.length === 0 ? null : (
                         <RNHostView
@@ -266,7 +279,7 @@ export function ConversationTopBar({
                 shadowElevation={0}
               >
                 <DropdownMenu.Trigger>
-                  <Surface {...island} modifiers={islandLook}>
+                  <Surface {...island} modifiers={actionLook}>
                     {action(
                       menu.testID,
                       menu.label,
@@ -301,7 +314,7 @@ export function ConversationTopBar({
                 </DropdownMenu.Items>
               </DropdownMenu>
             ) : onCall === undefined && onProfile === undefined ? null : (
-              <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
+              <Surface {...island} modifiers={[...actionLook, testID('chat-action-island')]}>
                 <Row verticalAlignment="center">
                   {onCall === undefined
                     ? null

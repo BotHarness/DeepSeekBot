@@ -6,6 +6,7 @@ import {
   type VoiceCatalogItem,
   type VoiceCatalogPage,
 } from '@botharness/host-protocol/voice-catalog';
+import type { VoiceRequestTemplate } from '@botharness/host-protocol/voice-request-template';
 
 import { MethodRefused } from './client-errors';
 import {
@@ -40,6 +41,7 @@ export interface VoiceServiceView {
   readonly baseUrl: string;
   readonly keySet: boolean;
   readonly defaultVoice?: string;
+  readonly hasTemplate?: boolean;
 }
 
 export interface VoiceDefaultsView {
@@ -67,6 +69,7 @@ export interface VoiceServiceAdd {
   readonly model?: string;
   readonly defaultVoice?: string;
   readonly key?: string;
+  readonly template?: VoiceRequestTemplate;
 }
 
 const COLLECTIONS: readonly VoiceCatalogCollection[] = ['models', 'account', 'public'];
@@ -123,7 +126,7 @@ export function voiceServiceRecord(value: unknown, method: string): Record<strin
   return row;
 }
 
-function serviceView(row: Record<string, unknown>): VoiceServiceView {
+export function voiceServiceView(row: Record<string, unknown>): VoiceServiceView {
   return {
     id: row['id'] as string,
     name: row['name'] as string,
@@ -131,6 +134,7 @@ function serviceView(row: Record<string, unknown>): VoiceServiceView {
     baseUrl: row['baseUrl'] as string,
     keySet: row['keySet'] === true,
     ...(text(row['defaultVoice']) ? { defaultVoice: row['defaultVoice'] } : {}),
+    ...(row['hasTemplate'] === true ? { hasTemplate: true } : {}),
   };
 }
 
@@ -165,7 +169,7 @@ export async function loadVoiceServices(host: HostCall): Promise<VoiceServicesVi
   const answer = await readVoiceProviders(host);
   const services = (rows: unknown) =>
     Array.isArray(rows)
-      ? rows.map((row) => serviceView(voiceServiceRecord(row, 'voiceProviders')))
+      ? rows.map((row) => voiceServiceView(voiceServiceRecord(row, 'voiceProviders')))
       : [];
   return {
     presets: some(answer['presets'], parsePreset),
@@ -192,7 +196,7 @@ export async function addVoiceService(
   input: VoiceServiceAdd,
 ): Promise<VoiceServiceView> {
   const { kind, ...rest } = input;
-  return serviceView(await addVoiceProvider(host, kind === 'asr' ? { kind, ...rest } : rest));
+  return voiceServiceView(await addVoiceProvider(host, kind === 'asr' ? { kind, ...rest } : rest));
 }
 
 export async function removeVoiceService(host: HostCall, id: string): Promise<string[]> {

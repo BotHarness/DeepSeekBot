@@ -6,6 +6,13 @@ export interface ChannelCandidate extends Pick<
 > {
   avatarSource?: RemoteSource;
 }
+export interface PersonCandidate {
+  id: string;
+  displayName: string;
+  username?: string;
+}
+export type PeopleStatus = 'off' | 'loading' | 'ready' | 'error';
+export const MAX_INITIAL_CHANNEL_PEOPLE = 100;
 export type ChannelCreationRecord = {
   hostId: string;
   name: string;
@@ -16,6 +23,8 @@ export type ChannelCreationOperation = Extract<ChannelCreationRecord, { kind: 's
 export interface ChannelCreationSnapshot {
   record: ChannelCreationRecord;
   candidates: ChannelCandidate[];
+  people: PersonCandidate[];
+  peopleStatus: PeopleStatus;
   loading: boolean;
   busy: boolean;
   loaded: boolean;
@@ -26,10 +35,24 @@ export interface ChannelCreationSnapshot {
 export interface ChannelCreationPort {
   deviceId(hostId: string): string | undefined;
   candidates(hostId: string): Promise<ChannelCandidate[]>;
+  people?(hostId: string): Promise<PersonCandidate[] | undefined>;
   create(operation: Omit<ChannelCreationOperation, 'kind'>): Promise<string>;
 }
 
 export class ChannelCreationNotAccepted extends Error {}
+
+export function channelPeoplePending({ record, peopleStatus }: ChannelCreationSnapshot): boolean {
+  return (
+    record.kind === 'draft' &&
+    (peopleStatus === 'loading' || (!!record.humanIds?.length && peopleStatus !== 'ready'))
+  );
+}
+
+export function selectedChannelPeople({ record, people }: ChannelCreationSnapshot) {
+  if (!record.humanIds?.length) return [];
+  const byId = new Map(people.map((person) => [person.id, person]));
+  return record.humanIds.map((id) => byId.get(id) ?? { id, displayName: id });
+}
 
 function savedRecord(value: unknown): ChannelCreationRecord | undefined {
   if (
@@ -81,12 +104,15 @@ export function createChannelCreation(options: {
   let state: ChannelCreationSnapshot = {
     record: { kind: 'draft', hostId: '', name: '', members: [] },
     candidates: [],
+    people: [],
+    peopleStatus: 'off',
     loading: false,
     busy: false,
     loaded: false,
     selectionReset: false,
   };
   let generation = 0;
+  let peopleGeneration = 0;
   const listeners = new Set<() => void>();
   const publish = (patch: Partial<ChannelCreationSnapshot>) => {
     state = { ...state, ...patch };
@@ -100,7 +126,27 @@ export function createChannelCreation(options: {
       publish({ ...(record ? { record } : {}), loaded: true });
     })
     .catch(() => publish({ error: 'storage-invalid' }));
-  const load = async () => {
+  const humanIds = (ids: string[]) => (ids.length === 0 ? {} : { humanIds: ids });
+  const loadPeople = async () => {
+    const version = ++peopleGeneration;
+    const hostId = state.record.hostId;
+    if (!hostId || state.record.kind !== 'draft' || !options.port.people) {
+      publish({ people: [], peopleStatus: 'off' });
+      return;
+    }
+    publish({ peopleStatus: 'loading' });
+    try {
+      const people = await options.port.people(hostId);
+      if (version !== peopleGeneration || state.record.hostId !== hostId) return;
+      publish({
+        people: people ?? state.people,
+        peopleStatus: people === undefined ? 'off' : 'ready',
+      });
+    } catch {
+      if (version === peopleGeneration) publish({ peopleStatus: 'error' });
+    }
+  };
+  const loadBots = async () => {
     const version = ++generation;
     const hostId = state.record.hostId;
     if (!hostId || state.record.kind !== 'draft') return;
@@ -125,6 +171,9 @@ export function createChannelCreation(options: {
         });
     }
   };
+  const load = async () => {
+    await Promise.all([loadBots(), loadPeople()]);
+  };
   return {
     ready,
     getSnapshot: () => state,
@@ -138,9 +187,12 @@ export function createChannelCreation(options: {
       if (!state.loaded || state.record.kind !== 'draft' || state.busy) return;
       if (hostId !== state.record.hostId) {
         generation++;
+        peopleGeneration++;
         publish({
           record: { kind: 'draft', hostId, name: state.record.name, members: [] },
           candidates: [],
+          people: [],
+          peopleStatus: 'off',
           loading: false,
           selectionReset: state.record.members.length > 0 || !!state.record.humanIds?.length,
           error: undefined,
@@ -167,9 +219,31 @@ export function createChannelCreation(options: {
         : [...state.record.members, slug];
       publish({ record: { ...state.record, members }, selectionReset: false });
     },
+    togglePerson(id: string) {
+      if (!state.loaded || state.record.kind !== 'draft' || state.busy) return;
+      const { humanIds: selected = [], ...rest } = state.record;
+      const removing = selected.includes(id);
+      if (
+        !removing &&
+        (state.peopleStatus !== 'ready' ||
+          selected.length >= MAX_INITIAL_CHANNEL_PEOPLE ||
+          !state.people.some((person) => person.id === id))
+      )
+        return;
+      const next = removing ? selected.filter((entry) => entry !== id) : [...selected, id];
+      publish({ record: { ...rest, ...humanIds(next) }, selectionReset: false });
+    },
+    refreshPeople: loadPeople,
     async submit() {
       await ready;
-      if (!state.loaded || state.busy || state.loading || state.result) return;
+      if (
+        !state.loaded ||
+        state.busy ||
+        state.loading ||
+        channelPeoplePending(state) ||
+        state.result
+      )
+        return;
       let record = state.record;
       const fresh = record.kind === 'draft';
       if (record.kind === 'draft') {
@@ -218,9 +292,12 @@ export function createChannelCreation(options: {
       try {
         await options.storage.write(record);
         generation++;
+        peopleGeneration++;
         publish({
           record,
           candidates: [],
+          people: [],
+          peopleStatus: 'off',
           result: undefined,
           error: undefined,
           selectionReset: false,

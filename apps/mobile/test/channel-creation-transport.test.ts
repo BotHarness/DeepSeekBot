@@ -199,3 +199,21 @@ it('keeps fallback avatars for malformed optional metadata without attaching cre
   ]);
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+it('reads people from the creation picker and hides them when the Host offers none', async () => {
+  let canAddPeople = true;
+  const request = vi.fn<HostCarrier['request']>(async (url, options) => {
+    expect(url.split('/').at(-1)).toBe('channelGroupMemberPicker');
+    expect(JSON.parse(String(options.body)).payload.args).toEqual({ query: '' });
+    return answer({
+      canAddBots: true,
+      canAddPeople,
+      people: canAddPeople ? [{ id: 'h-ann', displayName: 'Ann', username: 'ann' }, { id: 7 }] : [],
+      bots: [],
+    });
+  });
+  const port = channelCreationTransport(() => hosts, { request, openSocket: vi.fn() });
+  expect(await port.people?.('A')).toEqual([{ id: 'h-ann', displayName: 'Ann', username: 'ann' }]);
+  canAddPeople = false;
+  expect(await port.people?.('A')).toBeUndefined();
+});

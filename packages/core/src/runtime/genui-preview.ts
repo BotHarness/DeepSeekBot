@@ -235,7 +235,9 @@ export async function previewGenuiDocument(
                 ? observed.failure
                 : 'unsupported'
             }`,
-            'The document was refused by the isolated renderer.',
+            observed.failure === 'unsupported' || observed.failure === 'invalid-content'
+              ? 'The document was refused by the isolated renderer. Remove CSS transition, animation and @keyframes, backdrop-filter, SVG filter effects and inline on* event attributes; attach listeners with addEventListener in a <script>.'
+              : 'The document was refused by the isolated renderer.',
           );
         if (observed?.ready && observed.measured) break;
         await new Promise<void>((resolve) => setTimeout(resolve, 50));

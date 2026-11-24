@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import {
@@ -12,6 +12,7 @@ import {
   resolveRecurringOccurrence,
 } from '@deepseek-ai/dsh-schedule';
 
+import { validBotCreationKey } from '../bots/creation.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export const BOT_SCHEDULE_ENABLED_LIMIT = 20;
@@ -51,6 +52,7 @@ export interface BotSchedule {
   enabled: boolean;
   creator: BotScheduleCreator;
   locked: boolean;
+  revision: string;
   nextRunAt?: string;
   lastFiring?: BotScheduleFiring;
   createdAt: string;
@@ -78,7 +80,19 @@ export type BotScheduleErrorCode =
   | 'invalid-input'
   | 'limit-reached'
   | 'locked'
-  | 'inactive';
+  | 'inactive'
+  | 'invalid-operation-key'
+  | 'operation-key-conflict'
+  | 'operation-key-consumed'
+  | 'stale-revision';
+
+export type BotScheduleCreated = BotSchedule & { reconciled?: true };
+
+export interface BotScheduleCreateOptions {
+  operationKey?: string;
+}
+
+export const validBotScheduleOperationKey = validBotCreationKey;
 
 export class BotScheduleError extends Error {
   readonly code: BotScheduleErrorCode;
@@ -97,14 +111,21 @@ export interface BotScheduleStore {
     input: BotScheduleInput,
     creator: BotScheduleCreator,
     creatorHumanId?: string,
-  ): BotSchedule;
+    options?: BotScheduleCreateOptions,
+  ): BotScheduleCreated;
   update(
     botSlug: string,
     id: string,
     change: BotScheduleChange,
     actor: BotScheduleCreator,
+    expectedRevision?: string,
   ): BotSchedule;
-  remove(botSlug: string, id: string, actor: BotScheduleCreator): boolean;
+  remove(
+    botSlug: string,
+    id: string,
+    actor: BotScheduleCreator,
+    expectedRevision?: string,
+  ): boolean;
   history(botSlug: string, id: string): BotScheduleFiring[];
   runNow(botSlug: string, id: string): BotScheduleFiring;
   tick(): void;
@@ -298,6 +319,59 @@ function buildRecord(
   }
 }
 
+function digest(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function withSeconds(trigger: BotScheduleTrigger): BotScheduleTrigger {
+  return trigger.kind === 'daily' || trigger.kind === 'weekly'
+    ? { ...trigger, time: localTime(trigger.time) }
+    : trigger;
+}
+
+function storedTriggerOf(record: StoredRecord): BotScheduleTrigger {
+  switch (record.kind) {
+    case 'daily':
+      return { kind: 'daily', time: localTime(record.time), timeZone: record.timeZone };
+    case 'weekly':
+      return {
+        kind: 'weekly',
+        time: localTime(record.time),
+        timeZone: record.timeZone,
+        weekdays: [...record.weekdays],
+      };
+    case 'every':
+    case 'at':
+    case 'cron':
+      return triggerOf(record);
+  }
+}
+
+function exactTriggerOf(record: StoredRecord): unknown {
+  return record.kind === 'at'
+    ? { kind: 'once', ...record.local, at: record.scheduledAt }
+    : storedTriggerOf(record);
+}
+
+function scheduleRevision(row: ScheduleRow, record: StoredRecord): string {
+  return digest({
+    title: record.title,
+    prompt: record.prompt,
+    trigger: exactTriggerOf(record),
+    enabled: row.enabled === 1,
+    locked: row.locked === 1,
+  }).slice(0, 24);
+}
+
+function requireRevision(row: ScheduleRow, expectedRevision: string | undefined): void {
+  if (expectedRevision === undefined) return;
+  if (scheduleRevision(row, parseRecord(row)) !== expectedRevision)
+    throw new BotScheduleError(
+      'stale-revision',
+      `Bot Schedule ${row.schedule_id} changed; read it again before changing it`,
+    );
+}
+
 function sameTrigger(left: BotScheduleTrigger, right: BotScheduleTrigger): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -411,6 +485,7 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
       enabled: row.enabled === 1,
       creator: row.creator,
       locked: row.locked === 1,
+      revision: scheduleRevision(row, record),
       ...(row.enabled === 1 ? { nextRunAt: record.scheduledAt } : {}),
       ...(last === undefined ? {} : { lastFiring: last }),
       createdAt: row.created_at,
@@ -611,17 +686,75 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
       );
     },
 
-    create(botSlug, input, creator, creatorHumanId) {
+    create(botSlug, input, creator, creatorHumanId, createOptions) {
+      const operationKey = createOptions?.operationKey;
+      if (operationKey !== undefined && !validBotScheduleOperationKey(operationKey))
+        throw new BotScheduleError(
+          'invalid-operation-key',
+          'The operation key must be 8–128 letters, digits, dots, colons, underscores or hyphens.',
+        );
       const title = normalizeText(input.title, 'title', 120);
       const prompt = normalizeText(input.prompt, 'prompt', 4000);
       const id = createId();
       const at = now();
-      const record = buildRecord(id, title, prompt, input.trigger, at.getTime());
+      let record: StoredRecord | undefined;
+      let refusal: BotScheduleError | undefined;
+      try {
+        record = buildRecord(id, title, prompt, input.trigger, at.getTime());
+      } catch (error) {
+        if (!(error instanceof BotScheduleError) || operationKey === undefined) throw error;
+        if (input.trigger.kind !== 'once') throw error;
+        refusal = error;
+      }
       const enabled = input.enabled ?? true;
       if (creator === 'personabot' && input.locked !== undefined)
         throw new BotScheduleError('locked', 'Only the Human can lock or unlock a Bot Schedule');
       const locked = input.locked === true;
+      const payloadHash = digest({
+        kind: 'bot-schedule-create-v1',
+        botSlug,
+        creator,
+        title,
+        prompt,
+        trigger:
+          input.trigger.kind === 'once'
+            ? {
+                kind: 'once',
+                date: input.trigger.date,
+                time: localTime(input.trigger.time),
+                timeZone: input.trigger.timeZone,
+              }
+            : exactTriggerOf(record!),
+        enabled,
+        locked,
+      });
+      let reconciled = false;
       const created = write((db) => {
+        if (operationKey !== undefined) {
+          const receipt = db
+            .prepare(
+              'SELECT payload_hash, schedule_id FROM bot_schedule_creations WHERE operation_key = ?',
+            )
+            .get(operationKey) as { payload_hash: string; schedule_id: string } | undefined;
+          if (receipt !== undefined) {
+            if (receipt.payload_hash !== payloadHash)
+              throw new BotScheduleError(
+                'operation-key-conflict',
+                'This operation key belongs to a different schedule creation request.',
+              );
+            const original = db
+              .prepare('SELECT * FROM bot_schedules WHERE schedule_id = ? AND bot_slug = ?')
+              .get(receipt.schedule_id, botSlug) as ScheduleRow | undefined;
+            if (original === undefined)
+              throw new BotScheduleError(
+                'operation-key-consumed',
+                `The schedule this operation key created (${receipt.schedule_id}) was deleted; this key cannot recreate it.`,
+              );
+            reconciled = true;
+            return view(db, original);
+          }
+        }
+        if (record === undefined) throw refusal!;
         if (enabled) requireCapacity(db, botSlug);
         db.prepare(`
           INSERT INTO bot_schedules
@@ -638,16 +771,24 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
           at.toISOString(),
           creatorHumanId ?? null,
         );
+        if (operationKey !== undefined)
+          db.prepare(`
+            INSERT INTO bot_schedule_creations
+              (operation_key, bot_slug, payload_hash, schedule_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(operationKey, botSlug, payloadHash, id, at.toISOString());
         return view(db, readRow(db, botSlug, id));
       });
+      if (reconciled) return { ...created, reconciled: true };
       mutated(botSlug);
       return created;
     },
 
-    update(botSlug, id, change, actor) {
+    update(botSlug, id, change, actor, expectedRevision) {
       const at = now();
       const updated = write((db) => {
         const row = readRow(db, botSlug, id);
+        requireRevision(row, expectedRevision);
         if (actor === 'personabot' && row.locked === 1)
           throw new BotScheduleError('locked', `Bot Schedule ${id} is locked by the Human`);
         if (actor === 'personabot' && change.locked !== undefined)
@@ -659,11 +800,13 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
           change.prompt === undefined
             ? record.prompt
             : normalizeText(change.prompt, 'prompt', 4000);
-        const trigger = change.trigger ?? triggerOf(record);
+        const stored = storedTriggerOf(record);
+        const trigger = change.trigger ?? stored;
         const enabled = change.enabled ?? row.enabled === 1;
         const locked = change.locked ?? row.locked === 1;
         if (enabled && row.enabled === 0) requireCapacity(db, botSlug, id);
-        const restart = (enabled && row.enabled === 0) || !sameTrigger(trigger, triggerOf(record));
+        const restart =
+          (enabled && row.enabled === 0) || !sameTrigger(withSeconds(trigger), stored);
         const next: StoredRecord = restart
           ? buildRecord(id, title, prompt, trigger, at.getTime())
           : { ...record, title, prompt };
@@ -676,12 +819,13 @@ export function createBotScheduleStore(options: BotScheduleStoreOptions): BotSch
       return updated;
     },
 
-    remove(botSlug, id, actor) {
+    remove(botSlug, id, actor, expectedRevision) {
       const removed = write((db) => {
         const row = db
-          .prepare('SELECT locked FROM bot_schedules WHERE schedule_id = ? AND bot_slug = ?')
-          .get(id, botSlug) as { locked: number } | undefined;
+          .prepare('SELECT * FROM bot_schedules WHERE schedule_id = ? AND bot_slug = ?')
+          .get(id, botSlug) as ScheduleRow | undefined;
         if (row === undefined) return false;
+        requireRevision(row, expectedRevision);
         if (actor === 'personabot' && row.locked === 1)
           throw new BotScheduleError('locked', `Bot Schedule ${id} is locked by the Human`);
         db.prepare('DELETE FROM bot_schedule_firings WHERE schedule_id = ?').run(id);

@@ -15,7 +15,14 @@ vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circ
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
-const router = vi.hoisted(() => ({ dismissTo: vi.fn(), back: vi.fn() }));
+const navigation = vi.hoisted(() => ({
+  remove: vi.fn(),
+  prevented: undefined as (() => void) | undefined,
+}));
+const router = vi.hoisted(() => {
+  const remove = () => (navigation.prevented ?? navigation.remove)();
+  return { dismissTo: vi.fn(remove), back: vi.fn(remove) };
+});
 const params = vi.hoisted(() => ({ value: { i: 'invite' } as Record<string, string> }));
 vi.mock('expo-router', async () => {
   const { useState } = await import('react');
@@ -24,6 +31,11 @@ vi.mock('expo-router', async () => {
     useLocalSearchParams: () => params.value,
     useFocusEffect: (focus: () => void) => {
       useState(() => queueMicrotask(focus));
+    },
+    usePreventRemove: (prevent: boolean, callback: () => void) => {
+      const disable = () => (navigation.prevented = undefined);
+      navigation.prevented = prevent ? callback : undefined;
+      return disable;
     },
   };
 });
@@ -82,12 +94,9 @@ const discoverHostAddress = vi.hoisted(() =>
   vi.fn(async (_input: unknown) => ({ ok: true as const, value: discovery })),
 );
 vi.mock('@botharness/host-client/password-sign-in', () => ({ discoverHostAddress }));
-const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
+const landing = vi.hoisted(() => ({ filter: vi.fn() }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: landing.filter },
-}));
-vi.mock('../src/ui/shell/workspace-paging', () => ({
-  closeWorkspacePageWhenShown: landing.closePage,
 }));
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
 vi.mock('expo-clipboard', () => clipboard);
@@ -164,7 +173,6 @@ it('signs the same member in again from a saved Host without an invitation or a 
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
     expect(router.dismissTo).toHaveBeenCalledOnce();
     expect(landing.filter).toHaveBeenCalledWith(computerEnvironmentKey('h'));
-    expect(landing.closePage).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     element.remove();
@@ -210,6 +218,7 @@ it('switches to another member account on a saved Host by username, behind the s
 });
 
 async function renderAddress(address: string) {
+  navigation.remove.mockClear();
   params.value = { address };
   const element = document.createElement('div');
   document.body.append(element);
@@ -224,13 +233,21 @@ async function renderAddress(address: string) {
   };
   const press = (id: string) =>
     act(async () => element.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+  const submit = (id: string) =>
+    act(async () => {
+      element
+        .querySelector(`[data-testid="${id}"]`)!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+  const focused = () => document.activeElement?.getAttribute('data-testid');
   await act(async () => root.render(<TeamSignInScreen />));
   const close = () => {
     act(() => root.unmount());
     element.remove();
     params.value = { i: 'invite' };
+    navigation.prevented = undefined;
   };
-  return { element, type, press, close };
+  return { element, type, press, submit, focused, close };
 }
 
 it('asks how to connect, then signs in with one username and password form for an address', async () => {
@@ -239,7 +256,7 @@ it('asks how to connect, then signs in with one username and password form for a
     ok: true,
     value: { ...bob, hostId: 'other-host', member: undefined, role: 'owner' },
   });
-  const { element, type, press, close } = await renderAddress('studio.example');
+  const { element, type, press, submit, focused, close } = await renderAddress('studio.example');
   try {
     expect(discoverHostAddress).toHaveBeenLastCalledWith(
       expect.objectContaining({ input: 'studio.example' }),
@@ -259,6 +276,8 @@ it('asks how to connect, then signs in with one username and password form for a
     await press('team-fingerprint');
     expect(clipboard.setStringAsync).toHaveBeenCalledWith(Array(16).fill('bbbb').join(' '));
     await type('team-username', 'Dana');
+    await submit('team-username');
+    expect(focused()).toBe('team-password');
     await type('team-password', 'owner-password');
     await press('team-sign-in');
     expect(session.signInPassword).toHaveBeenLastCalledWith(
@@ -273,6 +292,7 @@ it('asks how to connect, then signs in with one username and password form for a
       undefined,
     );
     expect(router.dismissTo).toHaveBeenCalledWith('/');
+    expect(navigation.remove).toHaveBeenCalledOnce();
   } finally {
     close();
   }
@@ -288,7 +308,8 @@ it('continues a member to the password change after address sign-in', async () =
       role: 'member',
     },
   });
-  const { element, type, press, close } = await renderAddress('https://studio.example');
+  const { element, type, press, submit, focused, close } =
+    await renderAddress('https://studio.example');
   try {
     await press('team-choose-password');
     await type('team-username', 'bob');
@@ -296,6 +317,8 @@ it('continues a member to the password change after address sign-in', async () =
     await press('team-sign-in');
     expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
     await type('team-new-password', 'a-new-password');
+    await submit('team-new-password');
+    expect(focused()).toBe('team-confirm-password');
     await type('team-confirm-password', 'a-new-password');
     const labels = [...element.querySelectorAll('*')]
       .filter((node) => node.children.length === 0)
@@ -304,6 +327,52 @@ it('continues a member to the password change after address sign-in', async () =
     expect(labels).toContain(t.teamSignIn.confirmPassword);
     for (const input of element.querySelectorAll('input'))
       expect(input.getAttribute('placeholder')).toBeNull();
+  } finally {
+    close();
+  }
+});
+
+it.each([
+  ['password form', 'team-choose-password', 'team-password'],
+  ['computer approval', 'team-choose-approve', 'team-scan-code'],
+])('returns from the %s to the same Host chooser before leaving Pair', async (_, choice, field) => {
+  discoverHostAddress.mockClear();
+  const { element, press, close } = await renderAddress('studio.example');
+  try {
+    await press(choice);
+    expect(element.querySelector(`[data-testid="${field}"]`)).not.toBeNull();
+    await act(() => router.back());
+    expect(navigation.remove).not.toHaveBeenCalled();
+    expect(element.querySelector(`[data-testid="${field}"]`)).toBeNull();
+    expect(element.querySelector('[data-testid="team-choose-password"]')).not.toBeNull();
+    expect(element.querySelector('[data-testid="team-choose-approve"]')).not.toBeNull();
+    expect(element.textContent).toContain(t.teamSignIn.connectTo.replace('{host}', 'Studio'));
+    expect(discoverHostAddress).toHaveBeenCalledOnce();
+    await act(() => router.back());
+    expect(navigation.remove).toHaveBeenCalledOnce();
+  } finally {
+    close();
+  }
+});
+
+it('ignores a password response after Back returns to the Host chooser', async () => {
+  const response = Promise.withResolvers<{ ok: false; code: string }>();
+  session.signInPassword.mockReturnValueOnce(response.promise);
+  const { element, type, press, close } = await renderAddress('studio.example');
+  try {
+    await press('team-choose-password');
+    await type('team-username', 'Dana');
+    await type('team-password', 'abandoned-password');
+    await press('team-sign-in');
+    const request = session.signInPassword.mock.lastCall?.[0];
+    await act(() => router.back());
+    expect(request.signal.aborted).toBe(true);
+    await act(() => response.resolve({ ok: false, code: 'password-sign-in-unavailable' }));
+    expect(element.querySelector('[data-testid="team-choose-password"]')).not.toBeNull();
+    await press('team-choose-password');
+    expect(element.querySelector<HTMLTextAreaElement>('[data-testid="team-password"]')?.value).toBe(
+      '',
+    );
   } finally {
     close();
   }
@@ -319,6 +388,7 @@ it('guides a person who chooses computer approval to open and scan a pairing cod
     expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
     await press('team-scan-code');
     expect(router.back).toHaveBeenCalledOnce();
+    expect(navigation.remove).toHaveBeenCalledOnce();
   } finally {
     close();
   }
@@ -331,6 +401,9 @@ it('sends a Host without password sign-in back to the scanner before asking for 
   try {
     expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
     expect(element.textContent).toContain(t.teamSignIn.needsCode);
+    await act(() => router.back());
+    expect(navigation.remove).toHaveBeenCalledOnce();
+    router.back.mockClear();
     await press('team-scan-code');
     expect(router.back).toHaveBeenCalledOnce();
   } finally {

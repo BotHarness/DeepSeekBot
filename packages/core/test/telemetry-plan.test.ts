@@ -28,7 +28,11 @@ const unpadded = (markdown: string) =>
 
 const code = (value: string) => `\`${value}\``;
 const spec = (value: TelemetryPropertySpec) =>
-  value === 'boolean' ? 'boolean' : value === 'count' ? 'count' : value.join(' \\| ');
+  value === 'boolean' || value === 'count'
+    ? value
+    : value === 'model_id'
+      ? 'built-in model id \\| `custom` \\| `other` \\| `unknown`'
+      : value.join(' \\| ');
 
 function renderPlan(): string {
   const host = Object.entries(TELEMETRY_EVENTS)

@@ -1,51 +1,48 @@
-# Phone Chats drawer views
+# Phone Environment sheet and Chats header
 
 ## Sources
 
-- `apps/mobile/src/ui/shell/{host-drawer,host-drawer-model,native-host-drawer,native-host-drawer.android}.{ts,tsx}`
-- `apps/mobile/src/ui/primitives/drawer-*`
-- `apps/mobile/modules/dismissible-drawer/**`
+- `apps/mobile/src/ui/shell/{environment-sheet,environment-sheet-rows,environment-settings-row,host-drawer-model,host-drawer-state,home-header}.{ts,tsx}`
+- `apps/mobile/app/environment.tsx`
 
 ## Terms
 
-- Workspace drawer
+- Environment sheet
+- Environment Scope
 - Chats
 
 ## Sub-features
 
-- `all`: the first drawer row selects All without switching the current paired Host. Chats renders one list containing the current Host and available cloud workspaces.
-- `host`: choosing a Host closes the drawer and queues its switch through the existing Host Session. Each switch waits for the prior save/adopt to settle before checking the current Host. Only the latest successful choice selects its conversation filter, so the final Host owner, persisted Host and selected Host view agree. A failed switch does not block the next choice. All updates the filter immediately without cancelling an already requested Host switch.
-- `header`: All shows the Chats title and a chat icon; a Host shows its device-local name, icon and colour. The title button announces the full selected view name (including cloud disambiguation) in the current locale. Title icons and the All row icon follow their label roles and live system text size. Removing a selected Host falls back to All.
+- `entry`: the first row of Settings reads "Environment" with the current Environment name and opens the Environment sheet: a native iOS form sheet with medium and large detents, or the Android modal bottom sheet. Nothing on Chats opens it: no header control, no left-edge or anywhere swipe, and no Android search-bar menu button ([ADR-0364](../../../../docs/adr/0364-environment-switching-lives-in-settings.md)).
+- `all`: the first row selects All without switching the current paired Host. Chats renders one list containing every loaded online Computer (offline Computers are left out) and available cloud workspaces.
+- `host`: choosing a Computer closes the sheet and queues its switch through the existing Host Session. Each switch waits for the prior save/adopt to settle before checking the current Host. Only the latest successful choice selects its conversation filter, so the final Host owner, persisted Host and selected Host view agree. A failed switch does not block the next choice. All updates the filter immediately without cancelling an already requested Host switch. A successful choice keeps ADR-0272's reset: scoped details and sheets close and every tab stack returns to its root, while Settings stays the selected tab.
+- `cloud`: with Cloud enabled, cloud workspaces follow the Computers; choosing one opens its Cloud list as before. Pair a new computer, Join by link or QR and Manage cloud services come last.
+- `header`: All shows the Chats title and a chat icon; a Computer shows its device-local name, icon and colour. The name is plain header text: it is not a button and announces the full selected view name (including cloud disambiguation) in the current locale. Title icons follow their label roles and live system text size. Removing a selected Host falls back to All.
 - `create-actions`: On Chats, tap the iOS glass **+** or Android Material 3 Expressive FAB above the tab bar. The creation card shows New Group and the creation rows permitted in the current workspace. Create Bot reveals Blank, Marketplace, ZIP and Git in the same card. Verify Back returns to the first level, a scrim tap dismisses either level, the labels and symbols grow at maximum text size, and Reduce Motion uses fades.
 - `accent`: Android's root accent follows the current Host colour in each scheme only while that Host's filter is selected. All, cloud, a different Host filter and a Host without a colour keep the default theme. iOS keeps its existing accent.
-- `gestures`: Chats has no source tabs or sideways pager. The existing iOS left-edge drawer gesture remains available.
-- `settings-entry`: iOS and Android show a labelled Settings gear in their bottom navigation, with no Settings gear in the Chats header. It opens the existing Settings sheet over Chats or Activity and keeps that underlying tab selected. Dismissal returns to the same page. Android uses its native Material navigation item; iOS keeps its existing bottom-island entry.
-- `pairing`: cancelling first-run pairing leaves the empty home; drawer account rows open `/pair/account` with the selected account id. Cloud entries follow the existing feature flag.
+- `pairing`: cancelling first-run pairing leaves the empty home; account rows in the Environment sheet open `/pair/account` with the selected account id. Cloud entries follow the existing feature flag.
 
 ## How to get to it (user POV)
 
-Open Chats in the paired app, tap the title to open the left drawer, then choose All or a Host. Long-press a Host or open its menu to change its device-local icon and colour. On iOS, swipe in from the left edge to open the drawer.
+Open Settings in the paired app and tap the first row, Environment. Choose All, a Computer or a cloud workspace. Open a Computer's ⋯ menu (or long-press it) to change its device-local icon and colour, its connection, or to unpair it.
 
 ## Driving it with verify-app
 
 Use the designated [shared device QA runner](../../../../docs/agents/device-qa.md), with the Windows [Android lane](../../../../docs/agents/android-device-qa.md) and the Mac/iOS lane. Record the exact PR head, batch head, native build provenance and assigned Host. This journey needs two paired QA Hosts for switching, but no model, push, camera or real tailnet. Any optional model run uses `deepseek-v4-pro`.
 
 1. Capture the base and candidate with the same data, locale and viewport. On each platform, run default/intermediate/maximum system text sizes in light and dark.
-2. Tap `chats-view-button`, then `drawer-all`. Check All is selected, one list is visible, and its rows belong to the current Host or enabled cloud workspaces. Check no environment tabs or pager remain. With TalkBack/VoiceOver, focus the title and confirm it announces the complete selected All/Host/cloud name. On Android, press All both while selected and unselected; its foreground ripple must be visible and clipped to the row.
-3. Tap `drawer-host-<hostId>` for another paired Host. Check its selected row, title, icon and conversations agree. Open a conversation and read its owning Host's canonical record. Switch back to All and verify it retains that current Host. Choose All while a Host switch is pending; the completed switch must not overwrite All. On device, rapidly choose B then A from current A; after settling, current Host, persisted Host and filter must all end on A. With a third disposable Host C, rapidly choose B then C and verify all three facts end on C. Restart and confirm the persisted owner agrees. The automated Host Session test controls SecureStore completion order for deterministic delayed-write coverage; rapid native taps alone do not prove that timing case.
-4. Search in the selected list, clear search, scroll a long list and return to the drawer. Confirm labels wrap and all actions remain reachable at maximum text size. Confirm the new title glyphs and drawer All icon grow with their labels without clipping or double scaling.
-5. Customize the current Host to orange, then teal, then default. With the current Host selected, Android's app accent changes in both schemes. Switching to All or a cloud view restores the default accent; switching back restores the Host tint. iOS's accent stays unchanged. The header icon reflects the Host colour on both platforms.
-6. On iOS, swipe within the existing `EDGE_WIDTH` at the left edge to open the drawer, then close it by swipe and backdrop. A horizontal swipe away from the edge must not page the list. Android Back dismisses the drawer.
-7. On iOS and Android, tap `settings-button` from Chats, dismiss the existing sheet, then repeat from Activity. Confirm the original page stays selected and its state remains on dismissal, with one gear entry in the bottom island and none in the Chats header. Capture matched before/after in light/dark at default/intermediate/maximum system text; check labels, hit targets and Close/swipe. No model or preference change is needed. Android uses its native Material navigation item; iOS keeps its existing bottom-island entry.
-8. Remove only a disposable selected QA Host. Check the view returns to All. In an isolated unpaired app state, cancel pairing and check the empty home remains. An unpaired account row opens the selected account pairing page directly.
-
-9. Enable Sessions under Settings → Interface and switch between all four tabs. Both platforms show the floating Create control only on Chats and Sessions and keep it visible while scrolling. On a paired Host Owner account, tap New Session and check that it opens the dedicated screen directly. A Team member has no New Session action. Compare the first Sessions row at the same font size in English and Simplified Chinese, and verify Search and Filter and sort still work.
+2. On Chats, confirm the Environment name (`chats-environment-name`) does nothing when tapped, a swipe from the left edge does nothing, and on Android the expanded search bar has no menu button. On iOS, a left swipe on Chats still reaches the last conversation.
+3. Open Settings and tap `settings-environment`. On iOS check the sheet opens at the medium detent and drags to large; on Android check the modal bottom sheet, its handle and Back. Tap `environment-all`. Check the sheet closes, Settings stays selected and its row now reads All, and Chats shows All with one list. With TalkBack/VoiceOver, focus the Chats title and confirm it announces the complete selected All/Host/cloud name as a header.
+4. Reopen the sheet and tap `drawer-host-<hostId>` for another paired Host. Check Chats, Activity and Sessions all follow it, and the row, header, icon and conversations agree. Choose All while a Host switch is pending; the completed switch must not overwrite All. On device, rapidly choose B then A from current A; after settling, current Host, persisted Host and filter must all end on A. Restart and confirm the persisted owner agrees.
+5. From a DM with its Profile open, go to Settings and choose another Computer. Back cannot revive the previous DM or sheet.
+6. Customize the current Host to orange, then teal, then default from its ⋯ menu. With the current Host selected, Android's app accent changes in both schemes. Switching to All or a cloud view restores the default accent. The header icon reflects the Host colour on both platforms.
+7. Remove only a disposable selected QA Host. Check the view returns to All. In an isolated unpaired app state, cancel pairing and check the empty home remains. An unpaired account row opens the selected account pairing page directly.
 
 Keep matched before/after screenshots, accessibility snapshots and console/runtime errors for each changed state. Web previews and source tests do not qualify native gestures, Android colour rendering or large-text usability.
 
 ## Gotchas
 
-- All covers the current Host plus cloud workspaces, not every paired Host. The drawer's existing bounded status glances are not concurrent conversation feeds.
+- The sheet's status glances are bounded and are not concurrent conversation feeds.
 - Host looks remain device-local. There is no cross-device pairing or appearance sync.
 - Preserve the cloud feature flag and the existing cloud-enabled empty-home route separately from first-run pairing.
 - Never reset a Human's pairings or take another runner's device, Metro or Host. Unavailable native lanes remain explicitly untested.

@@ -13,7 +13,6 @@ import { activitySelection, type ActivityItem } from '../../../src/host/activity
 import { channelDestination, navigateChannel } from '../../../src/ui/shell/channel-navigation';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
-import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
 import { useStrings } from '../../../src/ui/strings';
 
 export default function ActivityScreen() {
@@ -113,30 +112,28 @@ export default function ActivityScreen() {
     <>
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       <Stack.Screen options={{ title: t.activity, headerShown: false }} />
-      <HostDrawerEdge>
-        <ActivityFeed
-          key={scope}
-          sources={sources}
-          unavailable={sources.length ? undefined : t.activitySourceUnavailable}
-          hostId={scope}
-          client={undefined}
-          inbox={undefined}
-          snapshot={{ status: 'idle' }}
-          botSlugs={[...bots.keys()]}
-          channels={channels}
-          bot={(slug) => bots.get(slug)}
-          onOpen={open}
-          header={
-            partial ? (
-              <View>
-                <Text tone="muted" style={{ padding: space.x5 }}>
-                  {t.activityPartialScope}
-                </Text>
-              </View>
-            ) : null
-          }
-        />
-      </HostDrawerEdge>
+      <ActivityFeed
+        key={scope}
+        sources={sources}
+        unavailable={sources.length ? undefined : t.activitySourceUnavailable}
+        hostId={scope}
+        client={undefined}
+        inbox={undefined}
+        snapshot={{ status: 'idle' }}
+        botSlugs={[...bots.keys()]}
+        channels={channels}
+        bot={(slug) => bots.get(slug)}
+        onOpen={open}
+        header={
+          partial ? (
+            <View>
+              <Text tone="muted" style={{ padding: space.x5 }}>
+                {t.activityPartialScope}
+              </Text>
+            </View>
+          ) : null
+        }
+      />
     </>
   );
 }

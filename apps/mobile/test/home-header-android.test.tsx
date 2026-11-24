@@ -31,12 +31,6 @@ vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) =
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  useHostDrawerOpen: () => false,
-  hostDrawer: { setReturnFocus: () => {} },
-  openHostDrawer: () => {},
-  focusOn: () => {},
-}));
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) =>
     createElement('span', { 'data-lines': numberOfLines }, children),
@@ -134,7 +128,6 @@ describe('Android Chats header', () => {
             onQuery={() => {}}
             onExpanded={() => {}}
             onPick={() => {}}
-            onNavigation={() => {}}
           />
         }
       >

@@ -3,7 +3,7 @@ import { ConnectionProgress, useConnectionProgress } from '../primitives/connect
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
-import { Platform, Pressable, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
+import { Platform, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
@@ -11,11 +11,9 @@ import { materialSearchHeight, searchAppBarHeight } from '../design/material-sea
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
-import { ChatsIcon, ChevronDownIcon, ChevronLeftIcon, CloudIcon } from './icons';
+import { ChatsIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
-import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
 import { FixedToolbar } from './fixed-toolbar';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader, type TabHeaderSearch } from './tab-native-header';
@@ -28,7 +26,6 @@ export function HomeHeader({
   search,
   bar,
   nativeSearch,
-  onWorkspaces,
   children,
 }: {
   environment: ConversationEnvironment;
@@ -38,14 +35,12 @@ export function HomeHeader({
   search?: ReactNode;
   bar?: ReactNode;
   nativeSearch?: TabHeaderSearch | undefined;
-  onWorkspaces?: (() => void) | undefined;
   children: ReactNode;
 }) {
   const t = useStrings();
   const connectionLabel = useConnectionProgress(connection?.status, false, disruptedSince);
   const theme = useDesignTheme();
   const focused = useIsFocused();
-  const drawerOpen = useHostDrawerOpen();
   const insets = useSafeAreaInsets();
   const native = Platform.OS === 'ios' && nativeSearch !== undefined;
   const android = Platform.OS === 'android';
@@ -66,39 +61,23 @@ export function HomeHeader({
         : { searchBar, height: next },
     );
   };
-  const chip = useMounted<ViewInstance>((node) => {
-    hostDrawer.setReturnFocus(() => focusOn(node));
-    return () => hostDrawer.setReturnFocus(undefined);
-  }, []);
   const title = environment.kind === 'all' ? t.chats : environment.title;
   const location = (
-    <Pressable
-      ref={chip}
-      testID="chats-view-button"
-      onPress={onWorkspaces ?? openHostDrawer}
-      accessibilityRole="button"
-      accessibilityLabel={[
-        onWorkspaces ? t.backToWorkspaces : t.workspaces,
-        environment.accessibilityLabel ?? environment.title,
-        connectionLabel,
-      ]
+    <View
+      testID="chats-environment-name"
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={[environment.accessibilityLabel ?? environment.title, connectionLabel]
         .filter(Boolean)
         .join(', ')}
-      accessibilityState={{
-        ...(onWorkspaces ? {} : { expanded: drawerOpen }),
-        busy: connectionLabel !== undefined,
-      }}
-      style={({ pressed }) => ({
+      accessibilityState={{ busy: connectionLabel !== undefined }}
+      style={{
         minHeight: theme.touch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
-        opacity: pressed ? 0.7 : 1,
-      })}
+      }}
     >
-      {onWorkspaces ? (
-        <ChevronLeftIcon color={theme.color.accent} size={theme.type.title.line} />
-      ) : null}
       {environment.kind === 'computer' && environment.hostIcon ? (
         <HostGlyph
           icon={environment.hostIcon}
@@ -110,14 +89,11 @@ export function HomeHeader({
       ) : (
         <ChatsIcon color={theme.color.accent} size={theme.type.title.line * theme.fontScale} />
       )}
-      <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
+      <Text variant="title" strong style={{ flexShrink: 1 }}>
         {title}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
-      {onWorkspaces ? null : (
-        <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
-      )}
-    </Pressable>
+    </View>
   );
   const header = native ? (
     <>
@@ -148,9 +124,7 @@ export function HomeHeader({
         paddingTop: insets.top,
       }}
     >
-      <View ref={chip} style={{ flex: 1 }}>
-        {bar}
-      </View>
+      <View style={{ flex: 1 }}>{bar}</View>
     </View>
   ) : (
     <TabPageHeader

@@ -37,6 +37,7 @@ const schedule: BotScheduleView = {
   enabled: true,
   creator: 'human',
   locked: false,
+  revision: 'rev-1',
   nextRunAt: '2026-10-06T09:00:00.000Z',
   lastFiring: {
     id: 'f-1',

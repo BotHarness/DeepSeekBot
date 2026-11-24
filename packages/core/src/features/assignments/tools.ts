@@ -942,7 +942,7 @@ export function isReportState(value: string): value is AssignmentReportState {
 }
 
 export function createAssignmentReportTool(
-  currentRun: () => { run: Pick<AssignmentAgentRun, 'report'>; reported: boolean } | undefined,
+  currentRun: () => { run: Pick<AssignmentAgentRun, 'report'>; hasOutcome: boolean } | undefined,
   agent: Pick<Agent, 'session'>,
   withProvenance?: (summary: string) => string,
 ): ToolDefinition {
@@ -993,7 +993,7 @@ export function createAssignmentReportTool(
         },
         { turn: start.data.turn },
       );
-      active.reported = true;
+      if (args.state !== 'progress') active.hasOutcome = true;
       return 'Report delivered to the Orchestrator.';
     },
   });

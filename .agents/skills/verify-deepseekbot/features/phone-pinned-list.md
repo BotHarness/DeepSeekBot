@@ -3,6 +3,7 @@
 ## Sources
 
 - `apps/mobile/src/ui/cloud/channels-screen.tsx`
+- `apps/mobile/app/(tabs)/(home)/index.tsx`
 - `apps/mobile/src/ui/shell/cloud-channel-navigation.ts`
 - `apps/mobile/src/ui/interface-preferences.ts`
 - `apps/mobile/src/cloud/workspace-directory.ts`
@@ -38,6 +39,10 @@ Submit this journey to the centralized test center through [shared device QA](..
 8. Restore device settings; remove only task-owned fixtures. Keep sanitized screenshots, accessibility snapshots, console output and canonical reads with the test-center batch report.
 
 ## Gotchas
+
+### Empty Channels (#5037)
+
+On the phone, select a Team Host with no visible Chats. Sign in as Owner, then repeat with a Team member who has `channels.create` and a member without it. The first two see the short empty line and can reach New Group from the existing plus button. The last sees the Owner or admin hint and has no New Group action for that Host. In a Tobs Cloud workspace with an empty list, confirm the Owner sees the short line and the existing create action in Chats and in the Channels screen. A workspace member sees the workspace Owner hint and has no create action. Repeat with English and Chinese in light and dark. Use the native QA lane for text scaling and device checks.
 
 - Native screenshots, keyboard, screen-reader interaction and Human visual acceptance remain unrun until the designated runner records them. Source/DOM fixtures isolate native boundaries and are not native geometry evidence.
 - No Organize/drag mode, local pin/order store, section rename/delete, or cross-Host aggregation in this slice. Obtain Human visual feedback before implementing the next slice.

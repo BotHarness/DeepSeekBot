@@ -8,6 +8,11 @@ import {
   testVoiceProvider as testVoiceProviderAnswer,
   voiceServiceRecord,
 } from '@botharness/host-client/voice-providers';
+import {
+  readVoiceServiceTemplate,
+  setVoiceServiceTemplateAnswer,
+  validateVoiceTemplate as validateVoiceTemplateAnswer,
+} from '@botharness/host-client/voice-templates';
 
 import { BridgeCallError, bridgeHost, type BridgeCall } from '../../bridge-transport.js';
 import type {
@@ -167,103 +172,19 @@ export function createVoiceBridge(
     );
   }
 
-  function fields(value: unknown): Record<string, unknown> | undefined {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : undefined;
-  }
-
-  function stringMap(value: unknown): boolean {
-    const map = fields(value);
-    return map !== undefined && Object.values(map).every((entry) => typeof entry === 'string');
-  }
-
-  function authOk(value: unknown): boolean {
-    const auth = fields(value);
-    if (auth?.['kind'] === 'none' || auth?.['kind'] === 'bearer') return true;
-    if (auth?.['kind'] === 'query') return typeof auth['name'] === 'string';
-    return (
-      auth?.['kind'] === 'header' &&
-      typeof auth['name'] === 'string' &&
-      typeof auth['prefix'] === 'string'
-    );
-  }
-
-  function ssmlOk(value: unknown, depth = 0): boolean {
-    const node = fields(value);
-    return (
-      depth < 32 &&
-      node !== undefined &&
-      typeof node['tag'] === 'string' &&
-      stringMap(node['attributes']) &&
-      Array.isArray(node['children']) &&
-      node['children'].every((child) => typeof child === 'string' || ssmlOk(child, depth + 1))
-    );
-  }
-
-  function bodyOk(value: unknown): boolean {
-    const body = fields(value);
-    if (body?.['kind'] === 'none') return true;
-    if (body?.['kind'] === 'json') return 'value' in body;
-    if (body?.['kind'] === 'ssml') return ssmlOk(body['root']);
-    return body?.['kind'] === 'multipart' && stringMap(body['fields']);
-  }
-
-  function resultOk(value: unknown): boolean {
-    const result = fields(value);
-    if (result?.['kind'] === 'audio') return true;
-    return (
-      ['base64', 'hex', 'url', 'text'].includes(result?.['kind'] as string) &&
-      typeof result?.['path'] === 'string'
-    );
-  }
-
-  function templateOf(value: unknown, method: string): VoiceRequestTemplate {
-    const template = record(value, method);
-    const headers = template['headers'];
-    if (
-      template['version'] !== 1 ||
-      typeof template['url'] !== 'string' ||
-      (template['method'] !== 'POST' && template['method'] !== 'GET') ||
-      !stringMap(headers) ||
-      !authOk(template['auth']) ||
-      !bodyOk(template['body']) ||
-      !resultOk(template['result'])
-    )
-      throw new Error(`invalid ${method} response`);
-    return template as unknown as VoiceRequestTemplate;
-  }
-
   async function validateVoiceTemplate(
     call: BridgeCall,
     kind: 'tts' | 'asr',
     template: unknown,
   ): Promise<VoiceTemplateValidation> {
-    const method = 'voiceTemplateValidate';
-    const view = await unwrap(call, method, { kind, template });
-    if (view['valid'] === true)
-      return { valid: true, template: templateOf(view['template'], method) };
-    if (view['valid'] !== false || !Array.isArray(view['errors']))
-      throw new Error(`invalid ${method} response`);
-    return {
-      valid: false,
-      errors: view['errors'].map((entry) => {
-        const error = record(entry, method);
-        return {
-          path: typeof error['path'] === 'string' ? error['path'] : '',
-          message: typeof error['message'] === 'string' ? error['message'] : '',
-        };
-      }),
-    };
+    return validateVoiceTemplateAnswer(bridgeHost(call), kind, template);
   }
 
   async function voiceProviderTemplate(
     call: BridgeCall,
     id: string,
   ): Promise<VoiceRequestTemplate> {
-    const method = 'voiceProviderTemplate';
-    const view = await unwrap(call, method, { id });
-    return templateOf(view['template'], method);
+    return readVoiceServiceTemplate(bridgeHost(call), id);
   }
 
   async function setVoiceProviderTemplate(
@@ -271,9 +192,10 @@ export function createVoiceBridge(
     id: string,
     template: VoiceRequestTemplate,
   ): Promise<TtsProviderView> {
-    const method = 'voiceProviderTemplateSet';
-    const view = await unwrap(call, method, { id, template });
-    return provider(view['provider'], method);
+    return provider(
+      await setVoiceServiceTemplateAnswer(bridgeHost(call), id, template),
+      'voiceProviderTemplateSet',
+    );
   }
 
   async function removeVoiceProvider(call: BridgeCall, id: string): Promise<string[]> {

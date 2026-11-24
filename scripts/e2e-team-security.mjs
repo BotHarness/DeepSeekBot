@@ -17,6 +17,8 @@ import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
+import { runVoiceProviderGate } from './team-security-voice-provider-gate.mjs';
+import { formatTeamSecurityReport } from './team-security-report.mjs';
 import {
   buildShellIsolationProbe,
   checkShellIsolationProbe,
@@ -337,24 +339,6 @@ class Suite {
     }
     throw new Error(`Memory folder for ${slug} not found under the Host home`);
   }
-}
-
-function markdown(report) {
-  const lines = [
-    `# Team mode security suite`,
-    '',
-    `Source ${report.source} · ${report.startedAt} · ${report.passed}/${report.total} passed · ${report.inconclusive} inconclusive`,
-    '',
-    `Isolation: ${report.isolation ?? 'unknown'}`,
-    '',
-    '| Scenario | Result | Checks |',
-    '| --- | --- | --- |',
-  ];
-  for (const item of report.scenarios)
-    lines.push(
-      `| ${item.id} ${item.summary} | ${item.result} | ${item.checks.filter((check) => check.ok).length}/${item.checks.length}${item.error ? ` · ${item.error.replaceAll('|', '/').slice(0, 160)}` : ''} |`,
-    );
-  return `${lines.join('\n')}\n`;
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -954,6 +938,9 @@ export async function main(argv = process.argv.slice(2)) {
       runEngineAccountGrantGate(s, fx, check),
     );
     await define('C6', 'Native Session access', (check) => runHostSessionGate(s, fx, check));
+    await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
+      runVoiceProviderGate(s, { as: fx.users.bob }, check),
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;
@@ -978,7 +965,7 @@ export async function main(argv = process.argv.slice(2)) {
       };
       rmSync(suite.secrets, { recursive: true, force: true });
       writeFileSync(join(suite.dir, 'report.json'), JSON.stringify(report, null, 2));
-      writeFileSync(join(suite.dir, 'report.md'), markdown(report));
+      writeFileSync(join(suite.dir, 'report.md'), formatTeamSecurityReport(report));
       process.stdout.write(`report ${join(suite.dir, 'report.md')}\n`);
       if (passed !== suite.results.length || suite.results.length === 0) exit = 1;
     } else process.stdout.write(`${ids.join('\n')}\n`);

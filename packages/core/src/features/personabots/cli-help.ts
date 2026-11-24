@@ -56,7 +56,7 @@ Usage:
   tobs memory-save <id> --path <file> (--body <text> | --body-stdin)
                              [--expected-head <sha>] [--edit-id <id>] [--home <dsh-home>]
   tobs channels [--home <dsh-home>]
-  tobs channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+  tobs channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
   tobs channel-media-target <channel> --source-event <id> --attachment <id>
   tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path> [--representation playback]
   tobs grants <id> [--home <dsh-home>]
@@ -65,9 +65,9 @@ Usage:
   tobs schedules <id> [--home <dsh-home>]
   tobs schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                   --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                  --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-  tobs schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-  tobs schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                  --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--operation-key <key>] [--home <dsh-home>]
+  tobs schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--expected-revision <rev>] [--home <dsh-home>]
+  tobs schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
   tobs schedule-history <id> --sid <schedule> [--home <dsh-home>]
   tobs schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
   tobs schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -226,7 +226,7 @@ Usage:
   tobs todo-tool <id> <tool> [--args-stdin]
   tobs bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
   tobs bot-sessions <id> [--limit <1-100>]
-  tobs bot-activity <id> [--limit <1-100>]
+  tobs bot-activity <id> [--limit <1-100>] [--cursor <next>]
   tobs inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
                     [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest]
                     [--snoozed | --dismissed] [--kind auto-rejection]

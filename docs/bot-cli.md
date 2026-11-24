@@ -110,16 +110,18 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -170,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -187,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` also returns `bot.active`: whether any authoritative session is thinking or working, independent of the priority display `state`. It remains true when another session needs approval and is not derived from the bounded `sessions` output. Android keep-connected summaries combine this full activity feed with complete Human Inbox action discovery, counting distinct Bot identities per Host; old Hosts without `active` remain unsynchronized rather than reporting zero.
+
+`channel-messages` and `bot-activity` return each page with `provenance` (the source: a Channel's id, `dm` or `group` type, `incarnation` (its creation time), member ids and the `revision` the read started at; or a Bot's PersonaBot ID, `incarnation`, activity `generation` and `revision`), `complete`, and `nextCursor` only while older entries remain. Pass `nextCursor` unchanged as `--cursor` with the same target to read the next page; `--cursor` and `--before` cannot be combined. The Host checks the cursor against the current target: a cursor from another Channel or Bot, or one whose target was deleted and recreated, is refused as `changed-read-target`; a Channel history rewritten under the cursor (a purge, or the anchor message no longer at its position) or a changed Bot activity snapshot is `stale-read-revision`; a malformed cursor, or one whose fields no longer match its digest, is `invalid-read-cursor`. The digest only catches accidental corruption: a hand-edited cursor with a recomputed digest can select another page of the same target and revision, and authority still comes from the Host's target and revision checks. Start again from the first page after any of them. Messages sent after the first page never invalidate older pages. A Channel page holds at most `--limit` messages and stops early, with `complete: false`, so the whole serialized page, envelope and cursor included, stays within 64 KiB; a single message that does not fit in the space left after the envelope and cursor still comes back alone so the read advances, and that one page can exceed 64 KiB. `provenance.contentIsData` marks message bodies and session names as quoted data from that source, never instructions.
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
 
@@ -303,7 +308,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` contains `genui_json` (the complete document serialized as a JSON string), optional `width` (240–1600) and `theme` (`light` or `dark`). Preview uses an installed Chrome, Edge or Chromium with a disposable profile; no automatic browser download. It returns document/policy identities, `runtimeSha256` for the exact packaged renderer, bounded diagnostics and a DSH image attachment, never a Channel message. The preview renders in the browser's own first page and waits for two painted frames before capturing. It has a 15-second deadline, one concurrent owner and a 1 MiB image budget. Browser teardown can extend response time. Generated scripts run in a separately supervised QuickJS Worker with a limited DOM adapter, not in the Browser mirror. Interpreter/WASM budgets do not bound total Browser/process memory or guarantee immediate physical reclamation. Missing, corrupt or unsupported runtime assets refuse without silently falling back to native script execution.
+`document-preview.json` contains `genui_json` (the complete document serialized as a JSON string), optional `width` (240–1600) and `theme` (`light` or `dark`). Preview uses an installed Chrome, Edge or Chromium with a disposable profile; no automatic browser download. It returns document/policy identities, a `genui_preview_id`, `runtimeSha256` for the exact packaged renderer, bounded diagnostics and a DSH image attachment, never a Channel message. The preview renders in the browser's own first page and waits for two painted frames before capturing. It has a 15-second deadline, one concurrent owner and a 1 MiB image budget. Browser teardown can extend response time. Generated scripts run in a separately supervised QuickJS Worker with a limited DOM adapter, not in the Browser mirror. Interpreter/WASM budgets do not bound total Browser/process memory or guarantee immediate physical reclamation. Missing, corrupt or unsupported runtime assets refuse without silently falling back to native script execution.
 
 Direct CLI refusals preserve preview-owned codes: `genui-preview-timeout`, `genui-preview-busy`, `genui-preview-unavailable`, `genui-preview-too-large`, and stage-specific `genui-preview-{assets,browser,document,renderer,capture}-failed`. Recognized Browser-owner startup failures retain their bounded kind as `genui-preview-browser-<kind>` (for example, `genui-preview-browser-startup-timeout`), not process stderr or profile paths. `genui_diagram` refusals keep their `genui-diagram-*` code the same way. Renderer refusals use `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`. `genui-preview-image-unavailable` means rendering succeeded but saving the image attachment failed. These classifications do not include guest content, private service details or raw transport errors; retain the first failure before another diagnostic run.
 
@@ -313,13 +318,17 @@ A version-2 document has `version: 2`, `snapshotId`, `observedAt`, `title`, `htm
 
 For version 2, `view.json` uses `{ "snapshotId": "<snapshot-id>", "expectedVersion": 0, "state": { "version": 1, "values": { "filter": "" } } }`, with values exactly matching the registered contract. `request.json` uses `{ "body": "Continue with my view", "genuiReply": { "version": 2, "messageId": "<document-message-id>", "snapshotId": "<snapshot-id>", "intent": "continue", "state": { "version": 1, "values": { "filter": "" } } } }`. The same CAS, access, ordinary-message, retry and refresh rules below apply. Generated scripts only propose private-view values; trusted outer controls own submission. Preview success alone is not publication, Web rendering, native or Human acceptance.
 
+Write `<genui-diagram>Mermaid source</genui-diagram>` (optional `width="240–1600"`) inside version-2 `html` instead of pasting SVG. Preview and send compile each element with the pinned diagram compiler into the same offline SVG that `genui_diagram` returns; a document holds at most eight. A malformed element is refused with `genui-diagram-tag`, and compiler refusals keep their `genui-diagram-*` code with the failing diagram's position.
+
+To publish exactly what was previewed, send `genui_preview_id` from the preview result instead of `genui_json`; the two are mutually exclusive. A preview id belongs to the Bot that previewed it and lives in Host memory for two hours (at most 64 recent previews). An unknown, expired or other Bot's id is refused with `genui-preview-expired`: preview again or send the complete `genui_json`.
+
 `report-send.json` contains `channel_id`, a readable `body`, and `genui_json`: the complete report serialized as a JSON string. The version-1 catalog supports metrics, tables and bar charts; see the [synthetic comparison fixture](../packages/core/test/fixtures/genui-report.ts). Limits are 64 KiB, 100 rows, eight columns, 12 elements and 20 selected rows. Only the Bot's existing Human DM is supported in this slice. Publication validates the whole report before appending its canonical message.
 
 `view.json` has `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`. Read the current version first. A stale save returns `genui-view-conflict`; reload before deciding whether to overwrite. To reset, save the empty state against the current version. Views belong to the Host's local Human and exact report, not browser storage or Bot Memory.
 
 `request.json` has `{ "body": "Compare my selection", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`. Use `refresh` to request a new linked snapshot. Submission is an ordinary visible Human message with validated snapshot context, using normal routing and admission. Retry the same logical request with the same `human-<uuid>` and unchanged input; changed-content reuse is refused. Refresh publication requires a new `snapshotId` and `predecessorMessageId` pointing to the previous report; it never edits the old message. Inputs accept exactly one of `--genui-file` or `--genui-stdin`, at most 32 KiB. All three commands require a live authenticated Host and recheck access.
 
-`genui_diagram` is offline authoring, not publication: `source` is required Mermaid (8 KiB UTF-8); optional integer `width` is 240–1600, default 728. The pinned Pele 1.13.0 worker supports flowchart, sequenceDiagram and xychart-beta only, with links/images disabled. It returns `svg`, `bytes`, dimensions, family, compiler version and source/SVG SHA-256. Insert SVG unchanged into `html`, include a readable caption or equivalent data, then preview and explicitly send the same complete document. Quote CJK XY category labels, for example `x-axis ["一月", "二月"]`. There is no CDN or renderer-library payload. The 48 KiB SVG budget is separate from the final 192 KiB HTML budget. One compilation runs at a time with a 3-second deadline and cancellation/worker termination; V8 heap limits are not a total process-memory guarantee.
+`genui_diagram` is offline authoring, not publication: `source` is required Mermaid (8 KiB UTF-8); optional integer `width` is 240–1600, default 728. The pinned Pele 1.13.0 worker supports flowchart, sequenceDiagram and xychart-beta only, with links/images disabled. It returns `svg`, `bytes`, dimensions, family, compiler version and source/SVG SHA-256. Use it to check or debug a diagram; to publish, embed the source as `<genui-diagram>` and include a readable caption or equivalent data. Quote CJK XY category labels, for example `x-axis ["一月", "二月"]`. There is no CDN or renderer-library payload. The 48 KiB SVG budget is separate from the final 192 KiB HTML budget. One compilation runs at a time with a 3-second deadline and cancellation/worker termination; V8 heap limits are not a total process-memory guarantee.
 
 Default styling uses `.genui-surface`, `.genui-well`, `.genui-selection`, `.genui-grid`, `.genui-table` and `.genui-legend`, with eight distinct `--chart-*` colors and mapped Pele variables. Keep stable category-to-series assignments, value labels and non-color cues; group with background and spacing rather than decorative borders. Meaningful graph/axis lines and keyboard focus remain. Defaults are overridable CSS, not a sanitizer or mandatory HTML rewrite. See [ADR-0302](decisions/genui.md#adr-0302).
 
@@ -727,6 +736,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 With a Host selected, the schedule commands call the same Host methods as the Schedules panel, so the Host checks the Bot, the trigger, the time zone and the lock, and a refusal keeps its code (`invalid-input`, `not-found`, `locked`, `inactive`). `schedule-preview` returns the trigger and the Host's next occurrences. `schedule-run-now` queues a firing that the running Host executes. `schedule-delete` also removes the schedule's history, so it needs `--confirm`, like the panel's confirmation.
 
+Every schedule carries a `revision`, a fingerprint of what you can edit (title, prompt, trigger, enabled, locked); firings and the next run time do not change it. Pass it as `--expected-revision` to `schedule-update` or `schedule-delete` and the Host refuses with `stale-revision` if the schedule changed since you read it. `schedule-create --operation-key <key>` (8–128 letters, digits, `.`, `:`, `_` or `-`) makes a retry safe: the same key with the same request returns the original schedule with `reconciled: true` instead of a second one, the same key with a different request fails with `operation-key-conflict`, and a key whose schedule was deleted fails with `operation-key-consumed` rather than recreating it. Both flags also work offline with `--home`. Tob must pass them when it runs these commands (see [Tob](decisions/tob.md#adr-0225)).
+
 ### Takeover Handoffs on a live Host
 
 ```bash
@@ -1113,7 +1124,7 @@ For model-free device-side qualification, `device-pair --link-file <trusted-priv
 
 `deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
 
-Use `device-offer --out <new-private-file>` and `device-approve-key <receipt> <public-key> --confirm` through the existing pairing owner. The installed app scans the trusted computer code and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
+Use `device-offer --out <new-private-file>` and `device-approve-key --confirm -- <receipt> <public-key>` through the existing pairing owner. The installed app scans the code shown by the trusted Host and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
 
 ### Phone route (Tailscale)
 
@@ -1139,12 +1150,15 @@ Bot settings → Connections lists paired devices, guides new invitations and re
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` includes a copyable `pendingKeys[].approveCommand` for each key awaiting approval. Compare the full fingerprint with the device display before running it. Approval accepts a lowercase hex or unpadded base64url public key. Offer receipts and device IDs can start with `-`. If a value is identical to a CLI option, place all flags before `--` and pass the values after it.
 
 `devices-watch [--watch-seconds 10]` (1–60 seconds) opens the same live stream the Devices page follows and returns `{seconds, invalidations, initial, current}`: how many `resource/changed` events for `devices` the Host sent (a phone asking for approval, an approval, a pairing, a revocation or cleared invitations), and `{devices, pendingKeys}` before and after. Only the owner receives these events; it refuses with `host-query-unsupported` when the connection cannot stream.
 
@@ -1596,7 +1610,7 @@ The model verbs manage the same records afterwards: `model-presets` lists the pr
 
 ## Channels, grants, schedules, pairings
 
-`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
+`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`, or `--cursor` with a returned `nextCursor`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
 
 ### Approve one Workspace request online
 
@@ -1881,7 +1895,7 @@ deepseekbot memory-diff <bot-id> --sha <commit>
 deepseekbot assignment-memory-leases
 ```
 
-A lease lets one Tob-owned Assignment read up to eight Bots the Human owns, read-only, for the current Human request. It ends when the Assignment is archived, the request's DM message is purged or ended, or Tob revokes it. Each read returns `provenance` (`revision`, `path`, `bytes`, `sha256`, `truncated`); bodies and diffs over 64 KiB are cut. `assignment-memory-leases` shows `state` (`active`, `revoked`, `expired`), `status` (`complete` or `partial`) and each Bot's `read`, `unread` or `refused`; the Assignment Report carries the same summary. Memory writes and `--out` refuse with `lease-read-only`, other commands with `tob-authority-required`; an unlisted Bot with `lease-target-denied`, an archived or replaced one with `lease-target-unavailable`. Reuse the same `--operation-key` to get the same lease back. The Human runs the Tob commands model-free through `deepseekbot tob-cli start --args-stdin` with `{"argv":["assignment-memory-lease",…]}` ([Model-free Tob CLI requests](#model-free-tob-cli-requests)). See [Tob decisions §9](decisions/tob.md#tob-memory-lease).
+A lease lets one Tob-owned Assignment read up to eight Bots the Human owns, read-only, for the current Human request. It ends when the Assignment is archived, the request's DM message is purged or ended, or Tob revokes it. Each read returns `provenance` (`revision`, `path`, `bytes`, `sha256`, `truncated`); bodies and diffs over 64 KiB are cut. `assignment-memory-leases` shows `state` (`active`, `revoked`, `expired`), `status` (`complete` or `partial`) and each Bot's `read`, `unread` or `refused`; the Assignment Report carries the same summary. Memory writes and `--out` refuse with `lease-read-only`, other commands with `tob-authority-required`; an unlisted Bot with `lease-target-denied`, an archived or replaced one with `lease-target-unavailable`. Reuse the same `--operation-key` to get the same lease back. The Human runs the Tob commands model-free through `deepseekbot tob-cli start --args-stdin` with `{"argv":["assignment-memory-lease",…]}` ([Model-free Tob CLI requests](#model-free-tob-cli-requests)). See [Tob decisions §10](decisions/tob.md#tob-memory-lease).
 
 ### Recover an exhausted Group draft
 
@@ -2205,9 +2219,30 @@ Clear removes all functional Panel overrides only in the explicit mode, includin
 
 Full Access now retains native `ask` so recognized permission changes can reach the Human, while ordinary requests in its explicitly selected scope are automatically answered without routine cards. The selected mode/scope and existing Assignment permissions are not widened. A native `never` policy still means deterministic rejection; it is not bypassed. Directory grants still use `grant-request-approve --confirm`.
 
-Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key <receipt> <public-key> --confirm`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
+Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key --confirm -- <receipt> <public-key>`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
 
 The phone's native private form and browser remote chat reach the existing credential owner through the same channel. Legacy Connect pairings require a new fingerprint ceremony; failures never retry plaintext. The full phone WebView remains removed, and Connect Browser/Computer viewers are unavailable pending separate qualification. CLI channel state is not native acceptance or proof of a real Cloudflare path.
+
+## Selected-Client settings
+
+`client-preferences-*`, `client-layout-*` and `client-shortcuts-*` change one selected Web or Desktop Client's own settings through the same owners as its UI. Run `appearance-clients` first and pass one `--client-id`; a reload or restart registers a new id, so list again instead of reusing an old one. Each `-get` returns the settings and a `revision`. Each `-set` needs that `--expected-revision` and a JSON patch on stdin (`--patch-stdin`), and returns the fresh read:
+
+```sh
+deepseekbot appearance-clients
+deepseekbot client-preferences-get --client-id <id>
+echo '{"notifications":{"enabled":false}}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-shortcuts-get --client-id <id>
+echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-layout-get --client-id <id>
+echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+echo '{"channel":{"id":"<channel-id>","move":{"panel":"schedules","target":"messages","direction":"below"}}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+```
+
+- **Preferences.** The read includes the Client's `theme`, but theme has one writer: `appearance-set` with `{"preference":"system|light|dark"}` (the read says `writeWith: "appearance-set"`). Patch any of `locale` (an id from `locale.available`) and `notifications: {"enabled": true|false}`; a `theme` key refuses `client-settings-invalid-input` and names `appearance-set`. Notifications are stored in that Client only. Locale is the DSH language choice, which DSH keeps for the whole Host, so the read marks it `scope: "host"` and every Client of that Host follows it. The command never opens the browser or OS permission prompt: turning notifications on refuses `notification-permission-pending` until the Human allows them in that Client, `notification-permission-denied` when the Client blocked them, and `notification-unsupported` without the API. Nothing is stored in those cases.
+- **Shortcuts.** The read lists every stable action id with its effective `binding` (or `null` when disabled), its `default`, whether it is `custom`, its display `text`, the Client `platform`, and the `reserved` key codes. Patch exactly one action: `{"action","binding":{code,mod,alt,shift}}` sets it, `{"action","binding":null}` disables it, `{"action","reset":true}` restores its default. A binding that another action holds refuses `shortcut-conflict` and names that action in the message; it is never taken from the other action. `shortcut-reserved`, `shortcut-needs-modifier` and `shortcut-action-unknown` refuse the other cases. A disabled quick switcher does not fall back to the legacy Cmd/Ctrl+K.
+- **Layout.** Available while the Client shows Bot mode. The read returns `activeChannelId`, `gap`, `members` (`open`, `ratio`), `global` (`mode`, `sideColumn`, `channelsWidth`, `column` with its `heights`), `rail` (`order`, `hidden`) and the `channels` layouts. Each Channel shows `open`, `direction`, `ratio`, its `split` tree and `splitSaved`. Patch `global` (`column.heights` sets panel ids to 120–4000 px and keeps the others; `null` drops one), `rail`, `gap` (whole pixels 0–16), `members` (`open`, `ratio` 0.2–0.6; opening it closes Files and Inbox in a group Channel, as the UI does) and one `channel` (`id` plus any of `open`, `direction` `left`/`right`/`above`/`below`, `ratio` 0.2–0.8). `direction` and `ratio` only place a Channel without a saved split. `move`, `resize` and `split` work on the `split` the read shows and save it; once a Channel has a saved split (`splitSaved: true`), use one of them instead: `move: {"panel","target","direction"}` (the same move as dragging a panel; `messages` stays in place), `resize: {"path","ratio"}` (`path` is the `0`/`1` steps from the root to a split, `""` for the root) or `split` (a whole tree with the same panels). `split: null` drops the saved tree so `direction` and `ratio` apply again. Editing a Channel that is not active does not switch to it and keeps other Channels and parked panels. An unknown Channel refuses `layout-channel-unknown`.
+
+A different revision refuses `client-settings-revision-conflict`; read again and retry. A Client without the owner mounted (for example, layout outside Bot mode) refuses `client-settings-unavailable`. Target refusals are the relay's: `appearance-client-stale`, `appearance-client-unavailable`, `appearance-client-busy` and `appearance-client-timeout`. When a write's reply is lost, the CLI reports `client-settings-outcome-unknown`: read the same Client before retrying. The three `-get` commands are on Tob's read list; every `-set` shows the Human an approval card first. See [selected-Client control](decisions/client-control.md).
 
 ## SSH tunnel from a computer
 
@@ -2222,7 +2257,7 @@ Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must 
 
    Windows accepts absolute drive paths. Optional `--ssh-config <absolute-file>` chooses an existing config; the default uses system OpenSSH configuration. Input files must be private regular files (0600 on Linux/macOS); output is a new exclusive file. A startup failure can leave an empty output file; choose a new output path on retry.
 
-3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key <receipt> <public-key> --confirm` on the remote Host. The tunnel command does neither approval nor enrollment.
+3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key --confirm -- <receipt> <public-key>` on the remote Host. The tunnel command does neither approval nor enrollment.
 4. Open a remote conversation and use the existing Host controls. Stop the tunnel with Ctrl+C; this leaves the remote Host running and the browser pairing intact. Restart with the same local port and a new output path to reconnect. An expired input offer may still identify the Host for an already paired browser, but cannot enroll a new browser; create a fresh offer for enrollment.
 
 The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback requests and streams after pairing, so a changed listener cannot receive device credentials in plaintext. Use the remote Host's existing `device-revoke <device-id> --confirm` to revoke access; closing the tunnel is not revocation. Do not downgrade the browser client after creating an SSH pairing.
@@ -2578,6 +2613,8 @@ deepseekbot voice-provider-test <provider-id>
 ```
 
 For ASR, add `--kind asr` to validation and creation; use `voice-transcribe --provider <id> --file /absolute/speech.wav`. Editing retains the existing key, model, voice and language. Keys are read only from `--key-stdin` on creation and stored in credentials. Never put a key in template constants. Authentication is described by `auth: {kind: "bearer"}`, `{kind: "header", name: "X-API-Key", prefix: "Token "}`, `{kind: "query", name: "key"}`, or `{kind: "none"}`.
+
+Team members can use `voice-providers` to find providers and their bindings. The list shows `hasTemplate: true` for a configured template and hides endpoints, templates, headers, and key values. Template commands and provider management return `remote-access/denied` for Team members.
 
 ```json
 {

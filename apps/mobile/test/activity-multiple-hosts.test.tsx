@@ -51,9 +51,6 @@ const push = vi.fn();
 const looks = createHostLooks({ read: async () => undefined, write() {} });
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: looks }));
 vi.mock('../src/cloud/native', () => ({ useCloudSnapshot: () => ({ ready: true, rows: [] }) }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
-}));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const question = wire.rpc['humanAttention.actionQuestion'].result.value.items[0]!;
 const approval = wire.rpc['humanAttention.action'].result.value.items[0]!;

@@ -44,7 +44,8 @@
     "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts",
     "prepare": "husky",
     "lint:baseline": "node scripts/lint-ratchet.mjs --update",
-    "inbox:eval": "vitest run --config packages/core/test/inbox-eval/vitest.config.ts"
+    "inbox:eval": "vitest run --config packages/core/test/inbox-eval/vitest.config.ts",
+    "genui:eval": "vitest run --config packages/core/test/genui-eval/vitest.config.ts packages/core/test/genui-eval/live.eval.ts"
   },
   "devDependencies": {
     "@astrojs/compiler": "2.13.1",

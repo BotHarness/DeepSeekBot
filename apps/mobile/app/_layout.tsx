@@ -19,7 +19,7 @@ import '../src/host/native-haptic-feedback';
 import { registerPushResolveTask } from '../src/host/native-push-resolve';
 
 import { usePushRouting } from '../src/host/push-routing';
-import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
+import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
 import { usePredictiveBack } from '../src/ui/shell/predictive-back';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
@@ -251,35 +251,30 @@ function RootNavigator() {
                     name="cloud-join"
                     options={{
                       title: t.cloudJoin.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-services"
                     options={{
                       title: t.cloud.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-organizations"
                     options={{
                       title: t.cloudOrganizations.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-invitations"
                     options={{
                       title: t.cloudInvitations.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-agents"
                     options={{
                       title: t.cloudAgents.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
@@ -287,7 +282,6 @@ function RootNavigator() {
                     dangerouslySingular={cloudChannelRouteId}
                     options={{
                       title: t.cloudChannels.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
@@ -339,6 +333,14 @@ function RootNavigator() {
                     options={{ title: t.memberPairing.title, ...sheetScreenOptions(design, true) }}
                   />
                   <Stack.Screen
+                    name="environment"
+                    options={{
+                      ...sheetScreenOptions(design),
+                      sheetAllowedDetents: [0.5, 1],
+                      title: t.environmentSheet.title,
+                    }}
+                  />
+                  <Stack.Screen
                     name="host-connection"
                     options={{
                       title: t.connectionRoutes.title,
@@ -353,7 +355,6 @@ function RootNavigator() {
             <ChannelCreationNotice />
             <StatisticsNotice />
             <DeviceAlertBanner placement="overlay" />
-            <HostDrawer />
             <AppDialogHost />
           </View>
         </SafeAreaProvider>

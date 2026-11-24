@@ -8,6 +8,7 @@ import {
   type RemoteSource,
 } from '@botharness/host-client/client';
 import { listBots } from '@botharness/host-client/bots';
+import { loadGroupMemberPicker } from '@botharness/host-client/group-member-picker';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
@@ -124,6 +125,14 @@ export function channelCreationTransport(
                 },
               ],
         );
+      });
+    },
+    async people(hostId) {
+      const host = hosts().find((host) => host.hostId === hostId);
+      if (!host) throw new Error('target-unpaired');
+      return request(hostId, host.deviceId, async (client) => {
+        const picker = await loadGroupMemberPicker(client);
+        return picker.canAddPeople ? picker.people : undefined;
       });
     },
     create(operation) {

@@ -233,9 +233,14 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.telemetrySet)).toEqual(['enabled']);
     expect(parameterNames(service.gitStatus)).toEqual([]);
     expect(parameterNames(service.scheduleList)).toEqual(['slug']);
-    expect(parameterNames(service.scheduleCreate)).toEqual(['slug', 'input']);
-    expect(parameterNames(service.scheduleUpdate)).toEqual(['slug', 'id', 'change']);
-    expect(parameterNames(service.scheduleDelete)).toEqual(['slug', 'id']);
+    expect(parameterNames(service.scheduleCreate)).toEqual(['slug', 'input', 'operationKey']);
+    expect(parameterNames(service.scheduleUpdate)).toEqual([
+      'slug',
+      'id',
+      'change',
+      'expectedRevision',
+    ]);
+    expect(parameterNames(service.scheduleDelete)).toEqual(['slug', 'id', 'expectedRevision']);
     expect(parameterNames(service.scheduleHistory)).toEqual(['slug', 'id']);
     expect(parameterNames(service.scheduleRunNow)).toEqual(['slug', 'id']);
     expect(parameterNames(service.schedulePreview)).toEqual(['trigger']);
@@ -256,7 +261,12 @@ describe('bridge typert service', () => {
       'expectedChannel',
     ]);
     expect(parameterNames(service.channelRename)).toEqual(['channelId', 'name', 'expectedChannel']);
-    expect(parameterNames(service.channelMessages)).toEqual(['channelId', 'before', 'limit']);
+    expect(parameterNames(service.channelMessages)).toEqual([
+      'channelId',
+      'before',
+      'limit',
+      'cursor',
+    ]);
     expect(parameterNames(service.channelTimeline)).toEqual([
       'channelId',
       'direction',

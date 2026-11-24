@@ -10,7 +10,9 @@ const native = vi.hoisted(() => ({
   selected: (_page: number) => {},
   scrollEnabled: false,
   pageLimit: 0,
+  initialPage: -1,
   hasChat: false,
+  paging: undefined as undefined | { open(): void; close(): void; leaveChat(): void },
   setPage: vi.fn(),
   setPageWithoutAnimation: vi.fn(),
 }));
@@ -25,7 +27,13 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   lastChat: () => undefined,
 }));
 vi.mock('../src/ui/chat/conversation-page-pair', () => ({
-  useConversationPagePair: () => (native.hasChat ? { chat: null, profile: null } : undefined),
+  useConversationPagePair: (
+    _source: unknown,
+    paging: { open(): void; close(): void; leaveChat(): void },
+  ) => {
+    native.paging = paging;
+    return native.hasChat ? { chat: null, profile: null } : undefined;
+  },
 }));
 vi.mock('react-native', async () => {
   const { createElement } = await import('react');
@@ -49,6 +57,7 @@ vi.mock('react-native-pager-view', async () => {
           children?: ReactNode;
           scrollEnabled: boolean;
           pageLimit: number;
+          initialPage: number;
           onPageSelected(event: { nativeEvent: { position: number } }): void;
         },
         ref,
@@ -63,6 +72,7 @@ vi.mock('react-native-pager-view', async () => {
         );
         native.scrollEnabled = props.scrollEnabled;
         native.pageLimit = props.pageLimit;
+        native.initialPage = props.initialPage;
         native.selected = (position) => props.onPageSelected({ nativeEvent: { position } });
         return createElement('div', null, props.children);
       },
@@ -75,14 +85,8 @@ vi.mock('../src/ui/design/theme', () => ({
 vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
   useSystemReducedMotion: () => native.reduced,
 }));
-vi.mock('../src/ui/shell/host-drawer', async () => {
-  const { createElement } = await import('react');
-  return { WorkspacePanel: () => createElement('span', null, 'Workspaces') };
-});
 
 const { WorkspacePager } = await import('../src/ui/shell/workspace-pager.ios');
-const { openWorkspacePage, closeWorkspacePage, closeWorkspacePageWhenShown } =
-  await import('../src/ui/shell/workspace-paging');
 
 const { ChatsPagingContext } = await import('../src/ui/shell/chats-paging');
 const { useMounted } = await import('../src/ui/mounted');
@@ -126,7 +130,7 @@ function Chats() {
   );
 }
 
-describe('retained iOS workspace pages', () => {
+describe('retained iOS Chats pages', () => {
   let element: HTMLDivElement;
   let root: Root;
 
@@ -157,7 +161,16 @@ describe('retained iOS workspace pages', () => {
     );
   };
 
-  it('keeps the Chats instance, input and reading position when visiting Workspaces', async () => {
+  it('opens at Chats with no Workspaces page before it', async () => {
+    await render();
+    expect(native.initialPage).toBe(0);
+    const pages = element.firstElementChild?.children;
+    expect(pages?.[0]?.querySelector('[data-testid="chat-list"]')).not.toBeNull();
+    expect(element.textContent).not.toContain('Workspaces');
+  });
+
+  it('keeps the Chats instance, input and reading position when visiting the last conversation', async () => {
+    native.hasChat = true;
     await render();
     const input = element.querySelector('input');
     const list = element.querySelector<HTMLElement>('[data-testid="chat-list"]');
@@ -167,10 +180,10 @@ describe('retained iOS workspace pages', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     list.scrollTop = 375;
-    await act(async () => native.selected(0));
+    await act(async () => native.selected(1));
     expect(input.isConnected).toBe(true);
     expect(list.closest('[aria-hidden="true"]')).not.toBeNull();
-    await act(async () => native.selected(1));
+    await act(async () => native.selected(0));
     expect(element.querySelector('input')).toBe(input);
     expect(input.value).toBe('retained search');
     expect(list.scrollTop).toBe(375);
@@ -178,54 +191,19 @@ describe('retained iOS workspace pages', () => {
     expect(native.setPage).not.toHaveBeenCalled();
   });
 
-  it('restores the retained shell after a newer notification shell is dismissed', async () => {
+  it('uses native page commands for last-conversation navigation and follows live Reduce Motion', async () => {
+    native.hasChat = true;
     await render();
-    const input = element.querySelector('input');
-    native.focused = false;
-    await render();
-    expect(openWorkspacePage()).toBe(false);
-    const notificationElement = document.createElement('div');
-    const notificationRoot = createRoot(notificationElement);
-    native.focused = true;
-    await act(async () => notificationRoot.render(<WorkspacePager>Notification</WorkspacePager>));
-    expect(openWorkspacePage()).toBe(true);
-    await act(async () => notificationRoot.unmount());
-    await render();
-    native.setPage.mockClear();
-    expect(element.querySelector('input')).toBe(input);
-    expect(openWorkspacePage()).toBe(true);
-    expect(closeWorkspacePage()).toBe(true);
-    expect(native.setPage.mock.calls).toEqual([[0], [1]]);
-  });
-
-  it('returns to Chats once the shell is shown again after a sheet closes over Workspaces', async () => {
-    await render();
-    await act(async () => native.selected(0));
-    native.focused = false;
-    await render();
-    native.setPage.mockClear();
-    closeWorkspacePageWhenShown();
-    expect(native.setPage).not.toHaveBeenCalled();
-    native.focused = true;
-    await render();
-    expect(native.setPage.mock.calls).toEqual([[1]]);
-    native.focused = false;
-    await render();
-    native.focused = true;
-    await render();
-    expect(native.setPage.mock.calls).toEqual([[1]]);
-  });
-
-  it('uses native page commands for button navigation and follows live Reduce Motion', async () => {
-    await render();
-    expect(openWorkspacePage()).toBe(true);
-    expect(closeWorkspacePage()).toBe(true);
-    expect(native.setPage.mock.calls).toEqual([[0], [1]]);
+    await act(async () => {
+      native.paging?.open();
+      native.paging?.close();
+      native.paging?.leaveChat();
+    });
+    expect(native.setPage.mock.calls).toEqual([[2], [1], [0]]);
     native.reduced = true;
     await render();
-    openWorkspacePage();
-    closeWorkspacePage();
-    expect(native.setPageWithoutAnimation.mock.calls).toEqual([[0], [1]]);
+    await act(async () => native.paging?.leaveChat());
+    expect(native.setPageWithoutAnimation.mock.calls).toEqual([[0]]);
   });
 
   it('disables workspace paging on Activity without replacing the retained Chats view', async () => {
@@ -243,35 +221,28 @@ describe('retained iOS workspace pages', () => {
     await render();
     const input = element.querySelector('input');
     if (!input) throw new Error('Search did not mount');
-    expect(native.pageLimit).toBe(3);
+    expect(native.pageLimit).toBe(2);
     expect(native.scrollEnabled).toBe(true);
     await act(async () => input.focus());
     await act(async () => {
       input.value = 'Tob';
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(native.pageLimit).toBe(3);
+    expect(native.pageLimit).toBe(2);
     expect(native.scrollEnabled).toBe(false);
     expect(document.activeElement).toBe(input);
     await act(async () => {
       input.value = '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(native.pageLimit).toBe(3);
+    expect(native.pageLimit).toBe(2);
     expect(native.scrollEnabled).toBe(false);
     expect(document.activeElement).toBe(input);
     const close = element.querySelector('button');
     if (!close) throw new Error('Close search missing');
     await act(async () => close.click());
-    expect(native.pageLimit).toBe(3);
+    expect(native.pageLimit).toBe(2);
     expect(native.scrollEnabled).toBe(true);
     expect(document.activeElement).not.toBe(input);
-  });
-
-  it('releases the native page controller when its shell unmounts', async () => {
-    await render();
-    await act(async () => root.render(null));
-    expect(openWorkspacePage()).toBe(false);
-    expect(closeWorkspacePage()).toBe(false);
   });
 });

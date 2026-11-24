@@ -5,6 +5,7 @@ At 961px and wider on a structurally qualified rc.2 Web/macOS/Windows shell, the
 ## Sources
 
 - `packages/client/src/client/{channel-dock,channel-dock-layout,channel-dock-styles,dock-panels,dockview-css}.{ts,tsx}`
+- `packages/client/src/client/channel-dock/*.{ts,tsx}`
 - `scripts/dockview-css-plugin.mjs`
 - `packages/client/src/client/{bot-settings,keyboard-settings}.tsx`
 - `packages/client/src/client/ds/{settings-dialog.tsx,window-class.ts}`

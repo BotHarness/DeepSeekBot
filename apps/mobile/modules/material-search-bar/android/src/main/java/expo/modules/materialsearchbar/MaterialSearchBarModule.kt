@@ -11,7 +11,6 @@ class MaterialSearchBarModule : Module() {
       val onQueryChange by Event<SearchBarQueryEvent>()
       val onExpandedChange by Event<SearchBarExpandedEvent>()
       val onPick by Event<SearchBarPickEvent>()
-      val onNavigation by Event<Unit>()
 
       Content { props ->
         SearchBarContent(
@@ -19,7 +18,6 @@ class MaterialSearchBarModule : Module() {
           onQueryChange = { onQueryChange(SearchBarQueryEvent(it)) },
           onExpandedChange = { onExpandedChange(SearchBarExpandedEvent(it)) },
           onPick = { onPick(SearchBarPickEvent(it)) },
-          onNavigation = { onNavigation(Unit) },
         )
       }
     }

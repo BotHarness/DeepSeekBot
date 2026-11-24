@@ -328,6 +328,26 @@ describe('deepseekbot channels, grants, schedules, pairings', () => {
     ]);
     const before = await invoke(['channel-messages', channelId, '--before', 'seed-two'], home);
     expect(before.json.messages.map((message: { id: string }) => message.id)).toEqual(['seed-one']);
+    expect(limited.json).toMatchObject({
+      complete: false,
+      provenance: { channelId, revision: 2, contentIsData: true },
+    });
+    const continued = await invoke(
+      ['channel-messages', channelId, '--cursor', limited.json.nextCursor],
+      home,
+    );
+    expect(continued.json.messages.map((message: { id: string }) => message.id)).toEqual([
+      'seed-one',
+    ]);
+    expect(continued.json.complete).toBe(true);
+    const tampered = await invoke(['channel-messages', channelId, '--cursor', 'AAAA'], home);
+    expect(tampered.code).toBe(1);
+    expect(tampered.json.error.code).toBe('invalid-read-cursor');
+    const both = await invoke(
+      ['channel-messages', channelId, '--cursor', limited.json.nextCursor, '--before', 'seed-two'],
+      home,
+    );
+    expect(both.json.error.code).toBe('usage');
     const missing = await invoke(['channel-messages', 'dm-absent'], home);
     expect(missing.code).toBe(1);
     expect(missing.json.error.code).toBe('unknown-channel');

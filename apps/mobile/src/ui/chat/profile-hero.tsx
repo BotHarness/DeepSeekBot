@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { edge, profileShell, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -30,7 +31,7 @@ export function ProfileHero({
     maxWidth: '90%',
     paddingHorizontal: space.x3,
     paddingVertical: space.x1,
-    borderRadius: radius.round,
+    borderRadius: capsuleRadius(theme.fontScale),
     borderWidth: edge.hairline,
     borderColor: theme.color.border,
     backgroundColor: theme.overlay.fill,

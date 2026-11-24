@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Keyboard, Platform, View } from 'react-native';
 
 import { computerEnvironmentKey } from '../../src/host/conversation-environments';
 import { hostSession } from '../../src/host/host-session';
@@ -31,8 +31,7 @@ import { DesktopPath } from '../../src/ui/shell/desktop-path';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { labelInField } from '../../src/ui/primitives/field-label';
-import { TextField } from '../../src/ui/primitives/text-field';
-import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
+import { TextField, type TextFieldHandle } from '../../src/ui/primitives/text-field';
 import { useStrings } from '../../src/ui/strings';
 
 const PASSWORD_MIN = 10;
@@ -113,6 +112,8 @@ export default function TeamSignInScreen() {
   const [link, setLink] = useState('');
   const [address, setAddress] = useState(typeof params.address === 'string' ? params.address : '');
   const pending = useRef<AbortController | undefined>(undefined);
+  const passwordField = useRef<TextFieldHandle>(null);
+  const confirmField = useRef<TextFieldHandle>(null);
   const [fingerprintShown, setFingerprintShown] = useState(false);
   const discovered = useRef(false);
   useFocusEffect(
@@ -128,6 +129,19 @@ export default function TeamSignInScreen() {
   const [password, setPassword] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [leaving, setLeaving] = useState(false);
+  const chooserHost =
+    step.kind === 'host' || (step.kind === 'needs-code' && step.chosen) ? step.found : undefined;
+  const disablePrevention = usePreventRemove(chooserHost !== undefined && !leaving, () => {
+    if (chooserHost === undefined) return;
+    Keyboard.dismiss();
+    pending.current?.abort();
+    pending.current = undefined;
+    setBusy(false);
+    setError(undefined);
+    setPassword('');
+    setStep({ kind: 'choose', found: chooserHost });
+  });
 
   const message = (code: string): string => {
     const copy: Record<string, string> = {
@@ -140,14 +154,20 @@ export default function TeamSignInScreen() {
     return text.replace('{seconds}', String(retryAfter ?? 60));
   };
 
-  const land = (hostId: string): void => {
-    conversationFilter.set(computerEnvironmentKey(hostId));
-    closeWorkspacePageWhenShown();
-    router.dismissTo('/');
+  const leave = (navigate: () => void): void => {
+    setLeaving(true);
+    disablePrevention();
+    navigate();
   };
 
-  const persist = async (host: SavedHost): Promise<boolean> => {
+  const land = (hostId: string): void => {
+    conversationFilter.set(computerEnvironmentKey(hostId));
+    leave(() => router.dismissTo('/'));
+  };
+
+  const persist = async (host: SavedHost, signal?: AbortSignal): Promise<boolean> => {
     const result = await hostSession.pairMember(host);
+    if (signal?.aborted) return false;
     if (!result.ok && result.code === 'identity-switch-required') {
       setStep({ kind: 'switch', host });
       return false;
@@ -215,32 +235,35 @@ export default function TeamSignInScreen() {
     setBusy(true);
     setError(undefined);
     const current = password;
-    const result = await hostSession.signInPassword({
-      route: found.route,
-      username: username.trim(),
-      password: current,
-      deviceName: phoneName(),
-      signal: request.signal,
-    });
-    pending.current = undefined;
-    setPassword('');
-    if (request.signal.aborted) return;
-    if (!result.ok) {
-      setBusy(false);
-      setRetryAfter(result.retryAfterSeconds);
-      if (result.code === 'request-cancelled') return;
-      if (result.code === 'password-sign-in-unavailable')
-        return setStep({ kind: 'needs-code', found });
-      return setError(result.code);
+    try {
+      const result = await hostSession.signInPassword({
+        route: found.route,
+        username: username.trim(),
+        password: current,
+        deviceName: phoneName(),
+        signal: request.signal,
+      });
+      if (pending.current === request) setPassword('');
+      if (request.signal.aborted) return;
+      if (!result.ok) {
+        setRetryAfter(result.retryAfterSeconds);
+        if (result.code === 'request-cancelled') return;
+        if (result.code === 'password-sign-in-unavailable')
+          return setStep({ kind: 'needs-code', found });
+        return setError(result.code);
+      }
+      const { role, ...host } = result.value;
+      if (role === 'owner') return land(host.hostId);
+      if (host.member?.mustChangePassword === true)
+        return setStep({ kind: 'change', host, current });
+      const saved = await persist(host, request.signal);
+      if (saved && !request.signal.aborted) land(host.hostId);
+    } finally {
+      if (pending.current === request) {
+        pending.current = undefined;
+        setBusy(false);
+      }
     }
-    const { role, ...host } = result.value;
-    if (role === 'owner') return land(host.hostId);
-    if (host.member?.mustChangePassword === true) {
-      setBusy(false);
-      return setStep({ kind: 'change', host, current });
-    }
-    if (await persist(host)) return land(host.hostId);
-    setBusy(false);
   };
 
   const openLink = (): void => {
@@ -442,7 +465,7 @@ export default function TeamSignInScreen() {
             label={t.teamSignIn.scanCode}
             tone="primary"
             on="canvas"
-            onPress={() => router.back()}
+            onPress={() => leave(() => router.back())}
           />
         </>
       ) : step.kind === 'host' ? (
@@ -467,11 +490,14 @@ export default function TeamSignInScreen() {
               autoCorrect={false}
               maxLength={32}
               returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordField.current?.focus()}
               editable={!busy}
             />
           </Labeled>
           <Labeled label={t.teamSignIn.password}>
             <TextField
+              ref={passwordField}
               testID="team-password"
               accessibilityLabel={t.teamSignIn.password}
               value={password}
@@ -570,12 +596,15 @@ export default function TeamSignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordField.current?.focus()}
                 editable={!busy}
               />
             </Labeled>
           ) : null}
           <Labeled label={t.teamSignIn.password}>
             <TextField
+              ref={passwordField}
               testID="team-password"
               accessibilityLabel={t.teamSignIn.password}
               value={password}
@@ -631,11 +660,15 @@ export default function TeamSignInScreen() {
               autoComplete="new-password"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => confirmField.current?.focus()}
               editable={!busy}
             />
           </Labeled>
           <Labeled label={t.teamSignIn.confirmPassword}>
             <TextField
+              ref={confirmField}
               testID="team-confirm-password"
               accessibilityLabel={t.teamSignIn.confirmPassword}
               value={confirm}

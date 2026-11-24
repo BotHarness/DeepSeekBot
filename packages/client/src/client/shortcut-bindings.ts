@@ -20,7 +20,7 @@ export interface ShortcutBinding {
   readonly shift: boolean;
 }
 
-export type ShortcutBindingMap = Readonly<Record<ShortcutActionId, ShortcutBinding>>;
+export type ShortcutBindingMap = Readonly<Record<ShortcutActionId, ShortcutBinding | null>>;
 
 export const SHORTCUT_ACTION_IDS: readonly ShortcutActionId[] = [
   'bot-mode',
@@ -33,7 +33,7 @@ export const SHORTCUT_ACTION_IDS: readonly ShortcutActionId[] = [
   'help',
 ];
 
-export const DEFAULT_SHORTCUT_BINDINGS: ShortcutBindingMap = {
+export const DEFAULT_SHORTCUT_BINDINGS: Readonly<Record<ShortcutActionId, ShortcutBinding>> = {
   'bot-mode': { code: 'Backquote', mod: false, alt: true, shift: false },
   'quick-switcher': { code: 'KeyK', mod: false, alt: true, shift: false },
   'conversation-prev': { code: 'ArrowUp', mod: false, alt: true, shift: false },
@@ -112,6 +112,10 @@ export function sameBinding(a: ShortcutBinding, b: ShortcutBinding): boolean {
   return a.code === b.code && a.mod === b.mod && a.alt === b.alt && a.shift === b.shift;
 }
 
+function sameOptionalBinding(a: ShortcutBinding | null, b: ShortcutBinding | null): boolean {
+  return a === null || b === null ? a === b : sameBinding(a, b);
+}
+
 const CODE_LABELS: Readonly<Record<string, string>> = {
   Backquote: '`',
   Minus: '-',
@@ -155,7 +159,7 @@ export function bindingText(binding: ShortcutBinding, mac: boolean): string {
     : keys.map((key) => shortcutKeyName(key, false)).join('+');
 }
 
-const RESERVED_MOD_CODES = new Set([
+export const RESERVED_MOD_CODES: ReadonlySet<string> = new Set([
   'KeyA',
   'KeyC',
   'KeyF',
@@ -170,7 +174,13 @@ const RESERVED_MOD_CODES = new Set([
   'KeyT',
   'KeyW',
 ]);
-const RESERVED_CODES = new Set(['Enter', 'NumpadEnter', 'Tab', 'Escape', 'Backspace']);
+export const RESERVED_CODES: ReadonlySet<string> = new Set([
+  'Enter',
+  'NumpadEnter',
+  'Tab',
+  'Escape',
+  'Backspace',
+]);
 
 export type ShortcutBindingProblem =
   | { readonly kind: 'needs-modifier' }
@@ -188,9 +198,10 @@ export function shortcutBindingProblem(
     return { kind: 'reserved' };
   if (binding.mod && !binding.alt && RESERVED_MOD_CODES.has(binding.code))
     return { kind: 'reserved' };
-  const owner = SHORTCUT_ACTION_IDS.find(
-    (candidate) => candidate !== action && sameBinding(bindings[candidate], binding),
-  );
+  const owner = SHORTCUT_ACTION_IDS.find((candidate) => {
+    const other = bindings[candidate];
+    return candidate !== action && other !== null && sameBinding(other, binding);
+  });
   return owner === undefined ? undefined : { kind: 'conflict', action: owner };
 }
 
@@ -212,12 +223,27 @@ export function parseShortcutBindings(raw: string | null | undefined): ShortcutB
     const parsed: unknown = raw === null || raw === undefined ? {} : JSON.parse(raw);
     if (typeof parsed === 'object' && parsed !== null) custom = parsed as Record<string, unknown>;
   } catch {}
-  const result: Record<ShortcutActionId, ShortcutBinding> = { ...DEFAULT_SHORTCUT_BINDINGS };
+  const result: Record<ShortcutActionId, ShortcutBinding | null> = {
+    ...DEFAULT_SHORTCUT_BINDINGS,
+  };
+  const customised: ShortcutActionId[] = [];
   for (const action of SHORTCUT_ACTION_IDS) {
     const value = custom[action];
-    if (!isBinding(value)) continue;
-    const binding = { code: value.code, mod: value.mod, alt: value.alt, shift: value.shift };
-    if (shortcutBindingProblem(result, action, binding) === undefined) result[action] = binding;
+    if (value === null) result[action] = null;
+    else if (isBinding(value)) {
+      result[action] = { code: value.code, mod: value.mod, alt: value.alt, shift: value.shift };
+      customised.push(action);
+    }
+  }
+  for (const action of customised) {
+    const binding = result[action];
+    if (binding !== null && shortcutBindingProblem(result, action, binding) !== undefined)
+      result[action] = null;
+  }
+  for (const action of customised) {
+    const fallback = DEFAULT_SHORTCUT_BINDINGS[action];
+    if (result[action] === null && shortcutBindingProblem(result, action, fallback) === undefined)
+      result[action] = fallback;
   }
   return result;
 }
@@ -247,33 +273,59 @@ export class ShortcutBindings {
     };
   };
 
-  binding(action: ShortcutActionId): ShortcutBinding {
+  binding(action: ShortcutActionId): ShortcutBinding | null {
     return this.#bindings[action];
   }
 
   isCustom(action: ShortcutActionId): boolean {
-    return !sameBinding(this.#bindings[action], DEFAULT_SHORTCUT_BINDINGS[action]);
+    return !sameOptionalBinding(this.#bindings[action], DEFAULT_SHORTCUT_BINDINGS[action]);
   }
 
   matches(action: ShortcutActionId, event: ShortcutKeyboardEvent): boolean {
-    if (bindingMatches(this.#bindings[action], event, this.mac(), REPEATABLE.has(action)))
-      return true;
+    const binding = this.#bindings[action];
+    if (binding === null) return false;
+    if (bindingMatches(binding, event, this.mac(), REPEATABLE.has(action))) return true;
     return (
       action === 'quick-switcher' &&
       !this.isCustom(action) &&
       !SHORTCUT_ACTION_IDS.some((other) =>
-        sameBinding(this.#bindings[other], LEGACY_QUICK_SWITCHER_BINDING),
+        sameOptionalBinding(this.#bindings[other], LEGACY_QUICK_SWITCHER_BINDING),
       ) &&
       bindingMatches(LEGACY_QUICK_SWITCHER_BINDING, event, this.mac())
     );
   }
 
-  text(action: ShortcutActionId): string {
-    return bindingText(this.#bindings[action], this.mac());
+  text(action: ShortcutActionId): string | undefined {
+    const binding = this.#bindings[action];
+    return binding === null ? undefined : bindingText(binding, this.mac());
   }
 
-  set(action: ShortcutActionId, binding: ShortcutBinding): ShortcutBindingProblem | undefined {
-    const problem = shortcutBindingProblem(this.#bindings, action, binding);
+  refresh(): ShortcutBindingMap {
+    if (this.#storage === undefined) return this.#bindings;
+    let raw: string | null = null;
+    try {
+      raw = this.#storage?.getItem(SHORTCUT_BINDINGS_KEY) ?? null;
+    } catch {
+      return this.#bindings;
+    }
+    const next = parseShortcutBindings(raw);
+    if (
+      SHORTCUT_ACTION_IDS.some(
+        (action) => !sameOptionalBinding(next[action], this.#bindings[action]),
+      )
+    ) {
+      this.#bindings = next;
+      for (const listener of this.#listeners) listener();
+    }
+    return this.#bindings;
+  }
+
+  set(
+    action: ShortcutActionId,
+    binding: ShortcutBinding | null,
+  ): ShortcutBindingProblem | undefined {
+    const problem =
+      binding === null ? undefined : shortcutBindingProblem(this.#bindings, action, binding);
     if (problem !== undefined) return problem;
     this.#commit({ ...this.#bindings, [action]: binding });
     return undefined;
@@ -285,7 +337,7 @@ export class ShortcutBindings {
 
   #commit(next: ShortcutBindingMap): void {
     this.#bindings = next;
-    const custom: Partial<Record<ShortcutActionId, ShortcutBinding>> = {};
+    const custom: Partial<Record<ShortcutActionId, ShortcutBinding | null>> = {};
     for (const action of SHORTCUT_ACTION_IDS)
       if (this.isCustom(action)) custom[action] = next[action];
     try {

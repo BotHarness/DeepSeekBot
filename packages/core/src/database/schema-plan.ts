@@ -1,16 +1,88 @@
 import { z } from 'zod';
 import { DEFAULT_CHANNEL_POLICY } from '../team/channel-contract.js';
 import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
-import { DatabaseSync } from 'node:sqlite';
-
-import { OperationalDatabaseError } from './owner.js';
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
-import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 import { presetSubFromLegacy, presetSubWithEngine } from '../models/preset-sub.js';
 import type { ModelPreset } from '../models/presets.js';
+import {
+  MESSAGING_TRACER_MIGRATION,
+  CHANNEL_MESSAGING_MIGRATION,
+  BOT_DM_ADMISSION_MIGRATION,
+  GROUP_INVITATION_ADMISSION_MIGRATION,
+  GROUP_DIGEST_ADMISSION_MIGRATION,
+  GROUP_JOIN_ADMISSION_MIGRATION,
+  ASSIGNMENT_REPORT_ADMISSION_MIGRATION,
+  LOCAL_HUMAN_RECEIPTS_MIGRATION,
+  GROUP_WAKE_POLICY_AUDIT_MIGRATION,
+  LOCAL_HUMAN_NAME_MIGRATION,
+  HUMAN_CHANNEL_NICKNAME_MIGRATION,
+  CHANNEL_REACTION_MIGRATION,
+  CHANNEL_CHANGE_LOG_MIGRATION,
+  GENUI_PRIVATE_VIEW_MIGRATION,
+  SOURCE_EVENT_HUMAN_MIGRATION,
+} from './migrations/messaging-channels.js';
+import {
+  MESSAGING_OUTBOUND_MIGRATION,
+  EXTERNAL_SOURCE_MIGRATION,
+  EXTERNAL_GROUP_POLICY_MIGRATION,
+  EXTERNAL_THREAD_POLICY_MIGRATION,
+  EXTERNAL_IDENTITY_MIGRATION,
+  CHANNEL_BRIDGE_MIGRATION,
+  MESSAGING_DEFAULTS_MIGRATION,
+  BRIDGE_ROUTES_MIGRATION,
+  QUALIFIED_PLATFORM_DEFAULTS_MIGRATION,
+  DISCORD_PLATFORM_DEFAULTS_MIGRATION,
+  BOT_PAIRING_MIGRATION,
+  APPROVAL_MESSAGING_MIGRATION,
+  BOUND_APP_ADMISSION_MIGRATION,
+  CONVERSATION_LIST_MIGRATION,
+  SEVERAL_APPS_MIGRATION,
+  CONVERSATION_INGEST_MIGRATION,
+  NEW_CONVERSATION_DEFAULT_MIGRATION,
+  MESSAGING_TYPING_MIGRATION,
+  WECHAT_PLATFORM_DEFAULTS_MIGRATION,
+  EXTERNAL_USER_ROLE_MIGRATION,
+  PERMISSION_GROUP_MIGRATION,
+  PAIRING_CARD_MIGRATION,
+  BEHAVIOR_PERMISSION_MIGRATION,
+  FAILURE_ALERT_MIGRATION,
+  PROACTIVE_POST_LIMIT_MIGRATION,
+  CLOUD_CONNECTION_MIGRATION,
+  CLOUD_WORK_MIGRATION,
+  QUESTION_MESSAGING_MIGRATION,
+  QUESTION_MESSAGING_RECOVERY_MIGRATION,
+  QQ_PLATFORM_DEFAULTS_MIGRATION,
+} from './migrations/messaging-delivery.js';
+import {
+  ATTACHMENT_FILE_BINDING_MIGRATION,
+  HUMAN_RESPONSE_INDEX_MIGRATION,
+  RECEPTION_HISTORY_MIGRATION,
+  BOT_SELF_RECORD_MIGRATION,
+  MEMORY_COMMIT_RECORD_MIGRATION,
+  INBOX_HISTORY_MIGRATION,
+  MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  GRANT_RECEPTION_EVIDENCE_MIGRATION,
+  HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
+  TAKEOVER_ATTENTION_INDEX_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
+  OUTPUT_REQUEST_INDEX_MIGRATION,
+  PLACEMENT_NOTICE_MIGRATION,
+  PLACEMENT_HUMAN_REPLY_MIGRATION,
+  BOUNDED_RANGE_INDEX_MIGRATION,
+  ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  CALL_VISUAL_UNSAVED_MIGRATION,
+  CALL_VISUAL_TIMELINE_MIGRATION,
+  MODEL_SWITCH_NOTICE_MIGRATION,
+} from './migrations/messaging-history.js';
+import { rebuildWithKind } from './migrations/shared.js';
+
+export {
+  CHANNEL_MESSAGING_MIGRATION,
+  LOCAL_HUMAN_RECEIPTS_MIGRATION,
+} from './migrations/messaging-channels.js';
+export { BEHAVIOR_PERMISSION_MIGRATION } from './migrations/messaging-delivery.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   id: 'session-ownership',
@@ -26,30 +98,6 @@ const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
       );
       CREATE INDEX session_ownership_bot_role
         ON session_ownership (bot_slug, root_role, created_at, session_id);
-    `);
-  },
-};
-
-const MESSAGING_TRACER_MIGRATION: SchemaMigration = {
-  id: 'messaging-tracer',
-  module: 'messaging',
-  description: 'Create the minimal durable Source Event and Bot Inbox admission path',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE source_events (
-        source_event_id TEXT PRIMARY KEY,
-        source_kind TEXT NOT NULL CHECK (source_kind IN ('human-message', 'assignment-report')),
-        bot_slug TEXT NOT NULL,
-        channel_id TEXT,
-        message_id TEXT,
-        assignment_session_id TEXT,
-        body TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        handled_at TEXT,
-        UNIQUE (channel_id, message_id)
-      );
-      CREATE INDEX source_events_bot_created
-        ON source_events (bot_slug, created_at, source_event_id);
     `);
   },
 };
@@ -300,227 +348,6 @@ export const MEMORY_BRANCH_HEAD_MIGRATION: SchemaMigration = {
   },
 };
 
-export const CHANNEL_MESSAGING_MIGRATION: SchemaMigration = {
-  id: 'channel-messaging',
-  module: 'messaging',
-  description:
-    'Move Channel messages to canonical Source Events, placements, and per-Bot admissions',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE source_events_next (
-        source_event_id TEXT PRIMARY KEY,
-        source_kind TEXT NOT NULL CHECK (source_kind IN
-          ('human-message', 'bot-message', 'system-message', 'assignment-report')),
-        bot_slug TEXT,
-        channel_id TEXT,
-        message_id TEXT,
-        assignment_session_id TEXT,
-        body TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        handled_at TEXT,
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        expects_reply INTEGER NOT NULL DEFAULT 0 CHECK (expects_reply IN (0, 1)),
-        observed_at TEXT,
-        payload_json TEXT,
-        UNIQUE (channel_id, message_id)
-      );
-      INSERT INTO source_events_next (
-        source_event_id, source_kind, bot_slug, channel_id, message_id,
-        assignment_session_id, body, created_at, handled_at, attempt_state,
-        side_effect_started_at, expects_reply, observed_at
-      )
-      SELECT source_event_id, source_kind, bot_slug, channel_id, message_id,
-             assignment_session_id, body, created_at, handled_at, attempt_state,
-             side_effect_started_at, expects_reply, observed_at
-        FROM source_events;
-      DROP TABLE source_events;
-      ALTER TABLE source_events_next RENAME TO source_events;
-      CREATE INDEX source_events_bot_created
-        ON source_events (bot_slug, created_at, source_event_id);
-      CREATE TABLE channel_records (
-        channel_id TEXT PRIMARY KEY,
-        record_json TEXT NOT NULL
-      );
-      CREATE TABLE channel_placements (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
-        revision INTEGER NOT NULL,
-        source_event_id TEXT NOT NULL UNIQUE REFERENCES source_events(source_event_id),
-        message_id TEXT NOT NULL,
-        PRIMARY KEY (channel_id, revision),
-        UNIQUE (channel_id, message_id)
-      );
-      CREATE TABLE channel_read_positions (
-        channel_id TEXT PRIMARY KEY REFERENCES channel_records(channel_id),
-        message_id TEXT NOT NULL,
-        revision INTEGER NOT NULL,
-        read_at TEXT NOT NULL
-      );
-      CREATE TABLE inbox_admissions (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN ('human-dm', 'group-mention')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-    `);
-  },
-};
-
-const BOT_DM_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'bot-dm-admission',
-  module: 'messaging',
-  description: 'Admit Bot-to-Bot DM messages through the canonical Inbox',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE inbox_admissions_next (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN ('human-dm', 'group-mention', 'bot-dm')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      INSERT INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state,
-         side_effect_started_at, handled_at, last_error)
-      SELECT source_event_id, bot_slug, reason, attempt_state,
-             side_effect_started_at, handled_at, last_error
-        FROM inbox_admissions;
-      DROP TABLE inbox_admissions;
-      ALTER TABLE inbox_admissions_next RENAME TO inbox_admissions;
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-    `);
-  },
-};
-
-const GROUP_INVITATION_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'group-invitation-admission',
-  module: 'messaging',
-  description: 'Deliver Group invitations through the Bot Inbox before membership',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE inbox_admissions_next (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN ('human-dm', 'group-mention', 'bot-dm', 'group-invite')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      INSERT INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state,
-         side_effect_started_at, handled_at, last_error)
-      SELECT source_event_id, bot_slug, reason, attempt_state,
-             side_effect_started_at, handled_at, last_error
-        FROM inbox_admissions;
-      DROP TABLE inbox_admissions;
-      ALTER TABLE inbox_admissions_next RENAME TO inbox_admissions;
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-    `);
-  },
-};
-
-const GROUP_DIGEST_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'group-digest-admission',
-  module: 'messaging',
-  description: 'Capture per-Group ordinary-message digest policy with each Inbox Admission',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE inbox_admissions_next (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN
-          ('human-dm', 'group-mention', 'bot-dm', 'group-invite', 'group-ordinary')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        wake_count INTEGER,
-        wake_interval_ms INTEGER,
-        wake_policy_revision INTEGER,
-        observed_at TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      INSERT INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state,
-         side_effect_started_at, handled_at, last_error)
-      SELECT source_event_id, bot_slug, reason, attempt_state,
-             side_effect_started_at, handled_at, last_error
-        FROM inbox_admissions;
-      DROP TABLE inbox_admissions;
-      ALTER TABLE inbox_admissions_next RENAME TO inbox_admissions;
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-      CREATE INDEX inbox_admissions_digest_pending
-        ON inbox_admissions (bot_slug, reason, attempt_state, wake_policy_revision);
-    `);
-  },
-};
-
-const GROUP_JOIN_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'group-join-admission',
-  module: 'messaging',
-  description: 'Admit Group join requests and decisions as durable Bot Inbox notifications',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE inbox_admissions_next (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN
-          ('human-dm', 'group-mention', 'bot-dm', 'group-invite', 'group-ordinary',
-           'group-join-request', 'group-join-decision')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        wake_count INTEGER,
-        wake_interval_ms INTEGER,
-        wake_policy_revision INTEGER,
-        observed_at TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      INSERT INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state,
-         side_effect_started_at, handled_at, last_error,
-         wake_count, wake_interval_ms, wake_policy_revision, observed_at)
-      SELECT source_event_id, bot_slug, reason, attempt_state,
-             side_effect_started_at, handled_at, last_error,
-             wake_count, wake_interval_ms, wake_policy_revision, observed_at
-        FROM inbox_admissions;
-      DROP TABLE inbox_admissions;
-      ALTER TABLE inbox_admissions_next RENAME TO inbox_admissions;
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-      CREATE INDEX inbox_admissions_digest_pending
-        ON inbox_admissions (bot_slug, reason, attempt_state, wake_policy_revision);
-
-    `);
-  },
-};
-
 const ASSIGNMENT_STOP_MIGRATION: SchemaMigration = {
   id: 'assignment-stop',
   module: 'assignments',
@@ -530,54 +357,6 @@ const ASSIGNMENT_STOP_MIGRATION: SchemaMigration = {
     database.exec(`
       ALTER TABLE assignments ADD COLUMN stop_state TEXT NOT NULL DEFAULT 'running'
         CHECK (stop_state IN ('running', 'requested', 'stopped'));
-    `);
-  },
-};
-const ASSIGNMENT_REPORT_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'assignment-report-admission',
-  module: 'messaging',
-  description: 'Admit Assignment reports to their PersonaBot Inbox',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE inbox_admissions_next (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL,
-        reason TEXT NOT NULL CHECK (reason IN
-          ('human-dm', 'group-mention', 'bot-dm', 'group-invite', 'group-ordinary',
-           'group-join-request', 'group-join-decision', 'assignment-report')),
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        handled_at TEXT,
-        last_error TEXT,
-        wake_count INTEGER,
-        wake_interval_ms INTEGER,
-        wake_policy_revision INTEGER,
-        observed_at TEXT,
-        PRIMARY KEY (source_event_id, bot_slug)
-      );
-      INSERT INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state,
-         side_effect_started_at, handled_at, last_error,
-         wake_count, wake_interval_ms, wake_policy_revision, observed_at)
-      SELECT source_event_id, bot_slug, reason, attempt_state,
-             side_effect_started_at, handled_at, last_error,
-             wake_count, wake_interval_ms, wake_policy_revision, observed_at
-        FROM inbox_admissions;
-      INSERT OR IGNORE INTO inbox_admissions_next
-        (source_event_id, bot_slug, reason, attempt_state, handled_at, observed_at)
-      SELECT source_event_id, bot_slug, 'assignment-report',
-             CASE WHEN observed_at IS NULL THEN 'pending' ELSE 'handled' END,
-             observed_at, observed_at
-        FROM source_events
-       WHERE source_kind = 'assignment-report' AND bot_slug IS NOT NULL;
-      DROP TABLE inbox_admissions;
-      ALTER TABLE inbox_admissions_next RENAME TO inbox_admissions;
-      CREATE INDEX inbox_admissions_bot_pending
-        ON inbox_admissions (bot_slug, attempt_state, source_event_id);
-      CREATE INDEX inbox_admissions_digest_pending
-        ON inbox_admissions (bot_slug, reason, attempt_state, wake_policy_revision);
     `);
   },
 };
@@ -693,59 +472,6 @@ const ASSIGNMENT_LIFECYCLE_NOTICE_MIGRATION: SchemaMigration = {
   },
 };
 
-export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
-  id: 'local-human-receipts',
-  module: 'messaging',
-  description: 'Give the local Human explicit Group membership and identity-keyed read positions',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE channel_human_members (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
-        human_id TEXT NOT NULL,
-        display_name TEXT NOT NULL,
-        visible_from_revision INTEGER NOT NULL,
-        joined_at TEXT NOT NULL,
-        left_at TEXT,
-        PRIMARY KEY (channel_id, human_id)
-      );
-    `);
-    database
-      .prepare(`
-      INSERT INTO channel_human_members
-        (channel_id, human_id, display_name, visible_from_revision, joined_at)
-      SELECT channel_id, ?, 'Human', 1,
-             json_extract(record_json, '$.createdAt')
-        FROM channel_records
-       WHERE json_extract(record_json, '$.type') = 'group'
-         AND json_extract(record_json, '$.deletedAt') IS NULL;
-    `)
-      .run(OWNER_HUMAN_CONTEXT.humanId);
-    database.exec(`
-      CREATE TABLE channel_read_positions_next (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
-        human_id TEXT NOT NULL,
-        message_id TEXT NOT NULL,
-        revision INTEGER NOT NULL,
-        read_at TEXT NOT NULL,
-        PRIMARY KEY (channel_id, human_id)
-      );
-    `);
-    database
-      .prepare(`
-      INSERT INTO channel_read_positions_next
-        (channel_id, human_id, message_id, revision, read_at)
-      SELECT channel_id, ?, message_id, revision, read_at
-        FROM channel_read_positions;
-    `)
-      .run(OWNER_HUMAN_CONTEXT.humanId);
-    database.exec(`
-      DROP TABLE channel_read_positions;
-      ALTER TABLE channel_read_positions_next RENAME TO channel_read_positions;
-    `);
-  },
-};
-
 const GROUP_WAKE_MODE_MIGRATION: SchemaMigration = {
   id: 'group-wake-mode',
   module: 'bot-inbox',
@@ -761,36 +487,6 @@ const GROUP_WAKE_MODE_MIGRATION: SchemaMigration = {
            ELSE 'digest'
          END
        WHERE reason = 'group-ordinary';
-    `);
-  },
-};
-
-const GROUP_WAKE_POLICY_AUDIT_MIGRATION: SchemaMigration = {
-  id: 'group-wake-policy-audit',
-  module: 'messaging',
-  description: 'Audit per-member Group wake policy revisions without duplicating current policy',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE group_wake_policy_audit (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
-        bot_slug TEXT NOT NULL,
-        revision INTEGER NOT NULL CHECK (revision > 0),
-        actor_kind TEXT NOT NULL CHECK (actor_kind IN ('human', 'bot')),
-        actor_bot_slug TEXT,
-        changed_at TEXT NOT NULL,
-        mode TEXT NOT NULL CHECK (mode IN ('all', 'digest', 'mentions', 'silent')),
-        count INTEGER NOT NULL CHECK (count BETWEEN 1 AND 100),
-        interval_seconds INTEGER NOT NULL CHECK (interval_seconds BETWEEN 1 AND 3600),
-        PRIMARY KEY (channel_id, bot_slug, revision),
-        CHECK ((actor_kind = 'human' AND actor_bot_slug IS NULL)
-            OR (actor_kind = 'bot' AND actor_bot_slug IS NOT NULL))
-      );
-      CREATE TRIGGER group_wake_policy_audit_no_update
-      BEFORE UPDATE ON group_wake_policy_audit
-      BEGIN SELECT RAISE(ABORT, 'Group wake policy audit is immutable'); END;
-      CREATE TRIGGER group_wake_policy_audit_no_delete
-      BEFORE DELETE ON group_wake_policy_audit
-      BEGIN SELECT RAISE(ABORT, 'Group wake policy audit is immutable'); END;
     `);
   },
 };
@@ -1081,59 +777,6 @@ const USAGE_REPORT_COMPLETENESS_MIGRATION: SchemaMigration = {
   },
 };
 
-const MESSAGING_OUTBOUND_MIGRATION: SchemaMigration = {
-  id: 'messaging-outbound',
-  module: 'messaging',
-  description: 'Persist external account bindings, proactive grants and one-attempt Outbox facts',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_bindings (
-        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, provider_id TEXT NOT NULL,
-        platform TEXT NOT NULL, account_ref TEXT NOT NULL, fingerprint TEXT NOT NULL,
-        created_at TEXT NOT NULL, revoked_at TEXT
-      );
-      CREATE UNIQUE INDEX messaging_binding_account ON messaging_bindings(provider_id, account_ref) WHERE revoked_at IS NULL;
-      CREATE UNIQUE INDEX messaging_binding_principal ON messaging_bindings(provider_id, fingerprint) WHERE revoked_at IS NULL;
-      CREATE UNIQUE INDEX messaging_binding_bot_platform ON messaging_bindings(bot_slug, platform) WHERE revoked_at IS NULL;
-      CREATE TABLE messaging_grants (
-        id TEXT PRIMARY KEY, binding_id TEXT NOT NULL REFERENCES messaging_bindings(id),
-        bot_slug TEXT NOT NULL, revision INTEGER NOT NULL, created_at TEXT NOT NULL,
-        revoked_at TEXT, body TEXT NOT NULL
-      );
-      CREATE TABLE messaging_outbox (
-        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, grant_id TEXT NOT NULL REFERENCES messaging_grants(id),
-        request_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL
-      );
-      CREATE INDEX messaging_outbox_history ON messaging_outbox(bot_slug, created_at DESC);
-      CREATE TABLE messaging_outbox_attempts (
-        intent_id TEXT PRIMARY KEY REFERENCES messaging_outbox(id), started_at TEXT NOT NULL,
-        state TEXT NOT NULL, finished_at TEXT, reason TEXT
-      );
-    `);
-  },
-};
-
-const ATTACHMENT_FILE_BINDING_MIGRATION: SchemaMigration = {
-  id: 'attachment-file-binding',
-  module: 'messaging',
-  description: 'Bind retained legacy attachment occurrences to independently managed real files',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE attachment_file_bindings (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        attachment_index INTEGER NOT NULL CHECK (attachment_index >= 0),
-        file_id TEXT NOT NULL UNIQUE,
-        original_json TEXT NOT NULL,
-        target_json TEXT,
-        state TEXT NOT NULL CHECK (state IN ('pending', 'ready')),
-        last_error TEXT,
-        PRIMARY KEY (source_event_id, attachment_index),
-        CHECK (state != 'ready' OR target_json IS NOT NULL)
-      );
-    `);
-  },
-};
-
 const USAGE_RETENTION_MIGRATION: SchemaMigration = {
   id: 'usage-retention',
   module: 'usage',
@@ -1168,18 +811,6 @@ const USAGE_RETENTION_MIGRATION: SchemaMigration = {
   },
 };
 
-const LOCAL_HUMAN_NAME_MIGRATION: SchemaMigration = {
-  id: 'local-human-name',
-  module: 'messaging',
-  description: 'Retain one optional local Human default name without changing membership',
-  migrate(database) {
-    database.exec(`CREATE TABLE local_human_names (
-      human_id TEXT PRIMARY KEY,
-      default_display_name TEXT
-    );`);
-  },
-};
-
 const ORCHESTRATOR_WORKSPACE_WRITE_MIGRATION: SchemaMigration = {
   id: 'orchestrator-workspace-write',
   module: 'workspace-grants',
@@ -1189,103 +820,6 @@ const ORCHESTRATOR_WORKSPACE_WRITE_MIGRATION: SchemaMigration = {
       ALTER TABLE workspace_grants ADD COLUMN orchestrator_write INTEGER NOT NULL DEFAULT 0
         CHECK (orchestrator_write IN (0, 1));
       ALTER TABLE workspace_grants ADD COLUMN write_revision INTEGER NOT NULL DEFAULT 0;
-    `);
-  },
-};
-
-const HUMAN_CHANNEL_NICKNAME_MIGRATION: SchemaMigration = {
-  id: 'human-channel-nickname',
-  module: 'messaging',
-  description: 'Retain explicit per-Channel Human nickname overrides',
-  migrate(database) {
-    database.exec(`CREATE TABLE channel_human_nicknames (
-      channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
-      human_id TEXT NOT NULL,
-      nickname TEXT NOT NULL,
-      PRIMARY KEY (channel_id, human_id)
-    );`);
-  },
-};
-
-const EXTERNAL_SOURCE_MIGRATION: SchemaMigration = {
-  id: 'external-source',
-  module: 'messaging',
-  description: 'Persist authenticated external IM Source Events without Channel placements',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE source_events_next (
-        source_event_id TEXT PRIMARY KEY,
-        source_kind TEXT NOT NULL CHECK (source_kind IN
-          ('human-message', 'bot-message', 'system-message', 'assignment-report',
-           'assignment-lifecycle', 'memory-change', 'bridge-message')),
-        bot_slug TEXT,
-        channel_id TEXT,
-        message_id TEXT,
-        assignment_session_id TEXT,
-        body TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        handled_at TEXT,
-        attempt_state TEXT NOT NULL DEFAULT 'pending'
-          CHECK (attempt_state IN ('pending', 'running', 'retryable', 'needs-repair', 'handled')),
-        side_effect_started_at TEXT,
-        expects_reply INTEGER NOT NULL DEFAULT 0 CHECK (expects_reply IN (0, 1)),
-        observed_at TEXT,
-        payload_json TEXT,
-        UNIQUE (channel_id, message_id)
-      );
-      INSERT INTO source_events_next
-      SELECT * FROM source_events;
-      DROP TABLE source_events;
-      ALTER TABLE source_events_next RENAME TO source_events;
-      CREATE INDEX source_events_bot_created
-        ON source_events (bot_slug, created_at, source_event_id);
-      CREATE INDEX source_events_assignment_kind
-        ON source_events (assignment_session_id, source_kind);
-
-    `);
-  },
-};
-
-const HUMAN_RESPONSE_INDEX_MIGRATION: SchemaMigration = {
-  id: 'human-response-index',
-  module: 'messaging',
-  description: 'Index canonical Human response targets and history time',
-  migrate(database) {
-    database.exec(
-      `CREATE INDEX source_events_human_native_response ON source_events (
-        coalesce(json_extract(payload_json, '$.userQuestionResolution.requestMessageId'),
-                 json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'),
-                 json_extract(payload_json, '$.grantRequestResolution.requestMessageId')), channel_id
-      ) WHERE source_kind = 'human-message' AND json_extract(payload_json, '$.author.kind') = 'human';
-      CREATE INDEX source_events_human_assignment_response ON source_events (
-        json_extract(payload_json, '$.assignmentReply.sourceEventId'),
-        json_extract(payload_json, '$.assignmentReply.sessionId')
-      ) WHERE source_kind = 'human-message' AND json_extract(payload_json, '$.author.kind') = 'human';
-      CREATE INDEX source_events_human_response_time ON source_events (created_at, source_event_id)
-        WHERE source_kind = 'human-message' AND json_extract(payload_json, '$.author.kind') = 'human';`,
-    );
-  },
-};
-
-const EXTERNAL_GROUP_POLICY_MIGRATION: SchemaMigration = {
-  id: 'external-group-policy',
-  module: 'messaging',
-  description: 'Version external group collection and wake independently of Service Grants',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_group_policy_revisions (
-        grant_id TEXT NOT NULL REFERENCES messaging_grants(id),
-        revision INTEGER NOT NULL,
-        body TEXT NOT NULL,
-        PRIMARY KEY (grant_id, revision)
-      );
-      CREATE TRIGGER messaging_group_policy_no_update
-        BEFORE UPDATE ON messaging_group_policy_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging Policy revisions are immutable'); END;
-      CREATE TRIGGER messaging_group_policy_no_delete
-        BEFORE DELETE ON messaging_group_policy_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging Policy revisions are immutable'); END;
     `);
   },
 };
@@ -1304,138 +838,6 @@ const HUMAN_INBOX_DISMISSAL_MIGRATION: SchemaMigration = {
         dismissed_at TEXT NOT NULL,
         PRIMARY KEY (human_id, item_id, source_key)
       );
-    `);
-  },
-};
-
-const EXTERNAL_THREAD_POLICY_MIGRATION: SchemaMigration = {
-  id: 'external-thread-policy',
-  module: 'messaging',
-  description: 'Version exact external Thread participation independently of group reception',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_thread_policy_revisions (
-        grant_id TEXT NOT NULL REFERENCES messaging_grants(id),
-        thread_id TEXT NOT NULL,
-        revision INTEGER NOT NULL,
-        body TEXT NOT NULL,
-        PRIMARY KEY (grant_id, thread_id, revision)
-      );
-      CREATE TRIGGER messaging_thread_policy_no_update BEFORE UPDATE ON messaging_thread_policy_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging Thread Policy revisions are immutable'); END;
-      CREATE TRIGGER messaging_thread_policy_no_delete BEFORE DELETE ON messaging_thread_policy_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging Thread Policy revisions are immutable'); END;
-      ALTER TABLE inbox_admissions ADD COLUMN external_thread_policy_revision INTEGER;
-    `);
-  },
-};
-
-const EXTERNAL_IDENTITY_MIGRATION: SchemaMigration = {
-  id: 'external-identity',
-  module: 'messaging',
-  description: 'Separate Bot identity lifecycle from conversation grants',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE messaging_bindings ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE messaging_bindings ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE messaging_bindings ADD COLUMN display_name TEXT NOT NULL DEFAULT '';
-      UPDATE messaging_bindings SET display_name = COALESCE(
-        (SELECT json_extract(g.body, '$.accountName') FROM messaging_grants g
-         WHERE g.binding_id = messaging_bindings.id ORDER BY g.created_at DESC LIMIT 1), account_ref);
-    `);
-  },
-};
-
-const CHANNEL_BRIDGE_MIGRATION: SchemaMigration = {
-  id: 'channel-bridge',
-  module: 'messaging',
-  description: 'Fence Channel Bridge intake preference and retain existing grant authority',
-  migrate(database) {
-    database.exec(`UPDATE messaging_grants SET body = json_set(body, '$.channelBridge', json_object(
-      'name', json_extract(body, '$.targetName'),
-      'enabled', json(CASE WHEN json_type(body, '$.receiveScope') = 'object' THEN 'true' ELSE 'false' END),
-      'collection', COALESCE((SELECT json_extract(p.body, '$.collection') FROM messaging_group_policy_revisions p WHERE p.grant_id = messaging_grants.id ORDER BY p.revision DESC LIMIT 1), 'mentions'),
-      'revision', 1))
-      WHERE json_type(body, '$.receiveTargetChannelId') = 'text' AND json_type(body, '$.channelBridge') IS NULL;`);
-  },
-};
-
-const MESSAGING_DEFAULTS_MIGRATION: SchemaMigration = {
-  id: 'messaging-defaults',
-  module: 'messaging',
-  description: 'Version platform preferences and preserve existing explicit Profile behavior',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_default_revisions (
-        platform TEXT NOT NULL CHECK (platform = 'feishu'),
-        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
-        PRIMARY KEY (platform, revision)
-      );
-      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      ALTER TABLE messaging_bindings ADD COLUMN enabled_inherited INTEGER NOT NULL DEFAULT 0;
-      UPDATE messaging_grants SET body = json_set(body, '$.receptionInheritance', 'custom');
-      ALTER TABLE inbox_admissions ADD COLUMN external_default_revision INTEGER;
-    `);
-  },
-};
-
-const BRIDGE_ROUTES_MIGRATION: SchemaMigration = {
-  id: 'bridge-routes',
-  module: 'messaging',
-  description:
-    'Retain one Source Event with distinct Channel placements and per-member reception paths',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE channel_placements_multiple (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
-        revision INTEGER NOT NULL,
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        message_id TEXT NOT NULL,
-        PRIMARY KEY(channel_id, revision),
-        UNIQUE(channel_id, source_event_id), UNIQUE(channel_id, message_id)
-      );
-      INSERT INTO channel_placements_multiple SELECT * FROM channel_placements;
-      DROP TABLE channel_placements;
-      ALTER TABLE channel_placements_multiple RENAME TO channel_placements;
-      CREATE INDEX channel_placements_source ON channel_placements(source_event_id);
-      CREATE TABLE messaging_source_paths (
-        source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-        bot_slug TEXT NOT NULL, grant_id TEXT NOT NULL REFERENCES messaging_grants(id),
-        route_id TEXT NOT NULL, channel_id TEXT REFERENCES channel_records(channel_id),
-        body TEXT NOT NULL,
-        PRIMARY KEY(source_event_id, bot_slug, route_id)
-      );
-      CREATE INDEX messaging_paths_member ON messaging_source_paths(bot_slug, route_id);
-      CREATE TRIGGER messaging_paths_no_update BEFORE UPDATE ON messaging_source_paths
-        BEGIN SELECT RAISE(ABORT, 'Reception path snapshots are immutable'); END;
-      CREATE TRIGGER messaging_paths_no_delete BEFORE DELETE ON messaging_source_paths
-        BEGIN SELECT RAISE(ABORT, 'Reception path snapshots are immutable'); END;
-    `);
-  },
-};
-
-const QUALIFIED_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  id: 'qualified-platform-defaults',
-  module: 'messaging',
-  description:
-    'Allow independently versioned qualified Slack preferences while retaining every existing override',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_default_revisions_qualified (
-        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack')),
-        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
-        PRIMARY KEY (platform, revision)
-      );
-      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
-      DROP TABLE messaging_default_revisions;
-      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
-      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
     `);
   },
 };
@@ -1557,35 +959,6 @@ const ROSTER_ARRANGEMENT_MIGRATION: SchemaMigration = {
   },
 };
 
-function rebuildWithKind(
-  database: DatabaseSync,
-  table: 'source_events' | 'inbox_admissions',
-  lastKind: string,
-  addedKinds: readonly string[] = ['schedule'],
-): void {
-  const row = database
-    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
-    .get(table) as { sql: string } | undefined;
-  const marker = `'${lastKind}'))`;
-  if (row === undefined || row.sql.split(marker).length !== 2)
-    throw new Error(`Cannot extend the ${table} kind check`);
-  const dependents = (
-    database
-      .prepare(
-        "SELECT sql FROM sqlite_master WHERE type IN ('index', 'trigger') AND tbl_name = ? AND sql IS NOT NULL",
-      )
-      .all(table) as Array<{ sql: string }>
-  ).map((dependent) => dependent.sql);
-  const next = row.sql
-    .replace(marker, `'${[lastKind, ...addedKinds].join("', '")}'))`)
-    .replace(/^CREATE TABLE\s+"?\w+"?/u, `CREATE TABLE ${table}_next`);
-  database.exec(next);
-  database.exec(`INSERT INTO ${table}_next SELECT * FROM ${table};
-    DROP TABLE ${table};
-    ALTER TABLE ${table}_next RENAME TO ${table};`);
-  for (const dependent of dependents) database.exec(dependent);
-}
-
 const BOT_SCHEDULE_MIGRATION: SchemaMigration = {
   id: 'bot-schedule',
   module: 'bot-schedules',
@@ -1625,189 +998,6 @@ const BOT_SCHEDULE_MIGRATION: SchemaMigration = {
   },
 };
 
-const DISCORD_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  id: 'discord-platform-defaults',
-  module: 'messaging',
-  description:
-    'Qualify independent Discord defaults without rewriting earlier revisions or overrides',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_default_revisions_qualified (
-        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack', 'discord')),
-        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
-        PRIMARY KEY (platform, revision)
-      );
-      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
-      DROP TABLE messaging_default_revisions;
-      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
-      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-    `);
-  },
-};
-
-const BOT_PAIRING_MIGRATION: SchemaMigration = {
-  id: 'bot-pairing',
-  module: 'messaging',
-  description: 'Own current-Bot Human pairing and explicitly reviewed IM capabilities',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_pairings (
-        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL,
-        binding_id TEXT NOT NULL REFERENCES messaging_bindings(id),
-        actor_id TEXT NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'revoked', 'expired')),
-        body TEXT NOT NULL CHECK (json_valid(body))
-      );
-      CREATE UNIQUE INDEX messaging_pairings_current
-        ON messaging_pairings(binding_id, actor_id) WHERE status IN ('pending', 'approved');
-      CREATE INDEX messaging_pairings_bot ON messaging_pairings(bot_slug);
-    `);
-  },
-};
-
-const APPROVAL_MESSAGING_MIGRATION: SchemaMigration = {
-  id: 'approval-messaging',
-  module: 'messaging',
-  description:
-    'Own approved management routes and notification receipts without duplicating native decisions',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_approval_routes (
-        bot_slug TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision > 0), body TEXT CHECK(body IS NULL OR json_valid(body))
-      );
-      CREATE TABLE messaging_approval_deliveries (
-        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK(json_valid(body))
-      );
-      CREATE INDEX messaging_approval_deliveries_bot ON messaging_approval_deliveries(bot_slug);
-    `);
-  },
-};
-
-const NEW_CONVERSATION_DEFAULT_MIGRATION: SchemaMigration = {
-  id: 'new-conversation-default',
-  module: 'messaging',
-  description: 'Let a bound app inherit the platform default new-conversation mode',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE messaging_bindings ADD COLUMN new_conversations_inherited INTEGER NOT NULL DEFAULT 1
-        CHECK (new_conversations_inherited IN (0, 1));
-      UPDATE messaging_bindings SET new_conversations_inherited = 0 WHERE new_conversations = 'ask';
-    `);
-  },
-};
-
-const BOUND_APP_ADMISSION_MIGRATION: SchemaMigration = {
-  id: 'bound-app-admission',
-  module: 'messaging',
-  description:
-    'Admit default traffic through a bound app with implicit conversation entries and a per-binding new-conversation mode',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE messaging_bindings ADD COLUMN new_conversations TEXT NOT NULL DEFAULT 'auto'
-        CHECK (new_conversations IN ('auto', 'ask'));
-      UPDATE messaging_grants SET body = json_set(body, '$.origin', 'explicit');
-      CREATE UNIQUE INDEX messaging_grants_implicit_conversation ON messaging_grants(
-        binding_id,
-        json_extract(body, '$.receiveScope.kind'),
-        json_extract(body, '$.receiveScope.conversationId')
-      ) WHERE revoked_at IS NULL AND json_extract(body, '$.origin') = 'implicit';
-    `);
-  },
-};
-
-const CONVERSATION_LIST_MIGRATION: SchemaMigration = {
-  id: 'conversation-list',
-  module: 'messaging',
-  description:
-    'Keep durable conversation blocks per Bot and app fingerprint, and held conversations waiting for a decision',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_conversation_blocks (
-        bot_slug TEXT NOT NULL,
-        fingerprint TEXT NOT NULL,
-        conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
-        conversation_id TEXT NOT NULL,
-        revision INTEGER NOT NULL CHECK (revision > 0),
-        body TEXT NOT NULL CHECK (json_valid(body)),
-        PRIMARY KEY (bot_slug, fingerprint, conversation_kind, conversation_id)
-      );
-      CREATE TABLE messaging_held_conversations (
-        binding_id TEXT NOT NULL,
-        conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
-        conversation_id TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        body TEXT NOT NULL CHECK (json_valid(body)),
-        PRIMARY KEY (binding_id, conversation_kind, conversation_id)
-      );
-      CREATE INDEX messaging_held_conversations_seen
-        ON messaging_held_conversations(binding_id, last_seen_at);
-      INSERT OR IGNORE INTO messaging_conversation_blocks
-        (bot_slug, fingerprint, conversation_kind, conversation_id, revision, body)
-      SELECT g.bot_slug, json_extract(g.body, '$.fingerprint'),
-             json_extract(g.body, '$.receiveScope.kind'),
-             json_extract(g.body, '$.receiveScope.conversationId'), 1,
-             json_object(
-               'botSlug', g.bot_slug,
-               'fingerprint', json_extract(g.body, '$.fingerprint'),
-               'conversation', json_object(
-                 'kind', json_extract(g.body, '$.receiveScope.kind'),
-                 'id', json_extract(g.body, '$.receiveScope.conversationId')),
-               'name', json_extract(g.body, '$.targetName'),
-               'blockedAt', g.revoked_at,
-               'revision', 1)
-        FROM messaging_grants g
-       WHERE g.revoked_at IS NOT NULL
-         AND json_extract(g.body, '$.origin') = 'explicit'
-         AND json_extract(g.body, '$.receiveScope.kind') IN ('dm', 'group')
-         AND NOT EXISTS (
-           SELECT 1 FROM messaging_grants a
-            WHERE a.revoked_at IS NULL AND a.bot_slug = g.bot_slug
-              AND json_extract(a.body, '$.fingerprint') = json_extract(g.body, '$.fingerprint')
-              AND json_extract(a.body, '$.receiveScope.kind') = json_extract(g.body, '$.receiveScope.kind')
-              AND json_extract(a.body, '$.receiveScope.conversationId') =
-                  json_extract(g.body, '$.receiveScope.conversationId'));
-    `);
-  },
-};
-
-const SEVERAL_APPS_MIGRATION: SchemaMigration = {
-  id: 'several-apps',
-  module: 'messaging',
-  description:
-    'Let one Bot bind several apps of the same platform; one app still belongs to one Bot',
-  migrate(database) {
-    database.exec('DROP INDEX IF EXISTS messaging_binding_bot_platform;');
-  },
-};
-
-const CONVERSATION_INGEST_MIGRATION: SchemaMigration = {
-  id: 'conversation-ingest',
-  module: 'messaging',
-  description: 'Let a Channel ingest an external conversation as one-way context',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_conversation_ingests (
-        id TEXT PRIMARY KEY,
-        channel_id TEXT NOT NULL,
-        provider_id TEXT NOT NULL,
-        account_ref TEXT NOT NULL,
-        fingerprint TEXT NOT NULL,
-        conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
-        conversation_id TEXT NOT NULL,
-        revision INTEGER NOT NULL CHECK (revision > 0),
-        body TEXT NOT NULL CHECK (json_valid(body))
-      );
-      CREATE UNIQUE INDEX messaging_conversation_ingest_target ON messaging_conversation_ingests
-        (channel_id, provider_id, fingerprint, conversation_kind, conversation_id);
-      CREATE INDEX messaging_conversation_ingest_source ON messaging_conversation_ingests
-        (provider_id, fingerprint, conversation_kind, conversation_id);
-    `);
-  },
-};
-
 const PERSONA_BOT_DELETION_MIGRATION: SchemaMigration = {
   id: 'persona-bot-deletion',
   module: 'bot-registry',
@@ -1822,18 +1012,6 @@ const PERSONA_BOT_DELETION_MIGRATION: SchemaMigration = {
         slug TEXT PRIMARY KEY REFERENCES persona_bots(slug),
         body TEXT NOT NULL CHECK (json_valid(body))
       );
-    `);
-  },
-};
-
-const MESSAGING_TYPING_MIGRATION: SchemaMigration = {
-  id: 'messaging-typing',
-  module: 'messaging',
-  description: 'Persist identity-local native typing preference without persisting tickets',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE messaging_bindings ADD COLUMN typing_enabled INTEGER NOT NULL DEFAULT 1
-        CHECK (typing_enabled IN (0, 1));
     `);
   },
 };
@@ -1883,31 +1061,6 @@ const CONTENT_PURGE_MIGRATION: SchemaMigration = {
           AND (COALESCE(json_extract(NEW.body, '$.text'), '') != '' OR json_type(NEW.body, '$.file') IS NOT NULL
             OR NEW.state IN ('pending', 'in-flight'))
         BEGIN SELECT RAISE(ABORT, 'content purged'); END;
-    `);
-  },
-};
-
-const WECHAT_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  id: 'wechat-platform-defaults',
-  module: 'messaging',
-  description: 'Qualify WeChat defaults and preserve existing identity-local typing overrides',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_default_revisions_qualified (
-        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack', 'discord', 'weixin')),
-        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
-        PRIMARY KEY (platform, revision)
-      );
-      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
-      DROP TABLE messaging_default_revisions;
-      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
-      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      ALTER TABLE messaging_bindings ADD COLUMN typing_inherited INTEGER NOT NULL DEFAULT 0
-        CHECK (typing_inherited IN (0, 1));
-      ALTER TABLE messaging_bindings ADD COLUMN receive_after TEXT;
     `);
   },
 };
@@ -2022,137 +1175,12 @@ const AVATAR_PART_LIBRARY_MIGRATION: SchemaMigration = {
   },
 };
 
-const RECEPTION_HISTORY_MIGRATION: SchemaMigration = {
-  id: 'reception-history',
-  module: 'messaging',
-  description: 'Retain bounded reception coverage observations without copying external messages',
-  migrate(database) {
-    database.exec(`CREATE TABLE messaging_reception_history (
-      bot_slug TEXT NOT NULL,
-      provider_id TEXT NOT NULL,
-      fingerprint TEXT NOT NULL,
-      body TEXT NOT NULL CHECK (json_valid(body)),
-      PRIMARY KEY (bot_slug, provider_id, fingerprint)
-    );`);
-  },
-};
-
-const BOT_SELF_RECORD_MIGRATION: SchemaMigration = {
-  id: 'bot-self-record',
-  module: 'messaging',
-  description: 'Record Bot Self-Records as Channel Notices with born-handled Bot Inbox records',
-  rebuildsReferencedTables: true,
-  migrate(database) {
-    rebuildWithKind(database, 'source_events', 'schedule', ['self-record']);
-    rebuildWithKind(database, 'inbox_admissions', 'schedule', ['memory-commit', 'bot-action']);
-  },
-};
-
-const MEMORY_COMMIT_RECORD_MIGRATION: SchemaMigration = {
-  id: 'memory-commit-record',
-  module: 'messaging',
-  description: 'Track each PersonaBot Memory commit cursor and record each commit once',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE memory_commit_cursors (
-        bot_slug TEXT PRIMARY KEY,
-        branch TEXT NOT NULL,
-        head TEXT NOT NULL CHECK (length(head) = 40),
-        updated_at TEXT NOT NULL
-      );
-      CREATE UNIQUE INDEX source_events_memory_commit
-        ON source_events (bot_slug, json_extract(payload_json, '$.memoryCommit.sha'))
-        WHERE json_type(payload_json, '$.memoryCommit') IS NOT NULL;
-    `);
-  },
-};
-
-const INBOX_HISTORY_MIGRATION: SchemaMigration = {
-  id: 'inbox-history',
-  module: 'messaging',
-  description: 'Index canonical Source Events for own-Bot Inbox history with FTS5 trigram',
-  migrate(database) {
-    database.exec(INBOX_HISTORY_INDEX_SQL);
-  },
-};
-
-const EXTERNAL_USER_ROLE_MIGRATION: SchemaMigration = {
-  id: 'external-user-role',
-  module: 'messaging',
-  description:
-    'Keep ordinary conversation roles separate from explicit management grants in Messaging',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_external_roles (id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK (json_valid(body)));
-      CREATE INDEX messaging_external_roles_bot ON messaging_external_roles(bot_slug);
-      CREATE TABLE messaging_sender_policies (bot_slug TEXT PRIMARY KEY, restricted INTEGER NOT NULL CHECK (restricted IN (0, 1)), revision INTEGER NOT NULL);
-      ALTER TABLE messaging_pairings ADD COLUMN purpose TEXT NOT NULL DEFAULT 'management' CHECK (purpose IN ('management', 'conversation'));
-      DROP INDEX messaging_pairings_current;
-      CREATE UNIQUE INDEX messaging_pairings_current ON messaging_pairings(binding_id, actor_id, purpose) WHERE status IN ('pending', 'approved');
-    `);
-  },
-};
-
-const PERMISSION_GROUP_MIGRATION: SchemaMigration = {
-  id: 'permission-group',
-  module: 'messaging',
-  description: 'Persist continuous scoped authorization groups without copying member grants',
-  migrate(database) {
-    database.exec(`CREATE TABLE messaging_permission_groups (id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, binding_id TEXT NOT NULL, body TEXT NOT NULL CHECK (json_valid(body)));
-      CREATE INDEX messaging_permission_groups_scope ON messaging_permission_groups(bot_slug, binding_id);`);
-  },
-};
-
-const PAIRING_CARD_MIGRATION: SchemaMigration = {
-  id: 'pairing-card',
-  module: 'messaging',
-  description: 'Persist scoped pairing-review card receipts and operator choices',
-  migrate(database) {
-    database.exec(`CREATE TABLE messaging_pairing_cards (
-      id TEXT PRIMARY KEY, request_id TEXT NOT NULL, bot_slug TEXT NOT NULL,
-      destination TEXT NOT NULL, body TEXT NOT NULL CHECK (json_valid(body)),
-      UNIQUE(request_id, destination));
-      CREATE INDEX messaging_pairing_cards_bot ON messaging_pairing_cards(bot_slug);`);
-  },
-};
-
-export const BEHAVIOR_PERMISSION_MIGRATION: SchemaMigration = {
-  id: 'behavior-permission',
-  module: 'messaging',
-  description: 'Persist reusable Bot-scoped Group behavior permission items',
-  migrate(db) {
-    db.exec(`CREATE TABLE messaging_behavior_permissions (
-      id TEXT PRIMARY KEY,
-      bot_slug TEXT NOT NULL,
-      body TEXT NOT NULL CHECK (json_valid(body))
-    );
-    CREATE INDEX messaging_behavior_permissions_bot ON messaging_behavior_permissions(bot_slug);`);
-  },
-};
-
 export const EXTERNAL_TOOL_RULE_CREATOR_MIGRATION: SchemaMigration = {
   id: 'external-tool-rule-creator',
   module: 'tool-approval-rules',
   description: 'Retain external creator provenance for revocable native approval rules',
   migrate(database) {
     database.exec('ALTER TABLE tool_approval_rules ADD COLUMN external_creator TEXT');
-  },
-};
-
-const FAILURE_ALERT_MIGRATION: SchemaMigration = {
-  id: 'failure-alert',
-  module: 'messaging',
-  description:
-    'Persist opt-in failure alerts and bounded delivery metadata on the shared management route',
-  migrate(database) {
-    database.exec(`CREATE TABLE messaging_failure_alert_settings (
-      bot_slug TEXT PRIMARY KEY, enabled INTEGER NOT NULL CHECK(enabled IN (0, 1)), revision INTEGER NOT NULL
-    );
-    CREATE TABLE messaging_failure_alert_deliveries (
-      id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, event_key TEXT NOT NULL UNIQUE,
-      body TEXT NOT NULL CHECK(json_valid(body))
-    );
-    CREATE INDEX messaging_failure_alert_deliveries_bot ON messaging_failure_alert_deliveries(bot_slug);`);
   },
 };
 
@@ -2229,18 +1257,6 @@ const SECRET_MCP_SERVER_MIGRATION: SchemaMigration = {
         approved_at TEXT NOT NULL,
         PRIMARY KEY (bot_slug, server_name)
       );
-    `);
-  },
-};
-
-const PROACTIVE_POST_LIMIT_MIGRATION: SchemaMigration = {
-  id: 'proactive-post-limit',
-  module: 'messaging',
-  description: 'Persist per-app proactive post limits and independent quota revisions',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE messaging_bindings ADD COLUMN post_limit INTEGER DEFAULT 60 CHECK (post_limit IS NULL OR post_limit >= 1);
-      ALTER TABLE messaging_bindings ADD COLUMN post_limit_revision INTEGER NOT NULL DEFAULT 1 CHECK (post_limit_revision >= 1);
     `);
   },
 };
@@ -2331,25 +1347,6 @@ const HUMAN_INBOX_SNOOZE_MIGRATION: SchemaMigration = {
   },
 };
 
-const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
-  id: 'channel-reaction',
-  module: 'messaging',
-  description: 'Record emoji reactions on Channel messages',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE channel_reactions (
-        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
-        message_id TEXT NOT NULL,
-        actor_kind TEXT NOT NULL CHECK (actor_kind IN ('human', 'bot')),
-        actor_id TEXT NOT NULL,
-        emoji TEXT NOT NULL,
-        reacted_at TEXT NOT NULL,
-        PRIMARY KEY (channel_id, message_id, actor_kind, actor_id, emoji)
-      );
-    `);
-  },
-};
-
 const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
   id: 'secret-cli-tool-rule',
   module: 'tool-approval-rules',
@@ -2432,44 +1429,6 @@ const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
       );
       CREATE INDEX group_send_review_source ON group_send_review_drafts(source_event_id);
     `);
-  },
-};
-
-const CLOUD_CONNECTION_MIGRATION: SchemaMigration = {
-  id: 'cloud-connection',
-  module: 'messaging',
-  description: 'Track explicit cloud Agent connections without storing secret values',
-  migrate(database) {
-    database.exec(`CREATE TABLE cloud_connections (
-      id TEXT PRIMARY KEY,
-      connection_json TEXT NOT NULL,
-      credential_revision TEXT NOT NULL,
-      active INTEGER NOT NULL CHECK (active IN (0,1)),
-      cursor INTEGER NOT NULL CHECK (cursor >= 0),
-      policy_json TEXT NOT NULL,
-      revision INTEGER NOT NULL CHECK (revision >= 1)
-    );`);
-  },
-};
-
-const CLOUD_WORK_MIGRATION: SchemaMigration = {
-  id: 'cloud-work',
-  module: 'messaging',
-  description: 'Fence bounded cloud work execution and forwarding across retries',
-  migrate(database) {
-    database.exec(`CREATE TABLE cloud_work (
-      connection_id TEXT NOT NULL,
-      request_id TEXT NOT NULL,
-      bot_slug TEXT NOT NULL,
-      source_event_id TEXT NOT NULL,
-      request_hash TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('authorizing','started','outbox','finished','forwarding','forwarded')),
-      target_actor_id TEXT,
-      environment TEXT NOT NULL,
-      execution_count INTEGER NOT NULL CHECK (execution_count IN (0,1)),
-      outcome_json TEXT,
-      PRIMARY KEY (connection_id,request_id)
-    );`);
   },
 };
 
@@ -2643,52 +1602,6 @@ const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
   },
 };
 
-const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
-  id: 'message-search-attachment-name',
-  module: 'messaging',
-  description: 'Index attachment file names in the message full-text index for global search',
-  migrate(database) {
-    database.exec(MESSAGE_SEARCH_INDEX_SQL);
-  },
-};
-
-const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
-  id: 'grant-reception-evidence',
-  module: 'messaging',
-  description: 'Fence grant-backed reception evidence from older Bridge-only readers',
-  migrate(database) {
-    database.exec(`CREATE INDEX messaging_paths_authority
-      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));
-      CREATE VIEW messaging_bridge_sources AS SELECT DISTINCT source_event_id
-        FROM messaging_source_paths WHERE json_extract(body, '$.kind') IS NOT 'grant';`);
-  },
-};
-
-const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
-  id: 'human-attention-candidate-index',
-  module: 'messaging',
-  description: 'Index canonical pending attention candidates without scanning ordinary history',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX source_events_attention_question ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'bot-message'
-          AND json_extract(payload_json, '$.userQuestionRequest') IS NOT NULL;
-      CREATE INDEX source_events_attention_approval ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'bot-message'
-          AND json_extract(payload_json, '$.toolApprovalRequest') IS NOT NULL;
-      CREATE INDEX source_events_attention_private ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'bot-message'
-          AND json_extract(payload_json, '$.privateInputRequest') IS NOT NULL;
-      CREATE INDEX source_events_attention_grant ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'bot-message'
-          AND json_extract(payload_json, '$.grantRequest') = 1;
-      CREATE INDEX source_events_attention_rejection ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'system-message'
-          AND json_extract(payload_json, '$.toolAutoApproval.outcome') = 'rejected';
-    `);
-  },
-};
-
 const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
   id: 'bot-lan-admission',
   module: 'bot-lan',
@@ -2707,33 +1620,6 @@ const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
   },
 };
 
-const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
-  id: 'question-messaging',
-  module: 'messaging',
-  description: 'Retain checked native question notification references and receipts',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_question_deliveries (
-        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK(json_valid(body))
-      );
-      CREATE INDEX messaging_question_deliveries_bot ON messaging_question_deliveries(bot_slug);
-    `);
-  },
-};
-
-const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
-  id: 'takeover-attention-index',
-  module: 'messaging',
-  description: 'Index Takeover Handoff requests without scanning ordinary history',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX source_events_attention_takeover ON source_events (message_id, source_event_id)
-        WHERE source_kind = 'bot-message'
-          AND json_extract(payload_json, '$.takeoverRequest') IS NOT NULL;
-    `);
-  },
-};
-
 const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
   id: 'voice-provider',
   module: 'voice',
@@ -2745,30 +1631,6 @@ const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
         body TEXT NOT NULL CHECK (json_valid(body)),
         created_at TEXT NOT NULL
       );
-    `);
-  },
-};
-
-const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
-  id: 'grant-resolution-index',
-  module: 'messaging',
-  description: 'Index grant request resolutions without scanning Channel history',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX source_events_grant_resolution
-        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
-        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
-    `);
-  },
-};
-
-const OUTPUT_REQUEST_INDEX_MIGRATION: SchemaMigration = {
-  id: 'output-request-index',
-  module: 'messaging',
-  description: 'Index Bot output lookups by the request that caused them',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX channel_output_origins_request ON channel_output_origins (request_source_event_id);
     `);
   },
 };
@@ -2792,110 +1654,6 @@ const NEEDS_REPAIR_INDEX_MIGRATION: SchemaMigration = {
     database.exec(`
       CREATE INDEX inbox_admissions_needs_repair ON inbox_admissions (source_event_id, bot_slug)
         WHERE attempt_state = 'needs-repair';
-    `);
-  },
-};
-
-const PLACEMENT_NOTICE_MIGRATION: SchemaMigration = {
-  id: 'placement-notice',
-  module: 'messaging',
-  description: 'Mark notice placements so the latest message is found without walking notices',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE channel_placements ADD COLUMN notice INTEGER NOT NULL DEFAULT 0;
-      UPDATE channel_placements SET notice = 1 WHERE source_event_id IN (
-        SELECT source_event_id FROM source_events
-         WHERE CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
-      );
-      CREATE INDEX channel_placements_latest_message ON channel_placements (channel_id, revision)
-        WHERE notice = 0;
-      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
-        BEGIN
-          UPDATE channel_placements SET notice = coalesce((
-            SELECT CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END FROM source_events
-             WHERE source_event_id = NEW.source_event_id
-          ), 0)
-           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
-        END;
-      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
-        BEGIN
-          UPDATE channel_placements SET notice = CASE WHEN json_valid(NEW.payload_json) THEN coalesce(json_type(NEW.payload_json, '$.botDmAction') = 'object' OR json_type(NEW.payload_json, '$.botCreateAction') = 'object' OR json_type(NEW.payload_json, '$.botChannelPost') = 'object' OR json_type(NEW.payload_json, '$.memoryCommit') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApproval') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
-           WHERE source_event_id = NEW.source_event_id;
-        END;
-    `);
-  },
-};
-
-const PLACEMENT_HUMAN_REPLY_MIGRATION: SchemaMigration = {
-  id: 'placement-human-reply',
-  module: 'messaging',
-  description:
-    'Mark Bot replies and mentions for the Human so the replies list skips other history',
-  migrate(database) {
-    database.exec(`
-      ALTER TABLE channel_placements ADD COLUMN for_human INTEGER NOT NULL DEFAULT 0;
-      UPDATE channel_placements SET for_human = 1 WHERE (
-        SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = channel_placements.source_event_id
-      ) = 1;
-      CREATE INDEX channel_placements_for_human ON channel_placements (channel_id, revision)
-        WHERE for_human = 1;
-      CREATE TRIGGER channel_placements_for_human_insert AFTER INSERT ON channel_placements
-        BEGIN
-          UPDATE channel_placements SET for_human = coalesce((
-            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = NEW.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
-          ), 0)
-           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
-        END;
-      CREATE TRIGGER channel_placements_for_human_update AFTER UPDATE OF payload_json ON source_events
-        BEGIN
-          UPDATE channel_placements SET for_human = coalesce((
-            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
-          ), 0)
-           WHERE source_event_id = NEW.source_event_id;
-        END;
-    `);
-  },
-};
-
-const BOUNDED_RANGE_INDEX_MIGRATION: SchemaMigration = {
-  id: 'bounded-range-index',
-  module: 'messaging',
-  description:
-    'Index message time, outbound attempts, outbound receipts and external message ids for bounded lookups',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX source_events_created ON source_events (created_at);
-      CREATE INDEX messaging_outbox_attempts_started ON messaging_outbox_attempts (started_at);
-      CREATE INDEX messaging_outbox_receipt
-        ON messaging_outbox (bot_slug, json_extract(body, '$.receipt.messageId'));
-      CREATE INDEX source_events_external_message
-        ON source_events (bot_slug, json_extract(payload_json, '$.external.event.messageId'))
-        WHERE source_kind = 'bridge-message';
-    `);
-  },
-};
-
-const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
-  id: 'attention-resolution-index',
-  module: 'messaging',
-  description: 'Index attention resolutions and admission activity time for bounded lookups',
-  migrate(database) {
-    database.exec(`
-      CREATE INDEX source_events_question_resolution
-        ON source_events (json_extract(payload_json, '$.userQuestionResolution.requestMessageId'))
-        WHERE json_extract(payload_json, '$.userQuestionResolution.requestMessageId') IS NOT NULL;
-      CREATE INDEX source_events_approval_decision
-        ON source_events (json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'))
-        WHERE json_extract(payload_json, '$.toolApprovalDecision.requestMessageId') IS NOT NULL;
-      CREATE INDEX source_events_approval_override
-        ON source_events (json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId'))
-        WHERE json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId') IS NOT NULL;
-      CREATE INDEX source_events_private_resolution
-        ON source_events (json_extract(payload_json, '$.privateInputResolution.requestMessageId'))
-        WHERE json_extract(payload_json, '$.privateInputResolution.requestMessageId') IS NOT NULL;
-      CREATE INDEX inbox_admissions_activity
-        ON inbox_admissions (bot_slug, coalesce(observed_at, handled_at))
-        WHERE ignored_at IS NULL;
     `);
   },
 };
@@ -2953,201 +1711,6 @@ const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
   },
 };
 
-const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
-  id: 'channel-change-log',
-  module: 'messaging',
-  description: 'Record every change to what a placed message renders in a global change log',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE channel_change_epoch (
-        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-        epoch TEXT NOT NULL,
-        floor_seq INTEGER NOT NULL DEFAULT 0
-      );
-      INSERT INTO channel_change_epoch (singleton, epoch) VALUES (1, lower(hex(randomblob(8))));
-      CREATE TABLE channel_changes (
-        seq INTEGER PRIMARY KEY AUTOINCREMENT,
-        channel_id TEXT NOT NULL,
-        message_id TEXT,
-        kind TEXT NOT NULL CHECK (kind IN ('message', 'removed', 'channel', 'read')),
-        changed_at INTEGER NOT NULL DEFAULT (CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
-      );
-      CREATE INDEX channel_changes_channel ON channel_changes (channel_id, seq);
-      CREATE INDEX channel_changes_changed_at ON channel_changes (changed_at);
-      CREATE INDEX source_events_reply_target
-        ON source_events (json_extract(payload_json, '$.replyTo'))
-        WHERE json_valid(payload_json) AND json_extract(payload_json, '$.replyTo') IS NOT NULL;
-      CREATE INDEX source_events_post_target
-        ON source_events (json_extract(payload_json, '$.botChannelPost.messageId'))
-        WHERE json_valid(payload_json)
-          AND json_extract(payload_json, '$.botChannelPost.messageId') IS NOT NULL;
-
-      CREATE TRIGGER channel_change_placement_insert AFTER INSERT ON channel_placements
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            VALUES (NEW.channel_id, NEW.message_id, 'message');
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT NEW.channel_id, json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId'), 'message'
-              FROM source_events e
-             WHERE e.source_event_id = NEW.source_event_id AND json_valid(e.payload_json)
-               AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
-        END;
-      CREATE TRIGGER channel_change_placement_delete AFTER DELETE ON channel_placements
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            VALUES (OLD.channel_id, OLD.message_id, 'removed');
-        END;
-      CREATE TRIGGER channel_change_source_update AFTER UPDATE OF body, payload_json ON source_events
-        WHEN OLD.body IS NOT NEW.body
-          OR (CASE WHEN json_valid(OLD.payload_json)
-                THEN json_remove(OLD.payload_json, '$.feedback', '$.external.contextReads')
-                ELSE OLD.payload_json END)
-             IS NOT (CASE WHEN json_valid(NEW.payload_json)
-                THEN json_remove(NEW.payload_json, '$.feedback', '$.external.contextReads')
-                ELSE NEW.payload_json END)
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.source_event_id;
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT r.channel_id, r.message_id, 'message'
-              FROM channel_placements p
-              JOIN source_events re
-                ON json_valid(re.payload_json) AND json_extract(re.payload_json, '$.replyTo') = p.message_id
-              JOIN channel_placements r
-                ON r.source_event_id = re.source_event_id AND r.channel_id = p.channel_id
-             WHERE p.source_event_id = NEW.source_event_id;
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT r.channel_id, r.message_id, 'message'
-              FROM channel_placements p
-              JOIN source_events re
-                ON json_valid(re.payload_json)
-               AND json_extract(re.payload_json, '$.botChannelPost.messageId') = p.message_id
-               AND json_extract(re.payload_json, '$.botChannelPost.channelId') = p.channel_id
-              JOIN channel_placements r ON r.source_event_id = re.source_event_id
-             WHERE p.source_event_id = NEW.source_event_id;
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT p.channel_id, json_extract(x.payload, '$.grantRequestResolution.requestMessageId'), 'message'
-              FROM channel_placements p,
-                   (SELECT OLD.payload_json AS payload UNION ALL SELECT NEW.payload_json) x
-             WHERE p.source_event_id = NEW.source_event_id AND json_valid(x.payload)
-               AND json_extract(x.payload, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
-        END;
-      CREATE TRIGGER channel_change_admission_insert AFTER INSERT ON inbox_admissions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_admission_update AFTER UPDATE ON inbox_admissions
-        WHEN OLD.attempt_state IS NOT NEW.attempt_state OR OLD.handled_at IS NOT NEW.handled_at
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_admission_delete AFTER DELETE ON inbox_admissions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = OLD.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_reaction_insert AFTER INSERT ON channel_reactions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            VALUES (NEW.channel_id, NEW.message_id, 'message');
-        END;
-      CREATE TRIGGER channel_change_reaction_delete AFTER DELETE ON channel_reactions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            VALUES (OLD.channel_id, OLD.message_id, 'message');
-        END;
-      CREATE TRIGGER channel_change_binding_insert AFTER INSERT ON attachment_file_bindings
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_binding_update AFTER UPDATE ON attachment_file_bindings
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_binding_delete AFTER DELETE ON attachment_file_bindings
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = OLD.source_event_id;
-        END;
-      CREATE TRIGGER channel_change_request_assignment_insert AFTER INSERT ON request_assignments
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = NEW.request_source_event_id;
-        END;
-      CREATE TRIGGER channel_change_request_assignment_delete AFTER DELETE ON request_assignments
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind)
-            SELECT channel_id, message_id, 'message' FROM channel_placements
-             WHERE source_event_id = OLD.request_source_event_id;
-        END;
-      CREATE TRIGGER channel_change_read_insert AFTER INSERT ON channel_read_positions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
-        END;
-      CREATE TRIGGER channel_change_read_update AFTER UPDATE ON channel_read_positions
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
-        END;
-      CREATE TRIGGER channel_change_record_insert AFTER INSERT ON channel_records
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_record_update AFTER UPDATE ON channel_records
-        WHEN (CASE WHEN json_valid(OLD.record_json)
-                THEN json_remove(OLD.record_json, '$.updatedAt') ELSE OLD.record_json END)
-          IS NOT (CASE WHEN json_valid(NEW.record_json)
-                THEN json_remove(NEW.record_json, '$.updatedAt') ELSE NEW.record_json END)
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_nickname_insert AFTER INSERT ON channel_human_nicknames
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_nickname_update AFTER UPDATE ON channel_human_nicknames
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_nickname_delete AFTER DELETE ON channel_human_nicknames
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_member_insert AFTER INSERT ON channel_human_members
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_member_update AFTER UPDATE ON channel_human_members
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_member_delete AFTER DELETE ON channel_human_members
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_name_insert AFTER INSERT ON local_human_names
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
-        END;
-      CREATE TRIGGER channel_change_name_update AFTER UPDATE ON local_human_names
-        BEGIN
-          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
-        END;
-    `);
-  },
-};
-
 const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   id: 'workspace-grant-path',
   module: 'workspace-grants',
@@ -3170,20 +1733,6 @@ const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
   },
 };
 
-const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
-  id: 'call-visual-unsaved',
-  module: 'messaging',
-  description: 'Drop the removed unsaved marker from call message visuals',
-  migrate(database) {
-    database.exec(`
-      UPDATE source_events
-         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.unsaved')
-       WHERE json_valid(payload_json)
-         AND json_type(payload_json, '$.voiceCall.visual.unsaved') IS NOT NULL;
-    `);
-  },
-};
-
 const CLIENT_ACKNOWLEDGEMENT_MIGRATION: SchemaMigration = {
   id: 'client-acknowledgement',
   module: 'bot-onboarding',
@@ -3196,46 +1745,6 @@ const CLIENT_ACKNOWLEDGEMENT_MIGRATION: SchemaMigration = {
         recorded_at TEXT NOT NULL
       );
     `);
-  },
-};
-
-const CALL_VISUAL_TIMELINE_MIGRATION: SchemaMigration = {
-  id: 'call-visual-timeline',
-  module: 'messaging',
-  description:
-    'Drop the removed frame-record list from call message visuals, and grid metadata without a picture range',
-  migrate(database) {
-    database.exec(`
-      UPDATE source_events
-         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.records')
-       WHERE json_valid(payload_json)
-         AND json_type(payload_json, '$.voiceCall.visual.records') IS NOT NULL;
-      UPDATE source_events
-         SET payload_json = json_remove(payload_json, '$.voiceCall.visual')
-       WHERE json_valid(payload_json)
-         AND json_type(payload_json, '$.voiceCall.visual.frames') IS NOT NULL
-         AND (json_type(payload_json, '$.voiceCall.visual.fromMs') IS NULL
-           OR json_type(payload_json, '$.voiceCall.visual.toMs') IS NULL);
-    `);
-  },
-};
-
-const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
-  id: 'genui-private-view',
-  module: 'messaging',
-  description:
-    'Private Human view drafts reference canonical report placements and cascade on purge',
-  migrate(database) {
-    database.exec(`CREATE TABLE genui_private_views (
-      human_id TEXT NOT NULL,
-      channel_id TEXT NOT NULL,
-      message_id TEXT NOT NULL,
-      snapshot_id TEXT NOT NULL,
-      version INTEGER NOT NULL CHECK (version > 0),
-      state_json TEXT NOT NULL,
-      PRIMARY KEY (human_id, channel_id, message_id),
-      FOREIGN KEY (channel_id, message_id) REFERENCES channel_placements(channel_id, message_id) ON DELETE CASCADE
-    )`);
   },
 };
 
@@ -3273,102 +1782,12 @@ const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
   },
 };
 
-const QUESTION_MESSAGING_RECOVERY_MIGRATION: SchemaMigration = {
-  id: 'question-messaging-recovery',
-  module: 'messaging',
-  description: 'Recover the question schema skipped by the generation-116 QQ defaults hotfix',
-  migrate(database) {
-    const reference = new DatabaseSync(':memory:');
-    try {
-      QUESTION_MESSAGING_MIGRATION.migrate(reference);
-      const query = `SELECT type, name, tbl_name, sql FROM sqlite_schema
-        WHERE tbl_name = 'messaging_question_deliveries'
-           OR name IN ('messaging_question_deliveries', 'messaging_question_deliveries_bot')`;
-      const expected = reference.prepare(query).all();
-      const actual = database.prepare(query).all();
-      const normalize = (sql: unknown) =>
-        typeof sql === 'string' ? sql.replace(/\s+/gu, ' ').trim() : sql;
-      for (const object of actual) {
-        const match = expected.find((candidate) => candidate.name === object.name);
-        if (
-          match === undefined ||
-          match.type !== object.type ||
-          match.tbl_name !== object.tbl_name ||
-          normalize(match.sql) !== normalize(object.sql)
-        ) {
-          throw new OperationalDatabaseError(
-            'migration-failed',
-            'Incompatible question notification schema; retain the Profile for recovery',
-          );
-        }
-      }
-      for (const object of expected) {
-        if (typeof object.sql === 'string' && !actual.some((entry) => entry.name === object.name)) {
-          database.exec(object.sql);
-        }
-      }
-    } finally {
-      reference.close();
-    }
-  },
-};
-
-const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  id: 'qq-platform-defaults',
-  module: 'messaging',
-  description:
-    'Allow QQ platform defaults while preserving official and historical hotfix preferences',
-  migrate(database) {
-    database.exec(`
-      CREATE TABLE messaging_default_revisions_qualified (
-        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack', 'discord', 'weixin', 'qq')),
-        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
-        PRIMARY KEY (platform, revision)
-      );
-      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
-      DROP TABLE messaging_default_revisions;
-      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
-      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
-        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
-    `);
-  },
-};
-
 const DEVICE_FEED_READ_MIGRATION: SchemaMigration = {
   id: 'device-feed-read',
   module: 'paired-devices',
   description: 'Retain the paired client acknowledgement of its first Host Feed read',
   migrate(database) {
     database.exec('ALTER TABLE paired_devices ADD COLUMN feed_read_at TEXT');
-  },
-};
-
-const SOURCE_EVENT_HUMAN_MIGRATION: SchemaMigration = {
-  id: 'source-event-human',
-  module: 'messaging',
-  description: 'Record the speaking Human on Source Events without changing message payloads',
-  migrate(database) {
-    database.exec('ALTER TABLE source_events ADD COLUMN human_id TEXT');
-    database
-      .prepare(`UPDATE source_events SET human_id = ?
-      WHERE source_kind = 'human-message'`)
-      .run(OWNER_HUMAN_CONTEXT.humanId);
-    database.exec(`CREATE TABLE human_attention_decisions_next (
-      human_id TEXT NOT NULL,
-      source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
-      decision TEXT NOT NULL CHECK (decision IN ('ignored')),
-      decided_at TEXT NOT NULL,
-      PRIMARY KEY (human_id, source_event_id)
-    )`);
-    database
-      .prepare(`INSERT INTO human_attention_decisions_next
-      (human_id, source_event_id, decision, decided_at)
-      SELECT ?, source_event_id, decision, decided_at FROM human_attention_decisions`)
-      .run(OWNER_HUMAN_CONTEXT.humanId);
-    database.exec(`DROP TABLE human_attention_decisions;
-      ALTER TABLE human_attention_decisions_next RENAME TO human_attention_decisions`);
   },
 };
 
@@ -3576,6 +1995,7 @@ const TEAM_MODELS_MIGRATION: SchemaMigration = {
     db.exec(`ALTER TABLE host_roles ADD COLUMN models_json TEXT NOT NULL DEFAULT '{"kind":"all"}'`);
   },
 };
+
 const MEMBER_USAGE_MIGRATION: SchemaMigration = {
   id: 'member-usage',
   module: 'usage',
@@ -3908,37 +2328,6 @@ const ASSIGNMENT_MODEL_GROUP_MIGRATION: SchemaMigration = {
   },
 };
 
-const noticeOf = (payload: string) =>
-  `CASE WHEN json_valid(${payload}) THEN coalesce(${['botDmAction', 'botCreateAction', 'botChannelPost', 'memoryCommit', 'toolAutoApproval', 'toolAutoApprovalPause', 'modelSwitch'].map((field) => `json_type(${payload}, '$.${field}') = 'object'`).join(' OR ')}, 0) ELSE 0 END`;
-
-const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
-  id: 'model-switch-notice',
-  module: 'messaging',
-  description: 'Mark Model Switch Notices as notice placements',
-  migrate(database) {
-    database.exec(`
-      DROP TRIGGER channel_placements_notice_insert;
-      DROP TRIGGER channel_placements_notice_update;
-      UPDATE channel_placements SET notice = 1 WHERE notice = 0 AND source_event_id IN (
-        SELECT source_event_id FROM source_events WHERE ${noticeOf('payload_json')}
-      );
-      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
-        BEGIN
-          UPDATE channel_placements SET notice = coalesce((
-            SELECT ${noticeOf('payload_json')} FROM source_events
-             WHERE source_event_id = NEW.source_event_id
-          ), 0)
-           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
-        END;
-      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
-        BEGIN
-          UPDATE channel_placements SET notice = ${noticeOf('NEW.payload_json')}
-           WHERE source_event_id = NEW.source_event_id;
-        END;
-    `);
-  },
-};
-
 const HUMAN_AVATAR_MIGRATION: SchemaMigration = {
   id: 'human-avatar',
   module: 'human-identity',
@@ -4221,6 +2610,43 @@ const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION: SchemaMigration = {
+  id: 'bot-schedule-creation-receipts',
+  module: 'bot-schedules',
+  description: 'Reconcile a retried Bot Schedule creation by its operation key',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_schedule_creations (
+        operation_key TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        schedule_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX bot_schedule_creations_bot ON bot_schedule_creations(bot_slug);
+    `);
+  },
+};
+
+const PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION: SchemaMigration = {
+  id: 'pending-orchestrator-replacements',
+  module: 'session-ownership',
+  description: 'Store Orchestrator reservations separately from committed Session ownership',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE pending_orchestrator_replacements (
+        session_id TEXT PRIMARY KEY NOT NULL,
+        bot_slug TEXT NOT NULL,
+        cwd_reference TEXT,
+        previous_cwd_reference TEXT,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX pending_orchestrator_replacements_bot
+        ON pending_orchestrator_replacements (bot_slug, created_at DESC, session_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4404,5 +2830,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MODEL_PRESET_SUB_ENGINE_MIGRATION,
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
   CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
+  BOT_SCHEDULE_CREATION_RECEIPTS_MIGRATION,
+  PENDING_ORCHESTRATOR_REPLACEMENTS_MIGRATION,
   TOB_MEMORY_LEASE_MIGRATION,
 ]);

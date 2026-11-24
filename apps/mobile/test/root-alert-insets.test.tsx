@@ -51,11 +51,7 @@ vi.mock('../src/ui/theme', () => ({ useTheme: () => ({ background: '', ink: '' }
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ scheme: 'dark', overlay: { fill: '' } }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawer: () => null,
-  WorkspaceButton: () => null,
-  hostDrawer: {},
-}));
+vi.mock('../src/ui/shell/host-drawer-state', () => ({ hostDrawer: {} }));
 vi.mock('../src/ui/primitives/device-alert-banner', () => ({ DeviceAlertBanner: () => null }));
 vi.mock('../src/ui/request-parts', () => ({ Notice: () => null }));
 vi.mock('../src/ui/shell/statistics-notice', () => ({ StatisticsNotice: () => null }));

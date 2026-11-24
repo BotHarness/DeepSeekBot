@@ -8,6 +8,7 @@ import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 const state = vi.hoisted(() => ({
   initialChannelId: 'channel_a' as string | undefined,
   userId: 'user_a',
+  role: 'member' as 'owner' | 'member',
   messages: vi.fn(),
   read: vi.fn(),
   remove: vi.fn(),
@@ -69,7 +70,7 @@ vi.mock('../src/cloud/native', () => ({
         }),
         hasSession: true,
         sessionUserId: state.userId,
-        organization: { role: 'member', name: 'A' },
+        organization: { organizationId: 'org_a', role: state.role, name: 'A' },
       },
     ],
   }),
@@ -131,6 +132,7 @@ beforeEach(() => {
   routeState = undefined;
   interfacePreferences.setLanguage('en');
   state.userId = 'user_a';
+  state.role = 'member';
   state.open
     .mockReset()
     .mockImplementation(async (_instance: string, _organization: string, channelId: string) => ({
@@ -152,6 +154,29 @@ afterEach(() => {
   state.initialChannelId = 'channel_a';
 });
 describe('cloud channel cached access', () => {
+  it.each(['owner', 'member'] as const)(
+    'shows permission-aware empty Cloud Channels and the existing create action for %s',
+    async (role) => {
+      state.initialChannelId = undefined;
+      state.role = role;
+      state.list.mockResolvedValue({ channels: [], nextCursor: null });
+      const node = document.createElement('div');
+      const root = createRoot(node);
+      mountedRoots.push(root);
+      await act(async () => root.render(<CloudChannelsScreen />));
+      const copy =
+        role === 'owner'
+          ? 'No channels yet.'
+          : 'No channels yet. A workspace owner can create one.';
+      expect(
+        [...node.querySelectorAll('span')].some((element) => element.textContent === copy),
+      ).toBe(true);
+      const create = [...node.querySelectorAll('button')].filter(
+        (button) => button.textContent === 'Create channel',
+      );
+      expect(create).toHaveLength(role === 'owner' ? 1 : 0);
+    },
+  );
   it.each(['ORGANIZATION_ACCESS_DENIED', 'NETWORK_UNAVAILABLE'])(
     'handles %s when refreshing a previously loaded channel list',
     async (code) => {

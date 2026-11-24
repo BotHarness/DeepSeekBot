@@ -3,9 +3,14 @@ import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+const device = vi.hoisted(() => ({ fontScale: 1 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android' },
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: () => ({ remove() {} }),
+  },
   View: (props: {
     children?: ReactNode;
     testID?: string;
@@ -63,6 +68,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(() => {
+  device.fontScale = 1;
   act(() => root?.unmount());
   host?.remove();
 });
@@ -213,4 +219,65 @@ it('hosts avatars inside the item and keeps React Native buttons outside it', as
   expect(item.querySelector('button')).toBeNull();
   expect(slot(item, 'trailing')).toBeNull();
   expect(screen.querySelector('button')!.textContent).toBe('Remove');
+});
+
+it.each([
+  [1, 'trailing'],
+  [2, 'supporting'],
+] as const)(
+  'keeps a value beside the title at font scale %s and moves it under the title at large text',
+  async (fontScale, place) => {
+    device.fontScale = fontScale;
+    const screen = await render(
+      <SettingsSection>
+        <SettingsRow
+          testID="environment-row"
+          title="Environment"
+          icon="computer"
+          control={{ kind: 'value', text: 'A very long Computer name', chevron: true }}
+          onPress={() => {}}
+        />
+      </SettingsSection>,
+    );
+    const item = screen.querySelector<HTMLElement>('[data-list-item]')!;
+    expect(slot(item, 'headline')!.textContent).toBe('Environment');
+    expect(slot(item, place)!.textContent).toContain('A very long Computer name');
+    const trailing = slot(item, 'trailing')!;
+    expect(trailing.querySelector('i')!.getAttribute('data-icon')).toBe('row-icon:chevron');
+    if (place === 'supporting') expect(trailing.textContent).toBe('');
+    else expect(slot(item, 'supporting')).toBeNull();
+    expect(
+      screen.querySelector('[data-testid="environment-row"]')!.getAttribute('aria-label'),
+    ).toBe('Environment, A very long Computer name');
+  },
+);
+
+it.each([1, 2])('keeps a detail status dot beside a value at font scale %s', async (fontScale) => {
+  device.fontScale = fontScale;
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow
+        title="Studio"
+        detail="Online"
+        detailDot="green-token"
+        control={{ kind: 'value', text: 'QA Host', chevron: true }}
+        onPress={() => {}}
+      />
+    </SettingsSection>,
+  );
+  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  expect(supporting.querySelector('[data-dot]')!.getAttribute('data-dot')).toBe('green-token');
+  expect(supporting.textContent).toContain('Online');
+  expect(supporting.textContent?.includes('QA Host')).toBe(fontScale === 2);
+});
+
+it('keeps a text-only detail without a dot', async () => {
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow title="Storage" detail="Cached files" onPress={() => {}} />
+    </SettingsSection>,
+  );
+  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  expect(supporting.textContent).toBe('Cached files');
+  expect(supporting.querySelector('[data-dot]')).toBeNull();
 });

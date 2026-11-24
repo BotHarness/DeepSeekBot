@@ -211,6 +211,24 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it('keeps every choice of a three-outcome prompt with the destructive one last', async () => {
+    const keep = vi.fn();
+    const view = mount();
+    act(() =>
+      appDialogs.open('Discard this draft?', undefined, [
+        { text: 'Discard Draft', style: 'destructive' },
+        { text: 'Keep Draft', onPress: keep },
+        { text: 'Keep Editing', style: 'cancel' },
+      ]),
+    );
+    expect(buttons(view, 'dismiss').map((button) => button.textContent)).toEqual(['Keep Editing']);
+    const confirms = buttons(view, 'confirm');
+    expect(confirms.map((button) => button.textContent)).toEqual(['Keep Draft', 'Discard Draft']);
+    await act(async () => confirms[0]?.click());
+    expect(keep).toHaveBeenCalledOnce();
+    expect(view.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('shows icon and label rows with destructive commands grouped last', () => {
     const open = vi.fn();
     const remove = vi.fn();

@@ -61,8 +61,7 @@ class DirectChannel(
   fun offer(iceServers: List<String>, done: (String?, String?) -> Unit) {
     handler.post {
       try {
-        PeerConnectionFactory.initialize(
-          PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
+        WebRtcRuntime.initialize(context)
         val built = PeerConnectionFactory.builder().createPeerConnectionFactory()
         factory = built
         val servers = if (iceServers.isEmpty()) emptyList() else listOf(PeerConnection.IceServer.builder(iceServers).createIceServer())

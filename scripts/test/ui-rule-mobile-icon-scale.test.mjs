@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compare, parseSource } from '../check-ui-rules.mjs';
-import { mobileIconScale } from '../ui-rule-mobile-icon-scale.mjs';
+import { mobileActionScale, mobileIconScale } from '../ui-rule-mobile-icon-scale.mjs';
 
 const file = 'apps/mobile/src/ui/example.ios.tsx';
 const check = (source) => mobileIconScale(file, parseSource(source, file));
@@ -137,6 +137,53 @@ describe('mobile fixed-slot icon scale', () => {
             </View>
           </>;
         }
+      `),
+    ).toEqual([]);
+  });
+});
+
+describe('mobile text-scaled action buttons', () => {
+  const androidFile = 'apps/mobile/src/ui/example.android.tsx';
+  const actions = (source) => mobileActionScale(androidFile, parseSource(source, androidFile));
+
+  it('rejects a Compose icon button sized by a text-scaled height', () => {
+    const found = actions(`
+      import { FilledTonalIconButton, IconButton as Action } from '@expo/ui/jetpack-compose';
+      import { height as tall, size } from '@expo/ui/jetpack-compose/modifiers';
+      const islandHeight = Math.max(theme.touch, Math.ceil(lines * theme.fontScale + 8));
+      const scaledModifiers = [size(48 * theme.fontScale, 48 * theme.fontScale)];
+      const example = <>
+        <Action modifiers={[size(islandHeight, islandHeight)]} onClick={back} />
+        <FilledTonalIconButton modifiers={[tall(24 * theme.fontScale)]} onClick={back} />
+        <Action modifiers={scaledModifiers ?? []} onClick={back} />
+        <Action modifiers={scaledModifiers || []} onClick={back} />
+      </>;
+    `);
+    expect(found.map(({ rule, text, line }) => [rule, text, line])).toEqual([
+      ['scaledActionBox', 'IconButton', 7],
+      ['scaledActionBox', 'FilledTonalIconButton', 8],
+      ['scaledActionBox', 'IconButton', 9],
+      ['scaledActionBox', 'IconButton', 10],
+    ]);
+    expect(compare(found, {}).problems).toEqual([expect.stringContaining('text-independent size')]);
+  });
+
+  it('accepts fixed or capped button sizes and other scaled elements', () => {
+    expect(
+      actions(`
+        import { IconButton, Row } from '@expo/ui/jetpack-compose';
+        import { size } from '@expo/ui/jetpack-compose/modifiers';
+        const island = (scale) => Math.max(theme.touch, Math.ceil(lines * scale + 8));
+        const islandHeight = island(theme.fontScale);
+        const actionSize = Math.min(islandHeight, island(1));
+        const fixedModifiers = [size(theme.touch, theme.touch)];
+        const example = <>
+          <IconButton modifiers={[size(theme.touch, theme.touch)]} onClick={back} />
+          <IconButton modifiers={[size(actionSize, actionSize)]} onClick={back} />
+          <Row modifiers={[size(islandHeight, islandHeight)]} />
+          <IconButton modifiers={fixedModifiers ?? [size(theme.touch, theme.touch)]} onClick={back} />
+          <IconButton modifiers={islandHeight > 64 && [size(theme.touch, theme.touch)]} onClick={back} />
+        </>;
       `),
     ).toEqual([]);
   });

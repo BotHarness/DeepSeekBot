@@ -62,11 +62,23 @@ export class SessionOwnershipConflictError extends SessionOwnershipError {
   }
 }
 
+export interface PendingOrchestratorReplacement {
+  sessionId: string;
+  botSlug: string;
+  cwdReference: string | undefined;
+  previousCwdReference: string | undefined;
+  createdAt: string;
+}
+
 export interface SessionOwnership {
   contentAvailable(sessionId: string): boolean;
   markContentUnavailable(): void;
   claim(input: SessionOwnershipClaim): SessionOwnershipRecord;
-  discardUnstartedOrchestrator(sessionId: string, botSlug: string): void;
+  reserveOrchestratorReplacement(input: PendingOrchestratorReplacement): void;
+  commitOrchestratorReplacement(sessionId: string): void;
+  discardOrchestratorReplacement(sessionId: string): void;
+  discardOrchestratorReplacements(botSlug: string): void;
+  pendingOrchestratorReplacements(botSlug?: string): PendingOrchestratorReplacement[];
 
   claimWithin(connection: DatabaseSync, input: SessionOwnershipClaim): SessionOwnershipRecord;
   resolve(sessionId: string): SessionOwnershipRecord | undefined;
@@ -236,17 +248,86 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
         return rethrowDomainError(error);
       }
     },
-    discardUnstartedOrchestrator(sessionId, botSlug) {
+    reserveOrchestratorReplacement(input) {
+      try {
+        database.transaction((db) => {
+          if (readRow(db, input.sessionId) !== undefined)
+            throw new SessionOwnershipError(
+              `Replacement Orchestrator Session ID is already claimed: ${input.sessionId}`,
+            );
+          db.prepare(
+            'DELETE FROM pending_orchestrator_replacements WHERE bot_slug = ? AND session_id <> ?',
+          ).run(input.botSlug, input.sessionId);
+          db.prepare(
+            `INSERT INTO pending_orchestrator_replacements
+               (session_id, bot_slug, cwd_reference, previous_cwd_reference, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+          ).run(
+            input.sessionId,
+            input.botSlug,
+            input.cwdReference ?? null,
+            input.previousCwdReference ?? null,
+            input.createdAt,
+          );
+        });
+      } catch (error) {
+        rethrowDomainError(error);
+      }
+    },
+    commitOrchestratorReplacement(sessionId) {
       database.transaction(
         (db) => {
-          db.prepare(
-            `DELETE FROM session_ownership
-               WHERE session_id = ? AND bot_slug = ? AND root_role = 'orchestrator'
-                 AND provenance = 'created' AND parent_session_id IS NULL
-                 AND prompt_snapshot IS NULL AND persona_snapshot IS NULL`,
-          ).run(sessionId, botSlug);
+          const inserted = db
+            .prepare(
+              `INSERT INTO session_ownership
+               (session_id, bot_slug, root_role, provenance, cwd_reference, created_at)
+             SELECT session_id, bot_slug, 'orchestrator', 'created', cwd_reference, created_at
+               FROM pending_orchestrator_replacements WHERE session_id = ?`,
+            )
+            .run(sessionId);
+          if (inserted.changes !== 1)
+            throw new SessionOwnershipError(
+              `Unknown pending Orchestrator replacement: ${sessionId}`,
+            );
+          db.prepare('DELETE FROM pending_orchestrator_replacements WHERE session_id = ?').run(
+            sessionId,
+          );
         },
         ['session-ownership'],
+      );
+    },
+    discardOrchestratorReplacement(sessionId) {
+      database.transaction((db) =>
+        db
+          .prepare('DELETE FROM pending_orchestrator_replacements WHERE session_id = ?')
+          .run(sessionId),
+      );
+    },
+    discardOrchestratorReplacements(botSlug) {
+      database.transaction((db) =>
+        db.prepare('DELETE FROM pending_orchestrator_replacements WHERE bot_slug = ?').run(botSlug),
+      );
+    },
+    pendingOrchestratorReplacements(botSlug) {
+      return database.read((db) =>
+        db
+          .prepare(
+            `SELECT session_id, bot_slug, cwd_reference, previous_cwd_reference, created_at
+             FROM pending_orchestrator_replacements
+             ${botSlug === undefined ? '' : 'WHERE bot_slug = ?'}
+             ORDER BY created_at DESC, session_id ASC`,
+          )
+          .all(...(botSlug === undefined ? [] : [botSlug]))
+          .map((row) => ({
+            sessionId: String(row.session_id),
+            botSlug: String(row.bot_slug),
+            cwdReference: typeof row.cwd_reference === 'string' ? row.cwd_reference : undefined,
+            previousCwdReference:
+              typeof row.previous_cwd_reference === 'string'
+                ? row.previous_cwd_reference
+                : undefined,
+            createdAt: String(row.created_at),
+          })),
       );
     },
     claimWithin(connection, input) {

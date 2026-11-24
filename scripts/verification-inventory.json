@@ -266,11 +266,11 @@
     },
     {
       "id": "phone.drawer-views",
-      "label": "Choose All or one Host from the phone drawer with Android Host accent",
-      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "label": "Choose All or one Host from the Settings Environment sheet with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/environment-sheet.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
       "task": 2518,
-      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues."
     },
     {
       "id": "browser.remote-hosts",
@@ -996,6 +996,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/local-appearance.md",
       "task": 2258,
       "gap": "Native restart and different-Host restore require the task-owned Desktop procedure; Human QA is separate."
+    },
+    {
+      "id": "desktop.client-settings",
+      "label": "Change one selected Client's theme, notifications, layout and shortcuts from the CLI and through Tob's approval card",
+      "source": "packages/client/src/client/client-settings-control.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/client-settings.md",
+      "task": 4831,
+      "gap": "macOS Desktop restart and physical-keyboard evidence are separate; Human QA is separate."
     },
     {
       "id": "desktop.global-materials",
@@ -2659,6 +2667,22 @@
       "sha256": "d7bc18a9c58f45295835dc9fdf9e49e978fbb23d5e3e7b8b0a9daea44bb908e0"
     },
     {
+      "path": "scripts/e2e-client-settings.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.client-settings"],
+      "reason": "Two isolated browser Clients on a real Host: preference, shortcut (pressed) and layout writes on one, refusals, reload read-back under a new id, stale/missing targets, and the other Client unchanged; light and dark screenshots. No model call.",
+      "task": 4831,
+      "sha256": "7177b476b48c6cbe7f17b6aa0a3682b68dbf91545878511aff9eb8d4da51a940"
+    },
+    {
+      "path": "scripts/e2e-client-settings-tob.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.client-settings"],
+      "reason": "Tob DM write through the real approval card, model-free via tob-cli or with --natural through a live model (approving each card Tob asks for), then read-back and the new key pressed.",
+      "task": 4833,
+      "sha256": "f2a7856a982785eeb9c2a0d5ae20284b6a6e0ac2e5ae55de1f5704742a66da06"
+    },
+    {
       "path": "scripts/e2e-global-materials.mjs",
       "category": "mapped",
       "behaviors": ["desktop.global-materials"],
@@ -2806,9 +2830,9 @@
       "path": "scripts/e2e-token-telemetry.mjs",
       "category": "mapped",
       "behaviors": ["telemetry.bot-tokens"],
-      "reason": "Compares live Host Overview with production token snapshot reader and serializer; optional separately marked QA wire send.",
-      "task": 4255,
-      "sha256": "925304c37a3fd15e198ecdc54fe954e6f888d4b68dc3fd6e6a8760867d61e2ef"
+      "reason": "Compares live Host Overview with production day and per-model token snapshot readers and serializers; optional separately marked QA wire send.",
+      "task": 5083,
+      "sha256": "cf325471d048ab577080cb6acbeacfcec0b6bccd72c5298d1c8f888e7bcda25d"
     },
     {
       "path": "scripts/e2e-avatar-scroll.mjs",
@@ -2822,9 +2846,9 @@
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
       "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice.",
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates.",
       "task": 4197,
-      "sha256": "a37c37ed5550393bb71fabdd1176ed614741c86572bcb068994c7f1d940d5910"
+      "sha256": "39d3731489e5c830b0a8bb4dc97881b93102c05c59c15c3522443ebc62f0f950"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

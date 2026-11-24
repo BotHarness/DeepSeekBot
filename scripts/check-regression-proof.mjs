@@ -43,6 +43,9 @@ export function revertPlan(changes) {
       fromBase.push(change.from);
     } else fromBase.push(change.path);
   }
+  const patched = [...fromBase, ...remove].some((path) => path.startsWith('patches/'));
+  const lockfile = changes.find((change) => change.path === 'pnpm-lock.yaml');
+  if (patched && lockfile?.status === 'M') fromBase.push(lockfile.path);
   return { fromBase, remove };
 }
 

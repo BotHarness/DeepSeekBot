@@ -1,6 +1,7 @@
 import { Host, Image, Picker } from '@expo/ui/swift-ui';
-import { accessibilityLabel, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
+import { accessibilityLabel, controlSize, pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import type { IconTabsProps } from './icon-tabs';
 
@@ -19,7 +20,11 @@ export function IconTabs<T extends string>({ label, options, value, onChange }: 
       <Picker<T>
         selection={value}
         onSelectionChange={onChange}
-        modifiers={[pickerStyle('segmented'), accessibilityLabel(label)]}
+        modifiers={[
+          pickerStyle('segmented'),
+          ...(accessibilityTextSize(theme.fontScale) ? [controlSize('extraLarge')] : []),
+          accessibilityLabel(label),
+        ]}
       >
         {options.map((option) => (
           <Image

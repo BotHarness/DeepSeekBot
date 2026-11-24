@@ -59,6 +59,7 @@ describe('GenUI preview Tool', () => {
           width: 728,
           height: 100,
           diagnostics: [],
+          genui_preview_id: 'a'.repeat(64),
         }),
       },
       { type: 'image', attachment: { type: 'image', id: 'synthetic-image' } },

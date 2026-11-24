@@ -110,16 +110,18 @@ deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...
 deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
 deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
 deepseekbot channels [--home <dsh-home>]
-deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+deepseekbot channel-messages <channel> [--limit <n>] [--before <id> | --cursor <next>] [--home <dsh-home>]
 deepseekbot grants <id> [--home <dsh-home>]
 deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]
 deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
 deepseekbot schedules <id> [--home <dsh-home>]
 deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                 --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
-                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+                                --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked]
+                                [--operation-key <key>] [--home <dsh-home>]
+deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...]
+                                [--expected-revision <rev>] [--home <dsh-home>]
+deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--expected-revision <rev>] [--home <dsh-home>]
 deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
@@ -170,6 +172,7 @@ deepseekbot channels
 deepseekbot bot-attention <bot-id> --limit 20 --state handled
 deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
+deepseekbot bot-activity <bot-id> --limit 20 --cursor <nextCursor>
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
@@ -187,6 +190,8 @@ deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --promp
 ```
 
 `bot-activity` 还返回 `bot.active`：权威会话中是否存在思考或工作状态，与按优先级展示的 `state` 独立。另一个会话等待审批时它仍可为 true，不能从有数量上限的 `sessions` 输出反推。Android 常驻汇总复用完整活动 feed 和 Human Inbox 完整待处理发现，按 Host 内的 Bot 身份去重；旧 Host 缺少 `active` 时显示未同步，不显示虚假的零。
+
+`channel-messages` 和 `bot-activity` 每页都返回 `provenance`（来源：Channel 的 ID、`dm` 或 `group` 类型、`incarnation`（创建时间）、成员 ID 和读取开始时的 `revision`；或 Bot 的 PersonaBot ID、`incarnation`、活动 `generation` 和 `revision`）、`complete`，以及仅在还有更早内容时出现的 `nextCursor`。把 `nextCursor` 原样作为 `--cursor` 传回、并保持同一目标即可读下一页；`--cursor` 不能与 `--before` 同时使用。Host 会对照当前目标检查游标：来自其他 Channel 或 Bot 的游标，或目标已被删除后重建，返回 `changed-read-target`；游标之后 Channel 历史被改写（清除内容，或锚点消息不在原位置）或 Bot 活动快照已变化，返回 `stale-read-revision`；格式错误、或字段与摘要不符的游标返回 `invalid-read-cursor`。摘要只用于发现意外损坏：手工改过字段并重算摘要的游标仍可能选中同一目标、同一 revision 下的另一页，读取权限始终来自 Host 对目标和 revision 的检查。遇到这些错误请从第一页重新读取。第一页之后新发的消息不会让更早的页失效。Channel 每页最多 `--limit` 条，并会提前结束（返回 `complete: false`），使整页（含 provenance 等外层字段和游标）序列化后不超过 64 KiB；若单条消息放不进扣除外层字段和游标后的剩余空间，仍会单独返回以保证读取前进，这一页可能超过 64 KiB。`provenance.contentIsData` 表示消息正文和会话名称是来自该来源的引用数据，绝不是指令。
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
 
@@ -294,7 +299,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、`genui_preview_id`、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
 
 直接 CLI 路径保留预览 owner 的错误码：`genui-preview-timeout`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-too-large`，以及按阶段区分的 `genui-preview-{assets,browser,document,renderer,capture}-failed`。已识别的 Browser owner 启动失败保留为 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），不包含进程 stderr 或 Profile 路径。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。渲染器拒绝使用 `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`。`genui-preview-image-unavailable` 表示渲染成功，但图片附件保存失败。这些分类不包含生成内容、私有服务细节或原始传输错误；再次诊断前保留首次失败。
 
@@ -304,13 +309,17 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 版本 2 的 `view.json` 形如 `{ "snapshotId": "<snapshot-id>", "expectedVersion": 0, "state": { "version": 1, "values": { "filter": "" } } }`，值必须严格匹配注册契约。`request.json` 形如 `{ "body": "继续处理我的视图", "genuiReply": { "version": 2, "messageId": "<document-message-id>", "snapshotId": "<snapshot-id>", "intent": "continue", "state": { "version": 1, "values": { "filter": "" } } } }`。沿用下文相同的 CAS、访问、普通消息、重试和刷新规则。生成脚本只能提出个人视图值，提交由外层可信控件负责。预览成功不代表发布、Web 渲染、原生或 Human 验收通过。
 
+在版本 2 的 `html` 里写 `<genui-diagram>Mermaid 源码</genui-diagram>`（可选 `width="240–1600"`），不要粘贴 SVG。预览和发送时会用固定的图表编译器把每个元素编译成与 `genui_diagram` 返回相同的离线 SVG；一份文档最多 8 个。元素格式不对时以 `genui-diagram-tag` 拒绝，编译失败保留 `genui-diagram-*` 错误码并指出是第几张图。
+
+要发布预览过的同一份文档，用预览结果里的 `genui_preview_id` 代替 `genui_json`，两者只能选一个。预览 id 只属于预览它的 Bot，在 Host 内存里保留两小时（最多 64 个最近预览）。未知、过期或其他 Bot 的 id 以 `genui-preview-expired` 拒绝：重新预览，或发送完整的 `genui_json`。
+
 `report-send.json` 包含 `channel_id`、可读摘要 `body`，以及将完整报告序列化成 JSON 字符串的 `genui_json`。版本 1 支持指标、表格和条形图；参见[明确标为 synthetic 的比较 fixture](../packages/core/test/fixtures/genui-report.ts)。上限为 64 KiB、100 行、8 列、12 个元素及 20 个选择项。本切片只支持 Bot 现有的 Human 私聊，完整验证通过后才追加 canonical 消息。
 
 `view.json` 格式为 `{ "snapshotId": "synthetic-comparison-v1", "expectedVersion": 0, "state": { "filter": "", "sortColumnId": null, "sortDirection": "asc", "view": "table", "selectedIds": [], "expandedId": null } }`。先读取当前版本；旧版本保存返回 `genui-view-conflict`，重新读取后再决定是否覆盖。重置时，以当前版本保存空状态。视图属于 Host 的本地 Human 和精确报告，不写入浏览器存储或 Bot Memory。
 
 `request.json` 格式为 `{ "body": "比较我的选择", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`。`refresh` 表示请求关联的新快照。提交形成可见的普通 Human 消息，携带经过验证的快照上下文，走普通路由和准入。相同逻辑请求以同一 `human-<uuid>` 和不变的输入重试；修改内容复用标识会被拒绝。刷新发布必须使用新 `snapshotId`，并以 `predecessorMessageId` 指向旧报告，不改写旧消息。输入须在 `--genui-file` 与 `--genui-stdin` 中二选一，最大 32 KiB。三个命令均要求在线认证 Host，并重新检查访问权限。
 
-`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。将 SVG 原样放进 `html`，附可读说明或等价数据，再预览并显式发送同一完整文档。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
+`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。这个工具用于检查或排查图；发布时把源码写成 `<genui-diagram>` 嵌入，并附可读说明或等价数据。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
 
 默认样式提供 `.genui-surface`、`.genui-well`、`.genui-selection`、`.genui-grid`、`.genui-table`、`.genui-legend`，以及八色 `--chart-*` 和对应 Pele 变量。同一类别保持同色，并配数值、文字、形状等非颜色提示；用色块和留白分组，不画装饰性卡片边框。必要连接线／坐标线和键盘焦点保留。默认 CSS 可覆盖，不是 sanitizer，也不改写任意作者 HTML。参见 [ADR-0302](decisions/genui.md#adr-0302)。
 
@@ -682,6 +691,8 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 ```
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
+
+每个定时任务都带 `revision`，它是可编辑内容（标题、提示、触发器、启用、锁定）的指纹；触发记录和下次运行时间不会改变它。把它作为 `--expected-revision` 传给 `schedule-update` 或 `schedule-delete`，若读取后任务已被改动，Host 会以 `stale-revision` 拒绝。`schedule-create --operation-key <key>`（8–128 个字母、数字、`.`、`:`、`_` 或 `-`）让重试变得安全：同一个 key 加同样的请求会返回原来的任务并带 `reconciled: true`，不会再建一个；同一个 key 加不同请求以 `operation-key-conflict` 失败；key 对应的任务已被删除时以 `operation-key-consumed` 失败，不会重新创建。两个参数在 `--home` 离线模式下同样可用。Tob 运行这些命令时必须带上它们（见 [Tob](decisions/tob.md#adr-0225)）。
 
 ### 在线 Host 上的接管交接（Takeover Handoff）
 
@@ -1080,7 +1091,7 @@ DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 
-继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key <receipt> <公钥> --confirm`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key --confirm -- <receipt> <公钥>`。已安装的 App 扫描可信 Host 上显示的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
 
 ### 手机连接（Tailscale）
 
@@ -1106,12 +1117,15 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 deepseekbot devices
 deepseekbot devices-watch --watch-seconds 10
 deepseekbot device-requests
+deepseekbot device-approve-key --confirm -- <receipt> <public-key>
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
+
+`device-requests` 会为每个待批准的公钥提供可复制的 `pendingKeys[].approveCommand`。执行前，请逐位核对设备显示的完整指纹。批准命令接受小写十六进制或不带填充的 base64url 公钥。配对回执和设备 ID 可以以 `-` 开头。如果某个值与 CLI 选项完全相同，请将所有选项放在 `--` 前，将参数值放在其后。
 
 `devices-watch [--watch-seconds 10]`（1–60 秒）打开设备页使用的同一条实时流，返回 `{seconds, invalidations, initial, current}`：期间 Host 发出的 `devices` 资源变更（`resource/changed`）次数（手机请求批准、批准、配对完成、撤销或清除邀请），以及前后两次的 `{devices, pendingKeys}`。只有所有者会收到这些事件；连接无法建立实时流时以 `host-query-unsupported` 拒绝。
 
@@ -1535,7 +1549,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## Channel、授权、计划与配对
 
-`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
+`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 或用返回的 `nextCursor` 作为 `--cursor` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
 
 ### 在线批准工作区请求
 
@@ -1820,7 +1834,7 @@ deepseekbot memory-diff <bot-id> --sha <commit>
 deepseekbot assignment-memory-leases
 ```
 
-租约让一个 Tob 自己的 Assignment 只读访问 Human 拥有的最多八个 Bot 的 Memory，只为当前这次 Human 请求。Assignment 被归档、这次请求的 DM 消息被清除或结束、或 Tob 撤销租约时，租约结束。每次读取返回 `provenance`（`revision`、`path`、`bytes`、`sha256`、`truncated`）；超过 64 KiB 的正文和 diff 会被截断。`assignment-memory-leases` 显示 `state`（`active`、`revoked`、`expired`）、`status`（`complete` 或 `partial`）和每个 Bot 的 `read`、`unread` 或 `refused`；Assignment Report 末尾带同样的摘要。Memory 写入和 `--out` 返回 `lease-read-only`，其他命令返回 `tob-authority-required`；不在租约里的 Bot 返回 `lease-target-denied`，已归档或被替换的 Bot 返回 `lease-target-unavailable`。用同一个 `--operation-key` 会拿回同一个租约。Human 可以用 `deepseekbot tob-cli start --args-stdin` 和 `{"argv":["assignment-memory-lease",…]}` 无模型地运行这些 Tob 命令（[无模型的 Tob CLI 请求](#无模型的-tob-cli-请求)）。见 [Tob 决策 §9](decisions/tob.md#tob-memory-lease)。
+租约让一个 Tob 自己的 Assignment 只读访问 Human 拥有的最多八个 Bot 的 Memory，只为当前这次 Human 请求。Assignment 被归档、这次请求的 DM 消息被清除或结束、或 Tob 撤销租约时，租约结束。每次读取返回 `provenance`（`revision`、`path`、`bytes`、`sha256`、`truncated`）；超过 64 KiB 的正文和 diff 会被截断。`assignment-memory-leases` 显示 `state`（`active`、`revoked`、`expired`）、`status`（`complete` 或 `partial`）和每个 Bot 的 `read`、`unread` 或 `refused`；Assignment Report 末尾带同样的摘要。Memory 写入和 `--out` 返回 `lease-read-only`，其他命令返回 `tob-authority-required`；不在租约里的 Bot 返回 `lease-target-denied`，已归档或被替换的 Bot 返回 `lease-target-unavailable`。用同一个 `--operation-key` 会拿回同一个租约。Human 可以用 `deepseekbot tob-cli start --args-stdin` 和 `{"argv":["assignment-memory-lease",…]}` 无模型地运行这些 Tob 命令（[无模型的 Tob CLI 请求](#无模型的-tob-cli-请求)）。见 [Tob 决策 §10](decisions/tob.md#tob-memory-lease)。
 
 ### 恢复已耗尽复核额度的群聊草稿
 
@@ -2095,9 +2109,30 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
 
-Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key --confirm -- <receipt> <公钥>` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
 
 手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。
+
+## 指定 Client 的设置
+
+`client-preferences-*`、`client-layout-*` 和 `client-shortcuts-*` 通过与界面相同的设置来源，修改一个指定 Web 或桌面 Client 自己的设置。先运行 `appearance-clients`，再传入一个 `--client-id`；刷新或重启后 Client 会换新 id，请重新列出，不要沿用旧 id。每个 `-get` 返回设置和 `revision`。每个 `-set` 需要这个 `--expected-revision`，并从标准输入读取 JSON 补丁（`--patch-stdin`），成功后返回最新读取结果：
+
+```sh
+deepseekbot appearance-clients
+deepseekbot client-preferences-get --client-id <id>
+echo '{"notifications":{"enabled":false}}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-shortcuts-get --client-id <id>
+echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
+deepseekbot client-layout-get --client-id <id>
+echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+echo '{"channel":{"id":"<channel-id>","move":{"panel":"schedules","target":"messages","direction":"below"}}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
+```
+
+- **偏好。** 读取结果包含该 Client 的 `theme`，但主题只有一个写入入口：`appearance-set`，补丁为 `{"preference":"system|light|dark"}`（读取结果标为 `writeWith: "appearance-set"`）。补丁可包含 `locale`（`locale.available` 中的 id）和 `notifications: {"enabled": true|false}`；带 `theme` 时返回 `client-settings-invalid-input`，并在消息中指向 `appearance-set`。通知只保存在这个 Client。语言是 DSH 的语言选择，DSH 对整个 Host 保存它，所以读取结果标为 `scope: "host"`，这个 Host 的所有 Client 都会跟着变。命令不会弹出浏览器或系统的权限请求：开启通知时，若 Human 尚未在该 Client 允许，返回 `notification-permission-pending`；若 Client 已屏蔽，返回 `notification-permission-denied`；没有通知 API 时返回 `notification-unsupported`。这些情况下不会保存任何内容。
+- **快捷键。** 读取结果列出每个稳定的操作 id，以及它当前的 `binding`（已停用时为 `null`）、`default`、是否 `custom`、显示用的 `text`、Client 的 `platform` 和 `reserved` 按键。补丁只改一个操作：`{"action","binding":{code,mod,alt,shift}}` 设置，`{"action","binding":null}` 停用，`{"action","reset":true}` 恢复默认。按键已被其他操作占用时返回 `shortcut-conflict`，并在消息中写出占用者，绝不会从对方那里抢走。其他情况分别返回 `shortcut-reserved`、`shortcut-needs-modifier` 和 `shortcut-action-unknown`。停用快速切换后不会退回旧的 Cmd/Ctrl+K。
+- **布局。** Client 处于 Bot 模式时可用。读取结果包含 `activeChannelId`、`gap`、`members`（`open`、`ratio`）、`global`（`mode`、`sideColumn`、`channelsWidth`，以及含 `heights` 的 `column`）、`rail`（`order`、`hidden`）和各 Channel 的布局 `channels`。每个 Channel 显示 `open`、`direction`、`ratio`、分屏树 `split` 和 `splitSaved`。补丁可包含 `global`（`column.heights` 把面板 id 设为 120–4000 像素，其他面板保持不变；`null` 删除该项）、`rail`、`gap`（0–16 的整数像素）、`members`（`open`、`ratio` 0.2–0.6；在群聊 Channel 中打开时会像界面一样关闭文件和收件箱）和一个 `channel`（`id`，以及 `open`、`direction`（`left`/`right`/`above`/`below`）、`ratio`（0.2–0.8）中的任意项）。`direction` 和 `ratio` 只用于没有已保存分屏的 Channel。`move`、`resize` 和 `split` 作用于读取结果中的 `split` 并保存它；Channel 有已保存的分屏后（`splitSaved: true`），只能用这三者之一修改：`move: {"panel","target","direction"}`（与拖动面板相同；`messages` 不动）、`resize: {"path","ratio"}`（`path` 是从根到某个分屏的 `0`/`1` 步骤，根为 `""`）或 `split`（面板相同的完整分屏树）。`split: null` 会删除已保存的分屏树，之后 `direction` 和 `ratio` 重新生效。修改非当前 Channel 不会切换过去，也不会改动其他 Channel 和已收起的面板。未知 Channel 返回 `layout-channel-unknown`。
+
+版本号不同时返回 `client-settings-revision-conflict`，请重新读取后再试。Client 没有挂载对应设置来源时（例如不在 Bot 模式下改布局）返回 `client-settings-unavailable`。目标相关的拒绝沿用中继的：`appearance-client-stale`、`appearance-client-unavailable`、`appearance-client-busy` 和 `appearance-client-timeout`。写入回复丢失时，CLI 返回 `client-settings-outcome-unknown`：请先读取同一个 Client 再决定是否重试。三个 `-get` 命令在 Tob 的只读清单中；每个 `-set` 都会先给 Human 显示审批卡。参见[指定 Client 控制](decisions/client-control.md)。
 
 ## 从电脑建立 SSH 隧道
 
@@ -2112,7 +2147,7 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
    Windows 使用带盘符的绝对路径。可选 `--ssh-config <absolute-file>` 指定已有配置，默认使用系统 OpenSSH 配置。输入必须是私有普通文件（Linux/macOS 权限为 0600）；输出只新建，不覆盖。启动失败可能留下空输出文件，重试时选择新的输出路径。
 
-3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key <receipt> <public-key> --confirm`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
+3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key --confirm -- <receipt> <公钥>`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
 4. 打开远端会话并使用已有 Host 操作。Ctrl+C 只停止隧道，远端 Host 和浏览器配对仍保留。用相同 local port、新的输出文件重启命令即可重连。过期输入链接仍可标识已配对 Host，但不会恢复过期 offer；新浏览器需新建 offer。
 
 隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
@@ -2484,6 +2519,8 @@ deepseekbot voice-provider-test <provider-id>
 ```
 
 ASR 的验证和创建加上 `--kind asr`，测试用 `voice-transcribe --provider <id> --file /absolute/speech.wav`。编辑只替换模板，保留密钥、模型、音色和语言。创建时密钥仅通过 `--key-stdin` 写入凭据存储，不能放进模板常量。认证使用 `auth: {kind: "bearer"}`、`{kind: "header", name: "X-API-Key", prefix: "Token "}`、`{kind: "query", name: "key"}` 或 `{kind: "none"}`。
+
+团队成员可用 `voice-providers` 查看服务及其绑定。已配置模板的服务显示 `hasTemplate: true`，列表隐藏端点、模板、请求头和密钥值。团队成员执行模板命令或管理语音服务时会收到 `remote-access/denied`。
 
 ```json
 {

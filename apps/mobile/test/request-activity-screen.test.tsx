@@ -95,7 +95,7 @@ const navigation = {
   },
 };
 vi.mock('../src/host/host-session', () => ({ hostSession: source }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
+vi.mock('../src/ui/shell/host-drawer-state', () => ({
   hostDrawer: { captureWorkspaceSelection: () => () => workspaceCurrent },
 }));
 const assignment = vi.hoisted(() => ({ id: undefined as string | undefined }));
