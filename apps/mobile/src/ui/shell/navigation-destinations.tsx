@@ -1,20 +1,13 @@
 import { Platform, Pressable, View } from 'react-native';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { materialNavigationBar, navigationBar, radius } from '../design/tokens';
+import { materialNavigationBar, navigationBar } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
-import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
 import { ChatsIcon, ActivityIcon, SettingsIcon, AssignmentSessionIcon } from './icons';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 import { navigationLabel } from './navigation-label';
-export function NavigationDestinations({
-  items,
-  labels = true,
-}: {
-  items: NavigationDestination[];
-  labels?: boolean;
-}) {
+export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
@@ -46,16 +39,12 @@ export function NavigationDestinations({
               borderless: true,
               radius: materialNavigationBar.indicatorWidth / 2,
             }}
-            style={({ pressed }) => ({
+            style={{
               flex: 1,
               alignItems: 'center',
               justifyContent: 'center',
               minHeight: theme.touch,
-              gap: android ? materialNavigationBar.iconLabelGap : 0,
-              borderRadius: radius.round,
-              backgroundColor:
-                !android && (pressed || focused) ? theme.layer.raised.chosen : 'transparent',
-            })}
+            }}
           >
             <View
               style={{
@@ -77,11 +66,6 @@ export function NavigationDestinations({
                 />
               </NavigationIcon>
             </View>
-            {labels ? (
-              <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
-                {label}
-              </Text>
-            ) : null}
           </Pressable>
         );
       })}

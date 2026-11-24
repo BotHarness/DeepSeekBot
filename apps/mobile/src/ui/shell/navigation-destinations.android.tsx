@@ -1,11 +1,4 @@
-import {
-  BadgedBox,
-  Host,
-  NavigationBar,
-  NavigationBarItem,
-  Icon,
-  Text,
-} from '@expo/ui/jetpack-compose';
+import { BadgedBox, Host, NavigationBar, NavigationBarItem, Icon } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { materialNavigationBar } from '../design/tokens';
@@ -15,19 +8,31 @@ import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 import { navigationLabel } from './navigation-label';
 
-export function NavigationDestinations({
-  items,
-  labels = true,
-}: {
-  items: NavigationDestination[];
-  labels?: boolean;
-}) {
+function iconFor(item: NavigationDestination) {
+  if (item.settings)
+    return item.focused
+      ? require('../../../assets/toolbar/settings.xml')
+      : require('../../../assets/toolbar/settings-outline.xml');
+  if (item.activity)
+    return item.focused
+      ? require('../../../assets/toolbar/activity-filled.xml')
+      : require('../../../assets/toolbar/activity.xml');
+  if (item.sessions)
+    return item.focused
+      ? require('../../../assets/toolbar/sessions-filled.xml')
+      : require('../../../assets/toolbar/sessions.xml');
+  return item.focused
+    ? require('../../../assets/toolbar/chats-filled.xml')
+    : require('../../../assets/toolbar/chats.xml');
+}
+
+export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const colors = {
     selectedIconColor: theme.color.fg,
     selectedTextColor: theme.color.fg,
-    selectedIndicatorColor: theme.layer.raised.chosen,
+    selectedIndicatorColor: 'transparent',
     unselectedIconColor: theme.color.muted,
     unselectedTextColor: theme.color.muted,
   };
@@ -40,7 +45,7 @@ export function NavigationDestinations({
       ignoreSafeAreaKeyboardInsets
     >
       <NavigationBar
-        containerColor={theme.layer.raised.fill}
+        containerColor={theme.color.base}
         contentColor={theme.color.fg}
         tonalElevation={0}
         modifiers={[fillMaxWidth(), testID('android-navigation-bar')]}
@@ -49,25 +54,12 @@ export function NavigationDestinations({
           const showCount = item.activity && item.count > 0;
           const normal = navigationLabel(t, item);
           const pending = t.activityPendingLabel(badgeCount(item.count));
-          const icon = (
-            <Icon
-              source={
-                item.settings
-                  ? require('../../../assets/toolbar/settings.xml')
-                  : item.activity
-                    ? require('../../../assets/toolbar/activity.xml')
-                    : item.sessions
-                      ? require('../../../assets/toolbar/sessions.xml')
-                      : require('../../../assets/toolbar/chats.xml')
-              }
-              size={materialNavigationBar.iconSize}
-            />
-          );
+          const icon = <Icon source={iconFor(item)} size={materialNavigationBar.iconSize} />;
           return (
             <NavigationBarItem
               key={item.key}
               selected={item.focused}
-              alwaysShowLabel={labels}
+              alwaysShowLabel={false}
               onClick={item.onPress}
               colors={colors}
               modifiers={[
@@ -99,11 +91,6 @@ export function NavigationDestinations({
                   icon
                 )}
               </NavigationBarItem.Icon>
-              {labels ? (
-                <NavigationBarItem.Label>
-                  <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{normal}</Text>
-                </NavigationBarItem.Label>
-              ) : null}
             </NavigationBarItem>
           );
         })}

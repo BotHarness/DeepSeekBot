@@ -12,6 +12,7 @@ vi.mock('react-native', async () => ({
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: () => ({}),
   accessibilityElement: () => ({}),
+  accessibilityHidden: () => ({}),
   accessibilityAddTraits: () => ({}),
   onLongPressGesture: () => ({}),
   buttonStyle: () => ({}),
@@ -34,6 +35,7 @@ vi.mock('@expo/ui/swift-ui', () => {
     Text: container,
     Image: () => createElement('i'),
     Button: container,
+    ContextMenu: Object.assign(container, { Trigger: container, Items: container }),
     VStack: ({ children, modifiers }: { children: ReactNode; modifiers: { $type?: string }[] }) => {
       for (const modifier of modifiers) if (modifier.$type === 'frame') frames.push(modifier);
       return createElement('div', null, children);
@@ -45,7 +47,7 @@ import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-it('lets each tab label fill the bar height so the selected capsule keeps an even inset', async () => {
+it('lets each tab fill the bar height so its whole slot is hit-testable', async () => {
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);

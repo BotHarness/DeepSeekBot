@@ -25,13 +25,13 @@ _Formerly ADR-0268, which removed the Home panel of ADR-0223._
 
 There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open Tob" command does that without changing the layout; in Simple layout the Human can hide the Side column to focus on the conversation ([ADR-0269](onboarding.md#adr-0269)). Cross-Bot attention stays in Activity Center, and the Human asks Tob in conversation to create a Bot.
 
-On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: pulling down on Chats past the commit distance (80 pt, `tobPull.commit`) and releasing opens it, sliding in from the top (a fade under Reduce Motion), and system Back or a push up closes it. The pull opens the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter; with no matching computer it refreshes instead. The Tob row stays in the Chats list.
+On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: the **Tob entry bar**, a Composer-shaped tap target above the tab island on Chats (#5106, replacing pull-to-Tob). A tap opens the Tob DM with the Composer focused and the keyboard up, through the iOS zoom navigation transition or an Android Material container transform (instant under Reduce Motion); Back returns to Chats. The bar targets the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter, and is hidden when there is no Tob. Pulling down on Chats only refreshes. The Tob row stays in the Chats list.
 
 **Tob Delegation** uses the existing Bot-to-Bot DM: Tob picks a colleague, sends without asking the Human first, and reports back in its Human DM. Each send shows the existing action notice; approval ownership, the Bot-hop limit and Tob's CLI authority do not change. Tob never joins a Group.
 
-Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) commits on distance instead.
+Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with the Tob entry bar so the entrance is visible and lands ready to type.
 
-Enforced by: `apps/mobile/test/tob-pull-model.test.ts`, `tob-mode.test.tsx`, `pull-to-tob.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
+Enforced by: `apps/mobile/test/tob-mode.test.tsx`, `tob-entry-bar.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
 
 ## 3. Each Shell execution gets its own short-lived CLI broker
 

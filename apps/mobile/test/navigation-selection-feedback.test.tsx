@@ -49,10 +49,7 @@ vi.mock('expo-router/js-tabs', () => {
   Tabs.Screen = () => null;
   return { Tabs };
 });
-vi.mock('react-native-reanimated', async () => ({
-  default: { View: (await import('./react-native-shim')).View },
-  useAnimatedStyle: (style: () => object) => style(),
-}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ left: 0, right: 0, bottom: 0 }),
 }));
