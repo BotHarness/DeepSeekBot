@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { execFileText } from '../process/exec-off-thread.js';
-import { existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { gitSupportsSinceAsFilter } from './git-probe.js';
@@ -26,6 +26,16 @@ export interface MemoryGit {
 
 const INIT_COMMIT_MESSAGE = 'Initialize memory repository';
 const GITATTRIBUTES = '* text=auto eol=lf\n';
+const MEMORY_CONFIG = [
+  ['user.name', 'BotHarness'],
+  ['user.email', 'bot@botharness.local'],
+  ['commit.gpgsign', 'false'],
+  ['core.autocrlf', 'false'],
+] as const;
+const NEW_REPOSITORY_CONFIG = MEMORY_CONFIG.map(([key, value]) => {
+  const [section, name] = key.split('.');
+  return `[${section}]\n\t${name} = ${value}\n`;
+}).join('');
 const FIELD_SEPARATOR = '\u001f';
 const RECORD_SEPARATOR = '\u001e';
 
@@ -90,17 +100,30 @@ function ensureIdentity(root: string, key: 'user.name' | 'user.email', value: st
   run(root, ['config', key, value]);
 }
 
+function configureFreshRepository(root: string): boolean {
+  const config = join(root, '.git', 'config');
+  const defaults = readFileSync(config, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .every(
+      (line) =>
+        line === '' || line === '[core]' || (/^\w+\s*=/.test(line) && !/^autocrlf\b/i.test(line)),
+    );
+  if (defaults) appendFileSync(config, NEW_REPOSITORY_CONFIG, 'utf8');
+  return defaults;
+}
+
 export function initializeMemoryGit(root: string): { created: boolean } {
   const created = !existsSync(join(root, '.git'));
-  if (created) {
-    run(root, ['init', '-b', 'main']);
+  if (created) run(root, ['init', '-b', 'main']);
+  if (!created || !configureFreshRepository(root)) {
+    ensureIdentity(root, 'user.name', 'BotHarness');
+    ensureIdentity(root, 'user.email', 'bot@botharness.local');
+    run(root, ['config', 'commit.gpgsign', 'false']);
+    run(root, ['config', 'core.autocrlf', 'false']);
   }
-  ensureIdentity(root, 'user.name', 'BotHarness');
-  ensureIdentity(root, 'user.email', 'bot@botharness.local');
-  run(root, ['config', 'commit.gpgsign', 'false']);
-  run(root, ['config', 'core.autocrlf', 'false']);
   const attributes = join(root, '.gitattributes');
-  if (revParse(root) === '' && !existsSync(attributes)) {
+  if ((created || revParse(root) === '') && !existsSync(attributes)) {
     writeFileSync(attributes, GITATTRIBUTES, 'utf8');
   }
   return { created };
@@ -118,22 +141,21 @@ async function runAsync(root: string, args: string[]): Promise<string> {
 export async function initializeMemoryRepositoryAsync(root: string): Promise<{ created: boolean }> {
   const created = !existsSync(join(root, '.git'));
   if (created) await runAsync(root, ['init', '-b', 'main']);
-  for (const [key, value] of [
-    ['user.name', 'BotHarness'],
-    ['user.email', 'bot@botharness.local'],
-  ] as const) {
-    let present = false;
-    try {
-      present = (await runAsync(root, ['config', '--local', '--get', key])).trim().length > 0;
-    } catch {}
-    if (!present) await runAsync(root, ['config', key, value]);
+  if (!created || !configureFreshRepository(root)) {
+    for (const [key, value] of MEMORY_CONFIG.slice(0, 2)) {
+      let present = false;
+      try {
+        present = (await runAsync(root, ['config', '--local', '--get', key])).trim().length > 0;
+      } catch {}
+      if (!present) await runAsync(root, ['config', key, value]);
+    }
+    for (const [key, value] of MEMORY_CONFIG.slice(2)) await runAsync(root, ['config', key, value]);
   }
-  await runAsync(root, ['config', 'commit.gpgsign', 'false']);
-  await runAsync(root, ['config', 'core.autocrlf', 'false']);
   let head = '';
-  try {
-    head = (await runAsync(root, ['rev-parse', 'HEAD'])).trim();
-  } catch {}
+  if (!created)
+    try {
+      head = (await runAsync(root, ['rev-parse', 'HEAD'])).trim();
+    } catch {}
   if (head === '') {
     const attributes = join(root, '.gitattributes');
     if (!existsSync(attributes)) writeFileSync(attributes, GITATTRIBUTES, 'utf8');
