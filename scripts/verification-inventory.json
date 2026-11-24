@@ -2672,7 +2672,7 @@
       "behaviors": ["desktop.client-settings"],
       "reason": "Two isolated browser Clients on a real Host: preference, shortcut (pressed) and layout writes on one, refusals, reload read-back under a new id, stale/missing targets, and the other Client unchanged; light and dark screenshots. No model call.",
       "task": 4831,
-      "sha256": "bfcf2f2f7e63c9408f0c52c0d3d88bbef92bc7104a919847b4647fdc932a0acd"
+      "sha256": "7177b476b48c6cbe7f17b6aa0a3682b68dbf91545878511aff9eb8d4da51a940"
     },
     {
       "path": "scripts/e2e-client-settings-tob.mjs",
