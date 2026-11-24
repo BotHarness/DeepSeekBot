@@ -7,6 +7,11 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 import type { ApprovalMessaging, ApprovalRoute } from './approval-messaging.js';
 import { assertMessagingIdentity } from './identity.js';
+import {
+  explainQuestionReply,
+  parseQuestionReply,
+  renderQuestionText,
+} from './interactions/text-answers.js';
 import type { BotPairing } from './pairing.js';
 import {
   MessagingError,
@@ -163,7 +168,7 @@ export function createQuestionMessaging(options: {
           ? 'Answer not accepted; the original question still waits / 回答未被接受，原提问继续等待'
           : value.submission === 'submitting'
             ? 'Checking the native question owner / 正在核验原生提问'
-            : `Choose answers or enter your own, then Submit / 选择或填写答案后提交。\nFor a single question you may reply to this card, or send /answer ${value.reference} your answer. / 单个问题也可回复此卡片，或使用 /answer ${value.reference} 答案。`;
+            : `Choose answers or enter your own, then Submit / 选择或填写答案后提交。\nYou may also reply to this card with letters such as A or A C, or 1A 2B for several questions. / 也可回复此卡片：字母如 A、A C，多题写成 1A 2B。`;
     return {
       requestId: value.id,
       reference: value.reference,
@@ -508,7 +513,9 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const command = /^\/answer(?:\s|$)/.test(event.text.trim());
+      const body = event.text.trim();
+      const command = /^\/answer(?:\s|$)/.test(body);
+      const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
         (
           db
@@ -518,72 +525,56 @@ export function createQuestionMessaging(options: {
             .all(event.conversation.id) as { body: string }[]
         ).map((row) => JSON.parse(row.body) as QuestionDelivery),
       );
+      const sender = { ...event, actorId: event.actor.id, conversationId: event.conversation.id };
+      const supported =
+        event.channel === 'feishu' &&
+        event.conversation.kind === 'dm' &&
+        !event.attachments?.length;
       const quoted = candidates.find((value) => value.receipt?.messageId === event.reply.parentId);
-      if (!command && !quoted) return false;
-      if (
-        event.channel !== 'feishu' ||
-        event.conversation.kind !== 'dm' ||
-        event.attachments?.length
-      )
+      if (!command && !quoted && !explicit) {
+        if (!supported || signal.aborted) return false;
+        const mine = candidates.filter((item) => authorized(item, providerId, sender));
+        const only = mine.length === 1 ? mine[0]! : undefined;
+        const question = only && request(only);
+        const reply = question && parseQuestionReply(question.questions, body);
+        if (!only || reply?.kind !== 'answer' || !reply.structured) return false;
+        submit(only, reply.answer, providerId, sender, signal);
         return true;
-      const match = /^\/answer\s+([A-Fa-f0-9]{12})\s+([\s\S]+)$/.exec(event.text.trim());
+      }
+      if (!supported) return true;
+      const reference = explicit?.[1]!.toUpperCase();
       const value =
-        quoted ??
-        (match ? candidates.find((item) => item.reference === match[1]!.toUpperCase()) : undefined);
+        quoted ?? (reference ? candidates.find((item) => item.reference === reference) : undefined);
       const ambiguous =
-        command &&
-        (!match || (quoted !== undefined && quoted.reference !== match[1]!.toUpperCase()));
-      const trusted = candidates.find((item) =>
-        authorized(item, providerId, {
-          ...event,
-          actorId: event.actor.id,
-          conversationId: event.conversation.id,
-        }),
-      );
+        (command || !!explicit) &&
+        (!explicit || (quoted !== undefined && quoted.reference !== reference));
+      const trusted = candidates.find((item) => authorized(item, providerId, sender));
       if (!trusted || signal.aborted) return true;
       const question = value && request(value);
-      const text = match ? match[2]! : event.text.trim();
-      if (
-        !ambiguous &&
-        value &&
-        question?.questions.length === 1 &&
-        text.length > 0 &&
-        text.length <= 2000
-      ) {
-        submit(
-          value,
-          { answers: [{ id: question.questions[0]!.id, selected: [], custom: text }] },
-          providerId,
-          { ...event, actorId: event.actor.id, conversationId: event.conversation.id },
-          signal,
-        );
-      } else {
-        const { identity, provider } = context(trusted);
-        await provider.reply?.({
-          accountRef: identity.accountRef,
-          fingerprint: identity.fingerprint,
-          route: event.reply,
-          text:
-            'Select the original question form, or use /answer <reference> <answer> for one question. / 请使用原提问表单；单个问题可用 /answer <编号> <答案>。\n' +
-            candidates
-              .filter((item) =>
-                authorized(item, providerId, {
-                  ...event,
-                  actorId: event.actor.id,
-                  conversationId: event.conversation.id,
-                }),
-              )
-              .map((item) => item.reference)
-              .join('\n'),
-          signal,
-          beforeSend: () =>
-            authorized(trusted, providerId, {
-              ...event,
-              actorId: event.actor.id,
-              conversationId: event.conversation.id,
-            }),
-        });
+      const reply =
+        !ambiguous && question
+          ? parseQuestionReply(question.questions, explicit ? (explicit[2] ?? '') : body)
+          : undefined;
+      if (value && reply?.kind === 'answer') {
+        submit(value, reply.answer, providerId, sender, signal);
+        return true;
       }
+      const { identity, provider } = context(trusted);
+      await provider.reply?.({
+        accountRef: identity.accountRef,
+        fingerprint: identity.fingerprint,
+        route: event.reply,
+        text:
+          value && question && reply?.kind === 'invalid'
+            ? `${explainQuestionReply(reply, question.questions)}\n\n${renderQuestionText(question.questions, value.reference)}`
+            : 'Reply to the question, or start with its reference such as #<reference> A. / 请回复原提问，或以编号开头，如 #<编号> A。\n' +
+              candidates
+                .filter((item) => authorized(item, providerId, sender))
+                .map((item) => `#${item.reference}`)
+                .join('\n'),
+        signal,
+        beforeSend: () => authorized(trusted, providerId, sender),
+      });
       return true;
     },
     close() {

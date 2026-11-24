@@ -406,3 +406,33 @@ it('a restarted notification service expires old controls and updates the origin
     restarted.close();
   }
 });
+
+it('text replies answer with letters, several questions, a #reference, or a bare option for the only waiting question', async () => {
+  const f = await fixture();
+  const bare = await f.start();
+  await f.text('I think we should talk first');
+  expect(f.owner.pending('ada', bare.delivery.id)).toBeDefined();
+  await f.text('b');
+  expect(await bare.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+
+  const form = await f.start([
+    {
+      id: 'targets',
+      question: 'Which targets?',
+      multiSelect: true,
+      options: [{ label: 'web' }, { label: 'ios' }, { label: 'android' }],
+    },
+    { id: 'note', question: 'Anything else?' },
+  ]);
+  await f.text('1A D 2 none', 'om_' + form.delivery.id);
+  expect(f.replies.mock.calls.at(-1)?.[2]).toMatch(/Question 1: that option does not exist/);
+  expect(f.replies.mock.calls.at(-1)?.[2]).toContain(`#${form.delivery.reference}`);
+  expect(f.owner.pending('ada', form.delivery.id)).toBeDefined();
+  await f.text(`#${form.delivery.reference.toLowerCase()} 1 a c\n2 ship at 3 pm`);
+  expect(await form.answer).toEqual({
+    answers: [
+      { id: 'targets', selected: ['web', 'android'] },
+      { id: 'note', selected: [], custom: 'ship at 3 pm' },
+    ],
+  });
+});
