@@ -13,14 +13,17 @@ import {
   useSharedValue,
 } from 'react-native-reanimated';
 
+import { revealSnap } from './keyboard-form-context';
+
 export function useNativeFormScroll(
   forwardedRef: Ref<KeyboardAwareScrollViewRef> | undefined,
   enabled: boolean,
   bottomOffset: number,
+  snaps: readonly number[] = [],
 ) {
   const scroll = useAnimatedRef<KeyboardAwareScrollViewRef>();
   const offset = useScrollOffset(scroll);
-  const { height } = useReanimatedKeyboardAnimation();
+  const { height, progress } = useReanimatedKeyboardAnimation();
   const inputBottom = useSharedValue(0);
   const active = useRef<ViewInstance | undefined>(undefined);
   const focus = useCallback(
@@ -51,6 +54,15 @@ export function useNativeFormScroll(
       if (overlap > 0) scrollTo(scroll, 0, offset.get() + overlap, false);
     },
     [enabled, bottomOffset],
+  );
+  useAnimatedReaction(
+    () => progress.get() === 1 && inputBottom.get() !== 0,
+    (open, wasOpen) => {
+      if (!enabled || !open || wasOpen) return;
+      const next = revealSnap(offset.get(), snaps);
+      if (next !== undefined) scrollTo(scroll, 0, next, true);
+    },
+    [enabled, snaps],
   );
   const ref = useCallback(
     (node: KeyboardAwareScrollViewRef | null) => {

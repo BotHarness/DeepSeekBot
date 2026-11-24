@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Image, Platform, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   visibleBrowserRefusal,
@@ -24,10 +24,24 @@ const APP_ICON = {
   dark: require('../../../assets/app-icons/deepseekbot-dark-preview.png'),
 };
 
-function Heading({ title, detail, icon }: { title: string; detail: string; icon?: boolean }) {
+function Heading({
+  title,
+  detail,
+  icon,
+  onLayout,
+}: {
+  title: string;
+  detail: string;
+  icon?: boolean;
+  onLayout(event: LayoutChangeEvent): void;
+}) {
   const theme = useDesignTheme();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}>
+    <View
+      testID="email-sign-in-heading"
+      onLayout={onLayout}
+      style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}
+    >
       {icon ? (
         <Image
           source={APP_ICON[theme.scheme]}
@@ -71,6 +85,7 @@ function OrDivider({ label }: { label: string }) {
 }
 
 const CODE_LENGTH = 6;
+const SECTION_GAP = space.x4;
 const digits = (value: string) => value.replace(/\D/gu, '').slice(0, CODE_LENGTH);
 
 export function EmailCodeSignIn({
@@ -96,6 +111,15 @@ export function EmailCodeSignIn({
   const [error, setError] = useState<EmailCodeRefusal>();
   const working = useRef(false);
   const submit = useKeyboardFormSubmit();
+  const [headingHeight, setHeadingHeight] = useState(0);
+  const measureHeading = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout.height;
+    setHeadingHeight((current) => (current === next ? current : next));
+  };
+  const headingSnaps = useMemo(
+    () => (headingHeight > 0 ? [headingHeight + SECTION_GAP] : undefined),
+    [headingHeight],
+  );
 
   const run = async (work: () => Promise<void>) => {
     if (working.current) return;
@@ -184,17 +208,20 @@ export function EmailCodeSignIn({
       {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
+      {...(headingSnaps ? { snapToOffsets: headingSnaps } : {})}
+      snapToEnd={false}
       contentContainerStyle={{
         paddingHorizontal: space.x5,
         paddingTop: space.x3,
         paddingBottom: space.x6,
-        gap: space.x4,
+        gap: SECTION_GAP,
       }}
     >
       {sentTo === undefined ? (
         <>
           <Heading
             icon
+            onLayout={measureHeading}
             title={
               mode === 'register'
                 ? copy.register
@@ -317,7 +344,11 @@ export function EmailCodeSignIn({
         </>
       ) : (
         <>
-          <Heading title={copy.codeTitle} detail={copy.codeHint(sentTo)} />
+          <Heading
+            title={copy.codeTitle}
+            detail={copy.codeHint(sentTo)}
+            onLayout={measureHeading}
+          />
           <View onLayout={submit.onFieldLayout}>
             <TextField
               testID="email-sign-in-code"

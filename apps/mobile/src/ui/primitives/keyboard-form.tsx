@@ -32,7 +32,7 @@ export function KeyboardFormScroll(props: ComponentPropsWithRef<typeof KeyboardA
       Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x6) + space.x6,
     footerHeight + space.x3,
   );
-  const native = useNativeFormScroll(ref, enabled, clearance);
+  const native = useNativeFormScroll(ref, enabled, clearance, rest.snapToOffsets);
   return (
     <KeyboardFormNativeFocus.Provider value={native.focus}>
       <KeyboardAwareScrollView
