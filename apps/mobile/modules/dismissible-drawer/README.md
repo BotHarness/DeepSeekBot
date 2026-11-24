@@ -48,12 +48,14 @@ Record each row on #3015 with a screen recording, on an Android 14+ phone with g
 
 ## Session drawer
 
-`SessionDrawerView` wraps Compose Material 3 `ModalNavigationDrawer` for the phone's Session
-drawer (#5109), with the same `panel` and `content` slots. It is nearly full width
-(`sessionDrawerWidthDp`: the window minus a 56dp strip), its scrim closes it, and
-`ModalDrawerSheet(drawerState)` owns Back and predictive back while it is open. The content slides
-right by the drawer's width, fades to half opacity and blurs (API 31+) with the drawer's progress.
-JavaScript owns `open`; `onOpenChange` reports the drawer's target as soon as a drag or Back
-commits to it, so the tab island can fade with it. `hasSessionDrawer()` tells JavaScript the
-installed build has this view; an older development build falls back to the React Native drawer.
-A new Android development build is required.
+`SessionDrawerView` wraps Compose Material 3 `ModalNavigationDrawer` for the phone's Session drawer
+(#5109). It is laid over the React Native Sessions stack, not around it: its `panel` slot holds
+the drawer contents and its `content` slot is empty, so the stack's keyboard, island and scroll
+insets behave as on every other screen. The drawer is nearly full width
+(`sessionDrawerWidthDp`: the window minus a 56dp strip), and the M3 scrim dims the stack and
+closes the drawer when tapped. JavaScript slides the stack aside with the drawer's progress, opens
+the drawer from ☰ or a swipe, and holds Back while it is open. `ModalDrawerSheet` therefore takes
+no `drawerState`, so its own Back handler doesn't compete. `onOpenChange` reports each settled
+value. `hasSessionDrawer()` tells JavaScript the installed build has this view; an older
+development build falls back to the React Native drawer. A new Android development build is
+required.

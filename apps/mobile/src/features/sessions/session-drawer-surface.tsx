@@ -46,7 +46,14 @@ function settle(open: boolean, velocity: number): void {
   sessionDrawer.settle(open, velocity);
 }
 
-export function SessionDrawerSurface({ children }: { children: ReactNode }) {
+export function SessionDrawerSurface({
+  children,
+  nativeDrawer,
+}: {
+  children: ReactNode;
+  nativeDrawer?: ReactNode;
+}) {
+  const native = nativeDrawer !== undefined;
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const reduced = useSystemReducedMotion();
@@ -69,16 +76,18 @@ export function SessionDrawerSurface({ children }: { children: ReactNode }) {
     .activeOffsetX(swipe.activeX)
     .failOffsetY([-swipe.failY, swipe.failY])
     .onStart(() => {
-      runOnJS(reveal)();
+      if (!native) runOnJS(reveal)();
     })
     .onUpdate((event) => {
-      if (!reduced) progress.value = clamp(event.translationX / width);
+      if (!native && !reduced) progress.value = clamp(event.translationX / width);
     })
     .onEnd((event) => {
-      runOnJS(settle)(
-        settleSessionDrawer(clamp(event.translationX / width), event.velocityX),
-        event.velocityX / width,
-      );
+      const open = settleSessionDrawer(clamp(event.translationX / width), event.velocityX);
+      if (native) {
+        if (open) runOnJS(settle)(true, 0);
+        return;
+      }
+      runOnJS(settle)(open, event.velocityX / width);
     });
   if (swipe.hitSlop) openPan.hitSlop(swipe.hitSlop);
 
@@ -97,7 +106,7 @@ export function SessionDrawerSurface({ children }: { children: ReactNode }) {
     });
 
   const contentStyle = useAnimatedStyle(() => ({
-    opacity: 1 - CONTENT_FADE * progress.value,
+    opacity: native ? 1 : 1 - CONTENT_FADE * progress.value,
     transform: [{ translateX: progress.value * width }],
   }));
   const blurStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
@@ -123,7 +132,16 @@ export function SessionDrawerSurface({ children }: { children: ReactNode }) {
           ) : null}
         </Animated.View>
       </GestureDetector>
-      {state.shown ? (
+      {native ? (
+        <View
+          style={StyleSheet.absoluteFill}
+          pointerEvents={state.open ? 'auto' : 'none'}
+          accessibilityViewIsModal={state.open}
+        >
+          {state.open ? <View ref={holdBackWhileOpen} /> : null}
+          {nativeDrawer}
+        </View>
+      ) : state.shown ? (
         <GestureDetector gesture={closePan}>
           <View
             style={StyleSheet.absoluteFill}

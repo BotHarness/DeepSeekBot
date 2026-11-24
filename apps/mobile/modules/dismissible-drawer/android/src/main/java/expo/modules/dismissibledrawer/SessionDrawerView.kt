@@ -54,10 +54,10 @@ data class SessionDrawerProps(
 data class SessionDrawerChange(@Field val open: Boolean = false) : Record
 
 /**
- * Compose Material 3 `ModalNavigationDrawer` for the phone's Session drawer, with two React
- * Native slots, `panel` and `content`. The drawer is nearly full width; its scrim closes it, and
- * `ModalDrawerSheet(drawerState)` owns Back and predictive back while it is open. The content
- * slides right, fades and blurs with the drawer's progress, after Claude's drawer. JavaScript owns
+ * Compose Material 3 `ModalNavigationDrawer` for the phone's Session drawer, laid over the React
+ * Native Sessions stack with two slots: `panel` (the drawer contents) and an empty `content`. The
+ * drawer is nearly full width and its scrim closes it. JavaScript slides the Sessions stack
+ * beneath it and holds Back while the drawer is open. JavaScript owns
  * `open`; [onOpenChange] reports each value the drawer settles at after a drag, a scrim tap or
  * Back, so JavaScript never keeps `open` while the drawer is closed.
  */
@@ -120,8 +120,9 @@ fun FunctionalComposableScope.SessionDrawerContent(
       gesturesEnabled = props.gesturesEnabled || drawerState.targetValue == DrawerValue.Open,
       scrimColor = DrawerDefaults.scrimColor,
       drawerContent = {
+        // No drawerState here: its predictive Back handler would take Back from the React Native
+        // callback that JavaScript holds while the drawer is open, and JavaScript closes it.
         ModalDrawerSheet(
-          drawerState = drawerState,
           modifier = Modifier.width(panelWidth),
           drawerShape = RectangleShape,
           drawerContainerColor = props.containerColor.composeOrNull ?: DrawerDefaults.modalContainerColor,

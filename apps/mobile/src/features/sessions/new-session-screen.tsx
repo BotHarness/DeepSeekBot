@@ -147,9 +147,7 @@ function NewSessionForm({
     try {
       const choice = model.state?.override;
       const created = await createHostSession(client, {
-        ...(folder.workspaceId === undefined
-          ? { cwd: folder.path }
-          : { workspaceId: folder.workspaceId }),
+        cwd: folder.path,
         text,
         ...(choice?.kind === 'model' ? { choice } : {}),
       });

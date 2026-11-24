@@ -106,7 +106,9 @@ vi.mock('../src/ui/chat/folder-picker-sheet', () => ({
   }) => (
     <button
       data-testid="pick-workspace"
-      onClick={() => pick.onPick({ path: '/work/app', title: 'app', workspaceId: 'ws-1' })}
+      onClick={() =>
+        pick.onPick({ path: '/work/app', title: 'app', workspaceId: 'spaces/local-human' })
+      }
     />
   ),
 }));
@@ -157,7 +159,7 @@ async function render() {
   return { view, click };
 }
 
-it('creates and opens a native Session in the chosen Workspace of the preselected Computer', async () => {
+it('creates a native Session by folder path even for a Team space Workspace row', async () => {
   fixture.call.mockResolvedValue({ sessionId: 'created', requestId: 'prompt-1' });
   const { view, click } = await render();
   expect(view.querySelector('[data-testid="new-session-computer"]')?.textContent).toBe(
@@ -173,7 +175,7 @@ it('creates and opens a native Session in the chosen Workspace of the preselecte
   expect(view.querySelector('[data-testid="new-session-folder"]')?.textContent).toBe('Folder: app');
   await click('send');
   expect(fixture.call).toHaveBeenCalledExactlyOnceWith('studio', 'sessionCreate', {
-    workspaceId: 'ws-1',
+    cwd: '/work/app',
     text: 'Map the repository',
   });
   expect(fixture.replace).toHaveBeenCalledWith({

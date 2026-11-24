@@ -404,16 +404,8 @@ export function ConversationTopBar({
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Items>
                   <Column modifiers={[width(materialMenu.width)]}>
-                    <Text
-                      modifiers={[
-                        padding(space.x5, space.x3, space.x5, space.x3),
-                        testID('session-menu-title'),
-                      ]}
-                      style={{ typography: 'titleSmall', fontWeight: 'bold' }}
-                    >
-                      {title}
-                    </Text>
                     <MaterialMenuGroup
+                      header={title}
                       items={titleMenu.items.map((item) => ({
                         key: item.testID,
                         testID: item.testID,

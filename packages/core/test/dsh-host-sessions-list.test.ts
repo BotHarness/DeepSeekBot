@@ -53,3 +53,19 @@ it('marks a running Session waiting for the Human and carries its last model', a
   ]);
   expect(state.mock.calls.map(([request]) => request.sessionId)).toEqual(['asking', 'busy']);
 });
+
+it('creates a native Session in a folder or a registered DSH Workspace', async () => {
+  const create = vi.fn(async () => ({ sessionId: 'created' }));
+  const ctx = {
+    get: (name: string) => (name === 'sessionController' ? { create } : undefined),
+  };
+  const sessions = dshHostSessions(ctx as never as Context, {} as DshSessionStore);
+  expect(await sessions.create?.({ cwd: '/work/app' })).toEqual({ sessionId: 'created' });
+  expect(await sessions.create?.({ workspaceId: '77e8496c-4fdc-4d42-8918-142c99f4a48f' })).toEqual({
+    sessionId: 'created',
+  });
+  expect(create.mock.calls).toEqual([
+    [{ cwd: '/work/app' }],
+    [{ workspaceId: '77e8496c-4fdc-4d42-8918-142c99f4a48f' }],
+  ]);
+});
