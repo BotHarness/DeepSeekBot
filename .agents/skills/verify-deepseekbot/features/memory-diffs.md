@@ -19,7 +19,7 @@
 
 ## How to get to it (user POV)
 
-Enter Bot mode, select a PersonaBot in the Channel list, open Messages if it is hidden, then choose Memory evolution in the Messages header. Select a working file for its uncommitted diff, or a Git graph row for a commit diff. Use Auto wrap in the diff header to switch modes.
+Enter Bot mode, select a PersonaBot in the Channel list, open the Side column with the Side column button in the Messages header if it is hidden, then expand Memory evolution there. Select a working file for its uncommitted diff, or a Git graph row for a commit diff. Use Auto wrap in the diff header to switch modes.
 
 ## Driving it with verify-app
 
@@ -34,7 +34,7 @@ The journey creates its own synthetic Bot, seeds only that Bot's Memory Reposito
 
 ## Gotchas
 
-- The current journey uses Chinese Client labels and macOS Messages shortcut text; use the matching Client environment when rerunning it.
-- The native first-run preview dialog can block the general `verify-app shot` helper's readiness check before overlay dismissal. The journey waits for the Bot mode entry, dismisses first-run overlays, and opens the Messages panel explicitly.
-- Hidden sidebar copies share Channel identifiers. Select the visible Channel row.
+- The journey sets the browser language to zh-CN and drives Chinese Client labels (`子面板栏`, `记忆演化`, `自动换行`), so it runs the same on macOS and Linux.
+- The native first-run preview dialog can block the general `verify-app shot` helper's readiness check before overlay dismissal. The journey waits for the Bot mode entry, dismisses first-run overlays and the rail tour (`跳过`), and opens the Side column explicitly.
+- Hidden sidebar copies share Channel identifiers. Select the visible Channel row; the selected row carries `aria-current="page"`.
 - `BH_DIFF_BASELINE=1` captures an unchanged base Client for comparison and asserts the wrap button is absent; it does not certify the fix. The normal run is the regression verdict.
