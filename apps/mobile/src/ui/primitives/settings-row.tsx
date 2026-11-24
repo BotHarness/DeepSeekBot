@@ -44,7 +44,7 @@ function ControlView({
       return (
         <SystemSymbol
           name={{ ios: 'checkmark', android: 'check' }}
-          size={theme.type.title.line}
+          size={theme.type.title.line * theme.fontScale}
           color={theme.color.accent}
         />
       );
@@ -55,16 +55,21 @@ function ControlView({
             {control.text}
           </Text>
           {control.chevron === true ? (
-            <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+            <ChevronRightIcon
+              color={theme.color.muted}
+              size={theme.type.body.line * theme.fontScale}
+            />
           ) : null}
         </View>
       );
     case 'busy':
       return <LoadingIndicator size="control" />;
     case 'chevron':
-      return <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />;
+      return (
+        <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line * theme.fontScale} />
+      );
     case 'add':
-      return <PlusIcon color={theme.color.muted} size={theme.type.title.line} />;
+      return <PlusIcon color={theme.color.muted} size={theme.type.title.line * theme.fontScale} />;
   }
 }
 
@@ -130,6 +135,7 @@ function ReactNativeSettingsRow({
       {icon === undefined ? null : (
         <RowIcon
           name={icon}
+          size={theme.type.title.line * theme.fontScale}
           {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
         />
       )}

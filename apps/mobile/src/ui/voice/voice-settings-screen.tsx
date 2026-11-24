@@ -257,7 +257,7 @@ export function VoiceSettings({ port }: { port: VoiceSettingsPort }) {
         leading={
           <ModelBrandIcon
             brand={providerBrand(service.preset, service.name)}
-            size={theme.type.title.line}
+            size={theme.type.title.line * theme.fontScale}
             color={theme.color.fg}
           />
         }

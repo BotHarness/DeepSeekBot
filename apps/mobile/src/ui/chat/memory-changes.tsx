@@ -220,7 +220,10 @@ function FileHeader({
         })}
       >
         <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line} />
+          <ChevronRightIcon
+            color={theme.color.muted}
+            size={theme.type.meta.line * theme.fontScale}
+          />
         </View>
         <Text numberOfLines={1} style={{ flex: 1 }}>
           {folder === '' ? null : <Text tone="muted">{folder}</Text>}

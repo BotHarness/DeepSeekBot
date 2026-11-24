@@ -149,7 +149,10 @@ function RoutineRow({
           </Text>
         </View>
         {onOpen === undefined ? null : (
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
+          <ChevronRightIcon
+            color={theme.color.muted}
+            size={theme.type.title.line * theme.fontScale}
+          />
         )}
       </Pressable>
     </SwipeRow>

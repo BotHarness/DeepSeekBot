@@ -56,7 +56,10 @@ export function DesktopPath({ steps }: { steps: readonly string[] }) {
               </Text>
             </View>
             {index < steps.length - 1 ? (
-              <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.line} />
+              <ChevronRightIcon
+                color={theme.color.muted}
+                size={theme.type.meta.line * theme.fontScale}
+              />
             ) : null}
           </View>
         ))}

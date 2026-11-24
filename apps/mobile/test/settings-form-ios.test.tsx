@@ -373,6 +373,31 @@ it('hosts React Native items and images without nesting native rows inside them'
   expect(button.querySelector('[data-native="rn-host"] img')).not.toBeNull();
 });
 
+it('stacks a hosted leading tile above the text only at accessibility sizes', async () => {
+  const tile = async (fontScale: number) => {
+    vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale });
+    const host = await render(
+      <SettingsForm>
+        <SettingsSection>
+          <SettingsRow
+            title="Studio Mac with a long name"
+            detail="Online"
+            leading={<img alt="" />}
+            testID="host-row"
+            onPress={() => undefined}
+          />
+        </SettingsSection>
+      </SettingsForm>,
+    );
+    vi.restoreAllMocks();
+    return host
+      .querySelector('[data-testid="host-row"] [data-native="rn-host"]')!
+      .parentElement!.getAttribute('data-native');
+  };
+  expect(await tile(1.353)).toBe('hstack');
+  expect(await tile(2)).toBe('vstack');
+});
+
 it('renders a preference as a native menu picker inside a form', async () => {
   const change = vi.fn();
   const host = await render(
