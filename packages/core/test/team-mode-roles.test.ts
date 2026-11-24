@@ -30,7 +30,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       permissions: ['dm.humans'],
     });
     const builtins = f.team.roles.list(owner);
-    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(16);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(17);
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toContain('models.configure');
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
       'privateContent.view',
@@ -38,7 +38,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
       'modelSources.manage',
     );
-    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toContain(
       'workspaces.createFolder',
     );
     expect(builtins.find((r) => r.builtin === 'member')?.memberCount).toBe(2);
