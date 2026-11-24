@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRequire } from 'node:module';
-import { act, useLayoutEffect, type ReactNode } from 'react';
+import { act, useLayoutEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createHostClient, MethodRefused } from '@botharness/host-client/client';
@@ -77,7 +77,64 @@ vi.mock('react-native-keyboard-controller', () => ({
   useKeyboardState: () => false,
   KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../src/host/host-session', () => ({}));
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({
+    saved: { hostId: 'host', hostName: 'Computer', routes: [], deviceId: 'd', credential: 'c' },
+  }),
+}));
+vi.mock('../src/ui/chat/session-title-menu', () => ({
+  SessionTitleMenu: ({
+    title,
+    hint,
+    menu,
+  }: {
+    title: string;
+    hint: string;
+    menu?: {
+      items: readonly { label: string; testID: string; disabled?: boolean; run(): void }[];
+    };
+  }) => {
+    const [expanded, setExpanded] = useState(false);
+    if (menu === undefined)
+      return (
+        <span role="header" data-testid="session-header-title">
+          {title}
+        </span>
+      );
+    return (
+      <>
+        <button
+          data-testid="session-header-title"
+          aria-label={title}
+          aria-description={hint}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {title}
+        </button>
+        {expanded ? (
+          <div>
+            <span data-testid="session-menu-title">{title}</span>
+            <div role="menu">
+              {menu.items.map((item) => (
+                <button
+                  key={item.testID}
+                  data-testid={item.testID}
+                  disabled={item.disabled}
+                  onClick={() => {
+                    setExpanded(false);
+                    item.run();
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  },
+}));
 vi.mock('../src/host/native-send-jump', () => ({
   sendJumpPreferences: { getSnapshot: () => ({ enabled: false }) },
 }));
@@ -304,7 +361,8 @@ async function open({
 
 async function press(view: HTMLElement, label: string) {
   const button = [...view.querySelectorAll('button')].find(
-    (element) => element.textContent === label,
+    (element) =>
+      element.textContent === label || element.getAttribute('aria-description') === label,
   );
   expect(button).toBeDefined();
   await act(async () => button!.click());
@@ -378,9 +436,9 @@ it('sends a draft to the selected Orchestrator', async () => {
 it('shows the Session title, Back, and Model Choice in the header', async () => {
   const { view } = await open();
   expect(view.textContent).toContain('Review the release');
-  expect(view.querySelector('[data-testid="session-header-title"]')?.getAttribute('role')).toBe(
-    'header',
-  );
+  const capsule = view.querySelector('[data-testid="session-header-title"]');
+  expect(capsule?.getAttribute('aria-label')).toBe('Review the release');
+  expect(capsule?.getAttribute('aria-description')).toBe('Session options');
   const header = view.querySelector('header');
   expect(header?.dataset).toMatchObject({
     transparent: 'true',
@@ -583,8 +641,11 @@ it('renders the Android Session header with Back, title, and options', async () 
     expect(header?.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
       'Review the release',
     );
+    expect(header?.querySelector('[data-testid="session-options"]')).toBeNull();
     expect(
-      header?.querySelector('[data-testid="session-options"]')?.getAttribute('aria-label'),
+      header
+        ?.querySelector('[data-testid="session-header-title"]')
+        ?.getAttribute('aria-description'),
     ).toBe('Session options');
     const back = header?.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
     expect(back).toBeDefined();
@@ -619,7 +680,7 @@ it('accounts for the iOS safe areas while the native composer spacer reserves th
   });
 });
 
-it('shows the Session drawer, New Session and options instead of Back at the Sessions root', async () => {
+it('shows ☰ and ✎ at the Sessions root and opens Session options from the name capsule', async () => {
   place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
   place.index = 0;
   try {
@@ -629,12 +690,39 @@ it('shows the Session drawer, New Session and options instead of Back at the Ses
     );
     expect(labels).toContain('Show Sessions');
     expect(labels).toContain('New Session');
-    expect(labels).toContain('Session options');
     expect(labels).not.toContain('Back');
+    expect(labels).not.toContain('Session options');
+    expect(view.querySelector('[data-testid="session-options"]')).toBeNull();
+    await press(view, 'Session options');
+    expect(view.querySelector('[data-testid="session-menu-title"]')?.textContent).toBe(
+      'Review the release',
+    );
+    expect(view.querySelector('[role="menu"]')?.textContent).toBe('Model choice');
     await act(async () => view.querySelector<HTMLElement>('[data-testid="session-new"]')?.click());
     expect(place.replace).toHaveBeenCalledExactlyOnceWith('/sessions');
   } finally {
     place.segments = ['(tabs)', '(home)', 'session', '[id]'];
     place.index = 1;
   }
+});
+
+it('keeps Back with ✎ for a Session pushed inside the Sessions tab, and no ✎ elsewhere', async () => {
+  place.segments = ['(tabs)', '(sessions)', 'session', '[id]'];
+  place.index = 1;
+  try {
+    const sessions = await open({ role: 'native' });
+    const labels = [...sessions.view.querySelectorAll('button')].map(
+      (button) => button.getAttribute('aria-label') ?? button.textContent,
+    );
+    expect(labels).toContain('Back');
+    expect(labels).toContain('New Session');
+    expect(labels).not.toContain('Show Sessions');
+  } finally {
+    place.segments = ['(tabs)', '(home)', 'session', '[id]'];
+  }
+  const elsewhere = await open({ role: 'native' });
+  const labels = [...elsewhere.view.querySelectorAll('button')].map(
+    (button) => button.getAttribute('aria-label') ?? button.textContent,
+  );
+  expect(labels).not.toContain('New Session');
 });

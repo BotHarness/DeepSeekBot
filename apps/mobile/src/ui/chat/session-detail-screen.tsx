@@ -21,7 +21,8 @@ import { ChatList, type ChatListHandle } from '../primitives/chat-list';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
-import { useSessionDrawerRoot } from '../../features/sessions/drawer-root';
+import { useInSessionsTab, useSessionDrawerRoot } from '../../features/sessions/drawer-root';
+import { canCreateNativeSession } from '../shell/page-create-actions';
 import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
 import { openNewSession } from '../../features/sessions/session-drawer-navigation';
 import { enterDrawerRoot, openSessionDrawer } from '../../features/sessions/session-drawer-state';
@@ -30,7 +31,7 @@ import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
 import { ChatHeaderRow } from './chat-header-row';
-import { ChatTitleCapsule } from './chat-title-capsule';
+import { SessionTitleMenu } from './session-title-menu';
 import { useChannelViewport } from './channel-viewport';
 import {
   ChatTimelineFrame,
@@ -66,6 +67,12 @@ function SessionHeader({
   const t = useStrings();
   const router = useRouter();
   const drawer = useSessionDrawerRoot();
+  const inSessions = useInSessionsTab();
+  const { saved } = useHostSession();
+  const compose =
+    inSessions && canCreateNativeSession(saved)
+      ? () => (drawer ? openNewSession() : router.dismissTo('/sessions'))
+      : undefined;
   const back = () => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
@@ -80,29 +87,21 @@ function SessionHeader({
           headerTitle: () => (
             <ChatHeaderRow
               back={{ label: t.back, testID: 'session-back-button', onPress: back }}
-              {...(drawer
-                ? {
-                    leading: <SessionDrawerButton />,
+              {...(drawer ? { leading: <SessionDrawerButton /> } : {})}
+              {...(compose === undefined
+                ? {}
+                : {
                     extra: (
                       <HeaderCircleButton
                         label={t.hostSessions.create}
                         testID="session-new"
-                        onPress={openNewSession}
+                        onPress={compose}
                       >
                         <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
                       </HeaderCircleButton>
                     ),
-                  }
-                : {})}
-              title={
-                <ChatTitleCapsule
-                  title={title}
-                  kind="heading"
-                  accessibilityLabel={title}
-                  testID="session-header-title"
-                />
-              }
-              controls={menu === undefined ? undefined : { kind: 'menu', menu }}
+                  })}
+              title={<SessionTitleMenu title={title} hint={t.sessionDetail.options} menu={menu} />}
             />
           ),
         }}
@@ -113,8 +112,8 @@ function SessionHeader({
           title={title}
           leading={drawer ? 'drawer' : 'back'}
           onBack={drawer ? openSessionDrawer : back}
-          onCompose={drawer ? openNewSession : undefined}
-          menu={menu}
+          onCompose={compose}
+          titleMenu={menu}
           onHeight={onHeight}
         />
       ) : null}

@@ -49,6 +49,7 @@ export function ConversationTopBar({
   onBack,
   leading = 'back',
   onCompose,
+  titleMenu,
   onProfile,
   onCall,
   menu,
@@ -60,6 +61,7 @@ export function ConversationTopBar({
   const t = useStrings();
   const [height, setHeight] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [titleMenuOpen, setTitleMenuOpen] = useState(false);
   const mark = materialIconButton.container;
   const status = connectionLabel ?? subtitle;
   const showStatus = status !== undefined && !theme.largeText;
@@ -197,89 +199,244 @@ export function ConversationTopBar({
                     onBack,
                   )}
             </Surface>
-            <Surface
-              {...island}
-              {...(onProfile === undefined ? {} : { onClick: onProfile })}
-              modifiers={[
-                weight(1),
-                ...islandLook,
-                testID('chat-identity'),
-                semantics({
-                  contentDescription: [title, status].filter(Boolean).join(', '),
-                }),
-              ]}
-            >
-              <Row
-                verticalAlignment="center"
-                horizontalArrangement={{ spacedBy: space.x3 }}
+            {titleMenu === undefined ? (
+              <Surface
+                {...island}
+                {...(titleMenu !== undefined
+                  ? { onClick: () => setTitleMenuOpen(true) }
+                  : onProfile === undefined
+                    ? {}
+                    : { onClick: onProfile })}
                 modifiers={[
-                  nativeHeight(islandHeight),
-                  padding(
-                    variant === 'session' ? space.x4 : space.x2,
-                    space.x2,
-                    space.x4,
-                    space.x2,
-                  ),
+                  weight(1),
+                  ...islandLook,
+                  testID('chat-identity'),
+                  semantics({
+                    contentDescription: [
+                      title,
+                      status,
+                      titleMenu === undefined ? undefined : t.sessionDetail.options,
+                    ]
+                      .filter(Boolean)
+                      .join(', '),
+                  }),
                 ]}
               >
-                {variant === 'session' ? null : (
-                  <RNHostView modifiers={[size(mark, mark)]}>
-                    <View accessible={false} importantForAccessibility="no-hide-descendants">
-                      {bot === undefined ? (
-                        <GroupMark
-                          avatar={avatar}
-                          {...(initial === undefined ? {} : { initial })}
-                          size={mark}
-                          corner={radius.round}
-                        />
-                      ) : (
-                        <BotAvatar bot={bot} size={mark} ring={false} />
-                      )}
-                    </View>
-                  </RNHostView>
-                )}
-                <Column modifiers={[weight(1)]}>
-                  <Text style={titleStyle} maxLines={1} overflow="ellipsis">
-                    {title}
-                  </Text>
-                  {!showStatus ? null : (
-                    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
-                      {activeBots.length === 0 ? null : (
-                        <RNHostView
-                          modifiers={[
-                            size(
-                              theme.type.meta.line * Math.min(3, activeBots.length) -
-                                space.x2 * (Math.min(3, activeBots.length) - 1),
-                              theme.type.meta.line,
-                            ),
-                          ]}
+                <Row
+                  verticalAlignment="center"
+                  horizontalArrangement={{ spacedBy: space.x3 }}
+                  modifiers={[
+                    nativeHeight(islandHeight),
+                    padding(
+                      variant === 'session' ? space.x4 : space.x2,
+                      space.x2,
+                      space.x4,
+                      space.x2,
+                    ),
+                  ]}
+                >
+                  {variant === 'session' ? null : (
+                    <RNHostView modifiers={[size(mark, mark)]}>
+                      <View accessible={false} importantForAccessibility="no-hide-descendants">
+                        {bot === undefined ? (
+                          <GroupMark
+                            avatar={avatar}
+                            {...(initial === undefined ? {} : { initial })}
+                            size={mark}
+                            corner={radius.round}
+                          />
+                        ) : (
+                          <BotAvatar bot={bot} size={mark} ring={false} />
+                        )}
+                      </View>
+                    </RNHostView>
+                  )}
+                  <Column modifiers={[weight(1)]}>
+                    <Text style={titleStyle} maxLines={1} overflow="ellipsis">
+                      {title}
+                    </Text>
+                    {!showStatus ? null : (
+                      <Row
+                        verticalAlignment="center"
+                        horizontalArrangement={{ spacedBy: space.x2 }}
+                      >
+                        {activeBots.length === 0 ? null : (
+                          <RNHostView
+                            modifiers={[
+                              size(
+                                theme.type.meta.line * Math.min(3, activeBots.length) -
+                                  space.x2 * (Math.min(3, activeBots.length) - 1),
+                                theme.type.meta.line,
+                              ),
+                            ]}
+                          >
+                            <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                          </RNHostView>
+                        )}
+                        <Text
+                          modifiers={[weight(1)]}
+                          color={theme.color.muted}
+                          style={{ typography: 'bodySmall' }}
+                          maxLines={1}
+                          overflow="ellipsis"
                         >
-                          <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                          {status}
+                        </Text>
+                      </Row>
+                    )}
+                  </Column>
+                  {connectionLabel === undefined ? null : (
+                    <CircularProgressIndicator
+                      color={theme.color.accent}
+                      modifiers={[
+                        size(materialIconButton.iconSize, materialIconButton.iconSize),
+                        semantics({ contentDescription: connectionLabel }),
+                      ]}
+                    />
+                  )}
+                </Row>
+              </Surface>
+            ) : (
+              <DropdownMenu
+                expanded={titleMenuOpen}
+                onDismissRequest={() => setTitleMenuOpen(false)}
+                color="transparent"
+                shadowElevation={0}
+                modifiers={[weight(1)]}
+              >
+                <DropdownMenu.Trigger>
+                  <Surface
+                    {...island}
+                    {...(titleMenu !== undefined
+                      ? { onClick: () => setTitleMenuOpen(true) }
+                      : onProfile === undefined
+                        ? {}
+                        : { onClick: onProfile })}
+                    modifiers={[
+                      fillMaxWidth(),
+                      ...islandLook,
+                      testID('chat-identity'),
+                      semantics({
+                        contentDescription: [
+                          title,
+                          status,
+                          titleMenu === undefined ? undefined : t.sessionDetail.options,
+                        ]
+                          .filter(Boolean)
+                          .join(', '),
+                      }),
+                    ]}
+                  >
+                    <Row
+                      verticalAlignment="center"
+                      horizontalArrangement={{ spacedBy: space.x3 }}
+                      modifiers={[
+                        nativeHeight(islandHeight),
+                        padding(
+                          variant === 'session' ? space.x4 : space.x2,
+                          space.x2,
+                          space.x4,
+                          space.x2,
+                        ),
+                      ]}
+                    >
+                      {variant === 'session' ? null : (
+                        <RNHostView modifiers={[size(mark, mark)]}>
+                          <View accessible={false} importantForAccessibility="no-hide-descendants">
+                            {bot === undefined ? (
+                              <GroupMark
+                                avatar={avatar}
+                                {...(initial === undefined ? {} : { initial })}
+                                size={mark}
+                                corner={radius.round}
+                              />
+                            ) : (
+                              <BotAvatar bot={bot} size={mark} ring={false} />
+                            )}
+                          </View>
                         </RNHostView>
                       )}
-                      <Text
-                        modifiers={[weight(1)]}
-                        color={theme.color.muted}
-                        style={{ typography: 'bodySmall' }}
-                        maxLines={1}
-                        overflow="ellipsis"
-                      >
-                        {status}
-                      </Text>
+                      <Column modifiers={[weight(1)]}>
+                        <Text style={titleStyle} maxLines={1} overflow="ellipsis">
+                          {title}
+                        </Text>
+                        {!showStatus ? null : (
+                          <Row
+                            verticalAlignment="center"
+                            horizontalArrangement={{ spacedBy: space.x2 }}
+                          >
+                            {activeBots.length === 0 ? null : (
+                              <RNHostView
+                                modifiers={[
+                                  size(
+                                    theme.type.meta.line * Math.min(3, activeBots.length) -
+                                      space.x2 * (Math.min(3, activeBots.length) - 1),
+                                    theme.type.meta.line,
+                                  ),
+                                ]}
+                              >
+                                <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                              </RNHostView>
+                            )}
+                            <Text
+                              modifiers={[weight(1)]}
+                              color={theme.color.muted}
+                              style={{ typography: 'bodySmall' }}
+                              maxLines={1}
+                              overflow="ellipsis"
+                            >
+                              {status}
+                            </Text>
+                          </Row>
+                        )}
+                      </Column>
+                      {connectionLabel === undefined ? null : (
+                        <CircularProgressIndicator
+                          color={theme.color.accent}
+                          modifiers={[
+                            size(materialIconButton.iconSize, materialIconButton.iconSize),
+                            semantics({ contentDescription: connectionLabel }),
+                          ]}
+                        />
+                      )}
                     </Row>
-                  )}
-                </Column>
-                {connectionLabel === undefined ? null : (
-                  <CircularProgressIndicator
-                    color={theme.color.accent}
-                    modifiers={[
-                      size(materialIconButton.iconSize, materialIconButton.iconSize),
-                      semantics({ contentDescription: connectionLabel }),
-                    ]}
-                  />
-                )}
-              </Row>
-            </Surface>
+                  </Surface>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Items>
+                  <Column modifiers={[width(materialMenu.width)]}>
+                    <Text
+                      modifiers={[
+                        padding(space.x5, space.x3, space.x5, space.x3),
+                        testID('session-menu-title'),
+                      ]}
+                      style={{ typography: 'titleSmall', fontWeight: 'bold' }}
+                    >
+                      {title}
+                    </Text>
+                    <MaterialMenuGroup
+                      items={titleMenu.items.map((item) => ({
+                        key: item.testID,
+                        testID: item.testID,
+                        label: item.label,
+                        disabled: item.disabled === true,
+                        destructive: item.destructive === true,
+                        icon: (
+                          <MenuIcon
+                            icon={item.icon}
+                            color={item.destructive ? theme.color.danger : theme.color.fg}
+                            size={materialMenu.iconSize}
+                          />
+                        ),
+                        onPress: () => {
+                          setTitleMenuOpen(false);
+                          item.run();
+                        },
+                      }))}
+                    />
+                  </Column>
+                </DropdownMenu.Items>
+              </DropdownMenu>
+            )}
             {onCompose === undefined ? null : (
               <Surface {...island} modifiers={actionLook}>
                 {action(

@@ -64,12 +64,13 @@ vi.mock('@expo/ui/jetpack-compose', () => {
           'data-max-lines': maxLines,
           'data-font-size': style?.fontSize,
           'data-height': modifiers?.find((modifier) => modifier.name === 'height')?.args[0],
+          'data-test-id': modifiers?.find((modifier) => modifier.name === 'testID')?.args[0],
         },
         children,
       );
   const DropdownMenu = Object.assign(node('DropdownMenu'), {
     Trigger: node('Trigger'),
-    Items: () => null,
+    Items: node('Items'),
   });
   return {
     CircularProgressIndicator: () => null,
@@ -148,5 +149,40 @@ describe('Android Conversation screen top app bar at large text', () => {
     expect(bar.maxLines).toBe(1);
     expect(bar.renderedSize).toBe(TITLE_SIZE);
     expect(bar.statusShown).toBe(true);
+  });
+});
+
+describe('Android Session header', () => {
+  it('opens the Session menu from the name capsule, with the full name on top and no ⋯ button', () => {
+    device.fontScale = 1;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <ConversationTopBar
+        variant="session"
+        title={TITLE}
+        leading="drawer"
+        onBack={() => {}}
+        onCompose={() => {}}
+        titleMenu={{
+          label: 'Session options',
+          testID: 'session-options',
+          items: [
+            { label: 'Model choice', testID: 'session-model-choice', icon: 'model', run() {} },
+          ],
+        }}
+      />,
+    );
+    const menus = view.querySelectorAll('[data-node="DropdownMenu"]');
+    expect(menus).toHaveLength(1);
+    expect(
+      menus[0]!.querySelector('[data-node="Trigger"] [data-test-id="chat-identity"]'),
+    ).not.toBeNull();
+    expect(
+      menus[0]!.querySelector('[data-node="Items"] [data-test-id="session-menu-title"]')
+        ?.textContent,
+    ).toBe(TITLE);
+    expect(view.innerHTML).not.toContain('more-vert');
+    expect(view.querySelector('[data-test-id="session-new"]')).not.toBeNull();
+    expect(view.querySelector('[data-test-id="session-drawer-button"]')).not.toBeNull();
   });
 });
