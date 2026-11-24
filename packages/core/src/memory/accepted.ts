@@ -12,6 +12,7 @@ import { createAcceptedLedger } from './accepted-ledger.js';
 import { createAcceptedTurn } from './accepted-turn.js';
 import { createMemoryReads } from './accepted-reads.js';
 import { createAcceptedHumanEdits } from './accepted-human.js';
+import { createAcceptedReviews } from './accepted-review.js';
 import { createAcceptedRepair } from './accepted-repair.js';
 import { createAcceptedVersions } from './accepted-versions.js';
 export { MemoryAcceptError } from './accepted-types.js';
@@ -144,6 +145,13 @@ export function createMemoryAcceptance(options: {
     accept,
     acceptedHead,
   });
+  const reviews = createAcceptedReviews({
+    assertIdle,
+    inFlight,
+    registry,
+    pendingRepair,
+    database,
+  });
   const repair = createAcceptedRepair({
     assertIdle,
     pendingRepair,
@@ -231,6 +239,8 @@ export function createMemoryAcceptance(options: {
     repairHuman: repair.repairHuman,
     saveHuman: humanEdits.saveHuman,
     restoreCommitHuman: humanEdits.restoreCommitHuman,
+    reviewHumanSave: reviews.reviewHumanSave,
+    reviewHumanRestore: reviews.reviewHumanRestore,
     versions: versions.versions,
     nameVersionHuman: versions.nameVersionHuman,
     removeVersionNameHuman: versions.removeVersionNameHuman,

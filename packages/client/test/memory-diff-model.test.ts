@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMemoryDiff } from '../src/client/memory-diff-model.js';
+import { parseMemoryDiff } from '@botharness/host-client/shared/memory-diff-model';
 
 describe('Memory Git diff rows', () => {
   it('numbers context, removals, and additions across independent hunks', () => {

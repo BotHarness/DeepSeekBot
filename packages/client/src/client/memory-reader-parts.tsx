@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { parseMemoryDiff } from './memory-diff-model.js';
+import { parseMemoryDiff } from '@botharness/host-client/shared/memory-diff-model';
 
 export function MemoryViewIconButton({
   action,

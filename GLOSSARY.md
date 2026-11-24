@@ -455,6 +455,10 @@ _Avoid_: Memory tool, filesystem watcher, Git event source, generic repository
 An ordinary Git commit in a Memory Repository. Git authorship and topology remain intact. BotHarness may record the HEAD observed after a trusted operation with its own actor and cause; the record is an audit/recovery checkpoint, not permission for the file to become Memory.
 _Avoid_: accepted commit, file save, filesystem event, auto-save
 
+**Memory Lease**:
+A read-only grant that lets one Tob-owned Assignment read selected Bots' accepted Memory for one Human request in Tob's DM. It is bound to that request's Source Events, the Assignment and each Bot's incarnation, records every read with its revision, and ends when revoked, when the Assignment is archived or when the request is purged. It never permits a write.
+_Avoid_: Memory share, cross-Bot access, Memory permission, borrowed Memory
+
 **Memory Observation**:
 A trusted record of repository state seen by the Host, optionally in the context of an owned Orchestrator Session and Source Event. It describes when the state was seen, not who authored Git content; observation does not stage, commit, reject, or hide current working-tree files.
 _Avoid_: commit acceptance, filesystem watch, background distillation
