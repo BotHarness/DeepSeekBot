@@ -30,7 +30,6 @@ vi.mock('expo-router', () => {
     useRouter: () => ({ push, prefetch: () => undefined }),
   };
 });
-vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
@@ -54,10 +53,8 @@ vi.mock('../src/ui/shell/home-header', () => ({
     </div>
   ),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  useHostDrawerOpen: () => false,
-  HostDrawerEdge: ({ children }: { children: ReactNode | ((height: number) => ReactNode) }) =>
-    typeof children === 'function' ? children(0) : children,
+vi.mock('../src/ui/shell/host-drawer-state', () => ({
+  hostDrawer: { captureWorkspaceSelection: () => () => true },
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/primitives/item-menu', () => ({

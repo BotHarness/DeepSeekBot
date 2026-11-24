@@ -1,6 +1,6 @@
 # iOS workspace paging checks for #3017
 
-The native UIKit page-view controller retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-workspace-panel-3017). Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
+The native UIKit page-view controller retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-chats-pages-3017); ADR-0364 later removed the Workspaces page. Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
 
 | #   | Steps                                                                                                          | Expected                                                                                                                                                |
 | --- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |

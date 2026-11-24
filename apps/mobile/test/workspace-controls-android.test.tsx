@@ -54,7 +54,6 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
 });
 
 import { DrawerListItem } from '../src/ui/primitives/drawer-list-item.android';
-import { WorkspaceAddButton } from '../src/ui/shell/workspace-add.android';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -127,16 +126,6 @@ describe('Android workspace controls', () => {
         .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
     });
     expect(action).not.toHaveBeenCalled();
-    view.close();
-  });
-
-  it('preserves the add action through the shared platform button', () => {
-    const add = vi.fn();
-    const view = mount(<WorkspaceAddButton label="Add computer" onPress={add} />);
-    const button = view.host.querySelector('button')!;
-    expect(button.textContent).toBe('Add computer');
-    act(() => button.click());
-    expect(add).toHaveBeenCalledOnce();
     view.close();
   });
 });

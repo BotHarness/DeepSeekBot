@@ -15,7 +15,6 @@ import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { PullToRefresh, type PullToRefreshScrollProps } from '../primitives/pull-to-refresh';
-import { useHostDrawerOpen } from './host-drawer';
 import type { TobModeHref } from './tob-mode-model';
 import { TobPullIndicator } from './tob-pull-indicator';
 import { tobPullArmed, tobPullCanStart, tobPullOutcome } from './tob-pull-model';
@@ -42,8 +41,7 @@ export function PullToTob({
   ): ReactElement;
 }) {
   const reduced = useSystemReducedMotion();
-  const drawer = useHostDrawerOpen();
-  const active = enabled && !drawer && !refreshing;
+  const active = enabled && !refreshing;
   const current = useRef({ active, scope, hostId, href, onOpen, onRefresh });
   current.current = { active, scope, hostId, href, onOpen, onRefresh };
   const mounted = useRef(false);
@@ -176,7 +174,7 @@ export function PullToTob({
   }));
 
   if (hostId === undefined) {
-    if (!enabled || drawer) return children({});
+    if (!enabled) return children({});
     return (
       <PullToRefresh refreshing={refreshing} onRefresh={onRefresh}>
         {(pull) => children(pull)}
