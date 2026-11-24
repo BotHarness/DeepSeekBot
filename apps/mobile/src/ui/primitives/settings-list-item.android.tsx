@@ -99,6 +99,16 @@ export function SettingsListItem(props: SettingsRowProps) {
   const enabled = toggle === undefined ? onPress !== undefined : toggle.disabled !== true;
   const headline =
     selected === true ? colors.selectedText : tone === 'fg' ? undefined : theme.color[tone];
+  const lines = oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
+  const detailLine =
+    detail === undefined ? null : detailDot === undefined ? (
+      <Text {...lines}>{detail}</Text>
+    ) : (
+      <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
+        <Box modifiers={[size(space.x3, space.x3), clip(Shapes.Circle), background(detailDot)]} />
+        <Text {...lines}>{detail}</Text>
+      </Row>
+    );
   const item = (
     <View
       testID={testID}
@@ -147,33 +157,15 @@ export function SettingsListItem(props: SettingsRowProps) {
                 {title}
               </Text>
             </ListItem.HeadlineContent>
-            {below === undefined ? null : (
+            {below === undefined && detailLine === null ? null : (
               <ListItem.SupportingContent>
-                <Column>
-                  {detail === undefined ? null : <Text>{detail}</Text>}
-                  <Text style={{ typography: 'bodyMedium' }}>{below.text}</Text>
-                </Column>
-              </ListItem.SupportingContent>
-            )}
-            {detail === undefined || below !== undefined ? null : (
-              <ListItem.SupportingContent>
-                {detailDot === undefined ? (
-                  <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
-                    {detail}
-                  </Text>
+                {below === undefined ? (
+                  detailLine
                 ) : (
-                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
-                    <Box
-                      modifiers={[
-                        size(space.x3, space.x3),
-                        clip(Shapes.Circle),
-                        background(detailDot),
-                      ]}
-                    />
-                    <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
-                      {detail}
-                    </Text>
-                  </Row>
+                  <Column>
+                    {detailLine}
+                    <Text style={{ typography: 'bodyMedium' }}>{below.text}</Text>
+                  </Column>
                 )}
               </ListItem.SupportingContent>
             )}

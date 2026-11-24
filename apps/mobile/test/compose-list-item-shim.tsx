@@ -57,6 +57,10 @@ export const components = {
   RNHostView: pass,
   Row: pass,
   Column: pass,
+  Box: ({ modifiers = [] }: { modifiers?: { background?: string }[] }) =>
+    createElement('b', {
+      'data-dot': modifiers.find((modifier) => modifier.background)?.background,
+    }),
 };
 
 export const modifiers = {
@@ -67,6 +71,9 @@ export const modifiers = {
     options?: { role?: string; enabled?: boolean },
   ) => ({ toggled, onClick, ...options }),
   size: () => ({}),
+  clip: () => ({}),
+  background: (background: string) => ({ background }),
+  Shapes: { Circle: 'circle' },
 };
 
 export const rowIconSources = new Proxy({}, { get: (_target, name) => `row-icon:${String(name)}` });

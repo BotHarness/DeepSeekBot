@@ -251,3 +251,33 @@ it.each([
     ).toBe('Environment, A very long Computer name');
   },
 );
+
+it.each([1, 2])('keeps a detail status dot beside a value at font scale %s', async (fontScale) => {
+  device.fontScale = fontScale;
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow
+        title="Studio"
+        detail="Online"
+        detailDot="green-token"
+        control={{ kind: 'value', text: 'QA Host', chevron: true }}
+        onPress={() => {}}
+      />
+    </SettingsSection>,
+  );
+  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  expect(supporting.querySelector('[data-dot]')!.getAttribute('data-dot')).toBe('green-token');
+  expect(supporting.textContent).toContain('Online');
+  expect(supporting.textContent?.includes('QA Host')).toBe(fontScale === 2);
+});
+
+it('keeps a text-only detail without a dot', async () => {
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow title="Storage" detail="Cached files" onPress={() => {}} />
+    </SettingsSection>,
+  );
+  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  expect(supporting.textContent).toBe('Cached files');
+  expect(supporting.querySelector('[data-dot]')).toBeNull();
+});
