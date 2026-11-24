@@ -31,11 +31,16 @@ afterEach(() => {
   scroll.props = undefined;
 });
 
-function revealTo(exact: number, revealPast = HEADING_END) {
+function revealTo(exact: number, revealPast = HEADING_END, snapToOffsets?: number[]) {
+  act(() => root?.unmount());
   root = createRoot(document.createElement('div'));
   act(() =>
     root!.render(
-      <KeyboardFormScroll revealPast={revealPast} revealBands={[GOOGLE, APPLE]}>
+      <KeyboardFormScroll
+        revealPast={revealPast}
+        revealBands={[GOOGLE, APPLE]}
+        {...(snapToOffsets ? { snapToOffsets } : {})}
+      >
         <span>Sign in</span>
       </KeyboardFormScroll>,
     ),
@@ -65,4 +70,8 @@ it('keeps the exact keyboard reveal once it passes the heading and the provider 
 
 it('keeps the exact keyboard reveal in forms without a heading', () => {
   expect(revealTo(140, 0)).toBe(140);
+});
+
+it('keeps the stops a form passes itself when it has no heading', () => {
+  expect(revealTo(140, 0, [180])).toBe(180);
 });
