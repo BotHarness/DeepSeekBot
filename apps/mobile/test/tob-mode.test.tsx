@@ -85,7 +85,9 @@ state.context = (await import('../src/ui/shell/entrance-settled')).EntranceSettl
 const { useStackRoot } = await import('../src/ui/shell/stack-root');
 const {
   containerTransform,
+  containerTransformExit,
   containerTransformFade,
+  exitDone,
   containerTransformFrame,
   tobComputer,
   tobModeHostId,
@@ -234,6 +236,16 @@ describe('the container transform', () => {
       radius: 0,
       content: { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1 },
     });
+  });
+
+  it('fades the whole entrance out over the end of the exit so the real bar shows again', () => {
+    expect(containerTransformExit(0, false)).toBe(1);
+    expect(containerTransformExit(0.5, true)).toBe(1);
+    expect(containerTransformExit(0.15, true)).toBe(1);
+    expect(containerTransformExit(0.1, true)).toBeGreaterThan(0);
+    expect(containerTransformExit(0.1, true)).toBeLessThan(1);
+    expect(containerTransformExit(exitDone, true)).toBe(0);
+    expect(containerTransformExit(0, true)).toBe(0);
   });
 
   it('starts near full size when the bar was not measured', () => {
