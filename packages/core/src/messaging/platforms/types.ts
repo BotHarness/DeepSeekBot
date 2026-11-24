@@ -70,6 +70,7 @@ export interface DshImPlatformProfile<Id extends MessagingPlatformId = Messaging
     reachableConversations?: true;
     targetPost?: { required: readonly string[] };
     mentionMarkup?: true;
+    interactions?: true;
   };
   sendRequires?: readonly string[];
   checkedSendFallback?(host: DshImOutboundService, has: Capabilities): boolean;

@@ -9,7 +9,9 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
+import { createInteractionAuthority, type InteractionContext } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
+import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import { assertMessagingIdentity, type MessagingIdentity } from './identity.js';
 import {
   MessagingError,
@@ -117,6 +119,7 @@ export function createApprovalMessaging(options: {
   warn?(message: string): void;
 }): ApprovalMessaging {
   const { database, pairing } = options;
+  const authority = createInteractionAuthority(options);
   let owner: ChannelToolApproval | undefined;
   let channels: ChannelStore | undefined;
   let closed = false;
@@ -164,16 +167,16 @@ export function createApprovalMessaging(options: {
   const resolve = (
     value: ApprovalRoute,
   ): { identity: MessagingIdentity; paired: PairingRequest; provider: MessagingProvider } => {
-    if (closed || !options.isBotActive(value.botSlug)) throw new MessagingError('bot-unavailable');
-    const identity = database.read((db) => assertMessagingIdentity(db, value.bindingId));
-    if (identity.botSlug !== value.botSlug || identity.platform !== 'feishu')
+    if (closed) throw new MessagingError('bot-unavailable');
+    let granted: InteractionContext;
+    try {
+      granted = authority.context(value);
+    } catch (error) {
+      if (error instanceof MessagingError && error.code === 'bot-unavailable') throw error;
       throw new MessagingError('approval-route-unavailable');
-    const paired = pairing.list(value.botSlug).find((p) => p.id === value.pairingId);
+    }
+    const { identity, paired } = granted;
     if (
-      !paired ||
-      paired.bindingId !== identity.id ||
-      paired.revision !== value.pairingRevision ||
-      paired.status !== 'approved' ||
       (paired.purpose === 'conversation' && paired.conversationKind !== 'dm') ||
       !paired.capabilities.some((c) => c === 'approve' || c === 'reject' || c === 'answer')
     )
@@ -342,7 +345,8 @@ export function createApprovalMessaging(options: {
       const identity = database.read((db) => assertMessagingIdentity(db, value.route.bindingId));
       if (
         identity.botSlug !== value.botSlug ||
-        identity.platform !== 'feishu' ||
+        !isMessagingPlatform(identity.platform) ||
+        !messagingPlatform(identity.platform).features.interactions ||
         saved.externalCreator?.fingerprint !== identity.fingerprint ||
         saved.externalCreator.bindingId !== identity.id
       )
@@ -774,21 +778,13 @@ export function createApprovalMessaging(options: {
             !requestLive(value)
           )
             return false;
-          const context = resolve(value.route);
-          const paired = pairing.assert(
-            value.botSlug,
-            context.identity.id,
-            event.actorId,
-            event.action === 'rejected' ? 'reject' : 'approve',
-            value.route.pairingId,
-          );
           return (
-            context.identity.providerId === providerId &&
-            context.identity.accountRef === event.botId &&
-            context.identity.fingerprint === event.fingerprint &&
-            paired.id === value.route.pairingId &&
-            paired.revision === value.route.pairingRevision &&
-            paired.conversationId === event.conversationId &&
+            authority.authorize(
+              value.route,
+              { ...event, providerId },
+              event.action === 'rejected' ? 'reject' : 'approve',
+              value.receipt?.conversationId ?? '',
+            ) !== undefined &&
             value.delivery === 'sent' &&
             value.receipt?.conversationId === event.conversationId &&
             value.receipt.messageId === event.messageId
@@ -873,16 +869,13 @@ export function createApprovalMessaging(options: {
           ruleAllowed(value, confirmedRule.kind)
         );
       };
-      const actor: ToolApprovalActor = {
-        platform: 'feishu',
-        bindingId: context.identity.id,
-        fingerprint: event.fingerprint,
-        actorId: event.actorId,
-        pairingId: value.route.pairingId,
-        pairingRevision: value.route.pairingRevision,
-        conversationId: event.conversationId,
-        messageId: event.messageId,
-      };
+      const actor = authority.authorize(
+        value.route,
+        { ...event, providerId },
+        event.action === 'rejected' ? 'reject' : 'approve',
+        event.conversationId,
+      );
+      if (!actor) return { accepted: true, status: 'refused' };
       queueMicrotask(
         () =>
           void owner

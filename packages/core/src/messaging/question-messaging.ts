@@ -4,9 +4,9 @@ import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/type
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelQuestionNotice, ChannelUserQuestions } from '../channels/user-questions.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 import type { ApprovalMessaging, ApprovalRoute } from './approval-messaging.js';
-import { assertMessagingIdentity } from './identity.js';
+import { createInteractionAuthority, type InteractionContext } from './authority.js';
+import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
   explainQuestionReply,
   parseQuestionReply,
@@ -64,7 +64,8 @@ export function createQuestionMessaging(options: {
   recover?: boolean;
   warn?(message: string): void;
 }): QuestionMessaging {
-  const { database, pairing } = options;
+  const { database } = options;
+  const authority = createInteractionAuthority(options);
   let owner: ChannelUserQuestions | undefined;
   let channels: ChannelStore | undefined;
   let detach: (() => void) | undefined;
@@ -124,19 +125,16 @@ export function createQuestionMessaging(options: {
       selected.pairingId !== value.route.pairingId
     )
       throw new MessagingError('approval-route-stale');
-    const identity = database.read((db) => assertMessagingIdentity(db, value.route.bindingId));
-    if (identity.botSlug !== value.botSlug || identity.platform !== 'feishu')
-      throw new MessagingError('untrusted-source');
-    const paired = pairing.list(value.botSlug).find((item) => item.id === value.route.pairingId);
-    if (
-      !paired ||
-      paired.status !== 'approved' ||
-      paired.bindingId !== identity.id ||
-      paired.revision !== value.route.pairingRevision ||
-      !paired.capabilities.includes('answer')
-    )
+    let granted: InteractionContext;
+    try {
+      granted = authority.context(value.route);
+    } catch (error) {
+      if (error instanceof MessagingError && error.code === 'untrusted-source') throw error;
       throw new MessagingError('question-answer-unavailable');
-    const provider = options.provider(identity.providerId);
+    }
+    const { identity, paired, provider } = granted;
+    if (!paired.capabilities.includes('answer'))
+      throw new MessagingError('question-answer-unavailable');
     if (!provider.questionCard) throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
@@ -344,28 +342,26 @@ export function createQuestionMessaging(options: {
       void update(value.id);
     }
   };
-  const authorized = (
+  const answerer = (
     value: QuestionDelivery,
     providerId: string,
-    event: { botId: string; fingerprint: string; actorId: string; conversationId: string },
-  ) => {
-    try {
-      const { identity, paired } = context(value);
-      const current = pairing.assert(value.botSlug, identity.id, event.actorId, 'answer');
-      return (
-        safe(value) &&
-        live(value) &&
-        identity.providerId === providerId &&
-        identity.accountRef === event.botId &&
-        identity.fingerprint === event.fingerprint &&
-        paired.id === current.id &&
-        current.revision === value.route.pairingRevision &&
-        paired.conversationId === event.conversationId
-      );
-    } catch {
-      return false;
-    }
-  };
+    event: {
+      botId: string;
+      fingerprint: string;
+      actorId: string;
+      conversationId: string;
+      messageId: string;
+    },
+  ) =>
+    safe(value) && live(value)
+      ? authority.authorize(
+          value.route,
+          { ...event, providerId },
+          'answer',
+          value.receipt?.conversationId ?? event.conversationId,
+        )
+      : undefined;
+  const authorized = (...input: Parameters<typeof answerer>) => answerer(...input) !== undefined;
   const submit = (
     value: QuestionDelivery,
     answer: AskUserQuestionAnswer,
@@ -383,20 +379,11 @@ export function createQuestionMessaging(options: {
       signal.aborted ||
       value.status !== 'pending' ||
       ['submitting', 'unknown-outcome'].includes(value.submission) ||
-      value.delivery !== 'sent' ||
-      !authorized(value, providerId, event)
+      value.delivery !== 'sent'
     )
       return false;
-    const actor: ToolApprovalActor = {
-      platform: 'feishu',
-      bindingId: value.route.bindingId,
-      fingerprint: event.fingerprint,
-      actorId: event.actorId,
-      pairingId: value.route.pairingId,
-      pairingRevision: value.route.pairingRevision,
-      conversationId: event.conversationId,
-      messageId: event.messageId,
-    };
+    const actor = answerer(value, providerId, event);
+    if (!actor) return false;
     write({ ...value, submission: 'submitting' });
     queueMicrotask(() => {
       void owner
@@ -527,7 +514,8 @@ export function createQuestionMessaging(options: {
       );
       const sender = { ...event, actorId: event.actor.id, conversationId: event.conversation.id };
       const supported =
-        event.channel === 'feishu' &&
+        isMessagingPlatform(event.channel) &&
+        !!messagingPlatform(event.channel).features.interactions &&
         event.conversation.kind === 'dm' &&
         !event.attachments?.length;
       const quoted = candidates.find((value) => value.receipt?.messageId === event.reply.parentId);
