@@ -1,6 +1,7 @@
 import {
   Box,
   CircularProgressIndicator,
+  Column,
   Host,
   Icon,
   ListItem,
@@ -25,6 +26,7 @@ import { loadingIndicator, space } from '../design/tokens';
 import { ROW_ICON_SOURCES } from './row-icon-source.android';
 import {
   settingsRowLabel,
+  valueBelowTitle,
   type SettingsRowControl,
   type SettingsRowProps,
 } from './settings-row-model';
@@ -41,7 +43,9 @@ function TrailingControl({ control }: { control: SettingsRowControl }) {
     case 'value':
       return (
         <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
-          <Text style={{ typography: 'bodyMedium' }}>{control.text}</Text>
+          <Text style={{ typography: 'bodyMedium' }} maxLines={1} overflow="ellipsis">
+            {control.text}
+          </Text>
           {control.chevron === true ? <Icon source={ROW_ICON_SOURCES.chevron} size={ICON} /> : null}
         </Row>
       );
@@ -87,6 +91,9 @@ export function SettingsListItem(props: SettingsRowProps) {
   const fill = selected === true ? colors.selected : theme.layer[on].fill;
   const control: SettingsRowControl | undefined =
     props.control ?? (disclosure && trailing === undefined ? { kind: 'chevron' } : undefined);
+  const below = valueBelowTitle(control, theme.largeText) ? control : undefined;
+  const end: SettingsRowControl | undefined =
+    below === undefined ? control : below.chevron === true ? { kind: 'chevron' } : undefined;
   const toggle = control?.kind === 'switch' ? control : undefined;
   const activate = toggle === undefined ? onPress : () => toggle.onChange(!toggle.value);
   const enabled = toggle === undefined ? onPress !== undefined : toggle.disabled !== true;
@@ -140,7 +147,15 @@ export function SettingsListItem(props: SettingsRowProps) {
                 {title}
               </Text>
             </ListItem.HeadlineContent>
-            {detail === undefined ? null : (
+            {below === undefined ? null : (
+              <ListItem.SupportingContent>
+                <Column>
+                  {detail === undefined ? null : <Text>{detail}</Text>}
+                  <Text style={{ typography: 'bodyMedium' }}>{below.text}</Text>
+                </Column>
+              </ListItem.SupportingContent>
+            )}
+            {detail === undefined || below !== undefined ? null : (
               <ListItem.SupportingContent>
                 {detailDot === undefined ? (
                   <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
@@ -177,9 +192,9 @@ export function SettingsListItem(props: SettingsRowProps) {
                 )}
               </ListItem.LeadingContent>
             )}
-            {control === undefined ? null : (
+            {end === undefined ? null : (
               <ListItem.TrailingContent>
-                <TrailingControl control={control} />
+                <TrailingControl control={end} />
               </ListItem.TrailingContent>
             )}
           </ListItem>

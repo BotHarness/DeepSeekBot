@@ -667,6 +667,7 @@ Platform references: [Apple Dynamic Type and adaptive layouts](https://developer
 
 ### Reflow the task, not only the text
 
+- **Settings value rows.** A row's label never breaks inside a word to make room for its value. At default sizes the value sits at the trailing edge on one line, truncating with an ellipsis. At large text (`theme.largeText`) it moves to its own line under the label, with only the chevron left at the trailing edge: Android `SettingsListItem` puts it in the supporting slot (`valueBelowTitle`), and iOS `LabeledContent` stacks it natively. The value stays in the row's accessible label.
 - Let rows and controls grow using padding and minimum sizes. Wrap essential titles, action labels, validation and request details. Secondary previews may truncate only when complete content remains reachable; never hide the information needed to make an approval or form decision.
 - iOS context-menu triggers renew their self-sizing SwiftUI Host when the system font scale changes; ordinary content updates keep it mounted. Activity toolbar SF Symbols share the header-action `xxxLarge` ceiling inside their 44pt targets. This local bound applies only to symbols, not conversation text, native menu labels or accessibility names.
 - Stack crowded metadata and actions; give the conversation, message or decision priority over decorative labels, timestamps and charts. Keep a stable semantic role when moving content. Move secondary detail behind an accessible entry rather than squeezing the primary content.

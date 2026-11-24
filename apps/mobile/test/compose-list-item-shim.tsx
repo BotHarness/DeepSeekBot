@@ -56,6 +56,7 @@ export const components = {
   CircularProgressIndicator: () => createElement('progress', { 'data-native-busy': '' }),
   RNHostView: pass,
   Row: pass,
+  Column: pass,
 };
 
 export const modifiers = {
