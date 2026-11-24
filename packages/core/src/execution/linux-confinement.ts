@@ -13,6 +13,7 @@ export interface ExecutionPlan {
   writable: string[];
   hidden: string[];
   tools?: string[] | undefined;
+  pathEnv?: string | undefined;
   home: string;
   resolvConf?: string | undefined;
 }
@@ -158,6 +159,7 @@ export function bwrapArgs(
     'TMPDIR',
     '/tmp',
   );
+  if (plan.pathEnv !== undefined) args.push('--setenv', 'PATH', plan.pathEnv);
   return args;
 }
 

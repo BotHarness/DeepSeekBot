@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   bwrapArgs,
@@ -161,6 +161,8 @@ describe('member Bot execution plan', () => {
   });
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
+  afterEach(() => vi.unstubAllEnvs());
+
   it('refuses a command without a calling Session while Team mode is on', () => {
     expect(memberExecutionPlan(fixture(root).core, join(root, 'dsh'), undefined)).toEqual({
       kind: 'refused',
@@ -262,6 +264,48 @@ describe('member Bot execution plan', () => {
     expect(args.indexOf('/srv')).toBeLessThan(args.indexOf('/srv/a'));
     expect(args.join(' ')).toContain('--ro-bind-data 9 /etc/resolv.conf');
   });
+
+  it.skipIf(process.platform !== 'linux')(
+    'keeps a tool directory on PATH when its alias is hidden',
+    () => {
+      const f = fixture(root);
+      const hostHome = join(root, 'host-home');
+      const tools = join(hostHome, 'fnm', 'bin');
+      const alias = join(f.dsh, 'tool-bin');
+      mkdirSync(tools, { recursive: true });
+      symlinkSync(tools, alias, 'dir');
+      vi.stubEnv('HOME', hostHome);
+      vi.stubEnv('PATH', `${alias}:/bin:relative-bin`);
+
+      const result = memberExecutionPlan(f.core, f.dsh, 'ada-chat');
+      if (result.kind !== 'plan') throw new Error(result.kind);
+      const args = bwrapArgs(result.plan, 'workspace-write');
+      expect(args.join(' ')).toContain(`--ro-bind-try ${tools} ${tools}`);
+      expect(args.join(' ')).toContain(`--setenv PATH ${tools}:/bin:relative-bin`);
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'keeps hidden contents and unauthorized tool targets masked when PATH contains aliases',
+    () => {
+      const f = fixture(root);
+      const otherBotBin = join(f.work.gamma, 'bin');
+      const alias = join(f.dsh, 'private-tool-bin');
+      mkdirSync(otherBotBin, { recursive: true });
+      symlinkSync(otherBotBin, alias, 'dir');
+      const argsForPath = (path: string) => {
+        vi.stubEnv('PATH', path);
+        const result = memberExecutionPlan(f.core, f.dsh, 'ada-chat');
+        if (result.kind !== 'plan') throw new Error(result.kind);
+        return bwrapArgs(result.plan, 'workspace-write');
+      };
+
+      const usualArgs = argsForPath('/usr/bin');
+      expect(usualArgs.join(' ')).toContain(`--tmpfs ${f.dsh}`);
+      expect(usualArgs.join(' ')).toContain(`--tmpfs ${f.work.gamma}`);
+      expect(argsForPath(`${alias}:/usr/bin`)).toEqual(usualArgs);
+    },
+  );
 
   it('names secret environment variables for removal', () => {
     expect(

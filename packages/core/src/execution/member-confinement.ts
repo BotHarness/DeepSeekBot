@@ -108,6 +108,7 @@ export function memberExecutionPlan(
     return { kind: 'refused', reason: 'the Session has no authorized folder' };
   const home = join(dirname(memory), 'home');
   mkdirSync(home, { recursive: true, mode: 0o700 });
+  const resolvedHome = real(home);
   const allowed = [...readable, home];
   const others = [
     ...core.registry.list().flatMap((record) => {
@@ -122,15 +123,33 @@ export function memberExecutionPlan(
       .filter((path) => !allowed.includes(path)),
   );
   const sensitive = [real(dshHome), real(homedir()), ...others];
-  const tools = [...(process.env['PATH'] ?? '').split(':'), dirname(dirname(process.execPath))]
-    .filter((path) => path.startsWith('/') && existsSync(path))
-    .map(real)
-    .filter(
+  const hostPath = process.env['PATH'] ?? '';
+  const pathEntries = hostPath.split(':');
+  const resolvedPaths = new Map(
+    [...pathEntries, dirname(dirname(process.execPath))]
+      .filter((path) => path.startsWith('/') && existsSync(path))
+      .map((path) => [path, real(path)]),
+  );
+  const tools = new Set(
+    [...resolvedPaths.values()].filter(
       (path) =>
         hidden.some((root) => within(root, path)) &&
         !sensitive.some((secret) => within(path, secret)) &&
         ![real(dshHome), ...others].some((secret) => within(secret, path)),
-    );
+    ),
+  );
+  const masked = [...hidden, '/tmp'];
+  const mounted = [...tools, ...readable, resolvedHome];
+  const isVisible = (path: string) =>
+    !masked.some((root) => within(root, path)) || mounted.some((root) => within(root, path));
+  const sandboxPath = pathEntries
+    .map((entry) => {
+      const target = resolvedPaths.get(entry);
+      if (target === undefined || target === entry || target.includes(':') || isVisible(entry))
+        return entry;
+      return isVisible(target) ? target : entry;
+    })
+    .join(':');
   return {
     kind: 'plan',
     botSlug: root.botSlug,
@@ -138,8 +157,9 @@ export function memberExecutionPlan(
       readable,
       writable,
       hidden,
-      tools: [...new Set(tools)],
-      home: real(home),
+      tools: [...tools],
+      pathEnv: sandboxPath === hostPath ? undefined : sandboxPath,
+      home: resolvedHome,
       resolvConf: resolverTarget(),
     },
   };
