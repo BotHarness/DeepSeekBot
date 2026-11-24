@@ -93,7 +93,7 @@ export function ComputerVideoHeader({
       >
         <SystemSymbol
           name={{ ios: 'desktopcomputer', android: 'computer' }}
-          size={theme.type.body.line}
+          size={theme.type.body.line * theme.fontScale}
           color={theme.color.fg}
         />
         <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -109,7 +109,7 @@ export function ComputerVideoHeader({
         />
         <SystemSymbol
           name={symbol[controller]}
-          size={theme.type.body.line}
+          size={theme.type.body.line * theme.fontScale}
           color={theme.color.fg}
         />
       </View>

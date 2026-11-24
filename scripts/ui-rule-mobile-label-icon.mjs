@@ -36,6 +36,19 @@ function fixedSwiftSymbol(opening) {
   });
 }
 
+function clampedScale(size) {
+  if (!size.isCallExpression()) return false;
+  const callee = size.get('callee');
+  if (!callee.isIdentifier()) return false;
+  const binding = callee.scope.getBinding(callee.node.name)?.path;
+  return (
+    binding?.isImportSpecifier() &&
+    binding.node.imported.name === 'clampScaledIconSize' &&
+    binding.parent.source.value.endsWith('/design/scaled-icon-size') &&
+    scaleInSize(size.get('arguments.1'))
+  );
+}
+
 function originalName(opening) {
   const path = opening.get('name');
   if (!path.isJSXIdentifier()) return jsxName(opening.node.name);
@@ -53,7 +66,7 @@ export function mobileLabelIcon(file, ast) {
       } else {
         if (!ICON.test(name ?? '')) return;
         const size = ['size', 'iconSize'].map((key) => attribute(opening, key)).find(Boolean);
-        if (!size?.node || scaleInSize(size)) return;
+        if (!size?.node || scaleInSize(size) || clampedScale(size)) return;
       }
       const parent = opening.parentPath.parentPath;
       if (!parent?.isJSXElement()) return;

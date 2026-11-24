@@ -12,6 +12,7 @@ import {
   type MessageAttachment,
 } from '@botharness/host-client/conversation';
 import { spring } from '../design/motion';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { edge, radius, space } from '../design/tokens';
 import { islandStyle } from '../design/island';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
@@ -43,6 +44,10 @@ export {
   type MessageMenuTarget,
 } from './message-sheet';
 
+function menuRowHeight(theme: DesignTheme) {
+  return Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3 * 2);
+}
+
 export function menuSizes(theme: DesignTheme, rows: number, reactions: boolean) {
   return {
     bar: reactions ? theme.touch + space.x2 * 2 : 0,
@@ -50,7 +55,7 @@ export function menuSizes(theme: DesignTheme, rows: number, reactions: boolean) 
       theme.type.meta.line +
       space.x4 +
       space.x2 +
-      rows * theme.touch +
+      rows * menuRowHeight(theme) +
       Math.max(0, rows - 1) * edge.hairline,
     menuWidth: theme.touch * 5,
     islandWidth:
@@ -430,7 +435,8 @@ function MessageMenu({
                       onClose();
                     }}
                     style={({ pressed }) => ({
-                      height: theme.touch,
+                      minHeight: theme.touch,
+                      paddingVertical: space.x3,
                       flexDirection: islands ? 'row-reverse' : 'row',
                       alignItems: 'center',
                       gap: space.x4,
@@ -444,7 +450,11 @@ function MessageMenu({
                     <ActionIcon
                       action={action}
                       color={theme.color.fg}
-                      size={theme.type.title.line}
+                      size={clampScaledIconSize(
+                        theme.type.title.line,
+                        theme.fontScale,
+                        theme.touch,
+                      )}
                     />
                   </Pressable>
                 </Fragment>

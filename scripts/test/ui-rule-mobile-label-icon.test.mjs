@@ -38,6 +38,26 @@ describe('mobile label icon', () => {
     ).toEqual([]);
   });
 
+  it('accepts a glyph clamped to its fixed slot, and rejects a clamp that ignores the font scale', () => {
+    expect(
+      check(`
+        import { clampScaledIconSize } from '../design/scaled-icon-size';
+        export function Tile({ theme, slot }) {
+          return <>
+            <View>
+              <PhotoIcon size={clampScaledIconSize(theme.type.title.line, theme.fontScale, slot)} />
+              <Text>{fallback}</Text>
+            </View>
+            <View>
+              <PhotoIcon size={clampScaledIconSize(theme.type.title.line, 1, slot)} />
+              <Text>{fallback}</Text>
+            </View>
+          </>;
+        }
+      `),
+    ).toEqual([['unscaledLabelIcon', 'PhotoIcon', 10]]);
+  });
+
   it('ignores icon-only controls, which follow the header-action ceiling', () => {
     expect(
       check(`

@@ -385,7 +385,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
   const fixedIconProblems = found.filter(({ rule }) =>
-    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight'].includes(rule),
+    ['fixedIconScale', 'scaledActionBox', 'fixedButtonHeight', 'unscaledLabelIcon'].includes(rule),
   );
   if (fixedIconProblems.length) {
     for (const line of fixedIconProblems.map(describeFinding)) console.error(`ui rules: ${line}`);
