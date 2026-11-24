@@ -8,7 +8,7 @@ import { useDesignTheme } from '../design/theme';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
 import { leaveScreen } from '../shell/leave-screen';
-import { useHideChromeWhile } from '../shell/tab-chrome';
+import { HideChromeWhile } from '../shell/tab-chrome';
 import { useConversationPagePair } from './conversation-page-pair';
 import { ConversationScreen } from './conversation-screen';
 
@@ -23,7 +23,7 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
   const hostId = props.expectedHostId ?? origin;
   const pager = useRef<PagerView>(null);
   const [visible, setVisible] = useState(false);
-  useHideChromeWhile(visible && use(ChatIslandInset) > 0);
+  const island = use(ChatIslandInset) > 0;
   const [enabled, setEnabled] = useState(false);
   const [activity, setActivity] = useState<ProfileActivitySource>();
   const move = useCallback(
@@ -45,6 +45,7 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: !visible }} />
+      {island ? <HideChromeWhile hidden={visible} /> : null}
       <PagerView
         ref={pager}
         testID="conversation-profile-pager"

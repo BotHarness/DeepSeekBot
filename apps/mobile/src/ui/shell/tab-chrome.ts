@@ -87,7 +87,7 @@ export function useHideChromeOnScroll(enabled: boolean) {
   });
 }
 
-export function useHideChromeWhile(hidden: boolean) {
+function useHideChromeWhile(hidden: boolean) {
   const chrome = useTabChrome();
   const reduced = useSystemReducedMotion();
   useFocusEffect(
@@ -102,4 +102,9 @@ export function useHideChromeWhile(hidden: boolean) {
       return () => move(0);
     }, [chrome, hidden, reduced]),
   );
+}
+
+export function HideChromeWhile({ hidden }: { hidden: boolean }) {
+  useHideChromeWhile(hidden);
+  return null;
 }

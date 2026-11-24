@@ -13,7 +13,7 @@ import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import { useEntranceSettled } from '../shell/entrance-settled';
-import { useHideChromeWhile } from '../shell/tab-chrome';
+import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
@@ -184,7 +184,7 @@ function ChatConversation({
   }, [nestedChange, profileOpen]);
   const [profileVisited, setProfileVisited] = useState(false);
   const [profileOpening, setProfileOpening] = useState(false);
-  useHideChromeWhile(android && use(ChatIslandInset) > 0 && (profileOpen || profileOpening));
+  const island = use(ChatIslandInset) > 0;
   const prepareProfile = () => {
     setProfileVisited(true);
     setProfileOpening(true);
@@ -399,13 +399,12 @@ function ChatConversation({
     header,
     notice,
   });
-  return composeOnOpen ? (
+  return (
     <>
       {screenTree}
-      <ComposeOnOpen ready={focused && composable} compose={compose} />
+      {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
+      {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
     </>
-  ) : (
-    screenTree
   );
 }
 
