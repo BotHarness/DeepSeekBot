@@ -106,7 +106,7 @@ export function CreateChannelScreen() {
       }
       if (!focus.current || AppState.currentState !== 'active') return;
       conversationFilter.set(computerEnvironmentKey(target.hostId));
-      router.replace({
+      router.dismissTo({
         pathname: '/channel/[id]',
         params: { id: current.result, hostId: target.hostId },
       });

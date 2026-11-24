@@ -1,14 +1,14 @@
 import type { ProfileActivitySource } from '../chat/profile-paging';
 import { useIsFocused, useSegments } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, View, type ViewInstance } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import { useHostSession } from '../../host/host-session';
 import { useConversationPagePair } from '../chat/conversation-page-pair';
 import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
-import { ChatsPagingContext } from './chats-paging';
+import { ChatsPagingContext, chatsListSegments } from './chats-paging';
 import { WorkspacePanel } from './host-drawer';
 import { lastChatSource } from './last-chat-source';
 import { lastChat, useRecentChats } from './recent-chats';
@@ -25,7 +25,11 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const [forward, setForward] = useState(false);
   const [profileEnabled, setProfileEnabled] = useState(false);
   const [activity, setActivity] = useState<ProfileActivitySource>();
-  const home = shellFocused && segments.some((segment) => segment === '(home)');
+  const home = shellFocused && chatsListSegments(segments);
+  const stacked =
+    shellFocused &&
+    segments.some((segment) => segment === '(home)') &&
+    !chatsListSegments(segments);
   const next = lastChat(
     recent,
     hosts.map((host) => host.hostId),
@@ -58,6 +62,9 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
     },
     [reduced, shellFocused],
   );
+  const snap = useMounted<ViewInstance>(() => {
+    if (stacked && page !== 1) native.current?.setPageWithoutAnimation(1);
+  }, [stacked, page]);
   const open = useCallback(() => move(3), [move]);
   const close = useCallback(() => move(2), [move]);
   const leaveChat = useCallback(() => move(1), [move]);
@@ -102,6 +109,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
       </View>
       <View
         key="chats"
+        ref={snap}
         testID="workspace-chats-page"
         collapsable={false}
         accessibilityElementsHidden={page !== 1}

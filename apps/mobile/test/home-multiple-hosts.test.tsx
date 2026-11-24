@@ -187,15 +187,15 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     );
     expect(row).toBeDefined();
     channelHistory.push('dm/[slug]', { slug: 'same', hostId: 'a' });
-    const originalRoute = channelHistory.state.routes.at(-1)?.key;
+    const originalRoute = channelHistory.visible?.key;
     await act(async () => row?.click());
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       name: 'dm/[slug]',
       params: { slug: 'same', hostId: 'b' },
     });
-    expect(channelHistory.state.routes).toHaveLength(3);
+    expect(channelHistory.chats).toHaveLength(3);
     channelHistory.back();
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       key: originalRoute,
       params: { slug: 'same', hostId: 'a' },
     });

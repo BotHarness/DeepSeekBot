@@ -19,7 +19,7 @@ const fixture = vi.hoisted(() => ({
   >,
   appState: 'active',
   appStateChanged: undefined as undefined | ((value: string) => void),
-  replaced: undefined as unknown,
+  opened: undefined as unknown,
   screen: vi.fn(),
   back: vi.fn(),
   push: vi.fn(),
@@ -90,8 +90,8 @@ vi.mock('expo-router', () => ({
     back: fixture.back,
     push: fixture.push,
     dismiss: fixture.dismiss,
-    replace: (route: unknown) => {
-      fixture.replaced = route;
+    dismissTo: (route: unknown) => {
+      fixture.opened = route;
     },
   },
   useLocalSearchParams: () => fixture.params,
@@ -359,13 +359,13 @@ vi.mock('../src/ui/chat/conversation-screen', () => ({
 
 import { CreateBotScreen, CreateBotStepScreen } from '../src/ui/shell/create-bot-screen';
 import { CreationFlowLayout } from '../src/ui/shell/creation-flow';
-import DmScreen from '../app/dm/[slug]';
+import DmScreen from '../app/(tabs)/(home)/dm/[slug]';
 import { t } from '../src/ui/strings';
 
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
-  fixture.replaced = undefined;
+  fixture.opened = undefined;
   fixture.appState = 'active';
   fixture.params = { entry: 'host', hostId: 'A' };
   fixture.feeds = [];
@@ -505,7 +505,7 @@ it('walks Environment, name and persona pages, then opens the new Bot from the l
   await act(async () => finish?.());
   expect(canonical?.status).toBe('created');
   expect(operation?.input.displayName).toBe('New Bot');
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });
@@ -613,7 +613,7 @@ it('keeps details while changing the Environment and submits the selected one', 
     roles: ['travel', 'family'],
   });
   await act(async () => finish?.());
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'B' },
   });
@@ -657,9 +657,9 @@ it('recovers a lost response after backgrounding and opens only on explicit requ
   await press('create-bot-submit');
   await act(async () => fixture.appStateChanged?.('background'));
   await act(async () => finish?.());
-  expect(fixture.replaced).toBeUndefined();
+  expect(fixture.opened).toBeUndefined();
   await act(async () => fixture.appStateChanged?.('active'));
-  expect(fixture.replaced).toBeUndefined();
+  expect(fixture.opened).toBeUndefined();
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(
     t.botCreation.errors.unreachable,
   );
@@ -667,7 +667,7 @@ it('recovers a lost response after backgrounding and opens only on explicit requ
   expect(controller.getSnapshot().receipt?.status).toBe('created');
   expect(operation?.operationKey).toBe('creation-screen-operation');
   expect(creates).toBe(1);
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });
@@ -701,9 +701,9 @@ it('offers explicit opening after successful completion in the background', asyn
   await act(async () => fixture.appStateChanged?.('background'));
   await act(async () => finish?.());
   await act(async () => fixture.appStateChanged?.('active'));
-  expect(fixture.replaced).toBeUndefined();
+  expect(fixture.opened).toBeUndefined();
   await press('create-bot-open');
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });
@@ -760,7 +760,7 @@ it.each(['git', 'marketplace', 'zip'] as const)(
     );
     await act(async () => finish?.());
     expect(fixture.dismiss).not.toHaveBeenCalled();
-    expect(fixture.replaced).toEqual({
+    expect(fixture.opened).toEqual({
       pathname: '/dm/[slug]',
       params: { slug: 'new-bot', hostId: 'A' },
     });
@@ -777,13 +777,13 @@ it.each(['git', 'marketplace', 'zip'] as const)(
     const accepted = structuredClone(operation);
     await act(async () => fixture.appStateChanged?.('background'));
     await act(async () => finish?.());
-    expect(fixture.replaced).toBeUndefined();
+    expect(fixture.opened).toBeUndefined();
     await act(async () => fixture.appStateChanged?.('active'));
     await press('create-bot-retry');
     expect(operation).toEqual(accepted);
     expect(creates).toBe(1);
     expect(controller.getSnapshot().receipt).toEqual(canonical);
-    expect(fixture.replaced).toEqual({
+    expect(fixture.opened).toEqual({
       pathname: '/dm/[slug]',
       params: { slug: 'new-bot', hostId: 'A' },
     });
@@ -860,7 +860,7 @@ it('restores a missing archive through the existing owner and retries the pinned
   createError = undefined;
   await press('create-bot-retry');
   expect(operation).toEqual(submitted);
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });
@@ -887,7 +887,7 @@ it.each([
     expect(applied).toEqual([{ channelId: 'dm-new-bot', avatar }]);
     expect(disk).not.toHaveProperty('avatar');
     expect(controller.getSnapshot().notice).toBeUndefined();
-    expect(fixture.replaced).toEqual({
+    expect(fixture.opened).toEqual({
       pathname: '/dm/[slug]',
       params: { slug: 'new-bot', hostId: 'A' },
     });
@@ -908,7 +908,7 @@ it('keeps the created Bot and raises a notice when its avatar cannot be applied'
   expect(controller.getSnapshot().receipt?.status).toBe('created');
   expect(controller.getSnapshot().error).toBeUndefined();
   expect(controller.getSnapshot().notice).toBe('avatar-failed');
-  expect(fixture.replaced).toEqual({
+  expect(fixture.opened).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });

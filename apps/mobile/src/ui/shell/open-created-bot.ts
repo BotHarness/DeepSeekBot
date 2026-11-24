@@ -6,10 +6,7 @@ import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { botCreation } from '../../host/native-bot-creation';
 import { openBotCreationResult } from '../../host/bot-creation-navigation';
 
-export async function openCreatedBot(
-  stillHere: () => boolean = () => true,
-  depth = 0,
-): Promise<boolean> {
+export async function openCreatedBot(stillHere: () => boolean = () => true): Promise<boolean> {
   await conversationFilter.ready;
   return openBotCreationResult(
     {
@@ -19,8 +16,7 @@ export async function openCreatedBot(
       switchHost: hostSession.switchTo,
       async open(hostId, slug) {
         conversationFilter.set(computerEnvironmentKey(hostId));
-        if (depth > 0) router.dismiss(depth);
-        router.replace({ pathname: '/dm/[slug]', params: { slug, hostId } });
+        router.dismissTo({ pathname: '/dm/[slug]', params: { slug, hostId } });
       },
       acknowledge: botCreation.acknowledge,
     },

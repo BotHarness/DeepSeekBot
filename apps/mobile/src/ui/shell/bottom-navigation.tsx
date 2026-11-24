@@ -15,7 +15,7 @@ import { useDesignTheme } from '../design/theme';
 import { fab, materialNavigationBar, navigationBar, space } from '../design/tokens';
 import { NavigationDestinations } from './navigation-destinations';
 import { ChatsCreate } from './chats-create';
-import { tabCreateAction, openNewSession } from './page-create-actions';
+import { tabCreateAction, tabStackRoot, openNewSession } from './page-create-actions';
 import { SessionCreateFab } from './session-create-fab';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
@@ -131,11 +131,10 @@ function ScopedNavigationBar({
   const chrome = useTabChrome();
   const hiddenNow = useChromeHidden(chrome?.hidden);
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
-  const create = tabCreateAction(
-    state.routes[state.index]?.name,
-    sessionsTab,
-    client ? saved : undefined,
-  );
+  const focusedTab = state.routes[state.index];
+  const create = tabStackRoot(focusedTab)
+    ? tabCreateAction(focusedTab?.name, sessionsTab, client ? saved : undefined)
+    : undefined;
   const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
   const items: NavigationDestination[] = routes.map((route, index) => {
     const item = {

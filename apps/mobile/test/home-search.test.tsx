@@ -224,7 +224,7 @@ describe('Search in the Chats header', () => {
     await act(async () =>
       view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done, studio"]')!.click(),
     );
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       name: 'dm/[slug]',
       params: { slug: 'ada', hostId: 'h1' },
     });
@@ -240,7 +240,7 @@ describe('Search in the Chats header', () => {
         .find((node) => node.getAttribute('aria-label')?.startsWith('Launch team'))!
         .click(),
     );
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       name: 'channel/[id]',
       params: { id: 'launch-team', hostId: 'h1' },
     });

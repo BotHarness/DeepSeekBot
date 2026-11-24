@@ -109,7 +109,7 @@ export function removeScopedRoutes(
   if (!navigation.isReady() || (!hostIds.size && !instanceIds.size)) return;
   const state = appStackState(navigation.getRootState());
   if (!state) return;
-  const routes = state.routes.filter((route) => {
+  const kept = (route: { name: string; params?: object | undefined }) => {
     const params: Record<string, unknown> = { ...route.params };
     const hostId = params['hostId'];
     const instanceId = params['instanceId'];
@@ -121,16 +121,41 @@ export function removeScopedRoutes(
         instanceIds.has(instanceId)
       )
     );
+  };
+  const routes = state.routes.filter(kept);
+  const tabs = routes.find((route) => route.name === '(tabs)');
+  const tabRoutes = tabs?.state?.routes.map((route) => {
+    const stack = route.state;
+    if (stack?.type !== 'stack') return route;
+    const [root, ...rest] = stack.routes;
+    if (!root) return route;
+    const inner = [root, ...rest.filter(kept)];
+    if (inner.length === stack.routes.length) return route;
+    const active = inner.findIndex((entry) => entry.key === stack.routes[stack.index ?? 0]?.key);
+    return {
+      ...route,
+      state: { ...stack, index: active >= 0 ? active : inner.length - 1, routes: inner },
+    };
   });
-  if (routes.length === state.routes.length) return;
-  const active = routes.findIndex((route) => route.key === state.routes[state.index]?.key);
+  const tabsChanged =
+    tabs?.state !== undefined &&
+    tabRoutes !== undefined &&
+    tabRoutes.some((route, index) => route !== tabs.state?.routes[index]);
+  if (routes.length === state.routes.length && !tabsChanged) return;
+  const nextRoutes =
+    tabsChanged && tabs?.state
+      ? routes.map((route) =>
+          route === tabs ? { ...tabs, state: { ...tabs.state, routes: tabRoutes } } : route,
+        )
+      : routes;
+  const active = nextRoutes.findIndex((route) => route.key === state.routes[state.index]?.key);
   navigation.dispatch({
     type: 'RESET',
     target: state.key,
     payload: {
       ...state,
-      index: Math.max(0, active >= 0 ? active : routes.length - 1),
-      routes: routes.length ? routes : [{ name: '(tabs)' }],
+      index: Math.max(0, active >= 0 ? active : nextRoutes.length - 1),
+      routes: nextRoutes.length ? nextRoutes : [{ name: '(tabs)' }],
     },
   });
 }

@@ -2,7 +2,7 @@
 
 ## Sources
 
-- `apps/mobile/app/session/*.tsx`
+- `apps/mobile/app/(tabs)/(home,sessions)/session/*.tsx`
 - `apps/mobile/src/ui/chat/{session-detail-screen,session-transcript-row,session-link-chips,session-model-composer}.tsx`
 - `apps/mobile/src/ui/chat/chat-timeline-chrome.tsx`
 - `apps/mobile/src/ui/chat/{session-model-label,use-session-transcript,session-navigation}.ts`

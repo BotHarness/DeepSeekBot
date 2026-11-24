@@ -14,6 +14,17 @@ export function tabCreateAction(
   if (route === '(sessions)' && sessionsEnabled && canCreateNativeSession(host)) return 'session';
 }
 
+export function tabStackRoot(route: object | undefined): boolean {
+  const stack = route !== undefined && 'state' in route ? route.state : undefined;
+  return (
+    typeof stack !== 'object' ||
+    stack === null ||
+    !('index' in stack) ||
+    stack.index === undefined ||
+    stack.index === 0
+  );
+}
+
 export function openNewSession(): void {
   router.push('/create-session');
 }
