@@ -309,7 +309,8 @@ function ScheduleEditor({
   const [form, setForm] = useState(initial);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const trigger = scheduleTriggerOf(form);
-  const interval = isIntervalUnit(form.unit);
+  const unit = form.unit;
+  const interval = isIntervalUnit(unit);
   const everyLabel = {
     seconds: 'schedule.form.everySeconds',
     minutes: 'schedule.form.everyMinutes',
@@ -380,9 +381,9 @@ function ScheduleEditor({
       </Field>
       {interval ? (
         <TextField
-          label={t(everyLabel[form.unit])}
+          label={t(everyLabel[unit])}
           type="number"
-          min={form.unit === 'seconds' ? 60 : 1}
+          min={unit === 'seconds' ? 60 : 1}
           step={1}
           value={form.every}
           onChange={(every) => set({ every })}

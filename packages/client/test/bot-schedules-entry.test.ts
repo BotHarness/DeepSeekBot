@@ -52,6 +52,16 @@ const schedule: BotScheduleView = {
   updatedAt: '2026-10-06T00:00:00.000Z',
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('Bot Schedule form helpers', () => {
   it('turns minute, hour and daily forms into triggers', () => {
     const form = emptyScheduleForm('Asia/Shanghai');
@@ -223,7 +233,7 @@ describe('Bot Schedules sidebar entry', () => {
 
   it.each(['rows', 'error'])('ignores superseded poll %s after Pause', async (result) => {
     vi.useFakeTimers();
-    const poll = Promise.withResolvers<BotScheduleView[]>();
+    const poll = deferred<BotScheduleView[]>();
     const paused = { ...schedule, enabled: false };
     const botSchedules = vi
       .fn<BridgeActions['botSchedules']>()
@@ -256,9 +266,9 @@ describe('Bot Schedules sidebar entry', () => {
   });
 
   it('shows only the current Bot list after switching away and back', async () => {
-    const previousAda = Promise.withResolvers<BotScheduleView[]>();
-    const bob = Promise.withResolvers<BotScheduleView[]>();
-    const currentAda = Promise.withResolvers<BotScheduleView[]>();
+    const previousAda = deferred<BotScheduleView[]>();
+    const bob = deferred<BotScheduleView[]>();
+    const currentAda = deferred<BotScheduleView[]>();
     const { host, render, done } = await mountSidebar({
       botSchedules: vi
         .fn<BridgeActions['botSchedules']>()
@@ -319,7 +329,7 @@ describe('Bot Schedules sidebar entry', () => {
   });
 
   it('keeps a replacement editor open when an earlier save finishes', async () => {
-    const saved = Promise.withResolvers<BotScheduleView>();
+    const saved = deferred<BotScheduleView>();
     const updateBotSchedule = vi.fn(() => saved.promise);
     const { host, render, done } = await mountSidebar({
       botSchedules: vi.fn(async () => [schedule]),
@@ -578,8 +588,8 @@ describe('Bot Schedule editor dialog', () => {
 
   it('loads a fresh preview when the cadence returns to an earlier error', async () => {
     vi.useFakeTimers();
-    const first = Promise.withResolvers<string[]>();
-    const next = Promise.withResolvers<string[]>();
+    const first = deferred<string[]>();
+    const next = deferred<string[]>();
     const botSchedulePreview = vi
       .fn<BridgeActions['botSchedulePreview']>()
       .mockReturnValueOnce(first.promise)
@@ -604,7 +614,7 @@ describe('Bot Schedule editor dialog', () => {
   });
 
   it('shows a history error and retries without discarding unsaved edits', async () => {
-    const retry = Promise.withResolvers<BotScheduleFiringView[]>();
+    const retry = deferred<BotScheduleFiringView[]>();
     const botScheduleHistory = vi
       .fn<BridgeActions['botScheduleHistory']>()
       .mockRejectedValueOnce(new Error('History unavailable'))
