@@ -465,7 +465,7 @@ describe('CI test plan drift checks', () => {
     jobs: {
       plan: {},
       static: {},
-      'test-full': { strategy: { matrix: { shard: [1, 2, 3] } } },
+      'test-full': { strategy: { matrix: { shard: [1, 2, 3, 4, 5] } } },
       verify: { name: REQUIRED_CHECK, if: 'always()', needs: ['plan', 'static', 'test-full'] },
     },
   });
@@ -479,12 +479,12 @@ describe('CI test plan drift checks', () => {
     broken.jobs.lint = {};
     broken.jobs.verify.name = 'verify';
     broken.on.pull_request.paths = ['packages/**'];
-    broken.jobs['test-full'].strategy.matrix.shard = [1, 2];
+    broken.jobs['test-full'].strategy.matrix.shard = [1, 2, 3, 4, 4];
     expect(checkWorkflow(broken)).toEqual([
       `The aggregate job must keep the required check name "${REQUIRED_CHECK}"`,
       'The aggregate job does not need lint',
       'The pull_request trigger filters paths; path selection belongs to scripts/ci-plan.mjs',
-      'test-full must run a matrix of 3 shards to match SHARDS',
+      'test-full must use shard indices 1 through 5 to match SHARDS',
     ]);
   });
 

@@ -11,7 +11,7 @@ import {
   selectAffected,
   SHARD_THRESHOLD,
 } from '../ci-affected.mjs';
-import { DOCS_SITE_TEST, ROOT, SHARDS } from '../ci-plan.mjs';
+import { DOCS_SITE_TEST, ROOT } from '../ci-plan.mjs';
 
 const testFile = 'scripts/test/ci-affected.test.mjs';
 const otherFile = `nested/${testFile}`;
@@ -38,7 +38,9 @@ describe('affected test partitioning', () => {
       const files = Array.from({ length: count }, (_, index) => `test/${index}.test.ts`);
       const result = partitionFiles(files);
       expect(result.count).toBe(count);
-      expect(result.matrix.include).toHaveLength(count >= SHARD_THRESHOLD ? SHARDS : count ? 1 : 0);
+      expect(result.matrix.include.map(({ shard }) => shard)).toEqual(
+        count >= SHARD_THRESHOLD ? [1, 2, 3, 4, 5] : count ? [1] : [],
+      );
       const selected = result.matrix.include.flatMap((shard) => shard.files);
       expect(selected.sort()).toEqual([...files].sort());
       expect(new Set(selected).size).toBe(count);

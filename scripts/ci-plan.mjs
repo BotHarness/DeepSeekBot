@@ -8,7 +8,7 @@ import { pnpmCommand } from './dev-package-manager.mjs';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REQUIRED_CHECK = 'lint, format, typecheck, test, build, docs';
 export const FULL_LABEL = 'ci:full';
-export const SHARDS = 3;
+export const SHARDS = 5;
 export const MAX_CHANGED_FILES = 3000;
 export const DOCS_SITE_TEST = 'apps/docs/test/changelog-public-surfaces.test.ts';
 export const DOCS_SITE_ENTRIES = [
@@ -663,8 +663,12 @@ export function checkWorkflow(workflow) {
   if (!triggers.pull_request?.types?.includes('labeled'))
     problems.push(`pull_request must include the labeled type so ${FULL_LABEL} starts a full run`);
   const shards = jobs['test-full']?.strategy?.matrix?.shard;
-  if (!Array.isArray(shards) || shards.length !== SHARDS)
-    problems.push(`test-full must run a matrix of ${SHARDS} shards to match SHARDS`);
+  if (
+    !Array.isArray(shards) ||
+    shards.length !== SHARDS ||
+    shards.some((shard, index) => shard !== index + 1)
+  )
+    problems.push(`test-full must use shard indices 1 through ${SHARDS} to match SHARDS`);
   return problems;
 }
 

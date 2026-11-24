@@ -21,7 +21,7 @@ const fixture = (tests = 'none', mobile = 'false', count = '0') =>
                 'docs-site': 'false',
                 'android-native': 'false',
                 count,
-                shards: count === '0' ? '0' : Number(count) < 60 ? '1' : '3',
+                shards: count === '0' ? '0' : Number(count) < 60 ? '1' : '5',
               }
             : {},
       },
@@ -72,10 +72,13 @@ describe('required CI aggregate', () => {
     needs['e2e-smoke'].result = 'success';
     expect(passes(needs)).toBe(true);
     needs.plan.outputs.count = '158';
-    needs.plan.outputs.shards = '3';
+    needs.plan.outputs.shards = '5';
     expect(passes(needs)).toBe(false);
     needs['test-affected'].result = 'success';
     expect(passes(needs)).toBe(true);
+    needs.plan.outputs.shards = '3';
+    expect(passes(needs)).toBe(false);
+    needs.plan.outputs.shards = '5';
     needs.plan.outputs.count = '';
     expect(passes(needs)).toBe(false);
   });
@@ -89,7 +92,7 @@ describe('required CI aggregate', () => {
     expect(step.run).toMatch(/node scripts\/ci-affected\.mjs --run$/);
     const fallback = step.env.TEST_FILES.match(/\|\| '([^']+)'/)[1];
     expect(JSON.parse(fallback).include[0].files).toEqual([]);
-    expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '3'");
+    expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '5'");
   });
 
   it('rejects a missing or malformed plan', () => {

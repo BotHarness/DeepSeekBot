@@ -27,7 +27,7 @@ or treat a preparation reply as the final task outcome.
 
 The `verify` workflow runs lint, format, workspace typecheck (including mobile) and repository build on every pull request. `scripts/ci-plan.mjs` selects tests, the docs site build, and mobile verification independently:
 
-- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards.
+- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in five parallel shards.
 - **Affected**: every other pull request uses Vitest related-test selection on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
 - **None**: a pull request whose changed paths cannot reach any test, such as screenshots, change fragments and prose.
 
@@ -41,7 +41,7 @@ The same job compares each gallery case pixel by pixel with its baseline screens
 
 The optional `mobile-native-ios` job runs only when a manual `verify.yml` dispatch sets `ios_hardware_send_tests=true`; its default is false, including pull requests, main, schedules and release verification. It uses the standard `xcode-27` runner with read-only repository access and no account, signing or release credentials. CNG enables only the local HardwareSend test specification. The independent Pods test-host scheme first proves ordinary command delivery, then exercises the two composition/focus regressions without building the Tobs app. The aggregate requires this job only when selected. Artifacts retain only synthetic test logs/results and scheme/simulator metadata for seven days; they do not include DerivedData, Pods, app profiles or real user data. See [HardwareSend](../../apps/mobile/modules/hardware-send/README.md#ios-composition-regression-target) for the test boundary and remaining device checks.
 
-For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency graph for the exact test files once. Zero files finish successfully; fewer than 60 run on that same planning runner. The planner installs the frozen dependencies once for both Babel and Vitest. Selections of 60 or more files run in three deterministic, disjoint shards on separate runners. Shards execute exact Vitest test specifications, reject missing files, and fail on incomplete runs or test errors. The docs-site test stays in its separate job. The threshold limits duplicated checkout/install overhead on small PRs; file-count balancing does not promise equal execution time.
+For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency graph for the exact test files once. Zero files finish successfully; fewer than 60 run on that same planning runner. The planner installs the frozen dependencies once for both Babel and Vitest. Selections of 60 or more files run in five deterministic, disjoint shards on separate runners. Shards execute exact Vitest test specifications, reject missing files, and fail on incomplete runs or test errors. The docs-site test stays in its separate job. The threshold limits duplicated checkout/install overhead on small PRs; file-count balancing does not promise equal execution time.
 
 The required aggregate check keeps its existing name. Planned skips are accepted; selected jobs must succeed, including the planning job and any dispatched affected shards. Failures and cancellations block the check. Every job uses the frozen workspace lockfile and pinned toolchain when installing dependencies.
 
@@ -270,7 +270,7 @@ key also includes the caller workflow, keeping normal verification separate from
 
 The npm release workflow checks tag ancestry and looks for a successful `verify.yml` push run on
 that exact SHA. It waits for an existing run, then calls the same reusable verification workflow if
-no success is available. Tag-push context selects the full three-shard test plan, including the
+no success is available. Tag-push context selects the full five-shard test plan, including the
 normal static, docs, mobile and Host smoke gates. Failed or cancelled verification blocks packing;
 a skipped fallback permits packing only when exact-SHA reuse succeeded.
 
