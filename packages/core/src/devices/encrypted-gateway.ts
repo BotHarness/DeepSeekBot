@@ -25,7 +25,7 @@ import {
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
 import { ADDRESS_ROUTE_SOURCE, noisePeerHeaders } from './route-context.js';
-import { createAddressSlots, type AddressSlot } from './address-slots.js';
+import { createAddressRoute, type AddressSlot } from './address-slots.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -84,6 +84,7 @@ type CloseTrigger =
   | 'idle-timeout'
   | 'handshake-timeout'
   | 'address-admission-timeout'
+  | 'address-pair-replaced'
   | 'gateway-dispose'
   | 'invalid-frame'
   | 'request-failed'
@@ -144,7 +145,7 @@ export function createEncryptedGateway(options: {
   let negotiating = 0,
     encrypted = 0,
     upgrading = 0;
-  const addressSlot = createAddressSlots();
+  const addressRoute = createAddressRoute();
   const changed = () => options.changed?.({ negotiating, encrypted });
   const serve = (
     socket: WebSocket,
@@ -799,7 +800,7 @@ export function createEncryptedGateway(options: {
           if (!paired.ok && paired.code === 'device-approval-required') {
             if (!send({ type: 'pair-pending', receipt: proposed.receipt })) return;
             progressed();
-            unwatchKey = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
+            const unwatch = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
               if (closed || admitted) return;
               try {
                 if (event.state === 'approved') redeem(true);
@@ -808,6 +809,9 @@ export function createEncryptedGateway(options: {
                 close('invalid-frame');
               }
             });
+            unwatchKey = address
+              ? addressRoute.wait(proposed.receipt, unwatch, () => close('address-pair-replaced'))
+              : unwatch;
           }
           return;
         }
@@ -944,6 +948,7 @@ export function createEncryptedGateway(options: {
         request.url !== CONNECT_CHANNEL_PATH ||
         request.headers.authorization ||
         request.headers.cookie ||
+        socket.destroyed ||
         (request.headers['sec-websocket-protocol'] !== undefined &&
           request.headers['sec-websocket-protocol'] !== BROWSER_ADMISSION_PROTOCOL) ||
         active.size + upgrading >= 32
@@ -951,7 +956,7 @@ export function createEncryptedGateway(options: {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
-      const address = addressSlot(request, socket);
+      const address = addressRoute.slot(request, socket);
       if (address === 'full') {
         socket.end(
           'HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
@@ -963,6 +968,7 @@ export function createEncryptedGateway(options: {
       try {
         key = await options.key();
         if (disposed || socket.destroyed) {
+          address?.release();
           socket.destroy();
           key.fill(0);
           return;
