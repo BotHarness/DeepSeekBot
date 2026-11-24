@@ -31,6 +31,9 @@ export function RegularTabPage({
       )}
       <Text variant="title">{title}</Text>
       <Text testID={`regular-fixture-taps-${slot}`}>{t.pinnedTabFixture.taps(taps)}</Text>
+      {order.picked === undefined ? null : (
+        <Text testID="regular-fixture-picked">{t.pinnedTabFixture.picked(order.picked)}</Text>
+      )}
       <Button
         testID={`regular-fixture-tap-${slot}`}
         label={t.pinnedTabFixture.countTap}
@@ -47,6 +50,12 @@ export function RegularTabPage({
     <FlatList
       style={{ flex: 1, backgroundColor: theme.color.base }}
       contentInsetAdjustmentBehavior="automatic"
+      scrollEventThrottle={16}
+      onScroll={
+        order.scrolled === undefined
+          ? undefined
+          : ({ nativeEvent }) => order.scrolled?.(nativeEvent.contentOffset.y)
+      }
       data={rows}
       keyExtractor={(row) => String(row)}
       ListHeaderComponent={header}
