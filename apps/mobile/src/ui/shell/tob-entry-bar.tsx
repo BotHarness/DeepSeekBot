@@ -17,15 +17,7 @@ export function tobEntryBarHeight(theme: ReturnType<typeof useDesignTheme>): num
   return composerBar(theme);
 }
 
-export function TobEntryBar({
-  href,
-  name,
-  trailing,
-}: {
-  href: TobModeHref;
-  name: string;
-  trailing: number;
-}) {
+export function TobEntryBar({ href, name }: { href: TobModeHref; name: string }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -90,7 +82,7 @@ export function TobEntryBar({
         {
           position: 'absolute',
           left: insets.left + space.x5,
-          right: insets.right + trailing,
+          right: insets.right + space.x5,
           bottom,
         },
         slide,

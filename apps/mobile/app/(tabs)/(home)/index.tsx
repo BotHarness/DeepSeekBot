@@ -43,7 +43,7 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
-import { fab, searchAppBar, space } from '../../../src/ui/design/tokens';
+import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -54,10 +54,11 @@ import { useCreationTargets } from '../../../src/ui/shell/use-creation-targets';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
-import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
+import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
+import { useChatsCreate } from '../../../src/ui/shell/chats-create';
 import { hostDrawer } from '../../../src/ui/shell/host-drawer-state';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
@@ -154,6 +155,7 @@ const HomeContent = memo(function HomeContent({
   const cloud = useCloudSnapshot();
   const directory = useCloudConversations();
   const [filter, setFilter] = useConversationFilter();
+  const create = useChatsCreate(filter);
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string>();
   const openTarget = useRef<string | undefined>(undefined);
@@ -630,6 +632,7 @@ const HomeContent = memo(function HomeContent({
         }
         nativeSearch={{
           placeholder: t.searchPlaceholder,
+          label: t.openSearch,
           onChange: onQuery,
           onFocus: () => {
             setSearching(true);
@@ -659,12 +662,11 @@ const HomeContent = memo(function HomeContent({
             />
           ) : undefined
         }
+        nativeItems={create.nativeItem ? [create.nativeItem] : undefined}
         actions={
-          <HeaderAction
-            icon="search"
-            label={t.openSearch}
-            testID="search-button"
-            onPress={() => setSearching(true)}
+          <ChatsHeaderActions
+            search={{ label: t.openSearch, onPress: () => setSearching(true) }}
+            create={create.button}
           />
         }
       >
@@ -700,10 +702,7 @@ const HomeContent = memo(function HomeContent({
                 scrollEventThrottle={1}
                 contentContainerStyle={{
                   paddingBottom:
-                    bottom +
-                    fab.size +
-                    space.x6 +
-                    (tobEntry ? tobEntryBarHeight(theme) + space.x3 : 0),
+                    bottom + space.x6 + (tobEntry ? tobEntryBarHeight(theme) + space.x3 : 0),
                 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
@@ -892,13 +891,8 @@ const HomeContent = memo(function HomeContent({
           </PullToRefresh>
         </LastChatSwipe>
       </HomeHeader>
-      {tobEntry ? (
-        <TobEntryBar
-          href={tobEntry.href}
-          name={tobEntry.name}
-          trailing={fab.margin * 2 + fab.size}
-        />
-      ) : null}
+      {tobEntry ? <TobEntryBar href={tobEntry.href} name={tobEntry.name} /> : null}
+      {create.panel}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet
