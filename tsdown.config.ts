@@ -8,8 +8,18 @@ import { preparePackagedDesktopZoomTheme } from './scripts/desktop-zoom-compat.m
 import { dockviewCssPlugin } from './scripts/dockview-css-plugin.mjs';
 import { stylexPlugin } from './scripts/stylex-plugin.mjs';
 import { genuiRuntimeAssetsPlugin } from './scripts/genui-runtime-assets.mjs';
+import { removeShared } from './scripts/tsgo-once.mjs';
 
 const ROOT_DIR = fileURLToPath(new URL('.', import.meta.url));
+
+function declarationOptions(): UserConfig['dts'] {
+  const watch = process.argv.some((arg) => arg === '-w' || arg.startsWith('--watch'));
+  if (process.platform === 'win32' || watch) return true;
+  process.once('exit', () => removeShared(process.pid));
+  return { tsgo: { path: join(ROOT_DIR, 'scripts', 'tsgo-once.mjs') } };
+}
+
+const DTS = declarationOptions();
 
 const CLIENT_ID = '@botharness/ui';
 const SHARED_HOST_PACKAGES = /^@botharness\/host-(?:client|protocol)(?:\/|$)/;
@@ -225,7 +235,7 @@ export default defineConfig([
     plugins: [genuiRuntimeAssetsPlugin('core')],
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
     deps: { alwaysBundle: [/^pele(?:\/|$)/, SHARED_HOST_PACKAGES] },
     external: [
@@ -251,7 +261,7 @@ export default defineConfig([
     outDir: 'packages/client/dist',
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
   },
   {
@@ -259,7 +269,7 @@ export default defineConfig([
     outDir: 'packages/computer/dist',
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
     external: ['sharp'],
   },
@@ -271,7 +281,7 @@ export default defineConfig([
     outDir: 'packages/browser/dist',
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
   },
   {
@@ -279,7 +289,7 @@ export default defineConfig([
     outDir: 'packages/todo/dist',
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
     external: ['@deepseek-ai/dsh-tools'],
   },
@@ -332,7 +342,7 @@ export default defineConfig([
     outDir: 'packages/vrm-companion/dist',
     format: ['esm'],
     platform: 'node',
-    dts: true,
+    dts: DTS,
     clean: true,
   },
   vrmCompanionClientBundleOptions,

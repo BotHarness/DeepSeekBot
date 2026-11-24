@@ -3,7 +3,6 @@ import { useCallback, useRef, useState, type ReactNode, type RefObject } from 'r
 import { AccessibilityInfo, Platform, useWindowDimensions, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cloudError } from '../../cloud/client';
-import { cloudAvailable } from '../../cloud/available';
 import { targetsFor, type CreationTarget } from '../../host/creation-targets';
 import { useDesignTheme } from '../design/theme';
 import { headerBarItem } from '../design/tokens';
@@ -11,6 +10,7 @@ import { haptic } from '../haptics';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
 import { botSourceHref, chatsCreationActions } from './creation-menu-items';
+import { startNewGroup } from './new-group';
 import { CreationPanel, type CreationAnchor } from './creation-panel';
 import { CreationRow } from './creation-row';
 import {
@@ -79,20 +79,7 @@ export function useChatsCreate(scope: string): ChatsCreate {
       setBusy(false);
     }
   };
-  const newGroup = () => {
-    const choices = targetsFor('channel', scope, targets);
-    const target = scope === 'all' ? undefined : choices[0];
-    if (scope === 'all' && cloudAvailable && choices.some((choice) => choice.kind === 'cloud')) {
-      router.push('/create-group-target');
-    } else if (target?.kind === 'cloud') {
-      void cloud(target, 'channel');
-    } else {
-      router.push({
-        pathname: '/create-channel',
-        params: target ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
-      });
-    }
-  };
+  const newGroup = () => startNewGroup(scope, targets, (target) => void cloud(target, 'channel'));
   if (!actions.bot && !actions.group && !actions.invite && !actions.join)
     return { button: undefined, nativeItem: undefined, panel: null };
   const iconSize = theme.type.title.line * theme.fontScale;

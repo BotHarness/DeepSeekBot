@@ -32,7 +32,8 @@ import { HeaderIconButton } from './header-icon-button';
 import { HeaderSearch } from './header-search';
 import { HostSessionOptionsSheet, type SessionOptionGroup } from './host-session-options';
 import { HostSessionOptionsButton } from './host-session-options-button';
-import { canCreateNativeSession, openNewSession } from './page-create-actions';
+import { canCreateNativeSession, openNewSession, sessionHref } from './page-create-actions';
+import { recentSessions } from './recent-sessions';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader } from './tab-native-header';
 import { AssignmentSessionIcon, ChevronRightIcon } from './icons';
@@ -147,6 +148,8 @@ function HostSessionsList({
           (value) => {
             if (abort.signal.aborted) return;
             setResult({ search, source, rows: value.sessions });
+            if (search === '' && source === 'all' && sort === 'last-human-turn')
+              recentSessions.publish(hostId, value.sessions);
             setSources(value.sources);
           },
           () => {
@@ -160,7 +163,7 @@ function HostSessionsList({
           setPullRefreshing(false);
         });
     },
-    [client, online, search, searchReady, sort, source],
+    [client, hostId, online, search, searchReady, sort, source],
   );
   useFocusEffect(
     useCallback(() => {
@@ -212,17 +215,7 @@ function HostSessionsList({
   const canQuery = online && sources !== undefined;
   const optionsActive = sort !== 'last-human-turn' || source !== 'all';
 
-  const open = (row: HostSessionRow) => {
-    router.push({
-      pathname: '/session/[id]',
-      params: {
-        id: row.sessionId,
-        hostId,
-        ...(row.source.kind === 'native' ? { source: 'native' } : { slug: row.source.botSlug }),
-        ...(row.title === undefined ? {} : { title: row.title }),
-      },
-    });
-  };
+  const open = (row: HostSessionRow) => router.push(sessionHref(row, hostId));
   const optionsItem: NativeStackHeaderItem = {
     type: 'menu',
     label: t.options,

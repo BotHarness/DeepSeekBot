@@ -1,3 +1,5 @@
+import type { TabMenuEntry } from './tab-menu-model';
+
 export type NavigationDestination = {
   key: string;
   focused: boolean;
@@ -6,5 +8,5 @@ export type NavigationDestination = {
   sessions?: boolean;
   count: number;
   onPress(): void;
-  onLongPress(): void;
+  menu?: readonly TabMenuEntry[] | undefined;
 };
