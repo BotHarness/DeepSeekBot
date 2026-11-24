@@ -17,7 +17,10 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
   const [scope] = useConversationFilter();
   const place = useDrawerPlace();
   const scoped = connected.find((host) => computerEnvironmentKey(host.saved.hostId) === scope);
-  const chosen = scoped === undefined ? connected : [scoped];
+  const chosen =
+    scoped === undefined
+      ? connected.filter((host) => host.snapshot.connection.status === 'connected')
+      : [scoped];
   const key = chosen.map((host) => `${host.saved.hostId}:${host.saved.deviceId}`).join('|');
   const names = useHostLocalNames(chosen.map((host) => host.saved.hostId));
   const nameKey = names.join('\n');

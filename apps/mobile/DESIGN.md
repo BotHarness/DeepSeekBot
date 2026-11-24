@@ -159,7 +159,9 @@ Each drawer row (Human decisions, 2026-11-24) has three columns:
 
 - **Leading:** the folder monogram on a colour wash from the Host palette. A Bot Session adds the Bot's portrait at the badge's corner.
 - **Middle:** the Session name in at most two lines, then exactly one line with the Host's own icon and “Computer · folder”, ellipsized. The Computer name only shows under All.
-- **Trailing:** the Chats row status glyph (`RowStatusGlyph`: working, needs you, done) with the relative time, and the model's brand icon at the bottom.
+- **Trailing:** the Chats row status glyph (`RowStatusGlyph`: working, needs you, done) with the relative time, and the model's brand icon at the bottom. At large text sizes the trailing column moves into one line under the Host line, so the name keeps the row's full width.
+
+Under All the drawer reads every **connected** Computer. Offline pairings are left out rather than reported as a failed read.
 
 The Filter and sort menu adds **Bot Sessions: Show / Hide**, kept on the phone. Hide drops every Bot-owned (Orchestrator or Assignment) Session, so only native Sessions are listed.
 

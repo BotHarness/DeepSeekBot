@@ -56,6 +56,24 @@ export function SessionDrawerRow({
   const colorId = HOST_COLOR_IDS[folderColorIndex(row.folderName, HOST_COLOR_IDS.length)];
   const badge = theme.touch;
   const avatar = Math.round(badge / 2);
+  const statusLine = (
+    <View
+      testID={`session-status-${row.sessionId}`}
+      accessibilityLabel={statusText}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
+    >
+      <RowStatusGlyph status={status} />
+      <Text variant="meta" tone="subtle" numberOfLines={1}>
+        {when}
+      </Text>
+    </View>
+  );
+  const modelIcon =
+    row.model === undefined ? null : (
+      <View testID={`session-model-${row.sessionId}`}>
+        <ModelBrandIcon brand={brand} size={theme.type.meta.line} color={theme.color.muted} />
+      </View>
+    );
   return (
     <Pressable
       accessibilityRole="button"
@@ -160,32 +178,27 @@ export function SessionDrawerRow({
             {place.length === 0 ? row.hostName : place.join(' · ')}
           </Text>
         </View>
-      </View>
-      <View
-        style={{
-          flexShrink: 0,
-          alignSelf: 'stretch',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: space.x1,
-        }}
-      >
-        <View
-          testID={`session-status-${row.sessionId}`}
-          accessibilityLabel={statusText}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
-        >
-          <RowStatusGlyph status={status} />
-          <Text variant="meta" tone="subtle" numberOfLines={1}>
-            {when}
-          </Text>
-        </View>
-        {row.model === undefined ? null : (
-          <View testID={`session-model-${row.sessionId}`}>
-            <ModelBrandIcon brand={brand} size={theme.type.meta.line} color={theme.color.muted} />
+        {theme.largeText ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            {statusLine}
+            {modelIcon}
           </View>
-        )}
+        ) : null}
       </View>
+      {theme.largeText ? null : (
+        <View
+          style={{
+            flexShrink: 0,
+            alignSelf: 'stretch',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: space.x1,
+          }}
+        >
+          {statusLine}
+          {modelIcon}
+        </View>
+      )}
     </Pressable>
   );
 }
