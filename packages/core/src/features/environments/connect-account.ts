@@ -39,6 +39,7 @@ import {
 } from './connect-account-types.js';
 
 const WATCH_MS = 60_000;
+const TUNNEL_TIMEOUT_MS = 30_000;
 const MAX_TIMER_SECONDS = 2_147_483_647 / 1000;
 const authorizationSeconds = z
   .union([z.number(), z.string().trim().min(1).transform(Number)])
@@ -182,7 +183,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         originPort: port,
         zones: CONNECT_ZONES,
       },
-      undefined,
+      TUNNEL_TIMEOUT_MS,
       signal,
     );
     if (reply.status === 404) return undefined;
