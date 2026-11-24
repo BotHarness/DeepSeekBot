@@ -27,7 +27,7 @@ or treat a preparation reply as the final task outcome.
 
 The `verify` workflow runs lint, format, workspace typecheck (including mobile) and repository build on every pull request. `scripts/ci-plan.mjs` selects tests, the docs site build, and mobile verification independently:
 
-- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards.
+- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards. In CI (`CI` set), the default Vitest project uses 4 workers on each 4-vCPU runner. Vitest's default ran about 2 test files at a time there because many tests wait on git and the file system. Local runs keep Vitest's default.
 - **Affected**: every other pull request uses Vitest related-test selection on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
 - **None**: a pull request whose changed paths cannot reach any test, such as screenshots, change fragments and prose.
 
