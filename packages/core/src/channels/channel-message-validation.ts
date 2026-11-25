@@ -467,7 +467,6 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
     )
       return false;
-  } else if (message['stewardTransfer'] !== undefined) {
   } else if (message['modelSwitch'] !== undefined) {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
@@ -516,6 +515,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   ) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
+    message['stewardTransfer'] === undefined &&
     !(
       typeof message['onboardingWelcome'] === 'object' &&
       message['onboardingWelcome'] !== null &&

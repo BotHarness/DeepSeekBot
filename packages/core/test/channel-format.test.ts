@@ -42,4 +42,11 @@ it('validates a Steward transfer marker even beside another system notice', () =
   expect(
     isChannelMessage({ ...base, turnStop, stewardTransfer: { botSlug: 7, botName: 42 } }),
   ).toBe(false);
+  expect(
+    isChannelMessage({
+      ...base,
+      stewardTransfer: { botSlug: 'ada', botName: 'Ada' },
+      modelSwitch: 7,
+    }),
+  ).toBe(false);
 });

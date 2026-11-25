@@ -84,8 +84,8 @@ export class TeamService {
   readonly approvals: TeamApprovals;
   readonly channelAccess: TeamChannels;
   private readonly accessListeners = new Set<() => void>();
-  private readonly ownerListeners = new Set<() => void>();
-  onOwnerTransferred(listener: () => void): () => void {
+  private readonly ownerListeners = new Set<() => Promise<unknown>>();
+  onOwnerTransferred(listener: () => Promise<unknown>): () => void {
     this.ownerListeners.add(listener);
     return () => {
       this.ownerListeners.delete(listener);
@@ -979,10 +979,13 @@ export class TeamService {
       this.accessChanged(true);
       await this.accessSettled();
     } else this.invalidate();
+    for (const listener of this.ownerListeners)
+      await listener().catch(() => {
+        this.log('owner-transfer-steward-unavailable', { humanId });
+      });
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });
-    for (const listener of this.ownerListeners) listener();
     return null;
   }
 

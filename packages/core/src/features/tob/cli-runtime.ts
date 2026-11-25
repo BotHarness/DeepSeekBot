@@ -41,10 +41,9 @@ export function stewardShellAuthority(capture: () => TobCliAuthority | undefined
     const refuse = (): never => {
       throw error;
     };
-    return Object.defineProperties(refuse, {
-      beginWrite: { value: refuse },
-      sources: { get: refuse },
-    }) as unknown as TobCliAuthority;
+    const none: readonly string[] = [];
+    const authority: TobCliAuthority = Object.assign(refuse, { beginWrite: refuse, sources: none });
+    return Object.defineProperty(authority, 'sources', { get: refuse });
   }
 }
 

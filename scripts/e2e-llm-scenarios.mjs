@@ -510,12 +510,13 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           continue;
         }
         const events = snapshot.records.map((record) => record.event);
-        for (const event of events) {
+        for (const [order, event] of events.entries()) {
           if (event.type !== 'tool/call') continue;
-          const result = events.find(
+          const resultOrder = events.findIndex(
             (entry) =>
               entry.type === 'tool/result' && entry.data.message.toolCallId === event.data.callId,
-          )?.data.message;
+          );
+          const result = resultOrder === -1 ? undefined : events[resultOrder].data.message;
           let args;
           try {
             args = JSON.parse(event.data.arguments);
@@ -524,6 +525,9 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           }
           calls.push({
             callId: event.data.callId,
+            sessionId,
+            order,
+            resultOrder,
             name: event.data.name,
             arguments: args,
             hasResult: result !== undefined,

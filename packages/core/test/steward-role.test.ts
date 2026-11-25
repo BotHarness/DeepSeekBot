@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { writeZip } from '../src/bots/zip-archive.js';
 import { dmChannelId } from '../src/channels/channel.js';
@@ -89,7 +89,7 @@ it('gives the Steward role to the incoming Host Owner’s Tob on an Owner transf
   await core.team.changePassword(next, member.initialPassword, 'next-password-1', false);
   await core.team.transferOwner(owner, next.humanId, 'owner-password-1');
   expect(core.tob.isSteward('ada')).toBe(false);
-  await vi.waitFor(() => expect(core.tob.isSteward(core.tob.slug(next) ?? '')).toBe(true));
+  expect(core.tob.isSteward(core.tob.slug(next) ?? '')).toBe(true);
   expect(() => core.deletions.preview('ada')).not.toThrow();
   const incoming = createBridgeMethodsForHumans(core)(next);
   const steward = await incoming.steward({});

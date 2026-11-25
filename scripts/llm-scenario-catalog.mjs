@@ -523,6 +523,8 @@ export const SCENARIOS = [
         !call.isError &&
         /"checks"|\bchecks?\b/u.test(call.result);
       const sent = (call) => call.name === 'bot_send_message' && call.hasResult && !call.isError;
+      const reportsAfter = (doctor, call) =>
+        call.sessionId === doctor.sessionId && call.order > doctor.resultOrder;
       const committedReport = () =>
         ctx
           .messages(tob)
@@ -538,20 +540,22 @@ export const SCENARIOS = [
           const current = (await ctx.toolCalls(botSlug)).filter(
             (call) => !earlier.has(call.callId),
           );
-          const doctor = current.findIndex(doctorReported);
-          return doctor !== -1 && current.slice(doctor + 1).some(sent) && committedReport()
+          const doctor = current.find(doctorReported);
+          return doctor !== undefined &&
+            current.some((call) => sent(call) && reportsAfter(doctor, call)) &&
+            committedReport()
             ? current
             : undefined;
         },
       );
-      const doctor = calls.findIndex(doctorReported);
+      const doctor = calls.find(doctorReported);
       ctx.note({
         calls: calls.map((call) => ({ name: call.name, arguments: call.arguments })),
-        report: calls.slice(doctor + 1).find(sent)?.arguments,
+        report: calls.find((call) => sent(call) && reportsAfter(doctor, call))?.arguments,
       });
       if (
         calls
-          .slice(0, doctor)
+          .filter((call) => call.sessionId === doctor.sessionId && call.order < doctor.order)
           .some(
             (call) =>
               call.name === 'bot_send_message' &&
