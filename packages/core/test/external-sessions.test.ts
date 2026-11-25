@@ -252,3 +252,27 @@ it('keeps a complete record that starts exactly where the newest part begins', a
   const read = await createExternalSessionReader(roots).read(`codex:${id}`);
   expect(read?.entries.map((entry) => entry.text)).toContain('boundary request');
 });
+
+it('lists external sessions when Host Sessions are unavailable, and fails only without them', async () => {
+  const external = {
+    list: async () => [
+      {
+        sessionId: 'claude-code:c-1',
+        source: 'claude-code' as const,
+        cwd: '/work/app',
+        lastActivityAt: 1,
+      },
+    ],
+    read: async () => undefined,
+  };
+  const grants = () => ['/work/app'];
+  const offline = createWorkspaceSessionReader(
+    () => undefined,
+    { resolve: () => undefined },
+    external,
+  );
+  expect((await offline.list(grants)).map((row) => row.sessionId)).toEqual(['claude-code:c-1']);
+  await expect(
+    createWorkspaceSessionReader(() => undefined, { resolve: () => undefined }).list(grants),
+  ).rejects.toMatchObject({ code: 'unavailable' });
+});

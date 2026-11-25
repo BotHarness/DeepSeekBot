@@ -150,8 +150,15 @@ export function createWorkspaceSessionReader(
   return {
     async list(roots) {
       if (roots().length === 0) return [];
-      const rows = await native().list();
+      const listed = await Promise.resolve()
+        .then(() => native().list())
+        .then(
+          (rows) => ({ rows }),
+          (error: unknown) => ({ rows: [], error }),
+        );
+      if ('error' in listed && external === undefined) throw listed.error;
       const imported = external === undefined ? [] : await external.list().catch(() => []);
+      const rows = listed.rows;
       const current = roots();
       const native_ = rows
         .filter(
@@ -259,7 +266,7 @@ export function sessionSeedMessage(
       `你是根据我在 ${products} 里的这些 Session 创建的，之后由你来负责下面这些工作区。请用 \`workspace_sessions\` 工具逐个读完它们，了解这些工作区、我的工作方式和偏好，然后：`,
       '',
       '1. 在 SOUL.md 里写下你在这些工作区里的角色、职责和工作方式；',
-      '2. 在 MEMORY.md 和其他记忆文件里记下值得长期记住的事实和决定，只记要点，不要整段复制对话；',
+      '2. 在 MEMORY.md 和其他记忆文件里记下值得长期记住的事实和决定，只记要点，不要整段复制 Session；',
       '3. 完成后用几句话告诉我你学到了什么，以及还有哪些不清楚的地方。',
       '',
       'Session：',
@@ -272,7 +279,7 @@ export function sessionSeedMessage(
     `You were created from these ${products} sessions of mine, and you will look after the Workspaces below from now on. Read each of them with the \`workspace_sessions\` tool to learn these Workspaces, how I work and what I prefer. Then:`,
     '',
     '1. Write your role, responsibilities and way of working in these Workspaces in SOUL.md.',
-    '2. Record the facts and decisions worth keeping in MEMORY.md and other Memory files. Keep the key points; do not copy whole conversations.',
+    '2. Record the facts and decisions worth keeping in MEMORY.md and other Memory files. Keep the key points; do not copy whole Sessions.',
     '3. When you are done, tell me in a few sentences what you learned and what is still unclear.',
     '',
     'Sessions:',

@@ -8,4 +8,4 @@ section: Added
 
 ## zh
 
-- 可以在网页端或用 `deepseekbot create --from-sessions` 从已有的 DeepSeek Session 创建 Bot。按工作区、手动或按最近 N 个挑选 Session；新 Bot 会获得这些 Session 所在工作区的授权，并自己读取它们来确定角色和记忆，不复制对话（[#5273](https://github.com/BotHarness/DeepSeekBot/pull/5273)、[ADR-0366](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/bots.md#adr-0366)）。
+- 可以在网页端或用 `deepseekbot create --from-sessions` 从已有的 DeepSeek Session 创建 Bot。按工作区、手动或按最近 N 个挑选 Session；新 Bot 会获得这些 Session 所在工作区的授权，并自己读取它们来确定角色和记忆，不复制 Session（[#5273](https://github.com/BotHarness/DeepSeekBot/pull/5273)、[ADR-0366](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/bots.md#adr-0366)）。

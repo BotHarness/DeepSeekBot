@@ -17,7 +17,7 @@ export const zh = {
   'intro.step.import': '导入',
   'intro.import.title': '之前用过别的 AI 工具吗？',
   'intro.import.hint':
-    '选上你用过的。我们会在这台电脑上找到它们的会话，用来直接创建一个已经了解你项目的 Bot，不用从头再讲一遍。',
+    '选上你用过的。我们会在这台电脑上找到它们的会话，用来直接创建一个已经了解你工作区的 Bot，不用从头再讲一遍。',
   'intro.import.label': '用过的 AI 工具',
   'intro.import.source.claude-code': 'Claude Code',
   'intro.import.source.codex': 'Codex',
@@ -475,7 +475,7 @@ export const en = {
   'intro.step.import': 'Import',
   'intro.import.title': 'Have you used other AI tools?',
   'intro.import.hint':
-    'Pick the ones you use. We look for their sessions on this computer and can create a Bot that already knows your projects, so you do not have to explain everything again.',
+    'Pick the ones you use. We look for their sessions on this computer and can create a Bot that already knows the folders you work in, so you do not have to explain everything again.',
   'intro.import.label': 'AI tools you have used',
   'intro.import.source.claude-code': 'Claude Code',
   'intro.import.source.codex': 'Codex',
