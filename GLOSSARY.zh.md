@@ -290,6 +290,10 @@ _避免使用_：reviewer Session、auto-approval Session、Orchestrator Session
 Human 为单个 PersonaBot 选择、在新建 Assignment 时应用的权限预设。默认是 DSH workspace-write 与 ask；危险完全访问需要明确开启 DSH danger-full-access 与 never。所选模式固化在每个 Assignment 的权限快照中，仍须选择有效 Workspace Grant。
 _避免使用_：Workspace Grant、就地切换 Session 模式、Orchestrator 权限
 
+**Loadout**：
+Session 运行时使用的一套具名 system prompt 加有限工具集（中文称「配装」），Session 开始后即固定。Tobs 和 Tobs 场景 Loadout（调研、编程、脚本）是内置的；精简 Loadout 让简单任务只带短 prompt 和少量工具，每一步发送的内容少得多，Orchestrator 还可以给它搭配更便宜的 Model Choice。PersonaBot 自己的 Loadout、Orchestrator 为每个 Assignment 的选择以及模式模板见 [Session 决策 §15](docs/decisions/sessions.md#bot-modes)。界面和工具里目前仍叫 mode / 模式（#5288）。
+_避免使用_：Session 模式、单独的 mode / 模式（与 Team mode、Developer Mode、Tob Mode 混淆）、DSH 接缝以外的 agent preset、指令集
+
 **Delegation**：
 从 Chat 或 Roster 把责任交给 PersonaBot。其 Orchestrator 可以直接回答，也可以创建或复用一个或多个 Assignment Session。
 _避免使用_：direct Session creation、task entity、job entity

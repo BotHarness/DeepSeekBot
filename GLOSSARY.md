@@ -291,6 +291,10 @@ _Avoid_: reviewer Session, auto-approval Session, Orchestrator Session, Assignme
 A Human-controlled per-PersonaBot choice applied when a new Assignment is created. The default is DSH workspace-write with ask; dangerous full access is an explicit opt-in to DSH danger-full-access with never. The chosen mode is frozen in each Assignment's permission snapshot, while its selected Workspace Grant remains required.
 _Avoid_: Workspace Grant, in-place Session mode switch, Orchestrator permission
 
+**Loadout**:
+A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI and tools still say mode (#5288).
+_Avoid_: Session mode, mode (bare, beside Team mode, Developer Mode and Tob Mode), agent preset (outside DSH seams), instruction set
+
 **Delegation**:
 Handing responsibility to a PersonaBot from a Chat or the Roster. Its Orchestrator may answer directly or create or reuse one or more Assignment Sessions.
 _Avoid_: direct Session creation, task entity, job entity
