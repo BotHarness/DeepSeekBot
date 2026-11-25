@@ -81,7 +81,12 @@ export interface NativeSessions {
     requestId: string,
     decision: HostSessionApprovalDecision,
   ): Promise<boolean>;
-  answerQuestion?(sessionId: string, requestId: string, answer: QuestionAnswer): Promise<boolean>;
+  answerQuestion?(
+    sessionId: string,
+    requestId: string,
+    answer: QuestionAnswer,
+    allowed?: () => boolean,
+  ): Promise<boolean>;
   stop?(sessionId: string): Promise<void>;
   archive?(sessionId: string): Promise<void>;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
@@ -508,7 +513,7 @@ export function createHostSessionsMethods(
         const parsed = questionAnswer.safeParse(source['answer']);
         if (requestId === undefined || !parsed.success)
           return invalidInput('requestId and a structured question answer are required');
-        return (await service.answerQuestion(id, requestId, parsed.data))
+        return (await service.answerQuestion(id, requestId, parsed.data, nativeAllowed))
           ? { ok: true, value: { sessionId: id, accepted: true } }
           : inputNotPending;
       });

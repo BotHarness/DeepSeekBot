@@ -528,7 +528,14 @@ it('exposes live native requests and lets only the Owner answer the addressed re
   expect(await owner.sessionAnswerApproval(approval)).toMatchObject({ ok: true });
   expect(answerApproval).toHaveBeenCalledExactlyOnceWith('native', 'approval-1', 'allowed-once');
   expect(await owner.sessionAnswerQuestion(question)).toMatchObject({ ok: true });
-  expect(answerQuestion).toHaveBeenCalledExactlyOnceWith('native', 'question-1', question.answer);
+  expect(answerQuestion).toHaveBeenCalledExactlyOnceWith(
+    'native',
+    'question-1',
+    question.answer,
+    expect.any(Function),
+  );
+  const allowed = (answerQuestion.mock.calls[0] as unknown[])[3] as () => boolean;
+  expect(allowed()).toBe(true);
 
   answerApproval.mockResolvedValueOnce(false);
   expect(await owner.sessionAnswerApproval(approval)).toMatchObject({
