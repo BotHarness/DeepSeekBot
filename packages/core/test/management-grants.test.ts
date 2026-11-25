@@ -268,10 +268,20 @@ it('always asks the Human for deletion, other Bots’ Memory, backup restore, cr
     'memory-restore-commit',
     'profile-backup-restore',
     'secret-put',
+    'connector-key-set',
+    'connector-grant',
+    'connector-remove',
     'device-pair',
     'pairing-review',
   ])
     expect(alwaysAsksHuman(command)).toBe(true);
-  for (const command of ['model-default', 'settings-set', 'create', 'group-create', 'doctor'])
+  for (const command of [
+    'model-default',
+    'settings-set',
+    'create',
+    'group-create',
+    'doctor',
+    'connectors',
+  ])
     expect(alwaysAsksHuman(command)).toBe(false);
 });

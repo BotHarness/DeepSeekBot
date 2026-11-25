@@ -24,6 +24,7 @@ import * as personabotsProfileLocaleCopy from './features/personabots/profile-lo
 import * as privateInputCopy from './features/private-input/locale.js';
 import * as profileStorageCopy from './features/profile-storage/locale.js';
 import * as promptsCopy from './features/prompts/locale.js';
+import * as connectorsCopy from './features/connectors/locale.js';
 import * as releaseCopy from './features/release/locale.js';
 import * as schedulesCopy from './features/schedules/locale.js';
 import * as sessionsCopy from './features/sessions/locale.js';
@@ -71,6 +72,7 @@ export const zh = {
   ...privateInputCopy.zh,
   ...profileStorageCopy.zh,
   ...promptsCopy.zh,
+  ...connectorsCopy.zh,
   ...releaseCopy.zh,
   ...schedulesCopy.zh,
   ...sessionsCopy.zh,
@@ -237,6 +239,7 @@ export const en = {
   ...privateInputCopy.en,
   ...profileStorageCopy.en,
   ...promptsCopy.en,
+  ...connectorsCopy.en,
   ...releaseCopy.en,
   ...schedulesCopy.en,
   ...sessionsCopy.en,

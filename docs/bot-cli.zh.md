@@ -1384,6 +1384,25 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
 
+### 应用连接（Composio）
+
+Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。应用连接通过 Owner 自己的 Composio 项目运行，先添加它的 API key。这个 key 需要对 Session management、Session tool execution、Connected accounts 和 Auth configs 有写权限；只读 key 能列出账号，但无法生成登录链接。如果同一个 Bot 对同一应用既有只读账号又有读写账号，该应用对这个 Bot 按只读处理。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
+
+```bash
+deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-connect gmail --label "Work Gmail"
+deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+deepseekbot bot-connectors <bot-id>
+deepseekbot connector-grant <bot-id> <account-id> --access none
+deepseekbot connector-remove <account-id> --confirm
+deepseekbot connector-key-clear --confirm
+```
+
+`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
+
 ### 市场、版本更新、使用统计、Git 与配对审核
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
