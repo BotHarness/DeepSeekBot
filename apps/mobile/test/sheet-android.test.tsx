@@ -107,14 +107,14 @@ it('opens the shell in the Material 3 modal bottom sheet with the hosted content
   expect(view.querySelectorAll('[aria-label="Cancel"]')).toHaveLength(0);
 });
 
-it('uses the body sheet surface for the native handle and container too', async () => {
+it('leaves the Material container and content colours to ModalBottomSheet', async () => {
   const view = await mount(
     <Sheet visible label="Filters" onClose={() => {}}>
       <p>Filters</p>
     </Sheet>,
   );
-  expect(view.querySelector('dialog')?.getAttribute('data-fill')).toBe('sheet-surface');
-  expect(view.querySelector('dialog')?.getAttribute('data-ink')).toBe('ink');
+  expect(view.querySelector('dialog')?.hasAttribute('data-fill')).toBe(false);
+  expect(view.querySelector('dialog')?.hasAttribute('data-ink')).toBe(false);
 });
 
 it('opens a resizable sheet partially expanded and every other sheet fully expanded', async () => {
