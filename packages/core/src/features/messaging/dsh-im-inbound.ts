@@ -484,7 +484,14 @@ export function dshImInbound(
                 : { mentions: [], render: () => input.text };
               const capabilities =
                 tags.mentions.length > 0 || input.standalone
-                  ? (await host.describeBot(input.accountRef)).capabilities
+                  ? (
+                      await host.describeBot(input.accountRef).catch((error: unknown) => {
+                        throw new MessagingProviderError(
+                          providerFailure(error).code,
+                          'not-started',
+                        );
+                      })
+                    ).capabilities
                   : [];
               const checkedMentions =
                 tags.mentions.length > 0 && capabilities.includes('reply-mention-checked');
