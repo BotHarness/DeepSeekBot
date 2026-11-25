@@ -20,7 +20,7 @@ export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
   input?: DshHostSessionInput,
-  changes?: Pick<SessionListChanges, 'version'>,
+  changes?: Pick<SessionListChanges, 'version' | 'since' | 'changed'>,
 ): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
@@ -87,6 +87,12 @@ export function dshHostSessions(
           answerQuestion: input.answerQuestion,
         }),
     list,
+    ...(changes === undefined
+      ? {}
+      : {
+          listChanges: (request: { sinceSeq?: number; epoch?: string }) => changes.since(request),
+          markChanged: (sessionId: string) => changes.changed(true, sessionId),
+        }),
     async isRoot(id) {
       const sessionId = SessionId(id);
       const header =
@@ -217,6 +223,7 @@ export function dshHostSessions(
       const workspace = ctx.get('workspaceController');
       if (workspace === undefined) throw new Error('DSH Workspace Controller unavailable');
       await workspace.archiveSession({ sessionId: SessionId(id) });
+      changes?.changed(true, id);
     },
     async send(id, text) {
       const requestId = randomUUID() as SessionRequestId;

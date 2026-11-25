@@ -56,3 +56,26 @@ it('reads again after a failed read instead of caching the failure', async () =>
   await expect(rows()).rejects.toThrow('DSH busy');
   expect(await rows()).toEqual(['rows']);
 });
+
+it('keeps one journal entry per Session and lists the newest changes since a cursor', () => {
+  const changes = createSessionListChanges(() => undefined, { epoch: 'run-1' });
+  expect(changes.since({})).toEqual({ reset: true, cursor: { epoch: 'run-1', seq: 0 } });
+  changes.changed(false, 'a');
+  changes.changed(false, 'b');
+  changes.changed(false, 'a');
+  expect(changes.cursor).toEqual({ epoch: 'run-1', seq: 3 });
+  expect(changes.since({ sinceSeq: 0, epoch: 'run-1' })).toEqual({
+    sessionIds: ['a', 'b'],
+    cursor: { epoch: 'run-1', seq: 3 },
+  });
+  expect(changes.since({ sinceSeq: 2, epoch: 'run-1' })).toEqual({
+    sessionIds: ['a'],
+    cursor: { epoch: 'run-1', seq: 3 },
+  });
+  expect(changes.since({ sinceSeq: 0, epoch: 'run-0' })).toMatchObject({ reset: true });
+  changes.changedAll();
+  expect(changes.since({ sinceSeq: 3, epoch: 'run-1' })).toMatchObject({ reset: true });
+  changes.changed(false, 'c');
+  expect(changes.since({ sinceSeq: 4, epoch: 'run-1' })).toMatchObject({ sessionIds: ['c'] });
+  changes.close();
+});
