@@ -214,7 +214,7 @@ export function createSessionBotMethods(
       const scope = { kind: 'sessions-v1', sessionIds };
       let fresh: boolean;
       try {
-        fresh = creations.lookup(operationKey, input, scope) === undefined;
+        fresh = creations.lookup(operationKey, input, scope)?.status !== 'created';
       } catch (error) {
         if (error instanceof BotCreationError) return failure(error.code, error.message);
         throw error;

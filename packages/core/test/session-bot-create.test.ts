@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import type { BridgeMethodsDeps } from '../src/bridge/methods.js';
-import { BotCreationError } from '../src/bots/creation.js';
+import { BotCreationError, type BotCreationReceipt } from '../src/bots/creation.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
 import {
   createSessionBotMethods,
@@ -94,20 +94,22 @@ function setup(
       channelId: 'dm:bot-1',
     },
   }));
-  const send = vi.fn(async (payload: { channelId: string; body: string; messageId: string }) => ({
-    ok: true as const,
+  const send = vi.fn<Parameters<typeof createSessionBotMethods>[4]>(async (payload) => ({
+    ok: true,
     value: { message: { id: payload.messageId } },
   }));
   const receipts = new Map<string, string>();
   const fingerprint = (input: unknown, scope: unknown) => JSON.stringify({ input, scope });
   const creations = {
-    lookup: vi.fn((key: string, input: unknown, scope?: unknown) => {
-      const stored = receipts.get(key);
-      if (stored === undefined) return undefined;
-      if (stored !== fingerprint(input, scope))
-        throw new BotCreationError('creation-key-conflict', 'key reused');
-      return create(input as { displayName: string }, key).receipt;
-    }),
+    lookup: vi.fn(
+      (key: string, input: unknown, scope?: unknown): BotCreationReceipt | undefined => {
+        const stored = receipts.get(key);
+        if (stored === undefined) return undefined;
+        if (stored !== fingerprint(input, scope))
+          throw new BotCreationError('creation-key-conflict', 'key reused');
+        return create(input as { displayName: string }, key).receipt;
+      },
+    ),
     create: vi.fn((input: { displayName: string }, key?: string, scope?: unknown) => {
       if (key !== undefined) {
         const stored = receipts.get(key);
@@ -146,7 +148,7 @@ function setup(
     (record) => ({ bot: record as never }),
     send,
   );
-  return { methods, create: creations.create, send, store, grants };
+  return { methods, create: creations.create, lookup: creations.lookup, send, store, grants };
 }
 
 it('creates a blank Bot, grants each Session Workspace once and sends one seed message', async () => {
@@ -483,11 +485,8 @@ it('retries a failed seed send under the same key without a second Bot, grant or
   const capture = vi.fn();
   const { methods, create, send, store } = setup(OWNER_HUMAN_CONTEXT, true, {
     telemetry: { status: vi.fn(), setPreference: vi.fn(), capture },
-  } as never);
-  send.mockResolvedValueOnce({
-    ok: false,
-    error: { code: 'send-failed', message: 'down' },
-  } as never);
+  });
+  send.mockResolvedValueOnce({ ok: false, error: { code: 'send-failed', message: 'down' } });
   const input = {
     displayName: 'Retry',
     sessionIds: ['a1', 'b1'],
@@ -512,4 +511,24 @@ it('retries a failed seed send under the same key without a second Bot, grant or
     ok: false,
     error: { code: 'creation-key-conflict' },
   });
+});
+
+it('records the import when a retry finishes a Bot that an earlier attempt only reserved', async () => {
+  const capture = vi.fn();
+  const { methods, lookup } = setup(OWNER_HUMAN_CONTEXT, true, {
+    telemetry: { status: vi.fn(), setPreference: vi.fn(), capture },
+  });
+  lookup.mockReturnValueOnce({
+    operationKey: 'sessions:reserved',
+    botSlug: 'bot-1',
+    status: 'reserved',
+  });
+  expect(
+    await methods.createFromSessions({
+      displayName: 'Reserved',
+      sessionIds: ['a1'],
+      operationKey: 'sessions:reserved',
+    }),
+  ).toMatchObject({ ok: true });
+  expect(capture).toHaveBeenCalledTimes(1);
 });

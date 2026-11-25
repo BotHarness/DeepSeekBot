@@ -7,6 +7,7 @@ import {
 } from '@botharness/host-client/session-bot';
 import { Icon } from './ds/icon.js';
 import { dimension } from './ds/dimensions.stylex.js';
+import { size as iconSize } from './ds/tobs.stylex.js';
 import { Button } from './ds/button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
@@ -35,6 +36,8 @@ const LOGOS: Readonly<Record<ImportSource, ModelBrand | undefined>> = {
   cursor: 'cursor',
   other: undefined,
 };
+
+const LOGO_SIZE = Number.parseFloat(iconSize.iconLarge);
 
 const LOCAL: Partial<Record<ImportSource, Exclude<ImportProduct, 'deepseek'>>> = {
   'claude-code': 'claude-code',
@@ -194,11 +197,11 @@ export function ImportStep({
                 {LOGOS[id] === undefined ? (
                   <Icon name="puzzle" />
                 ) : (
-                  <ModelBrandIcon brand={LOGOS[id]} size={20} />
+                  <ModelBrandIcon brand={LOGOS[id]} size={LOGO_SIZE} />
                 )}
                 {on ? (
                   <span {...stylex.props(styles.check)}>
-                    <Icon name="check" size={10} />
+                    <Icon name="check" size={LOGO_SIZE / 2} />
                   </span>
                 ) : null}
               </span>
