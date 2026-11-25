@@ -52,6 +52,14 @@ export function useSessionTranscript(
         setView({ transcript: durable, live, pendingInput: pending });
       }
 
+      function publishPending() {
+        if (durable === undefined) return;
+        const shown = pending;
+        setView((current) =>
+          current.transcript === undefined ? current : { ...current, pendingInput: shown },
+        );
+      }
+
       function fail(error: unknown) {
         if (abort.signal.aborted) return;
         if (error instanceof MethodRefused) {
@@ -106,7 +114,7 @@ export function useSessionTranscript(
             liveObservations += 1;
           }
           if (durable !== undefined && next.seq > durable.seq) {
-            if (asked) publish();
+            if (asked) publishPending();
             if (previous?.seq !== next.seq) load();
           } else if (asked || previous?.revision !== next.revision) {
             publish();
