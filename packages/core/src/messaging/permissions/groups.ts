@@ -264,7 +264,7 @@ export function effectivePairingPermissions(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    !platformPeople(binding.platform)?.roles
+    !platformPeople(binding.platform)
   )
     return empty;
   const pairings = (
@@ -284,7 +284,9 @@ export function effectivePairingPermissions(
       allow: p.capabilities,
       deny: [],
     }));
-  const person = pairings.find((p) => p.purpose === 'conversation');
+  const person = platformPeople(binding.platform)?.roles
+    ? pairings.find((p) => p.purpose === 'conversation')
+    : undefined;
   let currentBehavior: EffectiveBehaviorPermission[] = [];
   if (person) {
     const row = db
