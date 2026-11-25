@@ -120,7 +120,7 @@ recipe; agent visual inspection, CI, model, native-device and IM results remain 
   not only matching screenshot dimensions. Retain failed fixture preparation too.
 - The desktop web client inside the viewer iframe polls `viewer/api/status` and reconnects
   `viewer/api/websockets` while the container boots and after Stop, producing 404/503 and
-  `[websockets] Error` console lines (#5274). The report tolerates only those viewer-path
+  `[websockets] Error` console lines; after Stop the viewer document itself can reload into a 503 (#5274). The report tolerates only those viewer-path
   entries during start, picture, frame and stop stages and records #5274 in `run.json`;
   any Client page error or non-viewer failure still fails the row.
 - The Tob welcome and four coach marks can appear late and switch the selected channel back

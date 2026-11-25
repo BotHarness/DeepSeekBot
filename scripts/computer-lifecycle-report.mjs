@@ -170,11 +170,14 @@ const viewerLifecycleStages = [
 ];
 const viewerResource =
   /\/botharness-computer\/viewer\/(?:api\/status|api\/websockets|manifest\.json)$/u;
+const viewerDocument = /\/botharness-computer\/viewer\/$/u;
 const viewerScript = /\/botharness-computer\/viewer\/selkies-core\.js$/u;
 
 export function knownViewerTransient(entry) {
   if (entry?.source === 'pageerror' || !viewerLifecycleStages.includes(entry?.stage)) return false;
   const url = entry.url ?? '';
+  if (entry.stage === 'stop-from-panel' && viewerDocument.test(url))
+    return entry.status === 503 || /status of 503/u.test(entry.message ?? '');
   if (entry.status !== undefined)
     return viewerResource.test(url) && (entry.status === 404 || entry.status === 503);
   if (viewerResource.test(url)) return /status of (404|503)/u.test(entry.message ?? '');

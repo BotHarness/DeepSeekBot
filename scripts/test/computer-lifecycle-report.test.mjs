@@ -253,6 +253,12 @@ describe('bounded Container Computer qualification', () => {
       { ...teardown, stage: 'observe-real-frame' },
       { ...booting, stage: 'stop-from-panel', status: 503 },
       {
+        ...booting,
+        stage: 'stop-from-panel',
+        status: 503,
+        url: '[redacted]/botharness-computer/viewer/',
+      },
+      {
         source: 'console',
         stage: 'observe-real-frame',
         url: '[redacted]/botharness-computer/viewer/selkies-core.js',
@@ -266,6 +272,13 @@ describe('bounded Container Computer qualification', () => {
       { ...booting, stage: 'enable-Computer-Access' },
       { ...booting, status: 502 },
       { ...booting, url: '[redacted]/botharness-computer/viewer/index.html' },
+      { ...booting, url: '[redacted]/botharness-computer/viewer/' },
+      {
+        ...booting,
+        stage: 'stop-from-panel',
+        status: 404,
+        url: '[redacted]/botharness-computer/viewer/',
+      },
       { ...booting, url: '[redacted]/botharness-computer/viewer/selkies-core.js' },
       {
         source: 'console',
