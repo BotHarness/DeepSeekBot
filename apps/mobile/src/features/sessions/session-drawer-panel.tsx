@@ -114,7 +114,10 @@ export function SessionDrawerPanel({
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+      <ActivitySearchIcon
+        color={theme.color.subtle}
+        size={theme.type.body.size * theme.fontScale}
+      />
       <Text tone={query.search ? 'fg' : 'subtle'} numberOfLines={1} style={{ flex: 1 }}>
         {query.search || t.search}
       </Text>
