@@ -133,6 +133,8 @@ function host(
   return new EngineHost({
     root: createTempRoot('engine-subagents-'),
     local: true,
+    claudeCommand: process.execPath,
+    codexCommand: process.execPath,
     gateway,
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
