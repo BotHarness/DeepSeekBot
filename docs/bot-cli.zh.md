@@ -3,7 +3,7 @@
 安装 `@botharness/tobs` 后使用 `tobs` 命令；安装兼容包 `deepseekbot` 后使用 `deepseekbot` 命令。本页保留 `deepseekbot` 示例，使用新包时将命令名替换为 `tobs`，其余参数相同。
 安装命令见[安装指南](https://tobs.app/docs/installation/)。
 
-`list` 返回的 Bot 摘要在有记录时包含 `lastActivityAt`（毫秒时间戳），来自本地用户可见的 Bot 消息或 Assignment 汇报。后续频道消息和重启不会覆盖它；缺省表示没有记录到活动，不会用创建时间或频道访问时间代替。
+`list` 返回的 Bot 摘要在有记录时包含 `lastActivityAt`（毫秒时间戳），来自本地用户可见的 Bot 消息或 Assignment 汇报。后续频道消息和重启不会覆盖它；缺省表示没有记录到活动，不会用创建时间或频道访问时间代替。已删除的 Bot 不会出现在 `list` 里，Web 仍保留它们的历史。
 
 `deepseekbot create` 无需点击即可创建新的 PersonaBot：空白创建、从 Bot 包导入（目录或 zip，与[ Bot 打包导出](docs/bot-zip.md)形状相同）、或从 GitHub 导入。它为驱动 DSH 的外部编程智能体而建，因此输出以机器读取优先。
 
@@ -550,7 +550,7 @@ deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
 
-`groupInteractions`（缺省为开启）决定 Bot 的提问或执行审批发到哪里：如果 Bot 在该会话中最近一条消息来自同一账号的 IM 群，开启时卡片作为该群里的回复发出，任何持有已批准管理配对且具备相应权限的人都能在群里回答或审批；关闭时仍发到选定的管理 DM。`messaging-group-interactions` 可为单个 Binding 覆盖平台默认值，因此同一平台的两个应用可以不同；`--inherit` 恢复跟随平台默认值，`messaging-grants` 会显示每个 Binding 的生效值以及是否继承。在群里回答或审批后，下一张卡片不会改发到 DM。群卡片不提供保存精确规则。之后保存平台默认值时省略该字段会保留原值（[#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)）。
+`groupInteractions`（缺省为开启）决定 Bot 的提问或执行审批发到哪里：如果提问或审批的这一轮正在处理来自同一账号 IM 群的消息，开启时卡片作为该群里的回复发出，任何持有已批准管理配对且具备相应权限的人都能在群里回答或审批；关闭时仍发到选定的管理 DM。`messaging-group-interactions` 可为单个 Binding 覆盖平台默认值，因此同一平台的两个应用可以不同；`--inherit` 恢复跟随平台默认值，`messaging-grants` 会显示每个 Binding 的生效值以及是否继承。在群里回答或审批后，下一张卡片不会改发到 DM。群卡片不提供保存精确规则。之后保存平台默认值时省略该字段会保留原值（[#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)）。
 
 对于已核验的微信私聊连接器，update JSON 支持独立的 `dmMirror` 与 `dmForward` 布尔值，两者默认均为 `false`。先读取 `channel-bridges`，再携带当前 Grant／route revision 提交设置。同一 Binding 与会话的入口共享偏好；离线时仍可关闭，关闭停止未提交操作，不清除历史、不撤销正常回复权限。转发需要同一账户中已有的主动发送目标。例如，在其他字段不变的 update payload 中加入 `"dmMirror":true,"dmForward":false`，即可只开启本地镜像。
 

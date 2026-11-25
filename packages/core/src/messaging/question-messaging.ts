@@ -9,7 +9,9 @@ import {
   createInteractionAuthority,
   type InteractionContext,
   type InteractionDestination,
+  withoutFailedGroup,
 } from './authority.js';
+import { withMentionNames } from './mention-text.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
   explainQuestionReply,
@@ -66,6 +68,7 @@ export function createQuestionMessaging(options: {
   approvals: ApprovalMessaging;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): QuestionMessaging {
@@ -260,6 +263,7 @@ export function createQuestionMessaging(options: {
     const startedAt = performance.now();
     busy.add(id);
     let started = false;
+    let fallback = false;
     write({ ...value, attempts: value.attempts + 1 });
     try {
       const { identity, paired, provider } = context(value);
@@ -296,9 +300,11 @@ export function createQuestionMessaging(options: {
       if (latest) write({ ...latest, delivery: 'sent', receipt: result.receipt });
     } catch (error) {
       const latest = read(id);
-      if (latest)
+      if (latest) {
+        const remaining = withoutFailedGroup(latest, error);
+        fallback = remaining !== latest;
         write({
-          ...latest,
+          ...remaining,
           delivery:
             !started ||
             (error instanceof MessagingProviderError && error.disposition === 'not-started')
@@ -309,6 +315,7 @@ export function createQuestionMessaging(options: {
               ? error.code
               : 'provider-result-unknown',
         });
+      }
     } finally {
       busy.delete(id);
       const latest = read(id);
@@ -317,6 +324,7 @@ export function createQuestionMessaging(options: {
         if (latest.receipt && state(latest) !== 'pending') void update(id);
       }
     }
+    if (fallback) await send(id).catch(() => options.warn?.('question-notification-send-failed'));
   };
   const notify = (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => {
     if (closed) return;
@@ -325,7 +333,7 @@ export function createQuestionMessaging(options: {
       const route = options.approvals.snapshot(notice.botSlug).route;
       const question = channels?.message(notice.channelId, notice.messageId)?.userQuestionRequest;
       if (!route || !question) return;
-      const destination = authority.groupDestination(route, notice.channelId);
+      const destination = authority.groupDestination(route, notice);
       write({
         ...(destination ? { destination } : {}),
         id: notice.messageId,
@@ -515,7 +523,7 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const body = event.text.trim();
+      const body = answerText(event);
       const command = /^\/answer(?:\s|$)/.test(body);
       const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
@@ -589,4 +597,12 @@ export function createQuestionMessaging(options: {
     },
   };
   return service;
+}
+
+function answerText(event: MessagingInboundEvent): string {
+  const body = event.text.trim();
+  const lead = event.mentionedAccount
+    ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+    : undefined;
+  return withMentionNames(lead ? body.slice(lead.key.length) : body, event.mentions).trim();
 }

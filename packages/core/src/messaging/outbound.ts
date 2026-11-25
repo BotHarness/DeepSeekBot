@@ -45,6 +45,7 @@ export type OutboundMessagingOptions = {
   attachments?: AttachmentStore;
   isBotActive(slug: string): boolean;
   ownsFailure?(slug: string, sessionId: string, role: 'orchestrator' | 'assignment'): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   sourcePolicy?: BotSourcePolicyStore;
   onDefaultsChanged?: () => void;
   onReceptionChanged?: () => void;
@@ -300,6 +301,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     provider: (id) => provider(id).provider,
     isBotActive: options.isBotActive,
+    ...(options.turnSources ? { turnSources: options.turnSources } : {}),
     ...(options.warn ? { warn: options.warn } : {}),
   });
   const pairingCards = createPairingCards({
@@ -330,6 +332,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     approvals,
     provider: (id) => provider(id).provider,
     isBotActive: options.isBotActive,
+    ...(options.turnSources ? { turnSources: options.turnSources } : {}),
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     ...(options.warn ? { warn: options.warn } : {}),
   });

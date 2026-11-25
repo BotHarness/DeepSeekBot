@@ -198,7 +198,11 @@ async function fixture() {
   const text = (
     text: string,
     parentId?: string,
-    from: { actorId?: string; conversation?: MessagingInboundEvent['conversation'] } = {},
+    from: {
+      actorId?: string;
+      conversation?: MessagingInboundEvent['conversation'];
+      mentions?: MessagingInboundEvent['mentions'];
+    } = {},
   ) => {
     const messageId = crypto.randomUUID();
     const conversation = from.conversation ?? event.conversation;
@@ -211,6 +215,7 @@ async function fixture() {
         text,
         actor: { ...event.actor, id: actorId },
         conversation,
+        ...(from.mentions ? { mentions: from.mentions, mentionedAccount: true } : {}),
         reply: {
           messageId,
           conversationId: conversation.id,
@@ -453,6 +458,82 @@ it('text replies answer with letters, several questions, a #reference, or a bare
   });
 });
 
+it('a question asked while the turn handles a bridged Lark group message goes to that group, and a turn from elsewhere stays in the DM', async () => {
+  const f = await fixture();
+  const bridged = placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_bridged',
+    messageId: 'om_bridged_ask',
+    placed: false,
+  });
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_stale',
+    messageId: 'om_stale_ask',
+  });
+  const turn = vi.spyOn(f.core.runtime, 'turnSourceEventIds').mockReturnValue([bridged]);
+  const asked = await f.start();
+  expect(asked.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_bridged' });
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
+    messageId: 'om_bridged_ask',
+    conversationId: 'oc_bridged',
+  });
+  turn.mockReturnValue(['local-source']);
+  const local = await f.start();
+  expect(local.delivery.destination).toBeUndefined();
+  turn.mockReturnValue(undefined);
+  const idle = await f.start();
+  expect(idle.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_stale' });
+});
+
+it('a quoted group answer drops only the leading @Bot and keeps other people it mentions', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  const asked = await f.start([{ id: 'who', question: 'Who reviews?' }]);
+  await f.text('@_user_1 ask @_user_2', 'om_' + asked.delivery.id, {
+    conversation: { kind: 'group', id: 'oc_team' },
+    mentions: [
+      { id: 'ou_bot', key: '@_user_1', name: 'QA Bot' },
+      { id: 'ou_bob', key: '@_user_2', name: 'Bob' },
+    ],
+  });
+  expect(await asked.answer).toEqual({
+    answers: [{ id: 'who', selected: [], custom: 'ask @Bob' }],
+  });
+});
+
+it('a question whose group card the provider refuses is sent to the DM instead and answered there', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  f.cards.mockImplementationOnce(async () => {
+    throw Object.assign(new Error('stale-route'), { code: 'stale-route' });
+  });
+  const asked = await f.start();
+  const id = asked.delivery.id;
+  const delivered = () =>
+    f.core.externalMessaging.questions.snapshot('ada').find((value) => value.id === id);
+  await vi.waitFor(() => expect(delivered()?.delivery).toBe('sent'));
+  expect(delivered()?.destination).toBeUndefined();
+  expect(f.cards.mock.calls.map((call) => call[1].conversationId)).toEqual([
+    'oc_team',
+    'oc_private',
+  ]);
+  await f.text('B', 'om_' + id);
+  expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+});
+
 it('a question raised from a Lark group conversation is answered in that group by paired people only, and the Binding or its platform default can send it back to the DM', async () => {
   const f = await fixture();
   const group = { kind: 'group' as const, id: 'oc_team' };
@@ -479,7 +560,10 @@ it('a question raised from a Lark group conversation is answered in that group b
   await f.text('A', card, { actorId: 'ou_bob', conversation: group });
   await f.text('B', undefined, { conversation: group });
   expect(f.owner.pending('ada', asked.delivery.id)).toBeDefined();
-  await f.text('B', card, { conversation: group });
+  await f.text('@_user_1 B', card, {
+    conversation: group,
+    mentions: [{ id: 'ou_bot', key: '@_user_1', name: 'QA Bot' }],
+  });
   expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
   const actor = f.core.channels
     .readMessages(dmChannelId('ada'))
