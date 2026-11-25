@@ -255,7 +255,14 @@ export function createCallCommands(wiring: {
     const mine = openCalls().find((call) => sameCaller(call, caller));
     if (mine === undefined && full())
       throw new CallRefusal('calls-full', 'This Host is at its call limit. End a call first.');
-    if (mine !== undefined) await end(mine, 'replaced');
+    if (mine !== undefined) {
+      await end(mine, 'replaced');
+      signal.throwIfAborted();
+      if (live(slug) !== undefined)
+        throw new CallRefusal('call-active', 'This Bot is already on a call.');
+      if (full())
+        throw new CallRefusal('calls-full', 'This Host is at its call limit. End a call first.');
+    }
     signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
     const call: Call = {

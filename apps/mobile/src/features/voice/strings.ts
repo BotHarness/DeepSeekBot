@@ -115,7 +115,7 @@ export const en = {
       'media-unavailable': 'The computer can’t start a call right now. Try again soon.',
       'local-voice-off':
         'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
-      'calls-full': 'This computer already has 3 calls. End one first.',
+      'calls-full': 'The Host already has 3 calls. End one first.',
     },
     connectOnly: 'Calls need the same Wi-Fi as the computer, or Tailscale.',
     busyElsewhere: 'This Bot is already on another call.',
@@ -368,7 +368,7 @@ export const zh: typeof en = {
       'media-unavailable': '电脑现在无法开始通话，请稍后再试。',
       'local-voice-off':
         '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
-      'calls-full': '这台电脑已经有 3 通通话了，先结束一通再打。',
+      'calls-full': '这个 Host 已经有 3 通通话了，先结束一通再打。',
     },
     connectOnly: '通话需要和电脑在同一 Wi-Fi，或使用 Tailscale。',
     busyElsewhere: '这个 Bot 正在另一通通话里。',

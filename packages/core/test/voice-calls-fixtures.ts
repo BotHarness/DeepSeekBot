@@ -40,6 +40,7 @@ export function fakeMedia(
     gains: [] as number[],
     failGain: undefined as number | undefined,
     playDelay: undefined as Promise<void> | undefined,
+    closeDelay: undefined as Promise<void> | undefined,
     stats: undefined as VoiceCallMediaStats | undefined,
   };
   const media: VoiceCallMedia = {
@@ -82,6 +83,7 @@ export function fakeMedia(
         },
         async close() {
           state.closed += 1;
+          await state.closeDelay;
         },
       };
     },

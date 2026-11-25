@@ -352,6 +352,30 @@ describe('Host call owner', () => {
     expect(await view(h, mira)).toMatchObject({ phase: 'listening' });
   });
 
+  it('rechecks the Bot after replacing a call, so a racing caller cannot double-book it', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const tablet = { deviceId: 'tablet' };
+    const laptop = { deviceId: 'laptop' };
+    await h.ok({ kind: 'open', slug: 'mira' }, tablet);
+    let release!: () => void;
+    state.closeDelay = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const replacing = h.calls.handle(tablet, { kind: 'open', slug: 'mira' });
+    await new Promise((resolve) => setImmediate(resolve));
+    const racing = await h.ok({ kind: 'open', slug: 'mira' }, laptop);
+    release();
+    state.closeDelay = undefined;
+    expect(await replacing).toMatchObject({ ok: false, code: 'call-active' });
+    expect(state.closed).toBe(1);
+    expect(
+      (await h.ok({ kind: 'heartbeat', callId: racing.call!.callId }, laptop)).call,
+    ).not.toMatchObject({
+      phase: 'ended',
+    });
+  });
+
   it('treats each desktop window as its own caller and refuses the second one', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });

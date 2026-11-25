@@ -178,7 +178,7 @@ export const zh = {
   'call.missing.mediaUnavailable': '电脑现在无法开始通话，请稍后再试。',
   'call.missing.localVoiceOff':
     '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
-  'call.missing.callsFull': '这台电脑已经有 3 通通话了，先结束一通再打。',
+  'call.missing.callsFull': '这个 Host 已经有 3 通通话了，先结束一通再打。',
   'call.elsewhere': '这个 Bot 正在另一通通话里。',
   'call.unreachable': '连不上电脑，请再试一次。',
   'call.connectOnly': '通话需要和电脑在同一网络，或使用 Tailscale。',
@@ -389,7 +389,7 @@ export const en = {
   'call.missing.mediaUnavailable': 'The computer can’t start a call right now. Try again soon.',
   'call.missing.localVoiceOff':
     'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
-  'call.missing.callsFull': 'This computer already has 3 calls. End one first.',
+  'call.missing.callsFull': 'This Host already has 3 calls. End one first.',
   'call.elsewhere': 'This Bot is already on another call.',
   'call.unreachable': 'Can’t reach the computer. Try again.',
   'call.connectOnly': 'Calls need the same network as the computer, or Tailscale.',
