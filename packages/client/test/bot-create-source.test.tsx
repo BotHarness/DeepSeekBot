@@ -29,7 +29,9 @@ describe('Bot creation method dialog', () => {
           }),
         ),
       );
-      const cards = document.body.querySelectorAll<HTMLButtonElement>('.bh-card-list button');
+      const cards = document.body.querySelectorAll<HTMLButtonElement>(
+        '[data-list-card] [data-bot-create-source] button',
+      );
       expect(cards).toHaveLength(4);
       for (const card of cards) await act(() => card.click());
       expect(onSelect.mock.calls).toEqual([['empty'], ['sessions'], ['git'], ['zip']]);
@@ -60,7 +62,9 @@ describe('Bot creation method dialog', () => {
           ),
         );
       await render(false);
-      const cards = document.body.querySelectorAll<HTMLButtonElement>('.bh-card-list button');
+      const cards = document.body.querySelectorAll<HTMLButtonElement>(
+        '[data-bot-create-source] button',
+      );
       const sessions = cards[1]!;
       const zip = cards[3]!;
       expect(sessions.disabled).toBe(true);
@@ -68,9 +72,9 @@ describe('Bot creation method dialog', () => {
       await act(() => sessions.click());
       await act(() => zip.click());
       expect(onSelect).not.toHaveBeenCalled();
-      expect(zip.textContent).toContain('切换到本机后使用');
+      expect(zip.closest('li')?.textContent).toContain('切换到本机后使用');
       await render(true);
-      expect(document.body.querySelectorAll('.bh-card-list button')).toHaveLength(1);
+      expect(document.body.querySelectorAll('[data-bot-create-source] button')).toHaveLength(1);
     } finally {
       await act(() => root.unmount());
     }

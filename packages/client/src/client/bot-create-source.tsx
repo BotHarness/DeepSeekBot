@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Modal } from './modal.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { Icon } from './ds/icon.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
-import type { BotHarnessTranslate } from './locale.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
   dialog: { width: dialog.small, maxWidth: '100%' },
@@ -14,7 +15,6 @@ const styles = stylex.create({
     maxHeight: dialog.bodyMax,
     overflowY: 'auto',
   },
-  cards: { display: 'flex', flexDirection: 'column', gap: space.x3 },
   steps: {
     display: 'flex',
     alignItems: 'center',
@@ -95,6 +95,8 @@ export function BotCreateSteps({
   );
 }
 
+export type BotCreateSource = 'empty' | 'git' | 'zip' | 'sessions';
+
 export function BotCreateSourceModal({
   t,
   member,
@@ -105,9 +107,49 @@ export function BotCreateSourceModal({
   t: BotHarnessTranslate;
   member: boolean;
   localImports: boolean;
-  onSelect: (source: 'empty' | 'git' | 'zip' | 'sessions') => void;
+  onSelect: (source: BotCreateSource) => void;
   onClose: () => void;
 }): ReactElement {
+  const sources: readonly {
+    id: BotCreateSource;
+    icon: string;
+    title: BotHarnessKey;
+    summary: BotHarnessKey;
+    disabled: boolean;
+  }[] = [
+    {
+      id: 'empty',
+      icon: 'plus',
+      title: 'roster.menu.createBot.empty',
+      summary: 'bot.create.source.empty',
+      disabled: false,
+    },
+    ...(member
+      ? []
+      : ([
+          {
+            id: 'sessions',
+            icon: 'messages-square',
+            title: 'roster.menu.createBot.sessions',
+            summary: 'bot.create.source.sessions',
+            disabled: !localImports,
+          },
+          {
+            id: 'git',
+            icon: 'git-branch',
+            title: 'roster.menu.createBot.git',
+            summary: 'bot.create.source.git',
+            disabled: false,
+          },
+          {
+            id: 'zip',
+            icon: 'archive-restore',
+            title: 'roster.menu.createBot.zip',
+            summary: 'bot.create.source.zip',
+            disabled: !localImports,
+          },
+        ] as const)),
+  ];
   return (
     <Modal
       open
@@ -119,48 +161,23 @@ export function BotCreateSourceModal({
     >
       <div className="bh-root" {...stylex.props(styles.body)}>
         <BotCreateSteps t={t} />
-        <div {...stylex.props(styles.cards)}>
-          <SidebarCardList>
-            <SidebarCardRow
-              icon="plus"
-              title={t('roster.menu.createBot.empty')}
-              meta={t('bot.create.source.empty')}
-              onClick={() => onSelect('empty')}
+        <ListCard label={t('bot.create.source.step')}>
+          {sources.map((source) => (
+            <ListCardItem
+              key={source.id}
+              data={{ 'data-bot-create-source': source.id }}
+              leading={<Icon name={source.icon} />}
+              title={t(source.title)}
+              summary={t(source.disabled ? 'environment.create.localOnly' : source.summary)}
+              trailing={<Icon name="chevron-right" />}
+              action={{
+                label: t(source.title),
+                disabled: source.disabled,
+                onClick: () => onSelect(source.id),
+              }}
             />
-          </SidebarCardList>
-          {!member ? (
-            <>
-              <SidebarCardList>
-                <SidebarCardRow
-                  icon="messages-square"
-                  title={t('roster.menu.createBot.sessions')}
-                  meta={t(
-                    localImports ? 'bot.create.source.sessions' : 'environment.create.localOnly',
-                  )}
-                  disabled={!localImports}
-                  onClick={() => onSelect('sessions')}
-                />
-              </SidebarCardList>
-              <SidebarCardList>
-                <SidebarCardRow
-                  icon="git-branch"
-                  title={t('roster.menu.createBot.git')}
-                  meta={t('bot.create.source.git')}
-                  onClick={() => onSelect('git')}
-                />
-              </SidebarCardList>
-              <SidebarCardList>
-                <SidebarCardRow
-                  icon="archive-restore"
-                  title={t('roster.menu.createBot.zip')}
-                  meta={t(localImports ? 'bot.create.source.zip' : 'environment.create.localOnly')}
-                  disabled={!localImports}
-                  onClick={() => onSelect('zip')}
-                />
-              </SidebarCardList>
-            </>
-          ) : null}
-        </div>
+          ))}
+        </ListCard>
       </div>
     </Modal>
   );
