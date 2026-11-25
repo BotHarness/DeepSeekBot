@@ -315,7 +315,10 @@ export async function runOnlineManagement(
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
   if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
-  if (command === 'list') return rpc('list', values.administration ? { administration: true } : {});
+  if (command === 'list')
+    return withoutDeletedBots(
+      await rpc('list', values.administration ? { administration: true } : {}),
+    );
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
@@ -534,4 +537,17 @@ export async function runOnlineManagement(
     }
     throw error;
   }
+}
+
+function withoutDeletedBots(listed: unknown): unknown {
+  if (typeof listed !== 'object' || listed === null || !('bots' in listed)) return listed;
+  const { bots } = listed;
+  if (!Array.isArray(bots)) return listed;
+  return {
+    ...listed,
+    bots: bots.filter(
+      (bot: unknown) =>
+        typeof bot !== 'object' || bot === null || !('deleted' in bot) || bot.deleted !== true,
+    ),
+  };
 }

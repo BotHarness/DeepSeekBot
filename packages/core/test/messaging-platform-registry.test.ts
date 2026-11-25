@@ -7,6 +7,7 @@ import {
   messagingPlatform,
   messagingPlatformIds,
 } from '../src/messaging/platforms/index.js';
+import { chatSenderIdentity, platformPeople } from '../src/messaging/permissions/index.js';
 
 const fn = async () => ({});
 const host = {
@@ -118,5 +119,60 @@ describe('Messaging platform registry', () => {
       conversationId: 'g',
     });
     expect(scope('qq', 'user', { openId: 'u' })).toBeUndefined();
+  });
+});
+
+describe('platform people', () => {
+  const event = (
+    channel: string,
+    actor: string,
+    conversation: { kind: 'dm' | 'group'; id: string },
+  ) =>
+    ({
+      channel,
+      actor: { kind: 'user', id: actor },
+      conversation,
+      messageId: 'm1',
+      reply: { messageId: 'm1', actorId: actor, conversationId: conversation.id },
+    }) as unknown as Parameters<typeof chatSenderIdentity>[0];
+
+  it('identifies senders only where a platform declares its people', () => {
+    expect(chatSenderIdentity(event('feishu', 'ou_abc', { kind: 'group', id: 'oc_1' }))).toEqual({
+      providerId: 'dsh-im/feishu',
+      namespace: 'lark-app-open-id',
+    });
+    expect(chatSenderIdentity(event('feishu', 'someone', { kind: 'dm', id: 'oc_1' }))).toBe(
+      undefined,
+    );
+    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'dm', id: 'D123' }))).toEqual({
+      providerId: 'dsh-im/slack',
+      namespace: 'slack-workspace-user-id',
+    });
+    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'group', id: 'C123' }))).toBe(
+      undefined,
+    );
+    expect(
+      chatSenderIdentity(event('discord', '123456789', { kind: 'dm', id: '987654321' })),
+    ).toEqual({ providerId: 'dsh-im/discord', namespace: 'discord-user-id' });
+    expect(
+      chatSenderIdentity(event('discord', '123456789', { kind: 'group', id: '987654321' })),
+    ).toBe(undefined);
+    expect(chatSenderIdentity(event('discord', 'bot', { kind: 'dm', id: '987654321' }))).toBe(
+      undefined,
+    );
+  });
+
+  it('keeps Roles and management pairing to platforms that declare them', () => {
+    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.management)).toEqual([
+      'feishu',
+      'slack',
+      'discord',
+    ]);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.roles)).toEqual(['feishu']);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id))).toEqual([
+      'feishu',
+      'slack',
+      'discord',
+    ]);
   });
 });

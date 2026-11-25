@@ -3,14 +3,19 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import { assertMessagingIdentity, readMessagingIdentity } from './identity.js';
-import { MessagingError, type MessagingInboundEvent } from './provider.js';
-import { externalUserRoles } from './sender-access.js';
-import { chatSenderIdentity } from './chat-sender.js';
 import {
+  MessagingError,
+  type MessagingInboundEvent,
+  type MessagingReplyRoute,
+} from './provider.js';
+import {
+  externalUserRoles,
+  chatSenderIdentity,
+  platformPeople,
   effectivePairingPermissions,
   type PermissionChoices,
   type EffectivePermissions,
-} from './permission-groups.js';
+} from './permissions/index.js';
 
 export const pairingCapabilities = [
   'approve',
@@ -64,6 +69,7 @@ export interface PairingRequest {
   revision: number;
   attempts: number;
   messageIds?: string[];
+  origin?: MessagingInboundEvent['reply'];
   reviewedBy?: 'authenticated-web' | 'paired-reviewer';
   reviewerActorId?: string;
   privateReply?: MessagingInboundEvent['reply'];
@@ -174,7 +180,7 @@ export function createBotPairing(
           binding.platform !== event.channel ||
           binding.providerId !== `dsh-im/${event.channel}` ||
           !chatSenderIdentity(event) ||
-          (purpose === 'management' && event.channel !== 'feishu') ||
+          (purpose === 'management' && !platformPeople(event.channel)?.management) ||
           event.botId !== binding.accountRef ||
           event.fingerprint !== binding.fingerprint ||
           (purpose === 'management' && event.conversation.kind !== 'dm') ||
@@ -252,6 +258,7 @@ export function createBotPairing(
           revision: 1,
           attempts: 1,
           messageIds: [event.messageId],
+          origin: event.reply,
           ...(purpose === 'conversation'
             ? { purpose, reply: event.reply, conversationKind: event.conversation.kind }
             : {}),
@@ -461,4 +468,14 @@ export function createBotPairing(
       return value;
     },
   };
+}
+
+export function pairedRoute(
+  pairing: Pick<PairingRequest, 'origin' | 'messageIds' | 'conversationId' | 'actorId'>,
+): MessagingReplyRoute | undefined {
+  if (pairing.origin) return pairing.origin;
+  const messageId = pairing.messageIds?.[0];
+  return messageId
+    ? { messageId, conversationId: pairing.conversationId, actorId: pairing.actorId }
+    : undefined;
 }

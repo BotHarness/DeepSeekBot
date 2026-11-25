@@ -1,17 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import type { PairingCapability, PairingRequest } from './pairing.js';
-import type { ExternalUserRole } from './sender-access.js';
-import { readMessagingIdentity } from './identity.js';
-import { MessagingError } from './provider.js';
+import type { PairingCapability, PairingRequest } from '../pairing.js';
+import type { ExternalUserRole } from './senders.js';
+import { platformPeople } from './people.js';
+import { readMessagingIdentity } from '../identity.js';
+import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
 import {
   behaviorPermissions,
   resolveBehaviorPermissions,
   type BehaviorChoices,
   type EffectiveBehaviorPermission,
-} from './behavior-permissions.js';
+} from './behavior.js';
 
 const choices = z.array(z.enum(['approve', 'reject', 'review-pairing', 'save-rules'])).max(4);
 const delegation = { delegateAllow: choices.optional(), delegateDeny: choices.optional() };
@@ -146,7 +147,7 @@ function ordinaryPairing(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    binding.platform !== 'feishu' ||
+    !platformPeople(binding.platform)?.roles ||
     (bindingId && bindingId !== binding.id) ||
     !role
   )
@@ -203,7 +204,7 @@ export function changePermissionGroups(db: DatabaseSync, botSlug: string, raw: G
   const binding = readMessagingIdentity(db, bindingId);
   if (
     binding.botSlug !== botSlug ||
-    binding.platform !== 'feishu' ||
+    !platformPeople(binding.platform)?.roles ||
     !binding.enabled ||
     binding.revokedAt
   )
@@ -263,7 +264,7 @@ export function effectivePairingPermissions(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    binding.platform !== 'feishu'
+    !platformPeople(binding.platform)
   )
     return empty;
   const pairings = (
@@ -283,7 +284,9 @@ export function effectivePairingPermissions(
       allow: p.capabilities,
       deny: [],
     }));
-  const person = pairings.find((p) => p.purpose === 'conversation');
+  const person = platformPeople(binding.platform)?.roles
+    ? pairings.find((p) => p.purpose === 'conversation')
+    : undefined;
   let currentBehavior: EffectiveBehaviorPermission[] = [];
   if (person) {
     const row = db

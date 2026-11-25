@@ -5,8 +5,8 @@ import {
   type BehaviorMember,
   type BehaviorPermission,
 } from './behavior-policy.js';
-import { MessagingError } from './provider.js';
-import { readMessagingIdentity } from './identity.js';
+import { MessagingError } from '../provider.js';
+import { readMessagingIdentity } from '../identity.js';
 
 export function assertBehaviorCompatibility(
   db: DatabaseSync,
