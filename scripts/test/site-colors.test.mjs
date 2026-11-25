@@ -41,6 +41,10 @@ describe('shared site colours', () => {
           4.5,
         );
         expect(
+          contrast(palette['brand-vivid'], surface),
+          `marketing brand text on ${surface}`,
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
           contrast(palette['brand-hover'], surface),
           `brand graphic on ${surface}`,
         ).toBeGreaterThanOrEqual(3);
@@ -55,7 +59,7 @@ describe('shared site colours', () => {
           'destructive hover text',
         ).toBeGreaterThanOrEqual(4.5);
       }
-      for (const fill of ['brand', 'brand-hover', 'danger']) {
+      for (const fill of ['brand', 'brand-hover', 'brand-vivid', 'danger']) {
         expect(
           contrast(palette['on-solid'], palette[fill]),
           `text on ${fill}`,
