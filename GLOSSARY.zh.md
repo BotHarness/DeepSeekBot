@@ -1274,7 +1274,7 @@ Sessions tab 的空白状态：Human 在这里选电脑环境和工作目录，�
 _避免使用_：创建 Session 表单、空白 Session
 
 **Session drawer**：
-Session 抽屉。Sessions tab 的左侧导航抽屉，从左边缘右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
+Session 抽屉。Sessions tab 的左侧模态导航抽屉（Android `ModalNavigationDrawer` ↔ iOS 原生复刻），在抽屉式 Session 根页面任意位置右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
 _避免使用_：Session 侧边栏、Session 列表页、Host drawer
 
 **Session navigation style**：

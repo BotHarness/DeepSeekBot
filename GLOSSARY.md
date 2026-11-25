@@ -1275,7 +1275,7 @@ The empty state of the Sessions tab where the Human picks a computer Environment
 _Avoid_: create Session form, blank Session
 
 **Session drawer**:
-The left navigation drawer of the Sessions tab, opened by swiping from the left edge or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
+The left modal navigation drawer of the Sessions tab (Android `ModalNavigationDrawer` ↔ a native iOS replica), opened by a rightward swipe anywhere on a Drawer-style Session root or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
 _Avoid_: Session sidebar, Session list page, Host drawer
 
 **Session navigation style**:
