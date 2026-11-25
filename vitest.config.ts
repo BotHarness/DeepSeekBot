@@ -95,7 +95,7 @@ export default defineConfig({
           include: durableIntegrationTests,
           maxWorkers: 1,
           fileParallelism: false,
-          sequence: { groupOrder: 2 },
+          sequence: { groupOrder: 4 },
         },
       },
       {
@@ -105,7 +105,7 @@ export default defineConfig({
           ...testDefaults,
           name: 'docs-site',
           include: [docsSiteTest],
-          sequence: { groupOrder: 0 },
+          sequence: { groupOrder: 3 },
         },
       },
     ],
