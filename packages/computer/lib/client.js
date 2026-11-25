@@ -285,7 +285,7 @@ window.__ModuleLoader__.load({
 			modal: "var(--tobs-layer-sheet)",
 			well: "var(--tobs-layer-well)",
 			accentTint: "var(--tobs-accent-tint)",
-			logoTile: "#ffffff"
+			logoTile: "var(--tobs-layer-logo)"
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
