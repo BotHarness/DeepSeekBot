@@ -2,41 +2,40 @@ import { MessageMenuHeader } from './message-turn-targets';
 import {
   BottomSheet,
   Button,
-  Divider,
   Group,
   HStack,
   Host,
-  Image,
+  Label,
+  List,
   RNHostView,
   ScrollView,
-  Spacer,
+  Section,
   Text,
-  VStack,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   accessibilityElement,
   accessibilityLabel,
-  background,
+  buttonBorderShape,
   buttonStyle,
-  contentShape,
-  fixedSize,
   font,
   foregroundStyle,
   frame,
-  imageScale,
-  padding,
-  onGeometryChange,
-  presentationBackground,
+  listRowBackground,
+  listRowInsets,
+  listRowSeparator,
+  listSectionMargins,
+  listStyle,
+  presentationDetents,
   presentationDragIndicator,
-  shapes,
+  padding,
+  scrollContentBackground,
 } from '@expo/ui/swift-ui/modifiers';
-import { Fragment, useRef, useState } from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRef, useState } from 'react';
+import { Platform, PlatformColor, View } from 'react-native';
 
 import { MENU_REACTIONS, reactedByMe } from '@botharness/host-client/conversation';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { rowSymbol } from '../primitives/row-icon';
 import { useStrings } from '../strings';
@@ -76,13 +75,6 @@ export function MessageActions({
   onShareAttachment,
 }: MessageActionsProps) {
   const theme = useDesignTheme();
-  const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const [contentHeight, setContentHeight] = useState(0);
-  const available = Math.max(
-    theme.touch,
-    height - insets.top - insets.bottom - space.x6 - space.x4,
-  );
   const queue = useRef(dismissQueue(Platform.OS)).current;
   const [last, setLast] = useState(target);
   if (target !== undefined && target !== last) setLast(target);
@@ -101,51 +93,36 @@ export function MessageActions({
           if (!presented) onClose();
         }}
         onDismiss={queue.flush}
-        fitToContents
       >
         <Group
           modifiers={[
-            frame({ maxWidth: Infinity, alignment: 'topLeading' }),
-            padding({ top: space.x6, bottom: space.x4, horizontal: space.x5 }),
+            presentationDetents(['medium', 'large']),
             presentationDragIndicator('visible'),
-            presentationBackground(theme.overlay.fill),
           ]}
         >
-          <ScrollView
-            modifiers={[
-              frame({
-                height:
-                  contentHeight === 0
-                    ? available
-                    : Math.min(contentHeight + insets.bottom, available),
-              }),
-            ]}
-          >
-            <SheetContent
-              onHeight={setContentHeight}
-              target={shown}
-              catalog={catalog}
-              readOnly={readOnly}
-              selectCopy={onSelectCopy !== undefined}
-              onReact={(emoji, active) => {
-                onReact(shown.message, emoji, active);
-                onClose();
-              }}
-              onAction={(action) => {
-                runAction(action, shown.message, {
-                  onFeedback: () => queue.after(() => shown.actions?.feedback()),
-                  onSelect: () => queue.after(() => shown.actions?.select()),
-                  onCopy,
-                  onSelectCopy: (message) => queue.after(() => onSelectCopy?.(message)),
-                  onShareText: (text) => queue.after(() => onShareText(text)),
-                  onShareAttachment: (attachment) =>
-                    queue.after(() => onShareAttachment?.(attachment)),
-                  onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
-                });
-                onClose();
-              }}
-            />
-          </ScrollView>
+          <SheetContent
+            target={shown}
+            catalog={catalog}
+            readOnly={readOnly}
+            selectCopy={onSelectCopy !== undefined}
+            onReact={(emoji, active) => {
+              onReact(shown.message, emoji, active);
+              onClose();
+            }}
+            onAction={(action) => {
+              runAction(action, shown.message, {
+                onFeedback: () => queue.after(() => shown.actions?.feedback()),
+                onSelect: () => queue.after(() => shown.actions?.select()),
+                onCopy,
+                onSelectCopy: (message) => queue.after(() => onSelectCopy?.(message)),
+                onShareText: (text) => queue.after(() => onShareText(text)),
+                onShareAttachment: (attachment) =>
+                  queue.after(() => onShareAttachment?.(attachment)),
+                onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
+              });
+              onClose();
+            }}
+          />
         </Group>
       </BottomSheet>
     </Host>
@@ -153,7 +130,6 @@ export function MessageActions({
 }
 
 function SheetContent({
-  onHeight,
   target,
   catalog,
   readOnly,
@@ -161,7 +137,6 @@ function SheetContent({
   onReact,
   onAction,
 }: {
-  onHeight(height: number): void;
   target: MessageMenuTarget;
   catalog: MessageActionsProps['catalog'];
   readOnly: boolean;
@@ -170,138 +145,122 @@ function SheetContent({
   onAction(action: MessageMenuAction): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const { message } = target;
   const time = menuTime(message.at, new Date());
+  const theme = useDesignTheme();
+  const glass = Number(Platform.Version) >= 26;
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
-  const icon = theme.type.title.line;
   return (
-    <VStack
-      alignment="leading"
-      spacing={space.x5}
+    <List
       modifiers={[
-        fixedSize({ horizontal: false, vertical: true }),
-        onGeometryChange(({ height }) => onHeight(height)),
+        listStyle('insetGrouped'),
+        scrollContentBackground('hidden'),
         accessibilityElement('contain'),
         accessibilityLabel(menuLabel(target)),
       ]}
     >
-      {message.turnTargets === undefined ? (
-        <Text
-          testID="message-menu-time"
-          modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)]}
-        >
-          {time}
-        </Text>
-      ) : (
-        <RNHostView matchContents={{ vertical: true }}>
-          <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
-        </RNHostView>
-      )}
-      {menuReactions(target, readOnly) ? (
-        <ScrollView
-          axes="horizontal"
-          showsIndicators={false}
-          modifiers={[accessibilityElement('contain'), accessibilityLabel(t.reactions)]}
-        >
-          <HStack spacing={space.x3}>
-            {MENU_REACTIONS.map((emoji) => {
-              const picked = mine.has(emoji);
-              return (
-                <Button
-                  key={emoji}
-                  onPress={() => onReact(emoji, !picked)}
-                  modifiers={[
-                    buttonStyle('plain'),
-                    accessibilityLabel(picked ? t.unreact(emoji) : t.react(emoji)),
-                    accessibilityAddTraits(picked ? ['isSelected'] : []),
-                  ]}
-                >
-                  <Text
+      <Section
+        header={
+          message.turnTargets === undefined ? (
+            <Text
+              testID="message-menu-time"
+              modifiers={[padding({ top: space.x5, horizontal: space.x5 })]}
+            >
+              {time}
+            </Text>
+          ) : (
+            <RNHostView matchContents={{ vertical: true }}>
+              <View style={{ paddingTop: space.x5, paddingHorizontal: space.x5 }}>
+                <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
+              </View>
+            </RNHostView>
+          )
+        }
+        modifiers={[listSectionMargins({ edges: 'horizontal', length: 0 })]}
+      >
+        {menuReactions(target, readOnly) ? (
+          <ScrollView
+            axes="horizontal"
+            showsIndicators={false}
+            modifiers={[
+              listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+              listRowBackground('transparent'),
+              listRowSeparator('hidden'),
+              accessibilityElement('contain'),
+              accessibilityLabel(t.reactions),
+            ]}
+          >
+            <HStack spacing={space.x3} modifiers={[padding({ horizontal: space.x5 })]}>
+              {MENU_REACTIONS.map((emoji) => {
+                const picked = mine.has(emoji);
+                return (
+                  <Button
+                    key={emoji}
+                    onPress={() => onReact(emoji, !picked)}
                     modifiers={[
-                      font({ textStyle: 'title2' }),
-                      padding({ all: space.x3 }),
-                      frame({ minWidth: theme.touch, minHeight: theme.touch }),
-                      background(
-                        picked ? theme.layer.raised.chosen : theme.layer.raised.fill,
-                        shapes.circle(),
+                      buttonStyle(
+                        glass
+                          ? picked
+                            ? 'glassProminent'
+                            : 'glass'
+                          : picked
+                            ? 'borderedProminent'
+                            : 'bordered',
                       ),
-                      contentShape(shapes.circle()),
+                      buttonBorderShape('circle'),
+                      accessibilityLabel(picked ? t.unreact(emoji) : t.react(emoji)),
+                      accessibilityAddTraits(picked ? ['isSelected'] : []),
                     ]}
                   >
-                    {emoji}
-                  </Text>
-                </Button>
-              );
-            })}
-          </HStack>
-        </ScrollView>
-      ) : null}
+                    <Text
+                      modifiers={[
+                        font({ textStyle: 'title2' }),
+                        frame({ width: theme.touch - space.x4, height: theme.touch - space.x4 }),
+                      ]}
+                    >
+                      {emoji}
+                    </Text>
+                  </Button>
+                );
+              })}
+            </HStack>
+          </ScrollView>
+        ) : null}
+      </Section>
       {target.activity === undefined ? null : (
-        <RNHostView matchContents={{ vertical: true }}>
-          <MessageSheetText body={message.body} />
-        </RNHostView>
+        <Section>
+          <RNHostView matchContents={{ vertical: true }}>
+            <MessageSheetText body={message.body} />
+          </RNHostView>
+        </Section>
       )}
       {menuGroups(
         messageMenuActions(message, target.activity, target.actions !== undefined, selectCopy),
       ).map((group) => (
-        <VStack
-          key={group.map(actionId).join()}
-          spacing={0}
-          modifiers={[
-            background(
-              theme.layer.raised.fill,
-              shapes.roundedRectangle({
-                cornerRadius: radius.lg,
-                roundedCornerStyle: 'continuous',
-              }),
-            ),
-          ]}
-        >
-          {group.map((action, index) => (
-            <Fragment key={actionId(action)}>
-              {index === 0 ? null : (
-                <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
-              )}
-              <Button
-                onPress={() => onAction(action)}
-                modifiers={[buttonStyle('plain'), accessibilityLabel(action.label)]}
-              >
-                <HStack
-                  spacing={space.x4}
-                  modifiers={[
-                    padding({ horizontal: space.x5, vertical: space.x4 }),
-                    frame({ minHeight: theme.touch }),
-                    contentShape(shapes.rectangle()),
-                  ]}
-                >
-                  <Image
-                    systemName={
-                      rowSymbol(
-                        action.key === 'select-copy'
-                          ? 'copy'
-                          : action.key === 'attachments'
-                            ? 'download'
-                            : action.key,
-                      ).ios
-                    }
-                    modifiers={[
-                      font({ textStyle: 'body' }),
-                      foregroundStyle(theme.color.fg),
-                      imageScale('medium'),
-                      frame({ minWidth: icon }),
-                    ]}
-                  />
-                  <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.fg)]}>
-                    {action.label}
-                  </Text>
-                  <Spacer />
-                </HStack>
-              </Button>
-            </Fragment>
+        <Section key={group.map(actionId).join()}>
+          {group.map((action) => (
+            <Button
+              key={actionId(action)}
+              onPress={() => onAction(action)}
+              modifiers={[accessibilityLabel(action.label)]}
+            >
+              <Label
+                title={action.label}
+                systemImage={
+                  rowSymbol(
+                    action.key === 'select-copy'
+                      ? 'copy'
+                      : action.key === 'attachments'
+                        ? 'download'
+                        : action.key,
+                  ).ios
+                }
+                modifiers={[foregroundStyle(PlatformColor('label'))]}
+              />
+            </Button>
           ))}
-        </VStack>
+        </Section>
       ))}
-    </VStack>
+    </List>
   );
 }

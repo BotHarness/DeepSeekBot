@@ -32,6 +32,7 @@ vi.mock('../src/ui/shell/icons', () => ({
 }));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
 vi.mock('../src/ui/primitives/sheet-header', () => ({
+  SheetFramed: ({ children }: { children: ReactNode }) => children,
   SheetHeader: ({ title, onClose }: { title: string; onClose(): void }) =>
     createElement(
       'header',

@@ -611,6 +611,7 @@ deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
 deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
+deepseekbot session-model <bot-id>
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -689,7 +690,7 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 
 `session-transcript` 在能确认运行目标时，为 `reply` 和 `turn-end` 返回按执行顺序排列的 `turnTargets`。回复由最后一个目标生成。DSH 条目包含 `provider` 和 `model`，订阅引擎条目包含 `engine` 以及能确认的模型和推理强度。当前主会话首次运行后，`model-plan <bot-id>` 也会返回 `currentTarget`。
 
-`session-model` 读取根会话保存的覆盖项 `override` 和 Bot 默认项 `default`。执行期间，`active` 是本轮开始时读取的覆盖项。`--set` 接收一个模型选择 JSON 对象：
+`session-model` 读取根会话保存的覆盖项 `override` 和 Bot 默认项 `default`。执行期间，`active` 是本轮开始时读取的覆盖项。不带 `--session` 时，读取该 Bot 新建编排会话会使用的 `default`（`override` 为 `null`），手机在发出第一条消息前用它在输入框里显示模型名。`--set` 接收一个模型选择 JSON 对象：
 
 - API 模型：`{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
 - 订阅引擎：`{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`。使用 `accountId` 指定获准使用的账号。

@@ -1,9 +1,8 @@
 import {
   sessionModelChoice,
-  type SessionModelChoice,
   type SessionModelState,
 } from '@botharness/host-protocol/session-model';
-import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
+import { sessionDefaultChoice } from './session-model-default.js';
 import { routingGroupFailure, type createModelRoutingHelpers } from '../models/routing.js';
 import { EngineRefusal } from '../../engines/engine-session.js';
 import {
@@ -53,7 +52,7 @@ import { type ChannelRecord } from '../../channels/channel.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../../bots/avatar-appearance.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
-import { DEFAULT_MODEL_PRESET_ID, type ModelRoute } from '../../models/presets.js';
+import { type ModelRoute } from '../../models/presets.js';
 import type { AssignmentAccessMode } from '../../workspaces/assignment-access.js';
 import type { AssignmentActivity, AssignmentReportState } from '../../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../../runtime/assignment-approval-capacity.js';
@@ -566,10 +565,14 @@ export function createSessionsBridgeMethods(
       const input = asObject(payload);
       const slug = asSlug(payload);
       const sessionId = asNonBlank(input, 'sessionId');
-      if (slug === undefined || sessionId === undefined)
-        return invalidInput('slug and sessionId are required');
+      if (slug === undefined) return invalidInput('slug is required');
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
+      if (sessionId === undefined) {
+        if (input['choice'] !== undefined) return invalidInput('sessionId is required to save');
+        const preview = sessionDefaultChoice(deps, slug, bot, 'orchestrator');
+        return { ok: true, value: { override: null, default: preview } };
+      }
       const owner = deps.ownership.resolve(sessionId);
       if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
         return { ok: false, error: { code: 'not-found', message: 'Unknown root Session' } };
@@ -625,64 +628,7 @@ export function createSessionsBridgeMethods(
           return routingGroupFailure(error);
         }
       }
-      const role = owner.rootRole;
-      const plan = bot.modelPlan;
-      const defaultPreset = deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID);
-      const assignmentOwnDefault =
-        role === 'assignment' && defaultPreset?.assignmentFollowsMain !== true;
-      const inheritsPreset =
-        !(plan === undefined && bot.model !== undefined) &&
-        (role === 'orchestrator' ? plan === undefined : plan?.assignmentDefault === undefined);
-      const engine =
-        deps.engineSelection?.store
-          .selections()
-          .find((entry) => entry.botSlug === slug && entry.role === role) ??
-        (inheritsPreset
-          ? assignmentOwnDefault
-            ? defaultPreset?.assignmentEngine
-            : defaultPreset?.orchestratorEngine
-          : undefined);
-      const inherited =
-        defaultPreset === undefined
-          ? undefined
-          : {
-              groupId: defaultPreset.orchestratorGroupId,
-              effort: defaultPreset.orchestratorGroupEffort,
-            };
-      const assignment =
-        role === 'assignment' ? deps.runtime?.getAssignment(slug, sessionId) : undefined;
-      const group =
-        role === 'assignment'
-          ? (assignment?.modelGroupId ?? plan?.assignmentDefaultGroupId)
-          : plan === undefined
-            ? inherited?.groupId
-            : plan.orchestratorGroupId;
-      const groupEffort =
-        role === 'orchestrator'
-          ? plan === undefined
-            ? inherited?.effort
-            : plan.orchestratorGroupEffort
-          : assignment?.modelGroupEffort;
-      const route =
-        (role === 'assignment'
-          ? (assignment?.modelRoute ?? plan?.assignmentDefault)
-          : plan?.orchestrator) ??
-        (assignmentOwnDefault ? defaultPreset?.assignmentDefault : defaultPreset?.orchestrator) ??
-        deps.defaultModel?.currentSelection() ??
-        deps.modelCatalog?.defaultRoute?.();
-      const defaultChoice: SessionModelChoice | null =
-        engine !== undefined
-          ? (sessionModelChoice({ ...engine, kind: 'engine', model: engine.model ?? 'default' }) ??
-            null)
-          : group !== undefined
-            ? {
-                kind: 'group',
-                id: group,
-                ...(groupEffort === undefined ? {} : { effort: groupEffort }),
-              }
-            : route === undefined
-              ? null
-              : sessionRouteChoice(route);
+      const defaultChoice = sessionDefaultChoice(deps, slug, bot, owner.rootRole, sessionId);
       const active = deps.runtime?.activeSessionModel?.(sessionId);
       return {
         ok: true,

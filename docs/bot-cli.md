@@ -662,6 +662,7 @@ deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
 deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
+deepseekbot session-model <bot-id>
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -740,7 +741,7 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 `session-transcript` includes `turnTargets` on replies and turn endings when attribution is available. Targets appear in execution order. The final entry produced the reply. DSH entries carry `provider` and `model`. Subscription Engine entries carry `engine` and any model and reasoning effort the Host could establish. `model-plan <bot-id>` also includes `currentTarget` for the Bot’s current Orchestrator Session after its first execution.
 
-`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Give `--set` one JSON Model Choice object:
+`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Without `--session` it reads the `default` a new Orchestrator Session of the Bot would start with (`override` is `null`); the phone names that model in the composer before the first message. Give `--set` one JSON Model Choice object:
 
 - API model: `{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
 - Subscription Engine: `{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`. Add `accountId` to select a particular granted account.

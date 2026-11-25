@@ -38,6 +38,14 @@ A voice identity that a compatible speech model can use to speak. It can be buil
 **Speech Catalog**:
 The speech models and voices a provider offers for selection. A shared voice may need to be added to the provider account before it becomes usable.
 
+**Meeting**:
+One session on an outside meeting platform, such as a Zoom or Google Meet meeting, identified by its link.
+_Avoid_: call (a call is between a Human and a Bot), conference
+
+**Meeting Attendance**:
+One Bot's presence in one Meeting, run as a call whose far end is the meeting. It is waiting, in the meeting, left or failed, and leaves a transcript and recap in the Bot's Memory, not in any conversation.
+_Avoid_: meeting bot, meeting session, recording
+
 ### PersonaBots
 
 **Tob**:
