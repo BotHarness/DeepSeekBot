@@ -9,7 +9,6 @@ import {
   type useChatInitialScroll,
 } from './chat-timeline-chrome';
 import { ChatList } from '../primitives/chat-list';
-import { useTimelineIslandFloor } from '../primitives/chat-scroll';
 import type { usePullToCompose } from './pull-to-compose';
 import { SwipeOpen } from '../shell/swipe-open';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -37,6 +36,7 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export function renderConversationTimeline({
   t,
+  islandFloor,
   paging,
   focus,
   focusRequest,
@@ -60,6 +60,7 @@ export function renderConversationTimeline({
   profile,
 }: {
   t: ReturnType<typeof useStrings>;
+  islandFloor: number;
   paging: ReturnType<typeof useProfilePaging>;
   focus: string | undefined;
   focusRequest: string | undefined;
@@ -104,7 +105,6 @@ export function renderConversationTimeline({
   } = scrollState;
   const { viewport, attachList, latest } = timeline;
   const { composerHeight, viewportHeight, viewportLayout, stage, flights, composable } = composer;
-  const islandFloor = useTimelineIslandFloor();
   const { rows } = timelineRows;
   const { key, ...initialScrollProps } = initialScroll;
   const { jump } = focusJump;

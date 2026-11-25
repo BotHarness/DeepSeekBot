@@ -70,6 +70,7 @@ import { RequestCard } from './conversation-request-card';
 
 export function renderConversation({
   focused,
+  islandFloor,
   presentation,
   t,
   theme,
@@ -113,6 +114,7 @@ export function renderConversation({
   header,
   notice,
 }: {
+  islandFloor: number;
   focused: boolean;
   presentation: ConversationPresentation | undefined;
   t: ReturnType<typeof useStrings>;
@@ -554,6 +556,7 @@ export function renderConversation({
                   ) : (
                     renderConversationTimeline({
                       t,
+                      islandFloor,
                       paging,
                       focus,
                       focusRequest,

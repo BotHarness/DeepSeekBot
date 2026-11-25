@@ -47,6 +47,7 @@ import {
   conversationNotice,
 } from './conversation-header';
 import { renderConversation } from './conversation-layout';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
 
 export type { ChatPlace } from './chat-place';
 
@@ -365,8 +366,10 @@ function ChatConversation({
     timelineRows,
     profile,
   });
+  const islandFloor = useTimelineIslandFloor();
   const screenTree = renderConversation({
     focused,
+    islandFloor,
     presentation,
     t,
     theme,
