@@ -565,7 +565,9 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     async close() {
       device?.close();
       clearInterval(sweep);
-      await Promise.all([...new Set([...streams.keys(), ...pending.keys()])].map(cancel));
+      await Promise.all(
+        [...new Set([...streams.keys(), ...pending.keys()])].map((key) => cancel(key)),
+      );
     },
   };
 }

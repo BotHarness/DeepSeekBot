@@ -2,6 +2,7 @@ import { once } from 'node:events';
 import { Client, fetch } from 'undici';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TEAM_PATH } from '../src/team/http.js';
+import { deferred } from './deferred.js';
 import { cleanup, enabledFixture, memberHttp } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
@@ -60,6 +61,30 @@ describe('member HTTP stream disconnection', () => {
     await vi.waitFor(() => expect(stopped).toHaveBeenCalledTimes(17));
   });
 
+  it('stops every open stream when the member HTTP surface closes', async () => {
+    const { gateway, open, next } = await signedInMember();
+    const stopped = vi.fn();
+    vi.spyOn(gateway.wireStream, 'open').mockImplementation(
+      async function (_endpoint, _payload, _uplink, _peer, signal) {
+        return (async function* () {
+          try {
+            yield 'baseline';
+            if (!signal.aborted) await once(signal, 'abort');
+          } finally {
+            stopped();
+          }
+        })();
+      },
+    );
+
+    for (const id of [1, 2, 3]) {
+      expect(await (await open(id)).json()).toEqual({});
+      expect(await (await next(id)).json()).toEqual({ value: 'baseline' });
+    }
+    await cleanup();
+    expect(stopped).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps a stream polling on a new socket when its earlier socket closes', async () => {
     const { gateway, origin, open, next } = await signedInMember();
     vi.spyOn(gateway.wireStream, 'open').mockResolvedValue(
@@ -82,7 +107,7 @@ describe('member HTTP stream disconnection', () => {
 
   it('releases an abandoned poll while another stream under the same grant keeps working', async () => {
     const { gateway, open, next } = await signedInMember();
-    const polling = Promise.withResolvers<void>();
+    const polling = deferred<void>();
     const stopped = vi.fn();
     vi.spyOn(gateway.wireStream, 'open')
       .mockImplementationOnce(async function (_endpoint, _payload, _uplink, _peer, signal) {
@@ -117,8 +142,8 @@ describe('member HTTP stream disconnection', () => {
 
   it('releases a disconnected opening before the Gateway returns its iterator', async () => {
     const { gateway, open, next } = await signedInMember();
-    const opening = Promise.withResolvers<AbortSignal>();
-    const opened = Promise.withResolvers<AsyncIterable<unknown>>();
+    const opening = deferred<AbortSignal>();
+    const opened = deferred<AsyncIterable<unknown>>();
     const returned = vi.fn(async () => ({ done: true, value: undefined }));
     vi.spyOn(gateway.wireStream, 'open')
       .mockImplementationOnce((_endpoint, _payload, _uplink, _peer, signal) => {
