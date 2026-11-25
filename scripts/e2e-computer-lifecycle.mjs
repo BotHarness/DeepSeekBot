@@ -422,7 +422,7 @@ try {
     '-c',
     'command -v xmessage',
   ]);
-  const marker = `AX Container Computer 1977: ${ownership.container}`;
+  const marker = `AX Container Computer 1977\n${ownership.container}`;
   docker([
     'exec',
     '-d',
@@ -435,6 +435,8 @@ try {
     '-center',
     '-title',
     'AX Container Computer 1977',
+    '-fn',
+    '-urw-nimbus sans l-bold-r-normal--56-*-*-*-p-*-iso8859-1',
     '-buttons',
     'OK',
     marker,

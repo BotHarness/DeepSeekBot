@@ -53,7 +53,7 @@ function fixture() {
       mounts: [{ name: volume, destination: '/config' }],
     },
     'container-stopped': { id: 'container-id', running: false },
-    fixture: { marker: `AX Container Computer 1977: ${container}`, containerId: 'container-id' },
+    fixture: { marker: `AX Container Computer 1977\n${container}`, containerId: 'container-id' },
     'stopped-refusal': { exitCode: 1, value: { error: { code: 'not-running' } } },
     'cleanup-computer': { ok: true },
     lifecycle: {
@@ -223,7 +223,7 @@ describe('bounded Container Computer qualification', () => {
     change(dir, name, update);
     expect(coverageRow(dir, commit).status).toBe('needs-revalidation');
   });
-  it('accepts only the tracked post-Stop viewer websocket 404', () => {
+  it('accepts only tracked desktop-viewer churn while the Container starts or stops', () => {
     const teardown = {
       stage: 'stop-from-panel',
       status: 404,
@@ -248,14 +248,31 @@ describe('bounded Container Computer qualification', () => {
       status: 404,
       url: '[redacted]/botharness-computer/viewer/api/status',
     };
-    expect(knownViewerTransient(booting)).toBe(true);
     for (const entry of [
+      booting,
       { ...teardown, stage: 'observe-real-frame' },
+      { ...booting, stage: 'stop-from-panel', status: 503 },
+      {
+        source: 'console',
+        stage: 'observe-real-frame',
+        url: '[redacted]/botharness-computer/viewer/selkies-core.js',
+        message: '[websockets] Error: [object Object]',
+      },
+    ])
+      expect(knownViewerTransient(entry)).toBe(true);
+    for (const entry of [
       { ...teardown, status: 500 },
-      { ...teardown, url: '[redacted]/botharness-computer/viewer/' },
-      { ...booting, stage: 'stop-from-panel' },
       { ...booting, stage: 'observe-Access-off' },
+      { ...booting, stage: 'enable-Computer-Access' },
       { ...booting, status: 502 },
+      { ...booting, url: '[redacted]/api/botharness/computer/status' },
+      { source: 'pageerror', stage: 'observe-real-frame', message: 'TypeError: x is undefined' },
+      {
+        source: 'console',
+        stage: 'observe-real-frame',
+        url: '[redacted]/assets/client.js',
+        message: 'Uncaught TypeError',
+      },
     ])
       expect(knownViewerTransient(entry)).toBe(false);
   });

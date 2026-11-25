@@ -96,7 +96,7 @@ export function computerProblems(run, read) {
     problems.push('Docker instance or persistent volume correlation failed');
   if (
     read('fixture').containerId !== container.id ||
-    read('fixture').marker !== `AX Container Computer 1977: ${ownership.container}`
+    read('fixture').marker !== `AX Container Computer 1977\n${ownership.container}`
   )
     problems.push('Test picture does not belong to this container');
   const frame = read('frame');
@@ -160,25 +160,23 @@ export const knownIssues = [
   {
     issue: 5274,
     summary:
-      'The docked viewer can poll the desktop status before it is ready, and after panel Stop it retries its removed websocket; both answer 404.',
+      'The desktop web client inside the docked viewer polls and reconnects while the Container boots and after panel Stop, logging 404/503 and websocket errors.',
   },
 ];
 
-const viewerTransients = [
-  { stages: ['stop-from-panel'], path: /\/botharness-computer\/viewer\/api\/websockets$/u },
-  {
-    stages: ['start-from-panel', 'prepare-test-picture', 'observe-real-frame'],
-    path: /\/botharness-computer\/viewer\/api\/status$/u,
-  },
+const viewerLifecycleStages = [
+  'start-from-panel',
+  'prepare-test-picture',
+  'observe-real-frame',
+  'stop-from-panel',
 ];
+const viewerPath = /\/botharness-computer\/viewer\/[^?#]*$/u;
 
 export function knownViewerTransient(entry) {
-  return (
-    (entry?.status === 404 || /status of 404/u.test(entry?.message ?? '')) &&
-    viewerTransients.some(
-      ({ stages, path }) => stages.includes(entry.stage) && path.test(entry.url ?? ''),
-    )
-  );
+  if (entry?.source === 'pageerror' || !viewerLifecycleStages.includes(entry?.stage)) return false;
+  if (!viewerPath.test(entry.url ?? '')) return false;
+  if (entry.status !== undefined) return entry.status === 404 || entry.status === 503;
+  return /status of (404|503)|\[websockets\] Error/u.test(entry.message ?? '');
 }
 
 export function coverageRow(directory, commit, dirty = false) {
