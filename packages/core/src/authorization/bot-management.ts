@@ -1,15 +1,14 @@
+import {
+  MANAGEMENT_CAPABILITIES,
+  type ManagementCapability,
+} from '@botharness/host-protocol/bot-management';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { resolveGrants } from './grants.js';
 
-export const managementCapability = z.enum(['manage-app', 'manage-bots']);
-export type ManagementCapability = z.infer<typeof managementCapability>;
-export const managementGrantChangeSchema = z.object({
-  capability: managementCapability,
-  enabled: z.boolean(),
-});
-export type ManagementGrantChange = z.infer<typeof managementGrantChangeSchema>;
+export const managementCapability = z.enum(MANAGEMENT_CAPABILITIES);
+export type { ManagementCapability } from '@botharness/host-protocol/bot-management';
 
 export function botManagementGrants(
   database: OperationalDatabaseModulePort,

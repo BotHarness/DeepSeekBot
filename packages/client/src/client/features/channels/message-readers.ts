@@ -1,3 +1,4 @@
+import { parseManagementGrantChange } from '@botharness/host-protocol/bot-management';
 import { parseAuthor } from '../../bridge-channel-author.js';
 import { parseApprovalCard } from '../approvals/bridge.js';
 
@@ -15,7 +16,7 @@ import { genuiDocumentReplySchema } from '../../bridge.js';
 import { parseToolApprovalActor } from '../../bridge.js';
 import { isChannelVoiceCallRecord } from '../../bridge.js';
 import { isChannelTurnStopEngine, isChannelTurnStopRests } from '../../bridge.js';
-import { isChannelModelSwitch, managementGrantChangeSchema } from '../../bridge.js';
+import { isChannelModelSwitch } from '../../bridge.js';
 import { parseMessagePerf } from '../../message-perf.js';
 import { isChannelClearedAttachment } from '../../bridge.js';
 
@@ -344,9 +345,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
   } else if (record['managementGrantChange'] !== undefined) {
-    const change = managementGrantChangeSchema.safeParse(record['managementGrantChange']);
-    if (author.kind !== 'system' || !change.success) return undefined;
-    managementGrantChange = change.data;
+    const change = parseManagementGrantChange(record['managementGrantChange']);
+    if (author.kind !== 'system' || change === undefined) return undefined;
+    managementGrantChange = change;
   } else if (record['modelSwitch'] !== undefined) {
     if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
     modelSwitch = record['modelSwitch'];

@@ -1,4 +1,4 @@
-import { managementGrantChangeSchema } from '../authorization/bot-management.js';
+import { parseManagementGrantChange } from '@botharness/host-protocol/bot-management';
 import { isSessionTurnModelSwitch, isTurnTargetPath } from '@botharness/host-protocol/turn-target';
 import { isChannelQuoteList } from './quotes.js';
 import { isChannelMessageVoice } from './voice.js';
@@ -462,7 +462,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   } else if (message['managementGrantChange'] !== undefined) {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
-      !managementGrantChangeSchema.safeParse(message['managementGrantChange']).success
+      parseManagementGrantChange(message['managementGrantChange']) === undefined
     )
       return false;
   } else if (message['modelSwitch'] !== undefined) {
