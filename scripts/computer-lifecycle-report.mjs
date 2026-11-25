@@ -148,9 +148,9 @@ export function computerProblems(run, read) {
   }
   const consoleErrors = read('console');
   const httpErrors = read('http-errors');
-  if (!Array.isArray(consoleErrors) || consoleErrors.some((e) => !knownStopTeardown(e)))
+  if (!Array.isArray(consoleErrors) || consoleErrors.some((e) => !knownViewerTransient(e)))
     problems.push('Client console errors or missing observation');
-  if (!Array.isArray(httpErrors) || httpErrors.some((e) => !knownStopTeardown(e)))
+  if (!Array.isArray(httpErrors) || httpErrors.some((e) => !knownViewerTransient(e)))
     problems.push('HTTP failures or missing observation');
   return problems;
 }
@@ -158,15 +158,25 @@ export function computerProblems(run, read) {
 export const knownIssues = [
   {
     issue: 5274,
-    summary: 'After panel Stop, the mounted viewer retries its removed websocket and receives 404.',
+    summary:
+      'The docked viewer can poll the desktop status before it is ready, and after panel Stop it retries its removed websocket; both answer 404.',
   },
 ];
 
-export function knownStopTeardown(entry) {
+const viewerTransients = [
+  { stages: ['stop-from-panel'], path: /\/botharness-computer\/viewer\/api\/websockets$/u },
+  {
+    stages: ['start-from-panel', 'prepare-test-picture', 'observe-real-frame'],
+    path: /\/botharness-computer\/viewer\/api\/status$/u,
+  },
+];
+
+export function knownViewerTransient(entry) {
   return (
-    entry?.stage === 'stop-from-panel' &&
-    /\/botharness-computer\/viewer\/api\/websockets$/u.test(entry.url ?? '') &&
-    (entry.status === 404 || /status of 404/u.test(entry.message ?? ''))
+    (entry?.status === 404 || /status of 404/u.test(entry?.message ?? '')) &&
+    viewerTransients.some(
+      ({ stages, path }) => stages.includes(entry.stage) && path.test(entry.url ?? ''),
+    )
   );
 }
 

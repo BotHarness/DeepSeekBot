@@ -7,7 +7,7 @@ import {
   coverageRow,
   digest,
   knownIssues,
-  knownStopTeardown,
+  knownViewerTransient,
   phases,
   requiredEvidence,
   visualEvidence,
@@ -243,12 +243,21 @@ describe('bounded Container Computer qualification', () => {
     });
     expect(coverageRow(dir, commit).status).toBe('pass');
     expect(knownIssues.map((k) => k.issue)).toEqual([5274]);
+    const booting = {
+      stage: 'observe-real-frame',
+      status: 404,
+      url: '[redacted]/botharness-computer/viewer/api/status',
+    };
+    expect(knownViewerTransient(booting)).toBe(true);
     for (const entry of [
       { ...teardown, stage: 'observe-real-frame' },
       { ...teardown, status: 500 },
       { ...teardown, url: '[redacted]/botharness-computer/viewer/' },
+      { ...booting, stage: 'stop-from-panel' },
+      { ...booting, stage: 'observe-Access-off' },
+      { ...booting, status: 502 },
     ])
-      expect(knownStopTeardown(entry)).toBe(false);
+      expect(knownViewerTransient(entry)).toBe(false);
   });
   it('keeps a first failure or prerequisite blocker distinct from later success', () => {
     for (const status of ['fail', 'blocked']) {

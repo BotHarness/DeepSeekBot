@@ -11,7 +11,7 @@ import {
   digest,
   computerProblems,
   knownIssues,
-  knownStopTeardown,
+  knownViewerTransient,
   coverageRow,
   markdownRow,
 } from './computer-lifecycle-report.mjs';
@@ -540,7 +540,7 @@ try {
       reason: run.reason,
       botId: run.botId ?? null,
     });
-  run.knownIssues = [...errors, ...httpErrors].some(knownStopTeardown) ? knownIssues : [];
+  run.knownIssues = [...errors, ...httpErrors].some(knownViewerTransient) ? knownIssues : [];
   run.finishedAt = new Date().toISOString();
   writeFileSync(
     resolve(directory, 'run.json'),
