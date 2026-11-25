@@ -12,6 +12,7 @@ import {
   matchesGlob,
   mobileVerification,
   parseChanges,
+  memberConfinement,
   timelinePerf,
   uiVisual,
   parseGitChanges,
@@ -216,6 +217,18 @@ describe('CI test plan', () => {
     expect(uiVisual('affected', [{ path: 'scripts/check-ui-visual.mjs' }])).toBe(true);
     expect(uiVisual('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
     expect(uiVisual('full', [])).toBe(true);
+  });
+
+  it('runs the member Shell confinement job for execution source, its tests and full runs', () => {
+    expect(
+      memberConfinement('affected', [{ path: 'packages/core/src/execution/shell-reach.ts' }]),
+    ).toBe(true);
+    expect(
+      memberConfinement('affected', [{ path: 'packages/core/test/member-confinement.test.ts' }]),
+    ).toBe(true);
+    expect(memberConfinement('affected', [{ path: '.github/workflows/verify.yml' }])).toBe(true);
+    expect(memberConfinement('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(memberConfinement('full', [])).toBe(true);
   });
 
   it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {

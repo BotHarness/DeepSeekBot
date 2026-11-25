@@ -48,6 +48,7 @@ jobs:
       android-native: ${{ steps.plan.outputs.android-native }}
       perf: ${{ steps.plan.outputs.perf }}
       ui-visual: ${{ steps.plan.outputs.ui-visual }}
+      confinement: ${{ steps.plan.outputs.confinement }}
       mobile: ${{ steps.plan.outputs.mobile }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
@@ -536,6 +537,41 @@ jobs:
           path: .humanlayer/ui-visual/*.png
           if-no-files-found: ignore
 
+  confinement:
+    name: member Shell confinement under bwrap
+    needs: plan
+    if: needs.plan.outputs.confinement == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the sandbox tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends bubblewrap slirp4netns nftables
+      - name: Let bwrap and unshare create user namespaces under AppArmor
+        run: |
+          [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] || exit 0
+          allow() {
+            printf 'abi <abi/4.0>,\nprofile %s %s flags=(unconfined) {\n  userns,\n}\n' "$1" "$2" |
+              sudo tee "/etc/apparmor.d/$1" >/dev/null
+            sudo apparmor_parser -r "/etc/apparmor.d/$1"
+          }
+          allow botharness-ci-unshare "$(command -v unshare)"
+          bwrap --ro-bind / / --unshare-user true 2>/dev/null || allow botharness-ci-bwrap "$(command -v bwrap)"
+      - name: Run the confinement tests with real bwrap
+        env:
+          BOTHARNESS_REQUIRE_CONFINEMENT: '1'
+        run: pnpm exec vitest run packages/core/test/member-confinement.test.ts packages/core/test/shell-reach.test.ts
+
   perf-budget:
     name: timeline performance budget
     needs: plan
@@ -652,6 +688,7 @@ jobs:
         e2e-smoke,
         perf-budget,
         ui-visual,
+        confinement,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -672,6 +709,7 @@ jobs:
           if (plan.tests !== 'none') required.push('e2e-smoke');
           if (plan.perf === 'true') required.push('perf-budget');
           if (plan['ui-visual'] === 'true') required.push('ui-visual');
+          if (plan.confinement === 'true') required.push('confinement');
           if (plan.tests === 'full') {
             if (plan.shards !== '4') throw new Error('Invalid full test shards');
             required.push('test-full');

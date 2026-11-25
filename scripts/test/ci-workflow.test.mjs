@@ -61,6 +61,7 @@ describe('required CI aggregate', () => {
       ['mobile', 'true', 'mobile-export'],
       ['android-native', 'true', 'mobile-native'],
       ['docs-site', 'true', 'docs-site'],
+      ['confinement', 'true', 'confinement'],
       ['tests', 'full', 'test-full'],
     ]) {
       const needs = fixture();
