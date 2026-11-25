@@ -30,6 +30,8 @@ export async function fixture(
   allOpaque = false,
   allOpaqueAccount = allOpaque,
   ensureDm = true,
+  textOnly = false,
+  uncheckedCards = false,
 ) {
   const core = createCore({ dshHome: createTempRoot('bh-lark-approval-') });
   cores.push(core);
@@ -50,9 +52,18 @@ export async function fixture(
           };
     },
   );
+  let sent = 0;
+  let inbound = 0;
+  const replies = vi.fn<NonNullable<DshImOutboundService['replyChecked']>>(
+    async (_botId, route) => ({
+      sent: true,
+      receipt: { version: 1, messageId: `om_text_${++sent}`, conversationId: route.conversationId },
+    }),
+  );
   const provider: DshImOutboundService = {
     contractVersion: 1,
-    approvalCardVersion: 1,
+    ...(textOnly ? { replyReceiptVersion: 1 as const } : {}),
+    ...(!textOnly || uncheckedCards ? { approvalCardVersion: 1 as const } : {}),
     ...(saveRules ? { approvalRuleCardVersion: allOpaque ? (2 as const) : (1 as const) } : {}),
     listBots: async () => [{ botId: 'lark-qa', channel: 'feishu' }],
     listTargets: async () => [],
@@ -66,20 +77,20 @@ export async function fixture(
         'proactive-text-checked',
         'exclusive-text-consumer',
         'reply-text-checked',
-        'approval-card-checked',
-        'approval-card-update-checked',
-        'approval-action-consumer',
+        ...(uncheckedCards
+          ? []
+          : ['approval-card-checked', 'approval-card-update-checked', 'approval-action-consumer']),
         ...(saveRules ? ['approval-rule-card-checked'] : []),
         ...(allOpaqueAccount ? ['approval-rule-all-opaque-card-checked'] : []),
       ],
     }),
     sendChecked: async () => ({ sent: true }),
-    replyChecked: async () => ({ sent: true }),
+    replyChecked: textOnly ? replies : async () => ({ sent: true }),
     consumeInbound: async (_botId, input) => {
       receiver = input;
       return () => {};
     },
-    approvalCardChecked: cards,
+    ...(!textOnly || uncheckedCards ? { approvalCardChecked: cards } : {}),
   };
   core.externalMessaging.register(createDshImProvider(provider)!);
   const binding = await core.externalMessaging.identity('ada', {
@@ -198,6 +209,26 @@ export async function fixture(
     core,
     owner,
     cards,
+    replies,
+    text(body: string, parentId?: string, actorId = 'ou_alice') {
+      const messageId = `om_text_in_${++inbound}`;
+      return receiver!.onEvent(
+        {
+          ...event,
+          eventId: `event-${messageId}`,
+          messageId,
+          actor: { kind: 'user', id: actorId, name: actorId },
+          text: body,
+          reply: {
+            messageId,
+            conversationId: 'oc_private',
+            actorId,
+            ...(parentId ? { parentId } : {}),
+          },
+        },
+        { signal: receiver!.signal },
+      );
+    },
     binding,
     approved,
     role,

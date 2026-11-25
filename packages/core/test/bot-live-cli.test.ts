@@ -136,6 +136,21 @@ describe('live CLI over the authenticated DSH carrier', () => {
     },
   );
 
+  it('lists only Bots that are not deleted', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: {
+        bots: [
+          { slug: 'kept', displayName: 'Kept' },
+          { slug: 'gone', displayName: 'Gone', deleted: true, paused: true },
+        ],
+      },
+    }));
+    const result = await invoke(['list'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.bots.map((bot: { slug: string }) => bot.slug)).toEqual(['kept']);
+  });
+
   it('keeps an unfiltered Skill listing to one catalog RPC', async () => {
     const live = await host(() => ({ ok: true, value: { skills: [] } }));
     const result = await invoke(['skills-list', '--channel', 'group-team'], live.url);

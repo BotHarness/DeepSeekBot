@@ -1,3 +1,5 @@
+import { withMentionNames } from '../mention-text.js';
+import type { MessagingInboundEvent } from '../provider.js';
 import type {
   AskUserQuestionAnswer,
   AskUserQuestionItem,
@@ -192,4 +194,12 @@ export function explainQuestionReply(
     case 'question-count':
       return `Answer all ${questions.length} questions. / 请回答全部 ${questions.length} 题。`;
   }
+}
+
+export function answerText(event: MessagingInboundEvent): string {
+  const body = event.text.trim();
+  const lead = event.mentionedAccount
+    ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+    : undefined;
+  return withMentionNames(lead ? body.slice(lead.key.length) : body, event.mentions).trim();
 }

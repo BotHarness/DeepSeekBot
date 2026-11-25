@@ -3,10 +3,13 @@ import { pendingExternalReception } from './external-reception.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import type { ConversationIngest } from './conversation-ingest.js';
-import { trustedSenderReference, sourceSenderAllowed } from './sender-access.js';
+import {
+  trustedSenderReference,
+  sourceAdmission,
+  groupReceptionPolicy,
+} from './permissions/index.js';
 import { currentReceptionPaths, grantReception } from './reception-paths.js';
 import { resolveRetainedQuote } from './retained-context.js';
-import { groupReceptionPolicy } from './group-policy.js';
 import { bridgeChannel, placeBridgeSource } from './channel-target.js';
 import { admitBridgeMembers } from './member-admission.js';
 import { messagingDefaults } from './defaults.js';
@@ -406,7 +409,8 @@ export function createInboundSources(wiring: {
     },
     available(botSlug, id, context = false) {
       try {
-        if (!database.read((db) => sourceSenderAllowed(db, botSlug, id, context))) return false;
+        const admission = database.read((db) => sourceAdmission(db, botSlug, id));
+        if (admission === 'refused' || (!context && admission === 'context')) return false;
         const source = read(botSlug, id);
         const value = wiring.grant(source.grantId);
         if (source.receptionPaths)

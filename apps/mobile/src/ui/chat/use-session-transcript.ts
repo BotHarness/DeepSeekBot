@@ -14,6 +14,34 @@ import { pendingInputKey } from '../../features/sessions/native-session-input';
 
 const LIVE_RETRY_MS = 10_000;
 const TRANSCRIPT_REFRESH_MS = 15_000;
+const TRANSCRIPT_CACHE_LIMIT = 20;
+
+const transcripts = new WeakMap<HostClient, Map<string, SessionTranscript>>();
+
+export function cachedSessionTranscript(
+  client: HostClient,
+  slug: string | null,
+  id: string,
+): SessionTranscript | undefined {
+  return transcripts.get(client)?.get(`${slug ?? ''}:${id}`);
+}
+
+function rememberTranscript(
+  client: HostClient,
+  slug: string | null,
+  id: string,
+  transcript: SessionTranscript,
+): void {
+  let cache = transcripts.get(client);
+  if (cache === undefined) {
+    cache = new Map();
+    transcripts.set(client, cache);
+  }
+  const key = `${slug ?? ''}:${id}`;
+  cache.delete(key);
+  cache.set(key, transcript);
+  while (cache.size > TRANSCRIPT_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+}
 
 type View = {
   transcript?: SessionTranscript;
@@ -28,7 +56,10 @@ export function useSessionTranscript(
   id: string,
   online: boolean,
 ) {
-  const [view, setView] = useState<View>({});
+  const [view, setView] = useState<View>(() => {
+    const transcript = cachedSessionTranscript(client, slug, id);
+    return transcript === undefined ? {} : { transcript };
+  });
   const [attempt, setAttempt] = useState(0);
   const reload = useRef<() => void>(undefined);
 
@@ -85,6 +116,7 @@ export function useSessionTranscript(
             durable = value;
             if (value.pendingInput !== undefined && observed === liveObservations)
               pending = value.pendingInput;
+            rememberTranscript(client, slug, id, value);
             publish();
           }, fail)
           .finally(() => {

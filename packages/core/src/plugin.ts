@@ -1,3 +1,4 @@
+import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
 import * as profileStorage from './features/profile-storage/plugin.js';
@@ -58,6 +59,7 @@ import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from './features/sessions/session-list-changes.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -65,6 +67,7 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
 
@@ -310,36 +313,41 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     routingDefaults,
   );
+  let hostNativeSessions: NativeSessions | undefined;
+  const externalSessions = createExternalSessionReader();
   const core = createCore(
-    createHostCoreOptions(ctx, {
-      dshHome,
-      routeRests,
-      engineHost,
-      groupFallback,
-      agentAdapter,
-      modelCatalog,
-      diagnosticEvents,
-      updateLifecycle,
-      telemetry,
-      get core() {
-        return core;
-      },
-      get botNetwork() {
-        return botNetwork;
-      },
-      get userQuestions() {
-        return userQuestions;
-      },
-      get toolApproval() {
-        return toolApproval;
-      },
-      get privateInputs() {
-        return privateInputs;
-      },
-      get imCommandServices() {
-        return imCommandServices;
-      },
-    }),
+    Object.assign(
+      createHostCoreOptions(ctx, {
+        dshHome,
+        routeRests,
+        engineHost,
+        groupFallback,
+        agentAdapter,
+        modelCatalog,
+        diagnosticEvents,
+        updateLifecycle,
+        telemetry,
+        get core() {
+          return core;
+        },
+        get botNetwork() {
+          return botNetwork;
+        },
+        get userQuestions() {
+          return userQuestions;
+        },
+        get toolApproval() {
+          return toolApproval;
+        },
+        get privateInputs() {
+          return privateInputs;
+        },
+        get imCommandServices() {
+          return imCommandServices;
+        },
+      }),
+      { nativeSessions: () => hostNativeSessions, externalSessions },
+    ),
   );
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
@@ -546,6 +554,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     account: () => connectAccount,
   });
   const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const sessionListChanges = createSessionListChanges(() =>
+    core.live.publishResourceChanged('sessions'),
+  );
+  ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
@@ -574,7 +586,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(
+    externalSessions,
+    nativeSessions: (hostNativeSessions = dshHostSessions(
       ctx,
       dshSessions,
       dshHostSessionInput(
@@ -582,7 +595,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         (id) => core.ownership.resolve(id) === undefined,
         (id) => sessionLive.observe(id, { type: 'native-input' }),
       ),
-    ),
+      sessionListChanges,
+    )),
     takeovers,
     folders,
     mountedToolApproval,
@@ -752,6 +766,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction,
     agentAdapter,
     dshSessions,
+    sessionListChanges,
     openAssignmentRoutes,
     effectivePlan: routingDefaults.effectivePlan,
   });

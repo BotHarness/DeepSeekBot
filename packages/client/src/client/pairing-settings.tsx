@@ -12,20 +12,20 @@ import { FormDialog } from './ds/form-dialog.js';
 import { space } from './ds/tokens.stylex.js';
 import { PairingTable } from './pairing-table.js';
 import { BehaviorPermissionsPanel } from './behavior-permission-settings.js';
-import type { BehaviorPermission } from '../../../core/src/messaging/behavior-policy.js';
+import type {
+  BehaviorPermission,
+  ExternalPermissionGroup,
+  ExternalUserRole,
+  SenderAccessInput,
+  SenderPolicy,
+} from '../../../core/src/messaging/permissions/client.js';
 import {
   GroupDetails,
   GroupDialog,
   PersonPermissions,
   type GroupBinding,
 } from './permission-group-settings.js';
-import type { ExternalPermissionGroup } from '../../../core/src/messaging/permission-groups.js';
 import type { ColumnDef } from '@tanstack/react-table';
-import type {
-  ExternalUserRole,
-  SenderAccessInput,
-  SenderPolicy,
-} from '../../../core/src/messaging/sender-access.js';
 import type {
   PairingCapability,
   PairingRequest,
@@ -207,7 +207,11 @@ export function PairingSettings({
                 }).catch(() => undefined)
               }
             />
-            <MessagingHelp title={t('pairing.restricted')} text={t('pairing.policyLimit')} t={t} />
+            <MessagingHelp
+              title={t('pairing.restricted')}
+              text={t('pairing.restrictedHelp')}
+              t={t}
+            />
           </>
         ) : null}
         <span className="bh-pairing-toolbar-gap" />

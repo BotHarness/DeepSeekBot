@@ -4,6 +4,7 @@ import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ChannelStore } from '../../channels/store.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../../credentials/im-origin.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
+import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { MemoryAcceptError } from '../../memory/accepted.js';
 import type { OutboundMessaging } from '../../messaging/outbound.js';
 import { requireSourceEffects } from '../../purge/fence.js';
@@ -83,12 +84,18 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
         : undefined;
     }
     const turn = ports.turnSources.get(owner.botSlug);
-    if (
-      turn?.sessionId !== sessionId ||
-      turn.inboundChannelId === undefined ||
-      turn.steeredChannelIds.size > 0
-    )
-      return undefined;
+    if (turn?.sessionId !== sessionId || turn.steeredChannelIds.size > 0) return undefined;
+    if (turn.inboundChannelId === undefined) {
+      if (!bridged(owner.botSlug, turn.acceptedEventIds)) return undefined;
+      const dm = ports.channels.getOrCreateDm(
+        OWNER_HUMAN_CONTEXT,
+        owner.botSlug,
+        ports.registry.get(owner.botSlug)?.displayName,
+      );
+      return dm?.type === 'dm' && dm.botSlug === owner.botSlug
+        ? { kind: 'turn', channelId: dm.id }
+        : undefined;
+    }
     const channel = ports.channels.get(turn.inboundChannelId);
     if (channel === undefined) return undefined;
     if (channel.type === 'group')
@@ -96,6 +103,19 @@ export function createRuntimeInputs(ports: RuntimeInputPorts) {
         ? { kind: 'turn', channelId: channel.id }
         : undefined;
     return channel.botSlug === owner.botSlug ? { kind: 'turn', channelId: channel.id } : undefined;
+  }
+
+  function bridged(botSlug: string, sourceEventIds: Iterable<string>): boolean {
+    const ids = [...sourceEventIds];
+    if (ids.length === 0) return false;
+    return ports.database.read(
+      (db) =>
+        db
+          .prepare(
+            `SELECT 1 FROM source_events WHERE bot_slug = ? AND source_kind = 'bridge-message' AND source_event_id IN (${ids.map(() => '?').join(', ')}) LIMIT 1`,
+          )
+          .get(botSlug, ...ids) !== undefined,
+    );
   }
 
   function canRequestPrivateInput(sessionId: string, selected?: string): boolean {

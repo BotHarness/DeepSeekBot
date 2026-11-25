@@ -94,7 +94,13 @@ export const INBOX_COMMANDS = [
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   {
     command: 'session-list',
-    description: 'list accessible root Sessions (--search, --sort, --source, --include-archived)',
+    description:
+      'list accessible root Sessions (--search, --sort, --source, --include-archived; --limit and --cursor page it)',
+  },
+  {
+    command: 'session-import-list',
+    description:
+      'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
   },
   {
     command: 'session-create',
@@ -599,6 +605,10 @@ function prepare(
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
+    case 'session-import-list': {
+      positionals(command, rest, 0, '');
+      return { method: 'externalSessions', args: {} };
+    }
     case 'session-list': {
       positionals(command, rest, 0, '');
       const { search, sort, source } = values;
@@ -606,9 +616,14 @@ function prepare(
         usage('session-list --sort must be last-human-turn, created, or last-activity.');
       if (source !== undefined && !isHostSessionFilter(source))
         usage('session-list --source must be all, native, or bot:<slug>.');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200))
+        usage('session-list --limit must be an integer from 1 to 200.');
       return {
         method: 'sessionList',
         args: {
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(search === undefined ? {} : { search }),
           ...(sort === undefined ? {} : { sort }),
           ...(source === undefined ? {} : { source }),

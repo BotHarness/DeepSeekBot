@@ -1,3 +1,4 @@
+import { createApprovalText } from './interactions/approval-text.js';
 import { createFailureAlerts } from './failure-alerts.js';
 import { createApprovalMessaging } from './approval-messaging.js';
 import { createPairingCards } from './pairing-cards.js';
@@ -45,6 +46,7 @@ export type OutboundMessagingOptions = {
   attachments?: AttachmentStore;
   isBotActive(slug: string): boolean;
   ownsFailure?(slug: string, sessionId: string, role: 'orchestrator' | 'assignment'): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   sourcePolicy?: BotSourcePolicyStore;
   onDefaultsChanged?: () => void;
   onReceptionChanged?: () => void;
@@ -300,6 +302,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     provider: (id) => provider(id).provider,
     isBotActive: options.isBotActive,
+    ...(options.turnSources ? { turnSources: options.turnSources } : {}),
     ...(options.warn ? { warn: options.warn } : {}),
   });
   const pairingCards = createPairingCards({
@@ -330,12 +333,15 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     approvals,
     provider: (id) => provider(id).provider,
     isBotActive: options.isBotActive,
+    ...(options.turnSources ? { turnSources: options.turnSources } : {}),
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     ...(options.warn ? { warn: options.warn } : {}),
   });
+  const approvalText = createApprovalText({ database, approvals });
   const inbound = createInboundMessaging({
     onQuestionAction: (providerId, event, signal) => questions.action(providerId, event, signal),
-    onQuestionText: (providerId, event, signal) => questions.text(providerId, event, signal),
+    onQuestionText: async (providerId, event, signal) =>
+      (await questions.text(providerId, event, signal)) || approvalText(providerId, event, signal),
     onApprovalAction: (providerId, event, signal) =>
       event.kind === 'pairing'
         ? pairingCards.action(providerId, event, signal)

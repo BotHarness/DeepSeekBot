@@ -10,20 +10,20 @@ import {
   background,
   clip,
   combinedClickable,
-  dropShadow,
+  padding,
   paddingAll,
   Shapes,
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
 import { useDesignTheme } from '../design/theme';
 import { cornerBadge, floatingToolbar } from '../design/tokens';
 import { MaterialCountBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
-import type { NavigationDestination } from './navigation-destination';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
 import type { TabSlot } from './tab-slots';
 
 function glyphFor(slot: TabSlot, focused: boolean) {
@@ -52,7 +52,8 @@ export function tabTestID(slot: TabSlot): string {
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { item, height, shadowRoom, shadow } = floatingToolbar;
+  const { item, height, inset } = floatingToolbar;
+  const gap = toolbarGap(useWindowDimensions().width, items.length);
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face
@@ -99,26 +100,20 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           seedColor={theme.color.accent}
           ignoreSafeAreaKeyboardInsets
         >
-          <Box modifiers={[paddingAll(shadowRoom)]}>
+          <Box modifiers={[paddingAll(inset)]}>
             <HorizontalFloatingToolbar
               colors={{
-                toolbarContainerColor: theme.layer.raised.fill,
+                toolbarContainerColor: theme.color.base,
                 toolbarContentColor: theme.color.fg,
               }}
-              modifiers={[
-                dropShadow(Shapes.RoundedCorner(height), {
-                  radius: shadow.radius,
-                  offsetY: shadow.offsetY,
-                  alpha: shadow.alpha[theme.scheme],
-                }),
-                testID('android-navigation-bar'),
-              ]}
+              modifiers={[testID('android-navigation-bar')]}
             >
-              {items.map((entry) => (
+              {items.map((entry, index) => (
                 <Box
                   key={entry.key}
                   contentAlignment="center"
                   modifiers={[
+                    padding(index === 0 ? 0 : gap, 0, 0, 0),
                     size(item, height),
                     clip(Shapes.RoundedCorner(height / 2)),
                     background(entry.focused ? theme.layer.raised.chosen : 'transparent'),
@@ -140,7 +135,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
         ]}
       >
-        {items.map((entry) => (
+        {items.map((entry, index) => (
           <View
             key={entry.key}
             testID={`${tabTestID(entry.slot)}-a11y`}
@@ -156,7 +151,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               if (nativeEvent.actionName === 'activate') entry.onPress();
               if (nativeEvent.actionName === 'longpress') entry.onLongPress();
             }}
-            style={{ width: item, height }}
+            style={{ width: item, height, marginLeft: index === 0 ? 0 : gap }}
           />
         ))}
       </View>

@@ -10,6 +10,7 @@ import type {
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
 import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
+import { MethodRefused } from './client-errors';
 
 function modelOf(value: Record<string, unknown> | undefined) {
   return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
@@ -25,14 +26,24 @@ export async function readHostSessionList(
   host: HostCall,
   options?: HostSessionListOptions,
 ): Promise<HostSessionListResult> {
-  const { includeArchived, ...query } = options ?? {};
+  const { includeArchived, limit, cursor, ...query } = options ?? {};
+  const args = (paged: boolean) =>
+    options === undefined
+      ? {}
+      : {
+          ...query,
+          ...(paged && limit !== undefined ? { limit } : {}),
+          ...(paged && cursor !== undefined ? { cursor } : {}),
+          queryVersion: 1,
+          ...(includeArchived ? { includeArchived } : {}),
+        };
+  const paged = limit !== undefined || cursor !== undefined;
   const answer = answerRecord(
-    await host.call(
-      'sessionList',
-      options === undefined
-        ? {}
-        : { ...query, queryVersion: 1, ...(includeArchived ? { includeArchived } : {}) },
-    ),
+    await host.call('sessionList', args(paged)).catch((error: unknown) => {
+      if (paged && error instanceof MethodRefused && error.code === 'gateway/arguments-invalid')
+        return host.call('sessionList', args(false));
+      throw error;
+    }),
     'sessionList',
   );
   if (!Array.isArray(answer['sessions']))
@@ -55,6 +66,7 @@ export async function readHostSessionList(
       lastPromptAt: typeof row['lastPromptAt'] === 'number' ? row['lastPromptAt'] : null,
       ...(typeof row['title'] === 'string' ? { title: row['title'] } : {}),
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
+      ...(typeof row['cwd'] === 'string' ? { cwd: row['cwd'] } : {}),
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
       ...(row['archived'] === true ? { archived: true as const } : {}),
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
@@ -101,7 +113,14 @@ export async function readHostSessionList(
       return [{ kind: 'bot', botSlug: option['botSlug'], displayName: option['displayName'] }];
     return [];
   });
-  return { sessions, queryVersion: 1, sources, ...archived };
+  const nextCursor = answer['nextCursor'];
+  return {
+    sessions,
+    queryVersion: 1,
+    sources,
+    ...archived,
+    ...(typeof nextCursor === 'string' && nextCursor !== '' ? { nextCursor } : {}),
+  };
 }
 
 export async function createHostSession(

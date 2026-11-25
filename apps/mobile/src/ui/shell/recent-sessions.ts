@@ -6,6 +6,8 @@ import { sessionReadHost } from '../../host/session-detail';
 import { tabMenu } from '../design/tokens';
 import { useMounted } from '../mounted';
 
+const RECENT_FETCH = 50;
+
 type Recent = { hostId: string; rows: readonly HostSessionRow[] };
 
 export function createRecentSessions(limit: number) {
@@ -42,6 +44,7 @@ export function createRecentSessions(limit: number) {
         search: '',
         sort: 'last-human-turn',
         source: 'all',
+        limit: RECENT_FETCH,
       }).then(
         (value) => {
           if (!abort.signal.aborted) publish(hostId, value.sessions);

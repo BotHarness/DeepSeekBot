@@ -754,11 +754,11 @@
     },
     {
       "id": "desktop.computer.lifecycle",
-      "label": "Enable/stop Computer and export/restore container state",
+      "label": "Broader Computer lifecycle and export/restore container state",
       "source": "packages/core/src/bots/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": "Container start/frame/stop has a separate bounded row; export/restore and broader lifecycle remain unmapped and unqualified."
     },
     {
       "id": "desktop.computer.native",
@@ -1176,6 +1176,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/model-presets.md",
       "task": 4657,
       "gap": "Run preset CRUD and application in the Web Client and M15 C4 for the Member and Admin CLI authorization paths."
+    },
+    {
+      "id": "desktop.computer.container-start-frame-stop",
+      "label": "Start one task-owned Container Computer, observe its real frame and stop",
+      "source": "packages/computer/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/computer-lifecycle.md",
+      "task": 1977,
+      "gap": null
     }
   ],
   "scripts": [
@@ -1732,6 +1740,14 @@
       "sha256": "bfd0a4efda98bb5357a372f3d6ba9a4107ee7a536feced5f2fa4548b0df734fa"
     },
     {
+      "path": "scripts/e2e-computer-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.computer.container-start-frame-stop"],
+      "task": 1977,
+      "reason": "Isolated Container-only Web/CLI lifecycle journey qualified on Docker Desktop (PR #5287 records the exact-source run); requires a healthy Engine, the product default image and fresh task-owned Profile/container/volume. Tolerates only #5274 desktop-viewer churn. No Local Computer, input, import/export or phone WebRTC.",
+      "sha256": "4cb7a0eb86326619ab80c1615fe0779509740341bdee52a4f4143aeb47b3cb39"
+    },
+    {
       "path": "scripts/e2e-computer-settings.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.lifecycle"],
@@ -2063,9 +2079,9 @@
       "path": "scripts/e2e-team-auto-join.mjs",
       "category": "mapped",
       "behaviors": ["team.channel-auto-join"],
-      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. #4393 re-audit: dismisses first-run profile setup and reopens the member page past the per-member stream cap before the live grant; journey classification unchanged; this hash is not runtime qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4222,
-      "sha256": "9c8ff5f363a5cc858a3890f18546c258c82c8b436b519446cec82affa7a2a556"
+      "sha256": "e5f9da501d9a79b922becbca6687b3e741ac65f65e63a3991cb0ae5774fb515a"
     },
     {
       "path": "scripts/e2e-team-human-dm.mjs",

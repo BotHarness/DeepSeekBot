@@ -1071,6 +1071,22 @@
       "commands": ["computer-webrtc"]
     },
     {
+      "id": "bot-create-source",
+      "description": "Choosing blank, Sessions, Git or zip creation maps to create and its --from-sessions, --from-git and --from-zip options.",
+      "scope": "Host",
+      "commands": ["create"],
+      "surfaces": ["setting:packages/client/src/client/bot-create-source.tsx:{t(source.title)}"]
+    },
+    {
+      "id": "intro-import-plan",
+      "description": "Each planned Bot in the intro import step is one create --from-sessions call with its name and Session ids; the CLI repeats it per Bot.",
+      "scope": "Host",
+      "commands": ["create"],
+      "surfaces": [
+        "setting:packages/client/src/client/bot-intro-import-plan.tsx:{ <Input aria-label={t('intro.import.plan.name')} placeholder={t('intro.import.plan.namePlaceholder')} value={draft.name} disabled={locked} className={stylex.props(styles.name).className} onChange={(event) => update(draft.id, { name: event.currentTarget.value })} /> }"
+      ]
+    },
+    {
       "id": "bot-zip-import",
       "description": "Existing authenticated CLI path.",
       "scope": "Host",

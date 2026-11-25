@@ -44,10 +44,21 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
       children,
     );
   };
-  const Toolbar = ({ children, modifiers }: { children?: ReactNode; modifiers?: Modifier[] }) =>
+  const Toolbar = ({
+    children,
+    modifiers,
+    colors,
+  }: {
+    children?: ReactNode;
+    modifiers?: Modifier[];
+    colors?: { toolbarContainerColor?: string };
+  }) =>
     createElement(
       'nav',
-      { 'data-shadow': modifiers?.find((modifier) => modifier.shadow !== undefined)?.shadow },
+      {
+        'data-shadow': modifiers?.find((modifier) => modifier.shadow !== undefined)?.shadow,
+        'data-container': colors?.toolbarContainerColor,
+      },
       children,
     );
   return {
@@ -67,6 +78,7 @@ vi.mock('../src/ui/primitives/count-badge.android', () => ({
 import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.android';
 import type { NavigationDestination } from '../src/ui/shell/navigation-destination';
 import type { TabSlot } from '../src/ui/shell/tab-slots';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -109,7 +121,7 @@ function item(slot: TabSlot, extra: Partial<NavigationDestination> = {}): Naviga
   };
 }
 
-it('floats five icon-only items with a tonal selected pill, an elevation shadow and the Pinned avatar', () =>
+it('floats five icon-only items flat on the page colour with a tonal selected pill and the Pinned avatar', () =>
   withAssets(() => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -132,7 +144,9 @@ it('floats five icon-only items with a tonal selected pill, an elevation shadow 
           }),
         ),
       );
-      expect(host.querySelector('nav')?.getAttribute('data-shadow')).not.toBeNull();
+      const nav = host.querySelector('nav')!;
+      expect(nav.getAttribute('data-shadow')).toBeNull();
+      expect(nav.getAttribute('data-container')).toBe(resolveTheme('light').color.base);
       const buttons = [...host.querySelectorAll('button')];
       expect(buttons.map((button) => button.getAttribute('data-testid'))).toEqual([
         'navigation-chats',
