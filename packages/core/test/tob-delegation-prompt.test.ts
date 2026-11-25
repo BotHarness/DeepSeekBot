@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 import { DEFAULT_PROMPT_TEXT } from '../src/prompts/prompt-parts.js';
 import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { TOB_CHANNEL_CAPABILITIES } from '../src/tob/cli-channel-operations.js';
+import { TOB_DIAGNOSTIC_CAPABILITIES } from '../src/tob/cli-diagnostic-operations.js';
+import { TOB_HOST_CLI_CAPABILITY } from '../src/tob/cli-host-commands.js';
+import { TOB_SHARE_DRAFT_CAPABILITIES } from '../src/tob/cli-share-draft-operations.js';
 
 it('gives the Steward one short management and delegation instruction', () => {
   const steward = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
@@ -17,4 +21,23 @@ it('gives the Steward one short management and delegation instruction', () => {
   expect(additions[0]).toContain('report their result in the Human DM');
   expect(ordinary).toContain('Create a new PersonaBot with bot_create');
   expect(steward).not.toContain('You are Tob');
+});
+
+it('keeps the Steward operating rules in the capability descriptions', () => {
+  const describe = (command: string) =>
+    [
+      ...TOB_SHARE_DRAFT_CAPABILITIES,
+      ...TOB_DIAGNOSTIC_CAPABILITIES,
+      ...TOB_CHANNEL_CAPABILITIES,
+      TOB_HOST_CLI_CAPABILITY,
+    ].find((entry) => entry.command === command)!.description;
+  expect(describe('share-draft-show')).toContain(
+    'ask the Human with ask_user_question about that one file',
+  );
+  expect(describe('share-draft-show')).toContain('Ask one file at a time');
+  expect(describe('doctor')).toContain('run doctor before answering');
+  expect(describe('cli')).toContain('Read the target before any write');
+  expect(describe('cli')).toContain('never approve or decide on the Human');
+  expect(describe('group-invite')).toContain('never claim a pending invitation joined');
+  expect(describe('group-invite')).toContain('automatic acceptance');
 });

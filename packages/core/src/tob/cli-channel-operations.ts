@@ -29,7 +29,7 @@ export const TOB_CHANNEL_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'group-invite',
     description:
-      'Invite one active Bot under the reviewed Group invitation policy; preserve the canonical acceptance outcome',
+      'Invite one active Bot under the reviewed Group invitation policy. Read channel first and pass its fingerprint as --expected-channel. With automatic acceptance (the default) the Bot joins at once: report it as joined after read-back, without asking for another confirmation. Only when the Human disabled automatic acceptance does the invitation stay pending for the Bot to decide. Report pending, accepted or declined exactly as read back and never claim a pending invitation joined. Keep one operation key and payload for retries',
     write: true,
   },
   {

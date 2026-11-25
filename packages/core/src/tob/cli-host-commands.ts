@@ -52,7 +52,7 @@ const MAX_MESSAGE_CHARS = 4000;
 export const TOB_HOST_CLI_CAPABILITY: TobCliCapability = {
   command: 'cli',
   description:
-    'Run a supported deepseekbot command on this Host. Steward transfer and Browser pairing are reserved for the Human. Reads run at once; every other command shows the Human an approval card with the exact command first.',
+    "Run a supported deepseekbot command on this Host. Steward transfer and Browser pairing are reserved for the Human. Reads run at once; every other command shows the Human an approval card with the exact command first. Read the target before any write and pass its observed revision; never run a write to explore or guess. Approving or dismissing another Bot's pending request is a write like any other: it goes to the Human as an approval card, and you never approve or decide on the Human's behalf.",
   write: true,
 };
 

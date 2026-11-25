@@ -6,7 +6,7 @@ export const TOB_SHARE_DRAFT_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'share-draft-show',
     description:
-      'Read the Share Draft the Human started for a Bot: each file with its status and privacy flags',
+      "Read the Share Draft the Human started for a Bot: each file with its status and privacy flags. The Bot Memory is never changed and you never read it directly. Read every pending file with share-draft-file. Keep a file without asking when nothing in it is private. When a file holds anything that looks private (secrets, tokens, passwords, keys, credentials in URLs, email addresses, phone numbers, home addresses, account ids, private people's names, private conversations, or anything its flags point at), ask the Human with ask_user_question about that one file: name the file, quote the passage with any secret masked, and offer Keep, Rewrite (show the rewritten passage with neutral wording) and Drop. Ask one file at a time and wait for the answer before deciding it. For an image, ask only when its name or the context suggests it is private. Uploading or pushing to GitHub is the Human's step, never yours.",
     write: false,
   },
   {
@@ -17,13 +17,13 @@ export const TOB_SHARE_DRAFT_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'share-draft-decide',
     description:
-      'Keep, drop or rewrite one Share Draft file after the Human decided; never changes the Bot Memory',
+      'Keep, drop or rewrite one Share Draft file after the Human decided; a rewrite sends the whole new file text through --rewrite-stdin. Never decide a flagged file the Human has not answered. Never changes the Bot Memory',
     write: false,
   },
   {
     command: 'share-draft-finish',
     description:
-      'Mark the Share Draft ready for the Human to upload once every file has a decision',
+      'Mark the Share Draft ready for the Human to upload once every file has a decision, then tell the Human in one or two sentences what you kept, rewrote and dropped; the upload form opens for them',
     write: false,
   },
 ];
