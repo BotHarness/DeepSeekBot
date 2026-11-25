@@ -74,6 +74,7 @@ export async function readHostSessionList(
       lastPromptAt: typeof row['lastPromptAt'] === 'number' ? row['lastPromptAt'] : null,
       ...(typeof row['title'] === 'string' ? { title: row['title'] } : {}),
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
+      ...(typeof row['cwd'] === 'string' ? { cwd: row['cwd'] } : {}),
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
       ...statusOf(row['status'], row['attention']),
       ...(row['archived'] === true ? { archived: true as const } : {}),

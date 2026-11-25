@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
-  s.name           = 'NativeInspector'
+  s.name           = 'SessionDrawer'
   s.version        = '1.0.0'
-  s.summary        = 'Adaptive SwiftUI inspector presentation.'
-  s.description    = 'Adaptive SwiftUI inspector presentation.'
+  s.summary        = 'Native modal Session drawer: pan gesture and spring over React Native content.'
+  s.description    = 'Native modal Session drawer: pan gesture and spring over React Native content.'
   s.license        = 'MIT'
   s.author         = 'BotHarness'
   s.homepage       = 'https://github.com/BotHarness/DeepSeekBot'

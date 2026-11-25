@@ -3,7 +3,11 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import { assertMessagingIdentity, readMessagingIdentity } from './identity.js';
-import { MessagingError, type MessagingInboundEvent } from './provider.js';
+import {
+  MessagingError,
+  type MessagingInboundEvent,
+  type MessagingReplyRoute,
+} from './provider.js';
 import {
   externalUserRoles,
   chatSenderIdentity,
@@ -65,6 +69,7 @@ export interface PairingRequest {
   revision: number;
   attempts: number;
   messageIds?: string[];
+  origin?: MessagingInboundEvent['reply'];
   reviewedBy?: 'authenticated-web' | 'paired-reviewer';
   reviewerActorId?: string;
   privateReply?: MessagingInboundEvent['reply'];
@@ -253,6 +258,7 @@ export function createBotPairing(
           revision: 1,
           attempts: 1,
           messageIds: [event.messageId],
+          origin: event.reply,
           ...(purpose === 'conversation'
             ? { purpose, reply: event.reply, conversationKind: event.conversation.kind }
             : {}),
@@ -462,4 +468,14 @@ export function createBotPairing(
       return value;
     },
   };
+}
+
+export function pairedRoute(
+  pairing: Pick<PairingRequest, 'origin' | 'messageIds' | 'conversationId' | 'actorId'>,
+): MessagingReplyRoute | undefined {
+  if (pairing.origin) return pairing.origin;
+  const messageId = pairing.messageIds?.[0];
+  return messageId
+    ? { messageId, conversationId: pairing.conversationId, actorId: pairing.actorId }
+    : undefined;
 }

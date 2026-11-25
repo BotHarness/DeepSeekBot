@@ -1,7 +1,7 @@
 import { createTeamDeviceHttp, deviceFailure, type TeamDeviceHttp } from './device-http.js';
 import { createTeamBridge } from './bridge.js';
 import type { MemberDevices } from './devices.js';
-import { isIPv4 } from 'node:net';
+import { isIPv4, type Socket } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol';
@@ -54,6 +54,17 @@ export interface TeamHttpOptions {
   tls: () => boolean;
   readResource(request: Request, peer: PeerScope): Promise<Response>;
   fetchBundle(request: Request): Promise<Response>;
+}
+
+interface StreamLifetime {
+  peer: PeerScope;
+  controller: AbortController;
+  unwatchSocket?: (() => void) | undefined;
+}
+
+interface StreamSocket {
+  responses: Set<ServerResponse>;
+  disconnects: Set<() => void>;
 }
 
 function header(request: IncomingMessage, key: string): string | undefined {
@@ -139,32 +150,59 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
   const streams = new Map<
     string,
     {
-      peer: PeerScope;
+      lifetime: StreamLifetime;
       iterator: AsyncIterator<unknown>;
-      controller: AbortController;
       next?: Promise<IteratorResult<unknown>>;
       lastSeen: number;
       polling: boolean;
     }
   >();
-  const pending = new Map<string, { peer: PeerScope; controller: AbortController }>();
-  const cancel = async (key: string): Promise<void> => {
-    const opening = pending.get(key);
-    pending.delete(key);
-    opening?.controller.abort();
+  const pending = new Map<string, StreamLifetime>();
+  const socketStreams = new WeakMap<Socket, StreamSocket>();
+  const watchSocket = (socket: Socket, response: ServerResponse, disconnect: () => void) => {
+    let watched = socketStreams.get(socket);
+    if (!watched) {
+      const entry: StreamSocket = { responses: new Set(), disconnects: new Set() };
+      socketStreams.set(socket, entry);
+      socket.once('close', (hadError) => {
+        if ((hadError || socket.readableEnded) && entry.responses.size === 0)
+          for (const listener of entry.disconnects) listener();
+        entry.disconnects.clear();
+        entry.responses.clear();
+      });
+      watched = entry;
+    }
+    const { responses, disconnects } = watched;
+    responses.add(response);
+    response.once('finish', () => {
+      responses.delete(response);
+    });
+    disconnects.add(disconnect);
+    return () => {
+      disconnects.delete(disconnect);
+    };
+  };
+  const cancel = async (key: string, expected?: StreamLifetime): Promise<void> => {
     const stream = streams.get(key);
-    if (!stream) return;
+    const lifetime = pending.get(key) ?? stream?.lifetime;
+    if (!lifetime || (expected && lifetime !== expected)) return;
+    pending.delete(key);
     streams.delete(key);
-    stream.controller.abort();
-    await stream.iterator.return?.();
+    lifetime.unwatchSocket?.();
+    lifetime.controller.abort();
+    await stream?.iterator.return?.();
   };
   const sweep = setInterval(() => {
     for (const [key, stream] of streams)
-      if (stream.peer.signal.aborted || Date.now() - stream.lastSeen > 120_000)
+      if (stream.lifetime.peer.signal.aborted || Date.now() - stream.lastSeen > 120_000)
         void cancel(key).catch(() => {});
   }, 30_000);
   sweep.unref();
-  const rpc = async (request: IncomingMessage, peer: PeerScope): Promise<unknown> => {
+  const rpc = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+    peer: PeerScope,
+  ): Promise<unknown> => {
     const command = rpcSchema.parse(await readTeamBody(request));
     if (command.op === 'call') {
       const endpoint = command.path.replace(/^\/api\//u, '');
@@ -213,18 +251,33 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       await cancel(key);
       return { end: true };
     }
+    if (response.destroyed) return;
+    const watchDisconnect = (lifetime: StreamLifetime) => {
+      const disconnect = () => {
+        void cancel(key, lifetime).catch(() => {});
+      };
+      response.once('close', () => {
+        if (!response.writableFinished) disconnect();
+      });
+      lifetime.unwatchSocket?.();
+      lifetime.unwatchSocket = response.shouldKeepAlive
+        ? watchSocket(request.socket, response, disconnect)
+        : undefined;
+    };
     if (command.op === 'stream-open') {
       if (
         streams.has(key) ||
         pending.has(key) ||
-        [...streams.values(), ...pending.values()].filter((stream) => stream.peer === peer)
-          .length >= 16 ||
+        [...streams.values()].filter((stream) => stream.lifetime.peer === peer).length +
+          [...pending.values()].filter((opening) => opening.peer === peer).length >=
+          16 ||
         streams.size + pending.size >= 256
       )
         throw new TeamError('rate-limited');
       const controller = new AbortController();
-      const reservation = { peer, controller };
+      const reservation: StreamLifetime = { peer, controller };
       pending.set(key, reservation);
+      watchDisconnect(reservation);
       try {
         const signal = AbortSignal.any([peer.signal, controller.signal]);
         options.team.assertCall(peer.principal, command.endpoint.split('/').at(-1) ?? '');
@@ -241,14 +294,14 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           throw new TeamError('credentials-invalid');
         }
         streams.set(key, {
-          peer,
+          lifetime: reservation,
           iterator,
-          controller,
           lastSeen: Date.now(),
           polling: false,
         });
         return {};
       } catch (error) {
+        reservation.unwatchSocket?.();
         controller.abort();
         return { failure: failure(error) };
       } finally {
@@ -260,6 +313,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     if (stream.polling) throw new TeamError('rate-limited');
     stream.lastSeen = Date.now();
     stream.polling = true;
+    watchDisconnect(stream.lifetime);
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       stream.next ??= Promise.resolve(stream.iterator.next());
@@ -272,12 +326,12 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       if (!result) return { pending: true };
       delete stream.next;
       if (result.done) {
-        await cancel(key);
+        await cancel(key, stream.lifetime);
         return { end: true };
       }
       return { value: result.value };
     } catch (error) {
-      await cancel(key);
+      await cancel(key, stream.lifetime);
       return { failure: failure(error) };
     } finally {
       if (timer) clearTimeout(timer);
@@ -449,8 +503,11 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
           response.end(bytes);
           return;
         }
-        if (path === `${TEAM_PATH}/__share/rpc` && request.method === 'POST')
-          return teamJson(response, 200, await rpc(request, peer));
+        if (path === `${TEAM_PATH}/__share/rpc` && request.method === 'POST') {
+          const result = await rpc(request, response, peer);
+          if (!response.destroyed) teamJson(response, 200, result);
+          return;
+        }
         if (path.startsWith(`${TEAM_PATH}/api/`)) {
           options.team.assertCall(peer.principal, 'http');
           throw new TeamError('remote-access/denied');
@@ -475,6 +532,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
         });
         response.end(Buffer.from(await asset.arrayBuffer()));
       } catch (error) {
+        if (response.destroyed) return;
         const code =
           error instanceof TeamError
             ? error.code
@@ -508,7 +566,9 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     async close() {
       device?.close();
       clearInterval(sweep);
-      await Promise.all([...new Set([...streams.keys(), ...pending.keys()])].map(cancel));
+      await Promise.all(
+        [...new Set([...streams.keys(), ...pending.keys()])].map((key) => cancel(key)),
+      );
     },
   };
 }

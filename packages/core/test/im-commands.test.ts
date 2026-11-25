@@ -196,7 +196,7 @@ it('decides which commands need management authority and where IM changes are al
       pairingAvailable: true,
       managementPairing: false,
     }),
-  ).toBe('web-only');
+  ).toBe('pairing-required');
   expect(
     imCommandAuthority({
       command: change,

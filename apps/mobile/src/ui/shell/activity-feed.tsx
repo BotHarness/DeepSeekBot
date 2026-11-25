@@ -1,4 +1,3 @@
-import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
@@ -531,9 +530,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      {Platform.OS === 'web' ? (
+      {Platform.OS !== 'android' ? (
         <ActivityFilters
-          visible={filtering}
+          visible={filtering && focused}
           {...filterOptions}
           onClose={() => setFiltering(false)}
         />
@@ -562,13 +561,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
       {content}
     </>
   ) : (
-    <ActivityInspector
-      visible={filtering && focused}
-      {...filterOptions}
-      onClose={() => setFiltering(false)}
-    >
-      {content}
-    </ActivityInspector>
+    content
   );
 });
 

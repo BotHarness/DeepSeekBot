@@ -1,3 +1,4 @@
+import { createApprovalText } from './interactions/approval-text.js';
 import { createFailureAlerts } from './failure-alerts.js';
 import { createApprovalMessaging } from './approval-messaging.js';
 import { createPairingCards } from './pairing-cards.js';
@@ -336,9 +337,11 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     ...(options.warn ? { warn: options.warn } : {}),
   });
+  const approvalText = createApprovalText({ database, approvals });
   const inbound = createInboundMessaging({
     onQuestionAction: (providerId, event, signal) => questions.action(providerId, event, signal),
-    onQuestionText: (providerId, event, signal) => questions.text(providerId, event, signal),
+    onQuestionText: async (providerId, event, signal) =>
+      (await questions.text(providerId, event, signal)) || approvalText(providerId, event, signal),
     onApprovalAction: (providerId, event, signal) =>
       event.kind === 'pairing'
         ? pairingCards.action(providerId, event, signal)

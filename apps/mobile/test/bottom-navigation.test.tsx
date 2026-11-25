@@ -111,6 +111,7 @@ afterEach(() => {
   fixture.index = 0;
   fixture.pinned = undefined;
   interfacePreferences.setTabOrder(defaultTabOrder);
+  interfacePreferences.setSessionsTab(false);
   vi.mocked(router.push).mockClear();
 });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -176,6 +177,7 @@ it.each(['ios', 'android'])(
   'shows five icon-only tabs with the Pinned tab right of Chats by default on %s',
   async (platform) => {
     fixture.platform = platform;
+    interfacePreferences.setSessionsTab(true);
     fixture.navigateToTab.mockClear();
     fixture.pinned = {
       name: 'Launch',
@@ -211,6 +213,32 @@ it.each(['ios', 'android'])(
         t.hostSessions.title,
         t.settings,
         t.pinnedTab.tabLabel('Launch', '3'),
+      ]);
+    } finally {
+      act(() => root.unmount());
+    }
+  },
+);
+
+it.each(['ios', 'android'])(
+  'shows four tabs in the stored order while the Sessions tab is off on %s',
+  async (platform) => {
+    fixture.platform = platform;
+    interfacePreferences.setTabOrder(['settings', 'sessions', 'chats', 'pinned', 'activity']);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const labels = () =>
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.getAttribute('aria-label'));
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      expect(labels()).toEqual([t.settings, t.chats, t.pinnedTab.title, t.activity]);
+      await act(async () => interfacePreferences.setSessionsTab(true));
+      expect(labels()).toEqual([
+        t.settings,
+        t.hostSessions.title,
+        t.chats,
+        t.pinnedTab.title,
+        t.activity,
       ]);
     } finally {
       act(() => root.unmount());

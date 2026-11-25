@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { interfacePreferences } from './interface-preferences';
-import { SettingsSection } from './primitives/settings-row';
+import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { PreferenceRow } from './primitives/preference-row';
 import { Button } from './primitives/button';
 import { SettingsFormItem } from './primitives/settings-form';
@@ -78,9 +78,29 @@ export function InterfaceSaveNotice() {
   );
 }
 
+export function SessionsTabSetting({ on = 'sheet' }: { on?: LayerName }) {
+  const t = useStrings().hostSessions;
+  const state = usePreferences();
+  return (
+    <SettingsRow
+      on={on}
+      title={t.toggle}
+      icon="sessions"
+      control={{
+        kind: 'switch',
+        value: state.sessionsTab,
+        onChange: interfacePreferences.setSessionsTab,
+        disabled: !state.loaded,
+        testID: 'sessions-tab-toggle',
+      }}
+    />
+  );
+}
+
 export function SessionNavigationSettings({ on = 'sheet' }: { on?: LayerName }) {
   const t = useStrings().hostSessions.navigation;
   const state = usePreferences();
+  if (!state.sessionsTab) return null;
   return (
     <SettingsSection title={t.section} on={on} footer={t.footer}>
       <PreferenceRow
