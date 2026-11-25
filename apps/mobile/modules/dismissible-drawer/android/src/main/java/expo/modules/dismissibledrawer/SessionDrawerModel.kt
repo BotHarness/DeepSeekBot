@@ -15,6 +15,14 @@ fun sessionDrawerWidthDp(windowWidthDp: Float): Float =
 fun sessionSettledReport(animating: Boolean, settledOpen: Boolean, lastReported: Boolean): Boolean? =
   if (animating) null else settledReport(settledOpen, lastReported)
 
+/** The smallest change in the open fraction worth reporting to JavaScript. */
+private const val PROGRESS_STEP = 0.01f
+
+/** Float slack, so a move of exactly one step (0.5 -> 0.51 is 0.0099999 in Float) still counts. */
+private const val PROGRESS_SLACK = 1e-5f
+
 /** Report a new open fraction once it moves a visible step or reaches either end. */
 fun progressChanged(last: Float, next: Float): Boolean =
-  last < 0f || ((next == 0f || next == 1f) && next != last) || kotlin.math.abs(next - last) >= 0.01f
+  last < 0f ||
+    ((next == 0f || next == 1f) && next != last) ||
+    kotlin.math.abs(next - last) >= PROGRESS_STEP - PROGRESS_SLACK
