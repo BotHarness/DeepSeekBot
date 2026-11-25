@@ -4,6 +4,7 @@ import type {
   HostSessionRow,
   HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
+import { syncByCursor } from './cursor-sync';
 import type { LocalStore, SqlWriter } from './local-store';
 
 export type StoredSessionList = {
@@ -69,24 +70,28 @@ export function applySessionListChanges(
   });
 }
 
-export async function syncSessionList(
+export function syncSessionList(
   store: LocalStore,
   source: SessionListSource,
 ): Promise<StoredSessionList> {
-  const stored = await readSessionList(store);
-  if (stored?.cursor !== undefined) {
-    const changes = await source.changes(stored.cursor);
-    if (changes !== undefined && changes.reset !== true) {
+  return syncByCursor({
+    stored: async () => {
+      const stored = await readSessionList(store);
+      return stored === undefined
+        ? undefined
+        : { value: stored, ...(stored.cursor ? { cursor: stored.cursor } : {}) };
+    },
+    changes: (cursor) => source.changes(cursor),
+    apply: async (changes: Exclude<HostSessionListChanges, { reset: true }>) => {
       await applySessionListChanges(store, changes);
       return (await readSessionList(store)) ?? { sessions: [], sources: [] };
-    }
-  }
-  const start = await source.changes(undefined);
-  const full = await source.all();
-  const list: StoredSessionList = {
-    ...full,
-    ...(start === undefined ? {} : { cursor: start.cursor }),
-  };
-  await replaceSessionList(store, list);
-  return list;
+    },
+    start: async () => (await source.changes(undefined))?.cursor,
+    full: () => source.all(),
+    replace: async (full, cursor) => {
+      const list: StoredSessionList = { ...full, ...(cursor === undefined ? {} : { cursor }) };
+      await replaceSessionList(store, list);
+      return list;
+    },
+  });
 }

@@ -1,3 +1,4 @@
+import { syncByCursor } from './cursor-sync';
 import type { LocalStore, SqlWriter } from './local-store';
 import type { ChannelListItem } from '@botharness/host-protocol/wire';
 
@@ -91,20 +92,25 @@ export function applyChannelListChanges(
   });
 }
 
-export async function syncChannelList(
+export function syncChannelList(
   store: LocalStore,
   source: ChannelListSource,
 ): Promise<ChannelListItem[]> {
-  const stored = await readChannelList(store);
-  if (stored.cursor !== undefined) {
-    const changes = await source.changes(stored.cursor);
-    if (changes !== undefined && changes.reset !== true) {
+  return syncByCursor({
+    stored: async () => {
+      const stored = await readChannelList(store);
+      return { value: stored.channels, ...(stored.cursor ? { cursor: stored.cursor } : {}) };
+    },
+    changes: (cursor) => source.changes(cursor),
+    apply: async (changes: Exclude<ChannelListChanges, { reset: true }>) => {
       await applyChannelListChanges(store, changes);
       return (await readChannelList(store)).channels;
-    }
-  }
-  const cursor = await source.cursor();
-  const channels = await source.channels();
-  await replaceChannelList(store, channels, cursor);
-  return channels;
+    },
+    start: () => source.cursor(),
+    full: () => source.channels(),
+    replace: async (channels, cursor) => {
+      await replaceChannelList(store, channels, cursor);
+      return channels;
+    },
+  });
 }
