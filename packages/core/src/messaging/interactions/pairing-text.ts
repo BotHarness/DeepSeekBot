@@ -260,13 +260,16 @@ export function createPairingText(options: {
     const scope = assignable(binding.botSlug, binding.id, event.actor.id);
     if (!explicit && !scope.reviewer) return false;
     explicit = true;
-    const reply = (text: string) => send(providerId, binding, event, text, signal);
+    const reply = (text: string) =>
+      setImmediate(() => {
+        if (!signal.aborted) void send(providerId, binding, event, text, signal);
+      });
     if (!scope.reviewer) {
-      await reply(NOTICE.unauthorized);
+      reply(NOTICE.unauthorized);
       return explicit;
     }
     if (target.status !== 'pending') {
-      await reply(NOTICE.settled(target.reference));
+      reply(NOTICE.settled(target.reference));
       return true;
     }
     let role: ExternalUserRole | undefined;
@@ -278,16 +281,16 @@ export function createPairingText(options: {
         role =
           scope.roles[index] ?? scope.all.find((item) => item.name.trim().toLowerCase() === wanted);
         if (!role) {
-          await reply(NOTICE.unknownRole(parsed.role, names));
+          reply(NOTICE.unknownRole(parsed.role, names));
           return true;
         }
         if (!scope.roles.some((item) => item.id === role!.id)) {
-          await reply(NOTICE.deniedRole(role.name));
+          reply(NOTICE.deniedRole(role.name));
           return true;
         }
       } else if (scope.roles.length === 1) role = scope.roles[0];
       else {
-        await reply(scope.roles.length ? NOTICE.chooseRole(names) : NOTICE.noRole);
+        reply(scope.roles.length ? NOTICE.chooseRole(names) : NOTICE.noRole);
         return true;
       }
     }
@@ -310,14 +313,14 @@ export function createPairingText(options: {
       log('review', parsed.decision);
       if (accepted.status === 'approved')
         void options.notifyApplicant(accepted).catch(() => log('applicant-notice', 'unconfirmed'));
-      await reply(
+      reply(
         parsed.decision === 'reject'
           ? NOTICE.rejected(target.reference)
           : NOTICE.approved(target.reference, role!.name),
       );
     } catch (error) {
       log('review', error instanceof MessagingError ? error.code : 'failed');
-      await reply(
+      reply(
         error instanceof MessagingError && error.code === 'pairing-unauthorized'
           ? NOTICE.unauthorized
           : error instanceof MessagingError && error.code === 'pairing-delegation-denied'
