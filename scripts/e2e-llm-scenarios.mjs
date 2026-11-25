@@ -495,7 +495,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       });
     },
     async toolCalls(key) {
-      const { sessions } = await call('sessions', { slug: slugs[key] });
+      const { sessions } = await call('sessions', { slug: slugs[key] ?? key });
       const calls = [];
       const ordered = [...sessions].sort(
         (a, b) =>
@@ -503,9 +503,9 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           a.sessionId.localeCompare(b.sessionId),
       );
       for (const { sessionId } of ordered) {
-        const events = (await sessionSnapshot(instance, sessionId)).records.map(
-          (record) => record.event,
-        );
+        const snapshot = await sessionSnapshot(instance, sessionId).catch(() => undefined);
+        if (snapshot === undefined) continue;
+        const events = snapshot.records.map((record) => record.event);
         for (const event of events) {
           if (event.type !== 'tool/call') continue;
           const result = events.find(

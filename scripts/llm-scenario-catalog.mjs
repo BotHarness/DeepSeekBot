@@ -439,6 +439,7 @@ export const SCENARIOS = [
       const flagged = started.files.find((file) => file.path === secret);
       if (!flagged || flagged.flags.length === 0) throw new Error('planted secret was not flagged');
       const tob = await ctx.tob();
+      const sentAt = new Date().toISOString();
       await ctx.humanSend(
         tob,
         `帮我把「${CAST.atlas.displayName}」分享出去：逐个检查它的分享草稿，看起来涉及隐私的内容问我保留、改写还是删掉。（Bot ID：${slug}）`,
@@ -449,7 +450,8 @@ export const SCENARIOS = [
         async () => {
           for (const message of ctx.messages(tob)) {
             const request = message.userQuestionRequest;
-            if (request === undefined || answered.has(message.id)) continue;
+            if (request === undefined || answered.has(message.id) || String(message.at) < sentAt)
+              continue;
             answered.add(message.id);
             const answers = request.questions.map((question) => {
               const text = `${question.header ?? ''} ${question.question} ${question.detail ?? ''}`;
@@ -488,6 +490,56 @@ export const SCENARIOS = [
       if (git('rev-parse', 'HEAD').trim() !== head || git('status', '--porcelain').trim() !== '')
         throw new Error('source Memory repository changed');
       ctx.note({ draft: draft.summary });
+    },
+  },
+  {
+    id: 'tob-report-problem',
+    summary:
+      'The Steward runs deepseekbot doctor before it diagnoses a problem the Human reports, and reports from that output in its Human DM (#5193).',
+    areas: [
+      'packages/core/src/tob/',
+      'packages/core/src/bots/cli-doctor.ts',
+      'packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.ts',
+      'scripts/e2e-llm-scenarios.mjs',
+    ],
+    bots: [],
+    async run(ctx) {
+      const tob = await ctx.tob();
+      const { botSlug } = await ctx.host('tobHome', {});
+      const before = (await ctx.toolCalls(botSlug)).length;
+      await ctx.humanSend(
+        tob,
+        '更新之后我的 Bot 回复变得特别慢，有时候一直卡着不动。帮我看看是怎么回事？',
+      );
+      const ranDoctor = (call) =>
+        /(^|[;&|\s])deepseekbot\s+doctor\b/u.test(String(call.arguments?.command ?? '')) ||
+        call.arguments?.argv?.[0] === 'doctor';
+      const isSend = (call) => call.name === 'bot_send_message';
+      const reportAfterDoctor = (calls) => {
+        const doctor = calls.findIndex((call) => ranDoctor(call) && call.hasResult);
+        return doctor !== -1 && calls.slice(doctor + 1).some(isSend);
+      };
+      const calls = await ctx.waitFor(
+        'The Steward runs doctor and reports from it in its Human DM',
+        async () => {
+          const current = (await ctx.toolCalls(botSlug)).slice(before);
+          return reportAfterDoctor(current) ? current : undefined;
+        },
+      );
+      const doctor = calls.findIndex(ranDoctor);
+      ctx.note({
+        calls: calls.map((call) => ({ name: call.name, arguments: call.arguments })),
+        report: calls.slice(doctor + 1).find(isSend)?.arguments,
+      });
+      if (
+        calls
+          .slice(0, doctor)
+          .some(
+            (call) =>
+              isSend(call) && /原因是|是因为|caused by/iu.test(JSON.stringify(call.arguments)),
+          )
+      )
+        throw new Error('the Steward named a cause before it ran doctor');
     },
   },
   {

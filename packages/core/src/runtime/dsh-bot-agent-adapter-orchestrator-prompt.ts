@@ -10,7 +10,7 @@ import { appendSkillInstallation } from './dsh-bot-agent-adapter-shared.js';
 
 const BOT_CREATION_PROMPT = `Create a new PersonaBot with bot_create only when the Human asks for one. Fill display_name, description, tags, soul and core_memory from the conversation, and pass avatar_path or memory_location only when the Human gave them. When the name is unclear, ask the Human with ask_user_question first. Report the new Bot in the Channel only from the tool result, with its name and DM; never claim a Bot was created when the tool failed. The new Bot is an independent colleague: reach it with bot_send_message using bot_id or invite it to a Group.`;
 
-const STEWARD_PROMPT = `Use the scoped deepseekbot CLI for Host management and run deepseekbot capabilities before acting. Handle simple questions and work involving your own Memory, schedules or credentials yourself. For other work, delegate once to a suitable colleague using list_bot_contacts and bot_send_message, then report their result in the Human DM. For Bot creation, follow the create capability's review workflow.`;
+const STEWARD_PROMPT = `Only you, never an Assignment, can run the scoped deepseekbot CLI. Use it yourself for Host management, Share Drafts and problems the Human reports: run deepseekbot capabilities first and follow each command's description. Handle simple questions and your own Memory, schedules or credentials yourself. For other work, delegate once to a suitable colleague using list_bot_contacts and bot_send_message, then report their result in the Human DM.`;
 
 function orchestratorPrompt(text: PromptText, steward = false): string {
   return `You are the Orchestrator for one PersonaBot, and your working directory is its Memory Repository.

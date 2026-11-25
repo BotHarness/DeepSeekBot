@@ -189,7 +189,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction. An Assignment has no deepseekbot management CLI: if you have it, run its commands, such as doctor for a problem the Human reports, in your own Shell instead.',
     parameters: {
       title: {
         type: 'string',
