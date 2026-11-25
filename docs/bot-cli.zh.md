@@ -94,6 +94,7 @@ deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--preset <model-preset-id>] [--memory-location <absolute-dir>]
                    [--home <dsh-home>]
 deepseekbot create --name <name> --from-git <url | owner/repo> [...]
+deepseekbot create --host <host> --name <name> --from-sessions <id,id,...> [--add-workspaces] [--persona <文本> | --persona-stdin]
 deepseekbot create [--name <name>] --from-zip <file> [...]
 deepseekbot create [--name <name>] --from-dir <directory> [...]
 deepseekbot list [--home <dsh-home>]
@@ -130,6 +131,8 @@ deepseekbot search <words>
 ```
 
 每次创建只能指定一种来源。空白创建和 GitHub 导入必须传 `--name`；包导入时 `--name` 会覆盖 `.botharness/bot.json`（或文件名）中的名字。`--from-git` 接受完整 Git 地址（`https://`、`ssh://`、`git@host:path`）或 `owner/repo` 简写（即 `https://github.com/owner/repo.git`），Bot 市场条目可用其克隆地址走同一路径。`--from-dir` 会跳过 `.git` 下的文件，但存在时将其打包为历史记录。
+
+`--from-sessions` 用运行中 Host 上最多 50 个会话创建空白 Bot（[ADR-0366](decisions/bots.md#adr-0366)、[ADR-0367](decisions/bots.md#adr-0367)）。ID 可以是 DeepSeek 会话（`session-list --source native`），也可以是 Host 上找到的 Claude Code、Codex 会话（`session-import-list`，形如 `claude-code:<id>`、`codex:<id>`，仅 Host Owner）。Host 只读 `~/.claude/projects`（或 `$CLAUDE_CONFIG_DIR/projects`）和 `~/.codex/sessions`（或 `$CODEX_HOME/sessions`）。Host 把包含各会话工作目录的工作区授权给 Bot，并发一条种子消息让它用 `workspace_sessions` 工具读完会话、写好 `SOUL.md` 和记忆，不复制任何内容。会话所在文件夹还不是工作区时，传 `--add-workspaces` 会先把最外层的这些文件夹登记为工作区，否则返回 `workspace-unavailable`；登记失败返回 `workspace-register-failed`。相同 `--operation-key` 重试会返回同一个 Bot，不会重发种子消息。
 
 `--memory-location <绝对路径>` 让空白 Bot 的记忆存放在 DSH 数据目录之外（例如另一块磁盘）：记忆仓库会建在新的 `<目录>/<bot-id>` 文件夹中，`dataDir` 返回该路径。路径必须是已存在文件夹的绝对路径，且这个 Bot 的文件夹不能已存在（`invalid-memory-dir`）；导入的 Bot 仍使用默认位置。创建对话框的 **进阶设置 → 记忆文件位置** 提供同样的选择。
 
@@ -631,6 +634,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 ```bash
 deepseekbot session-list [--search <文本>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
+deepseekbot session-import-list
 deepseekbot session-create (--cwd <路径> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <空白会话-id>] --message <文本>
 deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
 deepseekbot session-answer-question --session <session-id> --request <request-id> --answer-stdin < answer.json

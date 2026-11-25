@@ -161,7 +161,17 @@ export function useBotSidebar(
   const createFromWelcome = useMountedResource<HTMLSpanElement>(
     () =>
       onCreationRequest((intent) =>
-        setCreateRequest(intent === 'bot' ? { kind: 'bot', source: 'empty' } : { kind: 'channel' }),
+        setCreateRequest(
+          intent === 'bot'
+            ? { kind: 'bot', source: 'empty' }
+            : intent === 'channel'
+              ? { kind: 'channel' }
+              : {
+                  kind: 'bot',
+                  source: 'sessions',
+                  ...(intent.product === undefined ? {} : { product: intent.product }),
+                },
+        ),
       ),
     [],
   );
@@ -440,18 +450,19 @@ export function useBotSidebar(
     teamMode?.enabled === true &&
     teamMode.viewer.kind === 'member' &&
     state.channels.length === 0;
-  const { importZip, marketplace, createSectionDialog, messageBot } = renderLocalCreationDialogs({
-    createRequest,
-    setCreateRequest,
-    t,
-    actions,
-    createSectionId,
-    createSection,
-    commitBulkMove,
-    setSectionSortMode,
-    setBatchError,
-    openLocalConversation,
-  });
+  const { importZip, fromSessions, marketplace, createSectionDialog, messageBot } =
+    renderLocalCreationDialogs({
+      createRequest,
+      setCreateRequest,
+      t,
+      actions,
+      createSectionId,
+      createSection,
+      commitBulkMove,
+      setSectionSortMode,
+      setBatchError,
+      openLocalConversation,
+    });
   const { renameSection, renameChannel, deleteSection, sectionMenu } = renderSectionDialogs({
     renameTarget,
     t,
@@ -694,6 +705,7 @@ export function useBotSidebar(
         sectionCreateMenuItems,
       })}
       {importZip}
+      {fromSessions}
       {marketplace}
       {createSectionDialog}
       {messageBot}

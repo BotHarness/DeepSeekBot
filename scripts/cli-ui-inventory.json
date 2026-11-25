@@ -1071,6 +1071,13 @@
       "commands": ["computer-webrtc"]
     },
     {
+      "id": "bot-create-source",
+      "description": "Choosing blank, Sessions, Git or zip creation maps to create and its --from-sessions, --from-git and --from-zip options.",
+      "scope": "Host",
+      "commands": ["create"],
+      "surfaces": ["setting:packages/client/src/client/bot-create-source.tsx:{t(source.title)}"]
+    },
+    {
       "id": "bot-zip-import",
       "description": "Existing authenticated CLI path.",
       "scope": "Host",

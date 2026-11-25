@@ -868,6 +868,8 @@ export function createActions(
     createBot: botsActions.actions.createBot,
     openCreatedBot: botsActions.actions.openCreatedBot,
     importBotZip: botsActions.actions.importBotZip,
+    importableSessions: botsActions.actions.importableSessions,
+    createBotFromSessions: botsActions.actions.createBotFromSessions,
     botZipFiles: botsActions.actions.botZipFiles,
     exportBotZip: botsActions.actions.exportBotZip,
     previewBotImport: botsActions.actions.previewBotImport,

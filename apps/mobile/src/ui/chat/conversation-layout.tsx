@@ -14,6 +14,7 @@ import { backgroundImageUri } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
 import { MAX_PICKED, fromClipboardImage } from '../../host/pick-files';
 import { ConversationTopBar } from './conversation-top-bar';
+import type { HistoryChrome } from './history-chrome-context';
 import { ChatBackdrop } from './chat-backdrop';
 import {
   ChatTimelineFrame,
@@ -113,8 +114,10 @@ export function renderConversation({
   profile,
   header,
   notice,
+  history,
 }: {
   islandFloor: number;
+  history: HistoryChrome;
   focused: boolean;
   presentation: ConversationPresentation | undefined;
   t: ReturnType<typeof useStrings>;
@@ -325,6 +328,7 @@ export function renderConversation({
                   ...chatStackOptions(theme.color.base),
                   ...(ios
                     ? {
+                        headerShown: !history.hiddenNow,
                         title: '',
                         headerTitle: glassHeader ? () => nativeHeaderRow : '',
                         headerBackVisible: canGoBack && !headerIslands && !glassHeader,
@@ -578,6 +582,7 @@ export function renderConversation({
                       focusJump,
                       rowRendering,
                       profile,
+                      history,
                     })
                   )}
                 </ChatTimelineFrame>

@@ -61,6 +61,7 @@ export interface HostSessionRow {
   source: HostSessionSource;
   title?: string;
   folderName?: string;
+  cwd?: string;
   running: boolean;
   waiting?: true;
   archived?: true;
