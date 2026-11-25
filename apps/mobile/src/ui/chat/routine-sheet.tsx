@@ -393,7 +393,7 @@ export function RoutineSheet({
           <SheetActions>
             <Button
               label={t.cancel}
-              on="canvas"
+              on="sheet"
               disabled={busy !== undefined}
               onPress={() => {
                 if (routine === undefined) {
@@ -411,7 +411,7 @@ export function RoutineSheet({
             <Button
               label={routine === undefined ? t.routineCreate : t.routineSave}
               tone="primary"
-              on="canvas"
+              on="sheet"
               busy={busy === 'save'}
               disabled={busy !== undefined || routineProblem(form) !== undefined}
               onPress={save}
@@ -438,14 +438,14 @@ export function RoutineSheet({
         <SheetActions>
           <Button
             label={t.cancel}
-            on="canvas"
+            on="sheet"
             disabled={busy !== undefined}
             onPress={() => setMode('detail')}
           />
           <Button
             label={t.routineDelete}
             tone="danger"
-            on="canvas"
+            on="sheet"
             busy={busy === 'delete'}
             disabled={busy !== undefined}
             onPress={() =>
@@ -481,7 +481,7 @@ export function RoutineSheet({
             <Button
               label={t.routineRunNow}
               tone="primary"
-              on="canvas"
+              on="sheet"
               busy={busy === 'run'}
               disabled={busy !== undefined}
               onPress={() =>
@@ -497,7 +497,7 @@ export function RoutineSheet({
           <View style={{ flex: 1 }}>
             <Button
               label={routine.enabled ? t.routinePause : t.routineResume}
-              on="canvas"
+              on="sheet"
               busy={busy === 'enabled'}
               disabled={busy !== undefined}
               onPress={() =>

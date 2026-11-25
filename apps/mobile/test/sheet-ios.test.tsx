@@ -46,6 +46,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   padding: (params: unknown) => ({ padding: params }),
   presentationDetents: (detents: unknown) => ({ detents }),
   presentationDragIndicator: (visibility: unknown) => ({ dragIndicator: visibility }),
+  presentationBackground: (color: unknown) => ({ background: color }),
 }));
 vi.mock('@expo/ui/swift-ui', async () => {
   const { useState } = await import('react');
@@ -110,6 +111,7 @@ function modifiers(view: HTMLElement) {
   return JSON.parse(view.querySelector('article')?.getAttribute('data-modifiers') ?? '[]') as {
     detents?: string[];
     dragIndicator?: string;
+    background?: string;
   }[];
 }
 function detents(view: HTMLElement) {
@@ -128,6 +130,7 @@ it('opens the shell as a native SwiftUI sheet with the system grabber and hosted
   );
   expect(view.querySelector('dialog')?.hasAttribute('open')).toBe(true);
   expect(modifiers(view)).toContainEqual({ dragIndicator: 'visible' });
+  expect(modifiers(view)).toContainEqual({ background: '#fff' });
   expect(view.querySelector('section')?.getAttribute('data-match')).toBe('{"vertical":true}');
   expect(view.querySelector('section [aria-label="Model"] header')?.textContent).toContain('Model');
   expect(view.querySelector('section p')?.textContent).toBe('body');

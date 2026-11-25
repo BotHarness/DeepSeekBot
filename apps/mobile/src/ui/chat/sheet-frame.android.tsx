@@ -23,7 +23,7 @@ export function SheetFrame({ visible, label, onClose, children }: SheetFrameProp
       <ModalBottomSheet
         onDismissRequest={onClose}
         skipPartiallyExpanded
-        containerColor={theme.layer.sheet.fill}
+        containerColor={theme.overlay.fill}
         contentColor={theme.color.fg}
       >
         <RNHostView matchContents={{ vertical: true }}>

@@ -1,19 +1,23 @@
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
+import { createContext, useContext } from 'react';
 import { Platform, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { DrawerHeader, type DrawerHeaderProps } from './drawer-header';
 
+export const SheetFramed = createContext(false);
+
 export function SheetHeader(props: DrawerHeaderProps) {
   const theme = useDesignTheme();
+  const framed = useContext(SheetFramed);
   return (
     <View
       testID="sheet-header"
       collapsable={false}
       style={{
         paddingHorizontal: space.x5,
-        paddingTop: Platform.OS === 'ios' ? space.x4 : space.x3,
+        paddingTop: framed ? 0 : Platform.OS === 'ios' ? space.x4 : space.x3,
         paddingBottom: space.x3,
         backgroundColor: theme.overlay.fill,
       }}

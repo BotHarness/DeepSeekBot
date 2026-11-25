@@ -2,6 +2,7 @@ import { BottomSheet, Group, Host, RNHostView } from '@expo/ui/swift-ui';
 import {
   frame,
   padding,
+  presentationBackground,
   presentationDetents,
   presentationDragIndicator,
 } from '@expo/ui/swift-ui/modifiers';
@@ -87,6 +88,7 @@ export function SheetFrame({
             padding({ top: space.x6 }),
             presentationDetents([sheetDetent(room, content, avoidKeyboard || keyboard > 0)]),
             presentationDragIndicator('visible'),
+            presentationBackground(theme.overlay.fill),
           ]}
         >
           <RNHostView matchContents={{ vertical: true }}>

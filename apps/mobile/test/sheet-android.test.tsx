@@ -59,6 +59,7 @@ vi.mock('../src/ui/design/theme', () => ({
     touch: 48,
     color: { accent: 'seed', fg: 'ink' },
     layer: { sheet: { fill: 'sheet-surface' } },
+    overlay: { fill: 'sheet-surface' },
   }),
 }));
 vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ cancel: 'Cancel' }) }));
