@@ -8,7 +8,7 @@ import type {
   ToolApprovalActor,
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
-import type { BotPairing, PairingRequest } from './pairing.js';
+import { pairedRoute, type BotPairing, type PairingRequest } from './pairing.js';
 import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
 import { approvalSurface } from './interactions/surface.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
@@ -492,16 +492,7 @@ export function createApprovalMessaging(options: {
       const context = resolve(value.route);
       if (!safe(value) || !requestLive(value))
         throw new MessagingProviderError('request-expired', 'not-started');
-      const messageId = context.paired.messageIds?.[0];
-      const target =
-        value.destination?.reply ??
-        (messageId
-          ? {
-              messageId,
-              conversationId: context.paired.conversationId,
-              actorId: context.paired.actorId,
-            }
-          : undefined);
+      const target = value.destination?.reply ?? pairedRoute(context.paired);
       if (!target) throw new MessagingProviderError('source-unavailable', 'not-started');
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;

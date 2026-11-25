@@ -19,7 +19,7 @@ import {
   renderQuestionText,
 } from './interactions/text-answers.js';
 import { questionSurface } from './interactions/surface.js';
-import type { BotPairing } from './pairing.js';
+import { pairedRoute, type BotPairing } from './pairing.js';
 import {
   MessagingError,
   MessagingProviderError,
@@ -282,15 +282,7 @@ export function createQuestionMessaging(options: {
     try {
       const granted = context(value);
       const { identity, paired } = granted;
-      const target =
-        value.destination?.reply ??
-        (paired.messageIds?.[0]
-          ? {
-              messageId: paired.messageIds[0],
-              actorId: paired.actorId,
-              conversationId: paired.conversationId,
-            }
-          : undefined);
+      const target = value.destination?.reply ?? pairedRoute(paired);
       if (!live(value) || !target)
         throw new MessagingProviderError('question-owner-unavailable', 'not-started');
       write({ ...value, attempts: value.attempts + 1, delivery: 'sending' });

@@ -27,10 +27,14 @@ async function fixture() {
   core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let sent = 0;
-  const replies = vi.fn<NonNullable<DshImOutboundService['replyChecked']>>(async (_bot, route) => ({
-    sent: true,
-    receipt: { version: 1, messageId: `171.${++sent}`, conversationId: route.conversationId },
-  }));
+  const replies = vi.fn<NonNullable<DshImOutboundService['replyChecked']>>(async (_bot, route) => {
+    if (!route.threadId || route.rootId !== route.threadId)
+      throw Object.assign(new Error('stale-route'), { code: 'stale-route' });
+    return {
+      sent: true,
+      receipt: { version: 1, messageId: `171.${++sent}`, conversationId: route.conversationId },
+    };
+  });
   const provider: DshImOutboundService = {
     contractVersion: 1,
     replyReceiptVersion: 1,
@@ -79,6 +83,8 @@ async function fixture() {
         messageId,
         conversationId: 'D0QA',
         actorId,
+        threadId: messageId,
+        rootId: messageId,
         ...(parentId ? { parentId } : {}),
       },
       replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
