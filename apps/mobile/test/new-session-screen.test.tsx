@@ -98,7 +98,7 @@ vi.mock('../src/ui/chat/composer', () => ({
 }));
 vi.mock('../src/ui/chat/session-model-composer', () => ({
   useSessionModelControl: () => ({ visible: false, state: { override: null, default: null } }),
-  SessionModelChip: () => null,
+  SessionModelLogo: () => null,
   SessionModelPicker: () => null,
 }));
 vi.mock('../src/ui/chat/folder-picker-sheet', () => ({

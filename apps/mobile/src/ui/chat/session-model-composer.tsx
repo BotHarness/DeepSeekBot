@@ -15,7 +15,6 @@ import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { catalogQuery, sessionModelQueries, stateQuery } from '../../host/session-model-query';
 
 import { space } from '../design/tokens';
-import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { composerControl } from './composer-chrome';
@@ -144,14 +143,12 @@ export function useSessionModelControl({
 
 type Control = ReturnType<typeof useSessionModelControl>;
 
-function useSessionModelSummary(control: Control, width: number) {
+function useSessionModelSummary(control: Control) {
   const t = useStrings().sessionModel;
-  const theme = useDesignTheme();
   return sessionModelLabel({
     state: control.state,
     target: control.target,
     catalog: control.catalog,
-    width: width / Math.max(1, theme.fontScale),
     strings: control.native
       ? { ...t, defaultLabel: control.fresh ? t.newDefaultLabel : t.nativeDefaultLabel }
       : t,
@@ -160,13 +157,13 @@ function useSessionModelSummary(control: Control, width: number) {
 
 export function useSessionModelMenuLabel(control: Control): string {
   const t = useStrings().sessionModel;
-  const { name, effort } = useSessionModelSummary(control, Infinity);
+  const { name, effort } = useSessionModelSummary(control);
   return name === undefined ? t.choice : t.menuRow([name, effort].filter(Boolean).join(' · '));
 }
 
 export function SessionModelLogo({ control, disabled }: { control: Control; disabled: boolean }) {
   const theme = useDesignTheme();
-  const { brand, accessible } = useSessionModelSummary(control, Infinity);
+  const { brand, accessible } = useSessionModelSummary(control);
   const size = composerControl(theme);
   return (
     <Pressable
@@ -188,60 +185,6 @@ export function SessionModelLogo({ control, disabled }: { control: Control; disa
       })}
     >
       <ModelBrandIcon brand={brand} color={theme.color.muted} size={theme.type.title.line} />
-    </Pressable>
-  );
-}
-
-export function SessionModelChip({
-  control,
-  width,
-  disabled,
-}: {
-  control: Control;
-  width: number;
-  disabled: boolean;
-}) {
-  const theme = useDesignTheme();
-  const { brand, name, effort, accessible } = useSessionModelSummary(control, width);
-  const unavailable = disabled;
-  return (
-    <Pressable
-      testID="composer-session-model"
-      accessibilityRole="button"
-      accessibilityLabel={accessible}
-      accessibilityState={{ disabled: unavailable, expanded: control.visible }}
-      disabled={unavailable}
-      onPress={control.show}
-      android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
-      style={({ pressed }) => ({
-        flexShrink: 1,
-        minHeight: theme.touch,
-        minWidth: theme.touch,
-        paddingHorizontal: space.x3,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space.x2,
-        borderRadius: capsuleRadius(theme.fontScale),
-        overflow: 'hidden',
-        backgroundColor: pressed ? theme.layer.raised.inset : undefined,
-      })}
-    >
-      <ModelBrandIcon
-        brand={brand}
-        color={theme.color.muted}
-        size={theme.type.title.line + (name === undefined ? 0 : space.x1)}
-      />
-      {name === undefined ? null : (
-        <Text variant="meta" numberOfLines={1} style={{ flexShrink: 1 }}>
-          {name}
-        </Text>
-      )}
-      {effort === undefined ? null : (
-        <Text variant="meta" tone="muted" numberOfLines={1}>
-          {effort}
-        </Text>
-      )}
     </Pressable>
   );
 }
@@ -345,7 +288,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
     ];
   }, [catalog, copy, defaultModel, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
-  const summary = useSessionModelSummary(control, Infinity);
+  const summary = useSessionModelSummary(control);
   if (NativeSessionModelSheet !== undefined) {
     const choices = new Map(
       sections
