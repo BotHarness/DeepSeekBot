@@ -338,7 +338,11 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     ...(options.recover === undefined ? {} : { recover: options.recover }),
     ...(options.warn ? { warn: options.warn } : {}),
   });
-  const approvalText = createApprovalText({ database, approvals });
+  const approvalText = createApprovalText({
+    database,
+    approvals,
+    provider: (id) => provider(id).provider,
+  });
   const pairingText = createPairingText({
     database,
     pairing,
