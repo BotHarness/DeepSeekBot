@@ -356,7 +356,6 @@ function ApprovalCardContent({
         )}
         <CardButtons stack>
           <Button
-            symbol="check"
             label={t.allowOnce}
             testID="approval-allow-once"
             variant="card-solid"
@@ -367,7 +366,6 @@ function ApprovalCardContent({
             onPress={() => void decide('allowed-once')}
           />
           <Button
-            symbol="shield-check"
             label={t.alwaysAllow}
             testID="approval-always-allow"
             variant="card-solid"
@@ -377,7 +375,6 @@ function ApprovalCardContent({
             onPress={() => void decide('allowed-always-tool')}
           />
           <Button
-            symbol="x"
             label={t.reject}
             testID="approval-deny"
             variant="card-solid"
