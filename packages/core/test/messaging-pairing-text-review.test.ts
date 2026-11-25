@@ -240,7 +240,8 @@ it('the approval route receives the full review and can approve from its own con
   const review = fx.replies.find((reply) => reply.text.startsWith('Pairing review'))!;
   expect(review.route.conversationId).toBe('DQAREV');
   expect(review.text).toContain(`#${request.reference}`);
-  expect(review.text).toContain('1. Colleague');
+  expect(review.text).toContain('可分配角色: Colleague');
+  expect(review.text).not.toContain('1. Colleague');
   expect(review.text).not.toContain('question');
   expect(request.notifications).toEqual(
     expect.arrayContaining([
@@ -272,4 +273,35 @@ it('the approval route receives the full review and can approve from its own con
   });
   expect(fx.runs).toHaveLength(0);
   expect(fx.admissions()).toEqual([]);
+});
+
+it('a notice repeated in a second channel binds the reply there', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack');
+  const { applicant, reviewer } = ids.slack;
+  const inSecond = (event: MessagingInboundEvent): MessagingInboundEvent => ({
+    ...event,
+    conversation: { kind: 'group', id: 'CQA2' },
+    reply: { ...event.reply, conversationId: 'CQA2' },
+  });
+  await fx.receive(channelMessage('slack', 'first', applicant, 'question'));
+  await fx.receive(inSecond(channelMessage('slack', 'second', applicant, 'question')));
+  const request = pendingFor(fx, applicant);
+  expect(request.conversationId).toBe('CQA1');
+  expect(request.notifications?.map((notice) => notice.receipt?.conversationId)).toContain('CQA2');
+  await fx.receive(
+    inSecond(
+      channelMessage(
+        'slack',
+        'approve-second',
+        reviewer,
+        '同意 Colleague',
+        { threadId: 'om-second', rootId: 'om-second' },
+        false,
+      ),
+    ),
+  );
+  expect(pendingFor(fx, applicant).status).toBe('approved');
+  expect(fx.replies.some((reply) => reply.text.includes('send your question again'))).toBe(true);
+  expect(fx.runs).toHaveLength(0);
 });

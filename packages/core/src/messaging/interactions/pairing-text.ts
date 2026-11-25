@@ -91,7 +91,7 @@ export function renderPairingReview(
   platform: string,
   roles: ExternalUserRole[],
 ): string {
-  const names = roles.map((role, index) => `${index + 1}. ${role.name}`);
+  const names = roles.map((role) => role.name);
   return [
     'Pairing review / 配对审核',
     [
@@ -99,7 +99,7 @@ export function renderPairingReview(
       `App / 应用: ${request.accountName} · ${platform}`,
       `Conversation / 会话: ${request.conversationKind === 'group' ? 'group / 群' : 'DM / 私聊'} ${request.conversationId}`,
       `Expires / 到期: ${request.expiresAt}`,
-      `Roles you can assign / 可分配角色: ${names.join('  ') || 'None / 无'}`,
+      `Roles you can assign / 可分配角色: ${names.join(', ') || 'None / 无'}`,
     ].join('\n'),
     'Reply to this message with "approve <role>" or "reject". / 回复本消息「同意 <角色>」或「拒绝」。',
     `#${request.reference}`,
@@ -166,7 +166,12 @@ export function createPairingText(options: {
       const live = () => {
         try {
           const current = pairing.list(request.botSlug).find((item) => item.id === request.id);
+          const holder = options.approvals.managementDestination(request.botSlug);
           return (
+            holder.identity.id === identity.id &&
+            holder.paired.id === paired.id &&
+            holder.paired.revision === paired.revision &&
+            assignable(request.botSlug, identity.id, paired.actorId).reviewer &&
             options.isBotActive(request.botSlug) &&
             current?.status === 'pending' &&
             current.revision === request.revision &&
@@ -230,20 +235,34 @@ export function createPairingText(options: {
           notice.key.startsWith('route:') && notice.receipt?.conversationId === conversation,
       ) ?? false;
     const threadNotice = (item: PairingRequest) =>
-      item.bindingId === binding.id && item.conversationId === conversation;
+      item.bindingId === binding.id &&
+      (item.conversationId === conversation ||
+        (item.notifications?.some(
+          (notice) =>
+            notice.key.startsWith('pending:') && notice.receipt?.conversationId === conversation,
+        ) ??
+          false));
     const reachable = (item: PairingRequest) => threadNotice(item) || routeNotice(item);
     const anchors = [event.reply.parentId, event.reply.threadId, event.reply.rootId].filter(
       (id): id is string => !!id && id !== event.messageId,
     );
-    const anchored = (item: PairingRequest) => {
+    const exact = (item: PairingRequest) => {
       const ids = [
         ...(item.messageIds ?? []),
-        ...(item.reply?.threadId ? [item.reply.threadId] : []),
         ...(item.notifications ?? [])
           .filter((notice) => notice.receipt?.conversationId === conversation)
           .map((notice) => notice.receipt!.messageId),
       ];
       return anchors.some((id) => ids.includes(id));
+    };
+    const sharedThread = (item: PairingRequest) =>
+      !!item.reply?.threadId && anchors.includes(item.reply.threadId);
+    const anchoredTarget = () => {
+      const candidates = requests.filter(reachable);
+      const exactMatches = candidates.filter(exact);
+      if (exactMatches.length) return exactMatches.length === 1 ? exactMatches[0] : undefined;
+      const threadMatches = candidates.filter(sharedThread);
+      return threadMatches.length === 1 ? threadMatches[0] : undefined;
     };
     const reviewerFor = (item: PairingRequest): PairingReviewer =>
       threadNotice(item)
@@ -251,7 +270,7 @@ export function createPairingText(options: {
         : { bindingId: binding.id, actorId: event.actor.id, approvalRoute: true };
     let target = parsed.reference
       ? requests.find((item) => item.reference === parsed.reference && reachable(item))
-      : requests.find((item) => reachable(item) && anchored(item));
+      : anchoredTarget();
     let explicit = !!target;
     if (!target && !parsed.reference) {
       const pending = requests.filter((item) => item.status === 'pending' && reachable(item));
@@ -291,9 +310,7 @@ export function createPairingText(options: {
       const names = scope.roles.map((item) => item.name);
       if (parsed.role) {
         const wanted = parsed.role.toLowerCase();
-        const index = /^\d{1,3}$/.test(parsed.role) ? Number(parsed.role) - 1 : -1;
-        role =
-          scope.roles[index] ?? scope.all.find((item) => item.name.trim().toLowerCase() === wanted);
+        role = scope.all.find((item) => item.name.trim().toLowerCase() === wanted);
         if (!role) {
           reply(NOTICE.unknownRole(parsed.role, names));
           return true;

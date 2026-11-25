@@ -446,7 +446,13 @@ export function createBotPairing(
         const notifications = value.notifications ?? [];
         const previous = notifications.find((item) => item.key === key);
         if (!outcome && previous) return false;
-        if (notifications.length >= pairingDefaults.maxAttempts + 1 && !previous) return false;
+        if (
+          !previous &&
+          !key.startsWith('route:') &&
+          notifications.filter((item) => !item.key.startsWith('route:')).length >=
+            pairingDefaults.maxAttempts + 1
+        )
+          return false;
         if (outcome && !previous) return false;
         const next = {
           ...value,
