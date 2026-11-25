@@ -154,6 +154,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       HOME: '/Users/human',
       CLAUDE_CONFIG_DIR: join(root, 'claude', 'home'),
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
+      ENABLE_TOOL_SEARCH: 'true',
     });
     expect(options.mcpServers['deepseekbot']).toMatchObject({ type: 'http', alwaysLoad: true });
     expect(options.mcpServers['deepseekbot']!.headers['Authorization']).toMatch(/^Bearer /u);
@@ -557,19 +558,12 @@ describe('Claude Code engine boundaries', () => {
       { sessionId: SESSION },
     );
     expect(options.mcpServersDelivery).toBe('initialize');
-    expect(options.disallowedTools).toEqual(expect.arrayContaining(['CronCreate', 'Workflow']));
-    expect(options.disallowedTools).not.toContain('Agent');
-    const assignment = claudeQueryOptions(
-      { executable: 'claude', home: '/h', cwd: '/w', instructions: '', role: 'assignment' },
-      { canUseTool: vi.fn(), stderr },
-      { sessionId: SESSION },
-    );
-    expect(assignment.disallowedTools).toBeUndefined();
     expect(options.env).toEqual({
       PATH: '/usr/bin',
       LANG: 'C',
       CLAUDE_CONFIG_DIR: '/bots/engines/claude/home',
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
+      ENABLE_TOOL_SEARCH: 'true',
     });
     expect(JSON.stringify(options.env)).not.toContain('secret-token');
 

@@ -408,7 +408,7 @@ it('starts mixed-group engines in read-only mode across quota continuation', asy
       model: CLAUDE.model,
       permissionMode: 'default',
       tools: ['Read', 'Glob', 'Grep'],
-      disallowedTools: expect.arrayContaining(['Edit', 'Write', 'Bash', 'CronCreate', 'Workflow']),
+      disallowedTools: ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'],
     },
   ]);
   expect(bot.claude.prompts).toEqual([expect.stringContaining('Check the granted workspace')]);

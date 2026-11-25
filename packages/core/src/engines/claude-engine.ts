@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 
 import { engineLaunch } from './engine-launch.js';
-import type { EngineRole } from './engine-store.js';
 import { quotaEmail, quotaTime, quotaWindow, type ProviderQuota } from './engine-quota.js';
 import {
   type EngineAccount,
@@ -27,21 +26,6 @@ export const CLAUDE_GATEWAY_SERVER = 'deepseekbot';
 const GATEWAY_PREFIX = `mcp__${CLAUDE_GATEWAY_SERVER}__`;
 const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'];
-export const CLAUDE_ORCHESTRATOR_HIDDEN_TOOLS = [
-  'CronCreate',
-  'CronDelete',
-  'CronList',
-  'ScheduleWakeup',
-  'Monitor',
-  'Workflow',
-  'EnterWorktree',
-  'ExitWorktree',
-  'ListAgents',
-  'SendMessage',
-  'TaskStop',
-  'ReportFindings',
-  'NotebookEdit',
-];
 
 export interface ClaudeUserMessage {
   type: 'user';
@@ -154,7 +138,6 @@ export interface ClaudeProcessOptions extends EngineChoice {
   gateway?: EngineGatewayEndpoint;
   permissionMode?: 'default' | 'acceptEdits';
   workspaceMode?: EngineWorkspaceMode;
-  role?: EngineRole;
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -165,17 +148,12 @@ export function claudeQueryOptions(
 ): ClaudeQueryOptions {
   const readOnly = options.workspaceMode === 'read-only';
   const fullAccess = options.workspaceMode === 'danger-full-access';
-  const disallowedTools = [
-    ...new Set([
-      ...(readOnly ? WRITE_TOOLS : []),
-      ...(options.role === 'assignment' ? [] : CLAUDE_ORCHESTRATOR_HIDDEN_TOOLS),
-    ]),
-  ];
   return {
     cwd: options.cwd,
     env: engineEnvironment(options.env ?? process.env, {
       CLAUDE_CONFIG_DIR: options.home,
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
+      ENABLE_TOOL_SEARCH: 'true',
     }),
     pathToClaudeCodeExecutable: options.executable,
     settingSources: [],
@@ -194,8 +172,7 @@ export function claudeQueryOptions(
     ...(options.gateway === undefined ? {} : { mcpServersDelivery: 'initialize' as const }),
     permissionMode: fullAccess ? 'bypassPermissions' : (options.permissionMode ?? 'default'),
     ...(fullAccess ? { allowDangerouslySkipPermissions: true } : {}),
-    ...(readOnly ? { tools: [...READ_ONLY_TOOLS] } : {}),
-    ...(disallowedTools.length === 0 ? {} : { disallowedTools }),
+    ...(readOnly ? { tools: [...READ_ONLY_TOOLS], disallowedTools: [...WRITE_TOOLS] } : {}),
     ...(options.workspaceMode === 'workspace-write'
       ? { settings: { permissions: { ask: ['Bash', 'PowerShell'] } } }
       : {}),
