@@ -47,7 +47,10 @@ export interface InteractionAuthority {
     capability: PairingCapability;
     expected: { conversationId: string; shared: boolean };
   }): ToolApprovalActor | undefined;
-  groupDestination(grant: InteractionGrant, channelId: string): InteractionDestination | undefined;
+  groupDestination(
+    grant: InteractionGrant,
+    at: { channelId: string; sessionId: string },
+  ): InteractionDestination | undefined;
 }
 
 const groupSourcePayload = z.object({
@@ -73,6 +76,7 @@ export function createInteractionAuthority(options: {
   database: OperationalDatabaseModulePort;
   pairing: BotPairing;
   provider(id: string): MessagingProvider;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   isBotActive(slug: string): boolean;
 }): InteractionAuthority {
   const context = (grant: InteractionGrant): InteractionContext => {
@@ -97,33 +101,44 @@ export function createInteractionAuthority(options: {
   };
   return {
     context,
-    groupDestination(grant, channelId) {
+    groupDestination(grant, at) {
       try {
         const { identity, platform } = context(grant);
-        return options.database.read((db) => {
-          if (identity.groupInteractions === false) return undefined;
-          const row = db
-            .prepare(
-              "SELECT e.payload_json FROM source_events e LEFT JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = ? WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (p.channel_id IS NOT NULL OR e.channel_id = ?) AND json_extract(e.payload_json, '$.userQuestionResolution') IS NULL AND json_extract(e.payload_json, '$.toolApprovalDecision') IS NULL ORDER BY p.revision IS NULL, p.revision DESC, e.rowid DESC LIMIT 1",
-            )
-            .get(channelId, grant.botSlug, channelId) as
-            | { payload_json: string | null }
-            | undefined;
-          const parsed = row?.payload_json
+        if (identity.groupInteractions === false) return undefined;
+        const turn = options.turnSources?.(grant.botSlug, at.sessionId);
+        const rows = options.database.read((db) =>
+          turn?.length
+            ? (db
+                .prepare(
+                  `SELECT payload_json FROM source_events WHERE bot_slug = ? AND source_kind = 'bridge-message' AND source_event_id IN (${turn.map(() => '?').join(', ')}) ORDER BY rowid DESC`,
+                )
+                .all(grant.botSlug, ...turn) as { payload_json: string | null }[])
+            : (db
+                .prepare(
+                  "SELECT e.payload_json FROM source_events e LEFT JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = ? WHERE e.bot_slug = ? AND e.source_kind IN ('human-message', 'bridge-message') AND (p.channel_id IS NOT NULL OR e.channel_id = ?) AND json_extract(e.payload_json, '$.userQuestionResolution') IS NULL AND json_extract(e.payload_json, '$.toolApprovalDecision') IS NULL ORDER BY p.revision IS NULL, p.revision DESC, e.rowid DESC LIMIT 1",
+                )
+                .all(at.channelId, grant.botSlug, at.channelId) as {
+                payload_json: string | null;
+              }[]),
+        );
+        for (const row of rows) {
+          const parsed = row.payload_json
             ? groupSourcePayload.safeParse(JSON.parse(row.payload_json))
             : undefined;
           const event = parsed?.success ? parsed.data.external.event : undefined;
-          return event &&
+          if (
+            event &&
             event.channel === platform &&
             event.botId === identity.accountRef &&
             event.fingerprint === identity.fingerprint
-            ? {
-                kind: 'group' as const,
-                conversationId: event.conversation.id,
-                reply: event.reply as MessagingReplyRoute,
-              }
-            : undefined;
-        });
+          )
+            return {
+              kind: 'group' as const,
+              conversationId: event.conversation.id,
+              reply: event.reply as MessagingReplyRoute,
+            };
+        }
+        return undefined;
       } catch {
         return undefined;
       }

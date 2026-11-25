@@ -453,6 +453,36 @@ it('text replies answer with letters, several questions, a #reference, or a bare
   });
 });
 
+it('a question asked while the turn handles a bridged Lark group message goes to that group, and a turn from elsewhere stays in the DM', async () => {
+  const f = await fixture();
+  const bridged = placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_bridged',
+    messageId: 'om_bridged_ask',
+    placed: false,
+  });
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_stale',
+    messageId: 'om_stale_ask',
+  });
+  const turn = vi.spyOn(f.core.runtime, 'turnSourceEventIds').mockReturnValue([bridged]);
+  const asked = await f.start();
+  expect(asked.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_bridged' });
+  expect(f.cards.mock.calls.at(-1)?.[1]).toMatchObject({
+    messageId: 'om_bridged_ask',
+    conversationId: 'oc_bridged',
+  });
+  turn.mockReturnValue(['local-source']);
+  const local = await f.start();
+  expect(local.delivery.destination).toBeUndefined();
+  turn.mockReturnValue(undefined);
+  const idle = await f.start();
+  expect(idle.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_stale' });
+});
+
 it('a question raised from a Lark group conversation is answered in that group by paired people only, and the Binding or its platform default can send it back to the DM', async () => {
   const f = await fixture();
   const group = { kind: 'group' as const, id: 'oc_team' };

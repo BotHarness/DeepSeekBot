@@ -343,6 +343,28 @@ it('native Session-wide authorizations notify but remain Web-only', async () => 
   expect(await pending.answer).toBe('allowed-once');
 });
 
+it('an approval raised while the turn handles a bridged Lark group message goes to that group', async () => {
+  const f = await fixture(false, true);
+  const bridged = placeGroupSource(f.core, {
+    channelId: 'dm-ada',
+    fingerprint,
+    conversationId: 'oc_bridged',
+    messageId: 'om_bridged_ask',
+    placed: false,
+  });
+  vi.spyOn(f.core.runtime, 'turnSourceEventIds').mockReturnValue([bridged]);
+  const pending = await f.start();
+  await vi.waitFor(() => expect(f.cards).toHaveBeenCalled());
+  expect(pending.delivery.destination).toMatchObject({
+    kind: 'group',
+    conversationId: 'oc_bridged',
+  });
+  expect(await f.action(pending.delivery.id, { conversationId: 'oc_bridged' })).toMatchObject({
+    status: 'queued',
+  });
+  expect(await pending.answer).toBe('allowed-once');
+});
+
 it('an approval raised from a Lark group is decided in that group by a paired person, never by an unpaired member or from another chat', async () => {
   const f = await fixture(false, true);
   placeGroupSource(f.core, {

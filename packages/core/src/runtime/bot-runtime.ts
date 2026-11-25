@@ -434,6 +434,13 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#features.turnSources.has(botSlug) && this.#features.activeTurns.has(botSlug);
   }
 
+  turnSourceEventIds(botSlug: string, sessionId: string): readonly string[] | undefined {
+    const turn = this.#features.turnSources.get(botSlug);
+    return turn?.sessionId === sessionId
+      ? [...new Set([...turn.eventIds, ...turn.acceptedEventIds])]
+      : undefined;
+  }
+
   hasPendingInbox(botSlug: string): boolean {
     return this.#features.admissions.hasPendingInbox(botSlug);
   }

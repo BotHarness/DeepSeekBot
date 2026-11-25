@@ -66,6 +66,7 @@ export function createQuestionMessaging(options: {
   approvals: ApprovalMessaging;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): QuestionMessaging {
@@ -325,7 +326,7 @@ export function createQuestionMessaging(options: {
       const route = options.approvals.snapshot(notice.botSlug).route;
       const question = channels?.message(notice.channelId, notice.messageId)?.userQuestionRequest;
       if (!route || !question) return;
-      const destination = authority.groupDestination(route, notice.channelId);
+      const destination = authority.groupDestination(route, notice);
       write({
         ...(destination ? { destination } : {}),
         id: notice.messageId,

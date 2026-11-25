@@ -117,6 +117,7 @@ export function createApprovalMessaging(options: {
   pairing: BotPairing;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): ApprovalMessaging {
@@ -585,7 +586,7 @@ export function createApprovalMessaging(options: {
       )
         return;
       if (!selected) return;
-      const destination = authority.groupDestination(selected, notice.channelId);
+      const destination = authority.groupDestination(selected, notice);
       write({
         ...(destination ? { destination } : {}),
         id: notice.messageId,
