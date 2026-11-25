@@ -1,3 +1,4 @@
+import { installManagementGrantNoticeTriggers } from './messaging-history.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const TOB_IDENTITY_MIGRATION: SchemaMigration = {
@@ -65,5 +66,6 @@ export const BOT_MANAGEMENT_GRANTS_MIGRATION: SchemaMigration = {
         JOIN team_settings s ON s.owner_human_id = t.human_id
         CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots');
     `);
+    installManagementGrantNoticeTriggers(database);
   },
 };

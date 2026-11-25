@@ -30,8 +30,8 @@ it('grants independent capabilities to multiple Owner Bots and refreshes their p
     core.tob.refreshManagementPrompt('existing-session');
     expect(prompt.text()).toBe('');
     expect(core.channels.readMessages('dm-ada').map((message) => message.body)).toEqual([
-      '[Host timeline] This Bot can now manage the App.',
       '[Host timeline] This Bot can no longer manage the App.',
+      '[Host timeline] This Bot can now manage the App.',
     ]);
     prompt.dispose();
   } finally {
