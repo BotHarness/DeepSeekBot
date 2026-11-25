@@ -6,6 +6,7 @@ import type {
   WireHumanAttentionPage,
   WireTeamMode,
 } from '@botharness/host-protocol/wire';
+import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import { isApprovalCard } from './approval-readers';
 import {
   answer,
@@ -42,6 +43,7 @@ const kinds: ReadonlySet<unknown> = new Set<WireHumanAttentionItem['kind']>([
   'channel-unread',
   'channel-reply',
   'channel-mention',
+  NATIVE_SESSION_ATTENTION_KIND,
 ]);
 const handledKinds: ReadonlySet<unknown> = new Set([
   'user-question',
@@ -54,8 +56,23 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const hasText = (row: Record<string, unknown>, keys: string[]) =>
   keys.every((key) => text(row[key]));
 
+function isNativeSessionItem(row: Record<string, unknown>): boolean {
+  const native = record(row['nativeSession']);
+  return (
+    hasText(row, ['id', 'createdAt', 'summary', 'requestId']) &&
+    row['category'] === 'action' &&
+    row['botSlug'] === '' &&
+    native !== undefined &&
+    text(native['sessionId']) &&
+    (native['input'] === 'approval' || native['input'] === 'question') &&
+    optional(native['sessionTitle'], text)
+  );
+}
+
 function isAttentionItem(value: unknown, notifications: boolean): value is WireHumanAttentionItem {
   const row = record(value);
+  if (row?.['kind'] === NATIVE_SESSION_ATTENTION_KIND) return isNativeSessionItem(row);
+  if (row?.['nativeSession'] !== undefined) return false;
   if (
     !row ||
     !hasText(row, ['id', 'createdAt', 'botSlug', 'summary']) ||
@@ -150,7 +167,21 @@ function isAttentionPage(value: unknown): value is WireHumanAttentionPage {
     optional(page['nextCursor'], text) &&
     optional(page['queryVersion'], (version) => version === 1) &&
     optional(page['notificationVersion'], (version) => version === 1) &&
-    optional(page['dismissed'], isBoolean)
+    optional(page['dismissed'], isBoolean) &&
+    optional(
+      page['source'],
+      (source) => source === 'all' || source === 'bot' || source === 'native',
+    )
+  );
+}
+
+export type BotAttentionItem = WireHumanAttentionItem & {
+  kind: Exclude<WireHumanAttentionItem['kind'], typeof NATIVE_SESSION_ATTENTION_KIND>;
+};
+
+export function botAttentionItems(items: readonly WireHumanAttentionItem[]): BotAttentionItem[] {
+  return items.filter(
+    (item): item is BotAttentionItem => item.kind !== NATIVE_SESSION_ATTENTION_KIND,
   );
 }
 

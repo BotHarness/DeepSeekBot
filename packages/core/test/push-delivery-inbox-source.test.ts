@@ -262,4 +262,41 @@ describe('Human Inbox push source', () => {
       ['assignment:s2', 'question', 'Build is failing', undefined],
     ]);
   });
+
+  it('reads native Session requests with Bot Activity and counts them in the badge', () => {
+    const list = vi.fn((_human: unknown, input: { category?: string; source?: string }) => ({
+      items:
+        input.category === 'action' && input.source === 'all'
+          ? [
+              {
+                id: 'native-session:event-1',
+                category: 'action' as const,
+                kind: 'native-session-input' as const,
+                createdAt: '2026-11-25T10:00:00.000Z',
+                botSlug: '',
+                summary: 'Which branch?\n  main or dev',
+                requestId: 'event-1',
+                nativeSession: { sessionId: 'native-1', input: 'question' as const },
+              },
+            ]
+          : [],
+    }));
+    const source = activityListPushSource(
+      { list, actionCount: () => 2, dmReplies: () => [] },
+      () => undefined,
+    );
+    const pending = source.pending();
+    expect(pending.badge).toBe(3);
+    expect(pending.items).toEqual([
+      {
+        id: 'native-session:event-1',
+        kind: 'question',
+        attentionKind: 'native-session-input',
+        botSlug: '',
+        createdAt: '2026-11-25T10:00:00.000Z',
+        session: { sessionId: 'native-1' },
+        preview: 'Which branch? main or dev',
+      },
+    ]);
+  });
 });

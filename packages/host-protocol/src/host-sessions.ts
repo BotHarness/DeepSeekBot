@@ -56,6 +56,16 @@ export interface HostSessionListResult {
   sources?: HostSessionSourceOption[];
 }
 
+export type HostSessionStatus = 'running' | 'needs-you' | 'idle';
+export type HostSessionAttention = 'approval' | 'question' | 'failed';
+
+export function hostSessionStatus(state: {
+  running: boolean;
+  attention?: HostSessionAttention | undefined;
+}): HostSessionStatus {
+  return state.attention !== undefined ? 'needs-you' : state.running ? 'running' : 'idle';
+}
+
 export interface HostSessionRow {
   sessionId: string;
   source: HostSessionSource;
@@ -63,6 +73,8 @@ export interface HostSessionRow {
   folderName?: string;
   running: boolean;
   waiting?: true;
+  status?: HostSessionStatus;
+  attention?: HostSessionAttention;
   archived?: true;
   model?: { provider: string; model: string };
   sortedAt?: number;

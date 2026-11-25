@@ -93,6 +93,49 @@ describe('Push delivery', () => {
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
   });
 
+  it('pushes a native Session request under the Session title, without a Bot', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.advance(1000);
+    f.setInbox([
+      {
+        id: 'native-session:event-1',
+        kind: 'approval',
+        attentionKind: 'native-session-input',
+        botSlug: '',
+        createdAt: f.at(0),
+        session: { sessionId: 'native-1', title: 'Ship the landing page' },
+        preview: 'bash · Deploy the site',
+      },
+      {
+        id: 'native-session:event-2',
+        kind: 'question',
+        attentionKind: 'native-session-input',
+        botSlug: '',
+        createdAt: f.at(0),
+        session: { sessionId: 'native-2' },
+      },
+    ]);
+
+    await f.push.reconcile();
+
+    const [titled, untitled] = f.expo.flat();
+    expect(titled).toMatchObject({
+      title: 'Ship the landing page',
+      body: 'Needs your approval: bash · Deploy the site',
+      data: {
+        itemId: 'native-session:event-1',
+        kind: 'native-session-input',
+        sessionId: 'native-1',
+        sender: 'Ship the landing page',
+      },
+    });
+    expect(titled?.data).not.toHaveProperty('botSlug');
+    expect(titled).not.toHaveProperty('categoryId');
+    expect(untitled).toMatchObject({ title: 'Session', body: 'Has a question for you' });
+  });
+
   it('records how long after its item was created each push reached Expo', async () => {
     const f = fixture();
     const phone = f.device('Phone');

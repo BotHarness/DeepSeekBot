@@ -18,6 +18,7 @@ import type {
 import type { QuestionAnswer, QuestionItem } from '@botharness/host-protocol/wire';
 import { z } from 'zod';
 import { validQuestionAnswer } from '../../channels/user-questions.js';
+import type { NativeSessionAttentionEntry } from '../activity/native-session-attention.js';
 
 const question = z.object({
   id: z.string(),
@@ -58,6 +59,7 @@ type Pending = {
   sessionId: string;
   card: HostSessionPendingInput;
   approvalOptions?: { id: string; approve: string; reject: string };
+  createdAt?: string;
 };
 
 export function pendingCard(
@@ -157,11 +159,17 @@ export function dshHostSessionInput(
 ) {
   const pending = new Map<string, Pending>();
   const submitting = new Set<string>();
+  const listeners = new Set<() => void>();
   let send: ((eventId: string, outcome: EventOutcome) => Promise<void>) | undefined;
+
+  function notify(sessionId: string) {
+    changed(sessionId);
+    for (const listener of [...listeners]) listener();
+  }
 
   function remove(id: string) {
     const entry = pending.get(id);
-    if (entry !== undefined && pending.delete(id)) changed(entry.sessionId);
+    if (entry !== undefined && pending.delete(id)) notify(entry.sessionId);
   }
 
   ctx.inject(['connection', 'typertGateway'], (host) => {
@@ -224,8 +232,8 @@ export function dshHostSessionInput(
             if (entry === undefined) {
               void send?.(event.eventId, { kind: 'next' }).catch(() => undefined);
             } else {
-              pending.set(event.eventId, entry);
-              changed(entry.sessionId);
+              pending.set(event.eventId, { ...entry, createdAt: new Date().toISOString() });
+              notify(entry.sessionId);
             }
             break;
           }
@@ -276,7 +284,40 @@ export function dshHostSessionInput(
       throw new RemoteError('invalid-input', 'The answer does not match the pending questions', {});
   }
 
+  const title = (id: string): string | undefined => {
+    const agent = ctx.agents.get(SessionId(id));
+    if (agent === undefined) return undefined;
+    const value: unknown = ctx.get('sessionProjections')?.snapshot(agent.session, ['title'])
+      .values.title;
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+  };
+
   return {
+    attention(): NativeSessionAttentionEntry[] {
+      return [...pending.values()].flatMap(({ sessionId, card, createdAt }) => {
+        if (!isUnowned(sessionId)) return [];
+        const sessionTitle = title(sessionId);
+        return [
+          {
+            sessionId,
+            requestId: card.requestId,
+            input: card.kind,
+            summary:
+              card.kind === 'approval'
+                ? [card.toolName, card.reason].filter(Boolean).join(' · ')
+                : card.questions.map((item) => item.question).join(' · '),
+            createdAt: createdAt ?? new Date(0).toISOString(),
+            ...(sessionTitle === undefined ? {} : { sessionTitle }),
+          },
+        ];
+      });
+    },
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     fromSnapshot(id: string, view: UserQuestionProjectionView | undefined) {
       return [...active(id), ...continued(view)];
     },

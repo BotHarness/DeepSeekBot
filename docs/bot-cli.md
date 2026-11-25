@@ -288,6 +288,7 @@ printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --p
 printf '{"sessionDetailLevel":"detailed","sessionCollapse":"nextInput","sessionFoldedReplies":"final"}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"nativeSessionAttention":false}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -631,6 +632,7 @@ Inspect `computer-diagnostics` and `computer-logs` for bounded lifecycle evidenc
 
 ```bash
 deepseekbot activity --category action --limit 20
+deepseekbot activity --source all
 deepseekbot activity --category replies --search budget --unread --sort mentions-first
 deepseekbot activity-watch --category unread --watch-seconds 10
 deepseekbot activity-status
@@ -720,6 +722,8 @@ Stopping the **Orchestrator** only interrupts its current turn (or a waiting aut
 `activity-status` requests the complete message-category summary and returns `unreadCount`, `hasAction` and, on a supporting Host, `messageCounts: { replies, other }`. The categories partition distinct unread Source Events after visibility and Channel mute rules; read retained personal messages and handled requests do not trigger a message indicator. These are complete counts, independent of Activity pagination or browser filters. A legacy Host may omit `messageCounts`; missing data is not zero. The control-rail indicator preference is browser/Host-origin-local presentation and does not change this CLI state.
 
 `activity-watch` subscribes to the existing authenticated roster stream before its baseline read. It observes for 1–60 seconds (default 10), then emits one JSON document with `initial`, `current` and the number of `invalidations`. Both snapshots use the same Activity query and filters as `activity`; intermediate events are invalidations, not a second notification store. An interrupted stream is a coded refusal. Set `--timeout` longer than the observation window.
+
+`activity --source all|bot|native` chooses which Sessions the Activity page covers. Without it, Activity lists Bot items only, as before. `all` adds the Host Owner's native Session requests (approvals and questions, kind `native-session-input` with `botSlug: ""` and a `nativeSession` object holding `sessionId`, `sessionTitle` and `input`) to the first `action` page; `native` lists only those. Native items leave when the request is answered or cancelled and cannot be dismissed or snoozed. `activity-status --source all` counts them in `hasAction`. They and their pushes appear only for the Host Owner and only while `nativeSessionAttention` (default `true`, set with `settings-set botharness-client`) is on; turning it off keeps native requests out of Activity and push, while `sessions` rows still show `status` (`running`, `needs-you` or `idle`) and `attention` (`approval`, `question` or `failed`). An older Host fails `--source` with `host-query-unsupported`.
 
 `activity --search <text>` searches safe Activity summaries, Channel names and Bot slugs before pagination (maximum 200 characters). `--unread` restricts personal messages to unread entries and leaves pending actions intact. `--sort newest|oldest` orders each category; `--category replies --sort mentions-first` puts mentions before replies. Keep filters unchanged when using `--cursor`. Search, unread filtering and mention ordering require query version 1; an older Host fails with `host-query-unsupported` instead of returning partial results.
 

@@ -9,7 +9,9 @@ import {
   isHostSessionApprovalDecision,
   isHostSessionFilter,
   isHostSessionSort,
+  hostSessionStatus,
   type HostSessionActionReceipt,
+  type HostSessionAttention,
   type HostSessionApprovalDecision,
   type HostSessionListResult,
   type HostSessionPendingInput,
@@ -30,6 +32,7 @@ import {
 } from '../../bridge/method-utils.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { AssignmentSummary } from '../assignments/runtime-types.js';
 import {
   sessionDisplayTitle,
   summarizeSessionTranscript,
@@ -51,6 +54,8 @@ export interface DshSessionListRow {
   running: boolean;
   archived?: boolean;
   waiting?: true;
+  pendingInput?: 'approval' | 'question';
+  failed?: true;
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
@@ -248,7 +253,10 @@ export function createHostSessionsMethods(
       let sessions: HostSessionRow[] = [];
       const sources = new Map<string, HostSessionSourceOption>();
       if (owner) sources.set('native', { kind: 'native' });
-      const assignments = new Map<string, string>();
+      const assignments = new Map<
+        string,
+        Pick<AssignmentSummary, 'title' | 'activity' | 'latestReport' | 'openAsk'>
+      >();
       const seenBots = new Set<string>();
       for (const row of rows) {
         const record = ownership.get(row.sessionId);
@@ -267,8 +275,17 @@ export function createHostSessionsMethods(
           updatedAt: row.updatedAt,
         };
         if (record === undefined) {
-          if (owner && (source === 'all' || source === 'native'))
-            sessions.push({ ...base, source: { kind: 'native' } });
+          if (owner && (source === 'all' || source === 'native')) {
+            const attention: HostSessionAttention | undefined =
+              row.pendingInput ??
+              (row.waiting === true ? 'question' : row.failed === true ? 'failed' : undefined);
+            sessions.push({
+              ...base,
+              status: hostSessionStatus({ running: row.running, attention }),
+              ...(attention === undefined ? {} : { attention }),
+              source: { kind: 'native' },
+            });
+          }
           continue;
         }
         const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
@@ -283,20 +300,36 @@ export function createHostSessionsMethods(
         if (!seenBots.has(bot.slug)) {
           seenBots.add(bot.slug);
           for (const assignment of deps.runtime?.listAssignments(bot.slug) ?? [])
-            assignments.set(assignment.sessionId, assignment.title);
+            assignments.set(assignment.sessionId, assignment);
         }
-        const assignedTitle = assignments.get(row.sessionId);
+        const assignment = assignments.get(row.sessionId);
+        const assignedTitle = assignment?.title;
         const engine = deps.describeEngineSession?.(row.sessionId);
+        const running = row.running || (engine !== undefined && engine.state !== 'idle');
+        const report = assignment?.latestReport?.state;
+        const attention: HostSessionAttention | undefined =
+          row.pendingInput === 'approval' || engine?.state === 'waiting-approval'
+            ? 'approval'
+            : row.waiting === true ||
+                assignment?.openAsk !== undefined ||
+                report === 'waiting-human' ||
+                report === 'blocked'
+              ? 'question'
+              : assignment?.activity === 'error' || report === 'failed'
+                ? 'failed'
+                : undefined;
         const avatar = bot.avatar?.startsWith('data:image/')
           ? botAvatarUrl(bot.slug, bot.avatar)
           : bot.avatar;
         sessions.push({
           ...base,
           ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
-          running: row.running || (engine !== undefined && engine.state !== 'idle'),
+          running,
           ...(row.waiting === true || engine?.state === 'waiting-approval'
             ? { waiting: true as const }
             : {}),
+          status: hostSessionStatus({ running, attention }),
+          ...(attention === undefined ? {} : { attention }),
           source: {
             kind: 'bot',
             botSlug: bot.slug,

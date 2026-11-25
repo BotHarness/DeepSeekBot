@@ -155,6 +155,8 @@ export const INBOX_COMMANDS = [
 
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
+const ACTIVITY_SOURCES = ['all', 'bot', 'native'];
+
 export interface InboxValues {
   set?: string;
   notifications?: boolean;
@@ -348,6 +350,15 @@ export async function runInboxCommand(
       'host-query-unsupported',
       'Update the Host to discover notification attention.',
     );
+  if (
+    call.method === 'humanAttention' &&
+    call.args['source'] !== undefined &&
+    result['source'] !== call.args['source']
+  )
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to include native Session requests in Activity.',
+    );
   if (call.args['dismissed'] === true && result['dismissed'] !== true)
     throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
@@ -395,6 +406,8 @@ function prepare(
         usage('--kind must be auto-rejection.');
       if (values.snoozed === true && values.dismissed === true)
         usage('activity takes --snoozed or --dismissed, not both.');
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -407,6 +420,7 @@ function prepare(
             values.sort,
             values.search,
             values.kind,
+            values.source,
           ].some((value) => value !== undefined) ||
           values.unread ||
           values.snoozed ||
@@ -441,6 +455,7 @@ function prepare(
           ...(values.snoozed === true ? { snoozed: true } : {}),
           ...(values.dismissed === true ? { dismissed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
+          ...(values.source === undefined ? {} : { source: values.source }),
         },
       };
     }
@@ -452,7 +467,15 @@ function prepare(
     }
     case 'inbox-status':
       positionals(command, rest, 0, '');
-      return { method: 'humanAttentionStatus', args: { messageCounts: true } };
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
+      return {
+        method: 'humanAttentionStatus',
+        args: {
+          messageCounts: true,
+          ...(values.source === undefined ? {} : { source: values.source }),
+        },
+      };
     case 'inbox-dismiss': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {

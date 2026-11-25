@@ -229,8 +229,8 @@ Usage:
   tobs bot-activity <id> [--limit <1-100>] [--cursor <next>]
   tobs inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
                     [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest]
-                    [--snoozed | --dismissed] [--kind auto-rejection]
-  tobs inbox-status
+                    [--snoozed | --dismissed] [--kind auto-rejection] [--source all|bot|native]
+  tobs inbox-status [--source all|bot|native]
   tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
   tobs inbox-restore <item-id> [--source-key <source-event-id>]
   tobs inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies]

@@ -20,6 +20,17 @@ export function dshHostSessions(
   sessions: DshSessionStore,
   input?: DshHostSessionInput,
 ): NativeSessions {
+  const failed = new Set<string>();
+  ctx.on('api-session/error', (sessionId) => {
+    failed.add(sessionId);
+  });
+  ctx.on('api-session/status', (sessionId, running) => {
+    if (running) failed.delete(sessionId);
+  });
+  ctx.on('api-session/removed', (sessionId) => {
+    failed.delete(sessionId);
+  });
+
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
@@ -45,20 +56,28 @@ export function dshHostSessions(
       const { items } = await service.list({}, signal);
       const archived = new Set(ctx.get('workspaceRegistry')?.archivedSessionIds);
       const roots = items.filter((row) => row.origin !== 'subagent');
-      const waiting = new Set(
+      const waiting = new Map<string, 'approval' | 'question'>(
         (
           await Promise.all(
             roots
               .filter((row) => row.running)
               .map((row) =>
                 service.state({ sessionId: row.sessionId }, signal).then(
-                  (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
+                  (state) =>
+                    state.pendingInput.length === 0
+                      ? undefined
+                      : ([
+                          row.sessionId,
+                          state.pendingInput.includes('approval') ? 'approval' : 'question',
+                        ] as const),
                   () => undefined,
                 ),
               ),
           )
-        ).filter((id) => id !== undefined),
+        ).filter((entry) => entry !== undefined),
       );
+      for (const entry of input?.attention() ?? [])
+        if (waiting.get(entry.sessionId) !== 'approval') waiting.set(entry.sessionId, entry.input);
       return roots.map((row) => {
         const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
         const metadata = row.projections?.values;
@@ -67,7 +86,10 @@ export function dshHostSessions(
           sessionId,
           ...(archived.has(sessionId) ? { archived: true as const } : {}),
           ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-          ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
+          ...(waiting.has(sessionId)
+            ? { waiting: true as const, pendingInput: waiting.get(sessionId)! }
+            : {}),
+          ...(!running && failed.has(sessionId) ? { failed: true as const } : {}),
           ...(cwd === undefined ? {} : { cwd }),
           ...(parentSessionId === undefined ? {} : { parentSessionId }),
           ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),

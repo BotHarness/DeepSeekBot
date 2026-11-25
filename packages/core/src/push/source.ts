@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { dmChannelId } from '../channels/channel.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../runtime/human-attention.js';
 import type { PushCandidate, PushKind, PushSource } from './delivery.js';
+import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 
 const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'tool-approval': 'approval',
@@ -17,6 +18,26 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'channel-reply': 'reply',
   'channel-mention': 'reply',
 };
+
+function nativeCandidate(item: HumanAttentionItem): PushCandidate[] {
+  const native = item.nativeSession;
+  if (native === undefined) return [];
+  const preview = clip(item.summary);
+  return [
+    {
+      id: item.id,
+      kind: native.input === 'approval' ? 'approval' : 'question',
+      attentionKind: item.kind,
+      botSlug: '',
+      createdAt: item.createdAt,
+      session: {
+        sessionId: native.sessionId,
+        ...(native.sessionTitle === undefined ? {} : { title: native.sessionTitle }),
+      },
+      ...(preview === undefined ? {} : { preview }),
+    },
+  ];
+}
 
 const ACTION_LIMIT = 100;
 const REPLY_LIMIT = 200;
@@ -84,6 +105,7 @@ function candidate(
   item: HumanAttentionItem,
   approval: PushApprovalLookup | undefined,
 ): PushCandidate[] {
+  if (item.kind === NATIVE_SESSION_ATTENTION_KIND) return nativeCandidate(item);
   const kind = KIND[item.kind];
   if (kind === undefined || item.botSlug === '') return [];
   const channelName =
@@ -134,12 +156,14 @@ export function activityListPushSource(
       const action = attention.list(human, {
         category: 'action',
         limit: ACTION_LIMIT,
+        source: 'all',
       }).items;
+      const native = action.filter((item) => item.kind === NATIVE_SESSION_ATTENTION_KIND).length;
       const replies = unreadReplies(attention, human).filter((item) => item.isUnread !== false);
       const dms = attention.dmReplies(human, REPLY_LIMIT);
       return {
         items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),
-        badge: attention.actionCount(human),
+        badge: attention.actionCount(human) + native,
       };
     },
     botName,

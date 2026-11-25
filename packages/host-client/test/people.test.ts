@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HostAnswerInvalid } from '../src/host-answer';
 import {
+  botAttentionItems,
   dismissHumanAttention,
   readHumanAssignmentContext,
   readHumanAttention,
@@ -117,6 +118,37 @@ describe('Human attention', () => {
     await expect(readHumanAttention(host({ items: [], ...change }), {})).rejects.toBeInstanceOf(
       HostAnswerInvalid,
     );
+  });
+
+  it('reads native Session requests without a Bot and rejects malformed ones', async () => {
+    const native = {
+      id: 'native-session:event-1',
+      category: 'action',
+      kind: 'native-session-input',
+      createdAt: at,
+      botSlug: '',
+      summary: 'bash',
+      requestId: 'event-1',
+      nativeSession: { sessionId: 'native-1', input: 'approval', sessionTitle: 'Ship it' },
+    };
+    const page = { items: [item, native], source: 'all' };
+    const read = await readHumanAttention(host(page), { source: 'all' });
+    expect(read).toEqual(page);
+    expect(botAttentionItems(read.items)).toEqual([item]);
+    for (const bad of [
+      { ...native, botSlug: 'tea' },
+      { ...native, category: 'info' },
+      { ...native, requestId: undefined },
+      { ...native, nativeSession: { sessionId: 'native-1', input: 'other' } },
+      { ...native, nativeSession: { input: 'approval' } },
+      { ...item, nativeSession: native.nativeSession },
+    ])
+      await expect(readHumanAttention(host({ items: [bad] }), {})).rejects.toBeInstanceOf(
+        HostAnswerInvalid,
+      );
+    await expect(
+      readHumanAttention(host({ items: [], source: 'everything' }), {}),
+    ).rejects.toBeInstanceOf(HostAnswerInvalid);
   });
 
   it('requires both counts and a boolean continuation on the dismissal receipt', async () => {

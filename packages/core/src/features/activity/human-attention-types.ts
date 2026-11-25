@@ -2,6 +2,9 @@ import type { ChannelMessageAuthor } from '../../channels/message-author.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { HumanAssignmentContext } from '../../runtime/assignment-human-context.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';
+import type { HumanAttentionSource, NativeSessionAttention } from '@botharness/host-protocol/wire';
+
+export type { HumanAttentionSource, NativeSessionAttention };
 
 export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
@@ -27,7 +30,8 @@ export interface HumanAttentionItem {
     | 'bot-message-needs-repair'
     | 'channel-unread'
     | 'channel-reply'
-    | 'channel-mention';
+    | 'channel-mention'
+    | 'native-session-input';
   createdAt: string;
   channelId?: string;
   channelName?: string;
@@ -49,11 +53,13 @@ export interface HumanAttentionItem {
     template: string;
     reason: string;
   };
+  nativeSession?: NativeSessionAttention;
 }
 
 export interface HumanAttentionPage {
   queryVersion?: 1;
   notificationVersion?: 1;
+  source?: HumanAttentionSource;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }
@@ -87,9 +93,14 @@ export interface HumanAttentionQuery {
       channelId?: string;
       cursor?: string;
       limit?: number;
+      source?: HumanAttentionSource;
     },
   ): HumanAttentionPage;
-  status(human: HumanContext, messageCounts?: boolean): HumanAttentionStatus;
+  status(
+    human: HumanContext,
+    messageCounts?: boolean,
+    source?: HumanAttentionSource,
+  ): HumanAttentionStatus;
   unreadByChannel(human: HumanContext): Array<{ channelId: string; unreadCount: number }>;
   dmReplies(
     human: HumanContext,

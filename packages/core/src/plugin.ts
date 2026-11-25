@@ -546,6 +546,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     account: () => connectAccount,
   });
   const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const nativeSessionInput = dshHostSessionInput(
+    ctx,
+    (id) => core.ownership.resolve(id) === undefined,
+    (id) => sessionLive.observe(id, { type: 'native-input' }),
+  );
+  ctx.effect(
+    () =>
+      core.contributeNativeSessionAttention({
+        list: nativeSessionInput.attention,
+        subscribe: nativeSessionInput.subscribe,
+      }),
+    'botharness: native Session attention',
+  );
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
@@ -574,15 +587,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(
-      ctx,
-      dshSessions,
-      dshHostSessionInput(
-        ctx,
-        (id) => core.ownership.resolve(id) === undefined,
-        (id) => sessionLive.observe(id, { type: 'native-input' }),
-      ),
-    ),
+    nativeSessions: dshHostSessions(ctx, dshSessions, nativeSessionInput),
     takeovers,
     folders,
     mountedToolApproval,
