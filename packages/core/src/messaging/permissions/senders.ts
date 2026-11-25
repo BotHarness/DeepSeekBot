@@ -1,28 +1,33 @@
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { randomUUID } from 'node:crypto';
-import { cloudMessageAllowed } from '../cloud/admission.js';
+import { cloudMessageAllowed } from '../../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { readMessagingIdentity } from './identity.js';
-import { externalBotTurnsExhausted } from './bot-sender-guard.js';
-import { MessagingError, type MessagingInboundEvent } from './provider.js';
-import type { PairingCapability, PairingRequest } from './pairing.js';
-import type { MessagingGrant } from './outbound.js';
-import { readBlock } from './conversations.js';
-import { groupReceptionPolicy } from './group-policy.js';
-import { channelBridgeRoutes } from './channel-bridge.js';
-import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior-permissions.js';
-import { messagingDefaults } from './defaults.js';
-import { threadReceptionPolicy } from './thread-policy.js';
-import { matchingIngests, type ConversationIngest } from './conversation-ingest.js';
-import { bridgeChannel } from './channel-target.js';
-import { chatPairingApplies, chatSenderIdentity, type ChatSenderNamespace } from './chat-sender.js';
+import { readMessagingIdentity } from '../identity.js';
+import { externalBotTurnsExhausted } from '../bot-sender-guard.js';
+import { MessagingError, type MessagingInboundEvent } from '../provider.js';
+import type { PairingCapability, PairingRequest } from '../pairing.js';
+import type { MessagingGrant } from '../outbound.js';
+import { readBlock } from '../conversations.js';
+import { groupReceptionPolicy } from './group-reception.js';
+import { channelBridgeRoutes } from '../channel-bridge.js';
+import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior.js';
+import { messagingDefaults } from '../defaults.js';
+import { threadReceptionPolicy } from './thread-reception.js';
+import { matchingIngests, type ConversationIngest } from '../conversation-ingest.js';
+import { bridgeChannel } from '../channel-target.js';
+import {
+  chatPairingApplies,
+  chatSenderIdentity,
+  platformPeople,
+  type ChatSenderNamespace,
+} from './people.js';
 import {
   permissionGroupInputs,
   changePermissionGroups,
   effectivePairingPermissions,
   type EffectivePermissions,
-} from './permission-groups.js';
+} from './groups.js';
 
 export interface ExternalUserRole {
   id: string;
@@ -409,7 +414,7 @@ export function changeSenderAccess(
       WHERE a.bot_slug = ? AND a.attempt_state IN ('pending', 'retryable') AND e.source_kind = 'bridge-message'`)
       .all(botSlug) as { source_event_id: string }[];
     for (const row of pending)
-      if (!sourceSenderAllowed(db, botSlug, row.source_event_id))
+      if (sourceAdmission(db, botSlug, row.source_event_id) !== 'wake')
         db.prepare(
           "UPDATE inbox_admissions SET attempt_state = 'handled', ignored_at = ?, handled_at = ?, wake_count = NULL, wake_interval_ms = NULL WHERE bot_slug = ? AND source_event_id = ?",
         ).run(new Date().toISOString(), new Date().toISOString(), botSlug, row.source_event_id);
@@ -458,7 +463,7 @@ export function currentSenderRole(
     role,
   };
 }
-export function senderAdmissionAllowed(
+function senderAdmissionAllowed(
   db: DatabaseSync,
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
@@ -517,14 +522,18 @@ function openGroupAllows(
       Date.parse(event.at) >= Date.parse(value.openGroupAfter),
   );
 }
-export function senderContextAllowed(
+function senderContextAllowed(
   db: DatabaseSync,
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
   if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, true);
   if (senderAdmissionAllowed(db, botSlug, event)) return true;
-  if (event.channel !== 'feishu' || event.conversation.kind !== 'group' || event.mentionedAccount)
+  if (
+    !platformPeople(event.channel)?.groups ||
+    event.conversation.kind !== 'group' ||
+    event.mentionedAccount
+  )
     return false;
   const sender = trustedSenderReference(db, botSlug, event);
   if (!sender) return false;
@@ -581,27 +590,35 @@ export function senderContextAllowed(
     );
   });
 }
-export function sourceSenderAllowed(
+export type SenderAdmission = 'wake' | 'context' | 'refused';
+export function senderAdmission(
+  db: DatabaseSync,
+  botSlug: string,
+  event: Omit<MessagingInboundEvent, 'text'>,
+): SenderAdmission {
+  if (senderAdmissionAllowed(db, botSlug, event)) return 'wake';
+  return senderContextAllowed(db, botSlug, event) ? 'context' : 'refused';
+}
+export function sourceAdmission(
   db: DatabaseSync,
   botSlug: string,
   sourceEventId: string,
-  context = false,
-): boolean {
+): SenderAdmission {
   const row = db
     .prepare(
       "SELECT payload_json FROM source_events WHERE source_event_id = ? AND source_kind = 'bridge-message'",
     )
     .get(sourceEventId) as { payload_json: string } | undefined;
-  if (!row) return true;
+  if (!row) return 'wake';
   const event = (
     JSON.parse(row.payload_json) as { external?: { event?: Omit<MessagingInboundEvent, 'text'> } }
   ).external?.event;
-  if (event?.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, context);
-  if (!readSenderPolicy(db, botSlug).restricted) return true;
-  return (
-    !!event &&
-    (context
-      ? senderContextAllowed(db, botSlug, event)
-      : senderAdmissionAllowed(db, botSlug, event))
-  );
+  if (event?.channel === 'tob')
+    return cloudMessageAllowed(db, botSlug, event, false)
+      ? 'wake'
+      : cloudMessageAllowed(db, botSlug, event, true)
+        ? 'context'
+        : 'refused';
+  if (!readSenderPolicy(db, botSlug).restricted) return 'wake';
+  return event ? senderAdmission(db, botSlug, event) : 'refused';
 }

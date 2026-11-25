@@ -291,7 +291,7 @@ Human 为单个 PersonaBot 选择、在新建 Assignment 时应用的权限预�
 _避免使用_：Workspace Grant、就地切换 Session 模式、Orchestrator 权限
 
 **Loadout**：
-Session 运行时使用的一套具名 system prompt 加有限工具集（中文称「配装」），Session 开始后即固定。Tobs 和 Tobs 场景 Loadout（调研、编程、脚本）是内置的；精简 Loadout 让简单任务只带短 prompt 和少量工具，每一步发送的内容少得多，Orchestrator 还可以给它搭配更便宜的 Model Choice。PersonaBot 自己的 Loadout、Orchestrator 为每个 Assignment 的选择以及模式模板见 [Session 决策 §15](docs/decisions/sessions.md#bot-modes)。界面和工具里目前仍叫 mode / 模式（#5288）。
+Session 运行时使用的一套具名 system prompt 加有限工具集（中文称「配装」），Session 开始后即固定。Tobs 和 Tobs 场景 Loadout（调研、编程、脚本）是内置的；精简 Loadout 让简单任务只带短 prompt 和少量工具，每一步发送的内容少得多，Orchestrator 还可以给它搭配更便宜的 Model Choice。PersonaBot 自己的 Loadout、Orchestrator 为每个 Assignment 的选择以及模式模板见 [Session 决策 §15](docs/decisions/sessions.md#bot-modes)。界面、`create_assignment` 和 CLI 都叫配装 / Loadout；DSH 里仍叫模式。
 _避免使用_：Session 模式、单独的 mode / 模式（与 Team mode、Developer Mode、Tob Mode 混淆）、DSH 接缝以外的 agent preset、指令集
 
 **Delegation**：
