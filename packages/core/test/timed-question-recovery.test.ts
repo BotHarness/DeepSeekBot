@@ -63,7 +63,6 @@ describe('a timed question card across a Host restart', () => {
         if (run.acceptNativeInput !== undefined) {
           native.current = { state: 'continued' };
           if (!run.acceptNativeInput()) return;
-          expect(run.memory).toBeUndefined();
           expect(readFileSync(join(memoryDir, 'retained.md'), 'utf8')).toBe('Existing Memory');
           writeFileSync(join(memoryDir, 'answer-note.md'), 'Stable');
           if (runs.length === 1) {

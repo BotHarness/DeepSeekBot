@@ -25,13 +25,20 @@ import {
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
 import { ADDRESS_ROUTE_SOURCE, noisePeerHeaders } from './route-context.js';
-import { createAddressSlots, type AddressSlot } from './address-slots.js';
+import { createAdmissionSlots, type AdmissionSlot } from './admission-slots.js';
 import { createPendingPairs } from './pending-pairs.js';
+
+import {
+  COMPUTER_UNLOCK_PATH,
+  type ComputerUnlockOwner,
+} from '../../../computer/src/unlock-contract.js';
+import { dispatchComputerUnlock } from './computer-unlock-channel.js';
+import { encryptedGatewayPathAllowed } from './encrypted-gateway-path.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
 const DEADLINE = 10_000;
-const ADDRESS_ADMISSION_DEADLINE = 30_000;
+const ADMISSION_DEADLINE = 30_000;
 const field = (input: Record<string, unknown>, name: string): string | undefined =>
   typeof input[name] === 'string' ? input[name] : undefined;
 function record(value: unknown): Record<string, unknown> {
@@ -39,42 +46,6 @@ function record(value: unknown): Record<string, unknown> {
     throw new Error('channel-message-invalid');
   return value as Record<string, unknown>;
 }
-function pathAllowed(path: string): boolean {
-  if (
-    !path.startsWith('/botharness-device/') ||
-    path.includes('\\') ||
-    path.includes('#') ||
-    /%2f|%5c|%2e|\/\.{1,2}(?:\/|\?|$)/iu.test(path)
-  )
-    return false;
-  let name: string;
-  try {
-    name = new URL(`http://device${decodeURIComponent(path.split('?')[0]!)}`).pathname.replace(
-      /\/{2,}/gu,
-      '/',
-    );
-  } catch {
-    return false;
-  }
-  return (
-    (name.startsWith('/botharness-device/api/') &&
-      !/\/(?:webrtc|web|browser|computer|voice)(?:\/|$)/u.test(name)) ||
-    [
-      '/botharness-device/activity',
-      '/botharness-device/activity/prepare',
-      '/botharness-device/activity/register',
-      '/botharness-device/activity/stop',
-      '/botharness-device/activity/status',
-    ].includes(name) ||
-    name === '/botharness-device/push' ||
-    name.startsWith('/botharness-device/push/') ||
-    name === '/botharness-device/team/device-password' ||
-    name === '/botharness-device/feed-read' ||
-    name === '/botharness-device/unpair' ||
-    name === '/botharness-device/devices/remove'
-  );
-}
-
 type CloseTrigger =
   | 'socket-close'
   | 'socket-error'
@@ -84,7 +55,7 @@ type CloseTrigger =
   | 'revoked'
   | 'idle-timeout'
   | 'handshake-timeout'
-  | 'address-admission-timeout'
+  | 'admission-timeout'
   | 'pair-replaced'
   | 'gateway-dispose'
   | 'invalid-frame'
@@ -110,12 +81,13 @@ export function createEncryptedGateway(options: {
   pairing: DevicePairing;
   memberDevices?: MemberDevices;
   route?: 'connect' | 'lan';
-  addressDeadlineMs?: number;
+  admissionDeadlineMs?: number;
   key(): Promise<Uint8Array>;
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
   log?: (phase: string) => void;
   callDiagnostic?: (event: CallChannelDiagnostic) => void;
+  computerUnlock?: () => ComputerUnlockOwner | undefined;
   localVideo?: (input: {
     deviceId: string;
     command: unknown;
@@ -146,14 +118,14 @@ export function createEncryptedGateway(options: {
   let negotiating = 0,
     encrypted = 0,
     upgrading = 0;
-  const addressSlot = createAddressSlots();
+  const admissionSlot = createAdmissionSlots();
   const waitForApproval = createPendingPairs();
   const changed = () => options.changed?.({ negotiating, encrypted });
   const serve = (
     socket: WebSocket,
     key: Uint8Array,
     remoteAddress: string,
-    address: AddressSlot | undefined,
+    slot: AdmissionSlot | undefined,
   ) => {
     const channel = new ConnectChannel({
       role: 'responder',
@@ -244,7 +216,7 @@ export function createEncryptedGateway(options: {
       if (observedCalls.size === 0 && callPending > 0) diagnostic('channel-close', trigger);
       for (const callId of observedCalls) diagnostic('channel-close', trigger, callId);
       clearTimeout(deadline);
-      clearTimeout(addressDeadline);
+      clearTimeout(admissionDeadline);
       clearInterval(keepalive);
       detach?.();
       stopWatchingKey();
@@ -263,14 +235,12 @@ export function createEncryptedGateway(options: {
       socket.terminate();
     };
     const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
-    const addressDeadline = address
-      ? setTimeout(() => {
-          if (!admitted) close('address-admission-timeout');
-        }, options.addressDeadlineMs ?? ADDRESS_ADMISSION_DEADLINE)
-      : undefined;
+    const admissionDeadline = setTimeout(() => {
+      if (!admitted) close('admission-timeout');
+    }, options.admissionDeadlineMs ?? ADMISSION_DEADLINE);
     const progressed = () => {
-      clearTimeout(addressDeadline);
-      address?.release();
+      clearTimeout(admissionDeadline);
+      slot?.release();
     };
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
@@ -608,6 +578,16 @@ export function createEncryptedGateway(options: {
         (method !== 'GET' && method !== 'POST')
       )
         throw new Error('channel-request-invalid');
+      if (path === `/botharness-device${COMPUTER_UNLOCK_PATH}`)
+        return dispatchComputerUnlock({
+          owner: options.computerUnlock?.(),
+          ownerLan: options.route === 'lan' && !credential?.startsWith('member.'),
+          caller: { host: options.pairing.host().id, device: deviceId! },
+          requests,
+          id,
+          input,
+          send,
+        });
       if (
         credential?.startsWith('member.') &&
         /\/(?:computer|browser|voice|direct)(?:\/|$)/u.test(path)
@@ -616,7 +596,7 @@ export function createEncryptedGateway(options: {
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
       if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
       if (path === `/botharness-device${DIRECT_PATH}`) return direct(id, input);
-      if (!pathAllowed(path)) throw new Error('channel-request-invalid');
+      if (!encryptedGatewayPathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');
       if (bytes.length > BODY_LIMIT) throw new Error('channel-body-too-large');
@@ -956,8 +936,8 @@ export function createEncryptedGateway(options: {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
-      const address = addressSlot(request, socket);
-      if (address === 'full') {
+      const slot = admissionSlot(request, socket);
+      if (slot === 'full') {
         socket.end(
           'HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
         );
@@ -968,7 +948,7 @@ export function createEncryptedGateway(options: {
       try {
         key = await options.key();
         if (disposed || socket.destroyed) {
-          address?.release();
+          slot?.release();
           socket.destroy();
           key.fill(0);
           return;
@@ -978,12 +958,14 @@ export function createEncryptedGateway(options: {
           serve(
             client,
             identity,
-            address ? ADDRESS_ROUTE_SOURCE : (request.socket.remoteAddress ?? 'unknown'),
-            address,
+            slot?.route === 'address'
+              ? ADDRESS_ROUTE_SOURCE
+              : (request.socket.remoteAddress ?? 'unknown'),
+            slot,
           ),
         );
       } catch {
-        address?.release();
+        slot?.release();
         socket.destroy();
       } finally {
         key?.fill(0);

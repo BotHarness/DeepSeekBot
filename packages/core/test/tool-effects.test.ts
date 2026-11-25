@@ -110,7 +110,6 @@ describe('public tool effects', () => {
       { access: 'write' },
       { changes: 'reversible', reach: 'local', personalData: true },
     ],
-    ['memory_switch_branch', {}, { changes: 'reversible', reach: 'memory', personalData: true }],
     [
       'channel_attachment_save',
       {},

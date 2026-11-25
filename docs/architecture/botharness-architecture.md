@@ -1669,6 +1669,16 @@ On the phone, Connect sign-in collects the email and the 6-digit WorkOS Magic Au
 
 The same application-defined Computer owner now supports a macOS sender and an iOS receiver over the existing Device LAN carrier. Explicit setup installs a checksum-pinned Electron bundle; an owned process group supervises capture and cleanup. The iOS Expo module uses pinned WebRTC with one retiring peer slot and bounded latest-frame Metal presentation. No new DSH interception, identity or durable control store is introduced. Mac geometry validation compares logical display size and backing scale with physical capture size; input remains in capture pixels because the pinned driver performs the logical-point conversion; stale geometry, missing presentation or a missing grant refuses clicks. Foreground watching, explicit takeover and handback preserve ADR-0245 pause semantics. Builds, visible output and Human acceptance are recorded separately.
 
+### iPhone unlock for macOS Local Computer (#5138)
+
+The approved owner device sends signed challenge and sealed credential messages
+through the Noise LAN gateway to a signed macOS Aqua LaunchAgent. The iPhone
+native module owns password entry, Mac key continuity and Face ID-protected
+Keychain storage. The Host persists Computer Pause before dispatch and exposes
+read-only capability and lock state to the CLI. The helper verifies the console
+account and password, then observes the lock-state transition after one validated
+AX submit. See [the Computer decision](../decisions/computer.md#6-iphone-unlock-for-a-locked-mac).
+
 ### Android control and navigation presentation
 
 Android conversation profile entry retains the actual profile beside the conversation in a native Material side-sheet container. Native code owns drag and settling; profile visibility separately owns refresh and subscription lifetime. Shared route controllers preserve Host scope and nested editor routes. Activity registers its filter panel above the entire tab navigator in the same native container: a modal side sheet with native scrim, fixed heading and reachable options. Neither creates a new Host or persistence authority. See [ADR-0271](../decisions/mobile-ui.md#adr-0271).
@@ -1901,7 +1911,7 @@ Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号�
 - **订阅账号**：Host 在 `engines.json` 保存 Codex 和 Claude Code 的账号 ID、名称与 Bot 专用目录。默认账号 `codex-default` 和 `claude` 沿用原来的目录，旧模型选择、模型预设、路由组成员和原生线程继续指向各自的默认账号。Host Owner 或有 `modelSources.manage` 的 Human 可修改账号、启动登录，并向正在请求授权码的 Claude Code 登录进程发送授权码。登录进程按账号管理，授权码仅经进程标准输入传递。写入检查账号列表版本。仍被引用的账号不能移除，账号目录在设置提交后删除。额度、模型列表和原生线程按账号隔离，切换账号以当前 DSH Session 的上下文开新线程。
 - **模型选择**：本机 Host 的主模型和任务模型选择器各有订阅分组，提供该引擎的模型、推理强度及登录入口。模型预设可为任一角色保存引擎选择；应用预设时，Host 先验证订阅模型，再更新 Bot 的 DSH Model Plan 与两种角色的引擎设置。未保存引擎选择的角色切回预设中的 DSH 路由。
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
-- **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
+- **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`；引擎保留自带工具，由指令说明哪些事该用 Bot Schedule 或 Assignment，而不是引擎自己的 cron 或 sub-agent（[ADR-0368](../decisions/sessions.md#adr-0368)）。
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 或明确拒绝 steer 的 Codex 中断当前轮次后在同一 Session 继续。原运行实例对当前工作只提交一次终态报告。
 - **Orchestrator steer**：BotRuntime 在引擎确认接收后，把新消息和一并注入的 Inbox 上下文纳入当前轮次。Codex 通过当前轮次 ID 接收；明确拒绝时保留原 Inbox Admission，留待下一轮处理。Claude Code 共用 Assignment 的中断与继续机制，并按已提交的回复记录避免重复回答。工具网关只授权本轮已接收的 Channel，每次访问仍执行原有的 Bot 成员与发送权限检查。
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。

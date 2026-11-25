@@ -30,8 +30,6 @@ export const ORCHESTRATOR_TOOL_ORDER: string[] = [
   'genui_preview',
   'channel_action',
   'bot_send_message',
-  'memory_switch_branch',
-  'memory_continue_from_commit',
   'list_assignment_models',
   'create_assignment',
   'request_workspace_grant',

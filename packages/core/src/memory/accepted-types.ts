@@ -146,16 +146,6 @@ export interface MemoryAcceptance {
     memoryDir?: string;
     available: boolean;
   }>;
-  continueFromCommit(input: { botSlug: string; sessionId: string; sha: string; branch: string }): {
-    from: string;
-    to: string;
-    head: string;
-  };
-  switchBranch(input: { botSlug: string; sessionId: string; branch: string }): {
-    from: string;
-    to: string;
-    head: string;
-  };
   prepareTurn(
     botSlug: string,
     sessionId: string,
