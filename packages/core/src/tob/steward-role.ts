@@ -1,18 +1,18 @@
+import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
-interface StewardRole {
-  botSlug: string;
-  revision: number;
-}
+const StewardRoleRow = z.object({
+  botSlug: z.string().min(1),
+  revision: z.number().int().positive(),
+});
+type StewardRole = z.infer<typeof StewardRoleRow>;
 
 export function readSteward(database: OperationalDatabaseModulePort): StewardRole | undefined {
-  return database.read(
-    (db) =>
-      db
-        .prepare('SELECT bot_slug AS botSlug, revision FROM steward_role WHERE singleton = 1')
-        .get() as StewardRole | undefined,
+  const row = database.read((db) =>
+    db.prepare('SELECT bot_slug AS botSlug, revision FROM steward_role WHERE singleton = 1').get(),
   );
+  return row === undefined ? undefined : StewardRoleRow.parse(row);
 }
 
 export function isSteward(database: OperationalDatabaseModulePort, botSlug: string): boolean {

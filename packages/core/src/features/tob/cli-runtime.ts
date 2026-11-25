@@ -32,6 +32,22 @@ export interface TobCliRequestLease {
   finishedAt: number | undefined;
 }
 
+export function stewardShellAuthority(capture: () => TobCliAuthority | undefined): TobCliAuthority {
+  try {
+    const authority = capture();
+    if (authority) return authority;
+    throw new TobError('tob-authority-required');
+  } catch (error) {
+    const refuse = (): never => {
+      throw error;
+    };
+    return Object.defineProperties(refuse, {
+      beginWrite: { value: refuse },
+      sources: { get: refuse },
+    }) as unknown as TobCliAuthority;
+  }
+}
+
 export interface TobCliAuthority {
   (): void;
 

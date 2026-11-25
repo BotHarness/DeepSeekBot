@@ -93,11 +93,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             },
           }
         : {}),
-      stewardActive: () =>
-        turn.turnSources.size > 0 &&
-        [...turn.turnSources].every((source) =>
-          isStewardDmSource(ports.database, bot.slug, source),
-        ),
+      stewardActive: () => isStewardDmSource(ports.database, bot.slug, turn.sourceEventId),
 
       ...(ports.externalMessaging === undefined
         ? {}

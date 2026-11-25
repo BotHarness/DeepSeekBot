@@ -178,7 +178,7 @@ export function createTobService(options: {
     stewardRole: () => readSteward(database),
     ownerId,
     async steward() {
-      if (readSteward(database) === undefined) await service.ensure();
+      await service.ensure();
       const role = readSteward(database);
       if (!role) throw new TobError('steward-unavailable');
       return { botSlug: role.botSlug };

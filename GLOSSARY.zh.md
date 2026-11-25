@@ -41,7 +41,7 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-担任 [Steward](#steward) 角色的 PersonaBot。
+担任 Steward 角色的 PersonaBot。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：

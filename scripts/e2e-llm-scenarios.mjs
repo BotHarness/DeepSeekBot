@@ -497,6 +497,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
     async toolCalls(key) {
       const { sessions } = await call('sessions', { slug: slugs[key] ?? key });
       const calls = [];
+      let incomplete = false;
       const ordered = [...sessions].sort(
         (a, b) =>
           String(a.createdAt).localeCompare(String(b.createdAt)) ||
@@ -504,7 +505,10 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       );
       for (const { sessionId } of ordered) {
         const snapshot = await sessionSnapshot(instance, sessionId).catch(() => undefined);
-        if (snapshot === undefined) continue;
+        if (snapshot === undefined) {
+          incomplete = true;
+          continue;
+        }
         const events = snapshot.records.map((record) => record.event);
         for (const event of events) {
           if (event.type !== 'tool/call') continue;
@@ -519,6 +523,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
             args = event.data.arguments;
           }
           calls.push({
+            callId: event.data.callId,
             name: event.data.name,
             arguments: args,
             hasResult: result !== undefined,
@@ -527,7 +532,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           });
         }
       }
-      return calls;
+      return Object.assign(calls, { incomplete });
     },
     memoryDir: (key) => join(instance.home, 'botharness', 'bots', slugs[key], 'memory'),
     async tob() {

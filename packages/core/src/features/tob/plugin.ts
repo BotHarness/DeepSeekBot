@@ -11,6 +11,7 @@ import { TOB_DIAGNOSTIC_CAPABILITIES } from '../../tob/cli-diagnostic-operations
 import { authorizeTobBotTargets, TOB_HOST_CLI_CAPABILITY } from '../../tob/cli-host-commands.js';
 import { TOB_SHARE_DRAFT_CAPABILITIES } from '../../tob/cli-share-draft-operations.js';
 import { TobError } from '../../tob/service.js';
+import { stewardShellAuthority } from './cli-runtime.js';
 import { TOB_MODEL_CAPABILITIES } from '../../tob/cli-model-operations.js';
 import { TOB_MAINTENANCE_CAPABILITIES } from '../../tob/cli-maintenance-operations.js';
 import { installTobCliShell } from '../../tob/cli-shell.js';
@@ -289,16 +290,9 @@ export function createOrchestratorFileSetup(
             const steward = deps.core.registry.get(slug);
             if (!steward) return undefined;
             const human = humanContext(botOwner(steward));
-            let source: ReturnType<
-              NonNullable<BotHarnessCore['runtime']['captureTobCliAuthority']>
-            >;
-            try {
-              const authority = deps.core.runtime.captureTobCliAuthority?.(actor.session.id);
-              if (!authority) return undefined;
-              source = authority;
-            } catch {
-              return undefined;
-            }
+            const source = stewardShellAuthority(() =>
+              deps.core.runtime.captureTobCliAuthority?.(actor.session.id),
+            );
             const requireAuthority = (requireOrigin: () => void) => {
               if (execution.signal.aborted) throw new TobError('agent-context-expired');
               requireOrigin();

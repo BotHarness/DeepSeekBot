@@ -506,7 +506,10 @@ export const SCENARIOS = [
     async run(ctx) {
       const tob = await ctx.tob();
       const { botSlug } = await ctx.host('tobHome', {});
-      const before = (await ctx.toolCalls(botSlug)).length;
+      const baseline = await ctx.toolCalls(botSlug);
+      if (baseline.incomplete) throw new Error('could not read the earlier tool-call history');
+      const earlier = new Set(baseline.map((call) => call.callId));
+      const sentAt = new Date().toISOString();
       await ctx.humanSend(
         tob,
         '更新之后我的 Bot 回复变得特别慢，有时候一直卡着不动。帮我看看是怎么回事？',
@@ -514,29 +517,45 @@ export const SCENARIOS = [
       const ranDoctor = (call) =>
         /(^|[;&|\s])deepseekbot\s+doctor\b/u.test(String(call.arguments?.command ?? '')) ||
         call.arguments?.argv?.[0] === 'doctor';
-      const isSend = (call) => call.name === 'bot_send_message';
-      const reportAfterDoctor = (calls) => {
-        const doctor = calls.findIndex((call) => ranDoctor(call) && call.hasResult);
-        return doctor !== -1 && calls.slice(doctor + 1).some(isSend);
-      };
+      const doctorReported = (call) =>
+        ranDoctor(call) &&
+        call.hasResult &&
+        !call.isError &&
+        /"checks"|\bchecks?\b/u.test(call.result);
+      const sent = (call) => call.name === 'bot_send_message' && call.hasResult && !call.isError;
+      const committedReport = () =>
+        ctx
+          .messages(tob)
+          .some(
+            (message) =>
+              message.author?.kind === 'bot' &&
+              message.author.slug === botSlug &&
+              String(message.at) >= sentAt,
+          );
       const calls = await ctx.waitFor(
         'The Steward runs doctor and reports from it in its Human DM',
         async () => {
-          const current = (await ctx.toolCalls(botSlug)).slice(before);
-          return reportAfterDoctor(current) ? current : undefined;
+          const current = (await ctx.toolCalls(botSlug)).filter(
+            (call) => !earlier.has(call.callId),
+          );
+          const doctor = current.findIndex(doctorReported);
+          return doctor !== -1 && current.slice(doctor + 1).some(sent) && committedReport()
+            ? current
+            : undefined;
         },
       );
-      const doctor = calls.findIndex(ranDoctor);
+      const doctor = calls.findIndex(doctorReported);
       ctx.note({
         calls: calls.map((call) => ({ name: call.name, arguments: call.arguments })),
-        report: calls.slice(doctor + 1).find(isSend)?.arguments,
+        report: calls.slice(doctor + 1).find(sent)?.arguments,
       });
       if (
         calls
           .slice(0, doctor)
           .some(
             (call) =>
-              isSend(call) && /原因是|是因为|caused by/iu.test(JSON.stringify(call.arguments)),
+              call.name === 'bot_send_message' &&
+              /原因是|是因为|caused by/iu.test(JSON.stringify(call.arguments)),
           )
       )
         throw new Error('the Steward named a cause before it ran doctor');

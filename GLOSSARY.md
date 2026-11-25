@@ -41,7 +41,7 @@ The speech models and voices a provider offers for selection. A shared voice may
 ### PersonaBots
 
 **Steward Bot**:
-A PersonaBot currently holding the [Steward](#steward) role.
+A PersonaBot currently holding the Steward role.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:

@@ -417,6 +417,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       return false;
   }
   const memberDeparture = message['memberDeparture'];
+  if (
+    message['stewardTransfer'] !== undefined &&
+    ((message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelStewardTransfer(message['stewardTransfer']) ||
+      !isValidSlug(message['stewardTransfer'].botSlug))
+  )
+    return false;
   if (memberDeparture !== undefined) {
     if (typeof memberDeparture !== 'object' || memberDeparture === null) return false;
     const departure = memberDeparture as Record<string, unknown>;
@@ -461,12 +468,6 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     )
       return false;
   } else if (message['stewardTransfer'] !== undefined) {
-    if (
-      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
-      !isChannelStewardTransfer(message['stewardTransfer']) ||
-      !isValidSlug(message['stewardTransfer'].botSlug)
-    )
-      return false;
   } else if (message['modelSwitch'] !== undefined) {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||

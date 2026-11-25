@@ -1693,7 +1693,7 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-
 deepseekbot bot-delete-retry <bot-id> --confirm
 ```
 
-删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。Tob 自身不能归档或删除（`protected-bot`）；名称、人格文本和导入内容都不能赋予其权限。
+删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。当前主管不能归档或删除（`protected-bot`）；Tob 交出主管角色后即可归档或删除。名称、人格文本和导入内容都不能赋予该角色或其权限。
 
 详见 [ADR-0225](decisions/tob.md#adr-0225) 与[覆盖清单](agents/cli-ui-coverage.md#2089-bot-management-scope)。直接 CLI、真实 Tob 对话、Web 导航和 macOS Desktop 是独立验收入口，命令契约不代表这些验证已通过。
 
@@ -2515,7 +2515,7 @@ CLI 与 Tob broker 共用应用定义的命令效果声明；lint 从真实命�
 
 已认证的 Host Owner 可将 `{"argv":["approval-templates"],"stdin":""}` 保存为本机私有 JSON 文件，用 `deepseekbot tob-cli start --args-stdin < request.json` 启动；用 `tob-cli status <request-id>` 读取状态和结果，或 `tob-cli cancel <request-id>` 请求取消。
 
-Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admission 接纳，在同一存活的 Tob 根 Orchestrator 中，通过 DSH 原生工具执行器调用 `deepseekbot_cli` 和既有 broker；不请求模型。调用方不能指定 actor、Source Event、Session、cwd 或权限覆盖。写入仍显示真实审批卡，可使用既有 `tool-approval-status`、`tool-approval-decide` 或 Tob DM 中的审批操作。
+Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admission 接纳，请求在当前主管的 Human DM 中执行（用 `deepseekbot steward` 读取；转交后不再是 Tob 的 DM），在该主管同一存活的根 Orchestrator 中，通过 DSH 原生工具执行器调用 `deepseekbot_cli` 和既有 broker；不请求模型。调用方不能指定 actor、Source Event、Session、cwd 或权限覆盖。写入仍显示真实审批卡，可使用既有 `tool-approval-status`、`tool-approval-decide` 或该主管 DM 中的审批操作。
 
 启动返回 `{id,channelId,messageId,state,cancelRequested}`。结束状态为 `completed`（含 `result:{exitCode,stdout,stderr}`），或带错误码的 `failed` / `cancelled`。`completed` 仅表示调用已结束，仍须检查 exitCode 和 JSON stdout 中的命令拒绝。取消须等待结束，不能撤销已提交的效果。模型回合、直接工具或另一请求正在运行时返回 `bot-busy`；权限不可用返回 `tob-authority-required`，运行时关闭返回 `runtime-closed`，请求不存在或过期返回 `cli-request-unavailable`。
 

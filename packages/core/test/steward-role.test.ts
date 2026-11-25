@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { writeZip } from '../src/bots/zip-archive.js';
 import { dmChannelId } from '../src/channels/channel.js';
@@ -13,6 +13,8 @@ import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { createCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
+import { stewardShellAuthority } from '../src/features/tob/cli-runtime.js';
+import { createTobService, TobError } from '../src/tob/service.js';
 import { fixture, bob } from './team-member-lifecycle-fixtures.js';
 
 it('admits only the Human Owner to transfer and gives a Team member just the Steward id', async () => {
@@ -87,6 +89,7 @@ it('gives the Steward role to the incoming Host Owner’s Tob on an Owner transf
   await core.team.changePassword(next, member.initialPassword, 'next-password-1', false);
   await core.team.transferOwner(owner, next.humanId, 'owner-password-1');
   expect(core.tob.isSteward('ada')).toBe(false);
+  await vi.waitFor(() => expect(core.tob.isSteward(core.tob.slug(next) ?? '')).toBe(true));
   expect(() => core.deletions.preview('ada')).not.toThrow();
   const incoming = createBridgeMethodsForHumans(core)(next);
   const steward = await incoming.steward({});
@@ -259,6 +262,95 @@ it('expires a captured broker on transfer and preserves Sessions and ordinary Gr
     expect(handled.at(-1)?.inboundChannelId).toBe(group.id);
     expect(handled.at(-1)?.stewardActive?.()).toBe(false);
     expect(core.channels.get(group.id)?.members).toEqual(['ada']);
+  } finally {
+    core.schedules.close();
+    core.externalMessaging.close();
+    await core.runtime.close();
+    await core.tob.close();
+    core.operationalDatabase.close();
+  }
+});
+
+it('refuses Steward CLI commands when the turn has no Human DM authority', () => {
+  const authority = stewardShellAuthority(() => {
+    throw new TobError('human-dm-required');
+  });
+  expect(authority).toBeDefined();
+  expect(() => authority()).toThrow('human-dm-required');
+  expect(() => authority.beginWrite()).toThrow('human-dm-required');
+  expect(() => authority.sources).toThrow('human-dm-required');
+  const missing = stewardShellAuthority(() => undefined);
+  expect(() => missing()).toThrow('tob-authority-required');
+});
+
+it('repairs the Steward workspace grant when an earlier preparation failed after the role committed', async () => {
+  const workspace = {
+    id: 'steward-workspace',
+    path: '',
+    title: 'Steward',
+    status: async () => 'ok' as const,
+  };
+  const { core, db } = fixture({
+    coreOptions: {
+      workspaces: () => ({
+        get: (id: string) => (id === workspace.id ? workspace : undefined),
+        list: () => [workspace],
+      }),
+    },
+  });
+  let failures = 1;
+  const tob = createTobService({
+    database: db,
+    registry: core.registry,
+    channels: core.channels,
+    workspaceRoot: createTempRoot('steward-workspaces-'),
+    grants: core.grants,
+    ensureWorkspace: async (path) => {
+      workspace.path = path;
+      if (failures-- > 0) throw new Error('workspace-offline');
+      return { id: 'steward-workspace' };
+    },
+  });
+  await expect(tob.ensure()).rejects.toThrow('workspace-offline');
+  const { botSlug } = await tob.steward();
+  expect(core.grants.list(botSlug).map((grant) => grant.workspaceId)).toEqual([
+    'steward-workspace',
+  ]);
+});
+
+it('describes a superseded transfer marker as history in the former holder’s next turn', async () => {
+  const handled: OrchestratorAgentRun[] = [];
+  const core = createCore({
+    dshHome: createTempRoot('steward-superseded-'),
+    agents: {
+      async runOrchestrator(run) {
+        handled.push(run);
+      },
+      async runAssignment() {},
+      requestAssignment() {
+        throw new Error('unexpected Assignment');
+      },
+      async close() {},
+    },
+  });
+  try {
+    const home = await core.tob.ensure();
+    for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
+    await core.tob.transferSteward(owner, 'ada');
+    await core.tob.transferSteward(owner, 'bea');
+    const bridge = createBridgeMethodsForHumans(core)(owner);
+    expect(
+      (
+        await bridge.channelSend({
+          channelId: home.channelId,
+          messageId: 'human-' + randomUUID(),
+          body: 'Hi',
+        })
+      ).ok,
+    ).toBe(true);
+    await core.runtime.whenIdle();
+    expect(handled.at(-1)?.message).toContain('"ada" was the Steward until a later transfer');
+    expect(handled.at(-1)?.message).not.toContain('is now the Steward');
   } finally {
     core.schedules.close();
     core.externalMessaging.close();

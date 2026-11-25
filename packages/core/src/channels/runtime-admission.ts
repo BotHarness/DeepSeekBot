@@ -49,6 +49,7 @@ import type {
   TobCliRequestLease,
 } from '../runtime/bot-runtime.js';
 import type { GroupContext } from '../runtime/group-digest.js';
+import { isSteward } from '../tob/steward-role.js';
 
 interface ChannelAdmissionPorts {
   readonly acceptTurnSources: (botSlug: string, sourceEventIds: readonly string[]) => void;
@@ -756,7 +757,11 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
         stewardTransfer.payload_json,
       ) as ChannelMessage;
       if (marker)
-        parts.push(`[Host timeline] ${JSON.stringify(marker.botName)} is now the Steward.`);
+        parts.push(
+          isSteward(ports.database, marker.botSlug)
+            ? `[Host timeline] ${JSON.stringify(marker.botName)} is now the Steward.`
+            : `[Host timeline] ${JSON.stringify(marker.botName)} was the Steward until a later transfer; it no longer holds the role.`,
+        );
     }
     if (message.genuiReplyContext !== undefined) parts.push(message.genuiReplyContext);
     if (message.voiceCall !== undefined) {

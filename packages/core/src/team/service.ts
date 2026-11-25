@@ -84,6 +84,13 @@ export class TeamService {
   readonly approvals: TeamApprovals;
   readonly channelAccess: TeamChannels;
   private readonly accessListeners = new Set<() => void>();
+  private readonly ownerListeners = new Set<() => void>();
+  onOwnerTransferred(listener: () => void): () => void {
+    this.ownerListeners.add(listener);
+    return () => {
+      this.ownerListeners.delete(listener);
+    };
+  }
   onAccessChanged(listener: () => void): () => void {
     this.accessListeners.add(listener);
     return () => {
@@ -975,6 +982,7 @@ export class TeamService {
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });
+    for (const listener of this.ownerListeners) listener();
     return null;
   }
 
