@@ -7,10 +7,23 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 83, left: 0, right: 0 }),
+}));
+vi.mock('../src/ui/shell/window-insets', () => ({
+  useWindowInsets: () => ({ top: 0, bottom: 34, left: 0, right: 0 }),
 }));
 vi.mock('react-native-keyboard-controller', () => ({
-  KeyboardStickyView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  KeyboardStickyView: ({
+    children,
+    offset,
+  }: {
+    children: ReactNode;
+    offset: { closed: number; opened: number };
+  }) => (
+    <div data-testid="keyboard-sticky" data-opened={offset.opened}>
+      {children}
+    </div>
+  ),
 }));
 vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
@@ -34,12 +47,14 @@ vi.mock('../src/ui/primitives/drawer-material', () => ({
 
 import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-panel';
 import { interfacePreferences } from '../src/ui/interface-preferences';
+import { sessionQueries } from '../src/features/sessions/session-list-query';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
+  sessionQueries.clear();
 });
 
 const now = Date.now();
@@ -125,7 +140,13 @@ async function render(
       />,
     ),
   );
+  await settle();
   return { view, call, other };
+}
+
+async function settle() {
+  for (let tick = 0; tick < 3; tick += 1)
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 }
 
 it('lists Sessions by day with the open one highlighted under the Environment name', async () => {
@@ -136,7 +157,7 @@ it('lists Sessions by day with the open one highlighted under the Environment na
   );
   expect(call).toHaveBeenCalledWith(
     'sessionList',
-    { search: '', sort: 'last-human-turn', source: 'all', queryVersion: 1 },
+    { search: '', sort: 'last-human-turn', source: 'all', limit: 50, queryVersion: 1 },
     expect.anything(),
   );
   const sections = [...view.querySelectorAll('section')].map((section) => section.textContent);
@@ -181,9 +202,18 @@ it('expands the Search pill into a field only when tapped, and starts a New Sess
     expect.anything(),
   );
   await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-cancel"]')!.click(),
+    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-close"]')!.click(),
   );
   expect(view.querySelector('[data-testid="session-drawer-search-field"]')).toBeNull();
+});
+
+it('keeps Search and New Session at the window bottom inset, not the tab bar’s', async () => {
+  const { view } = await render();
+  const footer = view.querySelector<HTMLElement>('[data-testid="session-drawer-footer"]')!;
+  expect(JSON.parse(footer.getAttribute('data-style')!)).toMatchObject({ paddingBottom: 34 });
+  expect(view.querySelector('[data-testid="keyboard-sticky"]')!.getAttribute('data-opened')).toBe(
+    '34',
+  );
 });
 
 it('hides New Session from a member', async () => {
@@ -263,4 +293,54 @@ it('renders the Stacked-style Session list with ✎ in the header and Search abo
 it('hides ✎ from a member on the Stacked-style Session list', async () => {
   const { view } = await render({ variant: 'page', canCreate: false });
   expect(view.querySelector('[data-testid="session-list-new"]')).toBeNull();
+});
+
+it('shows the cached Sessions at once when the drawer opens again, and refreshes them in the background', async () => {
+  const { view, call } = await render();
+  expect(view.textContent).toContain('Fresh work');
+  act(() => root?.unmount());
+  let answer: (value: unknown) => void = () => undefined;
+  call.mockImplementation(
+    () =>
+      new Promise<never>((resolve) => {
+        answer = resolve as (value: unknown) => void;
+      }),
+  );
+  const again = document.createElement('div');
+  root = createRoot(again);
+  await act(async () =>
+    root!.render(
+      <SessionDrawerPanel
+        hosts={[{ hostId: 'studio', hostName: 'Studio', client: client(call) }]}
+        title="Studio"
+        showHost={false}
+        active
+        canCreate
+        onOpen={() => {}}
+        onNew={() => {}}
+      />,
+    ),
+  );
+  expect(again.textContent).toContain('Fresh work');
+  expect(again.textContent).toContain('Old research');
+  expect(call).toHaveBeenCalledTimes(2);
+  await act(async () =>
+    answer({
+      queryVersion: 1,
+      sources: [{ kind: 'native' }],
+      sessions: [
+        {
+          sessionId: 'newer',
+          title: 'Newer work',
+          source: { kind: 'native' },
+          running: false,
+          lastPromptAt: now,
+          updatedAt: now,
+        },
+      ],
+    }),
+  );
+  await settle();
+  expect(again.textContent).toContain('Newer work');
+  expect(again.textContent).not.toContain('Old research');
 });

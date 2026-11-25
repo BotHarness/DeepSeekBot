@@ -189,7 +189,7 @@ describe('recent Sessions', () => {
     await recent.refresh({ call: call as never }, 'home');
     expect(call).toHaveBeenCalledWith(
       'sessionList',
-      { search: '', sort: 'last-human-turn', source: 'all', queryVersion: 1 },
+      { search: '', sort: 'last-human-turn', source: 'all', limit: 50, queryVersion: 1 },
       expect.anything(),
     );
     expect(recent.get('home')?.map((session) => session.sessionId)).toEqual(['a', 'b', 'c', 'd']);

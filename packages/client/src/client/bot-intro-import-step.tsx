@@ -1,50 +1,30 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type Dispatch, type ReactElement, type SetStateAction } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   productCounts,
   type ImportableSession,
-  type ImportProduct,
+  type SessionBotInput,
 } from '@botharness/host-client/session-bot';
 import { Icon } from './ds/icon.js';
 import { dimension } from './ds/dimensions.stylex.js';
 import { size as iconSize } from './ds/tobs.stylex.js';
-import { Button } from './ds/button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon, type ModelBrand } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
 import { styles as stepStyles } from './bot-intro-step-styles.js';
+import { ImportPlan } from './bot-intro-import-plan.js';
 
-export const IMPORT_SOURCES = [
-  'claude-code',
-  'codex',
-  'claude',
-  'chatgpt',
-  'grok',
-  'cursor',
-  'other',
-] as const;
+export const IMPORT_SOURCES = ['claude-code', 'codex'] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
-const LOGOS: Readonly<Record<ImportSource, ModelBrand | undefined>> = {
+const LOGOS: Readonly<Record<ImportSource, ModelBrand>> = {
   'claude-code': 'claudecode',
   codex: 'codex',
-  claude: 'claude',
-  chatgpt: 'openai',
-  grok: 'grok',
-  cursor: 'cursor',
-  other: undefined,
 };
 
 const LOGO_SIZE = Number.parseFloat(iconSize.iconLarge);
-
-const LOCAL: Partial<Record<ImportSource, Exclude<ImportProduct, 'deepseek'>>> = {
-  'claude-code': 'claude-code',
-  codex: 'codex',
-};
-
-const WEB: readonly ImportSource[] = ['claude', 'chatgpt', 'grok'];
 
 const styles = stylex.create({
   grid: {
@@ -65,7 +45,8 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     textAlign: 'start',
-    cursor: 'pointer',
+    cursor: { default: 'pointer', ':disabled': 'default' },
+    opacity: { default: 1, ':disabled': 0.5 },
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   chosen: { backgroundColor: { default: color.accentTint, ':hover': color.accentTint } },
@@ -95,50 +76,36 @@ const styles = stylex.create({
   strong: { fontWeight: text.strong },
   meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   found: { color: color.accent },
-  result: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.x3,
-    padding: space.x4,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
-  resultCopy: {
-    margin: 0,
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    flexGrow: 1,
-    flexBasis: 0,
-    minWidth: dimension.introToolCardMinWidth,
-  },
   note: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
 });
 
 export type ImportChoice = {
   chosen: readonly ImportSource[];
+  created: number;
 };
-export const NO_IMPORT: ImportChoice = { chosen: [] };
+export const NO_IMPORT: ImportChoice = { chosen: [], created: 0 };
 
 export function ImportStep({
   sessions,
   t,
   choice,
   track,
-  start,
+  add,
+  done,
 }: {
   sessions: (() => Promise<readonly ImportableSession[]>) | undefined;
   t: BotHarnessTranslate;
-  choice: readonly [ImportChoice, (next: ImportChoice) => void];
+  choice: readonly [ImportChoice, Dispatch<SetStateAction<ImportChoice>>];
   track(source: ImportSource, detected: boolean): void;
-  start(product: ImportProduct | undefined, count: number): void;
+  add(input: SessionBotInput): Promise<unknown>;
+  done(created: number): void;
 }): ReactElement {
-  const [{ chosen }, setChoice] = choice;
+  const [{ chosen, created }, setChoice] = choice;
   const [rows, setRows] = useState<readonly ImportableSession[]>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [planning, setPlanning] = useState(false);
+  const locked = planning || created > 0;
   const load = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     if (sessions === undefined) {
@@ -159,14 +126,10 @@ export function ImportStep({
     };
   }, [sessions, attempt]);
   const counts = productCounts(rows ?? []);
-  const local = chosen.flatMap((id) => {
-    const product = LOCAL[id];
-    return product === undefined ? [] : [product];
-  });
+  const local: readonly ImportSource[] = chosen;
   const found = local.filter((product) => counts[product] > 0);
   const missing = local.filter((product) => counts[product] === 0);
-  const total = found.reduce((sum, product) => sum + counts[product], 0);
-  const exportsOnly = chosen.some((id) => LOCAL[id] === undefined);
+  const picked = (rows ?? []).filter((row) => found.some((product) => product === row.product));
   const name = (id: ImportSource): string => t(`intro.import.source.${id}` as BotHarnessKey);
   return (
     <div ref={load} {...stylex.props(stepStyles.section)} data-intro-import="">
@@ -177,28 +140,25 @@ export function ImportStep({
       <div {...stylex.props(styles.grid)} role="group" aria-label={t('intro.import.label')}>
         {IMPORT_SOURCES.map((id) => {
           const on = chosen.includes(id);
-          const product = LOCAL[id];
-          const count = product === undefined || rows === undefined ? undefined : counts[product];
+          const count = rows === undefined ? undefined : counts[id];
           return (
             <button
               key={id}
               type="button"
               aria-pressed={on}
+              disabled={locked}
               data-import-source={id}
               onClick={() => {
                 if (!on) track(id, count !== undefined && count > 0);
                 setChoice({
                   chosen: on ? chosen.filter((other) => other !== id) : [...chosen, id],
+                  created,
                 });
               }}
               {...stylex.props(styles.card, on && styles.chosen)}
             >
               <span {...stylex.props(styles.icon)}>
-                {LOGOS[id] === undefined ? (
-                  <Icon name="puzzle" />
-                ) : (
-                  <ModelBrandIcon brand={LOGOS[id]} size={LOGO_SIZE} />
-                )}
+                <ModelBrandIcon brand={LOGOS[id]} size={LOGO_SIZE} />
                 {on ? (
                   <span {...stylex.props(styles.check)}>
                     <Icon name="check" size={LOGO_SIZE / 2} />
@@ -212,37 +172,30 @@ export function ImportStep({
                     {t('intro.import.found', { count })}
                   </span>
                 ) : (
-                  <span {...stylex.props(styles.meta)}>
-                    {t(
-                      product !== undefined
-                        ? 'intro.import.local'
-                        : WEB.includes(id)
-                          ? 'intro.import.export'
-                          : 'intro.import.later',
-                    )}
-                  </span>
+                  <span {...stylex.props(styles.meta)}>{t('intro.import.local')}</span>
                 )}
               </span>
             </button>
           );
         })}
       </div>
-      {found.length > 0 ? (
-        <div {...stylex.props(styles.result)} role="status">
-          <p {...stylex.props(styles.resultCopy)}>
-            {t('intro.import.ready', {
-              count: total,
-              products: found.map((product) => name(product)).join(t('intro.import.join')),
-            })}
-          </p>
-          <Button
-            variant="primary"
-            data-intro-import-start=""
-            onClick={() => start(found.length === 1 ? found[0] : undefined, total)}
-          >
-            {t('intro.import.start')}
-          </Button>
-        </div>
+      {created > 0 && !planning ? (
+        <p {...stylex.props(styles.note)} role="status" data-intro-import-created={created}>
+          {t('intro.import.plan.done', { count: created })}
+        </p>
+      ) : picked.length > 0 ? (
+        <ImportPlan
+          key={found.join(' ')}
+          rows={picked}
+          t={t}
+          add={async (input) => {
+            const bot = await add(input);
+            setChoice((current) => ({ ...current, created: current.created + 1 }));
+            return bot;
+          }}
+          onStart={() => setPlanning(true)}
+          onDone={done}
+        />
       ) : null}
       {failed && local.length > 0 ? (
         <div role="status" data-intro-import-failed="">
@@ -258,7 +211,6 @@ export function ImportStep({
           })}
         </p>
       ) : null}
-      {exportsOnly ? <p {...stylex.props(styles.note)}>{t('intro.import.exportLater')}</p> : null}
     </div>
   );
 }

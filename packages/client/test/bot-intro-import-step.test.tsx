@@ -26,7 +26,6 @@ const session = (sessionId: string, product: ImportableSession['product']): Impo
 function Harness(props: {
   rows: ImportableSession[];
   track: (source: string, detected: boolean) => void;
-  start: (product: string | undefined, count: number) => void;
 }) {
   const choice = useState<ImportChoice>(NO_IMPORT);
   return createElement(ImportStep, {
@@ -34,23 +33,23 @@ function Harness(props: {
     choice,
     sessions: async () => props.rows,
     track: props.track,
-    start: props.start,
+    add: async () => ({}),
+    done: () => {},
   });
 }
 
-it('asks which tools were used, shows found sessions and starts the import for local ones', async () => {
+it('asks which tools were used, shows found sessions and plans Bots from the local ones', async () => {
   const node = document.createElement('div');
   document.body.append(node);
   const root = createRoot(node);
   const track = vi.fn();
-  const start = vi.fn();
   const rows = [
     session('claude-code:a', 'claude-code'),
     session('claude-code:b', 'claude-code'),
     session('d1', 'deepseek'),
   ];
   try {
-    await act(() => root.render(createElement(Harness, { rows, track, start })));
+    await act(() => root.render(createElement(Harness, { rows, track })));
     await act(async () => {});
     const card = (id: string) =>
       document.body.querySelector<HTMLButtonElement>(`[data-import-source="${id}"]`)!;
@@ -58,29 +57,32 @@ it('asks which tools were used, shows found sessions and starts the import for l
     const logo = (id: string) =>
       card(id).querySelector('[data-model-brand]')?.getAttribute('data-model-brand');
     expect(
-      ['claude-code', 'codex', 'claude', 'chatgpt', 'grok', 'cursor', 'other'].map(logo),
-    ).toEqual(['claudecode', 'codex', 'claude', 'openai', 'grok', 'cursor', undefined]);
-    expect(document.body.querySelector('[data-intro-import-start]')).toBeNull();
+      [...document.body.querySelectorAll('[data-import-source]')].map((node) =>
+        node.getAttribute('data-import-source'),
+      ),
+    ).toEqual(['claude-code', 'codex']);
+    expect(['claude-code', 'codex'].map(logo)).toEqual(['claudecode', 'codex']);
+    expect(document.body.querySelector('[data-intro-import-plan]')).toBeNull();
 
     await act(() => card('codex').click());
     expect(track).toHaveBeenLastCalledWith('codex', false);
     expect(document.body.textContent).toContain('这台电脑上没找到 Codex 的会话。');
 
-    await act(() => card('grok').click());
-    expect(track).toHaveBeenLastCalledWith('grok', false);
-    expect(document.body.textContent).toContain('从这些工具导入还在做');
-
     await act(() => card('claude-code').click());
     expect(track).toHaveBeenLastCalledWith('claude-code', true);
     expect(card('claude-code').getAttribute('aria-pressed')).toBe('true');
     expect(logo('claude-code')).toBe('claudecode');
-    await act(() =>
-      document.body.querySelector<HTMLButtonElement>('[data-intro-import-start]')!.click(),
+    expect(
+      [...document.body.querySelectorAll('[data-import-bot]')].map((row) =>
+        row.getAttribute('data-import-bot'),
+      ),
+    ).toEqual(['app']);
+    expect(document.body.querySelector('[data-intro-import-plan]')!.textContent).toContain(
+      '2 个会话 · app',
     );
-    expect(start).toHaveBeenCalledWith('claude-code', 2);
 
     await act(() => card('claude-code').click());
-    expect(track).toHaveBeenCalledTimes(3);
+    expect(track).toHaveBeenCalledTimes(2);
   } finally {
     await act(() => root.unmount());
     node.remove();
@@ -98,7 +100,14 @@ it('offers a retry when this computer could not be read', async () => {
   });
   function Retry() {
     const choice = useState<ImportChoice>(NO_IMPORT);
-    return createElement(ImportStep, { t, choice, sessions, track: () => {}, start: () => {} });
+    return createElement(ImportStep, {
+      t,
+      choice,
+      sessions,
+      track: () => {},
+      add: async () => ({}),
+      done: () => {},
+    });
   }
   try {
     await act(() => root.render(createElement(Retry)));
@@ -115,7 +124,7 @@ it('offers a retry when this computer could not be read', async () => {
     await act(async () => {});
     expect(sessions).toHaveBeenCalledTimes(2);
     expect(document.body.querySelector('[data-intro-import-failed]')).toBeNull();
-    expect(document.body.querySelector('[data-intro-import-start]')).not.toBeNull();
+    expect(document.body.querySelector('[data-intro-import-plan]')).not.toBeNull();
   } finally {
     await act(() => root.unmount());
     node.remove();

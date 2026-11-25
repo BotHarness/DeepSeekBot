@@ -789,7 +789,7 @@ describe('intro modal', () => {
     expect(dialog().querySelectorAll('[data-user-reviews] blockquote')).toHaveLength(3);
     await click('下一步');
     expect(step()).toBe('import');
-    expect(dialog().querySelectorAll('[data-import-source]')).toHaveLength(7);
+    expect(dialog().querySelectorAll('[data-import-source]')).toHaveLength(2);
     await click('下一步');
     expect(step()).toBe('start');
     expect(dialog().querySelectorAll('[data-persona]')).toHaveLength(4);

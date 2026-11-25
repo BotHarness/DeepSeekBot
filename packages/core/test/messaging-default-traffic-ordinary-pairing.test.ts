@@ -106,7 +106,7 @@ it('Slack ordinary DM pairing only executes a fresh reviewed request and queries
   expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([]);
 });
 
-it('Slack pairing refuses untrusted routes and group pairing, and /pair in a DM asks for management', async () => {
+it('Slack pairing refuses untrusted routes, /pair in a DM asks for management, and a channel mention asks for chat', async () => {
   const fx = await fixture('slack');
   await ordinaryRole(fx);
   for (const bad of [
@@ -133,7 +133,17 @@ it('Slack pairing refuses untrusted routes and group pairing, and /pair in a DM 
     reply: { messageId: 'om-slack-group', conversationId: 'CQA1', actorId: 'UQAUSER1' },
   });
   expect(() =>
+    fx.core.externalMessaging.pairing.request(fx.identity.id, group, 'management'),
+  ).toThrow('untrusted-pairing');
+  expect(
     fx.core.externalMessaging.pairing.request(fx.identity.id, group, 'conversation'),
+  ).toMatchObject({ status: 'pending', purpose: 'conversation', conversationKind: 'group' });
+  expect(() =>
+    fx.core.externalMessaging.pairing.request(
+      fx.identity.id,
+      { ...group, mentionedAccount: false },
+      'conversation',
+    ),
   ).toThrow('untrusted-pairing');
 });
 
@@ -447,3 +457,61 @@ it('keeps /pair with pairing and admits nothing for it', async () => {
   expect(fx.entries()).toEqual([]);
   expect((await fx.core.externalMessaging.snapshot('ada')).pairings).toHaveLength(1);
 });
+
+function channelMention(
+  platform: 'slack' | 'discord',
+  id: string,
+  actorId = platform === 'slack' ? 'UQAUSER1' : '111111111111',
+): MessagingInboundEvent {
+  const conversationId = platform === 'slack' ? 'CQA1' : '222222222222';
+  return fresh(
+    dm(id, {
+      channel: platform,
+      actor: { kind: 'user', id: actorId, name: 'Channel member' },
+      conversation: { kind: 'group', id: conversationId },
+      mentions: [{ id: 'bot', key: '@bot' }],
+      mentionedAccount: true,
+      text: `@bot question ${id}`,
+      reply: { messageId: `om-${id}`, conversationId, actorId },
+    }),
+  );
+}
+
+for (const platform of ['slack', 'discord'] as const)
+  it(`restricted ${platform} channel mentions ask an unpaired member to pair and wake only after review`, async () => {
+    const fx = await fixture(platform);
+    const role = await ordinaryRole(fx);
+    const blocked = channelMention(platform, `${platform}-unpaired`);
+    await fx.receive(blocked);
+    expect(fx.runs).toHaveLength(0);
+    expect(fx.admissions()).toEqual([]);
+    const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+    expect(request).toMatchObject({
+      purpose: 'conversation',
+      status: 'pending',
+      conversationKind: 'group',
+      actorId: blocked.actor.id,
+    });
+    expect(JSON.stringify(request)).not.toContain(blocked.text);
+    await fx.core.externalMessaging.reviewPairing('ada', {
+      kind: 'approve',
+      id: request.id,
+      expectedRevision: request.revision,
+      roleId: role.id,
+      expectedRoleRevision: role.revision,
+    });
+    await fx.receive(blocked);
+    expect(fx.runs).toHaveLength(0);
+    await fx.receive(channelMention(platform, `${platform}-paired`));
+    expect(fx.runs).toHaveLength(1);
+    expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([
+      expect.objectContaining({ actorId: blocked.actor.id, role }),
+    ]);
+    const other = channelMention(
+      platform,
+      `${platform}-other`,
+      platform === 'slack' ? 'UQAUSER2' : '333333333333',
+    );
+    await fx.receive(other);
+    expect(fx.runs).toHaveLength(1);
+  });

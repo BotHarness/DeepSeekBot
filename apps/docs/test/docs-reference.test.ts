@@ -120,6 +120,7 @@ describe("generated developer reference", () => {
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "api-session/error", direction: "consumes", operation: "on" },
+      { name: "api-session/error", direction: "consumes", operation: "on" },
       { name: "api-session/removed", direction: "consumes", operation: "on" },
       { name: "api-session/status", direction: "consumes", operation: "on" },
       { name: "approval/request", direction: "consumes", operation: "on" },

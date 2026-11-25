@@ -45,7 +45,6 @@ import { noSubscribe, ThemeStep } from './bot-intro-theme-step.js';
 import { Voices, WelcomeStep } from './bot-intro-welcome-step.js';
 import { styles as stepStyles } from './bot-intro-step-styles.js';
 import { ImportStep, NO_IMPORT, type ImportChoice } from './bot-intro-import-step.js';
-import { requestCreation } from './create-request.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
@@ -562,15 +561,8 @@ export function BotIntro({
             track={(source, detected) =>
               controller.introEvent('onboarding:import_source_select', { source, detected })
             }
-            start={(product) =>
-              void close({ starter: 'import', ...(product === undefined ? {} : { product }) }).then(
-                () =>
-                  requestCreation({
-                    kind: 'bot-sessions',
-                    ...(product === undefined ? {} : { product }),
-                  }),
-              )
-            }
+            add={(input) => actions.addBotFromSessions(input)}
+            done={() => void go(intro.step + 1)}
           />
         ) : null}
         {step === 'start' ? (

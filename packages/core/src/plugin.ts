@@ -59,6 +59,7 @@ import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from './features/sessions/session-list-changes.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -553,6 +554,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     account: () => connectAccount,
   });
   const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const sessionListChanges = createSessionListChanges(() =>
+    core.live.publishResourceChanged('sessions'),
+  );
+  ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
   const nativeSessionInput = dshHostSessionInput(
     ctx,
     (id) => core.ownership.resolve(id) === undefined,
@@ -565,6 +570,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         subscribe: nativeSessionInput.subscribe,
       }),
     'botharness: native Session attention',
+  );
+  ctx.effect(
+    () => nativeSessionInput.subscribe(() => sessionListChanges.changed()),
+    'botharness: native Session requests change the Session list',
+  );
+  ctx.effect(
+    () => ctx.on('api-session/error', () => sessionListChanges.changed()),
+    'botharness: native Session failures change the Session list',
   );
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
@@ -595,7 +608,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelReadiness,
     sessionLive,
     externalSessions,
-    nativeSessions: (hostNativeSessions = dshHostSessions(ctx, dshSessions, nativeSessionInput)),
+    nativeSessions: (hostNativeSessions = dshHostSessions(
+      ctx,
+      dshSessions,
+      nativeSessionInput,
+      sessionListChanges,
+    )),
     takeovers,
     folders,
     mountedToolApproval,
@@ -765,6 +783,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction,
     agentAdapter,
     dshSessions,
+    sessionListChanges,
     openAssignmentRoutes,
     effectivePlan: routingDefaults.effectivePlan,
   });
