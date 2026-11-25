@@ -16,6 +16,8 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { createTempRoot } from './helpers.js';
 import { mountPrivateInputs } from '../src/credentials/mount.js';
 import { createScope } from '@deepseek-ai/dsh-scope';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 const declaration = {
@@ -715,13 +717,19 @@ it('a turn started by a bridged IM message asks for tool approval in the Bot DM'
     await f.im();
     const run = await f.started();
     expect(
-      f.core.runtime.toolApprovalOrigin?.({ sessionId: run.sessionId, callId: 'call' }),
+      f.core.runtime.toolApprovalOrigin?.({
+        sessionId: SessionId(run.sessionId),
+        callId: ToolCallId('call'),
+      }),
     ).toEqual({
       kind: 'turn',
       channelId: 'dm-ada',
     });
     expect(
-      f.core.runtime.toolApprovalOrigin?.({ sessionId: 'other-session', callId: 'call' }),
+      f.core.runtime.toolApprovalOrigin?.({
+        sessionId: SessionId('other-session'),
+        callId: ToolCallId('call'),
+      }),
     ).toBeUndefined();
   } finally {
     await f.close();
