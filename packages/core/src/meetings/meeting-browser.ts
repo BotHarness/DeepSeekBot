@@ -49,7 +49,6 @@ export function meetingChromeArgs(input: { profileDir: string; headless: boolean
     '--remote-debugging-port=0',
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-blink-features=AutomationControlled',
     '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',

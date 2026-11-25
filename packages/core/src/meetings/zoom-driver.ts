@@ -30,7 +30,7 @@ const IN_ZOOM = `(() => {
 })()`;
 
 const DENIED =
-  'meeting link is invalid|invalid meeting id|passcode is wrong|removed you|removed from the meeting|not allowed to join';
+  'automated bots|meeting link is invalid|invalid meeting id|passcode is wrong|removed you|removed from the meeting|not allowed to join';
 
 const ENTER = (name: string) => `(() => {
   const { doc, text, button } = ${IN_ZOOM};
