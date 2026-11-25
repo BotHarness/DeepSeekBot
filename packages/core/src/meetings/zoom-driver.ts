@@ -29,8 +29,12 @@ const IN_ZOOM = `(() => {
   return { doc, text, button };
 })()`;
 
+const DENIED =
+  'meeting link is invalid|invalid meeting id|passcode is wrong|removed you|removed from the meeting|not allowed to join';
+
 const ENTER = (name: string) => `(() => {
-  const { doc, button } = ${IN_ZOOM};
+  const { doc, text, button } = ${IN_ZOOM};
+  if (/${DENIED}/.test(text)) return true;
   const input = doc.querySelector('#input-for-name, input[aria-label*="name" i]');
   if (!input) return false;
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -44,7 +48,7 @@ const ENTER = (name: string) => `(() => {
 
 const READ = `(() => {
   const { doc, text, button } = ${IN_ZOOM};
-  if (/removed you|removed from the meeting|not allowed to join|passcode is wrong|invalid meeting id/.test(text))
+  if (/${DENIED}/.test(text))
     return { phase: 'denied' };
   if (/meeting has been ended|this meeting has ended|the meeting has ended/.test(text))
     return { phase: 'ended' };
@@ -95,6 +99,8 @@ export const zoomDriver: MeetingPageDriver = {
       signal,
       what: 'Zoom join form',
     });
+    if ((await page.evaluate<MeetingPageState>(READ)).phase === 'denied')
+      throw new Error('Zoom refused this meeting link');
   },
   read: (page) => page.evaluate<MeetingPageState>(READ),
   async leave(page) {
