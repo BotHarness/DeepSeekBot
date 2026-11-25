@@ -24,6 +24,8 @@ it('refuses --from-sessions without a name, with another source or with blank-on
     ['--name', 'K', '--from-sessions', 'a', '--from-git', 'o/r'],
     ['--name', 'K', '--from-sessions', 'a', '--memory-location', '/tmp/m'],
     ['--name', 'K', '--from-sessions', ' , '],
+    ['--name', 'K', '--from-sessions', ''],
+    ['--name', 'K', '--from-sessions', '  '],
   ])
     await expect(validatedCreate(values(...argv), stdin)).rejects.toMatchObject({ code: 'usage' });
 });

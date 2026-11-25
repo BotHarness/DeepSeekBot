@@ -28,7 +28,9 @@ export function sessionActivityAt(row: HostSessionRow): number {
 export async function readImportableSessions(host: HostCall): Promise<HostSessionRow[]> {
   const { sessions } = await readHostSessionList(host, { source: 'native' });
   return sessions
-    .filter((row) => row.source.kind === 'native' && row.lastPromptAt !== null)
+    .filter(
+      (row) => row.source.kind === 'native' && row.lastPromptAt !== null && row.cwd !== undefined,
+    )
     .sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a));
 }
 

@@ -108,9 +108,9 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
         ? {}
         : {
             workspaceSessions: {
-              list: () => ports.workspaceSessions!.list(grantRoots(ports.grants!, bot.slug)),
+              list: () => ports.workspaceSessions!.list(() => grantRoots(ports.grants!, bot.slug)),
               read: (sessionId: string) =>
-                ports.workspaceSessions!.read(grantRoots(ports.grants!, bot.slug), sessionId),
+                ports.workspaceSessions!.read(() => grantRoots(ports.grants!, bot.slug), sessionId),
             },
           }),
       ...(ports.externalMessaging === undefined

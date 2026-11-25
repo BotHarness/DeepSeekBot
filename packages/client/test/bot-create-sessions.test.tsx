@@ -124,3 +124,47 @@ it('guides to DeepSeek when the computer has no Sessions yet', async () => {
     node.remove();
   }
 });
+
+it('retries a failed creation with the same operation key', async () => {
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const createBotFromSessions = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({});
+  try {
+    await act(() =>
+      root.render(
+        createElement(CreateBotFromSessionsModal, {
+          t,
+          actions: { importableSessions: async () => rows, createBotFromSessions },
+          onCancel: vi.fn(),
+          onCreated: vi.fn(),
+        }),
+      ),
+    );
+    await act(async () => {});
+    await act(() =>
+      document.body.querySelector<HTMLButtonElement>('[data-sessions-latest]')!.click(),
+    );
+    const name = document.body.querySelector<HTMLInputElement>('input:not([type="checkbox"])')!;
+    await act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(name, 'App keeper');
+      name.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const submit = document.body.querySelector<HTMLButtonElement>('[data-sessions-create]')!;
+    await act(async () => submit.click());
+    await act(async () => submit.click());
+    expect(createBotFromSessions).toHaveBeenCalledTimes(2);
+    const [first, second] = createBotFromSessions.mock.calls.map(
+      ([input]) => (input as { operationKey: string }).operationKey,
+    );
+    expect(first).toMatch(/^sessions:/);
+    expect(second).toBe(first);
+  } finally {
+    await act(() => root.unmount());
+    node.remove();
+  }
+});

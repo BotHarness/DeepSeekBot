@@ -58,26 +58,32 @@ function reader() {
 
 it('lists only unowned root Sessions whose folder lies inside an active Grant', async () => {
   const { sessions } = reader();
-  expect((await sessions.list(['/work/app'])).map((row) => row.sessionId)).toEqual([
+  expect((await sessions.list(() => ['/work/app'])).map((row) => row.sessionId)).toEqual([
     'nested',
     'inside',
   ]);
-  expect(await sessions.list([])).toEqual([]);
+  expect(await sessions.list(() => [])).toEqual([]);
+  const revoked = vi.fn().mockReturnValueOnce(['/work/app']).mockReturnValue([]);
+  expect(await sessions.list(revoked)).toEqual([]);
+  let active = true;
+  const reading = sessions.read(() => (active ? ['/work/app'] : []), 'inside');
+  active = false;
+  await expect(reading).rejects.toMatchObject({ code: 'session-outside-grant' });
 });
 
 it('reads a granted Session as Markdown and refuses Sessions outside the Grants', async () => {
   const { sessions, read } = reader();
-  const text = await sessions.read(['/work/app'], 'inside');
+  const text = await sessions.read(() => ['/work/app'], 'inside');
   expect(text).toContain('# Fix login');
   expect(text).toContain('## Human');
   expect(text).toContain('Fix the login bug');
-  await expect(sessions.read(['/work/app'], 'sibling')).rejects.toMatchObject({
+  await expect(sessions.read(() => ['/work/app'], 'sibling')).rejects.toMatchObject({
     code: 'session-outside-grant',
   });
-  await expect(sessions.read(['/work/app'], 'owned')).rejects.toMatchObject({
+  await expect(sessions.read(() => ['/work/app'], 'owned')).rejects.toMatchObject({
     code: 'session-not-found',
   });
-  await expect(sessions.read(['/work/app'], 'child')).rejects.toMatchObject({
+  await expect(sessions.read(() => ['/work/app'], 'child')).rejects.toMatchObject({
     code: 'session-not-found',
   });
   expect(read).not.toHaveBeenCalledWith('owned');

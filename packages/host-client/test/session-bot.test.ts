@@ -20,6 +20,7 @@ describe('readImportableSessions', () => {
         sessions: [
           row('old', '/work/app', 10),
           row('blank', '/work/app'),
+          { ...row('nowhere', '/x', 50), cwd: undefined },
           row('bot', '/work/app', 40, 'bot'),
           row('new', '/work/app', 30),
           row('other', '/work/site', 20),

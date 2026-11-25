@@ -22,8 +22,8 @@ export interface WorkspaceSessionSummary {
 }
 
 export interface WorkspaceSessionReader {
-  list(roots: readonly string[]): Promise<WorkspaceSessionSummary[]>;
-  read(roots: readonly string[], sessionId: string): Promise<string>;
+  list(roots: () => readonly string[]): Promise<WorkspaceSessionSummary[]>;
+  read(roots: () => readonly string[], sessionId: string): Promise<string>;
 }
 
 export class WorkspaceSessionError extends Error {
@@ -139,14 +139,15 @@ export function createWorkspaceSessionReader(
     cwd !== undefined && roots.some((root) => pathWithin(root, cwd));
   return {
     async list(roots) {
-      if (roots.length === 0) return [];
+      if (roots().length === 0) return [];
       const rows = await native().list();
+      const current = roots();
       return rows
         .filter(
           (row) =>
             row.parentSessionId === undefined &&
             ownership.resolve(row.sessionId) === undefined &&
-            inside(roots, row.cwd),
+            inside(current, row.cwd),
         )
         .sort((a, b) => (b.lastPromptAt ?? b.updatedAt) - (a.lastPromptAt ?? a.updatedAt))
         .slice(0, WORKSPACE_SESSION_LIST_MAX)
@@ -171,7 +172,7 @@ export function createWorkspaceSessionReader(
       } catch {
         throw missing;
       }
-      if (!inside(roots, snapshot.cwd))
+      if (!inside(roots(), snapshot.cwd))
         throw new WorkspaceSessionError(
           'session-outside-grant',
           `Session ${sessionId} did not work in one of your Workspace Grants.`,

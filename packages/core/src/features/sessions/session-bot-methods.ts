@@ -7,7 +7,11 @@ import {
   parseRoles,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
-import { BotCreationError, type BotCreationReceipt } from '../../bots/creation.js';
+import {
+  BotCreationError,
+  validBotCreationKey,
+  type BotCreationReceipt,
+} from '../../bots/creation.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { HumanContext } from '../../humans/context.js';
 import { WorkspaceGrantError, type WorkspaceGrant } from '../../workspaces/grants.js';
@@ -41,6 +45,13 @@ export function seedMessageId(operationKey: string): string {
   return `human-${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+export function sessionCreationKey(operationKey: string, sessionIds: readonly string[]): string {
+  const hex = createHash('sha256')
+    .update(`${operationKey}\n${sessionIds.join('\n')}`)
+    .digest('hex');
+  return `sessions-${hex.slice(0, 48)}`;
+}
+
 export function createSessionBotMethods(
   human: HumanContext,
   deps: BridgeMethodsDeps,
@@ -66,7 +77,11 @@ export function createSessionBotMethods(
         return invalidInput('invalid create payload');
       const language = source['language'] === 'zh' ? 'zh' : 'en';
       const operationKey = source['operationKey'] ?? `sessions:${randomUUID()}`;
-      if (typeof operationKey !== 'string') return invalidInput('operationKey must be text');
+      if (typeof operationKey !== 'string' || !validBotCreationKey(operationKey))
+        return invalidInput(
+          'operationKey must be 8 to 128 letters, digits, dots, colons, underscores or hyphens',
+        );
+      const creationKey = sessionCreationKey(operationKey, sessionIds);
       const { nativeSessions, creations, grants } = deps;
       if (nativeSessions === undefined || creations === undefined || grants === undefined)
         return failure(
@@ -115,7 +130,7 @@ export function createSessionBotMethods(
             ...(description.value === undefined ? {} : { description: description.value }),
             ...(roles.value === undefined ? {} : { roles: roles.value }),
           },
-          operationKey,
+          creationKey,
         );
       } catch (error) {
         if (error instanceof BotCreationError) return failure(error.code, error.message);
@@ -136,7 +151,7 @@ export function createSessionBotMethods(
       }
       const sent = await send({
         channelId: created.channelId,
-        messageId: seedMessageId(operationKey),
+        messageId: seedMessageId(creationKey),
         body: sessionSeedMessage(
           seeds,
           granted.map((grant) => grant.workspacePath),
@@ -149,11 +164,13 @@ export function createSessionBotMethods(
         value: {
           ...detailOf(created.record),
           channelId: created.channelId,
-          receipt: created.receipt ?? {
+          receipt: {
+            ...(created.receipt ?? {
+              botSlug: slug,
+              status: 'created',
+              channelId: created.channelId,
+            }),
             operationKey,
-            botSlug: slug,
-            status: 'created',
-            channelId: created.channelId,
           },
           grants: granted,
           seedMessageId: sent.value.message.id,

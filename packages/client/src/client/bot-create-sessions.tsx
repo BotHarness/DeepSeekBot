@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import {
@@ -81,6 +81,7 @@ export function CreateBotFromSessionsModal({
   const [creating, setCreating] = useState(false);
   const [cause, setCause] = useState<unknown>();
   const [now] = useState(() => Date.now());
+  const attempt = useRef<{ input: string; key: string } | undefined>(undefined);
 
   const load = useMountedResource<HTMLDivElement>(() => {
     let live = true;
@@ -129,13 +130,17 @@ export function CreateBotFromSessionsModal({
     setCreating(true);
     setCause(undefined);
     const about = description.trim();
+    const sessionIds = [...selected].sort();
+    const input = JSON.stringify([displayName.trim(), about, sessionIds]);
+    if (attempt.current?.input !== input)
+      attempt.current = { input, key: `sessions:${crypto.randomUUID()}` };
     void actions
       .createBotFromSessions(
         {
           displayName: displayName.trim(),
-          sessionIds: [...selected],
+          sessionIds,
           ...(about.length === 0 ? {} : { description: about }),
-          operationKey: `sessions:${crypto.randomUUID()}`,
+          operationKey: attempt.current.key,
           language: marketplaceLanguage(t),
         },
         sectionId,

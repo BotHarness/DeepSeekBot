@@ -190,6 +190,8 @@ export async function validatedCreate(
   const dir = trimmed(values['from-dir']);
   const git = trimmed(values['from-git']);
   const sessions = trimmed(values['from-sessions']);
+  if (values['from-sessions'] !== undefined && sessions === undefined)
+    throw usageError('--from-sessions needs a comma-separated list of Session IDs.');
   const selected =
     (zip === undefined ? 0 : 1) +
     (dir === undefined ? 0 : 1) +
