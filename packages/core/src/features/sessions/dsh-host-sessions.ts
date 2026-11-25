@@ -11,30 +11,19 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionStore } from '../../sessions/source.js';
 import { hostSessionQueries } from './dsh-host-session-query.js';
 import type { DshSessionListRow, NativeSessions } from './host-sessions.js';
-import {
-  cacheSessionRows,
-  changesSessionRow,
-  createSessionListChanges,
-} from './session-list-changes.js';
+import { cacheSessionRows, type SessionListChanges } from './session-list-changes.js';
 
 export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
-  publishChanged: () => void = () => undefined,
+  changes?: Pick<SessionListChanges, 'version'>,
 ): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
     return service;
   }
-  const changes = createSessionListChanges(publishChanged);
-  ctx.on('session/event', (_session, event) => changes.changed(changesSessionRow(event.type)), {
-    global: true,
-  });
-  for (const event of ['agent/created', 'agent/disposed', 'agent/status'] as const)
-    ctx.on(event, () => changes.changed(), { global: true });
-  ctx.effect(() => () => changes.close(), 'botharness: Session list changes');
-  const list = cacheSessionRows(readRows, changes);
+  const list = changes === undefined ? readRows : cacheSessionRows(readRows, changes);
 
   async function readRows(): Promise<readonly DshSessionListRow[]> {
     const service = controller();

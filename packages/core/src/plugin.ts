@@ -57,6 +57,7 @@ import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
 import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from './features/sessions/session-list-changes.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -545,6 +546,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     account: () => connectAccount,
   });
   const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
+  const sessionListChanges = createSessionListChanges(() =>
+    core.live.publishResourceChanged('sessions'),
+  );
+  ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
@@ -573,9 +578,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(ctx, dshSessions, () =>
-      core.live.publishResourceChanged('sessions'),
-    ),
+    nativeSessions: dshHostSessions(ctx, dshSessions, sessionListChanges),
     takeovers,
     folders,
     mountedToolApproval,
@@ -745,6 +748,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction,
     agentAdapter,
     dshSessions,
+    sessionListChanges,
     openAssignmentRoutes,
     effectivePlan: routingDefaults.effectivePlan,
   });
