@@ -64,6 +64,7 @@ import {
   sessionOwnerRpc,
 } from '../features/sessions/rpc.js';
 import { promptInspectionRpc, promptPresetRpc } from '../features/prompts/rpc.js';
+import { connectorsRpc } from '../features/connectors/rpc.js';
 import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
 import { computerServiceRpc } from '../features/computer/rpc.js';
@@ -95,6 +96,8 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
   interface RemoteErrorDetailsMap {
     'all-bot-preview-changed': { preview: AllBotPreview };
     'invalid-input': Record<string, never>;
+    'connector-not-configured': Record<string, never>;
+    'connector-unavailable': Record<string, never>;
     'session-input-not-pending': Record<string, never>;
     'invalid-slug': Record<string, never>;
     duplicate: Record<string, never>;
@@ -195,6 +198,7 @@ const rpcMethods = {
   ...browserServiceRpc,
   ...approvalTemplateReadRpc,
   ...promptPresetRpc,
+  ...connectorsRpc,
   ...approvalTemplateWriteRpc,
   ...voiceProviderRpc,
   ...botModeRpc,
@@ -594,6 +598,15 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'promptPresetCreate',
   'promptPresetUpdate',
   'promptPresetDelete',
+  'connectors',
+  'connectorKeySet',
+  'connectorKeyClear',
+  'connectorConnect',
+  'connectorReconnect',
+  'connectorRefresh',
+  'connectorGrantSet',
+  'connectorAccountRemove',
+  'botConnectors',
   'promptGlobalSet',
   'botPrompt',
   'botPromptSet',

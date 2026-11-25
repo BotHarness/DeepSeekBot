@@ -1453,6 +1453,25 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>` for an OpenAI-compatible service. Add and key replacement report whether the key was stored, how many models are listed and whether a test reply succeeded on the new route. The JSON shows at most the last four characters of a key. Removal is refused when the provider is inherited or referenced by a default model, Routing Group, Model Preset or Bot. Enter keys on the Host or over Tailscale.
 
+### App connections (Composio)
+
+The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key needs write access to Session management, Session tool execution, Connected accounts and Auth configs; a read-only key can list accounts but cannot create sign-in links. When one Bot has both a Read and a Read and write account for the same app, the app is treated as Read for that Bot. The key stays in the Host credential store and is never shown to a Bot.
+
+```bash
+deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-connect gmail --label "Work Gmail"
+deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+deepseekbot bot-connectors <bot-id>
+deepseekbot connector-grant <bot-id> <account-id> --access none
+deepseekbot connector-remove <account-id> --confirm
+deepseekbot connector-key-clear --confirm
+```
+
+`connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
+
 ### Marketplace, releases, usage statistics, Git and pairing review
 
 Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
