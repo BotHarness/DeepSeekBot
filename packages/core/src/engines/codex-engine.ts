@@ -288,8 +288,11 @@ export class CodexEngineSession implements EngineSession {
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
   readonly #patches = new Map<string, string[]>();
-  readonly #children = new Map<string, { title?: string; failure?: string }>();
-  readonly #gatewayCalls = new Map<string, { key: string; caller: EngineGatewayCaller }>();
+  readonly #children = new Map<string, { title?: string; failure?: string; running?: boolean }>();
+  readonly #gatewayCalls = new Map<
+    string,
+    { key: string; caller: EngineGatewayCaller; claimed?: boolean }
+  >();
   readonly #gatewayWaiters = new Set<{
     key: string;
     settle(caller: EngineGatewayCaller): void;
@@ -630,13 +633,14 @@ export class CodexEngineSession implements EngineSession {
     waitMs = GATEWAY_CALLER_WAIT_MS,
   ): Promise<EngineGatewayCaller> {
     const key = gatewayCallKey(name, args);
-    const callers = new Set(
-      [...this.#gatewayCalls.values()]
-        .filter((call) => call.key === key)
-        .map((call) => call.caller),
+    const open = [...this.#gatewayCalls.values()].filter(
+      (call) => call.key === key && !call.claimed,
     );
-    if (callers.has('subagent')) return Promise.resolve('subagent');
-    if (callers.has('main')) return Promise.resolve('main');
+    const call = open.find((entry) => entry.caller === 'subagent') ?? open[0];
+    if (call !== undefined) {
+      call.claimed = true;
+      return Promise.resolve(call.caller);
+    }
     return new Promise((resolve) => {
       const waiter = {
         key,
@@ -647,7 +651,10 @@ export class CodexEngineSession implements EngineSession {
           resolve(caller);
         },
       };
-      const abort = () => waiter.settle('unknown');
+      const abort = () =>
+        waiter.settle(
+          [...this.#children.values()].some((child) => child.running) ? 'subagent' : 'unknown',
+        );
       const timer = setTimeout(abort, waitMs);
       signal.addEventListener('abort', abort, { once: true });
       this.#gatewayWaiters.add(waiter);
@@ -657,8 +664,9 @@ export class CodexEngineSession implements EngineSession {
   #trackGatewayCall(item: Json, caller: EngineGatewayCaller): void {
     if (item['type'] !== 'mcpToolCall' || text(item['server']) !== CODEX_GATEWAY_SERVER) return;
     const key = gatewayCallKey(text(item['tool']), record(item['arguments']));
-    this.#gatewayCalls.set(text(item['id']), { key, caller });
-    for (const waiter of [...this.#gatewayWaiters]) if (waiter.key === key) waiter.settle(caller);
+    const waiter = [...this.#gatewayWaiters].find((entry) => entry.key === key);
+    this.#gatewayCalls.set(text(item['id']), { key, caller, claimed: waiter !== undefined });
+    waiter?.settle(caller);
   }
 
   #untrackGatewayCall(item: Json): void {
@@ -677,6 +685,7 @@ export class CodexEngineSession implements EngineSession {
     switch (method) {
       case 'turn/started':
         delete child.failure;
+        child.running = true;
         this.#emit({
           kind: 'subagent-start',
           subagentId: thread,
@@ -703,6 +712,7 @@ export class CodexEngineSession implements EngineSession {
       case 'turn/completed': {
         const turn = record(params['turn']);
         const status = turn['status'];
+        child.running = false;
         this.#emit({
           kind: 'subagent-end',
           subagentId: thread,
@@ -748,6 +758,7 @@ export class CodexEngineSession implements EngineSession {
       for (const thread of receivers) {
         const child = this.#children.get(thread) ?? {};
         child.title = codexSubagentTitle(prompt);
+        child.running = true;
         this.#children.set(thread, child);
         this.#emit({
           kind: 'subagent-start',
@@ -760,6 +771,8 @@ export class CodexEngineSession implements EngineSession {
       const state = record(raw);
       const end = codexSubagentEnd(text(state['status']), text(state['message']));
       if (end === undefined) continue;
+      const child = this.#children.get(thread);
+      if (child !== undefined) child.running = false;
       const message = text(state['message']);
       this.#emit({
         kind: 'subagent-end',

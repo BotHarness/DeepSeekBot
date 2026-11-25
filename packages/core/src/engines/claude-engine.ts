@@ -295,6 +295,13 @@ export function claudeToolName(name: string): string {
   return name.startsWith(GATEWAY_PREFIX) ? name.slice(GATEWAY_PREFIX.length) : name;
 }
 
+function asyncLaunch(message: Json, result: string): boolean {
+  return (
+    record(message['tool_use_result'])['status'] === 'async_launched' ||
+    /^Async agent launched/i.test(result)
+  );
+}
+
 function resultText(content: unknown): string {
   if (typeof content === 'string') return content;
   return (Array.isArray(content) ? content : [])
@@ -473,6 +480,7 @@ export class ClaudeEngineSession implements EngineSession {
   #outdated: string | undefined;
   #stderr = '';
   readonly #subagents = new Map<string, { background: boolean }>();
+  readonly #retiredSubagents = new Set<string>();
   readonly #approvals = new Map<string, (decision: EngineApprovalDecision) => void>();
 
   constructor(options: ClaudeEngineOptions) {
@@ -815,6 +823,8 @@ export class ClaudeEngineSession implements EngineSession {
         isError,
       });
       const subagent = this.#subagents.get(callId);
+      if (subagent !== undefined && !isError && asyncLaunch(message, result))
+        subagent.background = true;
       if (subagent !== undefined && (!subagent.background || isError))
         this.#subagentEnded(
           callId,
@@ -826,6 +836,7 @@ export class ClaudeEngineSession implements EngineSession {
 
   #step(parent: string, step: EngineSubagentStep): void {
     if (parent === '') this.#emit(step);
+    else if (this.#retiredSubagents.has(parent)) return;
     else this.#emit({ kind: 'subagent-step', subagentId: parent, step });
   }
 
@@ -845,6 +856,7 @@ export class ClaudeEngineSession implements EngineSession {
 
   #subagentEnded(callId: string, failure: EngineTurnEnd | undefined, result?: string): void {
     if (!this.#subagents.delete(callId)) return;
+    this.#retiredSubagents.add(callId);
     this.#emit({
       kind: 'subagent-end',
       subagentId: callId,
@@ -872,6 +884,7 @@ export class ClaudeEngineSession implements EngineSession {
   #result(message: Json): void {
     const turn = this.#turn;
     if (turn === undefined) return;
+    for (const callId of this.#subagents.keys()) this.#retiredSubagents.add(callId);
     this.#subagents.clear();
     this.#turn = undefined;
     if (turn.failure !== undefined) {

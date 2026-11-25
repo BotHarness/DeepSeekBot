@@ -194,7 +194,10 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
       origin: 'subagent',
       delegationDepth: 1,
     });
-    expect(claim).toHaveBeenCalledWith(child!.header.id, 'orchestrator-ada');
+    expect(claim).toHaveBeenCalledWith({
+      sessionId: child!.header.id,
+      parentSessionId: 'orchestrator-ada',
+    });
     expect(foldSubagentDescriptor(child!.events)).toEqual({
       version: 3,
       mode: 'one-shot',
@@ -234,6 +237,76 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
       tool: 'mcp__deepseekbot__bot_send_message',
       decision: { behavior: 'deny', message: SUBAGENT_GATEWAY_REFUSAL },
     });
+    await engines.close();
+  });
+
+  it('keeps a Claude Code sub-agent that launched in the background open until its task settles', async () => {
+    const agent = 'toolu_09Agent';
+    const lines: ClaudeRecordedLine[] = withClaudeSubagent().filter(
+      (line) => line.kind !== 'permission',
+    );
+    const ack = lines.findIndex(
+      (line) =>
+        line.kind === 'message' &&
+        line.msg['type'] === 'user' &&
+        line.msg['parent_tool_use_id'] === null &&
+        JSON.stringify(line.msg).includes(agent),
+    );
+    lines.splice(ack, 1);
+    const launch = claudeMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      tool_use_result: { status: 'async_launched', agentId: 'agent-1' },
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: agent,
+            content: 'Async agent launched successfully.',
+          },
+        ],
+      },
+    });
+    const start = lines.findIndex(
+      (line) => line.kind === 'message' && line.msg['parent_tool_use_id'] === agent,
+    );
+    lines.splice(start, 0, launch);
+    const settled = lines.findIndex(
+      (line) => line.kind === 'message' && line.msg['type'] === 'result',
+    );
+    lines.splice(
+      settled,
+      0,
+      claudeMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        tool_use_id: agent,
+        status: 'completed',
+        summary: 'Sunny, 24°C.',
+      }),
+    );
+    const dsh = memoryDsh();
+    const engines = host(dsh, { openClaude: claudeReplay([lines]).factory });
+    engines.use('ada', 'orchestrator', 'claude');
+    await engines.runTurn(request());
+
+    const [child, extra] = children(dsh);
+    expect(extra).toBeUndefined();
+    const transcript = summarizeSessionTranscript({
+      sessionId: child!.header.id,
+      events: child!.events,
+    });
+    expect(transcript.items.filter((item) => item.kind === 'turn-end')).toEqual([
+      expect.objectContaining({ state: 'done' }),
+    ]);
+    expect(transcript.items.map((item) => item.kind)).toEqual([
+      'input',
+      'reasoning',
+      'tool',
+      'reply',
+      'turn-end',
+    ]);
     await engines.close();
   });
 
@@ -317,6 +390,10 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
       }),
       notify('item/started', { threadId: CHILD_THREAD, item: send }),
       notify('item/completed', { threadId: CHILD_THREAD, item: send }),
+      notify('item/started', {
+        threadId: CHILD_THREAD,
+        item: { ...send, id: 'item-child-late', arguments: { body: 'Late' }, unannounced: true },
+      }),
       notify('item/completed', {
         threadId: CHILD_THREAD,
         item: {
@@ -367,6 +444,11 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
       JSON.stringify(call.result).includes('subagent-not-bot'),
     );
     expect(refused?.tool).toBe('bot_send_message');
+    expect(
+      replays[0]!.gatewayCalls.filter((call) =>
+        JSON.stringify(call.result).includes('subagent-not-bot'),
+      ),
+    ).toHaveLength(2);
 
     const [child] = children(dsh);
     expect(child?.header).toMatchObject({

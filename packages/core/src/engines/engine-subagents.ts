@@ -140,6 +140,7 @@ export class EngineSubagentLogs {
     })();
     const guarded = opening.catch((error: unknown) => {
       this.#host.warn?.(error);
+      if (this.#runs.get(subagentId) === guarded) this.#runs.delete(subagentId);
       return undefined;
     });
     this.#runs.set(subagentId, guarded);
@@ -177,7 +178,7 @@ export function engineSubagentLogs(
     engine,
     account: () => live.account,
     sessionIds: sessionIdsOf(live),
-    claim: (sessionId) => options.claimSubagent?.(sessionId, parentSessionId),
+    claim: (sessionId) => options.claimSubagent?.({ sessionId, parentSessionId }),
     open: async (sessionId) => {
       const sessions = options.sessions();
       const persistence = options.persistence();
