@@ -418,6 +418,8 @@ export function createRuntime(
     | 'registry'
     | 'profileRecovery'
     | 'schedules'
+    | 'meetings'
+    | 'meetingStore'
     | 'states'
     | 'operationalDatabase'
     | 'externalMessaging'
@@ -450,6 +452,8 @@ export function createRuntime(
     registry,
     profileRecovery,
     schedules,
+    meetings,
+    meetingStore,
     assignmentLimits,
     botHopLimit,
     states,
@@ -521,6 +525,7 @@ export function createRuntime(
     },
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
+    meetings: { meetings, store: meetingStore },
     assignmentConcurrencyLimit: () =>
       assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
     botHopLimit,

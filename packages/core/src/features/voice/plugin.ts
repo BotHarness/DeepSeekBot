@@ -15,6 +15,7 @@ import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { VoiceProviders } from '../../voice/providers.js';
 import { createVoiceMessages } from '../../voice/messages.js';
 import { createVoiceCalls, type VoiceCalls } from '../../voice/calls.js';
+import { MEETING_CHANNEL_PREFIX } from '../../voice/calls-types.js';
 import { callVisualMessage } from '../../voice/call-text.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from '../../channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from '../../voice/call-contract.js';
@@ -59,14 +60,23 @@ export function apply(
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
-  return { voiceProviders, voiceMessages, voiceSpeech, voiceZoom };
+  const voiceCallsRef: { current?: VoiceCalls | undefined } = {};
+  return { voiceProviders, voiceMessages, voiceSpeech, voiceZoom, voiceCallsRef };
 }
 
 export function mountCalls(
   ctx: Context,
   core: Pick<
     BotHarnessCore,
-    'voiceProviders' | 'registry' | 'attachments' | 'channels' | 'voiceSpeech' | 'voiceZoom' | 'tob'
+    | 'voiceProviders'
+    | 'registry'
+    | 'attachments'
+    | 'channels'
+    | 'voiceSpeech'
+    | 'voiceZoom'
+    | 'voiceCallsRef'
+    | 'meetings'
+    | 'tob'
   >,
   modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'],
   bridgeMethods: Pick<BridgeMethods, 'channelSend' | 'activityOverview'>,
@@ -88,6 +98,10 @@ export function mountCalls(
     providers: core.voiceProviders,
     media,
     async send({ channelId, messageId, body, callId, speech, visual }) {
+      if (channelId.startsWith(MEETING_CHANNEL_PREFIX)) {
+        core.meetings.hear(channelId.slice(MEETING_CHANNEL_PREFIX.length), body);
+        return;
+      }
       const { attachments, meta } = await callVisualMessage(core.attachments, messageId, visual);
       const result = await bridgeMethods.channelSend({
         channelId,
@@ -178,6 +192,7 @@ export function mountCalls(
     log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
   });
   setCalls(calls);
+  core.voiceCallsRef.current = calls;
   core.voiceSpeech.speak = (input) => calls.speak(input);
   core.voiceZoom.zoom = (input) => calls.zoom(input);
   setDrafts((event) => calls.draft(event));
@@ -185,6 +200,8 @@ export function mountCalls(
     () => async () => {
       core.voiceSpeech.speak = undefined;
       core.voiceZoom.zoom = undefined;
+      await core.meetings.dispose();
+      core.voiceCallsRef.current = undefined;
       setDrafts(() => undefined);
       setCalls(undefined);
       await calls.dispose();

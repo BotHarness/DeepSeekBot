@@ -754,5 +754,9 @@
   {
     "id": "bot-management-grants",
     "sha256": "63437bdd59b8ed905577534d32987ae8f5cf58ea60db90a546c183e35efe3caf"
+  },
+  {
+    "id": "meeting-attendance",
+    "sha256": "b4e73e388b54365fb64c69952a4d88b684273deb26e33588efa4ff521d51d24a"
   }
 ]

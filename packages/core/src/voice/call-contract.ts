@@ -279,7 +279,7 @@ export interface VoiceCallView {
   readonly phase: VoiceCallPhase;
   readonly muted: boolean;
   readonly busy: boolean;
-  readonly media: 'webrtc' | 'synthetic';
+  readonly media: 'webrtc' | 'synthetic' | 'meeting';
   readonly visual?: CallVisualSource | 'off';
   readonly startedAt: number;
   readonly durationMs: number;

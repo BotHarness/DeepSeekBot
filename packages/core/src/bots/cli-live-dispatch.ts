@@ -44,6 +44,7 @@ import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { runTobCli } from './cli-tob.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
+import { isMeetingCommand, runMeetingCommand } from './cli-meetings.js';
 import { isCallTimelineCommand, runCallTimelineCommand } from './cli-call-timeline.js';
 import { isTakeoverCommand, runTakeoverCommand } from './cli-takeover.js';
 import { isChannelCommand, runChannelCommand } from './cli-channels.js';
@@ -388,6 +389,10 @@ export async function runLiveCli(
     );
   if (command === 'tob-cli')
     return runTobCli(rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (isMeetingCommand(command))
+    return runMeetingCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))

@@ -269,6 +269,11 @@ export const STORAGE_OPTIONS = {
   'older-than-days': { type: 'string' },
 } as const;
 
+export const MEETING_OPTIONS = {
+  'listen-only': { type: 'boolean' },
+  meeting: { type: 'string' },
+} as const;
+
 export const TAKEOVER_OPTIONS = {
   minutes: { type: 'string' },
   pending: { type: 'boolean' },
@@ -375,6 +380,7 @@ export const LIVE_OPTIONS = {
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
   ...TAKEOVER_OPTIONS,
+  ...MEETING_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,

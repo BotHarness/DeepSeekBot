@@ -38,6 +38,8 @@ import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
+import { createMeetingStore } from './meetings/store.js';
+import { createMeetings, type MeetingFarEnd } from './meetings/meetings.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -349,7 +351,7 @@ function initializeCore(
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
   const prompts = promptPresets.apply({ dshHome, registry, ownership });
-  const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
+  const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom, voiceCallsRef } = voice.apply(
     startup,
     operationalDatabase,
     registry,
@@ -357,6 +359,35 @@ function initializeCore(
     attachments,
     options,
   );
+  startup.enter('meetings', 'initialize');
+  const meetingFarEnds: { list: MeetingFarEnd[] } = { list: [] };
+  const meetingStore = createMeetingStore({
+    database: attachOperationalModule(operationalDatabase, 'meetings'),
+  });
+  if (operationalDatabase.mode === 'ready') meetingStore.failInterrupted();
+  const meetings = createMeetings({
+    store: meetingStore,
+    calls: () => voiceCallsRef.current,
+    farEnds: () => meetingFarEnds.list,
+    bot: (slug) => {
+      const bot = registry.get(slug);
+      if (bot === undefined) return undefined;
+      const asr = voiceProviders.effective(bot)?.asr;
+      return {
+        displayName: bot.displayName,
+        ...(bot.paused === true ? { paused: true } : {}),
+        ...(asr === undefined ? {} : { asr }),
+      };
+    },
+    hasAsr: (id) => voiceProviders.has(id, 'asr'),
+    admitted: (slug) => runtime?.admitMeetingSpeech?.(slug),
+    ...(options.voiceLog === undefined
+      ? {}
+      : {
+          log: (phase: string, fields: Record<string, string | number>) =>
+            options.voiceLog?.(phase, fields),
+        }),
+  });
   startup.enter('bot-runtime', 'initialize');
   runtime = personabotsFeature.createRuntime({
     options,
@@ -371,6 +402,8 @@ function initializeCore(
     registry,
     profileRecovery,
     schedules,
+    meetings,
+    meetingStore,
     assignmentLimits,
     botHopLimit,
     states,
@@ -423,6 +456,10 @@ function initializeCore(
     voiceMessages,
     voiceSpeech,
     voiceZoom,
+    voiceCallsRef,
+    meetings,
+    meetingStore,
+    meetingFarEnds,
     prompts,
     deletions,
     profileRecovery,

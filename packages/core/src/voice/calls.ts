@@ -164,6 +164,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
     call.warmed = undefined;
     push(call, { type: 'ended', reason });
+    call.onEnded?.(reason);
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     recordEnd(call, reason);
     const perf = call.perf.view();
@@ -372,6 +373,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
 
   return {
     handle: commands.handle,
+    attend: commands.attend,
     draft: onDraft,
     speak,
     zoom,

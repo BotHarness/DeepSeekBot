@@ -26,6 +26,7 @@ export function conversationSql(event: string): string {
     WHEN ${event}.assignment_session_id IS NOT NULL THEN 'assignment:' || ${event}.assignment_session_id
     WHEN ${channelSql(event)} IS NOT NULL THEN 'channel:' || ${channelSql(event)}
     WHEN ${event}.source_kind = 'schedule' THEN 'schedule:' || COALESCE(json_extract(${event}.payload_json, '$.schedule.id'), ${event}.source_event_id)
+    WHEN ${event}.source_kind = 'meeting-speech' THEN 'meeting:' || COALESCE(json_extract(${event}.payload_json, '$.meeting.id'), ${event}.source_event_id)
     ELSE 'event:' || ${event}.source_event_id
   END`;
 }

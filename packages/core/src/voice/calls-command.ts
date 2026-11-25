@@ -27,7 +27,7 @@ import {
   recordSchedulingDiagnostic,
   schedulingIdentity,
 } from '../process/scheduling-diagnostics.js';
-import { ended } from './calls-types.js';
+import { ended, MEETING_CHANNEL_PREFIX } from './calls-types.js';
 import type {
   VoiceCaller,
   VoiceCallMediaPeer,
@@ -129,7 +129,7 @@ export function createCallCommands(wiring: {
   reportDropped: (call: Call, source: CallVisualSource, dropped: number) => void;
   harvest: (call: Call) => void;
   zoom: (input: { slug?: string; messageId: string; cell: number }) => VoiceCallZoom;
-}): Pick<VoiceCalls, 'handle'> {
+}): Pick<VoiceCalls, 'handle' | 'attend'> {
   const {
     deps,
     live,
@@ -215,9 +215,10 @@ export function createCallCommands(wiring: {
   const prepareCall = async (
     caller: VoiceCaller,
     slug: string,
-    kind: 'webrtc' | 'synthetic',
+    kind: 'webrtc' | 'synthetic' | 'meeting',
     signal: AbortSignal,
     startedAt: number,
+    meetingId?: string,
   ): Promise<Call> => {
     signal.throwIfAborted();
     const bot = deps.bot(slug);
@@ -228,7 +229,10 @@ export function createCallCommands(wiring: {
         'asr-not-configured',
         'Bind a speech recognition (ASR) Provider to this Bot before calling it.',
       );
-    if (bot.voice === undefined || !deps.providers.has(bot.voice.providerId, 'tts'))
+    if (
+      kind !== 'meeting' &&
+      (bot.voice === undefined || !deps.providers.has(bot.voice.providerId, 'tts'))
+    )
       throw new CallRefusal(
         'tts-not-configured',
         'Bind a TTS Provider to this Bot before calling it.',
@@ -268,7 +272,7 @@ export function createCallCommands(wiring: {
     const call: Call = {
       id: `call-${randomBytes(8).toString('hex')}`,
       slug,
-      channelId: dmChannelId(slug),
+      channelId: kind === 'meeting' ? `${MEETING_CHANNEL_PREFIX}${meetingId}` : dmChannelId(slug),
       caller: caller.deviceId,
       client: caller.client,
       media: kind,
@@ -332,7 +336,7 @@ export function createCallCommands(wiring: {
       log('call-connected', { call: call.id, ms: now() - call.startedAt });
       void samplePerf(call, now());
     };
-    if (kind === 'synthetic') {
+    if (kind === 'synthetic' || kind === 'meeting') {
       call.peer = syntheticPeer();
       connected();
     } else {
@@ -684,6 +688,29 @@ export function createCallCommands(wiring: {
   };
 
   return {
+    async attend(input) {
+      const call = await prepareCall(
+        { deviceId: `${MEETING_CHANNEL_PREFIX}${input.meetingId}` },
+        input.slug,
+        'meeting',
+        new AbortController().signal,
+        now(),
+        input.meetingId,
+      );
+      call.onEnded = input.onEnded;
+      return {
+        callId: call.id,
+        hear(samples) {
+          if (call.phase === 'ended') return;
+          call.lastHeartbeat = now();
+          hear(call, samples);
+        },
+        touch() {
+          call.lastHeartbeat = now();
+        },
+        end: (reason) => end(call, reason),
+      };
+    },
     async handle(caller, command, signal) {
       try {
         return await run(caller, command, signal);

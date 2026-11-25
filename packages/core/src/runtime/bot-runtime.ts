@@ -218,6 +218,11 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#features.groupDigest.checkHarvestReadiness(botSlug);
   }
 
+  admitMeetingSpeech(botSlug: string): void {
+    if (this.#features.closed()) return;
+    this.#features.groupDigest.checkHarvestReadiness(botSlug);
+  }
+
   admitExternalSource(botSlug: string, sourceEventId: string): void {
     this.#features.messagingEvents.admitExternalSource(botSlug, sourceEventId);
   }

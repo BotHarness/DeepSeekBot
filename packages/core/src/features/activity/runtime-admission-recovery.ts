@@ -141,10 +141,10 @@ export function createRuntimeAdmissionRecovery(ports: RuntimeAdmissionRecoveryPo
           .prepare(
             `
             UPDATE source_events SET observed_at = NULL
-             WHERE source_kind IN ('memory-change', 'schedule', 'bridge-message')
+             WHERE source_kind IN ('memory-change', 'schedule', 'meeting-speech', 'bridge-message')
                AND source_event_id IN (
                  SELECT source_event_id FROM inbox_admissions
-                  WHERE reason IN ('memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm') AND attempt_state = 'retryable'
+                  WHERE reason IN ('memory-change', 'schedule', 'meeting', 'group-mention', 'group-ordinary', 'human-dm') AND attempt_state = 'retryable'
                     AND side_effect_started_at IS NULL
                )
           `,
@@ -154,7 +154,7 @@ export function createRuntimeAdmissionRecovery(ports: RuntimeAdmissionRecoveryPo
           .prepare(
             `
             UPDATE inbox_admissions SET observed_at = NULL
-             WHERE (reason IN ('memory-change', 'schedule', 'group-mention', 'group-ordinary') OR
+             WHERE (reason IN ('memory-change', 'schedule', 'meeting', 'group-mention', 'group-ordinary') OR
                     (reason = 'human-dm' AND source_event_id IN (
                       SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'
                     ))) AND attempt_state = 'retryable'

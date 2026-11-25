@@ -33,6 +33,7 @@ import type {
   BotScheduleChange,
   BotScheduleInput,
 } from '../../schedules/bot-schedules.js';
+import type { OrchestratorMeetings } from '../../meetings/commands.js';
 import type {
   AssignmentAgentRun,
   AssignmentRequestDelivery,
@@ -187,6 +188,7 @@ export interface OrchestratorAgentRun {
     update(id: string, change: BotScheduleChange): BotSchedule;
     remove(id: string): boolean;
   };
+  meetings?: OrchestratorMeetings;
 }
 
 export interface InterruptedToolCall {

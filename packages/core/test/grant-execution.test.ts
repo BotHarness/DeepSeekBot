@@ -248,6 +248,10 @@ describe('Workspace Grant execution boundary', () => {
       'bot_schedule_create',
       'bot_schedule_update',
       'bot_schedule_delete',
+      'meeting_join',
+      'meeting_leave',
+      'meeting_status',
+      'meeting_transcript',
     ])
       expect(requiresHumanToolApproval(tool)).toBe(false);
   });

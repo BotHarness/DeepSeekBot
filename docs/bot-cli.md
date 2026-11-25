@@ -785,6 +785,19 @@ A Takeover Handoff is how a Bot asks the Human to operate its Computer or Bot Br
 
 `takeover-request` posts the card as the Bot through the same Host code as the Bot tool, in the Bot's DM unless `--channel` names a Channel the Bot can post in. `takeover-complete` and `takeover-cancel` act as the Human, like the card's buttons, and wake the Bot; `takeover-cancel --bot <bot-id>` withdraws the request as that Bot, like `takeover_cancel`, and wakes nobody. `takeovers <bot-id>` reads what `takeover_list` returns. Refusals keep their code: `unknown-bot`, `invalid-input`, `target-off` (Browser or Computer Access is off), `channel-unavailable`, `already-pending`, `not-found` and `not-pending`. Each request, refusal and outcome is recorded in the diagnostic log under the source `takeover` with ids, counts, lengths and timings only, never the title or sentence; read it with `deepseekbot diagnostic-logs` or `diagnostic-logs-export`.
 
+### Meetings on a live Host
+
+A Bot attends a meeting as a call ([ADR-0369](adr/0369-a-bot-attends-a-meeting-as-a-call-through-a-host-browser.md)). These commands run the `meeting_join`, `meeting_leave`, `meeting_status` and `meeting_transcript` Bot tools through the Host, like `bot-tool`:
+
+```bash
+deepseekbot meeting-join <id> <meeting-url> [--listen-only] [--cause-event <source-event>]
+deepseekbot meeting-leave <id>
+deepseekbot meeting-status <id>
+deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
+```
+
+Only the Bot's Owner can send it to a meeting for now: pass `--cause-event` with the source event of the Owner's DM message that carried the link, or the join is refused with `needs-owner`. The Bot needs an ASR Provider (`asr-not-configured`) and a free call slot (`call-active`, `calls-full`). Other errors: `invalid-url`, `unsupported-platform`, `already-in-meeting`, `not-in-meeting`, `join-failed`. What the Bot hears arrives in its Bot Inbox as `meeting-speech`, never in a Channel; when the meeting ends the Bot writes the recap to the Channel the link came from. Platform page drivers (Zoom first) ship separately; until one is installed, every link returns `unsupported-platform`.
+
 ### Browser and Computer: observation, packages, transfer and logs
 
 ```bash

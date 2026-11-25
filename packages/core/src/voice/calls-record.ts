@@ -18,7 +18,7 @@ export function createCallRecording({
   const iso = (ms: number) => new Date(ms).toISOString();
 
   const writeRecord = async (call: Call, record: ChannelVoiceCallLifecycle) => {
-    if (deps.record === undefined) return undefined;
+    if (deps.record === undefined || call.media === 'meeting') return undefined;
     try {
       return await deps.record({ slug: call.slug, channelId: call.channelId, record });
     } catch (error) {

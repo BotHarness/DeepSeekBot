@@ -733,6 +733,19 @@ deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--
 
 `takeover-request` 以 Bot 身份、通过与 Bot 工具相同的 Host 代码发布卡片，默认在 Bot 的私聊里，`--channel` 可指定 Bot 能发言的 Channel。`takeover-complete` 和 `takeover-cancel` 以 Human 身份操作，与卡片按钮相同，并唤醒 Bot；`takeover-cancel --bot <bot-id>` 以该 Bot 身份撤回请求，与 `takeover_cancel` 相同，不唤醒任何人。`takeovers <bot-id>` 读取与 `takeover_list` 相同的内容。被拒时保留错误码：`unknown-bot`、`invalid-input`、`target-off`（浏览器或 Computer 权限未开启）、`channel-unavailable`、`already-pending`、`not-found` 和 `not-pending`。每次请求、拒绝和结果都以来源 `takeover` 记入诊断日志，只含 id、数量、长度和耗时，从不含标题或那句话；用 `deepseekbot diagnostic-logs` 或 `diagnostic-logs-export` 读取。
 
+### 在运行中的 Host 上参会
+
+Bot 参会就是一通通话（[ADR-0369](adr/0369-a-bot-attends-a-meeting-as-a-call-through-a-host-browser.md)）。这些命令经 Host 运行 `meeting_join`、`meeting_leave`、`meeting_status`、`meeting_transcript` 四个 Bot 工具，和 `bot-tool` 一样：
+
+```bash
+deepseekbot meeting-join <id> <meeting-url> [--listen-only] [--cause-event <source-event>]
+deepseekbot meeting-leave <id>
+deepseekbot meeting-status <id>
+deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
+```
+
+目前只有 Bot 的 Owner 能让它参会：用 `--cause-event` 传入 Owner 发链接那条私信的 source event，否则返回 `needs-owner`。Bot 需要绑定 ASR Provider（`asr-not-configured`），并且有空闲通话位（`call-active`、`calls-full`）。其他错误：`invalid-url`、`unsupported-platform`、`already-in-meeting`、`not-in-meeting`、`join-failed`。Bot 听到的内容以 `meeting-speech` 进入它的 Bot Inbox，不会写进任何 Channel；会议结束后 Bot 把纪要发回链接来源的 Channel。各平台的页面驱动（先做 Zoom）单独发布，安装前所有链接都返回 `unsupported-platform`。
+
 ### Local Computer 视频
 
 Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。

@@ -8,9 +8,11 @@ export interface InboxReportRow {
     | 'assignment-lifecycle'
     | 'memory-change'
     | 'bridge-message'
-    | 'schedule';
+    | 'schedule'
+    | 'meeting-speech';
   external?: ExternalSource;
   schedule_json?: string | null;
+  meeting_json?: string | null;
   assignment_session_id: string | null;
   body: string;
   created_at: string;

@@ -4,6 +4,7 @@ import type { createAssignmentEvents } from '../features/assignments/events.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { trustedSenderReference } from '../messaging/permissions/index.js';
 import { hasPendingScheduleFiring } from '../features/schedules/events.js';
+import { hasPendingMeetingSpeech } from '../meetings/store.js';
 import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboundMessaging } from '../messaging/outbound.js';
@@ -258,7 +259,8 @@ export function createGroupDigest(ports: GroupDigestPorts) {
       return;
     }
     if (
-      hasPendingScheduleFiring(ports.database, botSlug) &&
+      (hasPendingScheduleFiring(ports.database, botSlug) ||
+        hasPendingMeetingSpeech(ports.database, botSlug)) &&
       ports.dmChannel(botSlug) !== undefined
     ) {
       ports.scheduling.scheduleHarvest(botSlug);

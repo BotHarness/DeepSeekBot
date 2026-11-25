@@ -21,6 +21,7 @@ import type { TobCliTurn } from '../../tob/cli-request.js';
 import type { createAssignmentEvents } from '../assignments/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { scheduleInboxFacts } from '../schedules/events.js';
+import { meetingInboxFacts } from '../../meetings/store.js';
 import type { DatabaseSync } from 'node:sqlite';
 
 function onlyPairedLifecycle(unit: InboxUnit): boolean {
@@ -49,7 +50,14 @@ function keptLifecycleNotice(
 export function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   const units = new Map<string, InboxUnit>();
   for (const row of rows) {
-    const key = row.assignment_session_id ?? row.source_event_id;
+    const meetingId =
+      row.source_kind === 'meeting-speech'
+        ? meetingInboxFacts(row.meeting_json).meeting?.id
+        : undefined;
+    const key =
+      meetingId === undefined
+        ? (row.assignment_session_id ?? row.source_event_id)
+        : `meeting:${meetingId}`;
     const existing = units.get(key);
     const kept = keptLifecycleNotice(row);
     if (kept !== undefined && existing !== undefined) {
@@ -63,6 +71,7 @@ export function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
         sourceKind: row.source_kind,
         ...(row.external === undefined ? {} : { external: row.external }),
         ...scheduleInboxFacts(row.schedule_json),
+        ...meetingInboxFacts(row.meeting_json),
         assignmentSessionId: row.assignment_session_id,
         summary: row.body,
         createdAt: row.created_at,
@@ -75,6 +84,12 @@ export function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
       });
       continue;
     }
+    const meeting = meetingInboxFacts(row.meeting_json).meeting;
+    if (meeting !== undefined)
+      existing.meeting = {
+        ...meeting,
+        lines: [...(existing.meeting?.lines ?? []), ...meeting.lines],
+      };
     existing.sourceEventId = row.source_event_id;
     existing.sourceKind = row.source_kind;
     existing.summary = row.body;
@@ -801,6 +816,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
             `SELECT e.source_event_id, e.source_kind, e.assignment_session_id,
                     e.body, e.created_at, e.expects_reply, a.continuity_key,
                     CASE WHEN e.source_kind = 'schedule' THEN e.payload_json END AS schedule_json,
+                    CASE WHEN e.source_kind = 'meeting-speech' THEN e.payload_json END AS meeting_json,
                     json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') AS paired_report_id,
                     json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS lifecycle_cause,
                     CASE WHEN a.stop_state = 'running' THEN a.open_ask_source_event_id END AS open_ask_id,
@@ -811,12 +827,12 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
                FROM source_events e
                LEFT JOIN assignments a ON a.session_id = e.assignment_session_id
               WHERE e.bot_slug = ?
-                AND e.source_kind IN ('assignment-report', 'assignment-lifecycle', 'schedule')
+                AND e.source_kind IN ('assignment-report', 'assignment-lifecycle', 'schedule', 'meeting-speech')
                 AND e.observed_at IS NULL
-                AND (e.source_kind <> 'schedule' OR NOT EXISTS (
+                AND (e.source_kind NOT IN ('schedule', 'meeting-speech') OR NOT EXISTS (
                   SELECT 1 FROM inbox_admissions i
                   WHERE i.source_event_id = e.source_event_id AND i.bot_slug = e.bot_slug
-                    AND i.reason = 'schedule'
+                    AND i.reason IN ('schedule', 'meeting')
                     AND (i.attempt_state NOT IN ('pending', 'retryable') OR i.side_effect_started_at IS NOT NULL)
                 ))
               ORDER BY e.rowid DESC
