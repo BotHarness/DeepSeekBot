@@ -34,11 +34,11 @@ export function KeyboardChatFrame({
       {background}
       <View style={{ flex: 1 }}>{children}</View>
       <KeyboardStickyView
-        offset={{ closed: 0 - island, opened: 0 }}
+        offset={{ closed: lowered.settled - island, opened: 0 }}
         onLayout={onComposerLayout}
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
       >
-        <Animated.View style={lowered}>{composer}</Animated.View>
+        <Animated.View style={lowered.style}>{composer}</Animated.View>
       </KeyboardStickyView>
     </View>
   );

@@ -43,7 +43,7 @@ export function KeyboardChatFrame({
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
       <KeyboardAvoidingView
-        style={{ flex: 1, marginBottom: island }}
+        style={{ flex: 1, marginBottom: island - lowered.settled }}
         behavior="padding"
         keyboardVerticalOffset={-composerKeyboardGap(safe)}
       >
@@ -51,7 +51,7 @@ export function KeyboardChatFrame({
           {children}
           <Animated.View
             onLayout={onComposerLayout}
-            style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, lowered]}
+            style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, lowered.style]}
           >
             {composer}
           </Animated.View>

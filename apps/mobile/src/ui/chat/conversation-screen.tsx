@@ -187,10 +187,6 @@ function ChatConversation({
   const [profileVisited, setProfileVisited] = useState(false);
   const [profileOpening, setProfileOpening] = useState(false);
   const island = use(ChatIslandInset) > 0;
-  const history = useHistoryChrome({
-    enabled: island && focused,
-    inverted: Platform.OS === 'android',
-  });
   const prepareProfile = () => {
     setProfileVisited(true);
     setProfileOpening(true);
@@ -219,6 +215,10 @@ function ChatConversation({
     timeline,
   });
   const { viewportLayout, composable, compose } = composer;
+  const history = useHistoryChrome({
+    enabled: island && focused && !composer.typing,
+    inverted: Platform.OS === 'android',
+  });
   const stackRoot = useStackRoot();
   const tabRoot = useTabRoot();
   const closePresentation = presentation?.onClose;
