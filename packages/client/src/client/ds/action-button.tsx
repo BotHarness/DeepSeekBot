@@ -69,7 +69,7 @@ const styles = stylex.create({
 });
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style' | 'children'> & {
   children: ReactNode;
-  icon: ActionSymbol;
+  icon?: ActionSymbol;
   tone?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   size?: 'sm' | 'md';
@@ -103,13 +103,15 @@ export function ActionButton({
       aria-busy={busy || rest['aria-busy']}
       {...(pill ? { xstyle: appearance } : stylex.props(...appearance))}
     >
-      <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
-        {busy || icon === 'refresh' ? (
-          <Icon name="refresh-cw" size={16} />
-        ) : (
-          <ChannelSidebarIcon name={icon} />
-        )}
-      </span>
+      {busy || icon !== undefined ? (
+        <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
+          {icon === undefined || busy || icon === 'refresh' ? (
+            <Icon name="refresh-cw" size={16} />
+          ) : (
+            <ChannelSidebarIcon name={icon} />
+          )}
+        </span>
+      ) : null}
       <span {...stylex.props(styles.label)}>{children}</span>
     </Button>
   );
