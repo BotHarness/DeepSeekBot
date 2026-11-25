@@ -21,6 +21,12 @@ import {
 import type { InboundMessaging } from './inbound-types.js';
 import type { InboundMessagingOptions } from './inbound.js';
 
+export const pairingPendingNotice = (reference: string) =>
+  [
+    `Pairing request ${reference} is waiting for review and expires in 10 minutes. Your message will not run. A pairing reviewer can reply to this message with "approve [role]" or "reject". / 配对申请 ${reference} 等待审核，10 分钟后过期，该消息不会执行。有配对审核权限的人可回复本消息「同意 [角色]」或「拒绝」。`,
+    `#${reference}`,
+  ].join('\n\n');
+
 export function createInboundControlReceiver(wiring: {
   controlRetries: ReceiverRecovery;
   options: InboundMessagingOptions;
@@ -208,6 +214,7 @@ export function createInboundControlReceiver(wiring: {
   ) => {
     if (!options.pairing || !options.pairing.notice(request.id, key)) return;
     let outcome: 'accepted' | 'unconfirmed' = 'unconfirmed';
+    let receipt: { messageId: string; conversationId: string } | undefined;
     try {
       const identity = database.read((db) => assertMessagingIdentity(db, request.bindingId));
       const entry = providers.get(identity.providerId);
@@ -216,8 +223,8 @@ export function createInboundControlReceiver(wiring: {
         throw new MessagingError('consumer-unavailable');
       const text = key.startsWith('approved:')
         ? 'Pairing approved. Please send your question again as a new message. Your earlier request will not run. / 配对已批准，请重新发送新问题。之前的请求不会执行。'
-        : `Pairing request ${request.reference} is waiting for Human review and expires in 10 minutes. Your message will not run. / 配对申请 ${request.reference} 等待人工审核，10 分钟后过期。该消息不会执行。`;
-      await bounded(
+        : pairingPendingNotice(request.reference);
+      const sent = await bounded(
         entry.provider.reply({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
@@ -257,8 +264,13 @@ export function createInboundControlReceiver(wiring: {
         }),
       );
       outcome = 'accepted';
+      if (sent.receipt)
+        receipt = {
+          messageId: sent.receipt.messageId,
+          conversationId: sent.receipt.conversationId,
+        };
     } catch {}
-    options.pairing.notice(request.id, key, outcome);
+    options.pairing.notice(request.id, key, outcome, receipt);
     options.warn?.(
       JSON.stringify({
         event: 'bot-pairing',
