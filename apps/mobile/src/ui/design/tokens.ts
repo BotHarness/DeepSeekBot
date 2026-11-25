@@ -407,9 +407,6 @@ export const tabChrome = {
   hideDuration: 200,
   pillHold: 700,
   pillFade: 160,
-  tabFade: 200,
-  fadeThrough: 300,
-  fadeThroughScale: 0.92,
 } as const;
 
 export const markdownTable = {

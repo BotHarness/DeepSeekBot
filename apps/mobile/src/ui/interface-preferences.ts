@@ -11,6 +11,7 @@ export type SessionReturnLanding = 'stay' | 'new' | 'list';
 export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
+  sessionsTab: boolean;
   tabOrder: readonly TabSlot[];
   sessionSort: HostSessionSort;
   hideBotSessions: boolean;
@@ -38,6 +39,7 @@ export function createInterfacePreferences() {
   let value: InterfacePreferences = {
     language: 'system',
     appearance: 'system',
+    sessionsTab: false,
     tabOrder: defaultTabOrder,
     sessionSort: 'last-human-turn',
     hideBotSessions: false,
@@ -86,6 +88,12 @@ export function createInterfacePreferences() {
       try {
         const saved = await adapter.read();
         if (typeof saved === 'object' && saved !== null) {
+          if (
+            !touched.has('sessionsTab') &&
+            'sessionsTab' in saved &&
+            typeof saved.sessionsTab === 'boolean'
+          )
+            value.sessionsTab = saved.sessionsTab;
           if (!touched.has('tabOrder') && 'tabOrder' in saved)
             value.tabOrder = parseTabOrder(saved.tabOrder);
           if (
@@ -163,6 +171,9 @@ export function createInterfacePreferences() {
     setAppearance(appearance: AppearancePreference) {
       change('appearance', appearance);
     },
+    setSessionsTab(sessionsTab: boolean) {
+      change('sessionsTab', sessionsTab);
+    },
     setTabOrder(tabOrder: readonly TabSlot[]) {
       change('tabOrder', parseTabOrder(tabOrder));
     },
@@ -202,6 +213,7 @@ export function createInterfacePreferences() {
 
 export const interfacePreferences = createInterfacePreferences();
 
+const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
 const tabOrderSnapshot = () => interfacePreferences.getSnapshot().tabOrder;
 const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
 
@@ -220,6 +232,14 @@ export function useSessionSort() {
     interfacePreferences.subscribe,
     sessionSortSnapshot,
     sessionSortSnapshot,
+  );
+}
+
+export function useSessionsTab() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionsTabSnapshot,
+    sessionsTabSnapshot,
   );
 }
 

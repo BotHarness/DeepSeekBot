@@ -36,9 +36,11 @@ export type TabMenus = Partial<Record<TabMenuRoute, readonly TabMenuEntry[]>>;
 export type TabMenuState = { menus: TabMenus; load: RefCallback<unknown> };
 
 export function useTabMenus({
+  sessionsTab,
   focusedRoute,
   go,
 }: {
+  sessionsTab: boolean;
   focusedRoute: string | undefined;
   go(route: TabMenuRoute): void;
 }): TabMenuState {
@@ -58,7 +60,12 @@ export function useTabMenus({
     () => client?.getSnapshot().connection.status === 'connected',
   );
   const hideBotSessions = useHideBotSessions();
-  const { rows: recent, load } = useRecentSessions(client, saved?.hostId, online, focusedRoute);
+  const { rows: recent, load } = useRecentSessions(
+    sessionsTab ? client : undefined,
+    saved?.hostId,
+    online,
+    focusedRoute,
+  );
   const sessions = recentSessionsShown(recent, hideBotSessions);
   const canCreateSession = canCreateNativeSession(saved);
 
@@ -80,6 +87,7 @@ export function useTabMenus({
     t.hostSessions.create,
     t.hostSessions.untitled,
     canGroup,
+    sessionsTab,
     canCreateSession,
     saved?.hostId,
     chats.map(({ hostId, conversation }) => [
@@ -143,30 +151,32 @@ export function useTabMenus({
     }));
     if (activityEntries.length > 0) next['(activity)'] = activityEntries;
 
-    const hostId = saved?.hostId;
-    const sessionEntries: TabMenuEntry[] =
-      hostId === undefined
-        ? []
-        : (sessions ?? []).map((row) => ({
-            key: `${hostId}:${row.sessionId}`,
-            label: row.title ?? t.hostSessions.untitled,
-            glyph: 'session',
-            run: () => {
-              now().go('(sessions)');
-              openDrawerSession(hostId, row);
-            },
-          }));
-    if (canCreateSession)
-      sessionEntries.push({
-        key: 'new-session',
-        label: t.hostSessions.create,
-        glyph: 'new',
-        run: () => {
-          now().go('(sessions)');
-          openNewSession();
-        },
-      });
-    if (sessionEntries.length > 0) next['(sessions)'] = sessionEntries;
+    if (sessionsTab) {
+      const hostId = saved?.hostId;
+      const sessionEntries: TabMenuEntry[] =
+        hostId === undefined
+          ? []
+          : (sessions ?? []).map((row) => ({
+              key: `${hostId}:${row.sessionId}`,
+              label: row.title ?? t.hostSessions.untitled,
+              glyph: 'session',
+              run: () => {
+                now().go('(sessions)');
+                openDrawerSession(hostId, row);
+              },
+            }));
+      if (canCreateSession)
+        sessionEntries.push({
+          key: 'new-session',
+          label: t.hostSessions.create,
+          glyph: 'new',
+          run: () => {
+            now().go('(sessions)');
+            openNewSession();
+          },
+        });
+      if (sessionEntries.length > 0) next['(sessions)'] = sessionEntries;
+    }
     return next;
   }, [signature]);
   return { menus, load };
