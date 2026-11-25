@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import type { SheetFrameProps } from './sheet-frame';
-import { sheetContentCap, sheetDetent } from './sheet-detent';
+import { sheetContentCap, sheetDetent, type SheetDetent } from './sheet-detent';
 
 export function SheetFrame({
   visible,
@@ -24,6 +24,7 @@ export function SheetFrame({
   children,
   avoidKeyboard,
   fill,
+  resizable,
 }: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -32,6 +33,7 @@ export function SheetFrame({
   const [content, setContent] = useState<number>();
   const [shown, setShown] = useState(false);
   const [round, setRound] = useState(0);
+  const [detent, setDetent] = useState<SheetDetent>('medium');
   const open = useRef(visible);
   open.current = visible;
   if (visible && !shown) setShown(true);
@@ -60,6 +62,8 @@ export function SheetFrame({
     );
   if (!visible && !shown) return null;
   const room = { window: height, top: insets.top, bottom: insets.bottom, touch: theme.touch };
+  const typing = avoidKeyboard || keyboard > 0;
+  const resizing = resizable === true && !typing;
   return (
     <Host
       key={round}
@@ -79,6 +83,7 @@ export function SheetFrame({
           }
           setShown(false);
           setContent(undefined);
+          setDetent('medium');
           onDismissed?.();
         }}
       >
@@ -86,20 +91,26 @@ export function SheetFrame({
           modifiers={[
             frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'top' }),
             padding({ top: space.x6 }),
-            presentationDetents([sheetDetent(room, content, avoidKeyboard || keyboard > 0)]),
+            resizing
+              ? presentationDetents(['medium', 'large'], {
+                  selection: detent,
+                  onSelectionChange: (next) => setDetent(next === 'large' ? 'large' : 'medium'),
+                })
+              : presentationDetents([sheetDetent(room, content, typing)]),
             presentationDragIndicator('visible'),
             presentationBackground(theme.overlay.fill),
           ]}
         >
-          <RNHostView matchContents={{ vertical: true }}>
+          <RNHostView matchContents={resizable === true ? false : { vertical: true }}>
             <View
               accessibilityLabel={label}
               onAccessibilityEscape={onClose}
               onLayout={(event) => setContent(event.nativeEvent.layout.height)}
-              style={{
-                maxHeight: sheetContentCap(room, keyboard),
-                paddingBottom: space.x5,
-              }}
+              style={
+                resizable === true
+                  ? { flex: 1, paddingBottom: space.x5 }
+                  : { maxHeight: sheetContentCap(room, keyboard), paddingBottom: space.x5 }
+              }
             >
               {children}
             </View>
