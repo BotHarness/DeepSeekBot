@@ -397,54 +397,54 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[status]}>{statusLabel[status]}</Tag>
           )
         }
-        {...(menu.length === 0 && subagents === undefined
+        {...(subagents === undefined
+          ? {}
+          : {
+              chipActions: (
+                <SessionSubagentToggle
+                  count={subagents}
+                  title={row.title}
+                  open={subagentsExpanded}
+                  onToggle={() => toggleSubagents(row.sessionId)}
+                  t={t}
+                />
+              ),
+            })}
+        {...(menu.length === 0
           ? {}
           : {
               trailingAlign: 'start' as const,
               trailing: (
                 <>
-                  {subagents === undefined ? null : (
-                    <SessionSubagentToggle
-                      count={subagents}
-                      title={row.title}
-                      open={subagentsExpanded}
-                      onToggle={() => toggleSubagents(row.sessionId)}
-                      t={t}
-                    />
-                  )}
-                  {menu.length === 0 ? null : (
-                    <SessionRowMenu
-                      label={t('sessions.moreNamed', { title: row.title })}
-                      items={menu}
-                      onSelect={(id) => {
-                        if (botSlug === undefined) return;
-                        if (id === 'stop') {
-                          if (row.role === 'orchestrator' && runningAssignments > 0) {
-                            setStopAll(false);
-                            setConfirmStop({ sessionId: row.sessionId, title: row.title });
-                          } else runStop(botSlug, row.sessionId, false);
-                        } else if (id === 'work') {
-                          setWork({ sessionId: row.sessionId, title: row.title });
-                        } else if (id === 'open') {
-                          void actions.openSession(row.sessionId);
-                        } else if (id === 'archive') {
-                          setArchiving(row.sessionId);
-                          setArchiveError(undefined);
-                          void actions
-                            .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
-                            .catch((error: unknown) =>
-                              setArchiveError(
-                                error instanceof Error ? error.message : String(error),
-                              ),
-                            )
-                            .finally(() => {
-                              setArchiving(undefined);
-                              setReload((value) => value + 1);
-                            });
-                        }
-                      }}
-                    />
-                  )}
+                  <SessionRowMenu
+                    label={t('sessions.moreNamed', { title: row.title })}
+                    items={menu}
+                    onSelect={(id) => {
+                      if (botSlug === undefined) return;
+                      if (id === 'stop') {
+                        if (row.role === 'orchestrator' && runningAssignments > 0) {
+                          setStopAll(false);
+                          setConfirmStop({ sessionId: row.sessionId, title: row.title });
+                        } else runStop(botSlug, row.sessionId, false);
+                      } else if (id === 'work') {
+                        setWork({ sessionId: row.sessionId, title: row.title });
+                      } else if (id === 'open') {
+                        void actions.openSession(row.sessionId);
+                      } else if (id === 'archive') {
+                        setArchiving(row.sessionId);
+                        setArchiveError(undefined);
+                        void actions
+                          .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
+                          .catch((error: unknown) =>
+                            setArchiveError(error instanceof Error ? error.message : String(error)),
+                          )
+                          .finally(() => {
+                            setArchiving(undefined);
+                            setReload((value) => value + 1);
+                          });
+                      }
+                    }}
+                  />
                 </>
               ),
             })}

@@ -6,8 +6,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
 import type { SessionSubagent } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { IconButton } from './ds/icon-button.js';
-import { Tooltip } from './ds/tooltip.js';
+import { ChipButton } from './ds/chip-button.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -16,8 +15,6 @@ import { modelRouteText } from './session-rows.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 const styles = stylex.create({
-  toggle: { display: 'inline-flex', alignItems: 'center', columnGap: space.x1 },
-  count: { fontSize: text.metaSize, lineHeight: text.metaLine, color: color.muted },
   note: { fontSize: text.metaSize, lineHeight: text.metaLine, color: color.muted },
 });
 
@@ -42,22 +39,18 @@ export function SessionSubagentToggle({
   onToggle(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const label = t(open ? 'sessions.subagents.hide' : 'sessions.subagents.show', { title });
   return (
-    <Tooltip label={t('sessions.subagents.toggle', { count })} side="top" portal delayMs={400}>
-      <IconButton
-        size="inline"
-        data-session-subagents-toggle=""
-        aria-label={label}
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span {...stylex.props(styles.toggle)}>
-          <ChannelSidebarIcon name="git-branch" size={14} />
-          <span {...stylex.props(styles.count)}>{count}</span>
-        </span>
-      </IconButton>
-    </Tooltip>
+    <ChipButton
+      filled
+      data-session-subagents-toggle=""
+      data-session-meta-chip="subagents"
+      aria-label={t(open ? 'sessions.subagents.hide' : 'sessions.subagents.show', { title })}
+      aria-expanded={open}
+      title={t('sessions.subagents.toggle', { count })}
+      icon={<ChannelSidebarIcon name="git-branch" size={12} />}
+      label={String(count)}
+      onClick={onToggle}
+    />
   );
 }
 

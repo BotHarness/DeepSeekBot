@@ -457,6 +457,9 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
       '[data-session-subagents-toggle]',
     );
     expect(toggles).toHaveLength(1);
+    expect(toggles[0]!.closest('.bh-card-chips')).not.toBeNull();
+    expect(toggles[0]!.closest('.bh-card-main')?.tagName).toBe('DIV');
+    expect(toggles[0]!.getAttribute('aria-expanded')).toBe('false');
     const work = [];
     for (const node of container.querySelectorAll('[data-flip-key]')) {
       const item = await menuItem(node, 'work');
@@ -464,7 +467,7 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     }
     expect(work).toEqual([zhTranslate('assignmentWork.tooltip')]);
     const modelChips = [...container.querySelectorAll('[data-session-meta-chip="model"]')];
-    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · 高API');
+    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · 高');
     expect(modelChips.map((chip) => chip.getAttribute('title'))).toContain(
       'deepseek/deepseek-v4-pro · high',
     );
