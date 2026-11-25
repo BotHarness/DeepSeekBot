@@ -1,6 +1,6 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
-import type { BotConnector, ConnectorsView } from '../../connectors/service.js';
+import type { BotConnector, ConnectorAppSearch, ConnectorsView } from '../../connectors/service.js';
 import type { ConnectorAccess, ConnectorAccountRecord } from '../../connectors/store.js';
 
 export const connectorsRpc = {
@@ -29,6 +29,12 @@ export const connectorsRpc = {
 
   connectorRefresh(): Promise<ConnectorsView> {
     return unwrapAsync(this.methods.connectorRefresh({}));
+  },
+
+  connectorSearch(query: string, cursor?: string): Promise<ConnectorAppSearch> {
+    return unwrapAsync(
+      this.methods.connectorSearch(cursor === undefined ? { query } : { query, cursor }),
+    );
   },
 
   connectorGrantSet(

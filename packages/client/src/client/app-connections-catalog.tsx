@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -14,12 +14,13 @@ import { FieldStack, SearchField, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
-import type { ConnectorsView } from './features/connectors/bridge.js';
+import type { ConnectorApp, ConnectorsView } from './features/connectors/bridge.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  more: { alignSelf: 'center' },
 });
 
 type Entry = ConnectorsView['catalog'][number];
@@ -67,49 +68,139 @@ export function matchesApp(entry: Entry, query: string, t: BotHarnessTranslate):
   ].some((part) => part.toLowerCase().includes(needle));
 }
 
+export interface PickedApp {
+  service: string;
+  name: string;
+}
+
+interface Found {
+  query: string;
+  apps: ConnectorApp[];
+  next?: string | undefined;
+}
+
+type Search = NonNullable<BridgeActions['connectorSearch']>;
+
+const SEARCH_DELAY_MS = 300;
+
+function localApps(view: ConnectorsView, query: string, t: BotHarnessTranslate): ConnectorApp[] {
+  return view.catalog
+    .filter((entry) => matchesApp(entry, query, t))
+    .map((entry) => ({ ...entry, featured: true }));
+}
+
 export function AppCatalog({
   view,
   t,
+  search,
   disabled,
   onPick,
 }: {
   view: ConnectorsView;
   t: BotHarnessTranslate;
+  search?: Search | undefined;
   disabled?: boolean;
-  onPick: (service: string) => void;
+  onPick: (app: PickedApp) => void;
 }): ReactElement {
   const [query, setQuery] = useState('');
-  const shown = view.catalog.filter((entry) => matchesApp(entry, query, t));
+  const [found, setFound] = useState<Found | undefined>();
+  const [more, setMore] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latest = useRef(0);
+
+  const run = (text: string) => {
+    if (search === undefined || !view.configured) return;
+    const ticket = ++latest.current;
+    search(text.trim()).then(
+      (result) => {
+        if (ticket !== latest.current) return;
+        setFailed(false);
+        setFound({ query: text, apps: result.apps, next: result.next });
+      },
+      () => {
+        if (ticket === latest.current) setFailed(true);
+      },
+    );
+  };
+
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    run('');
+    return () => {
+      latest.current += 1;
+      if (timer.current !== undefined) clearTimeout(timer.current);
+    };
+  }, [search, view.configured]);
+
+  const change = (text: string) => {
+    setQuery(text);
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    timer.current = setTimeout(() => run(text), SEARCH_DELAY_MS);
+  };
+
+  const loadMore = () => {
+    if (search === undefined || found?.next === undefined || more) return;
+    const current = found;
+    const ticket = latest.current;
+    setMore(true);
+    search(current.query.trim(), current.next)
+      .then(
+        (result) => {
+          if (ticket !== latest.current) return;
+          const seen = new Set(current.apps.map((app) => app.service));
+          setFound({
+            ...current,
+            apps: [...current.apps, ...result.apps.filter((app) => !seen.has(app.service))],
+            next: result.next,
+          });
+        },
+        () => setFailed(true),
+      )
+      .finally(() => setMore(false));
+  };
+
+  const current = found !== undefined && found.query === query ? found : undefined;
+  const shown = current?.apps ?? localApps(view, query, t);
+  const summary = (app: ConnectorApp) =>
+    app.featured
+      ? appSummary({ service: app.service, name: app.name, summary: app.summary }, t)
+      : app.summary;
   return (
-    <div {...stylex.props(styles.stack)}>
-      <SearchField label={t('connectors.catalog.search')} value={query} onChange={setQuery} />
+    <div ref={mount} {...stylex.props(styles.stack)}>
+      <SearchField label={t('connectors.catalog.search')} value={query} onChange={change} />
+      {failed ? <Note inset>{t('connectors.catalog.offline')}</Note> : null}
       {shown.length === 0 ? (
         <Note inset>{t('connectors.catalog.empty')}</Note>
       ) : (
         <CatalogGrid label={t('connectors.connect.pick')} data={{ 'data-app-catalog': '' }}>
-          {shown.map((entry) => {
+          {shown.map((app) => {
             const count = view.accounts.filter(
-              (account) => account.service === entry.service && account.status === 'active',
+              (account) => account.service === app.service && account.status === 'active',
             ).length;
             return (
               <CatalogCard
-                key={entry.service}
-                title={entry.name}
-                summary={appSummary(entry, t)}
+                key={app.service}
+                title={app.name}
+                summary={summary(app) || undefined}
                 meta={
                   count > 0
                     ? t('connectors.catalog.connected', { count })
                     : t('connectors.catalog.available')
                 }
-                leading={<BrandLogo src={connectorLogo(entry.service)} size={40} />}
+                leading={<BrandLogo src={connectorLogo(app.service)} size={40} />}
                 actionLabel={t('connectors.catalog.connect')}
                 disabled={disabled === true}
-                data={{ 'data-connector-service': entry.service }}
-                onClick={() => onPick(entry.service)}
+                data={{ 'data-connector-service': app.service }}
+                onClick={() => onPick({ service: app.service, name: app.name })}
               />
             );
           })}
         </CatalogGrid>
+      )}
+      {current?.next === undefined ? null : (
+        <Button variant="outline" size="sm" disabled={more} onClick={loadMore} xstyle={styles.more}>
+          {t('connectors.catalog.more')}
+        </Button>
       )}
     </div>
   );
@@ -123,21 +214,20 @@ export function ConnectAppDialog({
   onClose,
   onLinked,
 }: {
-  actions: Pick<BridgeActions, 'connectorConnect'>;
+  actions: Pick<BridgeActions, 'connectorConnect' | 'connectorSearch'>;
   view: ConnectorsView;
   t: BotHarnessTranslate;
-  service?: string | undefined;
+  service?: PickedApp | undefined;
   onClose: () => void;
   onLinked: (accountId: string, url: string) => void;
 }): ReactElement {
-  const [service, setService] = useState(initial);
+  const [picked, setPicked] = useState(initial);
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
-  const name = (slug: string) => view.catalog.find((entry) => entry.service === slug)?.name ?? slug;
 
-  if (service === undefined)
+  if (picked === undefined)
     return (
       <FormDialog
         title={t('connectors.connect.pick')}
@@ -148,7 +238,7 @@ export function ConnectAppDialog({
         showCancel
         onCancel={onClose}
       >
-        <AppCatalog view={view} t={t} onPick={setService} />
+        <AppCatalog view={view} t={t} search={actions.connectorSearch} onPick={setPicked} />
       </FormDialog>
     );
 
@@ -158,7 +248,10 @@ export function ConnectAppDialog({
     setError(undefined);
     try {
       const trimmed = label.trim();
-      const linked = await actions.connectorConnect(service, trimmed === '' ? undefined : trimmed);
+      const linked = await actions.connectorConnect(
+        picked.service,
+        trimmed === '' ? undefined : trimmed,
+      );
       window.open(linked.url, '_blank', 'noopener,noreferrer');
       onLinked(linked.account.accountId, linked.url);
     } catch (failure) {
@@ -178,20 +271,20 @@ export function ConnectAppDialog({
       onCancel={onClose}
       onSubmit={() => void submit()}
       secondary={
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setService(undefined)}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setPicked(undefined)}>
           {t('connectors.connect.change')}
         </Button>
       }
     >
       <FieldStack>
         <SettingsRow
-          title={name(service)}
-          icon={<BrandLogo src={connectorLogo(service)} size={28} />}
+          title={picked.name}
+          icon={<BrandLogo src={connectorLogo(picked.service)} size={28} />}
         />
         <TextField
           label={t('connectors.connect.label')}
           hint={t('connectors.connect.labelHint')}
-          placeholder={name(service)}
+          placeholder={picked.name}
           initialFocus
           value={label}
           onChange={setLabel}
@@ -205,13 +298,13 @@ export function MarketAppConnections({
   actions,
   t,
 }: {
-  actions: Pick<BridgeActions, 'connectors' | 'connectorConnect'>;
+  actions: Pick<BridgeActions, 'connectors' | 'connectorConnect' | 'connectorSearch'>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [view, setView] = useState<ConnectorsView | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [denied, setDenied] = useState(false);
-  const [service, setService] = useState<string | undefined>();
+  const [service, setService] = useState<PickedApp | undefined>();
   const [signIn, setSignIn] = useState<string | undefined>();
   const load = () =>
     actions.connectors?.().then(setView, (failure: unknown) => {
@@ -236,7 +329,7 @@ export function MarketAppConnections({
         ) : !view.configured ? (
           <Note inset>{t('connectors.accounts.empty')}</Note>
         ) : (
-          <AppCatalog view={view} t={t} onPick={setService} />
+          <AppCatalog view={view} t={t} search={actions.connectorSearch} onPick={setService} />
         )}
         {signIn === undefined ? null : (
           <Note>

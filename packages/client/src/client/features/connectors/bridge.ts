@@ -29,6 +29,20 @@ export interface ConnectorsView {
   }>;
 }
 
+export interface ConnectorApp {
+  service: string;
+  name: string;
+  summary: string;
+  featured: boolean;
+}
+
+export interface ConnectorAppSearch {
+  apps: ConnectorApp[];
+  next?: string;
+  total?: number;
+  source: 'composio' | 'featured';
+}
+
 export interface BotConnector {
   accountId: string;
   service: string;
@@ -50,6 +64,7 @@ export interface ConnectorActions {
   ): Promise<{ account: ConnectorAccountRecord; url: string }>;
   connectorReconnect?(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }>;
   connectorRefresh?(): Promise<ConnectorsView>;
+  connectorSearch?(query: string, cursor?: string): Promise<ConnectorAppSearch>;
   connectorGrantSet?(
     slug: string,
     accountId: string,
@@ -68,6 +83,8 @@ export function createConnectorActions(invoke: InvokeAction) {
       invoke('connectorConnect', label === undefined ? { service } : { service, label }),
     connectorReconnect: (accountId) => invoke('connectorReconnect', { accountId }),
     connectorRefresh: () => invoke('connectorRefresh', {}),
+    connectorSearch: (query, cursor) =>
+      invoke('connectorSearch', cursor === undefined ? { query } : { query, cursor }),
     connectorGrantSet: (slug, accountId, access) =>
       invoke('connectorGrantSet', { slug, accountId, access }),
     connectorAccountRemove: (accountId) => invoke('connectorAccountRemove', { accountId }),

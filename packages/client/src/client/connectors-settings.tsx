@@ -26,6 +26,7 @@ type Actions = Pick<
   | 'connectorConnect'
   | 'connectorReconnect'
   | 'connectorRefresh'
+  | 'connectorSearch'
   | 'connectorGrantSet'
   | 'connectorAccountRemove'
 >;

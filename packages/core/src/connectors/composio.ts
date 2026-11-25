@@ -39,6 +39,38 @@ const accountsPageSchema = z.object({
   next_cursor: z.string().nullish(),
 });
 
+const toolkitsPageSchema = z.object({
+  items: z.array(
+    z.object({
+      slug: z.string().min(1),
+      name: z.string().min(1),
+      no_auth: z.boolean().nullish(),
+      composio_managed_auth_schemes: z.array(z.string()).nullish(),
+      meta: z
+        .object({
+          description: z.string().nullish(),
+          categories: z.array(z.object({ name: z.string() })).nullish(),
+        })
+        .nullish(),
+    }),
+  ),
+  next_cursor: z.string().nullish(),
+  total_items: z.number().nullish(),
+});
+
+export interface ComposioToolkit {
+  service: string;
+  name: string;
+  summary: string;
+  categories: string[];
+}
+
+export interface ComposioToolkitPage {
+  items: ComposioToolkit[];
+  next?: string;
+  total?: number;
+}
+
 export interface ComposioAccount {
   id: string;
   service: string;
@@ -61,6 +93,7 @@ export interface ComposioClient {
   ): Promise<{ url: string; accountId: string }>;
   accounts(apiKey: string, userId: string): Promise<ComposioAccount[]>;
   removeAccount(apiKey: string, accountId: string): Promise<void>;
+  toolkits(apiKey: string, query: string, cursor?: string): Promise<ComposioToolkitPage>;
   session(
     apiKey: string,
     userId: string,
@@ -214,6 +247,27 @@ export function createComposioClient(
       } catch (error) {
         if (!(error instanceof ComposioError) || error.status !== 404) throw error;
       }
+    },
+    async toolkits(apiKey, query, cursor) {
+      const params = new URLSearchParams({ limit: '30', sort_by: 'usage' });
+      if (query.trim() !== '') params.set('search', query.trim().slice(0, 80));
+      if (cursor !== undefined) params.set('cursor', cursor);
+      const body = toolkitsPageSchema.parse(await call(apiKey, `/toolkits?${params}`));
+      return {
+        items: body.items
+          .filter(
+            (item) =>
+              item.no_auth !== true && (item.composio_managed_auth_schemes?.length ?? 0) > 0,
+          )
+          .map((item) => ({
+            service: item.slug.toLowerCase(),
+            name: item.name,
+            summary: (item.meta?.description ?? '').slice(0, 200),
+            categories: (item.meta?.categories ?? []).map((category) => category.name),
+          })),
+        ...(body.next_cursor ? { next: body.next_cursor } : {}),
+        ...(typeof body.total_items === 'number' ? { total: body.total_items } : {}),
+      };
     },
     async session(apiKey, userId, pinned) {
       const services = Object.keys(pinned).sort();

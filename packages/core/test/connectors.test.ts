@@ -4,7 +4,11 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createConnectorStore } from '../src/connectors/store.js';
 import { ConnectorError, ConnectorService, connectorAccess } from '../src/connectors/service.js';
-import { createComposioClient, type ComposioClient } from '../src/connectors/composio.js';
+import {
+  ComposioError,
+  createComposioClient,
+  type ComposioClient,
+} from '../src/connectors/composio.js';
 import { connectorToolDenial, readOnlyTool } from '../src/connectors/policy.js';
 import { connectorAccessMap, connectorCatalogFor } from '../src/connectors/mount.js';
 import { runConnectorCommand } from '../src/bots/cli-connectors.js';
@@ -55,6 +59,17 @@ function fakeClient(overrides: Partial<ComposioClient> = {}) {
     },
     removeAccount: async (apiKey, accountId) => {
       calls.push(['removeAccount', apiKey, accountId]);
+    },
+    toolkits: async (apiKey, query, cursor) => {
+      calls.push(['toolkits', apiKey, query, cursor]);
+      return {
+        items: [
+          { service: 'gmail', name: 'Gmail', summary: 'Mail', categories: [] },
+          { service: 'hubspot', name: 'HubSpot', summary: 'CRM', categories: ['crm'] },
+        ],
+        next: 'c2',
+        total: 2007,
+      };
     },
     session: async (apiKey, userId, pinned) => {
       calls.push(['session', apiKey, userId, pinned]);
@@ -389,6 +404,57 @@ describe('connector catalog for a Bot', () => {
   });
 });
 
+describe('connector app search', () => {
+  it('puts featured apps first, adds Composio results and keeps Chinese words local', async () => {
+    const { client, calls } = fakeClient();
+    const { owner, service } = setup(client);
+    try {
+      const offline = await service.searchApps('email');
+      expect(offline.source).toBe('featured');
+      expect(offline.apps.map((app) => app.service)).toEqual(['gmail', 'outlook']);
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('帮我看 email');
+      expect(found.source).toBe('composio');
+      expect(found.apps.map((app) => app.service)).toEqual(['gmail', 'outlook', 'hubspot']);
+      expect(found).toMatchObject({ next: 'c2', total: 2007 });
+      expect(calls.filter((call) => call[0] === 'toolkits').at(-1)).toEqual([
+        'toolkits',
+        'ak_test_key_1234',
+        'email',
+        undefined,
+      ]);
+      const chinese = await service.searchApps('邮件');
+      expect(chinese.source).toBe('featured');
+      expect(chinese.apps.map((app) => app.service)).toEqual(['gmail', 'outlook']);
+      const next = await service.searchApps('email', 'c2');
+      expect(next.apps.map((app) => app.service)).toEqual(['gmail', 'hubspot']);
+      const { account } = await service.connect({ service: 'hubspot' });
+      expect(account.label).toBe('HubSpot');
+      expect(JSON.stringify(found)).not.toContain('ak_test_key_1234');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('falls back to the featured apps when Composio fails', async () => {
+    const { client } = fakeClient({
+      toolkits: async () => {
+        throw new ComposioError(503, 'down');
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('calendar');
+      expect(found.source).toBe('featured');
+      expect(found.apps.map((app) => app.service)).toContain('googlecalendar');
+      await expect(service.searchApps('calendar', 'c2')).rejects.toThrow('unavailable');
+    } finally {
+      owner.close();
+    }
+  });
+});
+
 describe('Composio client', () => {
   it('sends the key header, pins accounts in the session and rejects an untrusted MCP URL', async () => {
     const requests: Array<{ url: string; init: RequestInit }> = [];
@@ -484,6 +550,10 @@ describe('deepseekbot connector commands', () => {
       ['connectorAccountRemove', { accountId: 'acc' }],
     ]);
     expect(await run('bot-connectors', ['ada'])).toEqual([['botConnectors', { slug: 'ada' }]]);
+    expect(await run('connector-search', ['crm'], { cursor: 'c2' })).toEqual([
+      ['connectorSearch', { query: 'crm', cursor: 'c2' }],
+    ]);
+    expect(await run('connector-search', [])).toEqual([['connectorSearch', { query: '' }]]);
   });
 
   it('refuses a key on the command line, a missing access and an unconfirmed removal', async () => {
