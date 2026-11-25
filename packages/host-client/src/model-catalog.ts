@@ -181,9 +181,16 @@ export async function loadRoutingGroupEngines(
   );
 }
 
-export async function loadSessionModelCatalog(host: HostCall) {
-  const answer = await host.call('modelCatalog', { includeRoutingGroupEngines: true });
+export function loadSessionModelCatalogAnswer(host: HostCall): Promise<unknown> {
+  return host.call('modelCatalog', { includeRoutingGroupEngines: true });
+}
+
+export function parseSessionModelCatalog(answer: unknown) {
   return { ...parseModelCatalog(answer), engines: parseRoutingGroupEngines(answer) };
+}
+
+export async function loadSessionModelCatalog(host: HostCall) {
+  return parseSessionModelCatalog(await loadSessionModelCatalogAnswer(host));
 }
 
 function parseRoutingGroupEngines(value: unknown): RoutingGroupEngineOptions[] {

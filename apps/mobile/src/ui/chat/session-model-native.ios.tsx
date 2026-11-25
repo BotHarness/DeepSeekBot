@@ -49,12 +49,17 @@ export function NativeSessionModelSheet({
   saving,
   savingLabel,
   loading,
+  refreshLabel,
+  refreshingLabel,
+  refreshing,
   onClose,
   onRetry,
+  onRefresh,
   onChoose,
 }: SessionModelSheetProps) {
   const theme = useDesignTheme();
   const [shown, setShown] = useState(visible);
+  const [detent, setDetent] = useState<'medium' | 'large'>('medium');
   if (visible && !shown) setShown(true);
   if (!shown) return null;
   const icon = theme.type.title.line;
@@ -65,11 +70,17 @@ export function NativeSessionModelSheet({
         onIsPresentedChange={(presented) => {
           if (!presented) onClose();
         }}
-        onDismiss={() => setShown(false)}
+        onDismiss={() => {
+          setShown(false);
+          setDetent('medium');
+        }}
       >
         <Group
           modifiers={[
-            presentationDetents(['medium', 'large']),
+            presentationDetents(['medium', 'large'], {
+              selection: detent,
+              onSelectionChange: (next) => setDetent(next === 'large' ? 'large' : 'medium'),
+            }),
             presentationDragIndicator('visible'),
           ]}
         >
@@ -96,12 +107,26 @@ export function NativeSessionModelSheet({
                   </Section>
                 )}
                 {loading
-                  ? [0, 1].map((group) => (
+                  ? [3, 5].map((rows, group) => (
                       <Section key={group}>
-                        {[0, 1, 2].map((row) => (
-                          <Text key={row} modifiers={[redacted('placeholder')]}>
-                            {title}
-                          </Text>
+                        {Array.from({ length: rows }, (_, row) => (
+                          <HStack
+                            key={row}
+                            spacing={12}
+                            modifiers={[
+                              redacted('placeholder'),
+                              accessibilityLabel(refreshingLabel),
+                            ]}
+                          >
+                            <Image systemName="circle.fill" />
+                            <VStack alignment="leading" spacing={2}>
+                              <Text>{row % 2 === 0 ? title : `${title} ${title}`}</Text>
+                              <Text modifiers={[font({ textStyle: 'footnote' })]}>
+                                {refreshLabel}
+                              </Text>
+                            </VStack>
+                            <Spacer />
+                          </HStack>
                         ))}
                       </Section>
                     ))
@@ -199,6 +224,17 @@ export function NativeSessionModelSheet({
                         modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}
                       />
                     </Button>
+                  )}
+                </ToolbarItem>
+                <ToolbarItem placement="primaryAction">
+                  {refreshing ? (
+                    <ProgressView modifiers={[accessibilityLabel(refreshingLabel)]} />
+                  ) : (
+                    <Button
+                      systemImage="arrow.clockwise"
+                      onPress={onRefresh}
+                      modifiers={[accessibilityLabel(refreshLabel), disabled(saving !== undefined)]}
+                    />
                   )}
                 </ToolbarItem>
               </Toolbar.Content>
