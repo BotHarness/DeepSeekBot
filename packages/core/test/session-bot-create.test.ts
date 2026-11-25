@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import type { BridgeMethodsDeps } from '../src/bridge/methods.js';
+import { BotCreationError } from '../src/bots/creation.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
 import {
   createSessionBotMethods,
@@ -20,11 +21,35 @@ const sessions = [
     lastPromptAt: 1,
     updatedAt: 1,
   },
-  { sessionId: 'a2', cwd: '/work/app/web', running: false, lastPromptAt: 2, updatedAt: 2 },
-  { sessionId: 'b1', cwd: '/work/docs', running: false, lastPromptAt: 3, updatedAt: 3 },
-  { sessionId: 'owned', cwd: '/work/app', running: false, lastPromptAt: 4, updatedAt: 4 },
+  {
+    sessionId: 'a2',
+    cwd: '/work/app/web',
+    running: false,
+    lastPromptAt: 2,
+    updatedAt: 2,
+  },
+  {
+    sessionId: 'b1',
+    cwd: '/work/docs',
+    running: false,
+    lastPromptAt: 3,
+    updatedAt: 3,
+  },
+  {
+    sessionId: 'owned',
+    cwd: '/work/app',
+    running: false,
+    lastPromptAt: 4,
+    updatedAt: 4,
+  },
   { sessionId: 'loose', running: false, lastPromptAt: 5, updatedAt: 5 },
-  { sessionId: 'stray', cwd: '/tmp/elsewhere', running: false, lastPromptAt: 6, updatedAt: 6 },
+  {
+    sessionId: 'stray',
+    cwd: '/tmp/elsewhere',
+    running: false,
+    lastPromptAt: 6,
+    updatedAt: 6,
+  },
 ];
 
 function setup(
@@ -73,10 +98,35 @@ function setup(
     ok: true as const,
     value: { message: { id: payload.messageId } },
   }));
+  const receipts = new Map<string, string>();
+  const fingerprint = (input: unknown, scope: unknown) => JSON.stringify({ input, scope });
+  const creations = {
+    lookup: vi.fn((key: string, input: unknown, scope?: unknown) => {
+      const stored = receipts.get(key);
+      if (stored === undefined) return undefined;
+      if (stored !== fingerprint(input, scope))
+        throw new BotCreationError('creation-key-conflict', 'key reused');
+      return create(input as { displayName: string }, key).receipt;
+    }),
+    create: vi.fn((input: { displayName: string }, key?: string, scope?: unknown) => {
+      if (key !== undefined) {
+        const stored = receipts.get(key);
+        if (stored !== undefined && stored !== fingerprint(input, scope))
+          throw new BotCreationError('creation-key-conflict', 'key reused');
+        receipts.set(key, fingerprint(input, scope));
+      }
+      return create(input, key);
+    }),
+  };
   const deps = {
-    nativeSessions: { list: nativeList, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
+    nativeSessions: {
+      list: nativeList,
+      read: vi.fn(),
+      isRoot: vi.fn(),
+      send: vi.fn(),
+    },
     ownership: { resolve: (id: string) => (id === 'owned' ? {} : undefined) },
-    creations: { create, lookup: vi.fn(() => undefined) },
+    creations,
     grants: store,
     ...extra,
     ...(extra.registerWorkspace === undefined
@@ -96,7 +146,7 @@ function setup(
     (record) => ({ bot: record as never }),
     send,
   );
-  return { methods, create, send, store, grants };
+  return { methods, create: creations.create, send, store, grants };
 }
 
 it('creates a blank Bot, grants each Session Workspace once and sends one seed message', async () => {
@@ -139,7 +189,10 @@ it('refuses non-owners, Bot-owned or child Sessions and Sessions outside any Wor
     }),
   ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
   expect(
-    await setup({ ...OWNER_HUMAN_CONTEXT, caller: 'bot' }).methods.createFromSessions({
+    await setup({
+      ...OWNER_HUMAN_CONTEXT,
+      caller: 'bot',
+    }).methods.createFromSessions({
       displayName: 'x',
       sessionIds: ['a1'],
     }),
@@ -195,13 +248,25 @@ it('creates from Claude Code sessions, adds their folder as a Workspace only whe
         cwd: folder,
         lastActivityAt: 9,
       },
-      { sessionId: 'codex:s2', source: 'codex' as const, cwd: nested, lastActivityAt: 8 },
+      {
+        sessionId: 'codex:s2',
+        source: 'codex' as const,
+        cwd: nested,
+        lastActivityAt: 8,
+      },
     ],
     read: vi.fn(),
   };
-  const registerWorkspace = vi.fn(async (path: string) => ({ id: 'ws-new', path, title: 'new' }));
+  const registerWorkspace = vi.fn(async (path: string) => ({
+    id: 'ws-new',
+    path,
+    title: 'new',
+  }));
   const capture = vi.fn();
-  const refused = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  const refused = setup(OWNER_HUMAN_CONTEXT, true, {
+    externalSessions,
+    registerWorkspace,
+  });
   expect(
     await refused.methods.createFromSessions({
       displayName: 'Importer',
@@ -261,10 +326,14 @@ it('creates from Claude Code sessions, adds their folder as a Workspace only whe
 it('lists sessions from other products only for the Host Owner', async () => {
   const externalSessions = { list: async () => [], read: vi.fn() };
   expect(
-    await setup(OWNER_HUMAN_CONTEXT, true, { externalSessions }).methods.externalSessions(),
+    await setup(OWNER_HUMAN_CONTEXT, true, {
+      externalSessions,
+    }).methods.externalSessions(),
   ).toEqual({ ok: true, value: { sessions: [] } });
   expect(
-    await setup(OWNER_HUMAN_CONTEXT, false, { externalSessions }).methods.externalSessions(),
+    await setup(OWNER_HUMAN_CONTEXT, false, {
+      externalSessions,
+    }).methods.externalSessions(),
   ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
 });
 
@@ -281,14 +350,26 @@ it('refuses to add the disk root, the home folder or agent config as a Workspace
   const rootLink = `${link}-root`;
   symlinkSync('/', rootLink);
   expect(tooBroadToAdd(rootLink, home)).toBe(true);
-  const registerWorkspace = vi.fn(async (path: string) => ({ id: 'ws-new', path, title: 'new' }));
+  const registerWorkspace = vi.fn(async (path: string) => ({
+    id: 'ws-new',
+    path,
+    title: 'new',
+  }));
   const externalSessions = {
     list: async () => [
-      { sessionId: 'codex:root', source: 'codex' as const, cwd: '/', lastActivityAt: 1 },
+      {
+        sessionId: 'codex:root',
+        source: 'codex' as const,
+        cwd: '/',
+        lastActivityAt: 1,
+      },
     ],
     read: vi.fn(),
   };
-  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, {
+    externalSessions,
+    registerWorkspace,
+  });
   expect(
     await methods.createFromSessions({
       displayName: 'Importer',
@@ -304,7 +385,12 @@ it('imports other products when DeepSeek Sessions cannot be listed, and refuses 
   const folder = mkdtempSync(join(tmpdir(), 'cx-app-'));
   const externalSessions = {
     list: async () => [
-      { sessionId: 'codex:s1', source: 'codex' as const, cwd: folder, lastActivityAt: 1 },
+      {
+        sessionId: 'codex:s1',
+        source: 'codex' as const,
+        cwd: folder,
+        lastActivityAt: 1,
+      },
     ],
     read: vi.fn(),
   };
@@ -316,7 +402,11 @@ it('imports other products when DeepSeek Sessions cannot be listed, and refuses 
     true,
     {
       externalSessions,
-      registerWorkspace: async () => ({ id: 'ws-new', path: '/elsewhere', title: 'new' }),
+      registerWorkspace: async () => ({
+        id: 'ws-new',
+        path: '/elsewhere',
+        title: 'new',
+      }),
     },
     offline,
   );
@@ -336,18 +426,29 @@ it('imports other products when DeepSeek Sessions cannot be listed, and refuses 
     true,
     {
       externalSessions,
-      registerWorkspace: async (path: string) => ({ id: 'ws-new', path, title: 'new' }),
+      registerWorkspace: async (path: string) => ({
+        id: 'ws-new',
+        path,
+        title: 'new',
+      }),
     },
     offline,
   );
-  expect(await ok.methods.createFromSessions(request)).toMatchObject({ ok: true });
+  expect(await ok.methods.createFromSessions(request)).toMatchObject({
+    ok: true,
+  });
 });
 
 it('holds an operation key while folders are added, so a concurrent request cannot claim it', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'cx-race-'));
   const externalSessions = {
     list: async () => [
-      { sessionId: 'codex:r1', source: 'codex' as const, cwd: folder, lastActivityAt: 1 },
+      {
+        sessionId: 'codex:r1',
+        source: 'codex' as const,
+        cwd: folder,
+        lastActivityAt: 1,
+      },
     ],
     read: vi.fn(),
   };
@@ -357,7 +458,10 @@ it('holds an operation key while folders are added, so a concurrent request cann
     await gate;
     return { id: 'ws-new', path, title: 'new' };
   });
-  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, {
+    externalSessions,
+    registerWorkspace,
+  });
   const request = {
     displayName: 'Importer',
     sessionIds: ['codex:r1'],
@@ -373,4 +477,39 @@ it('holds an operation key while folders are added, so a concurrent request cann
   release();
   expect(await first).toMatchObject({ ok: true });
   expect(registerWorkspace).toHaveBeenCalledTimes(1);
+});
+
+it('retries a failed seed send under the same key without a second Bot, grant or import event', async () => {
+  const capture = vi.fn();
+  const { methods, create, send, store } = setup(OWNER_HUMAN_CONTEXT, true, {
+    telemetry: { status: vi.fn(), setPreference: vi.fn(), capture },
+  } as never);
+  send.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'send-failed', message: 'down' },
+  } as never);
+  const input = {
+    displayName: 'Retry',
+    sessionIds: ['a1', 'b1'],
+    operationKey: 'sessions:retry',
+  };
+  expect(await methods.createFromSessions(input)).toMatchObject({
+    ok: false,
+    error: { code: 'send-failed' },
+  });
+  expect(await methods.createFromSessions({ ...input, sessionIds: ['b1', 'a1'] })).toMatchObject({
+    ok: true,
+    value: {
+      channelId: 'dm:bot-1',
+      receipt: { operationKey: 'sessions:retry' },
+    },
+  });
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(store.create).toHaveBeenCalledTimes(2);
+  expect(send.mock.calls[1]![0].messageId).toBe(send.mock.calls[0]![0].messageId);
+  expect(capture).toHaveBeenCalledTimes(1);
+  expect(await methods.createFromSessions({ ...input, sessionIds: ['a1'] })).toMatchObject({
+    ok: false,
+    error: { code: 'creation-key-conflict' },
+  });
 });

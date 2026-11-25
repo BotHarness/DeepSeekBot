@@ -248,6 +248,13 @@ export function createSessionBotMethods(
           if (error instanceof BotCreationError) return failure(error.code, error.message);
           throw error;
         }
+        if (fresh)
+          deps.telemetry?.capture?.('bot_library:sessions_import', {
+            has_deepseek: sessionIds.some((id) => !isExternalSessionId(id)),
+            has_claude_code: sessionIds.some((id) => id.startsWith('claude-code:')),
+            has_codex: sessionIds.some((id) => id.startsWith('codex:')),
+            added_workspace: outermost.length > 0,
+          });
         const slug = created.record.slug;
         const granted: WorkspaceGrant[] = [];
         try {
@@ -271,13 +278,6 @@ export function createSessionBotMethods(
           ),
         });
         if (!sent.ok) return sent;
-        if (fresh)
-          deps.telemetry?.capture?.('bot_library:sessions_import', {
-            has_deepseek: sessionIds.some((id) => !isExternalSessionId(id)),
-            has_claude_code: sessionIds.some((id) => id.startsWith('claude-code:')),
-            has_codex: sessionIds.some((id) => id.startsWith('codex:')),
-            added_workspace: outermost.length > 0,
-          });
         return {
           ok: true,
           value: {
