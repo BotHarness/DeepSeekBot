@@ -577,8 +577,9 @@ export function SessionDetail({
   const [sending, setSending] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
   const canCompose =
-    (transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
-    (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined);
+    transcript?.parentSessionId === undefined &&
+    ((transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
+      (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined));
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
