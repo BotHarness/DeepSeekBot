@@ -49,7 +49,7 @@ _Avoid_: meeting bot, meeting session, recording
 ### PersonaBots
 
 **Tob**:
-The built-in local PersonaBot every Profile creates first; its name reverses “Bot” and also stands for “Thousands of Bot.” It is an ordinary Bot: the Human can rename, archive, delete or share it, and its Soul and Memory stay editable and portable. It starts with both **App management grant** switches on, so it is the Bot that helps the Human configure the rest of the App; the grant, never its name, decides what it may manage ([Tob decisions](docs/decisions/tob.md#adr-0366)).
+The built-in local PersonaBot every Profile creates first; its name reverses “Bot” and also stands for “Thousands of Bot.” It is an ordinary Bot: the Human can rename, archive, delete or share it, and its Soul and Memory stay editable and portable. It starts with both **App management grant** switches on, so it is the Bot that helps the Human configure the rest of the App; the grant, never its name, decides what it may manage ([Tob decisions](docs/decisions/tob.md#app-management-grant)).
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
@@ -61,11 +61,11 @@ Tob handing a Human's request to the colleague PersonaBot it judges best suited,
 _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **Steward**:
-Retired ([ADR-0366](docs/decisions/tob.md#adr-0366)). The singleton role of ADR-0365 was replaced by the **App management grant**.
+Retired ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). The singleton role of ADR-0365 was replaced by the **App management grant**.
 _Avoid_: Steward role, Steward transfer, Steward Bot
 
 **App management grant**:
-The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([ADR-0366](docs/decisions/tob.md#adr-0366)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' PersonaBot Profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
+The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' PersonaBot Profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
 _Avoid_: Steward, Admin, administrator
 
 **PersonaBot**:
@@ -1311,7 +1311,7 @@ The tab for the phone's own preferences and the Human's account, models, usage a
 _Avoid_: preferences page, gear menu
 
 **Environment sheet**:
-The bottom sheet, opened from the Environment settings group in Settings and from the Environment name in the Chats header, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together ([ADR-0364](docs/adr/0364-environment-switching-lives-in-settings.md)).
+The bottom sheet, opened from the Environment settings group in Settings and from the Environment name in the Chats header, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together ([ADR-0364](docs/decisions/mobile-ui.md#adr-0364)).
 _Avoid_: Workspace panel, Workspace drawer, Host drawer, Host chip, sidebar
 
 **Conversation screen**:

@@ -30,7 +30,7 @@ import { ROW_ICON_SOURCES } from './row-icon-source.android';
 import type { SystemListRow, SystemListSheetProps } from './system-list-sheet';
 
 const ICON = space.x6;
-const CLEAR = '#00000000';
+const CLEAR = 'transparent';
 
 export function SystemListSheet({
   visible,

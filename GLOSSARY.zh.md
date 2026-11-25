@@ -49,7 +49,7 @@ _避免使用_：会议机器人、会议 Session、录音
 ### PersonaBot（持久机器人身份）
 
 **Tob**：
-每个 Profile 首先创建的内置本地 PersonaBot；名称是 Bot 的倒写，也寓意 Thousands of Bot。它是普通 Bot：Human 可以改名、归档、删除或分享它，其 Soul 与 Memory 可以编辑和迁移。它默认打开 **App 管理授权** 的两个开关，因此由它帮助 Human 配置 App 的其余部分；能管理什么由授权决定，与名字无关（[Tob 决策](docs/decisions/tob.md#adr-0366)）。
+每个 Profile 首先创建的内置本地 PersonaBot；名称是 Bot 的倒写，也寓意 Thousands of Bot。它是普通 Bot：Human 可以改名、归档、删除或分享它，其 Soul 与 Memory 可以编辑和迁移。它默认打开 **App 管理授权** 的两个开关，因此由它帮助 Human 配置 App 的其余部分；能管理什么由授权决定，与名字无关（[Tob 决策](docs/decisions/tob.md#app-management-grant)）。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
@@ -61,11 +61,11 @@ Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **Steward**：
-已停用（ADR-0366）。ADR-0365 的单例主管角色已由 **App 管理授权** 取代。
+已停用（Tob 决策 §11）。ADR-0365 的单例主管角色已由 **App 管理授权** 取代。
 _避免使用_：主管角色、主管转移、Steward Bot、总管
 
 **App management grant**：
-App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[ADR-0366](docs/decisions/tob.md#adr-0366)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
+App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[Tob decisions §11](docs/decisions/tob.md#app-management-grant)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
 _避免使用_：主管、Steward、Admin、管理员
 
 **PersonaBot**：

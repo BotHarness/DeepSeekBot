@@ -1,6 +1,6 @@
 # Tob decisions
 
-What Tob is, where the Human reaches it, and how a Bot with an App management grant manages the Host through the CLI without becoming an administrator. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); who answers an approval is in [Approval decisions](approvals.md); Bot-to-Bot messages are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0223, 0224, 0225, 0268, 0314 and 0347, and each section lists the ADRs it absorbed.
+What Tob is, where the Human reaches it, and how a Bot with an App management grant manages the Host through the CLI without becoming an administrator. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); who answers an approval is in [Approval decisions](approvals.md); Bot-to-Bot messages are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0223, 0224, 0225, 0268, 0314, 0347 and 0365, and each section lists the ADRs it absorbed.
 
 Two rules run through every section:
 
@@ -148,7 +148,7 @@ Enforced by: `tob-memory-lease.test.ts` (two-Bot comparison with provenance, wri
 
 ## 11. Managing the App is a grant
 
-<a id="adr-0366"></a>
+<a id="app-management-grant"></a>
 _Added for #5191 (grilling session of 2026-11-26) and implemented in #5193; supersedes the Steward of [ADR-0365](#adr-0365)._
 
 **Managing the App is a grant**, resolved with the RBAC grant resolver (#5324, `packages/core/src/authorization/grants.ts`) like Browser and Computer access. The Owner turns it on for any of their Bots, for several at once or for none. There is no Steward, no one-Steward invariant and no transfer.
@@ -184,3 +184,16 @@ Rejected:
 Consequences: PR #5206 is closed; #5193 replaces Tob special-casing with grant checks, reusing #5206's call-site refactor, guard and deletion changes. Grants live in `bot_management_grants` (migration `bot-management-grants`, which grants both to the existing Tob). The Approval Template change and the generalized guard are permission changes, so the M15 real-LLM security suite (#4197) runs before merge and gains cases for several grant holders, revocation and the fixed confirmation list. #5197 becomes the grant switch UI. #5198 is unchanged. Sections 1 to 4, 8 and 10 and the glossary entries Tob, Steward and Pinned tab follow this section; the term Steward is retired. The runtime plumbing behind the removed `bot_create` tool stays until a follow-up removes it.
 
 Enforced by: `management-grants.test.ts` (Owner-only changes, one marker per change in the Bot's own DM, Tob archivable and deletable with the last-holder warning, Owner change, migration seed, import without grant, one `[Host timeline]` line, broker expiry, Group turns without the CLI, the fixed confirmation list), `management-grants.property.test.ts`, `dsh-bot-agent-adapter-tob-tools.test.ts` (tool list and system prompt unchanged by a toggle within a Session), `tob-delegation-telemetry.test.ts`, `apps/mobile/test/pinned-tab-model.test.ts`, and the M15 cases in `scripts/e2e-team-security.mjs` (C8).
+
+## Retired: Steward as a transferable role
+
+<a id="adr-0365"></a>
+_Formerly ADR-0365 (proposed 2026-11-25, #5191). Never implemented._
+
+ADR-0365 proposed making **Steward** a singleton role instead of a property of Tob: exactly one Steward per Environment, held by Tob by default and moved by the Owner as a whole capability set (scoped CLI management, the self-escalation guard of §8 and Tob Delegation) through an atomic swap, with a timeline marker in each side's Human DM instead of compaction, and the Pinned tab defaulting to the Steward's DM. It rejected renaming Tob only, compacting on transfer, attaching Steward tools to every Bot, calling the role Admin and transfer on import.
+
+Reviewing it before implementation, the Human found that the singleton protected nothing that the per-turn source check, the guard and approvals do not already protect, and that the transfer flow existed only because of the singleton. It is superseded by the App management grant ([§11](#app-management-grant), #5359), which keeps the authority source of §3 and §6 and replaces the role with a grant any of the Owner's Bots can hold.
+
+Why: kept so that links to ADR-0365 and the reasons behind its rejected alternatives still resolve.
+
+Enforced by: nothing; no code implements it.

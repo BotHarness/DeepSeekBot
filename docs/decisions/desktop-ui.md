@@ -244,3 +244,14 @@ Explicit online CLI delivery uses ephemeral Client leases and revision checks. O
 Why: One zoom owner coordinates window presentation and native shortcuts without changing DSH's Host settings. Versioned payload validation limits the scope of the compatibility adapter.
 
 Enforced by: [zoom preferences](../../packages/client/test/window-zoom.test.ts), [Dockview geometry](../../packages/client/test/dock-zoom-geometry.test.ts), [desktop setup](../../scripts/test/desktop-zoom-setup.test.mjs), [explicit Client relay](../../packages/core/test/window-zoom-control.test.ts).
+
+## Card and context invalidations follow roster visibility
+
+<a id="adr-0357"></a>
+_Formerly ADR-0357 (#4609)._
+
+Approval and question cards render in conversation history, Activity and the Window Companion, but the selected Channel stream follows only the open conversation. The Host therefore sends the application-defined `resource/changed` frame (`RESOURCE_CHANGED_EVENT`) on the authenticated roster stream. Approval and question invalidations carry a Channel and message ID, and the Host checks that the recipient can see the actionable request, again before sending a queued frame. Bot context invalidations carry a Bot slug and go to its active owner. The frame only says what changed: every mounted surface rereads current state through the existing snapshot methods, and a reconnect takes a fresh snapshot. There is no replay history; a missed signal recovers through the existing slow, visibility-aware refresh.
+
+Why: an Assignment's execution could change while its card stayed mounted in another view and showed a stale state. Reusing the roster stream and the snapshot readers added no second state owner and kept visibility checks on the Host.
+
+Enforced by: [card and context live updates](../../packages/core/test/card-context-live.test.ts), [Host resource events](../../packages/core/test/resource-live.test.ts), [Client resource events](../../packages/client/test/resource-live.test.ts).

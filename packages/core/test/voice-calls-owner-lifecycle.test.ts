@@ -315,6 +315,67 @@ describe('Host call owner', () => {
     expect(await view(h, first)).toMatchObject({ phase: 'ended', endReason: 'replaced' });
   });
 
+  it('allows one call per Bot and three per Host', async () => {
+    const { media } = fakeMedia();
+    const voice = {
+      asr: { providerId: 'asr-000000000001', language: 'zh' },
+      voice: { providerId: 'tts-000000000001' },
+    };
+    const others = ['kai', 'lin', 'noa'].map((slug) => ({ slug, ...voice }));
+    const h = harness({ media, others });
+    const tablet = { deviceId: 'tablet' };
+    const laptop = { deviceId: 'laptop' };
+    const watch = { deviceId: 'watch' };
+    const mira = await connected(h);
+    const kai = (await h.ok({ kind: 'open', slug: 'kai' }, tablet)).call!.callId;
+    expect(await h.calls.handle(laptop, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.ok({ kind: 'readiness', slug: 'kai' }, laptop)).toMatchObject({
+      readiness: { ready: true, callElsewhere: true, activeCallId: null },
+    });
+    await h.ok({ kind: 'open', slug: 'lin' }, laptop);
+    expect(await h.ok({ kind: 'readiness', slug: 'noa' }, watch)).toMatchObject({
+      readiness: { ready: false, missing: ['calls-full'] },
+    });
+    expect(await h.calls.handle(watch, { kind: 'open', slug: 'noa' })).toMatchObject({
+      ok: false,
+      code: 'calls-full',
+    });
+    const moved = await h.ok({ kind: 'open', slug: 'noa' }, tablet);
+    expect(moved.call!.callId).not.toBe(kai);
+    expect((await h.ok({ kind: 'heartbeat', callId: kai }, tablet)).call).toMatchObject({
+      phase: 'ended',
+      endReason: 'replaced',
+    });
+    expect(await view(h, mira)).toMatchObject({ phase: 'listening' });
+  });
+
+  it('rechecks the Bot after replacing a call, so a racing caller cannot double-book it', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const tablet = { deviceId: 'tablet' };
+    const laptop = { deviceId: 'laptop' };
+    await h.ok({ kind: 'open', slug: 'mira' }, tablet);
+    let release!: () => void;
+    state.closeDelay = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const replacing = h.calls.handle(tablet, { kind: 'open', slug: 'mira' });
+    await new Promise((resolve) => setImmediate(resolve));
+    const racing = await h.ok({ kind: 'open', slug: 'mira' }, laptop);
+    release();
+    state.closeDelay = undefined;
+    expect(await replacing).toMatchObject({ ok: false, code: 'call-active' });
+    expect(state.closed).toBe(1);
+    expect(
+      (await h.ok({ kind: 'heartbeat', callId: racing.call!.callId }, laptop)).call,
+    ).not.toMatchObject({
+      phase: 'ended',
+    });
+  });
+
   it('treats each desktop window as its own caller and refuses the second one', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });

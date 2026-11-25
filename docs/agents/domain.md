@@ -5,11 +5,10 @@ How engineering skills read and record decisions in this repository.
 ## Before exploring, read these
 
 - Read the root [glossary](../../GLOSSARY.md) and the relevant [topic decisions](../decisions/).
-- Check [numbered records](../adr/) for decisions still in flight.
 
 ## Record decisions
 
-For BotHarness, record new decisions directly in the matching `docs/decisions/<topic>.md` section with the current decision, a brief why, and an `Enforced by` line. This repository layout takes precedence over the generic `domain-modeling` template. Update the [living architecture](../architecture/botharness-architecture.md) when the decision changes how the system works.
+For BotHarness, record new decisions directly in the matching `docs/decisions/<topic>.md` section with the current decision, a brief why, and an `Enforced by` line. There are no numbered ADR files: `pnpm lint` refuses any file under `docs/adr/`. Former ADRs are section anchors such as `persistence.md#adr-0041`. Update the [living architecture](../architecture/botharness-architecture.md) when the decision changes how the system works.
 
 ## Use the glossary's vocabulary
 

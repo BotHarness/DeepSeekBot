@@ -1661,7 +1661,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot bot-grants` 列出持有 App 管理授权的 Bot，返回 `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }] }`；Team 成员只得到 `tobSlug` 和空列表。Host Owner 本人运行 `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off`，为自己拥有的活跃 Bot 打开或关闭“管理 App”或“管理其他 Bot”；`on` 需要 `--confirm`。结果为 `{botSlug, capabilities, changed, noAppManager}`。该 Bot 自己的 Human DM 会收到系统提示，下一轮 Human DM 对话会收到一行 `[Host timeline]`，不修改系统提示词。CLI broker 以 `cli-command-refused` 拒绝 `bot-grant`，Team 成员的 CLI 收到 `remote-access/denied`。见 [Tob 决策 §11](decisions/tob.md#adr-0366)。
+`deepseekbot bot-grants` 列出持有 App 管理授权的 Bot，返回 `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }] }`；Team 成员只得到 `tobSlug` 和空列表。Host Owner 本人运行 `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off`，为自己拥有的活跃 Bot 打开或关闭“管理 App”或“管理其他 Bot”；`on` 需要 `--confirm`。结果为 `{botSlug, capabilities, changed, noAppManager}`。该 Bot 自己的 Human DM 会收到系统提示，下一轮 Human DM 对话会收到一行 `[Host timeline]`，不修改系统提示词。CLI broker 以 `cli-command-refused` 拒绝 `bot-grant`，Team 成员的 CLI 收到 `remote-access/denied`。见 [Tob 决策 §11](decisions/tob.md#app-management-grant)。
 
 `deepseekbot tob-home` 幂等准备本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 

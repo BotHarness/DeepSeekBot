@@ -52,4 +52,4 @@ Launch a task-owned Host and run doctor. Seed a Group and two ordinary Bots thro
 
 For #3635, create two disposable Groups containing the same ordinary Bot and a surviving peer. Delete the ordinary Bot with Memory retained through the existing confirmation flow. Read both Groups and require only the peer to remain, then remove the peer from each Group. Check the Members panel after refresh. Automated rollback/restart coverage is in `packages/core/test/personabot-deletion.test.ts`; passing those Core tests or online CLI checks alone does not establish Web, native or Human acceptance.
 
-ADR-0366 lets Tob and any other App management grant holder join Groups as ordinary members; the CLI stays limited to their Human DM turns. Web evidence does not qualify native Desktop differences.
+Tob decisions §11 lets Tob and any other App management grant holder join Groups as ordinary members; the CLI stays limited to their Human DM turns. Web evidence does not qualify native Desktop differences.
