@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 export const SESSION_LIST_PUBLISH_MS = 1_000;
-export const SESSION_LIST_CACHE_MS = 15_000;
 
 const ROW_EVENTS: ReadonlySet<string> = new Set([
   'turn/start',
@@ -29,13 +28,12 @@ export function createSessionListChanges(
     epoch = randomUUID() as string,
   }: { publishMs?: number; epoch?: string } = {},
 ) {
-  let version = 0;
   let seq = 0;
   let allSeq = 0;
   const touched = new Map<string, number>();
+  const touchedAt = new Map<string, number>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const signal = (push: boolean) => {
-    version += 1;
     if (!push || timer !== undefined) return;
     timer = setTimeout(() => {
       timer = undefined;
@@ -44,19 +42,20 @@ export function createSessionListChanges(
     timer.unref?.();
   };
   return {
-    get version() {
-      return version;
-    },
     get cursor(): SessionListCursor {
       return { epoch, seq };
     },
-    changed(push = true, sessionId?: string) {
+    changed(push = true, sessionId?: string, at?: number) {
       if (sessionId !== undefined) {
         seq += 1;
         touched.delete(sessionId);
         touched.set(sessionId, seq);
+        if (at !== undefined) touchedAt.set(sessionId, Math.max(at, touchedAt.get(sessionId) ?? 0));
       }
       signal(push);
+    },
+    touchedAt(sessionId: string): number | undefined {
+      return touchedAt.get(sessionId);
     },
     changedAll() {
       seq += 1;
@@ -90,21 +89,3 @@ export function createSessionListChanges(
 }
 
 export type SessionListChanges = ReturnType<typeof createSessionListChanges>;
-
-export function cacheSessionRows<T>(
-  read: () => Promise<T>,
-  changes: Pick<SessionListChanges, 'version'>,
-  { maxAgeMs = SESSION_LIST_CACHE_MS, now = Date.now } = {},
-): () => Promise<T> {
-  let cached: { version: number; at: number; rows: Promise<T> } | undefined;
-  return () => {
-    if (cached !== undefined && cached.version === changes.version && now() - cached.at < maxAgeMs)
-      return cached.rows;
-    const entry = { version: changes.version, at: now(), rows: read() };
-    cached = entry;
-    entry.rows.catch(() => {
-      if (cached === entry) cached = undefined;
-    });
-    return entry.rows;
-  };
-}

@@ -34,6 +34,7 @@ export function sessionTitleCache(
 export async function fillSessionTitles(
   deps: Pick<BridgeMethodsDeps, 'readSessionTitles' | 'nativeSessions'>,
   rows: readonly HostSessionRow[],
+  { wait = true }: { wait?: boolean } = {},
 ): Promise<void> {
   const untitled = rows.filter((row) => row.title === undefined);
   if (deps.readSessionTitles === undefined || untitled.length === 0) return;
@@ -45,7 +46,7 @@ export async function fillSessionTitles(
       : (ids) => {
           for (const id of ids) native.markChanged?.(id);
         },
-  )(untitled);
+  )(untitled, { wait });
   for (const row of untitled) {
     const title = titles.get(row.sessionId);
     if (title !== undefined) row.title = title;

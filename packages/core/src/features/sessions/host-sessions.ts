@@ -334,7 +334,7 @@ export function createHostSessionsMethods(
             return { ok: true, value: { reset: true, cursor: changes.cursor } };
         } else if (mayKnowSession(scope, id)) removed.push(id);
       }
-      await fillSessionTitles(deps, sessions);
+      await fillSessionTitles(deps, sessions, { wait: false });
       return {
         ok: true,
         value: { sessions, removed, sources: read.sources, cursor: changes.cursor },

@@ -410,7 +410,7 @@ export function mountLifecycle(
       });
       activity.handleSessionEvent(session.id, event);
       sessionLive.observe(session.id, event);
-      sessionListChanges.changed(changesSessionRow(event.type), session.id);
+      sessionListChanges.changed(changesSessionRow(event.type), session.id, event.time);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {

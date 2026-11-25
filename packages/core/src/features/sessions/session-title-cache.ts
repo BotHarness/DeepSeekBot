@@ -43,6 +43,7 @@ export function createSessionTitleCache(
 
   return async function titles(
     rows: readonly SessionTitleVersion[],
+    { wait = true }: { wait?: boolean } = {},
   ): Promise<ReadonlyMap<string, string>> {
     for (const row of rows)
       if (
@@ -53,7 +54,7 @@ export function createSessionTitleCache(
     drain ??= readQueued().finally(() => {
       drain = undefined;
     });
-    if (!settled(rows)) {
+    if (wait && !settled(rows)) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
         (async () => {
