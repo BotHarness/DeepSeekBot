@@ -84,9 +84,22 @@ vi.mock('react-native-keyboard-controller', () => ({
     createElement('div', { 'data-keyboard-form': true }, children),
 }));
 vi.mock('expo-image', () => ({
-  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) => {
+  Image: ({
+    testID,
+    source,
+    contentFit,
+  }: {
+    testID?: string;
+    source: { uri: string };
+    contentFit?: string;
+  }) => {
     fixture.imageRenders++;
-    return createElement('img', { 'data-testid': testID, src: source.uri, alt: '' });
+    return createElement('img', {
+      'data-testid': testID,
+      src: source.uri,
+      'data-fit': contentFit ?? '',
+      alt: '',
+    });
   },
 }));
 let avatarClient: HostClient | undefined;
@@ -627,8 +640,16 @@ it('offers the full built-in Bot Avatar galleries and saves a preset without Pho
   expect(element.querySelectorAll('[data-testid^="illustrated-avatar-"]').length).toBeGreaterThan(
     24,
   );
+  const illustratedImg = element.querySelector('[data-testid="illustrated-avatar-1"] img');
+  expect(illustratedImg?.getAttribute('data-fit')).toBe('cover');
+  expect(atob(illustratedImg!.getAttribute('src')!.split(',')[1]!)).not.toMatch(
+    /<rect\b[^>]*\srx="/,
+  );
   await act(async () => button(t.avatarEditor.line).click());
   expect(element.querySelector('[data-testid="line-avatar-1"]')).not.toBeNull();
+  const lineImg = element.querySelector('[data-testid="line-avatar-1"] img');
+  expect(lineImg?.getAttribute('data-fit')).toBe('cover');
+  expect(atob(lineImg!.getAttribute('src')!.split(',')[1]!)).not.toMatch(/<rect\b[^>]*\srx="/);
   await act(async () => button(t.avatarEditor.tilties).click());
   expect(element.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(36);
   await act(async () => button(t.marketplaceAvatars.choose).click());

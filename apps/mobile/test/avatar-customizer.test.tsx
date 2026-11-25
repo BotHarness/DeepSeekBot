@@ -18,7 +18,9 @@ vi.mock('expo-router', () => ({
   },
 }));
 vi.mock('expo-image', () => ({
-  Image: ({ source }: { source: { uri: string } }) => <img src={source.uri} />,
+  Image: ({ source, contentFit }: { source: { uri: string }; contentFit?: string }) => (
+    <img src={source.uri} data-fit={contentFit ?? ''} />
+  ),
 }));
 vi.mock('expo-haptics', () => ({ selectionAsync: async () => {} }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
@@ -149,6 +151,8 @@ it('changing the preview name never changes its image identity', async () => {
   const image = node.querySelector('img');
   const uri = image?.src;
   expect(uri).toMatch(/^data:image\/svg\+xml/);
+  expect(image?.getAttribute('data-fit')).toBe('cover');
+  expect(atob(uri!.split(',')[1]!)).not.toMatch(/<rect\b[^>]*\srx="/);
   await act(async () =>
     root.render(<CreationAvatarPreview name="Another Bot" avatar={undefined} imported={false} />),
   );
