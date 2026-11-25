@@ -49,6 +49,7 @@ jobs:
       perf: ${{ steps.plan.outputs.perf }}
       ui-visual: ${{ steps.plan.outputs.ui-visual }}
       mobile: ${{ steps.plan.outputs.mobile }}
+      private-relay: ${{ steps.plan.outputs.private-relay }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
       shards: ${{ steps.select.outputs.shards }}
@@ -183,6 +184,48 @@ jobs:
       - name: Report kernel out-of-memory kills
         if: failure() || cancelled()
         run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
+
+  private-relay:
+    name: Go private relay and wire conformance
+    needs: plan
+    if: needs.plan.outputs.private-relay == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deploy/private-relay
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: deploy/private-relay/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: go test -race ./...
+      - run: docker build -t tobs-relay:ci .
+      - run: npm ci --ignore-scripts
+      - name: Check the container against the Node conformance client
+        run: |
+          work=$(mktemp -d)
+          volume=$(docker volume create)
+          trap 'docker rm -f tobs-relay-ci >/dev/null 2>&1 || true; docker volume rm "$volume" >/dev/null; rm -rf "$work"' EXIT
+          config=(-v "$volume:/data" tobs-relay:ci)
+          docker run --rm "${config[@]}" setup relay.example.test
+          docker run --rm "${config[@]}" add-host conformance-a
+          docker run --rm "${config[@]}" add-host conformance-b
+          docker run -d --name tobs-relay-ci --read-only --cap-drop ALL \
+            -e RELAY_TLS=off -e RELAY_LISTEN=:8080 -p 127.0.0.1::8080 "${config[@]}"
+          for attempt in {1..20}; do
+            if docker exec tobs-relay-ci /tobs-relay health; then break; fi
+            sleep 1
+          done
+          docker exec tobs-relay-ci /tobs-relay health
+          docker cp tobs-relay-ci:/data/host-conformance-a.secret "$work/a.secret"
+          docker cp tobs-relay-ci:/data/host-conformance-b.secret "$work/b.secret"
+          node conformance.mjs --origin "http://$(docker port tobs-relay-ci 8080/tcp)" \
+            --key-a-file "$work/a.secret" --key-b-file "$work/b.secret"
 
   mobile-export:
     name: mobile verification (iOS and Android)
@@ -643,6 +686,7 @@ jobs:
       [
         plan,
         static,
+        private-relay,
         mobile-export,
         mobile-native,
         mobile-native-ios,
@@ -665,6 +709,7 @@ jobs:
           const needs = JSON.parse(process.env.NEEDS);
           const plan = needs.plan.outputs;
           const required = ['plan', 'static'];
+          if (plan['private-relay'] === 'true') required.push('private-relay');
           if (process.env.IOS_HARDWARE_SEND_TESTS === 'true') required.push('mobile-native-ios');
           if (plan.mobile === 'true') required.push('mobile-export');
           if (plan['android-native'] === 'true') required.push('mobile-native');
@@ -685,7 +730,8 @@ jobs:
             if (shards === '4') required.push('test-affected');
           }
           if (!['none', 'affected', 'full'].includes(plan.tests) ||
-              !['true', 'false'].includes(plan.mobile)) throw new Error('Invalid CI plan');
+              !['true', 'false'].includes(plan.mobile) ||
+              !['true', 'false'].includes(plan['private-relay'])) throw new Error('Invalid CI plan');
           const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
           const missing = required.filter((name) => needs[name]?.result !== 'success');
           if (failed.length || missing.length) {
