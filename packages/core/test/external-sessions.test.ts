@@ -275,4 +275,10 @@ it('lists external sessions when Host Sessions are unavailable, and fails only w
   await expect(
     createWorkspaceSessionReader(() => undefined, { resolve: () => undefined }).list(grants),
   ).rejects.toMatchObject({ code: 'unavailable' });
+  const broken = { list: async () => Promise.reject(new Error('unreadable')), read: external.read };
+  await expect(
+    createWorkspaceSessionReader(() => undefined, { resolve: () => undefined }, broken).list(
+      grants,
+    ),
+  ).rejects.toMatchObject({ code: 'unavailable' });
 });

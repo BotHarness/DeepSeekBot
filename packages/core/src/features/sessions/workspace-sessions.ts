@@ -157,7 +157,13 @@ export function createWorkspaceSessionReader(
           (error: unknown) => ({ rows: [], error }),
         );
       if ('error' in listed && external === undefined) throw listed.error;
-      const imported = external === undefined ? [] : await external.list().catch(() => []);
+      const imported =
+        external === undefined
+          ? []
+          : await external.list().catch(() => {
+              if ('error' in listed) throw listed.error;
+              return [];
+            });
       const rows = listed.rows;
       const current = roots();
       const native_ = rows
