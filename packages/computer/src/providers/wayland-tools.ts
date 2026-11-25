@@ -52,7 +52,7 @@ export const waylandTools = [
   ),
   tool(
     'type_text',
-    'Type text supported by the desktop keyboard layout. Leave credentials to the Human.',
+    'Paste text into the focused app using GNOME clipboard permission. This replaces the desktop clipboard. Leave credentials to the Human.',
     {
       text: { type: 'string', maxLength: 1024 },
     },

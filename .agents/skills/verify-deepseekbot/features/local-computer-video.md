@@ -160,7 +160,7 @@ Entry points: Bot Computer pane → Check permissions, or Bot Settings → Compu
 
 Start the isolated Host from the signed-in GNOME Wayland session. Use a clean desktop with a harmless local page and an editable field.
 
-1. In Computer settings, select **Use this computer’s desktop**. Cancel once and check that the target has its original value. Select again and read the whole-desktop notice before confirming. In the GNOME system dialog, select the monitor, enable **Allow Remote Interaction** and **Remember This Selection**, then press **Share**. Read `computer-target` and `computer-status` to confirm the selection and readiness.
+1. In Computer settings, select **Use this computer’s desktop**. Cancel once and check that the target has its original value. Select again and read the whole-desktop notice before confirming. In the GNOME system dialog, select the monitor, enable **Allow Remote Interaction** and **Remember This Selection**. Enable **Allow Clipboard Access** for text entry, then press **Share**. Read `computer-target` and `computer-status` to confirm the selection and readiness.
 2. Have a Bot use Computer to open the harmless fixture and Bot Browser to load it in a visible profile window. Open Computer in the paired Android app on LAN and verify the same visible title and fixture before taking control.
 3. Choose **Pause Bots and take control**, enter a disposable marker, and confirm it appears in the desktop field. Query both direct tool paths and verify that both refuse while paused.
 4. Release and verify both refusals persist. Choose **Resume Bots** and verify both tools can observe again. Close the viewer and check the Host has released its grant.

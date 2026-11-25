@@ -10,13 +10,14 @@ import gi
 
 gi.require_version('Gst', '1.0')
 gi.require_version('Gdk', '4.0')
-gi.require_version('Gtk', '4.0')
-from gi.repository import Gdk, Gio, GLib, Gst, Gtk
+from gi.repository import Gdk, Gio, GLib, Gst
 
 PORTAL = 'org.freedesktop.portal.Desktop'
 DESKTOP = '/org/freedesktop/portal/desktop'
 REMOTE = 'org.freedesktop.portal.RemoteDesktop'
 CAST = 'org.freedesktop.portal.ScreenCast'
+CLIPBOARD = 'org.freedesktop.portal.Clipboard'
+TEXT_TYPES = ('text/plain;charset=utf-8', 'text/plain', 'UTF8_STRING')
 SESSION = 'org.freedesktop.portal.Session'
 REQUEST = 'org.freedesktop.portal.Request'
 LOGIN = 'org.freedesktop.login1'
@@ -36,6 +37,14 @@ class Refusal(Exception):
 
 class InputError(Exception):
     pass
+
+
+class Paste:
+    def __init__(self, text):
+        self.data = text.encode('utf-8')
+        self.wait = GLib.MainLoop()
+        self.transferred = False
+        self.settle = None
 
 
 def variant(signature, value):
@@ -87,6 +96,8 @@ class Desktop:
         self.sample = None
         self.logical_size = None
         self.status = None
+        self.clipboard_enabled = False
+        self.paste = None
         self.system_bus.signal_subscribe(
             LOGIN, 'org.freedesktop.DBus.Properties', 'PropertiesChanged', self.login_path,
             LOGIN_SESSION, Gio.DBusSignalFlags.NONE, self.on_login)
@@ -94,6 +105,8 @@ class Desktop:
                                   Gio.DBusSignalFlags.NONE, self.on_login)
         self.bus.signal_subscribe(PORTAL, SESSION, 'Closed', None, None,
                                   Gio.DBusSignalFlags.NONE, self.on_closed)
+        self.bus.signal_subscribe(PORTAL, CLIPBOARD, 'SelectionTransfer', DESKTOP, None,
+                                  Gio.DBusSignalFlags.NONE, self.on_selection_transfer)
         for element in ('pipewiresrc', 'queue', 'videoconvert', 'videorate', 'jpegenc', 'appsink'):
             if Gst.ElementFactory.find(element) is None:
                 raise Refusal('desktop-portal-dependencies')
@@ -172,6 +185,9 @@ class Desktop:
     def disconnect(self, reason):
         self.set_status(reason)
         session, self.session = self.session, None
+        self.clipboard_enabled = False
+        if self.paste is not None:
+            self.paste.wait.quit()
         if self.request_path is not None:
             self.close_remote(self.request_path, REQUEST)
             self.request_wait.quit()
@@ -247,6 +263,10 @@ class Desktop:
                 'types': variant('u', 1), 'multiple': variant('b', False),
                 'cursor_mode': variant('u', 2),
             })
+            try:
+                self.call(CLIPBOARD, 'RequestClipboard', '(oa{sv})', (selected_session, {}))
+            except GLib.Error:
+                pass
             reply = self.request(REMOTE, 'Start', '(osa{sv})', (selected_session, ''), {}, 75)
             if self.session != selected_session or not self.active or self.locked or self.screen_inactive:
                 raise Refusal('desktop-unreachable')
@@ -257,6 +277,7 @@ class Desktop:
                 raise Refusal('desktop-consent-required')
             self.token = reply['restore_token']
             send(token=self.token)
+            self.clipboard_enabled = reply.get('clipboard_enabled') is True
             self.stream, metadata = streams[0]
             self.logical_size = metadata.get('size')
             self.start_capture()
@@ -361,24 +382,72 @@ class Desktop:
                 self.disconnect('desktop-portal-ended')
                 raise Refusal('desktop-portal-ended')
 
-    def text_keys(self, text):
+    def on_selection_transfer(self, _bus, _sender, _path, _interface, _name, args):
+        session, mime_type, serial = args.unpack()
+        if session != self.session:
+            return
+        paste = self.paste
+        transferred = False
+        try:
+            if paste is not None and mime_type in TEXT_TYPES:
+                reply, descriptors = self.bus.call_with_unix_fd_list_sync(
+                    PORTAL, DESKTOP, CLIPBOARD, 'SelectionWrite', variant('(ou)', (session, serial)),
+                    None, Gio.DBusCallFlags.NONE, COMMAND_TIMEOUT, None, None)
+                with os.fdopen(descriptors.get(reply.unpack()[0]), 'wb') as pipe:
+                    pipe.write(paste.data)
+                transferred = True
+            self.call(CLIPBOARD, 'SelectionWriteDone', '(oub)', (session, serial, transferred))
+        except (GLib.Error, OSError):
+            self.close_transfer(session, serial)
+            return
+        if transferred:
+            paste.transferred = True
+            if paste.settle is not None:
+                GLib.source_remove(paste.settle)
+            paste.settle = GLib.timeout_add(200, self.end_paste, paste)
+
+    def close_transfer(self, session, serial):
+        try:
+            self.call(CLIPBOARD, 'SelectionWriteDone', '(oub)', (session, serial, False))
+        except GLib.Error:
+            pass
+
+    @staticmethod
+    def end_paste(paste):
+        paste.wait.quit()
+        return GLib.SOURCE_CONTINUE
+
+    def paste_text(self, text):
         if not text:
-            return []
-        Gdk.set_allowed_backends('wayland')
-        display = Gdk.Display.get_default() if Gtk.init_check() else None
-        seat = display.get_default_seat() if display is not None else None
-        keyboard = seat.get_keyboard() if seat is not None else None
-        if keyboard is None:
-            raise InputError('Could not read the desktop keyboard layout. Try again.')
-        group = keyboard.get_active_layout_index()
-        controls = {'\n': Gdk.KEY_Return, '\t': Gdk.KEY_Tab}
-        keysyms = [controls[char] if char in controls else Gdk.unicode_to_keyval(ord(char))
-                   for char in text]
-        for keysym in set(keysyms):
-            mapped, keys = display.map_keyval(keysym)
-            if not mapped or not any(key.group == group and key.level <= 2 for key in keys):
-                raise InputError('The desktop keyboard layout cannot type some of this text. Change the layout or enter the text on the desktop.')
-        return keysyms
+            return
+        if not self.clipboard_enabled:
+            raise InputError('GNOME clipboard permission is required to enter text. Allow clipboard sharing in a new GNOME sharing grant.')
+        session = self.session
+        paste = Paste(text)
+        self.paste = paste
+        timeout = None
+        offered = False
+        try:
+            self.call(CLIPBOARD, 'SetSelection', '(oa{sv})',
+                      (session, {'mime_types': variant('as', TEXT_TYPES)}))
+            offered = True
+            self.press_keys((Gdk.KEY_Control_L, Gdk.KEY_v))
+            timeout = GLib.timeout_add(2500, self.end_paste, paste)
+            paste.wait.run()
+            if self.session != session:
+                raise Refusal(self.status or 'desktop-portal-ended')
+            if not paste.transferred:
+                raise InputError('The focused app did not request the pasted text. Check the app and retry.')
+        finally:
+            self.paste = None
+            for timer in (timeout, paste.settle):
+                if timer is not None:
+                    GLib.source_remove(timer)
+            if offered and self.session == session:
+                try:
+                    self.call(CLIPBOARD, 'SetSelection', '(oa{sv})', (session, {}))
+                except GLib.Error:
+                    pass
 
     def execute(self, method, args):
         if self.status != 'ready' or self.session is None:
@@ -392,6 +461,8 @@ class Desktop:
                 data = buffer.extract_dup(0, buffer.get_size())
                 info['image'] = base64.b64encode(data).decode('ascii')
             return info
+        if self.paste is not None:
+            raise InputError('The desktop is still applying text. Try again.')
         if method == 'click':
             button = {'left': 272, 'right': 273, 'middle': 274}[args.get('button', 'left')]
             self.point(args['x'], args['y'])
@@ -406,8 +477,7 @@ class Desktop:
             self.notify('NotifyPointerAxisDiscrete', 'ui', axis,
                         direction * math.ceil(args.get('amount', 3)))
         elif method == 'type_text':
-            for keysym in self.text_keys(args['text']):
-                self.press_keys((keysym,))
+            self.paste_text(args['text'])
         else:
             labels = args['keys'] if method == 'hotkey' else [args['key']]
             aliases = {'ctrl': 'Control_L', 'control': 'Control_L', 'cmd': 'Super_L',

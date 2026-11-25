@@ -588,9 +588,9 @@ deepseekbot computer-start --target current-desktop
 deepseekbot computer-status
 ```
 
-在 GNOME Wayland 上，在系统共享对话框选择显示器，允许远程交互，勾选记住此次选择，再点共享。Ubuntu 上的 Host 需要 `xdg-desktop-portal-gnome`、`python3-gi`、`gir1.2-gtk-4.0`、`gir1.2-gstreamer-1.0`、`gstreamer1.0-pipewire`、`gstreamer1.0-plugins-base` 和 `gstreamer1.0-plugins-good`。
+在 GNOME Wayland 上，在系统共享对话框选择显示器，允许远程交互，勾选记住此次选择。如果需要输入文字，还要打开“允许访问剪贴板”，再点共享。Ubuntu 上的 Host 需要 `xdg-desktop-portal-gnome`、`python3-gi`、`gir1.2-gtk-4.0`、`gir1.2-gstreamer-1.0`、`gstreamer1.0-pipewire`、`gstreamer1.0-plugins-base` 和 `gstreamer1.0-plugins-good`。
 
-`computer-tools` 列出当前桌面可用的操作。用 `computer-tool <Bot ID> get_desktop_state --out <绝对路径>` 查看画面。再用 `--args-stdin` 向 `click`、`scroll`、`type_text`、`press_key` 或 `hotkey` 传参。Wayland 输入发往当前获得焦点的应用，坐标取自最新截图。如果当前键盘布局无法输入其中任意字符，`type_text` 会拒绝整次输入。Bot Browser 用独立的浏览器资料在同一个桌面打开可见窗口。
+`computer-tools` 列出当前桌面可用的操作。用 `computer-tool <Bot ID> get_desktop_state --out <绝对路径>` 查看画面。再用 `--args-stdin` 向 `click`、`scroll`、`type_text`、`press_key` 或 `hotkey` 传参。Wayland 输入发往当前获得焦点的应用，坐标取自最新截图。`type_text` 通过 GNOME 剪贴板粘贴 UTF-8 文字，可以输入当前键盘布局之外的字符。这会替换电脑的剪贴板内容，需要在共享时允许剪贴板。请在电脑上输入凭据。Bot Browser 用独立的浏览器资料在同一个桌面打开可见窗口。
 
 查看 `status.state` 是否为 `running`。检查失败时，`status.refusal` 给出错误码，`status.detail` 给出下一步。通过局域网连接已配对的 Android，打开 **Computer**。用 CLI 驱动同一观看链路时，运行 `computer-video open --out <绝对路径>`。帧流返回 `binding` 和 `transport: "frames"`。将绑定 JSON 传给 `computer-video frame --args-stdin --out <绝对路径>`，并在 `takeover`、`input` 和 `release` 时复用绑定。如果等待新画面超时，CLI 返回 `no-frame`，可以用同一路径重试。只有 `resume` 会结束 Bot 暂停。每次保存 Computer 桌面画面时，使用 CLI 所在电脑上的新绝对路径。如果在暂停期间切换到 Linux 本机 Computer，用 `computer-video status` 读取新的 `runtimeId`，再通过标准输入传给 `computer-video resume --args-stdin`。
 

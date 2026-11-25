@@ -23,7 +23,8 @@ export const zh = {
   'rows.target.local': '本机 Computer',
   'rows.target.container': 'Docker Computer',
   'rows.target.current-desktop': '使用此电脑的桌面',
-  'rows.target.desktopNotice': '开通后，Bot 和已配对的手机都能看到整块桌面，包括其他应用和通知。',
+  'rows.target.desktopNotice':
+    '开通后，Bot 和已配对的手机都能看到整块桌面，包括其他应用和通知。在 GNOME Wayland 上，输入文字会替换此电脑的剪贴板内容。',
   'rows.target.enable': '启用桌面',
   'rows.target.cancel': '取消',
   'rows.target.failed': '无法保存操作目标。检查后重试。',
@@ -186,7 +187,7 @@ export const en: Record<keyof typeof zh, string> = {
   'rows.target.container': 'Docker Computer',
   'rows.target.current-desktop': 'Use this computer’s desktop',
   'rows.target.desktopNotice':
-    'Bots and paired phones can see the whole desktop, including other apps and notifications.',
+    'Bots and paired phones can see the whole desktop, including other apps and notifications. On GNOME Wayland, entering text replaces this computer’s clipboard contents.',
   'rows.target.enable': 'Enable desktop',
   'rows.target.cancel': 'Cancel',
   'rows.target.failed': 'Could not save the Computer Target. Check your selection and retry.',

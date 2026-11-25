@@ -1,6 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isWaylandDesktop } from '../src/desktop-availability.js';
 import { createComputerPauseStore, createLocalVideoOwner } from '../src/local-video-owner.js';
@@ -47,6 +49,21 @@ function portal() {
 }
 
 describe('GNOME Wayland Computer target', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'pastes exact UTF-8 through the GNOME clipboard portal',
+    () => {
+      execFileSync(
+        '/usr/bin/python3',
+        [
+          '-B',
+          fileURLToPath(new URL('./wayland-clipboard-fixture.py', import.meta.url)),
+          fileURLToPath(new URL('../native/wayland/portal-desktop.py', import.meta.url)),
+        ],
+        { shell: false, windowsHide: true },
+      );
+    },
+  );
+
   it('selects GNOME Wayland separately from X11 or the Xwayland display', () => {
     expect(
       isWaylandDesktop({
