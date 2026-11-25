@@ -274,6 +274,7 @@ export function conversationHeader({
   insets,
   windowWidth,
   leave,
+  tabRoot,
   ios,
   profile,
 }: {
@@ -282,6 +283,7 @@ export function conversationHeader({
   insets: ReturnType<typeof useSafeAreaInsets>;
   windowWidth: number;
   leave: () => void;
+  tabRoot: boolean;
   ios: boolean;
   profile: Pick<
     ReturnType<typeof useConversationProfile>,
@@ -326,7 +328,7 @@ export function conversationHeader({
     ios && glassHeader ? (
       <ChatHeaderRow
         title={title}
-        back={{ label: t.back, testID: 'chat-back-button', onPress: leave }}
+        back={tabRoot ? undefined : { label: t.back, testID: 'chat-back-button', onPress: leave }}
         controls={{
           kind: 'actions',
           actions: [

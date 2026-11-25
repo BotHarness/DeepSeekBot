@@ -20,6 +20,9 @@ const fixture = vi.hoisted(() => ({
   platform: 'ios',
   index: 0,
   saved: undefined as SavedHost | undefined,
+  pinned: undefined as
+    | { name: string; count: number; label: string; countedLabel: string; conversation: undefined }
+    | undefined,
   navigateToTab: vi.fn(),
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
@@ -54,24 +57,28 @@ vi.mock('expo-router', () => ({
   useIsFocused: () => true,
   useFocusEffect: vi.fn(),
 }));
-vi.mock('expo-router/js-tabs', () => ({
-  Tabs: Object.assign(
-    ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>
-      tabBar({
-        state: {
-          index: fixture.index,
-          routes: [
-            { key: 'home', name: '(home)' },
-            { key: 'activity', name: '(activity)' },
-            { key: 'sessions', name: '(sessions)' },
-            { key: 'settings', name: '(settings)' },
-          ],
-        },
-        emitter: { emit: () => ({ defaultPrevented: false }) },
-        navigateToTab: fixture.navigateToTab,
-      }),
-    { Screen: () => null },
-  ),
+vi.mock('expo-router/js-tabs', async () => {
+  const { Children } = await import('react');
+  return {
+    Tabs: Object.assign(
+      ({ tabBar, children }: { tabBar: (props: object) => ReactNode; children?: ReactNode }) => {
+        const routes = Children.toArray(children).map((child) => {
+          const name = (child as { props: { name: string } }).props.name;
+          return { key: name.slice(1, -1), name };
+        });
+        return tabBar({
+          state: { index: fixture.index, routes },
+          emitter: { emit: () => ({ defaultPrevented: false }) },
+          navigateToTab: fixture.navigateToTab,
+        });
+      },
+      { Screen: () => null },
+    ),
+  };
+});
+vi.mock('../src/features/pinned-tab/pinned-avatar', () => ({ PinnedAvatar: () => null }));
+vi.mock('../src/features/pinned-tab/use-pinned-tab', () => ({
+  usePinnedTab: () => fixture.pinned,
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
 vi.mock('../src/host/host-session', () => ({
@@ -93,6 +100,7 @@ vi.mock('../src/cloud/native-conversations', () => ({
 import { router } from 'expo-router';
 import { BottomNavigation } from '../src/ui/shell/bottom-navigation';
 import { interfacePreferences } from '../src/ui/interface-preferences';
+import { defaultTabOrder } from '../src/ui/shell/tab-slots';
 import { t } from '../src/ui/strings';
 import { setHapticsEnabled } from '../src/ui/haptics';
 import { played } from './expo-haptics-shim';
@@ -101,7 +109,8 @@ afterEach(() => {
   played.length = 0;
   fixture.saved = undefined;
   fixture.index = 0;
-  interfacePreferences.setSessionsTab(false);
+  fixture.pinned = undefined;
+  interfacePreferences.setTabOrder(defaultTabOrder);
   vi.mocked(router.push).mockClear();
 });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -118,11 +127,10 @@ it.each(['ios', 'android'])(
   async (platform) => {
     fixture.platform = platform;
     fixture.saved = owner;
-    await act(async () => interfacePreferences.setSessionsTab(true));
     const host = document.createElement('div');
     const root = createRoot(host);
     try {
-      for (const index of [0, 1, 2, 3]) {
+      for (const index of [0, 1, 2, 3, 4]) {
         fixture.index = index;
         await act(async () => root.render(<BottomNavigation />));
         expect(host.querySelector(`button[aria-label="${t.createHere}"]`)).toBeNull();
@@ -130,7 +138,6 @@ it.each(['ios', 'android'])(
       }
     } finally {
       act(() => root.unmount());
-      await act(async () => interfacePreferences.setSessionsTab(false));
     }
   },
 );
@@ -155,7 +162,7 @@ it.each([
     await act(async () => (settings() as HTMLButtonElement).click());
     expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('settings');
     expect(router.push).not.toHaveBeenCalled();
-    fixture.index = 3;
+    fixture.index = 4;
     await act(async () => root.render(<BottomNavigation />));
     expect(settings().getAttribute('aria-selected')).toBe('true');
   } finally {
@@ -166,27 +173,47 @@ it.each([
 });
 
 it.each(['ios', 'android'])(
-  'adds Sessions to the tab bar only when enabled on %s',
+  'shows five icon-only tabs with the Pinned tab right of Chats by default on %s',
   async (platform) => {
     fixture.platform = platform;
     fixture.navigateToTab.mockClear();
+    fixture.pinned = {
+      name: 'Launch',
+      count: 3,
+      label: t.pinnedTab.tabLabel('Launch'),
+      countedLabel: t.pinnedTab.tabLabel('Launch', '3'),
+      conversation: undefined,
+    };
     const host = document.createElement('div');
     const root = createRoot(host);
-    const findSessions = () =>
-      host.querySelector<HTMLButtonElement>(`button[aria-label="${t.hostSessions.title}"]`);
+    const labels = () =>
+      [...host.querySelectorAll('[role="tab"]')].map((tab) => tab.getAttribute('aria-label'));
     try {
       await act(async () => root.render(<BottomNavigation />));
-      expect(findSessions()).toBeNull();
-      await act(async () => interfacePreferences.setSessionsTab(true));
-      const sessions = findSessions();
-      expect(sessions).not.toBeNull();
-      await act(async () => sessions?.click());
-      expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('sessions');
-      await act(async () => interfacePreferences.setSessionsTab(false));
-      expect(findSessions()).toBeNull();
+      expect(labels()).toEqual([
+        t.chats,
+        t.pinnedTab.tabLabel('Launch', '3'),
+        t.activity,
+        t.hostSessions.title,
+        t.settings,
+      ]);
+      expect(host.textContent).toBe('3');
+      const pinned = host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]!;
+      await act(async () => pinned.click());
+      expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('pinned');
+      expect(host.textContent).toContain('Launch');
+      await act(async () =>
+        interfacePreferences.setTabOrder(['chats', 'activity', 'sessions', 'settings', 'pinned']),
+      );
+      expect(labels()).toEqual([
+        t.chats,
+        t.activity,
+        t.hostSessions.title,
+        t.settings,
+        t.pinnedTab.tabLabel('Launch', '3'),
+      ]);
     } finally {
       act(() => root.unmount());
-      interfacePreferences.setSessionsTab(false);
     }
   },
 );

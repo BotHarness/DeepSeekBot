@@ -1286,7 +1286,7 @@ Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 
 **Pinned tab**：
-固定对话 tab（计划中，#5191）。手机端 tab island 中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像，点击作为独立 tab 打开。默认绑定主管的 DM，取代 Tob 入口栏与 Tob 模式。
+固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定主管的 DM，跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。
 _避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：

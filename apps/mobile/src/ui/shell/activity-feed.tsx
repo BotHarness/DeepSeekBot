@@ -72,6 +72,7 @@ import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar'
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { FixedToolbar } from './fixed-toolbar';
+import { useHideChromeOnScroll } from './tab-chrome';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
@@ -588,6 +589,7 @@ const ActivityPage = memo(function ActivityPage({
   const t = useStrings();
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
+  const hideChrome = useHideChromeOnScroll(!searchFocused && search === '');
   const filter = useMemo<ActivityFilter>(
     () => ({
       section,
@@ -813,6 +815,7 @@ const ActivityPage = memo(function ActivityPage({
             )}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScroll={hideChrome}
             scrollEventThrottle={1}
             style={{
               backgroundColor: theme.color.base,

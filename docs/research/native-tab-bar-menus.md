@@ -19,7 +19,7 @@ All four work on the native bar. The spike is commit `fa2e55289` on `t3/pinned-t
 
 ## Evidence
 
-Fixture data only. The (d) fixture runs at `deepseekbot-dev://qa/pinned-native-tabs-regular` (dev builds only).
+Fixture data only. The (d) fixture ran at `deepseekbot-dev://qa/pinned-native-tabs-regular` in dev builds; #5195 replaced it with the production tab bar.
 
 - Long-press Chats → native menu, light mode (left). A tap on Settings → name pill above the native item (right):
   <img src="https://media.botharness.ai/pr/fa2e55289641/fce1cdc9278ce7faf11b77653b5c262dbb2e8e87f817aafb69650530290eb96b.png" width="480" alt="Native tab bar long-press menu and name pill, light">
@@ -125,4 +125,4 @@ If the Human wants zero dependence on UIKit's internal layout, the fallback is t
 - react-native-screens 4.30.1: `ios/tabs/host/RNSTabBarController.mm` (`installScreenControllers`, `tabForTabScreenController`, `makeTabForTabScreenController`) and `ios/tabs/host/RNSTabsHostComponentView.mm` (`tabBarHidden`).
 - expo-router 58.0.32: `build/native-tabs/NativeBottomTabsNavigator.js` (`tabConfigurationKey`) and `build/native-tabs/NativeTabsView.ios.js` (`tabBarHidden: props.hidden`).
 - Prior art: [lynnswap/TabBarMenu](https://github.com/lynnswap/TabBarMenu), [ryanashcraft/fabbar](https://github.com/ryanashcraft/fabbar).
-- Spike: `apps/mobile/modules/native-tab-menus/` and `apps/mobile/app/qa/pinned-native-tabs-regular/_layout.tsx` on `t3/pinned-tab-prototypes-5194`.
+- Spike: `apps/mobile/modules/native-tab-menus/` and `apps/mobile/app/qa/pinned-native-tabs-regular/_layout.tsx` on `t3/pinned-tab-prototypes-5194`; production: `apps/mobile/src/ui/shell/bottom-navigation.ios.tsx`.

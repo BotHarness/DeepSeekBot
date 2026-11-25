@@ -13,6 +13,7 @@ export function GroupMark({
   variant = 'body',
   strong = true,
   labelScale = 1,
+  onSettled,
 }: {
   avatar: string | undefined;
   initial?: string;
@@ -22,6 +23,7 @@ export function GroupMark({
   variant?: TextVariant;
   strong?: boolean;
   labelScale?: number;
+  onSettled?: (() => void) | undefined;
 }) {
   const theme = useDesignTheme();
   return (
@@ -54,6 +56,7 @@ export function GroupMark({
           testID="group-avatar"
           source={{ uri: avatar }}
           style={{ width: size, height: size }}
+          {...(onSettled === undefined ? {} : { onLoadEnd: onSettled })}
         />
       )}
     </View>
