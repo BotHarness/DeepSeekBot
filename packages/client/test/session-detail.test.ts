@@ -280,6 +280,14 @@ it('shows the full conversation with summary chips that expand in place', async 
   expect(host.querySelector('[data-session-composer]')?.textContent).not.toContain('Inbox');
 });
 
+it('shows a Subagent transcript read-only, without a composer', async () => {
+  const sub = { ...transcript('orchestrator'), parentSessionId: 'orc' };
+  const send = vi.fn(async () => {});
+  const host = await render({ sessionTranscript: async () => sub, sendOrchestratorMessage: send });
+  expect(host.querySelector('[data-transcript="input"]')).not.toBeNull();
+  expect(host.querySelector('[data-session-composer]')).toBeNull();
+});
+
 it('sends a message straight into the Orchestrator Session, not as an Assignment request', async () => {
   const sendSessionRequest = vi.fn(async () => {});
   const sendOrchestratorMessage = vi.fn(async () => {});

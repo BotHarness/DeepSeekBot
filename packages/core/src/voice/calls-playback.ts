@@ -36,6 +36,7 @@ export function createCallPlayback({
   settle,
   log,
   live,
+  openCalls,
   visualBase,
 }: {
   deps: VoiceCallsDeps;
@@ -44,7 +45,8 @@ export function createCallPlayback({
   barge: VoiceCallBargeIn;
   settle: (call: Call) => void;
   log: NonNullable<VoiceCallsDeps['log']>;
-  live: () => Call | undefined;
+  live: (slug: string) => Call | undefined;
+  openCalls: () => readonly Call[];
   visualBase: (call: Call) => number;
 }) {
   const synthesize = (call: Call, text: string, signal: AbortSignal): Promise<AudioClip> => {
@@ -320,7 +322,8 @@ export function createCallPlayback({
   };
 
   const onDraft = (event: ChannelDraftEvent) => {
-    const call = live();
+    const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
+    const call = openCalls().find((item) => item.channelId === channelId);
     if (call === undefined || !call.connected) return;
     if (event.type === 'settled') {
       const draftId = event.draftId;
@@ -390,7 +393,7 @@ export function createCallPlayback({
     body: string;
     signal?: AbortSignal | undefined;
   }): Promise<CallSpeech | undefined> => {
-    const call = live();
+    const call = live(input.slug);
     if (
       call === undefined ||
       !call.connected ||

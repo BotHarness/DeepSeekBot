@@ -8,7 +8,7 @@ import {
 import * as stylex from '@stylexjs/stylex';
 
 import { layer, style } from './tobs.stylex.js';
-import { border, color, space, text } from './tokens.stylex.js';
+import { border, color, radius, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   chip: {
@@ -63,6 +63,18 @@ const styles = stylex.create({
       ':focus-visible': color.hover,
     },
   },
+  meta: {
+    minHeight: 0,
+    paddingBlock: 0,
+    borderWidth: 0,
+    borderRadius: radius.sm,
+    backgroundColor: {
+      default: color.surface,
+      ':hover': color.hover,
+      ':focus-visible': color.hover,
+    },
+    fontVariantNumeric: 'tabular-nums',
+  },
   wrap: { whiteSpace: 'normal' },
   trailing: { flexShrink: 0 },
   icon: { display: 'inline-flex', flexShrink: 0 },
@@ -91,6 +103,7 @@ export interface ChipButtonProps extends Omit<
   readonly collapseLabel?: boolean;
   readonly trailing?: boolean;
   readonly filled?: boolean;
+  readonly meta?: boolean;
   readonly [data: `data-${string}`]: string | boolean | undefined;
 }
 
@@ -104,6 +117,7 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
     collapseLabel = false,
     trailing = false,
     filled = false,
+    meta = false,
     type = 'button',
     ...rest
   },
@@ -123,6 +137,7 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
         styles.chip,
         segment && styles.segment,
         filled && styles.filled,
+        meta && styles.meta,
         wrap && styles.wrap,
         trailing && styles.trailing,
       )}

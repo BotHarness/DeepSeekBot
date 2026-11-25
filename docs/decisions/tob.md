@@ -1,6 +1,6 @@
 # Tob decisions
 
-What Tob is, where the Human reaches it, and how it manages the Host through the CLI without becoming an administrator. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); who answers an approval is in [Approval decisions](approvals.md); Bot-to-Bot messages are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0223, 0224, 0225, 0268, 0314 and 0347, and each section lists the ADRs it absorbed.
+What Tob is, where the Human reaches it, and how it manages the Host through the CLI without becoming an administrator. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); who answers an approval is in [Approval decisions](approvals.md); Bot-to-Bot messages are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0223, 0224, 0225, 0268, 0314, 0347 and 0365, and each section lists the ADRs it absorbed.
 
 Two rules run through every section:
 
@@ -145,3 +145,16 @@ Issuing and revoking run without an approval card: the lease delegates only read
 Why: the Assignment is where long comparisons belong, but giving it the Orchestrator's broker would hand an Assignment management authority, and copying Memory into its prompt would lose revision provenance. Binding the lease to the request, the Assignment and each target incarnation keeps the delegation as narrow as the Human's ask.
 
 Enforced by: `tob-memory-lease.test.ts` (two-Bot comparison with provenance, write and out-of-lease refusal, archived and replaced targets, revoked lease, purged source, archived Assignment, resumed lease, idempotent key, the scoped CLI path through both brokers).
+
+## Retired: Steward as a transferable role
+
+<a id="adr-0365"></a>
+_Formerly ADR-0365 (proposed 2026-11-25, #5191). Never implemented._
+
+ADR-0365 proposed making **Steward** a singleton role instead of a property of Tob: exactly one Steward per Environment, held by Tob by default and moved by the Owner as a whole capability set (scoped CLI management, the self-escalation guard of §8 and Tob Delegation) through an atomic swap, with a timeline marker in each side's Human DM instead of compaction, and the Pinned tab defaulting to the Steward's DM. It rejected renaming Tob only, compacting on transfer, attaching Steward tools to every Bot, calling the role Admin and transfer on import.
+
+Reviewing it before implementation, the Human found that the singleton protected nothing that the per-turn source check, the guard and approvals do not already protect, and that the transfer flow existed only because of the singleton. It is superseded by the App management grant (#5359), which keeps the authority source of §3 and §6 and replaces the role with a grant any of the Owner's Bots can hold.
+
+Why: kept so that links to ADR-0365 and the reasons behind its rejected alternatives still resolve.
+
+Enforced by: nothing; no code implements it.

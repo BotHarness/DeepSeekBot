@@ -26,7 +26,7 @@ function host(
   const transcripts = ['what is on my calendar', 'and tomorrow'];
   const calls = createVoiceCalls({
     bot: (slug) =>
-      slug === 'ada'
+      slug === 'ada' || slug === 'kai'
         ? {
             slug,
             asr: { providerId: 'asr-000000000001' },
@@ -93,7 +93,7 @@ function host(
     rest: string[],
     values: CallValues = {},
   ) => runCallCommand(command, rest, values, connect, fakeClock);
-  return { run, posts, texts };
+  return { run, posts, texts, calls };
 }
 
 function wav(root: string, name: string, samples: Int16Array, rate = 16_000) {
@@ -343,6 +343,27 @@ describe('deepseekbot call commands', () => {
         'ended',
       ]),
     );
+  });
+
+  it('call-simulate calls one Bot while a phone is on a call with another, and is refused for that same Bot', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', concat(silence(300), speech(1400), silence(200)));
+    const { run, calls } = host();
+    const phone = await calls.handle(
+      { deviceId: 'phone' },
+      { kind: 'open', slug: 'kai', media: 'synthetic' },
+    );
+    expect(phone).toMatchObject({ ok: true });
+    await expect(run('call-simulate', ['kai'], { file, 'reply-wait': '20' })).rejects.toMatchObject(
+      {
+        code: 'call-active',
+        message: 'This Bot is already on a call.',
+      },
+    );
+    expect(await run('call-simulate', ['ada'], { file, 'reply-wait': '20' })).toMatchObject({
+      slug: 'ada',
+      answered: true,
+    });
   });
 
   it('runs a scripted timeline with a cough that is never sent', async () => {
