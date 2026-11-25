@@ -153,7 +153,6 @@ export function claudeQueryOptions(
     env: engineEnvironment(options.env ?? process.env, {
       CLAUDE_CONFIG_DIR: options.home,
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
-      ENABLE_TOOL_SEARCH: 'true',
     }),
     pathToClaudeCodeExecutable: options.executable,
     settingSources: [],

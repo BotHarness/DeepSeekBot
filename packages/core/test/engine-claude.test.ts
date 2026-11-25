@@ -154,7 +154,6 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       HOME: '/Users/human',
       CLAUDE_CONFIG_DIR: join(root, 'claude', 'home'),
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
-      ENABLE_TOOL_SEARCH: 'true',
     });
     expect(options.mcpServers['deepseekbot']).toMatchObject({ type: 'http', alwaysLoad: true });
     expect(options.mcpServers['deepseekbot']!.headers['Authorization']).toMatch(/^Bearer /u);
@@ -563,7 +562,6 @@ describe('Claude Code engine boundaries', () => {
       LANG: 'C',
       CLAUDE_CONFIG_DIR: '/bots/engines/claude/home',
       CLAUDE_AGENT_SDK_CLIENT_APP: 'deepseekbot',
-      ENABLE_TOOL_SEARCH: 'true',
     });
     expect(JSON.stringify(options.env)).not.toContain('secret-token');
 
