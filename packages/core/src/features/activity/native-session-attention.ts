@@ -14,6 +14,7 @@ export interface NativeSessionAttentionEntry {
   summary: string;
   createdAt: string;
   sessionTitle?: string;
+  folderName?: string;
 }
 
 export interface NativeSessionAttentionSource {
@@ -44,6 +45,7 @@ function item(entry: NativeSessionAttentionEntry): HumanAttentionItem {
       sessionId: entry.sessionId,
       input: entry.input,
       ...(entry.sessionTitle === undefined ? {} : { sessionTitle: entry.sessionTitle }),
+      ...(entry.folderName === undefined ? {} : { folderName: entry.folderName }),
     },
   };
 }
