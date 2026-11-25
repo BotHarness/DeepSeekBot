@@ -522,7 +522,7 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const body = event.text.trim();
+      const body = withoutLeadingMentions(event.text, event.mentions);
       const command = /^\/answer(?:\s|$)/.test(body);
       const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
@@ -596,4 +596,16 @@ export function createQuestionMessaging(options: {
     },
   };
   return service;
+}
+
+function withoutLeadingMentions(text: string, mentions: MessagingInboundEvent['mentions']): string {
+  const keys = mentions.map((mention) => mention.key).filter((key) => key.length > 0);
+  let body = text.trim();
+  for (
+    let key = keys.find((item) => body.startsWith(item));
+    key;
+    key = keys.find((item) => body.startsWith(item))
+  )
+    body = body.slice(key.length).trim();
+  return body;
 }
