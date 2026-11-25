@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import {
   latestSessionIds,
+  type ImportableSession,
   SESSION_BOT_MAX,
   sessionActivityAt,
   sessionWorkspaces,
@@ -71,7 +72,7 @@ export function CreateBotFromSessionsModal({
   onCancel: () => void;
   onCreated: () => void;
 }): ReactElement {
-  const [rows, setRows] = useState<HostSessionRow[]>();
+  const [rows, setRows] = useState<ImportableSession[]>();
   const [loadError, setLoadError] = useState<unknown>();
   const [workspace, setWorkspace] = useState(ALL);
   const [latest, setLatest] = useState(LATEST_DEFAULT);
@@ -105,9 +106,7 @@ export function CreateBotFromSessionsModal({
   const over = selected.size > SESSION_BOT_MAX;
   const granted = [
     ...new Set(
-      (rows ?? []).flatMap((row) =>
-        selected.has(row.sessionId) && row.cwd !== undefined ? [row.cwd] : [],
-      ),
+      (rows ?? []).flatMap((row) => (selected.has(row.sessionId) ? [row.workspacePath] : [])),
     ),
   ].sort();
   const invalid = displayName.trim().length === 0 || selected.size === 0 || over;

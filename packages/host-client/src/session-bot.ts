@@ -1,5 +1,6 @@
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import { answerRecord, type HostCall } from './host-answer';
+import { loadWorkspaceOptions } from './bot-settings';
 import { readHostSessionList } from './host-sessions';
 
 export const SESSION_BOT_MAX = 50;
@@ -14,6 +15,8 @@ export interface SessionBotInput {
   language?: 'zh' | 'en';
 }
 
+export type ImportableSession = HostSessionRow & { cwd: string; workspacePath: string };
+
 export interface SessionWorkspace {
   cwd: string;
   name: string;
@@ -25,12 +28,30 @@ export function sessionActivityAt(row: HostSessionRow): number {
   return row.lastPromptAt ?? row.updatedAt;
 }
 
-export async function readImportableSessions(host: HostCall): Promise<HostSessionRow[]> {
-  const { sessions } = await readHostSessionList(host, { source: 'native' });
+function contains(root: string, path: string): boolean {
+  if (path === root) return true;
+  const base =
+    root.endsWith('/') || root.endsWith('\\') ? root : `${root}${root.includes('\\') ? '\\' : '/'}`;
+  return path.startsWith(base);
+}
+
+export function grantedWorkspacePath(roots: readonly string[], cwd: string): string | undefined {
+  return roots.filter((root) => contains(root, cwd)).sort((a, b) => b.length - a.length)[0];
+}
+
+export async function readImportableSessions(host: HostCall): Promise<ImportableSession[]> {
+  const [{ sessions }, workspaces] = await Promise.all([
+    readHostSessionList(host, { source: 'native' }),
+    loadWorkspaceOptions(host),
+  ]);
+  const roots = workspaces.map((workspace) => workspace.path);
   return sessions
-    .filter(
-      (row) => row.source.kind === 'native' && row.lastPromptAt !== null && row.cwd !== undefined,
-    )
+    .flatMap((row): ImportableSession[] => {
+      if (row.source.kind !== 'native' || row.lastPromptAt === null || row.cwd === undefined)
+        return [];
+      const workspacePath = grantedWorkspacePath(roots, row.cwd);
+      return workspacePath === undefined ? [] : [{ ...row, cwd: row.cwd, workspacePath }];
+    })
     .sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a));
 }
 

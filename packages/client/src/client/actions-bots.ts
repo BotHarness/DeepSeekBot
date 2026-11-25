@@ -3,9 +3,9 @@ import { gitImportSource } from '@botharness/host-client/bot-creation';
 import {
   createBotFromSessions,
   readImportableSessions,
+  type ImportableSession,
   type SessionBotInput,
 } from '@botharness/host-client/session-bot';
-import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import {
   BridgeCallError,
@@ -42,7 +42,7 @@ export interface BotActions {
   createBot(input: CreatePersonaBotInput, sectionId?: string): Promise<CreatedBot>;
   openCreatedBot(bot: BotSummary, sectionId?: string): Promise<void>;
   importBotZip(file: File, sectionId?: string): Promise<BotSummary>;
-  importableSessions(): Promise<HostSessionRow[]>;
+  importableSessions(): Promise<ImportableSession[]>;
   createBotFromSessions(input: SessionBotInput, sectionId?: string): Promise<BotSummary>;
   botZipFiles(slug: string): Promise<BotZipFileListing>;
   exportBotZip(slug: string, displayName: string, choice?: BotZipExportChoice): Promise<void>;

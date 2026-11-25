@@ -12,15 +12,21 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 
-import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
+import type { ImportableSession } from '@botharness/host-client/session-bot';
 import { CreateBotFromSessionsModal } from '../src/client/bot-create-sessions.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
 const now = Date.now();
-const row = (sessionId: string, cwd: string, minutes: number, title?: string): HostSessionRow => ({
+const row = (
+  sessionId: string,
+  cwd: string,
+  minutes: number,
+  title?: string,
+): ImportableSession => ({
   sessionId,
   source: { kind: 'native' },
   cwd,
+  workspacePath: cwd === '/work/app/api' ? '/work/app' : cwd,
   folderName: cwd.split('/').pop()!,
   running: false,
   lastPromptAt: now - minutes * 60_000,
@@ -32,7 +38,7 @@ const rows = [
   row('a1', '/work/app', 5, 'Fix login'),
   row('b1', '/work/docs', 10, 'Write guide'),
   row('a2', '/work/app', 20, 'Add tests'),
-  row('a3', '/work/app', 30),
+  row('a3', '/work/app/api', 30),
 ];
 
 it('selects the latest Sessions, names the Workspaces to grant and submits the chosen ids', async () => {
