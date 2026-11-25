@@ -110,6 +110,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'messageSearch',
   'channels',
   'channelListChanges',
+  'channelAccessState',
   'channelUnreadCounts',
   'list',
   'rosterGet',

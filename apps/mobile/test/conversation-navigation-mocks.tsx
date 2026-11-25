@@ -23,6 +23,9 @@ export const state = {
   ...initialSnapshots,
   history: [] as string[],
   hostId: 'computer_a',
+  client: undefined as
+    | undefined
+    | { call(method: string, args?: Record<string, unknown>): Promise<unknown> },
   host: {
     connection: { status: 'connected' },
     roster: {
@@ -112,7 +115,7 @@ export async function mockReanimated() {
 export async function mockHostSession() {
   return {
     useHostSession: () => ({
-      client: undefined,
+      client: state.client,
       inbox: undefined,
       saved: { hostId: state.hostId },
     }),
@@ -307,6 +310,7 @@ export function resetConversation() {
   nativeList.scrollToIndex.mockReset();
   nativeList.scrollToOffset.mockClear();
   state.hostId = 'computer_a';
+  state.client = undefined;
   state.host.connection.status = 'connected';
   state.conversation.status = 'live';
   state.conversation.messages = [];

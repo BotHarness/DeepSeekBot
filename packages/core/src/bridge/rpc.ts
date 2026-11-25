@@ -703,6 +703,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelChanges',
   'channelChangeCursor',
   'channelListChanges',
+  'channelAccessState',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

@@ -260,6 +260,7 @@ export function renderConversation({
     connectionLabel,
     missing,
     missingGroup,
+    groupGone,
     backToChats,
     profileTravel,
     canGoBack,
@@ -549,7 +550,7 @@ export function renderConversation({
                         paddingBottom: insets.bottom,
                       }}
                     >
-                      <GroupUnavailable onBack={backToChats} />
+                      <GroupUnavailable onBack={backToChats} reason={groupGone} />
                     </View>
                   ) : (
                     renderConversationTimeline({

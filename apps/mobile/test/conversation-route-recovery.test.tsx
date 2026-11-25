@@ -477,6 +477,35 @@ describe('disbanded group presentation', () => {
     expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
     expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
   });
+  it('says access was removed when the Host reports a revoke, and drops the member count', async () => {
+    const calls: unknown[] = [];
+    state.client = {
+      call: async (method, args) => {
+        calls.push([method, args]);
+        if (method !== 'channelAccessState') throw new Error(method);
+        return { channelId: 'gone', state: 'removed' };
+      },
+    };
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    await act(async () => {});
+    expect(calls).toContainEqual(['channelAccessState', { channelId: 'gone' }]);
+    expect(view.textContent).toContain(t.groupAccessRemovedTitle);
+    expect(view.textContent).toContain(t.groupAccessRemovedBody);
+    expect(view.textContent).not.toContain(t.groupUnavailableTitle);
+    expect(view.textContent).not.toContain(t.members(0));
+  });
+  it('keeps the deleted copy when the Host does not report a revoke', async () => {
+    state.client = {
+      call: async (method) => {
+        if (method !== 'channelAccessState') throw new Error(method);
+        return { channelId: 'gone', state: 'unavailable' };
+      },
+    };
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    await act(async () => {});
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.textContent).not.toContain(t.groupAccessRemovedTitle);
+  });
   it('dismisses the keyboard only when the missing group becomes focused', async () => {
     const dismiss = vi.spyOn(Keyboard, 'dismiss');
     state.focused = false;

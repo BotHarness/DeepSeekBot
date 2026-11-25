@@ -61,6 +61,11 @@ export function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
   return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
 }
 
+export interface ChannelAccessState {
+  channelId: string;
+  state: 'readable' | 'removed' | 'unavailable';
+}
+
 export interface ChannelsAdapterMethods {
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   composerValidate(payload: unknown): BridgeResult<{
@@ -70,6 +75,7 @@ export interface ChannelsAdapterMethods {
   }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
+  channelAccessState(payload: unknown): Promise<BridgeResult<ChannelAccessState>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord & { readOnly?: boolean } }>;
   channelGet(
     payload: unknown,
@@ -219,6 +225,24 @@ export function createChannelsAdapterMethods(
         ok: true,
         value: { channels: (await listedChannels()).map(listItem) },
       };
+    },
+    async channelAccessState(payload) {
+      const input = z
+        .object({ channelId: z.string().min(1) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('channelId is required');
+      const { channelId } = input.data;
+      const state: ChannelAccessState['state'] = deps.team
+        ? deps.team.channelAccess.canRead(human, channelId, true)
+          ? 'readable'
+          : deps.team.channelAccess.accessRemoved(human, channelId)
+            ? 'removed'
+            : 'unavailable'
+        : (await listedChannels()).some((channel) => channel.id === channelId)
+          ? 'readable'
+          : 'unavailable';
+      return { ok: true, value: { channelId, state } };
     },
     async channelListChanges(payload) {
       const source = asObject(payload);

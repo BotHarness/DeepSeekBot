@@ -148,6 +148,8 @@ export const en = {
   noChannel: 'This Channel is not on your computer anymore.',
   groupUnavailableTitle: 'Group no longer available',
   groupUnavailableBody: 'Return to Chats to continue another conversation.',
+  groupAccessRemovedTitle: 'You no longer have access',
+  groupAccessRemovedBody: 'Ask a group admin to add you again.',
   draftSaveFailed: 'Draft not saved. Retry before leaving the app.',
   backToChats: 'Back to Chats',
   unreadCount: (count: number) =>
@@ -347,6 +349,8 @@ export const zh: typeof en = {
   noChannel: '你的电脑上已经没有这个频道。',
   groupUnavailableTitle: '群聊已不存在',
   groupUnavailableBody: '返回聊天列表，继续其他会话。',
+  groupAccessRemovedTitle: '你已无法访问这个群聊',
+  groupAccessRemovedBody: '如需重新加入，联系群管理员。',
   draftSaveFailed: '草稿未保存，重试后再退出 App。',
   backToChats: '返回聊天列表',
   unreadCount: (count: number) => `${badgeCount(count)} 条未读消息`,

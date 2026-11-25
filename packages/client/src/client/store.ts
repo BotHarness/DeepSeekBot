@@ -458,6 +458,7 @@ export const CONVERSATION_STATE_KEYS = [
   'bots',
   'channels',
   'selection',
+  'closedChannel',
   'conversation',
   'memoryCommitIntent',
   'contentPurgeRevision',
@@ -480,6 +481,7 @@ export interface ClientState {
   config: RosterConfig;
   roster: RosterState;
   selection: ConversationSelection | undefined;
+  closedChannel: { id: string; name: string } | undefined;
   conversation: ConversationState;
   sessions: SessionsState;
   botInbox: BotInboxState;
@@ -524,6 +526,7 @@ export interface ClientStore {
     options?: { deferConversation?: boolean },
   ): void;
   setConversation(patch: Partial<ConversationState>): void;
+  noteChannelAccessRemoved(channel: { id: string; name: string }): void;
   updateCachedConversation(
     channelId: string,
     update: (cached: ConversationState) => ConversationState,
@@ -698,6 +701,7 @@ export function createStore({
     config: { collapsed: {} },
     roster: initialRoster(),
     selection: undefined,
+    closedChannel: undefined,
     conversation: initialConversation(),
     sessions: initialSessions(),
     botInbox: initialBotInbox(),
@@ -929,6 +933,7 @@ export function createStore({
       const channel = state.channels.find((candidate) => candidate.id === channelId);
       update({
         selection,
+        closedChannel: undefined,
         conversation:
           cached === undefined || options?.deferConversation === true
             ? selection?.kind === 'channel' || selection?.kind === 'bot'
@@ -951,6 +956,9 @@ export function createStore({
     },
     setConversation(patch) {
       update({ conversation: { ...state.conversation, ...patch } });
+    },
+    noteChannelAccessRemoved(channel) {
+      if (state.selection === undefined) update({ closedChannel: channel });
     },
     updateCachedConversation(channelId, apply) {
       const cached = conversations.get(channelId);
