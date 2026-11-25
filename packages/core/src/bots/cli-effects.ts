@@ -206,6 +206,7 @@ export const CLI_EFFECTS = {
   'computer-open-permission-settings': { effects: write, brokerRead: false },
   'computer-start': { effects: write, brokerRead: false },
   'computer-status': { effects: read, brokerRead: true },
+  'computer-unlock-status': { effects: read, brokerRead: true },
   'computer-stop': { effects: write, brokerRead: false },
   'computer-takeover': { effects: write, brokerRead: false },
   'computer-tool': { effects: opaque, brokerRead: false },

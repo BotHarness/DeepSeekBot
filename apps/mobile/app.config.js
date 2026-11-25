@@ -84,6 +84,7 @@ module.exports = ({ config }) => {
       infoPlist: {
         ...config.ios.infoPlist,
         NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
+        NSFaceIDUsageDescription: 'Use Face ID to protect the saved password for your Mac.',
         ITSAppUsesNonExemptEncryption: false,
         NSUserActivityTypes: ['INSendMessageIntent'],
       },
