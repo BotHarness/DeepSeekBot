@@ -5,22 +5,38 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HistoryChromeContext } from '../chat/history-chrome-context';
 
-export function useComposerDrop(island: number) {
+export function composerDrop(island: number, safeBottom: number, hiddenNow: boolean) {
+  const drop = island > 0 ? Math.max(0, island - safeBottom) : 0;
+  return { drop, settled: hiddenNow ? drop : 0 };
+}
+
+export function footerShift(drop: number, settled: number, hidden: number): number {
+  'worklet';
+  return hidden * drop - settled;
+}
+
+function useDrop(island: number) {
   const history = use(HistoryChromeContext);
   const safeBottom = useSafeAreaInsets().bottom;
-  const drop = island > 0 ? Math.max(0, island - safeBottom) : 0;
-  const settled = history?.hiddenNow ? drop : 0;
+  return { history, ...composerDrop(island, safeBottom, history?.hiddenNow ?? false) };
+}
+
+export function useComposerDrop(island: number) {
+  const { history, drop, settled } = useDrop(island);
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: (history?.hidden.value ?? 0) * drop - settled }],
+    transform: [{ translateY: footerShift(drop, settled, history?.hidden.value ?? 0) }],
   }));
   return { style, settled };
 }
 
+export function useOverlaySettle(island: number, hiddenNow: boolean) {
+  const { settled } = composerDrop(island, useSafeAreaInsets().bottom, hiddenNow);
+  return Platform.OS === 'android' ? { marginBottom: -settled } : undefined;
+}
+
 export function useBottomFadeDrop(island: number) {
-  const history = use(HistoryChromeContext);
-  const safeBottom = useSafeAreaInsets().bottom;
-  const framed = Platform.OS === 'ios' && history?.hiddenNow ? Math.max(0, island - safeBottom) : 0;
+  const { history, settled } = useDrop(island);
   return useAnimatedStyle(() => ({
-    transform: [{ translateY: (history?.hidden.value ?? 0) * island - framed }],
+    transform: [{ translateY: footerShift(island, settled, history?.hidden.value ?? 0) }],
   }));
 }

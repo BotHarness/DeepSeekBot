@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useChatBottom } from '../primitives/chat-keyboard';
-import { useBottomFadeDrop } from '../primitives/composer-drop';
+import { useBottomFadeDrop, useComposerDrop } from '../primitives/composer-drop';
 import { Button } from '../primitives/button';
 import { ListSkeleton } from '../primitives/list-skeleton';
 import { useStrings } from '../strings';
@@ -195,6 +195,7 @@ export function ChatTimelineOverlays({
   const android = Platform.OS === 'android';
   const { island: islandBand } = useChatBottom();
   const fadeDrop = useBottomFadeDrop(islandBand);
+  const footer = useComposerDrop(islandBand).style;
   const topFade = android ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const cover = Math.max(0, composerHeight - space.x3 - space.x2);
   const bottomFade = (
@@ -229,21 +230,27 @@ export function ChatTimelineOverlays({
           bottomFade
         )}
       </Animated.View>
-      {children}
-      {latest.away ? (
-        <View
-          pointerEvents="box-none"
-          style={{
-            position: 'absolute',
-            bottom: composerHeight + space.x2,
-            left: 0,
-            right: space.x4,
-            alignItems: 'flex-end',
-          }}
-        >
-          <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-        </View>
-      ) : null}
+      <Animated.View
+        pointerEvents="box-none"
+        testID="composer-footer-layer"
+        style={[{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }, footer]}
+      >
+        {children}
+        {latest.away ? (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              bottom: composerHeight + space.x2,
+              left: 0,
+              right: space.x4,
+              alignItems: 'flex-end',
+            }}
+          >
+            <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+          </View>
+        ) : null}
+      </Animated.View>
     </>
   );
 }
