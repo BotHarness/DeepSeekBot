@@ -1,6 +1,6 @@
 import { effectiveDmControls } from './dm-controls.js';
 import type { MessagingIdentity } from './identity.js';
-import { initializeGroupReceptionPolicy } from './group-policy.js';
+import { initializeGroupReceptionPolicy } from './permissions/index.js';
 import { admissionBound, readBlock, removeHeld } from './conversations.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';

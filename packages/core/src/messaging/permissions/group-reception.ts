@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
-import type { BotSourcePolicyEditor } from '../runtime/source-policy.js';
-import { messagingDefaults } from './defaults.js';
-import { MessagingError } from './provider.js';
-import { DEFAULT_GROUP_WAKE_POLICY } from '../channels/channel.js';
+import type { BotSourcePolicyEditor } from '../../runtime/source-policy.js';
+import { messagingDefaults } from '../defaults.js';
+import { MessagingError } from '../provider.js';
+import { DEFAULT_GROUP_WAKE_POLICY } from '../../channels/channel.js';
 
 export const groupReceptionInput = z
   .object({

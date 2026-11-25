@@ -13,6 +13,7 @@ import {
 } from '../../models/presets.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
 import { TeamError } from '../../team/error.js';
+import { assignmentLoadoutParameter, type AssignmentModeChoices } from './loadout-parameter.js';
 import type {
   AssignmentActivity,
   AssignmentAgentRun,
@@ -50,35 +51,6 @@ interface CreateAssignmentToolOptions extends AssignmentToolOptions {
     | undefined;
   modeChoices: AssignmentModeChoices | undefined;
   loadAssignmentModes: () => Promise<AssignmentModeChoices> | undefined;
-}
-
-export interface AssignmentModeChoices {
-  default: string;
-  allowed: Array<{ id: string; name?: string; description?: string }>;
-  restricted: boolean;
-}
-
-const ASSIGNMENT_MODE_GUIDANCE =
-  'A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.';
-
-export function assignmentModeParameter(choices: AssignmentModeChoices | undefined): {
-  type: 'string';
-  description: string;
-  enum?: string[];
-} {
-  if (choices === undefined || choices.allowed.length < 2)
-    return {
-      type: 'string',
-      description: `Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode (${choices?.default ?? 'unknown'}). ${ASSIGNMENT_MODE_GUIDANCE}`,
-    };
-  const modes = choices.allowed
-    .map((mode) => `- ${mode.id}: ${mode.description ?? mode.name ?? 'no description'}`)
-    .join('\n');
-  return {
-    type: 'string',
-    enum: choices.allowed.map((mode) => mode.id),
-    description: `Optional DSH mode for this Assignment; omitted uses this Bot’s mode (${choices.default}). ${ASSIGNMENT_MODE_GUIDANCE} Allowed modes:\n${modes}`,
-  };
 }
 
 interface AssignmentRequestArgs {
@@ -189,7 +161,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and Loadouts. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
     parameters: {
       title: {
         type: 'string',
@@ -246,7 +218,7 @@ export function createAssignmentTool({
         description:
           'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
       },
-      mode: assignmentModeParameter(modeChoices),
+      loadout: assignmentLoadoutParameter(modeChoices),
     },
     output: {
       schema: { type: 'string' },
@@ -257,6 +229,8 @@ export function createAssignmentTool({
       if (active === undefined) {
         throw new Error('create_assignment: Orchestrator run is unavailable');
       }
+      const legacyMode: unknown = Reflect.get(args, 'mode');
+      const loadout = args.loadout ?? (typeof legacyMode === 'string' ? legacyMode : undefined);
       if (
         (args.group !== undefined &&
           (args.provider !== undefined || args.model !== undefined || args.engine !== undefined)) ||
@@ -386,13 +360,13 @@ export function createAssignmentTool({
           return refusal(error);
         }
       }
-      if (args.mode !== undefined) {
-        const modes = await loadAssignmentModes();
-        if (modes === undefined)
-          throw new Error('create_assignment: DSH modes are unavailable on this Host');
-        if (!modes.allowed.some((mode) => mode.id === args.mode))
+      if (loadout !== undefined) {
+        const loadouts = await loadAssignmentModes();
+        if (loadouts === undefined)
+          throw new Error('create_assignment: Loadouts are unavailable on this Host');
+        if (!loadouts.allowed.some((allowed) => allowed.id === loadout))
           throw new Error(
-            `create_assignment: mode ${args.mode} is not allowed; choose one of ${modes.allowed.map((mode) => mode.id).join(', ')}`,
+            `create_assignment: Loadout ${loadout} is not allowed; choose one of ${loadouts.allowed.map((allowed) => allowed.id).join(', ')}`,
           );
       }
       const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
@@ -404,7 +378,7 @@ export function createAssignmentTool({
           ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
           grantId,
           ...(args.key === undefined ? {} : { key: args.key }),
-          ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(loadout === undefined ? {} : { mode: loadout }),
           ...(picked !== undefined && groupId !== undefined
             ? {
                 ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
@@ -450,7 +424,7 @@ export function createAssignmentTool({
             : { modelRoute: outcome.assignment.modelRoute }),
           ...(outcome.assignment.agentPreset === undefined
             ? {}
-            : { mode: outcome.assignment.agentPreset }),
+            : { loadout: outcome.assignment.agentPreset }),
         });
       }
       if (outcome.outcome === 'capacity') return JSON.stringify(outcome);

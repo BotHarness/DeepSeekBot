@@ -2,7 +2,11 @@ import type { ExternalSource } from '../../messaging/inbound.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrapAsync } from '../../bridge/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
-import type { SenderAccessInput } from '../../messaging/sender-access.js';
+import type {
+  SenderAccessInput,
+  ThreadReceptionInput,
+  GroupReceptionInput,
+} from '../../messaging/permissions/index.js';
 import type {
   MessagingDefaults,
   MessagingDefaultsInput,
@@ -15,8 +19,6 @@ import type {
   ConversationIngestInput,
   ConversationIngestSnapshot,
 } from '../../messaging/conversation-ingest.js';
-import type { ThreadReceptionInput } from '../../messaging/thread-policy.js';
-import type { GroupReceptionInput } from '../../messaging/group-policy.js';
 import type {
   MessagingSnapshot,
   MessagingGrant,

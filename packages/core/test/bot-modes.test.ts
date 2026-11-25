@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { runBotModeCommand } from '../src/bots/cli-bot-modes.js';
+import { isBotModeCommand, runBotModeCommand } from '../src/bots/cli-bot-modes.js';
+import { canonicalCliCommandName } from '../src/bots/cli-command-names.js';
 import { parseBotCliArgs } from '../src/bots/cli-options.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../src/bots/registry.js';
@@ -463,12 +464,12 @@ describe('Bot mode bridge methods', () => {
   });
 });
 
-describe('bot-modes CLI', () => {
+describe('Loadout CLI', () => {
   const run = async (command: string, argv: string[]) => {
     const calls: Array<[string, Record<string, unknown>]> = [];
     const { values, positionals } = parseBotCliArgs([command, ...argv]);
     await runBotModeCommand(
-      command as never,
+      command,
       positionals.slice(1),
       async () => async (method, payload) => {
         calls.push([method, payload]);
@@ -480,46 +481,56 @@ describe('bot-modes CLI', () => {
   };
 
   it('maps each command to its bridge method', async () => {
-    expect(await run('bot-modes', [])).toEqual([['botModes', {}]]);
-    expect(await run('bot-modes', ['ada'])).toEqual([['botModes', { slug: 'ada' }]]);
-    expect(await run('bot-mode-default-set', ['ptc'])).toEqual([
+    expect(await run('loadouts', [])).toEqual([['botModes', {}]]);
+    expect(await run('loadouts', ['ada'])).toEqual([['botModes', { slug: 'ada' }]]);
+    expect(await run('loadout-default-set', ['ptc'])).toEqual([
       ['botModeDefaultSet', { mode: 'ptc' }],
     ]);
-    expect(await run('bot-mode-default-set', ['@product'])).toEqual([
+    expect(await run('loadout-default-set', ['@product'])).toEqual([
       ['botModeDefaultSet', { mode: null }],
     ]);
-    expect(await run('bot-mode-set', ['ada', 'acp'])).toEqual([
+    expect(await run('loadout-set', ['ada', 'acp'])).toEqual([
       ['botModeSet', { slug: 'ada', mode: 'acp' }],
     ]);
-    expect(await run('bot-mode-set', ['ada', '@global'])).toEqual([
+    expect(await run('loadout-set', ['ada', '@global'])).toEqual([
       ['botModeSet', { slug: 'ada', mode: null }],
     ]);
-    expect(await run('bot-mode-template-save', ['Coding', 'ptc', 'acp'])).toEqual([
+    expect(await run('loadout-template-save', ['Coding', 'ptc', 'acp'])).toEqual([
       ['botModeTemplateSave', { name: 'Coding', modes: ['ptc', 'acp'] }],
     ]);
-    expect(await run('bot-mode-template-save', ['--id', 't1', 'Coding', 'ptc'])).toEqual([
+    expect(await run('loadout-template-save', ['--id', 't1', 'Coding', 'ptc'])).toEqual([
       ['botModeTemplateSave', { id: 't1', name: 'Coding', modes: ['ptc'] }],
     ]);
-    expect(await run('bot-mode-template-delete', ['t1'])).toEqual([
+    expect(await run('loadout-template-delete', ['t1'])).toEqual([
       ['botModeTemplateDelete', { id: 't1' }],
     ]);
-    expect(await run('bot-mode-template-set', ['ada', 't1'])).toEqual([
+    expect(await run('loadout-template-set', ['ada', 't1'])).toEqual([
       ['botModeTemplateSet', { slug: 'ada', template: 't1' }],
     ]);
-    expect(await run('bot-mode-template-set', ['ada', '@all'])).toEqual([
+    expect(await run('loadout-template-set', ['ada', '@all'])).toEqual([
       ['botModeTemplateSet', { slug: 'ada', template: null }],
     ]);
   });
 
+  it('keeps the former bot-mode command names as aliases', async () => {
+    expect(canonicalCliCommandName('bot-modes')).toBe('loadouts');
+    expect(canonicalCliCommandName('bot-mode-template-set')).toBe('loadout-template-set');
+    expect(isBotModeCommand('bot-mode-set')).toBe(true);
+    expect(isBotModeCommand('loadout-set')).toBe(true);
+    expect(await run('bot-mode-set', ['ada', 'acp'])).toEqual([
+      ['botModeSet', { slug: 'ada', mode: 'acp' }],
+    ]);
+  });
+
   it.each([
-    ['bot-modes', ['a', 'b']],
-    ['bot-mode-default-set', []],
-    ['bot-mode-set', ['ada']],
-    ['bot-mode-template-save', ['Coding']],
-    ['bot-mode-template-save', ['--id', ' ', 'Coding', 'ptc']],
-    ['bot-mode-template-delete', []],
-    ['bot-mode-template-delete', ['t1', '--id', 't2']],
-    ['bot-mode-template-set', ['ada']],
+    ['loadouts', ['a', 'b']],
+    ['loadout-default-set', []],
+    ['loadout-set', ['ada']],
+    ['loadout-template-save', ['Coding']],
+    ['loadout-template-save', ['--id', ' ', 'Coding', 'ptc']],
+    ['loadout-template-delete', []],
+    ['loadout-template-delete', ['t1', '--id', 't2']],
+    ['loadout-template-set', ['ada']],
   ])('refuses %s %j with a usage error', async (command, rest) => {
     await expect(run(command, rest)).rejects.toMatchObject({ code: 'usage' });
   });

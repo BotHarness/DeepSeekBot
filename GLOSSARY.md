@@ -292,7 +292,7 @@ A Human-controlled per-PersonaBot choice applied when a new Assignment is create
 _Avoid_: Workspace Grant, in-place Session mode switch, Orchestrator permission
 
 **Loadout**:
-A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI and tools still say mode (#5288).
+A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI, `create_assignment` and the CLI say Loadout; DSH still calls it a mode.
 _Avoid_: Session mode, mode (bare, beside Team mode, Developer Mode and Tob Mode), agent preset (outside DSH seams), instruction set
 
 **Delegation**:

@@ -2,11 +2,14 @@ import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { effectiveDmControls } from './dm-controls.js';
 import type { FailureAlerts } from './failure-alerts.js';
 import type { ApprovalMessaging } from './approval-messaging.js';
-import { externalPermissionGroups } from './permission-groups.js';
-import { behaviorPermissions } from './behavior-permissions.js';
+import {
+  externalPermissionGroups,
+  behaviorPermissions,
+  externalUserRoles,
+  readSenderPolicy,
+} from './permissions/index.js';
 import type { QuestionMessaging } from './question-messaging.js';
 import type { BotPairing } from './pairing.js';
-import { externalUserRoles, readSenderPolicy } from './sender-access.js';
 import {
   readMessagingIdentity,
   type MessagingIdentity,

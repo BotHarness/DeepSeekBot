@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
-import type { BotSourcePolicyEditor } from '../runtime/source-policy.js';
-import { groupReceptionInput, type GroupReceptionInput } from './group-policy.js';
-import { MessagingError } from './provider.js';
+import type { BotSourcePolicyEditor } from '../../runtime/source-policy.js';
+import { groupReceptionInput, type GroupReceptionInput } from './group-reception.js';
+import { MessagingError } from '../provider.js';
 
 export const threadReceptionInput = z
   .object({
