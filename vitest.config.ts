@@ -95,7 +95,7 @@ export default defineConfig({
           include: durableIntegrationTests,
           maxWorkers: 1,
           fileParallelism: false,
-          sequence: { groupOrder: 2 },
+          sequence: { groupOrder: 4 },
         },
       },
       {
