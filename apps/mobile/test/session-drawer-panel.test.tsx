@@ -89,36 +89,40 @@ async function render(
     variant?: 'drawer' | 'page';
   } = {},
 ) {
-  const call = vi.fn(async (_method: string, args: { search?: string }) => ({
-    queryVersion: 1,
-    sources: [{ kind: 'native' }],
-    sessions: [
-      {
-        sessionId: 'fresh',
-        title: 'Fresh work',
-        folderName: 'botharness',
-        model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
-        source: { kind: 'native' },
-        running: true,
-        lastPromptAt: now,
-        updatedAt: now,
-      },
-      {
-        sessionId: 'old',
-        title: 'Old research',
-        folderName: '笔记',
-        source: { kind: 'native' },
-        waiting: true,
-        running: false,
-        lastPromptAt: now - 5 * 86_400_000,
-        updatedAt: now - 5 * 86_400_000,
-      },
-    ].filter((row) => !args.search || row.title.toLowerCase().includes(args.search)),
-  }));
+  const call = vi.fn(
+    async (_method: string, args: { search?: string; includeArchived?: boolean }) => ({
+      queryVersion: 1,
+      ...(args.includeArchived ? { includeArchived: true } : {}),
+      sources: [{ kind: 'native' }],
+      sessions: [
+        {
+          sessionId: 'fresh',
+          title: 'Fresh work',
+          folderName: 'botharness',
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          source: { kind: 'native' },
+          running: true,
+          lastPromptAt: now,
+          updatedAt: now,
+        },
+        {
+          sessionId: 'old',
+          title: 'Old research',
+          folderName: '笔记',
+          source: { kind: 'native' },
+          waiting: true,
+          running: false,
+          lastPromptAt: now - 5 * 86_400_000,
+          updatedAt: now - 5 * 86_400_000,
+        },
+      ].filter((row) => !args.search || row.title.toLowerCase().includes(args.search)),
+    }),
+  );
   const view = document.createElement('div');
   root = createRoot(view);
-  const other = vi.fn(async () => ({
+  const other = vi.fn(async (_method: string, args: { includeArchived?: boolean }) => ({
     queryVersion: 1,
+    ...(args.includeArchived ? { includeArchived: true } : {}),
     sources: [{ kind: 'bot', botSlug: 'ada', displayName: 'Ada' }],
     sessions: [
       {
@@ -170,7 +174,14 @@ it('lists Sessions by day with the open one highlighted under the Environment na
   );
   expect(call).toHaveBeenCalledWith(
     'sessionList',
-    { search: '', sort: 'last-human-turn', source: 'all', limit: 50, queryVersion: 1 },
+    {
+      search: '',
+      sort: 'last-human-turn',
+      source: 'all',
+      limit: 200,
+      includeArchived: true,
+      queryVersion: 1,
+    },
     expect.anything(),
   );
   const sections = [...view.querySelectorAll('section')].map((section) => section.textContent);
@@ -362,6 +373,7 @@ it('shows the cached Sessions at once when the drawer opens again, and refreshes
   await act(async () =>
     answer({
       queryVersion: 1,
+      includeArchived: true,
       sources: [{ kind: 'native' }],
       sessions: [
         {

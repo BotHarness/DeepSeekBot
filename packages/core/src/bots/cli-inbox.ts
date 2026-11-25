@@ -103,6 +103,11 @@ export const INBOX_COMMANDS = [
       'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
   },
   {
+    command: 'session-list-changes',
+    description:
+      'list the root Sessions that changed since a change cursor (--since <seq> --epoch <e>), or the current cursor',
+  },
+  {
     command: 'session-create',
     description:
       'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message; --session retries a blank one',
@@ -162,6 +167,8 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  since?: string;
+  epoch?: string;
   set?: string;
   notifications?: boolean;
   category?: string;
@@ -662,6 +669,21 @@ function prepare(
       return {
         method: 'sessionNativeArchive',
         args: { sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-list-changes': {
+      positionals(command, rest, 0, '');
+      const sinceSeq = values.since === undefined ? undefined : Number(values.since);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || sinceSeq < 0))
+        usage('session-list-changes --since must be a whole number of 0 or more.');
+      if (values.epoch !== undefined && sinceSeq === undefined)
+        usage('session-list-changes --epoch needs --since.');
+      return {
+        method: 'sessionListChanges',
+        args: {
+          ...(sinceSeq === undefined ? {} : { sinceSeq }),
+          ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
+        },
       };
     }
     case 'session-create': {

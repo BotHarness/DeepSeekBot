@@ -502,6 +502,7 @@ export const CLI_EFFECTS = {
   'session-progress': { effects: read, brokerRead: true },
   'session-model': { effects: write, brokerRead: false },
   'session-list': { effects: read, brokerRead: true },
+  'session-list-changes': { effects: read, brokerRead: true },
   'session-import-list': { effects: read, brokerRead: false },
   'session-create': { effects: destructive, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
