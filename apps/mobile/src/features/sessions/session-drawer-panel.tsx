@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, Pressable, SectionList, View } from 'react-native';
+import { Keyboard, Platform, Pressable, SectionList, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useHideChromeOnScroll } from '../../ui/shell/tab-chrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { sessionDrawerSections, type SessionDrawerGroup } from './session-drawer
 import { SessionOptionsMenu } from './session-options-menu';
 import { HeaderCircleButton } from '../../ui/chat/header-chrome';
 import { useFloatingTabInset } from '../../ui/shell/floating-tab-inset';
+import { NavigationAction } from '../../ui/shell/navigation-action';
 import { useWindowInsets } from '../../ui/shell/window-insets';
 import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 
@@ -52,7 +53,8 @@ export function SessionDrawerPanel({
 }: SessionDrawerPanelProps) {
   const page = variant === 'page';
   const tabInset = useFloatingTabInset();
-  const t = useStrings().hostSessions;
+  const strings = useStrings();
+  const t = strings.hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const windowInsets = useWindowInsets();
@@ -68,7 +70,7 @@ export function SessionDrawerPanel({
   const searchBlock = searching ? (
     <SearchField
       testID="session-drawer-search-field"
-      floating
+      capsule
       autoFocus
       inset={0}
       value={query.draft}
@@ -81,16 +83,15 @@ export function SessionDrawerPanel({
       }}
       onClose={closeSearch}
       trailing={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.searchCancel}
-          testID="session-drawer-search-cancel"
-          onPress={closeSearch}
-          hitSlop={space.x2}
-          style={{ minHeight: theme.touch, justifyContent: 'center' }}
-        >
-          <Text tone="accent">{t.searchCancel}</Text>
-        </Pressable>
+        Platform.OS === 'android' ? null : (
+          <NavigationAction
+            close
+            size={theme.touch}
+            label={strings.closeSearch}
+            testID="session-drawer-search-close"
+            onPress={closeSearch}
+          />
+        )
       }
     />
   ) : (

@@ -181,7 +181,7 @@ it('expands the Search pill into a field only when tapped, and starts a New Sess
     expect.anything(),
   );
   await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-cancel"]')!.click(),
+    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-close"]')!.click(),
   );
   expect(view.querySelector('[data-testid="session-drawer-search-field"]')).toBeNull();
 });
