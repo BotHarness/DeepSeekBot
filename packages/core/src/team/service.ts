@@ -973,7 +973,20 @@ export class TeamService {
             roleAccessEnded = true;
           db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
         }
-        db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(human.humanId, humanId);
+        db.prepare(
+          'DELETE FROM bot_management_grants WHERE bot_slug IN (SELECT slug FROM persona_bots WHERE owner_human_id = ? UNION SELECT bot_slug FROM tob_identity WHERE human_id = ?)',
+        ).run(human.humanId, human.humanId);
+        db.prepare(`
+          DELETE FROM tob_identity WHERE human_id = ? AND EXISTS
+            (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = tob_identity.bot_slug)
+        `).run(humanId);
+        db.prepare(`
+          INSERT OR IGNORE INTO bot_management_grants (bot_slug, capability)
+          SELECT t.bot_slug, capability FROM tob_identity t
+          JOIN persona_bots b ON b.slug = t.bot_slug AND b.owner_human_id = t.human_id
+          CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots')
+          WHERE t.human_id = ?
+        `).run(humanId);
         return roleAccessEnded;
       },
       ['team'],
@@ -985,6 +998,7 @@ export class TeamService {
     } else this.invalidate();
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
+    await this.ensureTob?.(humanContext(humanId));
     this.log('owner-transferred', { initiator: 'owner', humanId });
     return null;
   }

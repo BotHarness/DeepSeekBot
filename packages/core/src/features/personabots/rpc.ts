@@ -211,7 +211,7 @@ export function deletionPreview(
   methods: PersonaBotsBridgeMethods,
   slug: string,
 ): AdminResult<
-  { preview: PersonaBotDeletionPreview },
+  { preview: PersonaBotDeletionPreview; warning?: 'last-app-manager' },
   BotMetadataResult & { preview: AdminDeletionPreview }
 > {
   return unwrap(methods.deletionPreview({ slug }));
@@ -223,7 +223,10 @@ export function deletionConfirm(
   token: string,
   eraseMemory: boolean,
 ): Promise<
-  AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+  AdminResult<
+    { deletion: PersonaBotDeletion; warning?: 'last-app-manager' },
+    BotMetadataResult & { deletion: AdminDeletion }
+  >
 > {
   return unwrapAsync(methods.deletionConfirm({ slug, token, eraseMemory }));
 }
@@ -232,7 +235,10 @@ export function deletionRetry(
   methods: PersonaBotsBridgeMethods,
   slug: string,
 ): Promise<
-  AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+  AdminResult<
+    { deletion: PersonaBotDeletion; warning?: 'last-app-manager' },
+    BotMetadataResult & { deletion: AdminDeletion }
+  >
 > {
   return unwrapAsync(methods.deletionRetry({ slug }));
 }
@@ -249,7 +255,7 @@ export function deletionMemoryFolder(
 export function pause(
   methods: PersonaBotsBridgeMethods,
   slug: string,
-): AdminResult<{ bot: PersonaBotDetail }> {
+): AdminResult<{ bot: PersonaBotDetail; warning?: 'last-app-manager' }> {
   return unwrap(methods.pause({ slug }));
 }
 
@@ -537,7 +543,7 @@ export const personaBotDeletionRpc = {
   deletionPreview(
     slug: string,
   ): AdminResult<
-    { preview: PersonaBotDeletionPreview },
+    { preview: PersonaBotDeletionPreview; warning?: 'last-app-manager' },
     BotMetadataResult & { preview: AdminDeletionPreview }
   > {
     return deletionPreview(this.methods, slug);
@@ -548,7 +554,10 @@ export const personaBotDeletionRpc = {
     token: string,
     eraseMemory: boolean,
   ): Promise<
-    AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+    AdminResult<
+      { deletion: PersonaBotDeletion; warning?: 'last-app-manager' },
+      BotMetadataResult & { deletion: AdminDeletion }
+    >
   > {
     return deletionConfirm(this.methods, slug, token, eraseMemory);
   },
@@ -556,7 +565,10 @@ export const personaBotDeletionRpc = {
   async deletionRetry(
     slug: string,
   ): Promise<
-    AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+    AdminResult<
+      { deletion: PersonaBotDeletion; warning?: 'last-app-manager' },
+      BotMetadataResult & { deletion: AdminDeletion }
+    >
   > {
     return deletionRetry(this.methods, slug);
   },
@@ -567,7 +579,7 @@ export const personaBotDeletionRpc = {
     return deletionMemoryFolder(this.methods, slug);
   },
 
-  pause(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
+  pause(slug: string): AdminResult<{ bot: PersonaBotDetail; warning?: 'last-app-manager' }> {
     return pause(this.methods, slug);
   },
 

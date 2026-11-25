@@ -421,6 +421,7 @@ export function mountLifecycle(
       turnLog.observe(session.id, event);
       botTurnTelemetry.observe(session.id, event);
       idleCompaction.observeEvent(session.id, event);
+      if (event.type === COMPACTION_END_EVENT) core.tob.refreshManagementPrompt(session.id);
       handleCompactionEvent(
         {
           ownership: core.ownership,

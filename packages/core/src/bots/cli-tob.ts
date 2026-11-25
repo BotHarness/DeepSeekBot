@@ -4,6 +4,11 @@ import { tobCliCommandSchema } from '../tob/cli-request.js';
 
 export const TOB_CLI_COMMANDS = [
   {
+    command: 'bot-grant',
+    tool: 'deepseekbot_bot_grant',
+    description: 'toggle an Owner Bot management grant',
+  },
+  {
     command: 'tob-cli',
     tool: 'deepseekbot_cli',
     description: 'start, inspect or cancel an owned model-free Tob CLI request',

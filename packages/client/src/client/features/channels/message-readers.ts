@@ -15,7 +15,7 @@ import { genuiDocumentReplySchema } from '../../bridge.js';
 import { parseToolApprovalActor } from '../../bridge.js';
 import { isChannelVoiceCallRecord } from '../../bridge.js';
 import { isChannelTurnStopEngine, isChannelTurnStopRests } from '../../bridge.js';
-import { isChannelModelSwitch } from '../../bridge.js';
+import { isChannelModelSwitch, managementGrantChangeSchema } from '../../bridge.js';
 import { parseMessagePerf } from '../../message-perf.js';
 import { isChannelClearedAttachment } from '../../bridge.js';
 
@@ -263,6 +263,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
+  let managementGrantChange: ChannelMessage['managementGrantChange'];
   let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
@@ -342,6 +343,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['managementGrantChange'] !== undefined) {
+    const change = managementGrantChangeSchema.safeParse(record['managementGrantChange']);
+    if (author.kind !== 'system' || !change.success) return undefined;
+    managementGrantChange = change.data;
   } else if (record['modelSwitch'] !== undefined) {
     if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
     modelSwitch = record['modelSwitch'];
@@ -879,6 +884,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(managementGrantChange === undefined ? {} : { managementGrantChange }),
     ...(modelSwitch === undefined ? {} : { modelSwitch }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),

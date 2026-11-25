@@ -219,6 +219,7 @@ export const bridgeMethodInventory = [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'botGrant',
   'tobCli',
   'channelSkillCatalog',
   'sessionSkillCatalog',

@@ -660,7 +660,7 @@ export function createHostAgentAdapter(
     onOrchestratorFileSetup: tobFeature.createOrchestratorFileSetup(ctx, deps),
     onAssignmentShellSetup: tobFeature.createAssignmentShellSetup(ctx, deps),
     assignmentReportFooter: (sessionId) =>
-      deps.core.tob.isTob(deps.core.ownership.resolve(sessionId)?.botSlug ?? '')
+      deps.core.tob.hasManagementGrant(deps.core.ownership.resolve(sessionId)?.botSlug ?? '')
         ? deps.tobOperations.tobMemoryLeases.reportFooter(sessionId)
         : undefined,
     authorizeBorrow: (agent, role) => {

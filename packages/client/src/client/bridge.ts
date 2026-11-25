@@ -1,3 +1,4 @@
+import { managementGrantChangeSchema } from '../../../core/src/authorization/bot-management.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
 import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import { createPersonaBotReaders } from './features/personabots/bridge.js';
@@ -866,6 +867,7 @@ export {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
   isChannelModelSwitch,
+  managementGrantChangeSchema,
   isChannelAttachmentRef,
   isChannelClearedAttachment,
   isChannelMessageVoice,

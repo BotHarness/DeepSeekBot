@@ -1,3 +1,4 @@
+import type { ManagementCapability } from '../authorization/bot-management.js';
 import {
   createHostSessionsMethods,
   type HostSessionBridgeMethods,
@@ -310,6 +311,7 @@ export interface PersonaBotSummary {
 }
 
 export interface PersonaBotDetail extends PersonaBotSummary {
+  managementGrants?: ManagementCapability[];
   model?: string;
   modelPlan?: PersonaBotModelPlan;
   preset?: string;
@@ -756,6 +758,7 @@ function buildBridgeMethods(
     messagingRevoke: messagingMethods.messagingRevoke,
     messagingConversation: messagingMethods.messagingConversation,
     messagingSend: messagingMethods.messagingSend,
+    botGrant: tobAdapterMethods.botGrant,
     tobCli: tobAdapterMethods.tobCli,
     tobHome: tobAdapterMethods.tobHome,
     onboarding: personabotsMethods.onboarding,

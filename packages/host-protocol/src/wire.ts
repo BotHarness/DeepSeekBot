@@ -128,6 +128,7 @@ export interface ChannelWireMessage extends WireMessage {
   memberDeparture?: unknown;
   turnStop?: unknown;
   modelSwitch?: unknown;
+  managementGrantChange?: unknown;
   voiceCallRecord?: unknown;
 }
 

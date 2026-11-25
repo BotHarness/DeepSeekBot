@@ -542,7 +542,23 @@ export function createCausalSending(ports: CausalSendingPorts) {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     ports.admitBotDmMessage(channel.id, result.message.id);
-    if (result.status === 'appended' && ports.tob?.isTob(botSlug)) ports.onTobDelegation();
+    if (result.status === 'appended' && input.sourceEventId !== undefined) {
+      const source = ports.database.read((db) =>
+        db
+          .prepare(`
+        SELECT e.channel_id FROM source_events e
+        JOIN channel_records c ON c.channel_id = e.channel_id
+        JOIN persona_bots b ON b.slug = ?
+        WHERE e.source_event_id = ? AND e.source_kind = 'human-message'
+          AND COALESCE(e.human_id, 'local-human') = b.owner_human_id
+          AND json_extract(c.record_json, '$.type') = 'dm'
+          AND json_extract(c.record_json, '$.botSlug') = b.slug
+          AND COALESCE(json_extract(c.record_json, '$.dmHumanId'), c.owner_human_id) = b.owner_human_id
+      `)
+          .get(botSlug, input.sourceEventId ?? ''),
+      );
+      if (source) ports.onTobDelegation();
+    }
     return { channelId: channel.id, message: result.message };
   }
 

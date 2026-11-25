@@ -48,3 +48,22 @@ export const TOB_MEMORY_LEASE_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const BOT_MANAGEMENT_GRANTS_MIGRATION: SchemaMigration = {
+  id: 'bot-management-grants',
+  module: 'tob',
+  description: 'Store independent App and Bot management grants per Bot',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_management_grants (
+        bot_slug TEXT NOT NULL,
+        capability TEXT NOT NULL CHECK (capability IN ('manage-app', 'manage-bots')),
+        PRIMARY KEY (bot_slug, capability)
+      ) STRICT;
+      INSERT INTO bot_management_grants (bot_slug, capability)
+        SELECT t.bot_slug, capability FROM tob_identity t
+        JOIN team_settings s ON s.owner_human_id = t.human_id
+        CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots');
+    `);
+  },
+};

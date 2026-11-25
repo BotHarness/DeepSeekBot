@@ -1,3 +1,4 @@
+import type { ManagementGrantChange } from '../authorization/bot-management.js';
 import type { SessionTurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
@@ -326,6 +327,7 @@ export interface ChannelMessage {
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
   modelSwitch?: ChannelModelSwitch;
+  managementGrantChange?: ManagementGrantChange;
   turnTargets?: TurnTarget[];
   turnModelSwitch?: SessionTurnModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;

@@ -315,7 +315,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                     usage:
                       TOB_AGENT_COMMAND_USAGE[entry.command] ??
                       (entry.command === 'cli'
-                        ? 'deepseekbot <any command> [options]; find one with deepseekbot search <words>'
+                        ? 'deepseekbot <command> [options] within your grants; discover commands with deepseekbot search <words>'
                         : entry.command === 'settings'
                           ? 'deepseekbot settings [botharness-client]'
                           : 'deepseekbot settings-set <namespace> --patch-stdin --expected-revision <observed revision> --previous-value <JSON of previous values for patched fields>'),
@@ -331,8 +331,8 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                 ? {
                     rule: 'Read the current target and pass its observed revision; follow each command usage. Settings patches also require exact previous values for patched fields.',
                     maintenance:
-                      'Installation and restart require --confirm plus a fresh Human decision. Never retry an uncertain maintenance write automatically.',
-                    cli: 'Any other deepseekbot command also works. Commands that only read run at once; every other command waits for the Human to approve the exact command on an approval card. The Host chooses the target, so --host, --token-file and --home are refused. Paths are read on the Host from your current folder.',
+                      'Installation and restart require --confirm. Never retry an uncertain maintenance write automatically.',
+                    cli: 'CLI commands are limited to your management grants. Writes follow your Approval Template and saved rules. Destructive Bot actions, other Bots’ Memory edits, Profile Backup restores and credential operations require a fresh Human decision. The Host chooses the target, so --host, --token-file and --home are refused. Paths are read on the Host from your current folder.',
                   }
                 : { required: ['ns', 'patch', 'expectedRevision', 'previousValue'] }),
               approval: 'existing-host-policy',

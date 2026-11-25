@@ -11,7 +11,6 @@ import { replyReminderText } from '../features/messaging/prompt.js';
 import { GENUI_AUTHORING_SECTION } from '../features/genui/prompt.js';
 import { nativeScheduleToolRefusal } from '../features/schedules/tools.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
-import { TOB_CLI_PROMPT } from '../tob/service.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
   Agent,
@@ -44,7 +43,7 @@ import {
   untilAborted,
 } from './dsh-bot-agent-adapter-shared.js';
 import { runEngineTurn } from './dsh-bot-agent-adapter-engine.js';
-import { orchestratorTools, TOB_CLI_ONLY_TOOLS } from './dsh-bot-agent-adapter-tools.js';
+import { orchestratorTools } from './dsh-bot-agent-adapter-tools.js';
 import { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
@@ -645,7 +644,6 @@ export async function orchestratorHandle(
     const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
     if (borrowed) borrowedDisposers.push(disposeSelection);
     const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-      if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
       const dispose = agentCtx.tools.register(tool);
       if (borrowed) borrowedDisposers.push(dispose);
       return dispose;
@@ -674,22 +672,9 @@ export async function orchestratorHandle(
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
-      text: () =>
-        orchestratorPromptSections(adapter.promptText(run.sessionId), run.tobCli === true).role,
+      text: () => orchestratorPromptSections(adapter.promptText(run.sessionId)).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
-    if (run.tobCli) {
-      const disposeLegacyManagement = agentCtx.tools.guard(({ name }) =>
-        TOB_CLI_ONLY_TOOLS.has(name) ? 'Tob must use the scoped deepseekbot CLI' : undefined,
-      );
-      if (borrowed) borrowedDisposers.push(disposeLegacyManagement);
-      const disposeTobPrompt = agentCtx.systemPrompt.section({
-        name: 'botharness:tob-cli',
-        order: ROLE_PROMPT_ORDER + 1,
-        text: TOB_CLI_PROMPT,
-      });
-      if (borrowed) borrowedDisposers.push(disposeTobPrompt);
-    }
     const disposeReplyPrompt = agentCtx.systemPrompt.section({
       name: 'botharness:reply-delivery',
       order: 10_450,

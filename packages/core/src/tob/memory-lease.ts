@@ -135,7 +135,7 @@ export interface TobMemoryLeaseDeps {
   registry: Pick<PersonaBotRegistry, 'get'>;
   ownership: Pick<SessionOwnership, 'resolve' | 'contentAvailable'>;
   memory: () => Pick<MemoryAcceptance, 'snapshot' | 'readAccepted' | 'history' | 'diff'>;
-  isTob(slug: string): boolean;
+  mayManageBots(slug: string): boolean;
   now?: () => Date;
 }
 
@@ -197,13 +197,17 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
 
   const tobOwner = (tobSlug: string): string => {
     const tob = deps.registry.get(tobSlug);
-    if (!tob || !deps.isTob(tobSlug)) refuse('tob-authority-required');
+    if (!tob || !deps.mayManageBots(tobSlug)) refuse('tob-authority-required');
     return botOwner(tob);
   };
 
   const sourceDenial = (row: LeaseRow): string | undefined => {
     const owner = deps.registry.get(row.tob_slug);
-    if (!owner || !deps.isTob(row.tob_slug) || row.source_channel_id !== dmChannelId(row.tob_slug))
+    if (
+      !owner ||
+      !deps.mayManageBots(row.tob_slug) ||
+      row.source_channel_id !== dmChannelId(row.tob_slug)
+    )
       return 'lease-source-revoked';
     try {
       deps.database.read((db) => {

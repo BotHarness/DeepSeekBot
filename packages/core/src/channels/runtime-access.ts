@@ -166,7 +166,9 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
     };
     const initial = ports.database.read((db) =>
       db
-        .prepare('SELECT channel_id, message_id FROM source_events WHERE source_event_id = ?')
+        .prepare(
+          'SELECT source_kind, human_id, channel_id, message_id FROM source_events WHERE source_event_id = ?',
+        )
         .get(sourceEventId ?? null),
     );
     if (initial?.channel_id && initial.message_id && !sessionId.startsWith('direct-')) {
@@ -200,7 +202,18 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
       authorize(database);
     };
     const requireOrdinaryGroupActor = () => {
-      if (ports.tob?.isTob(botSlug)) throw new TobError('tob-cli-required');
+      const source =
+        typeof initial?.channel_id === 'string'
+          ? ports.channels.get(initial.channel_id)
+          : undefined;
+      if (
+        source?.type === 'dm' &&
+        source.botSlug === botSlug &&
+        initial?.source_kind === 'human-message' &&
+        (initial.human_id ?? 'local-human') === actorHuman.humanId &&
+        ports.tob?.hasManagementGrant(botSlug)
+      )
+        throw new TobError('tob-cli-required');
     };
     const resolve = (requested?: string): ChannelRecord => {
       const id = requested ?? defaultChannelId;
@@ -292,7 +305,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           (target && botOwner(target) !== botOwner(ports.registry.get(botSlug)!))
         )
           throw new TobError('bot-not-found');
-        if (ports.tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
         if (
           channel?.type !== 'group' ||
           channel.ownerBotSlug !== botSlug ||
@@ -395,8 +407,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           request === undefined ? undefined : ports.registry.get(request.requesterBotSlug);
         if (requester && botOwner(requester) !== botOwner(ports.registry.get(botSlug)!))
           throw new TobError('bot-not-found');
-        if (request !== undefined && ports.tob?.isTob(request.requesterBotSlug))
-          throw new TobError('protected-bot');
         if (
           target?.type !== 'group' ||
           target.ownerBotSlug !== botSlug ||

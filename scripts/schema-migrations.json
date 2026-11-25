@@ -742,5 +742,9 @@
   {
     "id": "binding-group-interactions",
     "sha256": "f588f5903452481413b4ab2a4a84739ae597860a7161b94ba6b21dd9447592db"
+  },
+  {
+    "id": "bot-management-grants",
+    "sha256": "a4df4f7715f7faef29978c0e0580d14d89bf8fef7a6e445ebbc904c086758e64"
   }
 ]

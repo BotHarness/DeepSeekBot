@@ -23,7 +23,7 @@ const deps = {
           : undefined,
   },
   human: humanContext('owner'),
-  isTob: (slug: string) => slug === 'tob',
+  hasManagementGrant: (slug: string) => slug === 'tob',
 };
 
 async function broker() {
@@ -72,7 +72,6 @@ describe('Tob grant, approval policy and Browser commands', () => {
     ['approval-template-set', '--bot=dm-tob', 'full-access'],
     ['approval-route', 'tob', '--pairing', 'none'],
     ['browser-daily-connect', 'tob'],
-    ['bot-tool', 'tob', 'bot_send_message'],
   ])('refuses %s for Tob itself before any card or run', async (...argv) => {
     const { invoke, run, approve } = await broker();
     const result = await invoke(argv);

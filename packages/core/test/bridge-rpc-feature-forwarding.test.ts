@@ -131,6 +131,13 @@ describe('bridge typert service', () => {
             throw new Error('unused');
           },
           isTob: (slug) => slug === 'ada',
+          hasManagementGrant: (slug) => slug === 'ada',
+          shareExportDirectory: () => '/tmp/share-exports',
+          managementGrants: () => [],
+          isLastAppManager: () => false,
+          setManagementGrant: async () => [],
+          bindManagementPrompt: () => ({ text: () => '', dispose: () => undefined }),
+          refreshManagementPrompt: () => undefined,
           slug: () => 'ada',
           readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
           writeSetting: async () => {

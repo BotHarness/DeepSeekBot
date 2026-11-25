@@ -4,15 +4,15 @@ What Tob is, where the Human reaches it, and how it manages the Host through the
 
 Two rules run through every section:
 
-- **Authority comes from the accepted Human DM, never from Tob's files.** Only the protected Tob singleton's root Orchestrator, running for the exact accepted Human private-DM Source Events of the current execution, can manage the Host. Soul, Memory, display name, a CLI argument, a Group, external IM, another Bot or an Assignment Session never confer it.
-- **Tob uses the Human's CLI and the existing owners.** Tob gets no management Tools of its own, no second settings store and no second approval owner. Every change goes through the same owner, revision check and approval card the Human's own command would.
+- **Authority comes from the accepted Human DM, never from Tob's files.** Only a management grant holder's root Orchestrator, running for the exact accepted Human private-DM Source Events of the current execution, can manage the Host. Soul, Memory, display name, a CLI argument, a Group, external IM, another Bot or an Assignment Session never confer it.
+- **Tob uses the Human's CLI and the existing owners.** Tob gets no management Tools of its own, no second settings store and no second approval owner. Changes use the same owners and revision checks as the Human CLI, with the Bot’s Approval Template and saved rules.
 
-## 1. Tob is a protected local PersonaBot with one Human DM
+## 1. Tob is a local PersonaBot with one Human DM
 
 <a id="adr-0223"></a>
 _Formerly ADR-0223; its Home panel, Home setup and layout v8 were removed by ADR-0268 (§2)._
 
-Each Profile reserves one local Tob identity before provisioning its PersonaBot, Git Memory, Workspace Grant and Human DM; interrupted provisioning resumes the reservation instead of creating a second Tob. Tob is an ordinary PersonaBot in every other respect: its Soul and Memory stay editable and portable, and its conversation is one ordinary DM with ordinary Channel history. The Host owner refuses to archive or delete it, whatever its display name. A revoked Workspace Grant is never silently recreated. Tob inherits the Host's default model unless the Human customizes it.
+Each Profile reserves one local Tob identity before provisioning its PersonaBot, Git Memory, Workspace Grant and Human DM; interrupted provisioning resumes the reservation instead of creating a second Tob. Tob is an ordinary PersonaBot in every other respect: its Soul and Memory stay editable and portable, and its conversation is one ordinary DM with ordinary Channel history. The Human can rename, archive, delete or share Tob. The Host warns when archiving or deleting the last active App management holder. A revoked Workspace Grant is never silently recreated. Tob inherits the Host's default model unless the Human customizes it.
 
 Why: an ordinary named Bot with Host credentials would turn editable persona files and imported content into administrative authority. A separate Home conversation would duplicate history and lose the existing approval path.
 
@@ -27,7 +27,7 @@ There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open T
 
 On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: the **Tob entry bar**, a Composer-shaped tap target above the tab island on Chats (#5106, replacing pull-to-Tob). A tap opens the Tob DM with the Composer focused and the keyboard up, through the iOS zoom navigation transition or an Android Material container transform (instant under Reduce Motion); Back returns to Chats. The bar targets the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter, and is hidden when there is no Tob. Pulling down on Chats only refreshes. The Tob row stays in the Chats list.
 
-**Tob Delegation** uses the existing Bot-to-Bot DM: Tob picks a colleague, sends without asking the Human first, and reports back in its Human DM. Each send shows the existing action notice; approval ownership, the Bot-hop limit and Tob's CLI authority do not change. Tob never joins a Group.
+**Tob Delegation** uses the existing Bot-to-Bot DM: Tob picks a colleague, sends without asking the Human first, and reports back in its Human DM. Each send shows the existing action notice; approval ownership, the Bot-hop limit and Tob's CLI authority do not change. Tob can participate in Groups. Any Bot can delegate, and a delegation from its own Human DM counts in telemetry.
 
 Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with the Tob entry bar so the entrance is visible and lands ready to type.
 
@@ -46,18 +46,15 @@ Why: a management Tool per setting would duplicate the CLI's discovery and drift
 
 Enforced by: `tob.test.ts` (management binds to the current protected Orchestrator and canonical Human DM; new requests lose admission after the turn or a newly accepted message), `tob-cli-inbox-approval.test.ts` (Bot DM steering before the card opens or after the decision commits; one approved write and a refused second invocation), `tob-cli-broker.test.ts`, `tob-cli-shell.test.ts`.
 
-## 4. Tob runs every CLI command: reads at once, writes after an approval card
+## 4. Scoped CLI access follows management grants and approvals
 
 <a id="adr-0314"></a>
-_Formerly ADR-0314, which replaced ADR-0224's allowlist._
 
-Tob can run every `tobs` command the Human has. Commands with typed operations keep them (§5). Any other command goes to the broker as `cli` with its exact argv, stdin and folder, and the Host runs the Human CLI in a child process with the Host's own loopback origin and launch token; the token never reaches Tob's Shell and is redacted from output.
+[ADR-0366](../adr/0366-managing-the-app-is-a-grant.md) gives the Owner two independent grants, `manage-app` and `manage-bots`, for any number of their Bots. Built-in Tob receives both in a new or migrated Profile. Imports carry neither grant. Owner changes revoke the previous Owner's grants and enable both for the incoming Owner's Tob.
 
-A command runs at once only when the Host's read list (`brokerRead` in `bots/cli-effects.ts`) names it, its parsed effects change nothing, and it has no `--out`. Everything else is a write, including any command the list does not know. A write first shows the Human a card with the exact argv, the folder, and the size and SHA-256 of any stdin, never its contents. Full Access and Approval Templates do not replace this card; only an Always allow rule the Human saved from such a card can ([Approval decisions](approvals.md#adr-0249)). Channel Tool Approval routes the exact prepared operation to the Human DM captured at admission and rechecks the decision against the same call at execution. A rejected or cancelled card never runs the command. The Human CLI's own refusal comes back to Tob unchanged; a write that loses its result is `operation-outcome-uncertain`, and Tob reads before retrying. `--host`, `--token-file`, `--home`, `--as` and `--administration` are refused in any form, and `ssh-tunnel`, `voice-local-kit`, `audit`, `private` and `tob-cli` are refused outright. Output is capped at 8 MiB. A one-time confirmation or link never travels through stdout: its command writes it only to a new private `--out` file and prints the path (`device-offer`, `profile-backup-preview`), so it stays out of Tob's results, approval cards and Session log, and the `--out` makes the command a write.
+The broker checks the active grant on each request and again before a prepared operation takes effect. Reads defined by the Host's read list run without a card when their parsed effects are read-only and they have no output file. Writes follow the Bot's Approval Template and saved Always-allow rules. Destructive Bot actions, another Bot's Memory edits, Profile Backup restore and credential operations always require a fresh Human decision. Pairing and Daily Browser grant commands remain Human-only.
 
-Why: a growing allowlist meant Tob kept refusing what the Human could do on the same Host, and CLI parity now gives Tob every new feature. The read list errs toward a card: a read it misses costs one click, while a write it wrongly admitted would run without one. The child reads named files with the Host's permissions, so a command with file input or output is never a read.
-
-Enforced by: `tob-cli-authority.property.test.ts` (for any argv, a command runs at once only when the list names it, it changes nothing and it has no `--out`; an unknown command is a write; adding `--out` anywhere turns a read into a write; the refused options are refused anywhere, bare or with `=`), `tob-cli-host-commands.test.ts`, `tob-cli-approval.test.ts`, `tob-cli-profile-backup.test.ts` (a Profile Backup through Tob, from preview to activation in the restored Profile, never shows the export confirmation), `tob-cli-device-pairing.test.ts` (a device paired from Tob's offer file and revoked after review loses its requests and streams; no link, offer or credential reaches Tob or the pairing log).
+The Human changes a grant with `deepseekbot bot-grant <bot> manage-app|manage-bots on|off`. A change appends a Host timeline marker to the Human DM. The management instruction is captured for a new Session and refreshed at compaction. Grant changes never change the model tool catalog.
 
 ## 5. Typed operations review the exact change and survive a lost response
 
@@ -69,8 +66,8 @@ _Formerly ADR-0225, with the reviewed-settings write of ADR-0223 and ADR-0224._
 - **Profile.** Reads return an opaque fingerprint of the whole Registry record, and metadata (name, description, tags only), appearance and pause or resume writes must carry it. Images are reviewed by digest and size.
 - **Schedules.** The `bot_schedule_creations` table records an operation key, the Bot, a fingerprint of the normalized request and the schedule id in the same transaction as the schedule. Repeating `schedule-create` with the same key and request returns the original with `reconciled: true` and never counts it against the enabled limit twice; a different request refuses as `operation-key-conflict`; a key whose schedule was deleted refuses as `operation-key-consumed` and never recreates it. Every schedule exposes a `revision` over its editable state (title, prompt, trigger to the second, enabled, locked); a recurring firing does not change it, while the final firing of a one-time schedule turns it off and so does; `schedule-update` and `schedule-delete` with `--expected-revision` refuse a mismatch as `stale-revision` inside the write transaction. Both are optional for the Human; Tob's `cli` path refuses `schedule-create` without `--operation-key` and `schedule-update` or `schedule-delete` without `--expected-revision` as `usage` before any card.
 
-- **Memory and Soul.** `memory-save` and `memory-restore-commit` for a Bot the Human owns carry the target, the base revision (`expectedHead`), the before and after SHA-256 and a unified diff of at most 256 KiB, and the Memory owner (`saveHuman`, `restoreCommitHuman`) stays the only writer, acting as the Bot's owner. A moved head, busy or uncommitted Memory, Tob itself or an archived Bot refuse before the card; after approval the guard rechecks authority, ownership and the base revision, then the file is read back. Repeating the same edit or restore id returns the existing Memory Commit as a read, never a second write. Both always need a fresh Human decision, like deletion. The result states when Sessions see the change: Soul and Core Memory reach new Sessions at once and a running Session after its next compaction.
-- **Deletion.** Uses the owner's preview token, dependency scope and owner-derived Memory path; retention is the default and erasure is explicit. Every confirmation and retry needs a fresh Human decision and the explicit confirmation flag, even under Full Access or a saved rule. Tob itself can never be archived or deleted.
+- **Memory and Soul.** `memory-save` and `memory-restore-commit` for a Bot the Human owns carry the target, the base revision (`expectedHead`), the before and after SHA-256 and a unified diff of at most 256 KiB, and the Memory owner (`saveHuman`, `restoreCommitHuman`) stays the only writer, acting as the Bot's owner. A moved head, busy or uncommitted Memory, an archived Bot refuses before the card; after approval the guard rechecks authority, ownership and the base revision, then the file is read back. Repeating the same edit or restore id returns the existing Memory Commit as a read, never a second write. Both always need a fresh Human decision, like deletion. The result states when Sessions see the change: Soul and Core Memory reach new Sessions at once and a running Session after its next compaction.
+- **Deletion.** Uses the owner's preview token, dependency scope and owner-derived Memory path; retention is the default and erasure is explicit. Every confirmation and retry needs a fresh Human decision and the explicit confirmation flag, even under Full Access or a saved rule. Tob can be archived or deleted through the same path.
 
 Why: a transport failure after creation must not produce a second identity, Memory or DM, and a profile write must not overwrite a change made while its card was pending. The generic card showed only the size and hash of a Memory body, so the Human approved an edit to a Bot's identity without seeing it. These owners already existed; Tob reaches them without sharing the Human's credentials.
 
@@ -106,20 +103,11 @@ Why: with a card in front of the search, Tob would either skip it or ask the Hum
 
 Enforced by: `tob-creation-candidates.test.ts` (the Tob-only creation guidance; `matches`, `no-matches` and `marketplace-unavailable` output; the search is a read and every install or creation is a write), `tob-cli-bot-create.test.ts` (custom creation writes the Soul and Core Memory, makes one DM and no grants, and the new Bot is not Tob), `marketplace-uploaded-bots.test.ts` (an install keeps the source Soul, makes one DM and no grants, and the new Bot is not Tob).
 
-## 8. Tob cannot widen its own authority
+## 8. Management grant holders cannot change another holder's authority
 
 <a id="tob-self-escalation"></a>
-_Added for [#4830](https://github.com/BotHarness/DeepSeekBot/issues/4830) and the authorization report in [#4291](https://github.com/BotHarness/DeepSeekBot/issues/4291)._
 
-The Host refuses, before any approval card, a Tob `cli` request that names Tob itself or Tob's Human DM (a DM whose only member is Tob) and whose parsed effects carry management authority or cannot be classified. That covers Tob's own Workspace Grants, Browser and Computer access, Approval Template, Bot mode, approval route and pending approvals, in any position or `--option=value` form. The refusal is `self-escalation-refused` with a sentence that sends the Human to Bot settings. The same command for another Bot the Human owns still goes to the ordinary card (§4). Reads of Tob and ordinary profile or Memory writes are unchanged.
-
-`browser-profile-pair` and `browser-borrow-pair` print a one-time pairing code, and `browser-daily-grant` hands the page the Human selected in the Playwright extension to a Bot. Tob refuses all three as `cli-command-refused`: a pairing code is a credential, and the Daily Browser grant is the Human's consent in the extension. The Human CLI writes pairing codes only to a new private `--out` file. `browser-profile-forget`, `browser-daily-connect`, `browser-daily-return` and `browser-borrow-return` are ordinary writes behind the card.
-
-Why: the card is the Human's decision on one exact command, but a Human approving "give Tob Full Access" in Tob's own DM is Tob building its own authorization out of conversation, which #4291 reports. Authority over Tob stays in Bot settings and the Human's own CLI. Narrowing commands such as `grant-revoke` or `tool-approval-rule-revoke` carry management authority too and are refused for Tob, which costs the Human one trip to settings.
-
-Not covered, and still decided only by the ordinary card: commands that change something Tob shares with other Bots rather than Tob itself, such as editing the Approval Template Tob uses (`approval-template edit`), the global template or the default Bot mode, and `activity-allow-once` on an Activity item, whose id does not name a Bot. The Human sees the exact command on the card; refusing them would also block legitimate changes for every other Bot.
-
-Enforced by: `tob-cli-self-escalation.property.test.ts` (any management or unclassified command that names Tob anywhere is refused; the same command for another Bot never is), `tob-cli-self-escalation.test.ts` (refusal before any card or run; another Bot's approval-template edit shows one card; Human-only Browser commands refused), `cli-browser-pairing.test.ts`.
+A Bot with either grant cannot change the Workspace Grants, Browser or Computer access, Approval Template, mode, approval route, or pending approvals of any holder, including itself. A Bot cannot toggle management grants. The Host applies this check to the actual command and current target before approval and at execution. The Human can make the change in Bot settings or with the Human CLI.
 
 ## 9. A content read continues only on the target and history it started on
 
@@ -131,7 +119,7 @@ Why: the target id alone does not say which Channel or Bot it names once one is 
 
 Enforced by: `channel-read-continuation.test.ts` (appends keep continuation; a rewritten file history or a purge is stale; a recreated Channel or a cursor from Channel A used on B is a changed target; edited cursors are invalid; the byte cap continues from the last returned message), `tob-read-continuation.property.test.ts` (paging any append-interleaved history returns each first-page message exactly once, newest first), `bot-live-cli.test.ts`, `bot-offline-operations-cli.test.ts`, `bot-management-cli.test.ts` (Bot incarnation and snapshot revision), `tob-cli-host-commands.test.ts` (`--cursor` stays a broker read; foreign Bot DMs are still refused).
 
-## 10. A Tob Assignment reads selected Bots' Memory through a read-only lease
+## 10. A Bot with Manage other Bots can lease read-only Memory to its Assignment
 
 <a id="tob-memory-lease"></a>
 _New in #4827 (carries forward #2091)._

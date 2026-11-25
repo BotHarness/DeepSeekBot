@@ -109,7 +109,7 @@ export function channelCreationTransport(
       const deviceId = host.deviceId;
       return request(hostId, deviceId, async (client) => {
         return (await listBots(client)).flatMap((bot) =>
-          bot.paused === true || bot.deleted === true || bot.tob !== undefined
+          bot.paused === true || bot.deleted === true
             ? []
             : [
                 {
