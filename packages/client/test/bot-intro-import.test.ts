@@ -14,7 +14,6 @@ vi.mock('../src/client/modal.js', () => ({
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotIntro } from '../src/client/bot-intro.js';
-import { onCreationRequest } from '../src/client/create-request.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { INTRO_STEPS, onboardingFor } from '../src/client/onboarding.js';
 
@@ -37,7 +36,7 @@ function actionsFor() {
   };
 }
 
-it('starts an import from the intro, records the tool and opens the Session picker for it', async () => {
+it('creates the planned Bots inside the intro, records the tool and moves on to Start', async () => {
   const node = document.createElement('div');
   document.body.append(node);
   const root = createRoot(node);
@@ -48,6 +47,7 @@ it('starts an import from the intro, records the tool and opens the Session pick
         sessionId: 'codex:x1',
         source: { kind: 'native' },
         product: 'codex',
+        folderName: 'w',
         cwd: '/w',
         workspacePath: '/w',
         running: false,
@@ -55,9 +55,8 @@ it('starts an import from the intro, records the tool and opens the Session pick
         updatedAt: 1,
       },
     ]),
+    addBotFromSessions: vi.fn(async () => ({})),
   } as unknown as BridgeActions;
-  const intents: unknown[] = [];
-  const stop = onCreationRequest((intent) => intents.push(intent));
   try {
     const controller = onboardingFor(actions);
     await controller.enter();
@@ -73,29 +72,33 @@ it('starts an import from the intro, records the tool and opens the Session pick
       dialog.querySelector<HTMLButtonElement>('[data-import-source="codex"]')!.click(),
     );
     await act(async () =>
-      dialog.querySelector<HTMLButtonElement>('[data-intro-import-start]')!.click(),
+      dialog.querySelector<HTMLButtonElement>('[data-intro-import-create]')!.click(),
     );
-    expect(intents).toEqual([{ kind: 'bot-sessions', product: 'codex' }]);
+    await act(async () => {});
+    expect(actions.addBotFromSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayName: 'w',
+        sessionIds: ['codex:x1'],
+        workspacePaths: ['/w'],
+      }),
+    );
+    expect(controller.getSnapshot().intro?.step).toBe(INTRO_STEPS.indexOf('start'));
     const events = (actions.telemetryEvent as ReturnType<typeof vi.fn>).mock.calls;
     expect(events).toContainEqual([
       'onboarding:import_source_select',
       { source: 'codex', detected: true },
     ]);
-    expect(events.at(-1)).toEqual([
-      'onboarding:intro_complete',
-      {
-        starter: 'import',
-        product: 'codex',
-        is_engineer: false,
-        is_creator: false,
-        is_operator: false,
-        is_learner: false,
-        has_detail: false,
-      },
-    ]);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    await act(async () => controller.setIntroStep(INTRO_STEPS.indexOf('import')));
+    await act(async () => {});
+    expect(dialog.querySelector('[data-intro-import-plan]')).toBeNull();
+    expect(dialog.querySelector('[data-intro-import-created]')!.textContent).toBe(
+      '已创建 1 个 Bot，它们读完会话后会来自我介绍。',
+    );
+    expect(dialog.querySelector<HTMLButtonElement>('[data-import-source="codex"]')!.disabled).toBe(
+      true,
+    );
   } finally {
-    stop();
     await act(() => root.unmount());
     node.remove();
   }
