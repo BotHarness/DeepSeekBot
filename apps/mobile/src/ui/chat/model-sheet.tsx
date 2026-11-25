@@ -17,6 +17,7 @@ import {
 } from '../primitives/settings-row';
 import { useStrings, t } from '../strings';
 import { useDesignTheme } from '../design/theme';
+import { SystemListSheet, type SystemListSection } from '../primitives/system-list-sheet';
 import { modelEntryLabel } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
 import {
@@ -85,6 +86,128 @@ export function ModelSheet({
   };
   const control = (key: string, selected: boolean): SettingsRowControl | undefined =>
     busy === key ? { kind: 'busy' } : selected ? { kind: 'check' } : undefined;
+
+  if (SystemListSheet !== undefined && page === undefined) {
+    const icon = theme.type.title.line;
+    const title = t.modelTitle(botName);
+    const notes = [
+      ...(model.status === 'ready' && model.value.plan === undefined
+        ? [{ kind: 'note' as const, key: 'inherited', text: t.modelInherited }]
+        : []),
+      ...(model.status === 'ready' && model.value.repair !== undefined
+        ? [{ kind: 'note' as const, key: 'repair', text: t.modelRepair, tone: 'warning' as const }]
+        : []),
+      ...(error === undefined
+        ? []
+        : [{ kind: 'note' as const, key: 'error', text: error, tone: 'danger' as const }]),
+    ];
+    let sections: SystemListSection[];
+    if (model.status === 'loading')
+      sections = [{ key: 'loading', rows: [{ kind: 'progress', key: 'loading', label: title }] }];
+    else if (model.status === 'failed')
+      sections = [
+        {
+          key: 'failed',
+          footer: t.modelFailed,
+          rows: [{ kind: 'action', key: 'retry', label: t.tryAgain, onPress: onRetry }],
+        },
+      ];
+    else {
+      const value = model.value;
+      const current = currentModel(value).route;
+      const favorites = (value.favorites ?? []).flatMap((choice) => {
+        if (choice.kind !== 'model') return [];
+        const entry = value.models.find((item) => sameModel(item, choice));
+        return entry === undefined ? [] : [entry];
+      });
+      const modelRow = (key: string, entry: ModelCatalogEntry) => {
+        const usable = entry.credential === undefined;
+        const label = modelEntryLabel(entry);
+        return {
+          kind: 'choice' as const,
+          key,
+          label: label.name,
+          accessibilityLabel: `${entry.modelName}, ${credentialHint(entry)}`,
+          detail: credentialHint(entry),
+          leading: {
+            size: icon,
+            node: (
+              <ModelBrandIcon
+                brand={label.brand}
+                size={icon}
+                color={usable ? theme.color.fg : theme.color.muted}
+              />
+            ),
+          },
+          muted: !usable,
+          selected: busy !== key && sameModel(entry, current),
+          busy: busy === key,
+          onPress: () => {
+            if (usable) run(key, () => onChoose(value, entry));
+          },
+        };
+      };
+      sections = [
+        ...(value.presets.length === 0
+          ? []
+          : [
+              {
+                key: 'presets',
+                title: t.modelPresets,
+                rows: value.presets.map((preset) => {
+                  const key = `preset:${preset.id}`;
+                  return {
+                    kind: 'choice' as const,
+                    key,
+                    label: preset.name,
+                    detail:
+                      value.models.find((entry) => sameModel(entry, preset.orchestrator))
+                        ?.modelName ?? preset.orchestrator.model,
+                    selected: busy !== key && value.plan?.sourcePresetId === preset.id,
+                    busy: busy === key,
+                    onPress: () => run(key, () => onPreset(preset.id)),
+                  };
+                }),
+              },
+            ]),
+        ...(favorites.length === 0
+          ? []
+          : [
+              {
+                key: 'favorites',
+                title: t.modelSettings.favorites,
+                rows: favorites.map((entry) =>
+                  modelRow(`favorite:${entry.provider}:${entry.model}`, entry),
+                ),
+              },
+            ]),
+        value.models.length === 0
+          ? {
+              key: 'models',
+              title: t.modelList,
+              rows: [{ kind: 'note', key: 'none', text: t.modelNoneAvailable }],
+            }
+          : {
+              key: 'models',
+              title: t.modelList,
+              rows: [...value.models]
+                .sort(
+                  (a, b) => Number(a.credential !== undefined) - Number(b.credential !== undefined),
+                )
+                .map((entry) => modelRow(`model:${entry.provider}:${entry.model}`, entry)),
+            },
+      ];
+    }
+    return (
+      <SystemListSheet
+        visible={visible}
+        title={title}
+        closeLabel={t.close}
+        sections={notes.length === 0 ? sections : [{ key: 'notes', rows: notes }, ...sections]}
+        onClose={close}
+      />
+    );
+  }
 
   let body;
   if (model.status === 'loading') body = <SheetLoading />;

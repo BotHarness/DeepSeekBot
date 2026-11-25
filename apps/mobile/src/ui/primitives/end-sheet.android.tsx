@@ -3,6 +3,7 @@ import { useLayoutEffect } from 'react';
 import { View, processColor, useWindowDimensions, type ViewProps } from 'react-native';
 import { holdBack } from '../shell/back-owner';
 
+import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { materialDrawer } from '../design/tokens';
 import type { EndSheetProps } from './end-sheet';
@@ -33,7 +34,8 @@ export function EndSheet({
 }: EndSheetProps) {
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
-  const sheetColor = processColor(theme.overlay.fill);
+  const container = useMaterialRoles().surfaceContainerLow;
+  const sheetColor = processColor(container);
   const scrimColor = processColor(theme.scrim);
   if (typeof sheetColor !== 'number' || typeof scrimColor !== 'number')
     throw new Error('EndSheet requires a resolved surface colour');
@@ -71,7 +73,7 @@ export function EndSheet({
           top: 0,
           bottom: 0,
           width: panelWidth,
-          backgroundColor: theme.overlay.fill,
+          backgroundColor: container,
         }}
       >
         {panel}

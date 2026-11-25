@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
+import { SystemSheet } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 
 export function SheetFrame({ visible, label, onClose, children, resizable }: SheetFrameProps) {
@@ -20,12 +21,7 @@ export function SheetFrame({ visible, label, onClose, children, resizable }: She
       pointerEvents="box-none"
       style={StyleSheet.absoluteFill}
     >
-      <ModalBottomSheet
-        onDismissRequest={onClose}
-        skipPartiallyExpanded={resizable !== true}
-        containerColor={theme.overlay.fill}
-        contentColor={theme.color.fg}
-      >
+      <ModalBottomSheet onDismissRequest={onClose} skipPartiallyExpanded={resizable !== true}>
         <RNHostView matchContents={{ vertical: true }}>
           <View
             accessibilityLabel={label}
@@ -35,7 +31,7 @@ export function SheetFrame({ visible, label, onClose, children, resizable }: She
               paddingBottom: space.x5,
             }}
           >
-            {children}
+            <SystemSheet value>{children}</SystemSheet>
           </View>
         </RNHostView>
       </ModalBottomSheet>

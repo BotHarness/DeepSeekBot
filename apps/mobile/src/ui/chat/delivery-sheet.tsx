@@ -4,6 +4,7 @@ import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { receiptGroups, receiptRecipients } from '../../host/delivery-receipt';
 import { useDesignTheme } from '../design/theme';
 import { radius, rowGlyph, space } from '../design/tokens';
+import { SystemListSheet } from '../primitives/system-list-sheet';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
@@ -26,6 +27,49 @@ export function DeliverySheet({
   const recipients = message === undefined ? [] : receiptRecipients(message);
   const summary = useReceiptCounts(recipients);
   const rows = receiptGroups(recipients).flatMap((group) => group.recipients);
+  const open = (item: (typeof rows)[number]) =>
+    onOpenInbox({ botSlug: item.botSlug, missing: item.state === 'missing' });
+  if (SystemListSheet !== undefined)
+    return (
+      <SystemListSheet
+        visible={message !== undefined && rows.length > 0}
+        title={t.delivery.label}
+        closeLabel={t.close}
+        sections={[
+          {
+            key: 'recipients',
+            title: summary,
+            rows: rows.map((item) => {
+              const name = botName(item.botSlug);
+              return {
+                kind: 'choice' as const,
+                key: item.botSlug,
+                testID: `delivery-bot-${item.botSlug}`,
+                label: name,
+                accessibilityLabel: `${t.delivery.openInbox(name)}, ${t.delivery.state[item.state]}`,
+                leading: {
+                  size: space.x3,
+                  node: (
+                    <View
+                      style={{
+                        width: space.x3,
+                        height: space.x3,
+                        borderRadius: radius.round,
+                        backgroundColor: receiptColor(theme, item.state),
+                      }}
+                    />
+                  ),
+                },
+                value: t.delivery.state[item.state],
+                accessory: 'chevron' as const,
+                onPress: () => open(item),
+              };
+            }),
+          },
+        ]}
+        onClose={onClose}
+      />
+    );
   return (
     <Sheet
       visible={message !== undefined && rows.length > 0}
@@ -49,12 +93,7 @@ export function DeliverySheet({
               testID={`delivery-bot-${item.botSlug}`}
               accessibilityRole="button"
               accessibilityLabel={`${t.delivery.openInbox(name)}, ${t.delivery.state[item.state]}`}
-              onPress={() =>
-                onOpenInbox({
-                  botSlug: item.botSlug,
-                  missing: item.state === 'missing',
-                })
-              }
+              onPress={() => open(item)}
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
