@@ -1,5 +1,5 @@
 import { color, radius, space, text } from '../../ds/tokens.stylex.js';
-import { font } from '../../ds/tobs.stylex.js';
+import { font, radius as tobsRadius } from '../../ds/tobs.stylex.js';
 import { personabotsCss } from '../personabots/styles.js';
 import { sharedCss } from '../../shared-styles.js';
 
@@ -48,7 +48,8 @@ export const CHANNEL_ROSTER_CSS = [
   align-items: center;
   justify-content: center;
   padding: 0 ${space.x2};
-  border-radius: ${radius.round};
+  border-radius: ${tobsRadius.full};
+  corner-shape: round;
   background: var(--bh-accent);
   color: var(--tobs-accent-on-solid);
   font: ${text.strong} ${text.metaSize}/1 ${font.familySans};

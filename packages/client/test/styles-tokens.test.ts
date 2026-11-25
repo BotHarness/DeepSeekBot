@@ -179,6 +179,12 @@ describe('client styles', () => {
     expect(source).not.toContain('.bh-pinned.bh-drag-source {');
   });
 
+  it('keeps unread counts circular under the theme superellipse corners', () => {
+    expect(source).toMatch(
+      /\.bh-unread-count \{[^}]*border-radius: 9999px;\s*corner-shape: round;/,
+    );
+  });
+
   it('keeps context-menu positioning out of feature CSS', () => {
     expect(source).not.toContain('.bh-menu-anchor');
   });
