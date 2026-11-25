@@ -56,6 +56,9 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   private var reported = false
   private var animator: UIViewPropertyAnimator?
   private var tabAlpha: CGFloat?
+  /// Kept while attached: after the view leaves its superview the responder chain no longer
+  /// reaches the tab bar controller, and the bar must still get its alpha back.
+  private weak var attachedTabBar: UITabBar?
   private lazy var pan: UIPanGestureRecognizer = {
     let recognizer = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
     recognizer.delegate = self
@@ -102,7 +105,7 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil, tabAlpha != nil {
-      tabBar?.alpha = 1
+      attachedTabBar?.alpha = 1
       tabAlpha = nil
     }
   }
@@ -128,7 +131,8 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
     let alpha = 1 - value
     if tabAlpha != alpha {
       tabAlpha = alpha
-      tabBar?.alpha = alpha
+      if let bar = tabBar { attachedTabBar = bar }
+      attachedTabBar?.alpha = alpha
     }
   }
 
@@ -185,7 +189,9 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   private func finished(_ open: Bool) {
     target = open
     shadow(open)
-    guard reported != open else { return }
+    // Every settle at closed is reported, so a drag that started closed and fell back clears
+    // the panel JavaScript revealed on `onDragStart`; an open is reported only when it changes.
+    guard reported != open || !open else { return }
     reported = open
     onOpenChange(["open": open])
   }

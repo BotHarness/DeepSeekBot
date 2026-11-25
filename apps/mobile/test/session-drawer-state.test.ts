@@ -32,6 +32,21 @@ it('follows the Compose drawer’s reported target', () => {
   expect(sessionDrawer.getSnapshot().open).toBe(false);
 });
 
+it('hides the revealed panel when an opening drag falls back to closed', () => {
+  sessionDrawer.nativeProgress(0.3);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: true });
+  sessionDrawer.nativeProgress(0);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: false });
+});
+
+it('keeps an open drawer shown while it reports progress back towards closed', () => {
+  sessionDrawer.nativeChange(true);
+  sessionDrawer.nativeProgress(0);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: true, shown: true });
+  sessionDrawer.nativeChange(false);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: false });
+});
+
 it('enables the edge gesture only while a Drawer-style root is focused', () => {
   expect(drawerPlace()).toEqual({ edge: 0, sessionId: undefined });
   const leaveRoot = enterDrawerRoot();

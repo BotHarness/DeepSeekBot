@@ -64,6 +64,7 @@ export const sessionDrawer = {
       publish({ open: state.open, shown: true, animated: true });
     }
     sessionDrawerProgress.value = Math.min(1, Math.max(0, progress));
+    if (progress <= 0) hidden();
   },
 };
 
