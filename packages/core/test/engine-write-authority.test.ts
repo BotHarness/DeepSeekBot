@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { CLAUDE_ORCHESTRATOR_HIDDEN_TOOLS } from '../src/engines/claude-engine.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import type { EngineRole } from '../src/engines/engine-store.js';
@@ -222,9 +223,11 @@ describe.each(ROLES)('%s engine workspace authority', (role) => {
         config.mode === 'danger-full-access' ? true : undefined,
       );
       expect(options.tools).toEqual(config.mode === 'read-only' ? READ_TOOLS : undefined);
-      expect(options.disallowedTools).toEqual(
-        config.mode === 'read-only' ? WRITE_TOOLS : undefined,
-      );
+      const disallowed = new Set([
+        ...(config.mode === 'read-only' ? WRITE_TOOLS : []),
+        ...(role === 'assignment' ? [] : CLAUDE_ORCHESTRATOR_HIDDEN_TOOLS),
+      ]);
+      expect(options.disallowedTools).toEqual(disallowed.size === 0 ? undefined : [...disallowed]);
       expect(options.settings).toEqual(
         config.mode === 'workspace-write'
           ? { permissions: { ask: ['Bash', 'PowerShell'] } }

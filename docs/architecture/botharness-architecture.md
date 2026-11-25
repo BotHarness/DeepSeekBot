@@ -1901,7 +1901,7 @@ Codex 账号支持在其他设备上登录（ADR-0353）。Host 在所选账号�
 - **订阅账号**：Host 在 `engines.json` 保存 Codex 和 Claude Code 的账号 ID、名称与 Bot 专用目录。默认账号 `codex-default` 和 `claude` 沿用原来的目录，旧模型选择、模型预设、路由组成员和原生线程继续指向各自的默认账号。Host Owner 或有 `modelSources.manage` 的 Human 可修改账号、启动登录，并向正在请求授权码的 Claude Code 登录进程发送授权码。登录进程按账号管理，授权码仅经进程标准输入传递。写入检查账号列表版本。仍被引用的账号不能移除，账号目录在设置提交后删除。额度、模型列表和原生线程按账号隔离，切换账号以当前 DSH Session 的上下文开新线程。
 - **模型选择**：本机 Host 的主模型和任务模型选择器各有订阅分组，提供该引擎的模型、推理强度及登录入口。模型预设可为任一角色保存引擎选择；应用预设时，Host 先验证订阅模型，再更新 Bot 的 DSH Model Plan 与两种角色的引擎设置。未保存引擎选择的角色切回预设中的 DSH 路由。
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
-- **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
+- **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`；Claude Code Orchestrator 另外屏蔽只活在单个引擎进程里的内置工具（`CronCreate`、`Workflow` 等，见 [ADR-0353](../decisions/sessions.md#adr-0353)）。
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 或明确拒绝 steer 的 Codex 中断当前轮次后在同一 Session 继续。原运行实例对当前工作只提交一次终态报告。
 - **Orchestrator steer**：BotRuntime 在引擎确认接收后，把新消息和一并注入的 Inbox 上下文纳入当前轮次。Codex 通过当前轮次 ID 接收；明确拒绝时保留原 Inbox Admission，留待下一轮处理。Claude Code 共用 Assignment 的中断与继续机制，并按已提交的回复记录避免重复回答。工具网关只授权本轮已接收的 Channel，每次访问仍执行原有的 Bot 成员与发送权限检查。
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。

@@ -933,6 +933,7 @@ export class EngineHost {
           contextSeed,
           gateway: gatewayEndpoint,
           workspaceMode: mode,
+          role: request.role ?? 'orchestrator',
           ...(request.role === 'assignment' && mode === 'workspace-write'
             ? { permissionMode: 'acceptEdits' as const }
             : {}),

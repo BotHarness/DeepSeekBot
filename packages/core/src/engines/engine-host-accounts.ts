@@ -272,7 +272,7 @@ export class EngineHostAccounts {
     account: StoredEngineAccount,
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
+      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode' | 'role'
     >,
   ): Promise<ClaudeEngineSession> {
     const claude = this.#claude(account);

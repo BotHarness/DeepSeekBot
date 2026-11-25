@@ -557,6 +557,14 @@ describe('Claude Code engine boundaries', () => {
       { sessionId: SESSION },
     );
     expect(options.mcpServersDelivery).toBe('initialize');
+    expect(options.disallowedTools).toEqual(expect.arrayContaining(['CronCreate', 'Workflow']));
+    expect(options.disallowedTools).not.toContain('Agent');
+    const assignment = claudeQueryOptions(
+      { executable: 'claude', home: '/h', cwd: '/w', instructions: '', role: 'assignment' },
+      { canUseTool: vi.fn(), stderr },
+      { sessionId: SESSION },
+    );
+    expect(assignment.disallowedTools).toBeUndefined();
     expect(options.env).toEqual({
       PATH: '/usr/bin',
       LANG: 'C',
