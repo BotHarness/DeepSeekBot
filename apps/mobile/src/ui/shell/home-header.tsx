@@ -1,6 +1,7 @@
 import type { ConnectionState } from '@botharness/host-client/client';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
 import type { NativeStackHeaderItem } from 'expo-router';
@@ -18,6 +19,13 @@ import { HostGlyph } from './host-tile';
 import { FixedToolbar } from './fixed-toolbar';
 import { TabPageHeader } from './tab-page-header';
 import { TabNativeHeader, type TabHeaderSearch } from './tab-native-header';
+import { glassHeader } from '../chat/header-kind';
+import { ListEdgeFades } from './list-edge-fades';
+
+export function useGlassHomeHeader(): boolean {
+  const theme = useDesignTheme();
+  return Platform.OS === 'ios' && glassHeader && !theme.largeText;
+}
 
 export function HomeHeader({
   environment,
@@ -46,7 +54,9 @@ export function HomeHeader({
   const router = useRouter();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const native = Platform.OS === 'ios' && nativeSearch !== undefined;
+  const glass = useGlassHomeHeader() && native;
   const android = Platform.OS === 'android';
   const searchBar = android && bar !== undefined;
   const minimumHeight = searchBar
@@ -82,6 +92,7 @@ export function HomeHeader({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
+        paddingHorizontal: glass ? space.x3 : 0,
         opacity: pressed ? 0.6 : 1,
       })}
     >
@@ -110,6 +121,7 @@ export function HomeHeader({
         leading={theme.largeText ? null : location}
         search={nativeSearch}
         items={nativeItems}
+        glass={glass}
       />
       {theme.largeText ? (
         <View
@@ -154,7 +166,10 @@ export function HomeHeader({
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       {android ? (
         <>
-          <View style={{ flex: 1, marginTop: height }}>{children}</View>
+          <View style={{ flex: 1, marginTop: height }}>
+            {children}
+            <ListEdgeFades />
+          </View>
           <FixedToolbar height={height}>{header}</FixedToolbar>
           <View
             pointerEvents="none"
@@ -169,10 +184,17 @@ export function HomeHeader({
           />
         </>
       ) : (
-        <>
+        <View style={{ flex: 1, paddingTop: native && !glass ? headerHeight : 0 }}>
           {header}
-          {children}
-        </>
+          {glass ? (
+            children
+          ) : (
+            <View style={{ flex: 1 }}>
+              {children}
+              <ListEdgeFades />
+            </View>
+          )}
+        </View>
       )}
     </View>
   );

@@ -32,6 +32,7 @@ vi.mock('expo-router', () => ({
 }));
 
 const { TabChromeContext, useHideChromeOnScroll } = await import('../src/ui/shell/tab-chrome');
+const { interfacePreferences } = await import('../src/ui/interface-preferences');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -48,7 +49,8 @@ function Probe({ enabled }: { enabled: boolean }) {
 }
 
 describe('hiding the chrome on scroll', () => {
-  const mount = async (enabled: boolean) => {
+  const mount = async (enabled: boolean, optedIn = true) => {
+    interfacePreferences.setHideBarsOnScroll(optedIn);
     const hidden = { value: 0 };
     const root = createRoot(document.createElement('div'));
     await act(async () =>
@@ -78,6 +80,15 @@ describe('hiding the chrome on scroll', () => {
     state.handler!.onScroll(at(100));
     if (typeof blur === 'function') blur();
     state.handler!.onScroll(at(300));
+    state.handler!.onScroll(at(600));
+    expect(hidden.value).toBe(0);
+    await act(async () => root.unmount());
+  });
+
+  it('keeps the bars on screen by default', async () => {
+    const { hidden, root } = await mount(true, false);
+    state.focus!();
+    state.handler!.onScroll(at(100));
     state.handler!.onScroll(at(600));
     expect(hidden.value).toBe(0);
     await act(async () => root.unmount());
