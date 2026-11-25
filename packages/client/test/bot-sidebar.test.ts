@@ -551,6 +551,7 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
     expect(top).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-row-glyph');
     expect(bottom).toContain('class="bh-row-glyph" data-status="needs-you"');
+    expect(bottom).toContain('viewBox="1 1 14 14" width="16" height="16"');
     expect(bottom).toContain('aria-label="正在等待你"');
     expect(container.querySelector('.bh-section-needs')?.textContent).toBe('1 个需要你');
   } finally {
