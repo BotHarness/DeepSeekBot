@@ -49,6 +49,8 @@ export function tooBroadToAdd(path: string, home = homedir()): boolean {
   );
 }
 
+const inFlight = new Set<string>();
+
 function isFolder(path: string): boolean {
   try {
     return statSync(path).isDirectory();
@@ -217,76 +219,85 @@ export function createSessionBotMethods(
         if (error instanceof BotCreationError) return failure(error.code, error.message);
         throw error;
       }
-
-      for (const path of outermost) {
-        const added = await deps.registerWorkspace!(path).catch(() => undefined);
-        if (added === undefined)
-          return failure(
-            'workspace-register-failed',
-            'The Host could not add a session folder as a Workspace.',
-          );
-        if (added.path !== path)
-          return failure(
-            'workspace-preview-changed',
-            `${path} was added as ${added.path}; review the Workspaces and try again.`,
-          );
-        workspaces.set(added.id, added);
-      }
-
-      let created;
+      if (inFlight.has(operationKey))
+        return failure(
+          'creation-in-progress',
+          'A Bot with this operation key is already being created; try again shortly.',
+        );
+      inFlight.add(operationKey);
       try {
-        created = creations.create(input, operationKey, scope);
-      } catch (error) {
-        if (error instanceof BotCreationError) return failure(error.code, error.message);
-        throw error;
-      }
-      const slug = created.record.slug;
-      const granted: WorkspaceGrant[] = [];
-      try {
-        for (const workspace of workspaces.values()) {
-          const current = grants
-            .list(slug)
-            .find((grant) => grant.workspaceId === workspace.id && grant.revokedAt === undefined);
-          granted.push(current ?? (await grants.create(slug, workspace.id)));
+        for (const path of outermost) {
+          const added = await deps.registerWorkspace!(path).catch(() => undefined);
+          if (added === undefined)
+            return failure(
+              'workspace-register-failed',
+              'The Host could not add a session folder as a Workspace.',
+            );
+          if (added.path !== path)
+            return failure(
+              'workspace-preview-changed',
+              `${path} was added as ${added.path}; review the Workspaces and try again.`,
+            );
+          workspaces.set(added.id, added);
         }
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError) return failure(error.code, error.message);
-        throw error;
-      }
-      const sent = await send({
-        channelId: created.channelId,
-        messageId: seedMessageId(operationKey),
-        body: sessionSeedMessage(
-          seeds,
-          granted.map((grant) => grant.workspacePath),
-          language,
-        ),
-      });
-      if (!sent.ok) return sent;
-      if (fresh)
-        deps.telemetry?.capture?.('bot_library:sessions_import', {
-          has_deepseek: sessionIds.some((id) => !isExternalSessionId(id)),
-          has_claude_code: sessionIds.some((id) => id.startsWith('claude-code:')),
-          has_codex: sessionIds.some((id) => id.startsWith('codex:')),
-          added_workspace: outermost.length > 0,
-        });
-      return {
-        ok: true,
-        value: {
-          ...detailOf(created.record),
+
+        let created;
+        try {
+          created = creations.create(input, operationKey, scope);
+        } catch (error) {
+          if (error instanceof BotCreationError) return failure(error.code, error.message);
+          throw error;
+        }
+        const slug = created.record.slug;
+        const granted: WorkspaceGrant[] = [];
+        try {
+          for (const workspace of workspaces.values()) {
+            const current = grants
+              .list(slug)
+              .find((grant) => grant.workspaceId === workspace.id && grant.revokedAt === undefined);
+            granted.push(current ?? (await grants.create(slug, workspace.id)));
+          }
+        } catch (error) {
+          if (error instanceof WorkspaceGrantError) return failure(error.code, error.message);
+          throw error;
+        }
+        const sent = await send({
           channelId: created.channelId,
-          receipt: {
-            ...(created.receipt ?? {
-              botSlug: slug,
-              status: 'created',
-              channelId: created.channelId,
-            }),
-            operationKey,
+          messageId: seedMessageId(operationKey),
+          body: sessionSeedMessage(
+            seeds,
+            granted.map((grant) => grant.workspacePath),
+            language,
+          ),
+        });
+        if (!sent.ok) return sent;
+        if (fresh)
+          deps.telemetry?.capture?.('bot_library:sessions_import', {
+            has_deepseek: sessionIds.some((id) => !isExternalSessionId(id)),
+            has_claude_code: sessionIds.some((id) => id.startsWith('claude-code:')),
+            has_codex: sessionIds.some((id) => id.startsWith('codex:')),
+            added_workspace: outermost.length > 0,
+          });
+        return {
+          ok: true,
+          value: {
+            ...detailOf(created.record),
+            channelId: created.channelId,
+            receipt: {
+              ...(created.receipt ?? {
+                botSlug: slug,
+                status: 'created',
+                channelId: created.channelId,
+              }),
+              operationKey,
+            },
+            grants: granted,
+            seedMessageId: sent.value.message.id,
           },
-          grants: granted,
-          seedMessageId: sent.value.message.id,
-        },
-      };
+        };
+      } finally {
+        inFlight.delete(operationKey);
+      }
     },
   };
 }

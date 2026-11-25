@@ -1,5 +1,5 @@
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
-import { answerRecord, type HostCall } from './host-answer';
+import { answerRecord, record, type HostCall } from './host-answer';
 import { loadWorkspaceOptions } from './bot-settings';
 import { readHostSessionList } from './host-sessions';
 
@@ -36,36 +36,36 @@ interface ExternalRow {
 }
 
 function externalRows(value: unknown): ExternalRow[] {
-  const sessions = (value as { sessions?: unknown } | undefined)?.sessions;
+  const sessions = record(value)?.['sessions'];
   if (!Array.isArray(sessions)) return [];
   return sessions.flatMap((row): ExternalRow[] => {
-    const item = row as Partial<ExternalRow> | null;
+    const item = record(row);
+    const sessionId = item?.['sessionId'];
+    const source = item?.['source'];
+    const title = item?.['title'];
+    const cwd = item?.['cwd'];
+    const lastActivityAt = item?.['lastActivityAt'];
     if (
-      item === null ||
-      typeof item.sessionId !== 'string' ||
-      (item.source !== 'claude-code' && item.source !== 'codex') ||
-      typeof item.cwd !== 'string' ||
-      typeof item.lastActivityAt !== 'number'
+      typeof sessionId !== 'string' ||
+      (source !== 'claude-code' && source !== 'codex') ||
+      typeof cwd !== 'string' ||
+      typeof lastActivityAt !== 'number'
     )
       return [];
     return [
       {
-        sessionId: item.sessionId,
-        source: item.source,
-        ...(typeof item.title === 'string' ? { title: item.title } : {}),
-        cwd: item.cwd,
-        lastActivityAt: item.lastActivityAt,
+        sessionId,
+        source,
+        ...(typeof title === 'string' ? { title } : {}),
+        cwd,
+        lastActivityAt,
       },
     ];
   });
 }
 
 export async function readExternalSessions(host: HostCall): Promise<ExternalRow[]> {
-  try {
-    return externalRows(await host.call('externalSessions', {}));
-  } catch {
-    return [];
-  }
+  return externalRows(await host.call('externalSessions', {}));
 }
 
 export interface SessionWorkspace {

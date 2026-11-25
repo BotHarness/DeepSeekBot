@@ -342,3 +342,35 @@ it('imports other products when DeepSeek Sessions cannot be listed, and refuses 
   );
   expect(await ok.methods.createFromSessions(request)).toMatchObject({ ok: true });
 });
+
+it('holds an operation key while folders are added, so a concurrent request cannot claim it', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'cx-race-'));
+  const externalSessions = {
+    list: async () => [
+      { sessionId: 'codex:r1', source: 'codex' as const, cwd: folder, lastActivityAt: 1 },
+    ],
+    read: vi.fn(),
+  };
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const registerWorkspace = vi.fn(async (path: string) => {
+    await gate;
+    return { id: 'ws-new', path, title: 'new' };
+  });
+  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  const request = {
+    displayName: 'Importer',
+    sessionIds: ['codex:r1'],
+    operationKey: 'sessions:import-race',
+    addWorkspaces: true,
+  };
+  const first = methods.createFromSessions(request);
+  await vi.waitFor(() => expect(registerWorkspace).toHaveBeenCalledTimes(1));
+  expect(await methods.createFromSessions({ ...request, displayName: 'Other' })).toMatchObject({
+    ok: false,
+    error: { code: 'creation-in-progress' },
+  });
+  release();
+  expect(await first).toMatchObject({ ok: true });
+  expect(registerWorkspace).toHaveBeenCalledTimes(1);
+});
