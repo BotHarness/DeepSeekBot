@@ -487,6 +487,15 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke(['activity', '--source', 'all'], older.url)).json.error.code).toBe(
       'host-query-unsupported',
     );
+    const refusing = await host(() => ({
+      ok: false,
+      error: { code: 'gateway/arguments-invalid', message: 'unexpected "source"' },
+    }));
+    for (const argv of [
+      ['activity', '--source', 'all'],
+      ['activity-status', '--source', 'all'],
+    ])
+      expect((await invoke(argv, refusing.url)).json.error.code).toBe('host-query-unsupported');
   });
 
   it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {

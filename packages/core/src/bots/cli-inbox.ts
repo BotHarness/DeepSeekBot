@@ -337,10 +337,23 @@ export async function runInboxCommand(
       requestMessageId: String(call.args['requestMessageId']),
       workspaceId: String(call.args['workspaceId']),
     });
-  const result =
+  const result = await (
     call.method === 'humanAttention'
-      ? ({ ...(await readHumanAttention(reader, call.args)) } as Record<string, unknown>)
-      : await rpc<Record<string, unknown>>(call.method, call.args);
+      ? readHumanAttention(reader, call.args).then(
+          (page) => ({ ...page }) as Record<string, unknown>,
+        )
+      : rpc<Record<string, unknown>>(call.method, call.args)
+  ).catch((error: unknown) => {
+    if (
+      call.args['source'] !== undefined &&
+      (error as { code?: unknown } | null)?.code === 'gateway/arguments-invalid'
+    )
+      throw new CliLiveError(
+        'host-query-unsupported',
+        'Update the Host to include native Session requests in Activity.',
+      );
+    throw error;
+  });
   if (
     call.method === 'sessionList' &&
     call.args['includeArchived'] === true &&
