@@ -11,6 +11,7 @@ import {
   type InteractionDestination,
   withoutFailedGroup,
 } from './authority.js';
+import { withMentionNames } from './mention-text.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
   explainQuestionReply,
@@ -522,7 +523,7 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const body = withoutLeadingMentions(event.text, event.mentions);
+      const body = answerText(event);
       const command = /^\/answer(?:\s|$)/.test(body);
       const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
@@ -598,14 +599,10 @@ export function createQuestionMessaging(options: {
   return service;
 }
 
-function withoutLeadingMentions(text: string, mentions: MessagingInboundEvent['mentions']): string {
-  const keys = mentions.map((mention) => mention.key).filter((key) => key.length > 0);
-  let body = text.trim();
-  for (
-    let key = keys.find((item) => body.startsWith(item));
-    key;
-    key = keys.find((item) => body.startsWith(item))
-  )
-    body = body.slice(key.length).trim();
-  return body;
+function answerText(event: MessagingInboundEvent): string {
+  const body = event.text.trim();
+  const lead = event.mentionedAccount
+    ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+    : undefined;
+  return withMentionNames(lead ? body.slice(lead.key.length) : body, event.mentions).trim();
 }
