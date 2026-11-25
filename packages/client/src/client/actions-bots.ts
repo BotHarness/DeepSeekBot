@@ -44,6 +44,7 @@ export interface BotActions {
   importBotZip(file: File, sectionId?: string): Promise<BotSummary>;
   importableSessions(): Promise<ImportableSession[]>;
   createBotFromSessions(input: SessionBotInput, sectionId?: string): Promise<BotSummary>;
+  addBotFromSessions(input: SessionBotInput): Promise<BotSummary>;
   botZipFiles(slug: string): Promise<BotZipFileListing>;
   exportBotZip(slug: string, displayName: string, choice?: BotZipExportChoice): Promise<void>;
   previewBotImport(gitUrl: string): Promise<{ gitUrl: string; commit: string }>;
@@ -67,15 +68,24 @@ export function createBotActions(
   refreshRoster: RosterActions['refreshRoster'],
   placeCreatedChannelFirst: ReturnType<typeof createRosterActions>['placeCreatedChannelFirst'],
 ) {
-  const openCreatedBot = async (
-    bot: BotSummary,
-    sectionId: string | undefined,
-  ): Promise<BotSummary> => {
+  const placeCreatedBot = async (bot: BotSummary, sectionId: string | undefined): Promise<void> => {
     const channel = await openDmChannel(call, bot.slug, bot.displayName);
     clientStore.upsertBot(bot);
     clientStore.upsertChannel(channel);
     await placeCreatedChannelFirst(channel.id, sectionId);
+  };
+  const openCreatedBot = async (
+    bot: BotSummary,
+    sectionId: string | undefined,
+  ): Promise<BotSummary> => {
+    await placeCreatedBot(bot, sectionId);
     await getActions().openBot(bot.slug);
+    return bot;
+  };
+  const sessionBot = async (input: SessionBotInput): Promise<BotSummary> => {
+    const created = await createBotFromSessions(bridgeHost(call), input);
+    const bot = parseBotSummary(created['bot']);
+    if (bot === undefined) throw new Error('invalid create response');
     return bot;
   };
 
@@ -113,10 +123,12 @@ export function createBotActions(
       return readImportableSessions(bridgeHost(call));
     },
     async createBotFromSessions(input, sectionId) {
-      const created = await createBotFromSessions(bridgeHost(call), input);
-      const bot = parseBotSummary(created['bot']);
-      if (bot === undefined) throw new Error('invalid create response');
-      return openCreatedBot(bot, sectionId);
+      return openCreatedBot(await sessionBot(input), sectionId);
+    },
+    async addBotFromSessions(input) {
+      const bot = await sessionBot(input);
+      await placeCreatedBot(bot, undefined);
+      return bot;
     },
     botZipFiles(slug) {
       if (resources !== undefined) throw new Error('remote-bot-export-unavailable');

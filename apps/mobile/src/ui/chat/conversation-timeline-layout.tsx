@@ -10,6 +10,7 @@ import {
   type useChatInitialScroll,
 } from './chat-timeline-chrome';
 import { ChatList } from '../primitives/chat-list';
+import type { useOverlaySettle } from '../primitives/composer-drop';
 import type { usePullToCompose } from './pull-to-compose';
 import { SwipeOpen } from '../shell/swipe-open';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -38,6 +39,7 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 export function renderConversationTimeline({
   t,
   islandFloor,
+  overlaySettle,
   paging,
   focus,
   focusRequest,
@@ -61,9 +63,10 @@ export function renderConversationTimeline({
   profile,
   history,
 }: {
-  history: Pick<HistoryChrome, 'onScroll' | 'onScrollToTop'>;
+  history: Pick<HistoryChrome, 'onScroll' | 'onScrollToTop' | 'hiddenNow'>;
   t: ReturnType<typeof useStrings>;
   islandFloor: number;
+  overlaySettle: ReturnType<typeof useOverlaySettle>;
   paging: ReturnType<typeof useProfilePaging>;
   focus: string | undefined;
   focusRequest: string | undefined;
@@ -274,6 +277,7 @@ export function renderConversationTimeline({
           style={[
             { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
             latest.overlayStyle,
+            overlaySettle,
           ]}
           onLayout={() => {
             viewportLayout.value += 1;

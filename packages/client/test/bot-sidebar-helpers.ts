@@ -523,6 +523,7 @@ function stubActions(): BridgeActions {
     importBotZip: vi.fn(async () => BOT),
     importableSessions: vi.fn(async () => []),
     createBotFromSessions: vi.fn(async () => BOT),
+    addBotFromSessions: vi.fn(async () => BOT),
     botZipFiles: vi.fn(async () => ({ files: [], always: [] })),
     exportBotZip: vi.fn(async () => undefined),
     createGroup: vi.fn(async () => undefined),

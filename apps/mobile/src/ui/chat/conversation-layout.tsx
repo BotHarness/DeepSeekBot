@@ -15,6 +15,7 @@ import { ChatBackground } from './chat-background';
 import { MAX_PICKED, fromClipboardImage } from '../../host/pick-files';
 import { ConversationTopBar } from './conversation-top-bar';
 import type { HistoryChrome } from './history-chrome-context';
+import type { useOverlaySettle } from '../primitives/composer-drop';
 import { ChatBackdrop } from './chat-backdrop';
 import {
   ChatTimelineFrame,
@@ -72,6 +73,7 @@ import { RequestCard } from './conversation-request-card';
 export function renderConversation({
   focused,
   islandFloor,
+  overlaySettle,
   presentation,
   t,
   theme,
@@ -117,6 +119,7 @@ export function renderConversation({
   history,
 }: {
   islandFloor: number;
+  overlaySettle: ReturnType<typeof useOverlaySettle>;
   history: HistoryChrome;
   focused: boolean;
   presentation: ConversationPresentation | undefined;
@@ -561,6 +564,7 @@ export function renderConversation({
                     renderConversationTimeline({
                       t,
                       islandFloor,
+                      overlaySettle,
                       paging,
                       focus,
                       focusRequest,
