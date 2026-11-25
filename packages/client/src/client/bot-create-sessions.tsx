@@ -102,7 +102,9 @@ export function CreateBotFromSessionsModal({
   const workspaces = rows === undefined ? [] : sessionWorkspaces(rows);
   const scope = workspace === ALL ? undefined : workspace;
   const visible =
-    rows === undefined ? [] : rows.filter((row) => scope === undefined || row.cwd === scope);
+    rows === undefined
+      ? []
+      : rows.filter((row) => scope === undefined || row.workspacePath === scope);
   const over = selected.size > SESSION_BOT_MAX;
   const granted = [
     ...new Set(
@@ -117,10 +119,10 @@ export function CreateBotFromSessionsModal({
       else next.delete(id);
       return next;
     });
-  const pickWorkspace = (cwd: string): void => {
-    setWorkspace(cwd);
-    if (cwd === ALL) return;
-    const name = workspaces.find((group) => group.cwd === cwd)?.name;
+  const pickWorkspace = (path: string): void => {
+    setWorkspace(path);
+    if (path === ALL) return;
+    const name = workspaces.find((group) => group.path === path)?.name;
     if (displayName.trim().length === 0 && name !== undefined) setDisplayName(name);
   };
 
@@ -220,7 +222,7 @@ export function CreateBotFromSessionsModal({
                     options={[
                       { value: ALL, label: t('bot.create.sessions.allWorkspaces') },
                       ...workspaces.map((group) => ({
-                        value: group.cwd,
+                        value: group.path,
                         label: `${group.name} (${group.sessionIds.length})`,
                       })),
                     ]}

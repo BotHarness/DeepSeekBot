@@ -31,7 +31,7 @@ describe('readImportableSessions', () => {
               queryVersion: 1,
               sources: [{ kind: 'native' }],
               sessions: [
-                row('old', '/work/app', 10),
+                row('old', '/work/app/api', 10),
                 row('blank', '/work/app'),
                 { ...row('nowhere', '/x', 50), cwd: undefined },
                 row('bot', '/work/app', 40, 'bot'),
@@ -50,10 +50,11 @@ describe('readImportableSessions', () => {
       '/work/app',
     ]);
     expect(sessionWorkspaces(rows)).toMatchObject([
-      { cwd: '/work/app', name: 'app', sessionIds: ['new', 'old'] },
-      { cwd: '/work/site', name: 'site', sessionIds: ['other'] },
+      { path: '/work/app', name: 'app', sessionIds: ['new', 'old'] },
+      { path: '/work/site', name: 'site', sessionIds: ['other'] },
     ]);
     expect(latestSessionIds(rows, 1, '/work/app')).toEqual(['new']);
+    expect(latestSessionIds(rows, 5, '/work/app')).toEqual(['new', 'old']);
   });
 });
 

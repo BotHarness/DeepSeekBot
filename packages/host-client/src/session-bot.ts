@@ -19,7 +19,7 @@ export interface SessionBotInput {
 export type ImportableSession = HostSessionRow & { cwd: string; workspacePath: string };
 
 export interface SessionWorkspace {
-  cwd: string;
+  path: string;
   name: string;
   sessionIds: string[];
   lastAt: number;
@@ -56,30 +56,33 @@ export async function readImportableSessions(host: HostCall): Promise<Importable
     .sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a));
 }
 
-export function sessionWorkspaces(rows: readonly HostSessionRow[]): SessionWorkspace[] {
+function folderName(path: string): string {
+  return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path;
+}
+
+export function sessionWorkspaces(rows: readonly ImportableSession[]): SessionWorkspace[] {
   const groups = new Map<string, SessionWorkspace>();
   for (const row of rows) {
-    if (row.cwd === undefined) continue;
-    const group = groups.get(row.cwd) ?? {
-      cwd: row.cwd,
-      name: row.folderName ?? row.cwd,
+    const group = groups.get(row.workspacePath) ?? {
+      path: row.workspacePath,
+      name: folderName(row.workspacePath),
       sessionIds: [],
       lastAt: 0,
     };
     group.sessionIds.push(row.sessionId);
     group.lastAt = Math.max(group.lastAt, sessionActivityAt(row));
-    groups.set(row.cwd, group);
+    groups.set(row.workspacePath, group);
   }
-  return [...groups.values()].sort((a, b) => b.lastAt - a.lastAt || a.cwd.localeCompare(b.cwd));
+  return [...groups.values()].sort((a, b) => b.lastAt - a.lastAt || a.path.localeCompare(b.path));
 }
 
 export function latestSessionIds(
-  rows: readonly HostSessionRow[],
+  rows: readonly ImportableSession[],
   count: number,
-  cwd?: string,
+  workspacePath?: string,
 ): string[] {
   return rows
-    .filter((row) => cwd === undefined || row.cwd === cwd)
+    .filter((row) => workspacePath === undefined || row.workspacePath === workspacePath)
     .sort((a, b) => sessionActivityAt(b) - sessionActivityAt(a))
     .slice(0, Math.max(0, Math.min(count, SESSION_BOT_MAX)))
     .map((row) => row.sessionId);
