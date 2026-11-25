@@ -58,10 +58,19 @@ type Row =
   | { kind: 'choice'; first: boolean; last: boolean; choice: Choice; key: string }
   | { kind: 'unread'; key: string };
 
-function TextAction({ label, onPress }: { label: string; onPress(): void }) {
+function TextAction({
+  label,
+  testID,
+  onPress,
+}: {
+  label: string;
+  testID: string;
+  onPress(): void;
+}) {
   const theme = useDesignTheme();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
@@ -290,6 +299,7 @@ export function ActivityFilterContent({
           >
             <TextAction
               label={t.activityReset}
+              testID="activity-filter-reset"
               onPress={() => {
                 onFilter(DEFAULT_ACTIVITY);
                 onSort('default');
