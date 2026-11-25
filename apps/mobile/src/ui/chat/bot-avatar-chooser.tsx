@@ -203,7 +203,8 @@ export function BotAvatarChooser({
           const uri =
             item.kind === 'image'
               ? item.image
-              : 'data:image/svg+xml;base64,' + btoa(avatarSvg(item.recipe));
+              : 'data:image/svg+xml;base64,' +
+                btoa(avatarSvg(item.recipe, { squareBackdrop: true }));
           return (
             <Pressable
               testID={
@@ -224,7 +225,7 @@ export function BotAvatarChooser({
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              <Image source={{ uri }} contentFit="contain" style={{ flex: 1 }} />
+              <Image source={{ uri }} contentFit="cover" style={{ flex: 1 }} />
             </Pressable>
           );
         }}

@@ -197,6 +197,7 @@ export function BotPortrait({
       ) : bot.avatarUrl !== undefined ? (
         <Image
           source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
+          resizeMode="cover"
           style={{ width: size, height: size }}
           onLoadEnd={settle}
         />
