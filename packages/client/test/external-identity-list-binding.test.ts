@@ -44,6 +44,9 @@ it.each(['feishu', 'qq', 'discord'] as const)(
       availability: 'available' as const,
       newConversations: 'auto' as const,
       grantCount: 1,
+      groupInteractions: true,
+      groupInteractionsInheritance: 'inherit' as const,
+      groupInteractionsRevision: 1,
       scopes: ['Owner'],
     };
     const entry = {
@@ -209,6 +212,9 @@ it('Bind app leaves out this Bot’s own apps, disables the ones another Bot use
         availability: 'available' as const,
         newConversations: 'auto' as const,
         grantCount: 0,
+        groupInteractions: true,
+        groupInteractionsInheritance: 'inherit' as const,
+        groupInteractionsRevision: 1,
         scopes: [],
       },
     ],

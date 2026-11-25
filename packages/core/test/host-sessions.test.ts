@@ -99,6 +99,32 @@ it('returns root Sessions in last Human prompt order and scopes every native ope
   expect(send).toHaveBeenCalledTimes(1);
 });
 
+it('reads fallback titles once per Session version across Session list calls', async () => {
+  const list = vi.fn(async () =>
+    Array.from({ length: 300 }, (_, index) => ({
+      sessionId: `direct-${index}`,
+      running: false,
+      lastPromptAt: index,
+      updatedAt: index,
+    })),
+  );
+  const readSessionTitles = vi.fn(async (ids: readonly string[]) => new Map([[ids[0]!, 'First']]));
+  const f = fixture({
+    nativeSessions: { list, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
+    readSessionTitles,
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+
+  expect(await owner.sessionList({ queryVersion: 1 })).toMatchObject({ ok: true });
+  const calls = readSessionTitles.mock.calls.length;
+  expect(calls).toBeGreaterThan(0);
+  const again = await owner.sessionList({ queryVersion: 1 });
+  expect(readSessionTitles).toHaveBeenCalledTimes(calls);
+  expect(again.ok && again.value.sessions.filter((row) => row.title === 'First')).toHaveLength(
+    calls,
+  );
+});
+
 it('combines title and Human-message matches inside the authorized source and sorts the result', async () => {
   const searchHumanMessages = vi.fn(
     async (_search: string, rows: readonly { sessionId: string }[]) =>
@@ -528,7 +554,14 @@ it('exposes live native requests and lets only the Owner answer the addressed re
   expect(await owner.sessionAnswerApproval(approval)).toMatchObject({ ok: true });
   expect(answerApproval).toHaveBeenCalledExactlyOnceWith('native', 'approval-1', 'allowed-once');
   expect(await owner.sessionAnswerQuestion(question)).toMatchObject({ ok: true });
-  expect(answerQuestion).toHaveBeenCalledExactlyOnceWith('native', 'question-1', question.answer);
+  expect(answerQuestion).toHaveBeenCalledExactlyOnceWith(
+    'native',
+    'question-1',
+    question.answer,
+    expect.any(Function),
+  );
+  const allowed = (answerQuestion.mock.calls[0] as unknown[])[3] as () => boolean;
+  expect(allowed()).toBe(true);
 
   answerApproval.mockResolvedValueOnce(false);
   expect(await owner.sessionAnswerApproval(approval)).toMatchObject({

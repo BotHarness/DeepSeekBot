@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { Context } from '@deepseek-ai/cordis';
 import {
   REMOTE_EVENT_RESULT_ENDPOINT,
@@ -59,7 +60,7 @@ type Pending = {
   approvalOptions?: { id: string; approve: string; reject: string };
 };
 
-function pendingCard(
+export function pendingCard(
   event: Extract<z.infer<typeof frame>, { type: 'waterfall' }>,
 ): Pending | undefined {
   const { eventId: requestId, agentId: sessionId } = event;
@@ -81,9 +82,15 @@ function pendingCard(
   if (event.event !== 'user-questions/request') return undefined;
   const parsed = z.object({ questions: z.array(question).min(1) }).safeParse(event.request);
   if (!parsed.success) return undefined;
-  const [first] = parsed.data.questions;
+  const [first, ...rest] = parsed.data.questions;
   const intent = first?.intent;
-  if (first !== undefined && intent?.kind === 'approval' && intent.approve && intent.reject) {
+  if (
+    rest.length === 0 &&
+    first !== undefined &&
+    intent?.kind === 'approval' &&
+    intent.approve &&
+    intent.reject
+  ) {
     return {
       sessionId,
       card: {
@@ -161,6 +168,7 @@ export function dshHostSessionInput(
     const lifetime = new AbortController();
     host.effect(() => () => lifetime.abort(), 'botharness: native Session Remote Events');
 
+    let attempt = 0;
     const consume = async () => {
       const { connection, typertGateway } = host;
       const peer = connection.createPeer({ principal: { kind: 'owner' }, interactions: 'answer' });
@@ -181,6 +189,7 @@ export function dshHostSessionInput(
         switch (event.type) {
           case 'ready': {
             const { clientId } = event;
+            attempt = 0;
             send = async (eventId, outcome) => {
               const response = await handler.fetch(
                 new Request('http://localhost/api/' + REMOTE_EVENT_RESULT_ENDPOINT, {
@@ -225,15 +234,19 @@ export function dshHostSessionInput(
         }
       }
     };
-    void consume()
-      .catch(() => {
-        if (!lifetime.signal.aborted)
-          ctx.logger.warn('botharness.native-session-input.stream-ended');
-      })
-      .finally(() => {
+    void (async () => {
+      while (!lifetime.signal.aborted) {
+        await consume().catch(() => undefined);
         send = undefined;
         for (const id of pending.keys()) remove(id);
-      });
+        if (lifetime.signal.aborted) return;
+        ctx.logger.warn('botharness.native-session-input.stream-ended');
+        await delay(Math.min(30_000, 500 * 2 ** attempt), undefined, {
+          signal: lifetime.signal,
+        }).catch(() => undefined);
+        attempt += 1;
+      }
+    })();
   });
 
   const active = (id: string) =>
@@ -289,7 +302,12 @@ export function dshHostSessionInput(
             },
       );
     },
-    async answerQuestion(id: string, requestId: string, answer: QuestionAnswer) {
+    async answerQuestion(
+      id: string,
+      requestId: string,
+      answer: QuestionAnswer,
+      allowed: () => boolean = () => true,
+    ) {
       const entry = pending.get(requestId);
       if (entry !== undefined) {
         if (entry.sessionId !== id || entry.card.kind !== 'question') return false;
@@ -307,11 +325,11 @@ export function dshHostSessionInput(
       const pendingQuestion = continued(projection).find(
         (item) => item.kind === 'question' && item.requestId === requestId,
       );
-      if (pendingQuestion?.kind !== 'question' || !isUnowned(id)) return false;
+      if (pendingQuestion?.kind !== 'question' || !isUnowned(id) || !allowed()) return false;
       validate(pendingQuestion.questions, answer);
       const result = await controller.resolveAgent(sessionId);
       if ('error' in result) throw result.error;
-      if (!isUnowned(id)) return false;
+      if (!isUnowned(id) || !allowed()) return false;
       return service.answer(result.agent, ToolCallId(requestId), answer);
     },
   };

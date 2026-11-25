@@ -70,6 +70,11 @@ export const MESSAGING_COMMANDS = [
     description: "set or clear a Bot binding's daily proactive post limit",
   },
   {
+    command: 'messaging-group-interactions',
+    description:
+      'let one Bot binding take approvals and answers in IM groups, or follow its platform',
+  },
+  {
     command: 'messaging-send',
     description: 'send a message to an authorized IM conversation as the Bot',
   },
@@ -149,6 +154,7 @@ export interface MessagingValues {
   'body-stdin'?: boolean;
   enabled?: boolean;
   disabled?: boolean;
+  inherit?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -335,6 +341,13 @@ export async function prepareMessaging(
         usage('--limit must be 1–10000, or none to clear it.');
       break;
     }
+    case 'messaging-group-interactions':
+      uuid(values.binding, '--binding');
+      if ([values.enabled, values.disabled, values.inherit].filter(Boolean).length !== 1)
+        usage(
+          'messaging-group-interactions needs exactly one of --enabled, --disabled or --inherit.',
+        );
+      break;
     case 'approval-route':
       if (values.pairing !== 'none') uuid(values.pairing, '--pairing');
       break;
@@ -396,6 +409,9 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
           platform: identity['platform'],
           postLimit: identity['postLimit'] ?? null,
           postLimitRevision: identity['postLimitRevision'],
+          groupInteractions: identity['groupInteractions'] ?? null,
+          groupInteractionsInheritance: identity['groupInteractionsInheritance'] ?? null,
+          groupInteractionsRevision: identity['groupInteractionsRevision'],
         })),
         held: value['heldConversations'] ?? [],
         blocked: value['blockedConversations'] ?? [],
@@ -511,6 +527,20 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
         bindingId,
         expectedRevision: identity['postLimitRevision'] ?? identity['revision'],
         limit: limit === 'none' ? null : Number(limit),
+      });
+    }
+    case 'messaging-group-interactions': {
+      const bindingId = values.binding!.trim();
+      const identity = list((await snapshot())['identities']).find(
+        (entry) => entry['id'] === bindingId,
+      );
+      if (identity === undefined)
+        throw new CliLiveError('unknown-binding', `Bot ${target} has no binding ${bindingId}.`);
+      return rpc('messagingGroupInteractions', {
+        slug: target,
+        bindingId,
+        expectedRevision: identity['groupInteractionsRevision'] ?? 1,
+        enabled: values.inherit === true ? null : values.enabled === true,
       });
     }
     case 'messaging-send': {

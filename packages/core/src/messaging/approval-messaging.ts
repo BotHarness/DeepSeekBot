@@ -9,7 +9,10 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
+import { createInteractionAuthority } from './authority.js';
+import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
+import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import { assertMessagingIdentity, type MessagingIdentity } from './identity.js';
 import {
   MessagingError,
@@ -31,6 +34,7 @@ export interface ApprovalRoute {
 }
 export interface ApprovalDelivery {
   id: string;
+  destination?: InteractionDestination;
   botSlug: string;
   channelId?: string;
   requestMessageId?: string;
@@ -117,6 +121,7 @@ export function createApprovalMessaging(options: {
   warn?(message: string): void;
 }): ApprovalMessaging {
   const { database, pairing } = options;
+  const authority = createInteractionAuthority(options);
   let owner: ChannelToolApproval | undefined;
   let channels: ChannelStore | undefined;
   let closed = false;
@@ -164,16 +169,16 @@ export function createApprovalMessaging(options: {
   const resolve = (
     value: ApprovalRoute,
   ): { identity: MessagingIdentity; paired: PairingRequest; provider: MessagingProvider } => {
-    if (closed || !options.isBotActive(value.botSlug)) throw new MessagingError('bot-unavailable');
-    const identity = database.read((db) => assertMessagingIdentity(db, value.bindingId));
-    if (identity.botSlug !== value.botSlug || identity.platform !== 'feishu')
+    if (closed) throw new MessagingError('bot-unavailable');
+    let granted: InteractionContext;
+    try {
+      granted = authority.context(value);
+    } catch (error) {
+      if (error instanceof MessagingError && error.code === 'bot-unavailable') throw error;
       throw new MessagingError('approval-route-unavailable');
-    const paired = pairing.list(value.botSlug).find((p) => p.id === value.pairingId);
+    }
+    const { identity, paired } = granted;
     if (
-      !paired ||
-      paired.bindingId !== identity.id ||
-      paired.revision !== value.pairingRevision ||
-      paired.status !== 'approved' ||
       (paired.purpose === 'conversation' && paired.conversationKind !== 'dm') ||
       !paired.capabilities.some((c) => c === 'approve' || c === 'reject' || c === 'answer')
     )
@@ -287,6 +292,7 @@ export function createApprovalMessaging(options: {
     kind: 'exact' | 'all-opaque' = 'exact',
   ): boolean => {
     try {
+      if (value.destination) return false;
       const context = resolve(value.route);
       if (context.provider.approvalRuleCardSupported !== true) return false;
       if (
@@ -342,7 +348,8 @@ export function createApprovalMessaging(options: {
       const identity = database.read((db) => assertMessagingIdentity(db, value.route.bindingId));
       if (
         identity.botSlug !== value.botSlug ||
-        identity.platform !== 'feishu' ||
+        !isMessagingPlatform(identity.platform) ||
+        !messagingPlatform(identity.platform).features.interactions ||
         saved.externalCreator?.fingerprint !== identity.fingerprint ||
         saved.externalCreator.bindingId !== identity.id
       )
@@ -354,6 +361,18 @@ export function createApprovalMessaging(options: {
       return;
     }
   };
+  const decider = (
+    value: ApprovalDelivery,
+    providerId: string,
+    event: Parameters<ApprovalMessaging['action']>[1],
+    conversationId: string,
+  ) =>
+    authority.authorize({
+      grant: value.route,
+      source: { ...event, providerId },
+      capability: event.action === 'rejected' ? 'reject' : 'approve',
+      expected: { conversationId, shared: value.destination !== undefined },
+    });
   const bounded = <T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> =>
     boundedMessagingDelivery(controller.signal, run);
   const trace = (
@@ -475,18 +494,23 @@ export function createApprovalMessaging(options: {
       if (!safe(value) || !requestLive(value))
         throw new MessagingProviderError('request-expired', 'not-started');
       const messageId = context.paired.messageIds?.[0];
-      if (!messageId) throw new MessagingProviderError('source-unavailable', 'not-started');
+      const target =
+        value.destination?.reply ??
+        (messageId
+          ? {
+              messageId,
+              conversationId: context.paired.conversationId,
+              actorId: context.paired.actorId,
+            }
+          : undefined);
+      if (!target) throw new MessagingProviderError('source-unavailable', 'not-started');
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;
       const result = await bounded((signal) =>
         context.provider.approvalCard!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
-          route: {
-            messageId,
-            conversationId: context.paired.conversationId,
-            actorId: context.paired.actorId,
-          },
+          route: target,
           card: render(value),
           signal,
           beforeSend: () => safe(value) && requestLive(value),
@@ -561,7 +585,9 @@ export function createApprovalMessaging(options: {
       )
         return;
       if (!selected) return;
+      const destination = authority.groupDestination(selected, notice.channelId);
       write({
+        ...(destination ? { destination } : {}),
         id: notice.messageId,
         botSlug: notice.botSlug,
         channelId: notice.channelId,
@@ -774,21 +800,8 @@ export function createApprovalMessaging(options: {
             !requestLive(value)
           )
             return false;
-          const context = resolve(value.route);
-          const paired = pairing.assert(
-            value.botSlug,
-            context.identity.id,
-            event.actorId,
-            event.action === 'rejected' ? 'reject' : 'approve',
-            value.route.pairingId,
-          );
           return (
-            context.identity.providerId === providerId &&
-            context.identity.accountRef === event.botId &&
-            context.identity.fingerprint === event.fingerprint &&
-            paired.id === value.route.pairingId &&
-            paired.revision === value.route.pairingRevision &&
-            paired.conversationId === event.conversationId &&
+            decider(value, providerId, event, value.receipt?.conversationId ?? '') !== undefined &&
             value.delivery === 'sent' &&
             value.receipt?.conversationId === event.conversationId &&
             value.receipt.messageId === event.messageId
@@ -873,16 +886,8 @@ export function createApprovalMessaging(options: {
           ruleAllowed(value, confirmedRule.kind)
         );
       };
-      const actor: ToolApprovalActor = {
-        platform: 'feishu',
-        bindingId: context.identity.id,
-        fingerprint: event.fingerprint,
-        actorId: event.actorId,
-        pairingId: value.route.pairingId,
-        pairingRevision: value.route.pairingRevision,
-        conversationId: event.conversationId,
-        messageId: event.messageId,
-      };
+      const actor = decider(value, providerId, event, event.conversationId);
+      if (!actor) return { accepted: true, status: 'refused' };
       queueMicrotask(
         () =>
           void owner
@@ -912,21 +917,12 @@ export function createApprovalMessaging(options: {
                     }
                   : {}),
                 authorized: () => {
-                  try {
-                    if (signal.aborted || !safe(value)) return false;
-                    const paired = pairing.assert(
-                      value.botSlug,
-                      context.identity.id,
-                      event.actorId,
-                      event.action === 'rejected' ? 'reject' : 'approve',
-                      value.route.pairingId,
-                    );
-                    return (
-                      paired.id === actor.pairingId && paired.revision === actor.pairingRevision
-                    );
-                  } catch {
-                    return false;
-                  }
+                  if (signal.aborted || !safe(value)) return false;
+                  const current = decider(value, providerId, event, event.conversationId);
+                  return (
+                    current?.pairingId === actor.pairingId &&
+                    current.pairingRevision === actor.pairingRevision
+                  );
                 },
               },
             )

@@ -28,6 +28,9 @@ it('shows only the selected Lark identity feedback and keeps unknown distinct fr
     availability: 'available',
     newConversations: 'auto',
     grantCount: 0,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: [],
   };
   const container = document.createElement('div');
@@ -97,6 +100,9 @@ it('edits WeChat typing in the current identity modal and keeps native request a
     availability: 'available' as const,
     newConversations: 'auto' as const,
     grantCount: 0,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: [],
     typingEnabled: true,
     typing: { supported: true, phase: 'accepted' as const },
@@ -211,6 +217,9 @@ it('failed Switch writes retain the committed preference; stale Modal edits reta
     availability: 'available' as const,
     newConversations: 'auto' as const,
     grantCount: 1,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: ['QA group'],
   };
   const snapshot: MessagingSnapshot = {
@@ -298,6 +307,9 @@ it('saves the edit dialog with Enter and moves Reconnect and Unbind into their o
     availability: 'available' as const,
     newConversations: 'auto' as const,
     grantCount: 2,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: ['QA group'],
   };
   const mutate = vi.fn(async () => undefined);
@@ -379,6 +391,9 @@ it('reconnects once, shows pending and errors, and accepts live reception update
     availability: 'available',
     newConversations: 'auto',
     grantCount: 0,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: [],
     reception: 'unavailable',
     recovery: {
@@ -462,6 +477,9 @@ it.each(['disabled', 'removed', 'reconnected', 'remote-change'] as const)(
       newConversations: 'auto',
       newConversationsInheritance: 'custom',
       grantCount: 1,
+      groupInteractions: true,
+      groupInteractionsInheritance: 'inherit' as const,
+      groupInteractionsRevision: 1,
       scopes: ['Group'],
       reception: 'unavailable',
     };
