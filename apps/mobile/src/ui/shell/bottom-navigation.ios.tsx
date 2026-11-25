@@ -10,6 +10,7 @@ import type { NativeTabMenuSpec } from '../../features/pinned-tab/native-tab-men
 import { usePinnedTab } from '../../features/pinned-tab/use-pinned-tab';
 import { landInSessionsTab } from '../../features/sessions/session-drawer-navigation';
 import { useSessionDrawer } from '../../features/sessions/session-drawer-state';
+import { uikitSessionDrawer } from '../../features/sessions/uikit-session-drawer';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import { useDesignTheme } from '../design/theme';
@@ -127,7 +128,7 @@ function NativeNavigation() {
           <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
             <NativeTabs
               tintColor={theme.color.fg}
-              hidden={hiddenNow || drawerOpen}
+              hidden={hiddenNow || (drawerOpen && !uikitSessionDrawer)}
               screenListeners={({ route }) => ({
                 focus: () => setFocusedRoute(route.name),
                 tabPress: () => {

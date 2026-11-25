@@ -8,7 +8,7 @@ class DismissibleDrawerModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("DismissibleDrawer")
 
-    Function("hasSessionDrawer") { true }
+    Function("hasModalSessionDrawer") { true }
 
     ExpoUIView<DismissibleDrawerProps>("DismissibleDrawerView") {
       val onOpenChange by Event<DrawerOpenChange>()
@@ -20,9 +20,14 @@ class DismissibleDrawerModule : Module() {
 
     ExpoUIView<SessionDrawerProps>("SessionDrawerView") {
       val onOpenChange by Event<SessionDrawerChange>()
+      val onProgress by Event<SessionDrawerProgress>()
 
       Content { props ->
-        SessionDrawerContent(props) { open -> onOpenChange(SessionDrawerChange(open)) }
+        SessionDrawerContent(
+          props,
+          onOpenChange = { open -> onOpenChange(SessionDrawerChange(open)) },
+          onProgress = { progress -> onProgress(SessionDrawerProgress(progress)) },
+        )
       }
     }
   }
