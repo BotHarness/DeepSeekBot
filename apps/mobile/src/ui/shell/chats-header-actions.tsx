@@ -33,7 +33,11 @@ export function ChatsHeaderActions({ search, create }: ChatsHeaderActionsProps) 
       }}
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3, padding: space.x3 }}
     >
-      <MenuIcon icon={entry.glyph} color={theme.color.fg} size={theme.type.title.line} />
+      <MenuIcon
+        icon={entry.glyph}
+        color={theme.color.fg}
+        size={theme.type.body.line * theme.fontScale}
+      />
       <Text>{entry.label}</Text>
     </Pressable>
   );
