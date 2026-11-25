@@ -1,6 +1,6 @@
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { ApprovalMessaging } from '../approval-messaging.js';
-import { readMessagingIdentity, type MessagingIdentity } from '../identity.js';
+import type { MessagingIdentity } from '../identity.js';
 import {
   pairedRoute,
   type BotPairing,
@@ -18,6 +18,7 @@ import {
 import { isMessagingPlatform } from '../platforms/index.js';
 import { MessagingError, type MessagingInboundEvent, type MessagingProvider } from '../provider.js';
 import { answerText } from './text-answers.js';
+import { controlBinding, controlReply, privateRoute } from './control-replies.js';
 import { ALLOW_WORDS, REJECT_WORDS } from './text-approvals.js';
 
 export interface PairingReply {
@@ -250,14 +251,7 @@ export function createPairingText(options: {
       return false;
     const parsed = parsePairingReply(answerText(event));
     if (!parsed) return false;
-    const binding = database.read((db) => {
-      const row = db
-        .prepare(
-          'SELECT id FROM messaging_bindings WHERE provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
-        )
-        .get(providerId, event.botId, event.fingerprint) as { id: string } | undefined;
-      return row ? readMessagingIdentity(db, row.id) : undefined;
-    });
+    const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
     const conversation = event.conversation.id;
     const requests = pairing
@@ -466,47 +460,20 @@ export function createPairingText(options: {
     unknown?: string,
   ) => {
     const provider = options.provider(providerId);
-    const route = pairing
-      .list(binding.botSlug)
-      .filter(
-        (item) =>
-          item.status === 'approved' &&
-          item.bindingId === binding.id &&
-          item.actorId === event.actor.id,
-      )
-      .map(
-        (item) =>
-          item.privateReply ??
-          (item.purpose !== 'conversation' || item.conversationKind === 'dm'
-            ? pairedRoute(item)
-            : undefined),
-      )
-      .find((item) => !!item);
+    const route = privateRoute(pairing, binding, event.actor.id);
     if (!provider.reply || !route) return false;
     const key = privateKey(event.actor.id);
     const first = pairing.notice(request.id, key);
     try {
-      const sent = await provider.reply({
-        accountRef: binding.accountRef,
-        fingerprint: binding.fingerprint,
+      const sent = (await controlReply({
+        database,
+        provider,
+        binding,
         route,
         text: NOTICE.privateRoles(request.reference, roles, unknown),
-        signal: AbortSignal.timeout(15000),
         standalone: true,
-        beforeSend: () => {
-          try {
-            const current = database.read((db) => readMessagingIdentity(db, binding.id));
-            return (
-              current.enabled &&
-              !current.revokedAt &&
-              current.fingerprint === binding.fingerprint &&
-              options.isBotActive(binding.botSlug)
-            );
-          } catch {
-            return false;
-          }
-        },
-      });
+        isBotActive: options.isBotActive,
+      }))!;
       if (first)
         pairing.notice(
           request.id,
@@ -533,29 +500,16 @@ export function createPairingText(options: {
     text: string,
     signal: AbortSignal,
   ) => {
-    const provider = options.provider(providerId);
-    if (!provider.reply) return;
     try {
-      await provider.reply({
-        accountRef: binding.accountRef,
-        fingerprint: binding.fingerprint,
+      await controlReply({
+        database,
+        provider: options.provider(providerId),
+        binding,
         route: event.reply,
         text,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
-        ...(event.conversation.kind === 'dm' ? { standalone: true as const } : {}),
-        beforeSend: () => {
-          try {
-            const current = database.read((db) => readMessagingIdentity(db, binding.id));
-            return (
-              current.enabled &&
-              !current.revokedAt &&
-              current.fingerprint === binding.fingerprint &&
-              options.isBotActive(binding.botSlug)
-            );
-          } catch {
-            return false;
-          }
-        },
+        standalone: event.conversation.kind === 'dm',
+        signal,
+        isBotActive: options.isBotActive,
       });
     } catch {
       log('reply', 'unconfirmed');

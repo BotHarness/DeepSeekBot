@@ -321,10 +321,15 @@ export function externalUserRoles(db: DatabaseSync, botSlug: string): ExternalUs
       .all(botSlug) as { body: string }[]
   ).map((row) => JSON.parse(row.body) as ExternalUserRole);
 }
+export interface SenderAccessReviewer {
+  bindingId: string;
+  actorId: string;
+}
 export function changeSenderAccess(
   db: DatabaseSync,
   botSlug: string,
   raw: SenderAccessInput,
+  reviewer?: SenderAccessReviewer,
 ): void {
   const input = senderAccessInput.parse(raw);
   if (
@@ -407,6 +412,30 @@ export function changeSenderAccess(
     const role = externalUserRoles(db, botSlug).find((item) => item.id === input.roleId);
     if (!role || role.revision !== input.expectedRoleRevision)
       throw new MessagingError('role-stale');
+    if (reviewer) {
+      const permissions = effectivePairingPermissions(
+        db,
+        botSlug,
+        reviewer.bindingId,
+        reviewer.actorId,
+      );
+      if (
+        !permissions.capabilities.includes('review-pairing') ||
+        pairing.bindingId !== reviewer.bindingId ||
+        pairing.actorId === reviewer.actorId
+      )
+        throw new MessagingError('pairing-unauthorized');
+      const delegable = permissions.delegableCapabilities ?? [];
+      const current = externalUserRoles(db, botSlug).find((item) => item.id === pairing.roleId);
+      if (
+        [role, ...(current ? [current] : [])].some((item) =>
+          [...item.capabilities, ...(item.delegableCapabilities ?? [])].some(
+            (cap) => !delegable.includes(cap),
+          ),
+        )
+      )
+        throw new MessagingError('pairing-delegation-denied');
+    }
     const at = new Date().toISOString();
     db.prepare('UPDATE messaging_pairings SET body = ? WHERE id = ? AND bot_slug = ?').run(
       JSON.stringify({
@@ -417,7 +446,8 @@ export function changeSenderAccess(
         revision: pairing.revision + 1,
         reassignedAt: at,
         updatedAt: at,
-        reviewedBy: 'authenticated-web',
+        reviewedBy: reviewer ? 'paired-reviewer' : 'authenticated-web',
+        reviewerActorId: reviewer?.actorId,
       }),
       pairing.id,
       botSlug,
