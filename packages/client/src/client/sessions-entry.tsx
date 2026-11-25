@@ -457,6 +457,8 @@ function SessionsPanel({
                   sessionId={row.sessionId}
                   revision={`${String(row.subagentCount)}:${signature}`}
                   canOpen={(id) => native.byId[id] !== undefined}
+                  onSelect={onSessionSelect}
+                  selectedSessionId={selectedSessionId}
                   t={t}
                 />
               ),

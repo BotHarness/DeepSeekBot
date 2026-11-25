@@ -252,6 +252,7 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
 export interface SessionTranscript {
   pendingInput?: HostSessionPendingInput[];
   role: 'orchestrator' | 'assignment' | 'native';
+  parentSessionId?: string;
   displayTitle?: string;
   titleFallback?: boolean;
   cwd?: string;
@@ -425,6 +426,9 @@ export async function sessionTranscript(
   return {
     role:
       value['role'] === 'native' || value['role'] === 'orchestrator' ? value['role'] : 'assignment',
+    ...(typeof value['parentSessionId'] === 'string' && value['parentSessionId'] !== ''
+      ? { parentSessionId: value['parentSessionId'] }
+      : {}),
     ...(typeof value['displayTitle'] === 'string' && value['displayTitle'].trim() !== ''
       ? { displayTitle: value['displayTitle'] }
       : {}),

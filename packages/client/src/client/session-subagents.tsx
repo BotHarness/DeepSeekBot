@@ -41,13 +41,13 @@ export function SessionSubagentToggle({
 }): ReactElement {
   return (
     <ChipButton
-      filled
+      meta
       data-session-subagents-toggle=""
       data-session-meta-chip="subagents"
       aria-label={t(open ? 'sessions.subagents.hide' : 'sessions.subagents.show', { title })}
       aria-expanded={open}
       title={t('sessions.subagents.toggle', { count })}
-      icon={<ChannelSidebarIcon name="git-branch" size={12} />}
+      icon={<ChannelSidebarIcon name="bot" size={12} />}
       label={String(count)}
       onClick={onToggle}
     />
@@ -65,6 +65,8 @@ export function SessionSubagentList({
   sessionId,
   revision,
   canOpen,
+  onSelect,
+  selectedSessionId,
   t,
 }: {
   actions: BridgeActions;
@@ -72,6 +74,8 @@ export function SessionSubagentList({
   sessionId: string;
   revision: string;
   canOpen(sessionId: string): boolean;
+  onSelect?: ((sessionId: string, title: string) => void) | undefined;
+  selectedSessionId?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [load, setLoad] = useState<Load>({ status: 'loading' });
@@ -120,7 +124,7 @@ export function SessionSubagentList({
                 });
               const model =
                 subagent.route === undefined ? undefined : modelRouteText(subagent.route);
-              const openable = canOpen(subagent.sessionId);
+              const openable = onSelect !== undefined || canOpen(subagent.sessionId);
               return (
                 <SidebarCardRow
                   key={subagent.sessionId}
@@ -132,9 +136,14 @@ export function SessionSubagentList({
                   state={subagent.state}
                   muted={!openable}
                   disabled={!openable}
-                  {...(openable
-                    ? { onClick: () => void actions.openSession(subagent.sessionId) }
-                    : {})}
+                  expanded={
+                    onSelect === undefined ? undefined : selectedSessionId === subagent.sessionId
+                  }
+                  {...(!openable
+                    ? {}
+                    : onSelect === undefined
+                      ? { onClick: () => void actions.openSession(subagent.sessionId) }
+                      : { onClick: () => onSelect(subagent.sessionId, title) })}
                   badge={
                     <Tag tone={SUBAGENT_STATE_TONE[subagent.state]}>
                       {t(`sessions.subagents.state.${subagent.state}`)}
