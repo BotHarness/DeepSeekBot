@@ -185,7 +185,7 @@ it('opens and closes iOS Activity options 20 times as a SwiftUI List sheet', asy
       expect(container.querySelector('ul')?.getAttribute('data-title')).toBe('activityOptions');
       expect(container.querySelector('section')?.getAttribute('data-detents')).toBe('medium,large');
       const close = container.querySelector('[data-placement="cancellationAction"] button');
-      expect(close?.getAttribute('data-role')).toBe('close');
+      expect(close?.getAttribute('data-role')).toBeNull();
       await press('close');
       expect(container.querySelector('dialog')).toBeNull();
     }

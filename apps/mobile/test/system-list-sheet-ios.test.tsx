@@ -13,8 +13,14 @@ type Modifier = {
   ink?: string;
 };
 
+const os = vi.hoisted(() => ({ version: '26.1' }));
 vi.mock('react-native', () => ({
-  Platform: { OS: 'ios', Version: '26.1' },
+  Platform: {
+    OS: 'ios',
+    get Version() {
+      return os.version;
+    },
+  },
   PlatformColor: (name: string) => name,
   View: ({ children }: { children?: ReactNode }) => createElement('div', null, children),
 }));
@@ -228,4 +234,13 @@ it('presents again when the caller refuses a swipe-down, and reports a real dism
   act(() => dismiss.current?.());
   expect(dismissed).toHaveBeenCalledOnce();
   expect(container.querySelector('dialog')).toBeNull();
+});
+
+it('draws a plain xmark close button before iOS 26, where the close role renders no icon', () => {
+  os.version = '18.7';
+  act(() => root.render(createElement(SystemListSheet, props)));
+  const closeButton = container.querySelector('[data-placement="cancellationAction"] button');
+  expect(closeButton?.getAttribute('data-role')).toBeNull();
+  expect(closeButton?.querySelector('[data-symbol="xmark"]')).not.toBeNull();
+  os.version = '26.1';
 });
