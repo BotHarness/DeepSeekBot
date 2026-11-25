@@ -126,6 +126,159 @@ describe('Connect account sign-in', () => {
     }
   });
 
+  it.each(['before polling', 'with a token request in flight'])(
+    'keeps the incumbent usable when replacement authorization expires %s',
+    async (phase) => {
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      const tunnel = fakeConnect();
+      const polled = deferred();
+      const poll = deferred();
+      const reply = deferred();
+      const changed = vi.fn();
+      const record = vi.fn();
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      let replacement = false;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: tunnel.connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          if (replacement && String(input).endsWith('/authenticate')) {
+            polled.resolve();
+            await reply.promise;
+          }
+          return services.fetcher(input, init);
+        },
+        freePort: async () => 41001,
+        sleep: async () => {
+          if (replacement) await poll.promise;
+        },
+        record,
+        onAccountChanged: changed,
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        const incumbent = account.status();
+        expect(incumbent.state).toBe('signed-in');
+        const connected = tunnel.connect.status();
+        expect(await account.accessToken()).toBe('access-1');
+
+        replacement = true;
+        await account.signIn();
+        expect(account.status().state).toBe('signing-in');
+        changed.mockClear();
+        if (phase === 'with a token request in flight') {
+          poll.resolve();
+          await polled.promise;
+        }
+        clock.mockReturnValue(301_001);
+        poll.resolve();
+        reply.resolve();
+        await settle(account);
+
+        expect(account.status()).toEqual(incumbent);
+        expect(tunnel.connect.status()).toEqual(connected);
+        expect(await account.accessToken()).toBe('access-1');
+        expect(changed).toHaveBeenCalledTimes(1);
+        expect(record).toHaveBeenCalledWith('sign-in-expired');
+      } finally {
+        poll.resolve();
+        reply.resolve();
+        await account.close();
+        clock.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ['access_denied', 'sign-in-failed'],
+    ['invalid_grant', 'sign-in-failed'],
+    ['expired_token', 'sign-in-expired'],
+  ])('keeps the incumbent usable when replacement OAuth returns %s', async (error, phase) => {
+    const options = { pending: 0, deviceError: '' };
+    const record = vi.fn();
+    const changed = vi.fn();
+    const { account, tunnel } = setup(
+      fakeServices(options),
+      41001,
+      60_000,
+      undefined,
+      record,
+      changed,
+    );
+    try {
+      await account.signIn();
+      await settle(account);
+      const incumbent = account.status();
+      expect(incumbent.state).toBe('signed-in');
+      const connected = tunnel.connect.status();
+      expect(await account.accessToken()).toBe('access-1');
+
+      changed.mockClear();
+      options.deviceError = error;
+      await account.signIn();
+      await settle(account);
+
+      expect(account.status()).toEqual(incumbent);
+      expect(tunnel.connect.status()).toEqual(connected);
+      expect(await account.accessToken()).toBe('access-1');
+      expect(changed).toHaveBeenCalledTimes(2);
+      expect(record).toHaveBeenCalledWith(phase, `error=${error}`);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('restores the incumbent when a superseding authorization request fails', async () => {
+    const services = fakeServices({ pending: 0 });
+    const fetch = services.fetcher.getMockImplementation()!;
+    const polled = deferred();
+    const late = deferred();
+    const changed = vi.fn();
+    const record = vi.fn();
+    const { account, tunnel } = setup(services, 41001, 60_000, undefined, record, changed);
+    try {
+      await account.signIn();
+      await settle(account);
+      const incumbent = account.status();
+      expect(incumbent.state).toBe('signed-in');
+      const connected = tunnel.connect.status();
+      expect(await account.accessToken()).toBe('access-1');
+
+      services.fetcher.mockImplementation(async (input, init) => {
+        if (String(input).endsWith('/authenticate')) {
+          polled.resolve();
+          await late.promise;
+        }
+        return fetch(input, init);
+      });
+      await account.signIn();
+      await polled.promise;
+      expect(account.status().state).toBe('signing-in');
+      changed.mockClear();
+
+      services.fetcher.mockImplementation(async (input, init) =>
+        String(input).endsWith('/authorize/device')
+          ? Response.json({}, { status: 503 })
+          : fetch(input, init),
+      );
+      expect(await account.signIn()).toEqual({ ok: false, code: 'relay-unavailable' });
+      late.resolve();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(account.status()).toEqual(incumbent);
+      expect(tunnel.connect.status()).toEqual(connected);
+      expect(await account.accessToken()).toBe('access-1');
+      expect(changed).toHaveBeenCalledTimes(1);
+      expect(record).toHaveBeenCalledWith('sign-in-failed', 'error=relay-unavailable');
+    } finally {
+      late.resolve();
+      await account.close();
+    }
+  });
+
   it('releases a pending device poll timer when the account closes', async () => {
     const services = fakeServices();
     const fetch = services.fetcher.getMockImplementation()!;
