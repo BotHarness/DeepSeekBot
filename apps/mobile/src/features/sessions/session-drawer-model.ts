@@ -1,4 +1,5 @@
 import type {
+  HostSessionAttention,
   HostSessionRow,
   HostSessionSort,
   HostSessionSource,
@@ -102,4 +103,15 @@ export function sessionRowIdentity(
       ? {}
       : { model: { ...row.model, ...(brand === undefined ? {} : { brand }) } }),
   };
+}
+
+export type SessionRowNeed = HostSessionAttention | 'waiting';
+
+export function sessionRowNeed(
+  row: Pick<HostSessionRow, 'attention' | 'status' | 'waiting'>,
+): SessionRowNeed | undefined {
+  if (row.attention !== undefined) return row.attention;
+  if (row.status === 'needs-you' || (row.status === undefined && row.waiting === true))
+    return 'waiting';
+  return undefined;
 }

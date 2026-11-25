@@ -9,6 +9,7 @@ import {
   sessionDrawerSections,
   sessionDrawerWidth,
   sessionRowIdentity,
+  sessionRowNeed,
   settleSessionDrawer,
 } from '../src/features/sessions/session-drawer-model';
 
@@ -125,4 +126,16 @@ it('carries the folder monogram, colour and path, and the model brand when known
     colorIndex: member.folder!.colorIndex,
   });
   expect(sessionRowIdentity(listed({ folderName: '' }), false, 8).folder).toBeUndefined();
+});
+
+it('names what a Session needs from its attention, else from the old waiting flag', () => {
+  const base = { running: false, lastPromptAt: null, updatedAt: 0 };
+  expect(sessionRowNeed(listed({ ...base, status: 'needs-you', attention: 'question' }))).toBe(
+    'question',
+  );
+  expect(sessionRowNeed(listed({ attention: 'failed' }))).toBe('failed');
+  expect(sessionRowNeed(listed({ status: 'needs-you' }))).toBe('waiting');
+  expect(sessionRowNeed(listed({ waiting: true }))).toBe('waiting');
+  expect(sessionRowNeed(listed({ status: 'idle', waiting: true }))).toBeUndefined();
+  expect(sessionRowNeed(listed({ running: true }))).toBeUndefined();
 });

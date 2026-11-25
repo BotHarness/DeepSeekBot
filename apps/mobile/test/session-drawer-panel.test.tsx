@@ -36,7 +36,7 @@ vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }
 vi.mock('../src/ui/chat/row-status-glyph', () => ({
   RowStatusGlyph: ({ status }: { status: string }) => <span data-status={status} />,
 }));
-vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => <span data-host-glyph="" /> }));
+vi.mock('../src/ui/chat/source-name', () => ({ SourceMark: () => <span data-host-glyph="" /> }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -117,6 +117,16 @@ async function render(
         lastPromptAt: now - 60_000,
         updatedAt: now - 60_000,
         sortedAt: now - 60_000,
+      },
+      {
+        sessionId: 'loose',
+        title: 'Loose ask',
+        source: { kind: 'native' },
+        status: 'needs-you',
+        attention: 'approval',
+        running: false,
+        lastPromptAt: now - 6 * 86_400_000,
+        updatedAt: now - 6 * 86_400_000,
       },
     ],
   }));
@@ -221,20 +231,36 @@ it('hides New Session from a member', async () => {
   expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
 });
 
-it('merges every Computer’s Sessions under All with the three-column rows', async () => {
+it('merges every Computer’s Sessions under All with folder, Bot, status and environment lines', async () => {
   const { view, other } = await render({ second: true });
   expect(other).toHaveBeenCalledOnce();
   const ids = [...view.querySelectorAll('[data-testid^="host-session-"]')].map((row) =>
     row.getAttribute('data-testid'),
   );
-  expect(ids).toEqual(['host-session-fresh', 'host-session-remote', 'host-session-old']);
+  expect(ids).toEqual([
+    'host-session-fresh',
+    'host-session-remote',
+    'host-session-old',
+    'host-session-loose',
+  ]);
   const remote = view.querySelector('[data-testid="host-session-remote"]')!;
-  const place = remote.querySelector('[data-testid="session-place-remote"]')!;
-  expect(place.textContent).toBe('Laptop · deploy-tools');
-  expect(place.querySelector('[data-host-glyph]')).not.toBeNull();
-  expect(remote.querySelector('[data-testid="session-bot-remote"]')).not.toBeNull();
-  expect(view.querySelector('[data-testid="session-monogram-fresh"]')?.textContent).toBe('BO');
-  expect(view.querySelector('[data-testid="session-monogram-old"]')?.textContent).toBe('笔');
+  const top = remote.querySelector('[data-testid="session-top-line-remote"]')!;
+  expect(top.querySelector('[data-testid="session-folder-remote"]')?.textContent).toBe(
+    'deploy-tools',
+  );
+  expect(top.querySelector('[data-testid="session-bot-remote"]')).not.toBeNull();
+  expect(top.textContent).not.toContain('Ada');
+  expect(top.querySelector('[data-host-glyph]')).toBeNull();
+  expect(remote.querySelector('[data-testid="session-title-remote"]')?.textContent).toBe(
+    'Remote review',
+  );
+  const host = remote.querySelector('[data-testid="session-host-remote"]')!;
+  expect(host.textContent).toBe('Laptop');
+  expect(host.querySelector('[data-host-glyph]')).not.toBeNull();
+  expect(remote.getAttribute('aria-label')).toContain('Ada');
+  expect(remote.getAttribute('aria-label')).toContain('Laptop');
+  expect(view.querySelector('[data-testid="session-bot-fresh"]')).toBeNull();
+  expect(view.querySelector('[data-testid="session-host-fresh"]')?.textContent).toBe('Studio');
   const status = (id: string) =>
     view
       .querySelector(`[data-testid="session-status-${id}"] [data-status]`)
@@ -242,19 +268,25 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   expect(status('fresh')).toBe('working');
   expect(status('old')).toBe('needs-you');
   expect(status('remote')).toBe('done');
+  expect(view.querySelector('[data-testid="session-status-old"]')?.textContent).toBe('Needs you');
+  expect(view.querySelector('[data-testid="session-status-loose"]')?.textContent).toBe(
+    'Needs approval',
+  );
+  expect(view.querySelector('[data-testid="session-folder-loose"]')).toBeNull();
   expect(view.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
 });
 
-it('puts the status beside the name and the model icon beside the place line', async () => {
+it('puts folder, model and status above the name and drops the environment line in one environment', async () => {
   const { view } = await render();
-  const titleLine = view.querySelector('[data-testid="session-title-line-fresh"]')!;
-  const placeLine = view.querySelector('[data-testid="session-place-line-fresh"]')!;
-  expect(titleLine.textContent).toContain('Fresh work');
-  expect(titleLine.querySelector('[data-testid="session-status-fresh"]')).not.toBeNull();
-  expect(placeLine.querySelector('[data-testid="session-place-fresh"]')).not.toBeNull();
-  expect(placeLine.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
-  expect(titleLine.querySelector('[data-testid="session-model-fresh"]')).toBeNull();
+  const top = view.querySelector('[data-testid="session-top-line-fresh"]')!;
+  expect(top.querySelector('[data-testid="session-folder-fresh"]')?.textContent).toBe('botharness');
+  expect(top.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
+  expect(top.querySelector('[data-testid="session-status-fresh"]')).not.toBeNull();
+  expect(top.textContent).not.toContain('Fresh work');
+  expect(view.querySelector('[data-testid="session-title-fresh"]')?.textContent).toBe('Fresh work');
+  expect(view.querySelector('[data-testid^="session-host-"]')).toBeNull();
+  expect(view.querySelector('[data-host-glyph]')).toBeNull();
 });
 
 it('hides Bot Sessions when the device preference says so and keeps native ones', async () => {
@@ -264,7 +296,7 @@ it('hides Bot Sessions when the device preference says so and keeps native ones'
     const ids = [...view.querySelectorAll('[data-testid^="host-session-"]')].map((row) =>
       row.getAttribute('data-testid'),
     );
-    expect(ids).toEqual(['host-session-fresh', 'host-session-old']);
+    expect(ids).toEqual(['host-session-fresh', 'host-session-old', 'host-session-loose']);
   } finally {
     await act(async () => interfacePreferences.setHideBotSessions(false));
   }
