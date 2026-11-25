@@ -29,7 +29,7 @@ import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion'
 import { useTabOrder } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
-import type { NavigationDestination } from './navigation-destination';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
 import { sessionsStack } from './sessions-stack';
 import { tabRoute, tabSlotOf, type TabSlot } from './tab-slots';
 
@@ -145,13 +145,13 @@ function NavigationBar({
     },
   });
   const android = Platform.OS === 'android';
-  const toolbarWidth =
-    floatingToolbar.item * routes.length + floatingToolbar.gap * Math.max(0, routes.length - 1);
+  const gap = toolbarGap(width, routes.length);
+  const toolbarWidth = floatingToolbar.item * routes.length + gap * Math.max(0, routes.length - 1);
   const slots: TabSlots = android
     ? {
         left: (width - toolbarWidth) / 2,
         width: toolbarWidth,
-        gap: floatingToolbar.gap,
+        gap,
         count: routes.length,
       }
     : {

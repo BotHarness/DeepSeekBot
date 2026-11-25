@@ -17,13 +17,13 @@ import {
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
 import { useDesignTheme } from '../design/theme';
 import { cornerBadge, floatingToolbar } from '../design/tokens';
 import { MaterialCountBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
-import type { NavigationDestination } from './navigation-destination';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
 import type { TabSlot } from './tab-slots';
 
 function glyphFor(slot: TabSlot, focused: boolean) {
@@ -52,7 +52,8 @@ export function tabTestID(slot: TabSlot): string {
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { item, gap, height, inset } = floatingToolbar;
+  const { item, height, inset } = floatingToolbar;
+  const gap = toolbarGap(useWindowDimensions().width, items.length);
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face

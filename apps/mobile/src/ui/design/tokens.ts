@@ -116,6 +116,7 @@ export const floatingToolbar = {
   avatar: 32,
   offset: 16,
   inset: 12,
+  padding: 8,
 } as const;
 export const pinnedTabIcon = { captureDelays: [300, 1500] } as const;
 export const materialIconButton = {
