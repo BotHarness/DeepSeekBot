@@ -385,6 +385,20 @@ function option(value: unknown): WorkspaceOption | undefined {
   return { id: row['id'], path: row['path'], title: row['title'] };
 }
 
+export interface CreateHostFolderInput {
+  parent: string;
+  name: string;
+}
+
+export async function createHostFolder(
+  client: HostCall,
+  { parent, name }: CreateHostFolderInput,
+): Promise<WorkspaceOption> {
+  const workspace = option(await client.call('folderCreate', { parent, name }));
+  if (!workspace) throw new HostAnswerInvalid('The computer did not return the registered folder.');
+  return workspace;
+}
+
 export async function loadWorkspaceOptions(client: HostCall): Promise<WorkspaceOption[]> {
   const rows = record(await client.call('workspaceOptions', {}))?.['workspaces'];
   if (!Array.isArray(rows)) throw new HostAnswerInvalid('workspaceOptions returned no list.');

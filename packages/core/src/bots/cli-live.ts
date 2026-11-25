@@ -168,6 +168,10 @@ export const LIVE_COMMANDS = [
     description: 'list folder names on the Host computer, as the phone folder picker does',
   },
   {
+    command: 'folder-create',
+    description: 'create and register a child folder with --parent <path> and --name <name>',
+  },
+  {
     command: 'grant-create',
     description: 'authorize a Bot workspace through the live Host',
   },

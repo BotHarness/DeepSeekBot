@@ -514,6 +514,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelMediaTarget',
   'workspaceFileTarget',
   'folderBrowse',
+  'folderCreate',
   'grants',
   'grantCreate',
   'grantRevoke',

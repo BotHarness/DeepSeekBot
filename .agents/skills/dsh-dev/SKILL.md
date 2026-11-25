@@ -5,6 +5,17 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### BotHarness Workspace Grant RPC resource resolution (#4935)
+
+The DSH 0.2.2-rc.1 Workspace Controller registers `workspaceId` as a default
+Typert Workspace resource. The Gateway then requires a native Workspace
+binding for a non-Owner Peer, even on a BotHarness method that receives the ID
+only to resolve a grant target. `grantCreate` and `grantRequestApprove` declare
+a Workspace resource reader returning `undefined` so the Team method policy
+can admit the call and the Workspace Grant Store can enforce Bot ownership and
+folder access. Test with the Workspace resource registered and verify the
+allowed and foreign-folder cases through the live member CLI.
+
 ### BotHarness Session RPC resource resolution (#4781)
 
 DSH `0.2.2-rc.1` resolves a `sessionId` argument as a native Session resource before invoking a Typert Remote Service for a non-Owner Peer. The Team CLI already dispatches as a member through Gateway. For BotHarness Bot-scoped Session methods, declare a `session` resource reader returning `undefined` so the Team method policy and the BotHarness ownership and grant checks can authorize the call. Test with the Gateway's Session resource resolver registered and keep participant DM protection in the application guard.

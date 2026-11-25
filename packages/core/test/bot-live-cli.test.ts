@@ -553,6 +553,21 @@ describe('live CLI over the authenticated DSH carrier', () => {
     ).toBe('usage');
   });
 
+  it('creates and registers a child folder through the Host', async () => {
+    const workspace = { id: 'workspace-1', path: '/Users/ada/New project', title: 'New project' };
+    const live = await host(() => ({ ok: true, value: workspace }));
+    const command = ['folder-create', '--parent', '/Users/ada', '--name', 'New project'];
+    const created = await invoke(command, live.url);
+    expect(created.code).toBe(0);
+    expect(created.json).toEqual(workspace);
+    for (const args of [command.slice(0, 3), command.concat('extra')]) {
+      expect((await invoke(args, live.url)).json.error.code).toBe('usage');
+    }
+    expect(live.calls).toEqual([
+      { method: 'folderCreate', args: { parent: '/Users/ada', name: 'New project' } },
+    ]);
+  });
+
   it('rejects missing/unsafe origins, malformed answers and expired auth before mutation', async () => {
     expect((await invoke(['send', 'ada', '--body', 'hi'])).json.error.code).toBe('usage');
     expect((await invoke(['release-info'], 'http://example.com')).json.error.code).toBe('usage');
