@@ -435,3 +435,105 @@ it('without a default Role, the choices go to the reviewer privately and a DM re
   });
   expect(fx.runs).toHaveLength(0);
 });
+
+it("a reviewer's ordinary channel message that starts with approve still reaches the Bot", async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack');
+  const { applicant, other, reviewer } = ids.slack;
+  await fx.receive(channelMessage('slack', 'settled', applicant, 'question'));
+  const settled = pendingFor(fx, applicant);
+  await fx.receive(
+    channelMessage('slack', 'reject', reviewer, `拒绝 #${settled.reference}`, {}, false),
+  );
+  expect(pendingFor(fx, applicant).status).toBe('rejected');
+  const runs = fx.runs.length;
+  await fx.receive(
+    channelMessage(
+      'slack',
+      'plan-1',
+      reviewer,
+      "approve QA18-N1: I approve this plan. Please reply 'N1: ok'.",
+    ),
+  );
+  expect(fx.runs).toHaveLength(runs + 1);
+  await fx.receive(channelMessage('slack', 'waiting', other, 'question'));
+  expect(pendingFor(fx, other).status).toBe('pending');
+  await fx.receive(
+    channelMessage(
+      'slack',
+      'plan-2',
+      reviewer,
+      "approve QA18-N2: I approve this plan. Please reply 'N2: ok'.",
+    ),
+  );
+  expect(fx.runs).toHaveLength(runs + 2);
+  expect(pendingFor(fx, other).status).toBe('pending');
+  expect(fx.replies.some((reply) => reply.text.includes('no longer waiting'))).toBe(false);
+});
+
+it('the Role list reaches a reviewer whose only DM pairing is a management pairing', async () => {
+  const fx = await fixture('slack');
+  const colleague = await ordinaryRole(fx);
+  const methods = await secondRole(fx);
+  await methods.senderAccess({
+    slug: 'ada',
+    input: { kind: 'create-role', name: 'Reviewer', behavior: 'Reviews pairing requests.' },
+  });
+  const created = (await fx.core.externalMessaging.snapshot('ada')).roles!.find(
+    (role) => role.name === 'Reviewer',
+  )!;
+  await methods.senderAccess({
+    slug: 'ada',
+    input: {
+      kind: 'edit-role',
+      id: created.id,
+      expectedRevision: created.revision,
+      name: 'Reviewer',
+      behavior: created.behavior,
+      capabilities: ['review-pairing'],
+    },
+  });
+  const reviewerRole = (await fx.core.externalMessaging.snapshot('ada')).roles!.find(
+    (role) => role.name === 'Reviewer',
+  )!;
+  const { applicant, reviewer } = ids.slack;
+  await fx.receive(channelMessage('slack', 'reviewer-group', reviewer, 'hello'));
+  const chat = pendingFor(fx, reviewer);
+  expect(chat.conversationKind).toBe('group');
+  fx.core.externalMessaging.pairing.review('ada', {
+    kind: 'approve',
+    id: chat.id,
+    expectedRevision: chat.revision,
+    roleId: reviewerRole.id,
+    expectedRoleRevision: reviewerRole.revision,
+  });
+  await fx.receive(directMessage('slack', 'reviewer-manage', reviewer, '/pair'));
+  const management = fx.core.externalMessaging.pairing
+    .list('ada')
+    .find((item) => item.actorId === reviewer && item.purpose !== 'conversation')!;
+  fx.core.externalMessaging.pairing.review('ada', {
+    kind: 'approve',
+    id: management.id,
+    expectedRevision: management.revision,
+    capabilities: ['approve'],
+  });
+  await fx.settle();
+  await fx.receive(channelMessage('slack', 'blocked', applicant, 'question'));
+  await fx.receive(
+    channelMessage(
+      'slack',
+      'nobody',
+      reviewer,
+      '同意 Nobody',
+      { threadId: 'om-blocked', rootId: 'om-blocked' },
+      false,
+    ),
+  );
+  const [privateList, publicNotice] = fx.replies.slice(-2);
+  expect(privateList).toMatchObject({
+    route: expect.objectContaining({ conversationId: 'DQAREV' }),
+    text: expect.stringContaining(`${colleague.name}, Guest`),
+  });
+  expect(publicNotice!.text).toContain('没有找到角色「Nobody」。可分配的角色已私信发给你');
+  expect(pendingFor(fx, applicant).status).toBe('pending');
+});

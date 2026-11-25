@@ -84,6 +84,8 @@ const NOTICE = {
     `Role "${name}" was not found. The Roles you can assign were sent to you privately. / 没有找到角色「${name}」。可分配的角色已私信发给你。`,
   rolesInWeb:
     'Choose a Role: reply "approve <role>". See the Roles you can assign in Web settings. / 请指定角色，回复「同意 <角色>」。可分配的角色请在 Web 设置中查看。',
+  unknownRoleInWeb: (name: string) =>
+    `Role "${name}" was not found. See the Roles you can assign in Web settings. / 没有找到角色「${name}」。可分配的角色请在 Web 设置中查看。`,
   privateRoles: (reference: string, roles: string[], unknown?: string) =>
     [
       unknown
@@ -311,10 +313,15 @@ export function createPairingText(options: {
       });
       return true;
     }
-    if (!target && !parsed.reference) {
+    const knownRole =
+      !parsed.role ||
+      database
+        .read((db) => externalUserRoles(db, binding.botSlug))
+        .some((item) => item.name.trim().toLowerCase() === parsed.role!.toLowerCase());
+    if (!target && !parsed.reference && knownRole) {
       const pending = requests.filter((item) => item.status === 'pending' && reachable(item));
       if (pending.length === 1 && !approvalPending(conversation)) target = pending[0];
-      else if (!pending.length) {
+      else if (!pending.length && event.conversation.kind === 'dm') {
         const cutoff = Date.now() - RECENT_MS;
         target = requests
           .filter(
@@ -362,7 +369,9 @@ export function createPairingText(options: {
               ? unknown
                 ? NOTICE.unknownRolePublic(unknown)
                 : NOTICE.chooseRolePublic
-              : NOTICE.rolesInWeb,
+              : unknown
+                ? NOTICE.unknownRoleInWeb(unknown)
+                : NOTICE.rolesInWeb,
             signal,
           ),
         );
@@ -453,16 +462,22 @@ export function createPairingText(options: {
     unknown?: string,
   ) => {
     const provider = options.provider(providerId);
-    const own = pairing
+    const route = pairing
       .list(binding.botSlug)
-      .find(
+      .filter(
         (item) =>
           item.status === 'approved' &&
           item.bindingId === binding.id &&
-          item.actorId === event.actor.id &&
-          item.conversationKind === 'dm',
-      );
-    const route = own && pairedRoute(own);
+          item.actorId === event.actor.id,
+      )
+      .map(
+        (item) =>
+          item.privateReply ??
+          (item.purpose !== 'conversation' || item.conversationKind === 'dm'
+            ? pairedRoute(item)
+            : undefined),
+      )
+      .find((item) => !!item);
     if (!provider.reply || !route) return false;
     const key = privateKey(event.actor.id);
     const first = pairing.notice(request.id, key);
