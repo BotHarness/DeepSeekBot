@@ -28,6 +28,7 @@ const MESSAGING_TABLE_WRITERS = [
   'features/memory/runtime-changes.ts',
   'features/messaging/events.ts',
   'features/sessions/runtime-orchestrator-turns.ts',
+  'meetings/store.ts',
   'messaging/channel-target.ts',
   'messaging/conversation-ingest.ts',
   'messaging/feedback.ts',
