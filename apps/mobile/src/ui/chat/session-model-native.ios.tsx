@@ -31,7 +31,7 @@ import {
   scrollContentBackground,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState } from 'react';
-import { PlatformColor, View } from 'react-native';
+import { Platform, PlatformColor, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { ModelBrandIcon } from './model-brand-icon';
@@ -185,12 +185,21 @@ export function NativeSessionModelSheet({
               </List>
               <Toolbar.Content>
                 <ToolbarItem placement="cancellationAction">
-                  <Button
-                    role="close"
-                    systemImage="xmark"
-                    onPress={onClose}
-                    modifiers={[accessibilityLabel(closeLabel)]}
-                  />
+                  {Number(Platform.Version) >= 26 ? (
+                    <Button
+                      role="close"
+                      systemImage="xmark"
+                      onPress={onClose}
+                      modifiers={[accessibilityLabel(closeLabel)]}
+                    />
+                  ) : (
+                    <Button onPress={onClose} modifiers={[accessibilityLabel(closeLabel)]}>
+                      <Image
+                        systemName="xmark"
+                        modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}
+                      />
+                    </Button>
+                  )}
                 </ToolbarItem>
               </Toolbar.Content>
             </Toolbar>

@@ -5,7 +5,13 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 type Modifier = { label?: string; disabled?: boolean; title?: string; detents?: string[] };
 
+const os = vi.hoisted(() => ({ version: '26.0' }));
 vi.mock('react-native', () => ({
+  Platform: {
+    get Version() {
+      return os.version;
+    },
+  },
   PlatformColor: (name: string) => name,
   View: ({ children }: { children?: ReactNode }) => createElement('div', null, children),
 }));
@@ -151,4 +157,14 @@ it('renders the model choice as a system List with a native close button and a c
   expect(props.onChoose).toHaveBeenCalledWith('flash');
   act(() => (close as HTMLButtonElement).click());
   expect(props.onClose).toHaveBeenCalledOnce();
+});
+
+it('shows a plain xmark close button before iOS 26, where the close role does not exist', () => {
+  os.version = '18.7';
+  act(() => root.render(createElement(NativeSessionModelSheet, props)));
+  const close = container.querySelector('[data-placement="cancellationAction"] button');
+  expect(close?.getAttribute('data-role')).toBeNull();
+  expect(close?.getAttribute('aria-label')).toBe('Close');
+  expect(close?.querySelector('[data-symbol="xmark"]')).not.toBeNull();
+  os.version = '26.0';
 });
