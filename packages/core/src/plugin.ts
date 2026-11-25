@@ -561,7 +561,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const nativeSessionInput = dshHostSessionInput(
     ctx,
     (id) => core.ownership.resolve(id) === undefined,
-    (id) => sessionLive.observe(id, { type: 'native-input' }),
+    (id) => {
+      sessionLive.observe(id, { type: 'native-input' });
+      sessionListChanges.changed(true, id);
+    },
   );
   ctx.effect(
     () =>
@@ -570,14 +573,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         subscribe: nativeSessionInput.subscribe,
       }),
     'botharness: native Session attention',
-  );
-  ctx.effect(
-    () => nativeSessionInput.subscribe(() => sessionListChanges.changed()),
-    'botharness: native Session requests change the Session list',
-  );
-  ctx.effect(
-    () => ctx.on('api-session/error', () => sessionListChanges.changed()),
-    'botharness: native Session failures change the Session list',
   );
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,

@@ -571,6 +571,7 @@ deepseekbot browser-takeover <bot-id> --enabled
 deepseekbot browser-takeover <bot-id> --disabled
 deepseekbot browser-stop <bot-id>
 deepseekbot computer-status
+deepseekbot computer-unlock-status
 deepseekbot computer-start --target local
 deepseekbot computer-stop
 deepseekbot computer-frame --out /tmp/desktop.jpg
@@ -581,6 +582,10 @@ deepseekbot grants <bot-id>
 ```
 
 `browser-open` 启动 Bot 的浏览器（需要已开启浏览器权限），返回标签页和查看地址。`browser-frame` 把当前画面保存到一个绝对路径，并报告大小和视口，Agent 可以借此看到 Bot 看到的内容。`browser-takeover --enabled` 暂停 Bot 的浏览器以便人工操作，`--disabled` 交还。`computer-start` 带上面板按钮发送的同一个显式授权；用 `computer-status` 读取结果，被拒时 `status.detail` 会说明原因，例如缺少系统权限或显示器。`grants` 从在线 Host 列出 Bot 的工作区授权。路由拒绝时保留 Host 的错误码，或返回 `host-refused` 加上它的说明。
+
+`computer-unlock-status` 查询 Mac 原生助手的能力和锁屏状态。`ready` 表示已连接签名助手。
+`accessibility-required` 表示需要在 Mac 的系统设置中允许助手使用辅助功能。解锁时，在已配对的
+iPhone 上打开 Computer。
 
 `computer-frame` 把 Computer 桌面（本机或容器）的当前画面保存到一个绝对路径，并报告大小、`mimeType`（`image/jpeg`；Host 无法编码 JPEG 时为 `image/png`）、`seq` 和目标。已配对的手机轮询的也是这一帧：`GET /api/computer/frame?after=<seq>` 会等到画面变化，画面不变时返回 204。`computer-input --args-stdin` 向这个桌面发送一次人工操作：`{"kind":"click","x":10,"y":20}`（可加 `"button":"right"`、`"count":2`）、`{"kind":"scroll","direction":"down","amount":3}`、`{"kind":"type","text":"hi"}` 或 `{"kind":"key","key":"return","modifiers":["meta"]}`。坐标是上一帧画面的像素。Computer 停止时两者都会以 `not-running` 拒绝。发送操作前要先执行 `computer-takeover --enabled`，否则会以 `not-paused` 拒绝。Computer 还没有产生画面时，`computer-frame` 以 `no-frame` 拒绝。`computer-takeover --enabled` 会等 Bot 正在进行的 Computer 调用结束（最多 10 秒）后再返回，暂停开始后才完成的调用结果不会交给 Bot。暂停期间 Bot 的所有 Computer 工具调用都会被拒绝，包括截图，所以你输密码时 Bot 不能移走焦点，也看不到屏幕。手机持续轮询画面或发送操作时暂停一直有效，最后一次之后 30 秒自动结束；`computer-takeover --disabled` 立即交还。
 
@@ -608,6 +613,7 @@ deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
 deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
+deepseekbot session-model <bot-id>
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -635,7 +641,8 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 #### Host 会话
 
 ```bash
-deepseekbot session-list [--search <文本>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
+deepseekbot session-list [--search <文本>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived] [--limit <1-200>] [--cursor <游标>]
+deepseekbot session-list-changes [--since <seq> [--epoch <epoch>]]
 deepseekbot session-import-list
 deepseekbot session-create (--cwd <路径> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <空白会话-id>] --message <文本>
 deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
@@ -648,7 +655,7 @@ deepseekbot session-send <native-session-id> [--] <text>
 deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
 ```
 
-这些命令通过已认证的在线 Host 执行。`session-list` 默认按最近的 Human 消息时间降序列出根会话。用 `--sort created` 按创建时间降序排列，或用 `--sort last-activity` 按最近活动排序。`--search` 匹配会话标题和 Human 发送的消息，可与 `--source native` 或 `--source bot:<slug>` 组合。默认来源为 `all`。列表包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
+这些命令通过已认证的在线 Host 执行。`session-list` 默认按最近的 Human 消息时间降序列出根会话。用 `--sort created` 按创建时间降序排列，或用 `--sort last-activity` 按最近活动排序。`--search` 匹配会话标题和 Human 发送的消息，可与 `--source native` 或 `--source bot:<slug>` 组合。默认来源为 `all`。列表包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。传 `--limit` 时只返回一页和 `nextCursor`，把它作为 `--cursor` 传入即可读取下一页。`session-list-changes` 不带 `--since` 时返回当前变更游标（`reset: true`）。带上之前游标中的 `--since` 和 `--epoch` 时，返回变化的行、被删除会话的 ID 和新游标；如果 Host 已重启或变更记录已不包含该游标，则返回 `reset: true`，此时需重新读取完整列表。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
 
 Host Owner 可以从 `session-transcript` 和 `session-live` 的 `pendingInput` 读取原生审批和提问卡片。用相应命令回答，并传入卡片的 `requestId`。回答提问时，通过 stdin 提交 JSON，例如 `{"answers":[{"id":"format","selected":["Compact"]}]}`，每个问题对应一项。自由文本答案使用 `"selected":[]` 和 `custom` 字符串。使用空的 `selected` 并省略 `custom` 可跳过单个问题。已结束的请求返回 `session-input-not-pending`。
 
@@ -688,7 +695,7 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 
 `session-transcript` 在能确认运行目标时，为 `reply` 和 `turn-end` 返回按执行顺序排列的 `turnTargets`。回复由最后一个目标生成。DSH 条目包含 `provider` 和 `model`，订阅引擎条目包含 `engine` 以及能确认的模型和推理强度。当前主会话首次运行后，`model-plan <bot-id>` 也会返回 `currentTarget`。
 
-`session-model` 读取根会话保存的覆盖项 `override` 和 Bot 默认项 `default`。执行期间，`active` 是本轮开始时读取的覆盖项。`--set` 接收一个模型选择 JSON 对象：
+`session-model` 读取根会话保存的覆盖项 `override` 和 Bot 默认项 `default`。执行期间，`active` 是本轮开始时读取的覆盖项。不带 `--session` 时，读取该 Bot 新建编排会话会使用的 `default`（`override` 为 `null`），手机在发出第一条消息前用它在输入框里显示模型名。`--set` 接收一个模型选择 JSON 对象：
 
 - API 模型：`{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
 - 订阅引擎：`{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`。使用 `accountId` 指定获准使用的账号。

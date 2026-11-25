@@ -14,6 +14,7 @@ export function conversationMenu(
   options: {
     pinned: boolean;
     hostMuted: boolean;
+    canDisband: boolean;
     sections: readonly RosterSection[];
     onAction(key: ConversationActionKey): void;
     onMove(sectionId: string | null): void;
@@ -55,7 +56,8 @@ export function conversationMenu(
       });
   }
   if (conversation.kind === 'channel' && conversation.person === true) return actions;
-  if (conversation.kind === 'channel')
+  if (conversation.kind === 'channel') {
+    if (!options.canDisband) return actions;
     actions.push({
       key: 'delete',
       glyph: 'delete',
@@ -69,7 +71,7 @@ export function conversationMenu(
           name: conversation.channel.name,
         }),
     });
-  else if (!conversation.bot.tob)
+  } else if (!conversation.bot.tob)
     actions.push({
       key: 'delete',
       glyph: 'delete',

@@ -5,6 +5,10 @@ One Windows x64 primary display reaches one Android viewer through a supervised 
 ## Sources
 
 - `packages/computer/src/local-video-*.ts`
+- `packages/computer/src/unlock-*.ts`
+- `packages/computer/native/unlock/**`
+- `apps/mobile/modules/computer-unlock/**`
+- `apps/mobile/src/ui/chat/computer-unlock.ios.tsx`
 - `packages/computer/src/computer-pause-store.ts`
 - `packages/computer/native/local-video/{main.cjs,preload.cjs,renderer.html,renderer.js,launcher.cs,launcher-macos.cjs}`
 - `apps/mobile/src/host/local-video-*.ts`
@@ -150,3 +154,11 @@ Entry points: Bot Computer pane → Check permissions, or Bot Settings → Compu
 - Missing macOS permissions show localized copy and only the missing Accessibility / Screen Recording buttons. Each button opens that specific privacy pane on the Host, without granting access. Closing System Settings preserves the refusal until a fresh permission check succeeds. Failed opens retain a localized manual-navigation fallback.
 - The Human grants permissions, fully restarts the app running DSH if macOS requires it, then selects Check permissions again. Record Granted plus canonical running status; permission refusal is not successful readiness. Verify both English/Chinese and light/dark, and keep untested variants explicit.
 - CLI parity: `deepseekbot computer-open-permission-settings --permission accessibility --confirm` opens the same Host pane; `screen-recording` selects recording. Missing confirmation, other platforms/targets and unknown permission names refuse without launching anything. `computer-status` exposes coded failure and per-permission booleans; raw diagnostics are not user-facing copy.
+
+## iPhone unlock on macOS
+
+- Use the [signed helper runbook](../../../../packages/computer/native/unlock/README.md).
+  Run all four physical cases on one approved iPhone and the same Mac console account.
+  Keep recordings stopped during password entry. Check that Computer Pause survives
+  the attempt and that Bots resume only after the Human uses the explicit control.
+- Run `pnpm exec vitest run packages/computer/test/unlock-native.test.ts` on macOS.

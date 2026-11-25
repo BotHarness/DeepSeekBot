@@ -20,7 +20,6 @@ import {
 } from '../features/channels/tools.js';
 import { registerExternalMessagingTools } from '../features/messaging/tools.js';
 import { createListAssignmentModelsTool } from '../features/models/tools.js';
-import { registerMemoryTools } from '../features/memory/tools.js';
 import {
   createBridgeAttachmentSaveTool,
   registerChannelFileTools,
@@ -139,7 +138,6 @@ export function orchestratorTools(
       },
     ),
   );
-  registerMemoryTools(currentRun, registerTool);
   const resolveModelPlan = () => adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
   const loadAssignmentModes = () => adapter.assignmentModes?.(run.bot.slug);
   const assignmentOptions: AssignmentToolOptions = {

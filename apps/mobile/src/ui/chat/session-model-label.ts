@@ -113,3 +113,16 @@ export function sessionModelLabel({
     pending,
   };
 }
+
+export function sessionDefaultModel(
+  choice: SessionModelChoice | null,
+  catalog: SessionModelCatalog | undefined,
+): { detail?: string; brand?: ModelBrand } {
+  if (choice === null) return {};
+  if (choice.kind === 'group') {
+    const group = catalog?.groups?.find((row) => row.id === choice.id);
+    return group === undefined ? {} : { detail: group.name };
+  }
+  const label = turnTargetLabel(choiceTarget(choice)!, catalog);
+  return { detail: label.short, ...(label.brand === undefined ? {} : { brand: label.brand }) };
+}

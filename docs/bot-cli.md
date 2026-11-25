@@ -563,6 +563,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"default-role","roleId":"<role-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
@@ -595,6 +596,7 @@ deepseekbot browser-takeover <bot-id> --enabled
 deepseekbot browser-takeover <bot-id> --disabled
 deepseekbot browser-stop <bot-id>
 deepseekbot computer-status
+deepseekbot computer-unlock-status
 deepseekbot computer-start --target local
 deepseekbot computer-stop
 deepseekbot computer-frame --out /tmp/desktop.jpg
@@ -605,6 +607,11 @@ deepseekbot grants <bot-id>
 ```
 
 `browser-open` starts the Bot's Browser (Browser Access must be on) and returns its tab and viewer URL. `browser-frame` saves the current picture to an absolute path and reports its size and viewport, so an agent can look at what the Bot sees. `browser-takeover --enabled` pauses the Bot's Browser for Human input and `--disabled` hands it back. `computer-start` carries the explicit authorization the panel button sends; read the result with `computer-status`, whose `status.detail` explains a refusal such as a missing OS permission or display. `grants` lists a Bot's Workspace Grants from a live Host. Route refusals keep the Host's code, or `host-refused` with its message.
+
+`computer-unlock-status` reads the Mac helper capability and observed lock state.
+`ready` means the signed helper can be reached. `accessibility-required` means the
+Human needs to enable the helper in macOS System Settings. Open Computer on the
+paired iPhone to unlock it.
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 
@@ -658,6 +665,7 @@ deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
 deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
+deepseekbot session-model <bot-id>
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -685,7 +693,8 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived] [--limit <1-200>] [--cursor <cursor>]
+deepseekbot session-list-changes [--since <seq> [--epoch <epoch>]]
 deepseekbot session-import-list
 deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
 deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
@@ -698,7 +707,7 @@ deepseekbot session-send <native-session-id> [--] <text>
 deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
 ```
 
-These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. With `--limit`, the list returns one page and a `nextCursor`; pass it as `--cursor` to read the next page. `session-list-changes` without `--since` returns the current change cursor (`reset: true`). With `--since` and `--epoch` from an earlier cursor, it returns the rows that changed, the IDs of removed Sessions and a new cursor, or `reset: true` when the Host restarted or the change log no longer covers that cursor; then read the full list again. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
 
 The Host Owner can read native approval and question cards in `pendingInput` from `session-transcript` and `session-live`. Pass the card's `requestId` to the matching answer command. For a question, send a JSON object such as `{"answers":[{"id":"format","selected":["Compact"]}]}` on stdin, with one answer per question. A free-text answer uses `"selected":[]` and a `custom` string. Omit `custom` with an empty selection to skip an individual question. An already settled request returns `session-input-not-pending`.
 
@@ -738,7 +747,7 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 `session-transcript` includes `turnTargets` on replies and turn endings when attribution is available. Targets appear in execution order. The final entry produced the reply. DSH entries carry `provider` and `model`. Subscription Engine entries carry `engine` and any model and reasoning effort the Host could establish. `model-plan <bot-id>` also includes `currentTarget` for the Bot’s current Orchestrator Session after its first execution.
 
-`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Give `--set` one JSON Model Choice object:
+`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Without `--session` it reads the `default` a new Orchestrator Session of the Bot would start with (`override` is `null`); the phone names that model in the composer before the first message. Give `--set` one JSON Model Choice object:
 
 - API model: `{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
 - Subscription Engine: `{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`. Add `accountId` to select a particular granted account.
