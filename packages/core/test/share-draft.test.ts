@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
@@ -32,8 +32,11 @@ function tree(root: string): Record<string, string> {
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
-      else
-        out[relative(root, full)] = createHash('sha256').update(readFileSync(full)).digest('hex');
+      else {
+        const path = relative(root, full);
+        if (path.split(sep)[0] === '.git' && path.endsWith('.lock')) continue;
+        out[path] = createHash('sha256').update(readFileSync(full)).digest('hex');
+      }
     }
   };
   walk(root);
@@ -77,6 +80,18 @@ function fixture() {
   });
   return { core, bridge, drafts, slug, memory };
 }
+
+describe('share draft snapshot', () => {
+  it('ignores transient git lock files', () => {
+    const root = createTempRoot('share-draft-tree-');
+    mkdirSync(join(root, '.git', 'objects'), { recursive: true });
+    writeFileSync(join(root, '.git', 'objects', 'maintenance.lock'), '');
+    writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    writeFileSync(join(root, 'note.md'), 'kept');
+
+    expect(Object.keys(tree(root)).sort()).toEqual(['.git/HEAD', 'note.md']);
+  });
+});
 
 describe('Share Draft', () => {
   it('flags secrets, emails and phone numbers', () => {
