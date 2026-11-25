@@ -21,7 +21,13 @@ if (!process.argv.includes('--name') || !/^[a-z0-9][a-z0-9-]*$/u.test(name ?? ''
 const paths = verifyPaths(name, root);
 const directory = resolve(paths.dir, 'computer-lifecycle', `attempt-${Date.now()}-${process.pid}`);
 mkdirSync(directory, { recursive: true });
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+const git = (...args) =>
+  execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 const run = {
   version: 1,
   behavior,
@@ -66,6 +72,8 @@ const command = (args, input, allowRefusal = false) => {
     {
       cwd: root,
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
       input:
         typeof input === 'string' ? input : input === undefined ? undefined : JSON.stringify(input),
       timeout: 40_000,
@@ -92,6 +100,8 @@ const authority = () => command(['computer-status']);
 const docker = (args) => {
   const r = spawnSync('docker', args, {
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
     timeout: 30_000,
     maxBuffer: 1024 * 1024,
   });
@@ -132,6 +142,8 @@ const health = async () => {
   const result = spawnSync(process.execPath, ['scripts/verify-app.mjs', 'doctor', '--name', name], {
     cwd: root,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
     timeout: 70_000,
   });
   try {
@@ -282,7 +294,7 @@ try {
   await page.waitForSelector('button[aria-label="Bot mode"]', { timeout: 30_000 });
   const dismissOnboarding = async () => {
     for (let round = 0; round < 6; round++) {
-      for (const label of ['Continue', 'Configure later', 'Skip tutorial']) {
+      for (const label of ['Continue', 'Configure later', 'Skip tutorial', 'Skip']) {
         const handle = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
         if (handle && (await handle.isVisible())) await handle.click();
       }
@@ -292,25 +304,23 @@ try {
   await dismissOnboarding();
   stage = 'enter-Bot-mode';
   await click('Bot mode');
-  await page.waitForSelector('.bh-mode-sidebar', { visible: true, timeout: 30_000 });
-  await page.keyboard.press('Escape');
+  const channels = '[data-dock-panel="bh:channels"]';
+  await page.waitForSelector(channels, { visible: true, timeout: 30_000 });
   const botName = created.bot.name;
   const selectBot = async () => {
     await dismissOnboarding();
-    const tree = await page.accessibility.snapshot({ interestingOnly: false });
-    const findBot = (node) => {
-      if (node.role === 'button' && node.name.startsWith(`${botName}: `)) return node.name;
-      for (const child of node.children ?? []) {
-        const label = findBot(child);
-        if (label) return label;
-      }
-    };
-    const label = findBot(tree);
-    if (!label) throw new Error('created-Bot-sidebar-entry-missing');
-    await page
-      .locator(`.bh-mode-sidebar button[data-channel-id="${created.dm.channelId}"]`)
-      .setTimeout(20_000)
-      .click();
+    const row = `${channels} button[data-channel-id="${created.dm.channelId}"]`;
+    await page.waitForSelector(row, { visible: true, timeout: 20_000 });
+    const label = await page.$eval(row, (el) => el.innerText.split('\n')[0]);
+    if (label !== botName) throw new Error('created-Bot-sidebar-entry-missing');
+    for (let attempt = 0; !(await page.$(`${row}[aria-current="page"]`)); attempt++) {
+      if (attempt === 8) throw new Error('created-Bot-selection-blocked');
+      await dismissOnboarding();
+      await page.click(row);
+      await page
+        .waitForSelector(`${row}[aria-current="page"]`, { timeout: 2_500 })
+        .catch(() => undefined);
+    }
     run.actions.push({
       click: label,
       channelId: created.dm.channelId,
@@ -319,12 +329,14 @@ try {
     await dismissOnboarding();
   };
   await selectBot();
-  for (const label of ['Close Sessions', 'Close Bot Inbox']) {
-    const handle = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
-    if (handle && (await handle.isVisible())) await click(label);
-  }
-  await click('Computer');
-  const panel = '[data-sidebar-entry="computer"]';
+  const panel = '[data-subpanel-entry="botharness-computer"]';
+  const head = 'button[data-panel-head][aria-controls="bh-subpanel-botharness-computer"]';
+  await page.waitForSelector(head, { visible: true, timeout: 20_000 });
+  for (const expanded of await page.$$('button[data-panel-head][aria-expanded="true"]'))
+    await expanded.click();
+  await page.click(head);
+  run.actions.push({ click: 'Computer', at: new Date().toISOString() });
+  await page.waitForSelector(`${head}[aria-expanded="true"]`, { timeout: 20_000 });
   const observe = async (phase) => {
     await page.waitForSelector(panel, { visible: true, timeout: 30000 });
     save(
@@ -335,7 +347,7 @@ try {
         accessLabel: el.querySelector('.bh-computer-access-power')?.getAttribute('aria-label'),
         selectedChannels: [
           ...new Set(
-            [...document.querySelectorAll('.bh-selected[data-channel-id]')]
+            [...document.querySelectorAll('[aria-current="page"][data-channel-id]')]
               .filter((e) => e.checkVisibility())
               .map((e) => e.getAttribute('data-channel-id')),
           ),
@@ -481,14 +493,17 @@ try {
     run.reason ??= 'browser-cleanup-failed';
   });
   if (run.status === 'pass') {
+    let problems;
     try {
-      const problems = computerProblems(run, (name) =>
+      problems = computerProblems(run, (name) =>
         JSON.parse(readFileSync(resolve(directory, name + '.json'), 'utf8')),
       );
-      if (problems.length) throw new Error(problems.join('; '));
     } catch (error) {
+      problems = [error.message];
+    }
+    if (problems.length) {
       run.status = 'fail';
-      run.reason = redact(error.message);
+      run.reason = redact(problems.join('; '));
     }
   }
   if (run.status === 'fail' && !existsSync(resolve(directory, 'failure.json')))

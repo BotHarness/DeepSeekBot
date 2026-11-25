@@ -15,7 +15,12 @@ const paths = verifyPaths(name, root);
 const directory = resolve(paths.dir, 'preflight', `attempt-${Date.now()}-${process.pid}`);
 mkdirSync(directory, { recursive: true });
 const record = {
-  commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  commit: execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim(),
   startedAt: new Date().toISOString(),
   status: 'blocked',
   commands: [],
@@ -137,7 +142,13 @@ try {
   const bytes = JSON.stringify(record, null, 2) + '\n';
   writeFileSync(resolve(directory, 'preflight.json'), bytes, { mode: 0o600 });
   if (record.status === 'blocked') {
-    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    const git = (...args) =>
+      execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim();
     writeFileSync(
       resolve(directory, 'run.json'),
       JSON.stringify(
