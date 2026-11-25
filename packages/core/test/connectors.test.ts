@@ -197,6 +197,29 @@ describe('connector accounts and grants', () => {
     }
   });
 
+  it('names the missing permission when the key is read-only', async () => {
+    const { client } = fakeClient({
+      link: async () => {
+        const { ComposioError } = await import('../src/connectors/composio.js');
+        throw new ComposioError(
+          403,
+          'Composio returned HTTP 403',
+          'APIKey_InsufficientPermissions',
+        );
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_read_only_1234');
+      await expect(service.connect({ service: 'gmail' })).rejects.toMatchObject({
+        code: 'invalid',
+        message: expect.stringContaining('write access to Session management'),
+      });
+    } finally {
+      owner.close();
+    }
+  });
+
   it('resolves the strongest access through the grant resolver', () => {
     const grants = [
       {

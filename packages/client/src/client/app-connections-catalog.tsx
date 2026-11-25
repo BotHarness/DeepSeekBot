@@ -18,12 +18,47 @@ import type { BotHarnessTranslate } from './locale.js';
 
 type Entry = ConnectorsView['catalog'][number];
 
-export function matchesApp(entry: Entry, query: string): boolean {
+const LOCALIZED = new Set([
+  'gmail',
+  'googlecalendar',
+  'googledrive',
+  'googledocs',
+  'googlesheets',
+  'outlook',
+  'notion',
+  'slack',
+  'github',
+  'linear',
+  'jira',
+  'asana',
+  'trello',
+  'airtable',
+  'dropbox',
+  'figma',
+  'hubspot',
+  'discord',
+  'twitter',
+  'reddit',
+] as const);
+
+type Localized = typeof LOCALIZED extends Set<infer T> ? T : never;
+
+export function appSummary(entry: Entry, t: BotHarnessTranslate): string {
+  return LOCALIZED.has(entry.service as Localized)
+    ? t(`connectors.app.${entry.service as Localized}`)
+    : entry.summary;
+}
+
+export function matchesApp(entry: Entry, query: string, t: BotHarnessTranslate): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
-  return [entry.service, entry.name, entry.summary, ...(entry.keywords ?? [])].some((part) =>
-    part.toLowerCase().includes(needle),
-  );
+  return [
+    entry.service,
+    entry.name,
+    entry.summary,
+    appSummary(entry, t),
+    ...(entry.keywords ?? []),
+  ].some((part) => part.toLowerCase().includes(needle));
 }
 
 export function AppCatalog({
@@ -38,7 +73,7 @@ export function AppCatalog({
   onPick: (service: string) => void;
 }): ReactElement {
   const [query, setQuery] = useState('');
-  const shown = view.catalog.filter((entry) => matchesApp(entry, query));
+  const shown = view.catalog.filter((entry) => matchesApp(entry, query, t));
   return (
     <FieldStack>
       <SearchField label={t('connectors.catalog.search')} value={query} onChange={setQuery} />
@@ -54,7 +89,7 @@ export function AppCatalog({
               <CatalogCard
                 key={entry.service}
                 title={entry.name}
-                summary={entry.summary}
+                summary={appSummary(entry, t)}
                 meta={
                   count > 0
                     ? t('connectors.catalog.connected', { count })

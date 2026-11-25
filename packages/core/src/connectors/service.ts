@@ -151,7 +151,12 @@ export class ConnectorService {
       return await run();
     } catch (error) {
       if (error instanceof ComposioError) {
-        this.#log('composio-failed', { status: error.status });
+        this.#log('composio-failed', { status: error.status, slug: error.slug ?? '' });
+        if (error.slug === 'APIKey_InsufficientPermissions')
+          throw new ConnectorError(
+            'invalid',
+            'The Composio API key lacks a permission this needs. Use a key with write access to Session management, Session tool execution, Connected accounts and Auth configs.',
+          );
         throw new ConnectorError(
           error.status === 401 || error.status === 403 ? 'invalid' : 'upstream',
           error.status === 401 || error.status === 403

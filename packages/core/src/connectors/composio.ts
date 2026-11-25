@@ -6,6 +6,7 @@ export class ComposioError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly slug?: string,
   ) {
     super(message);
   }
@@ -125,19 +126,22 @@ export function createComposioClient(
     });
     if (!response.ok) {
       let detail = '';
+      let slug: string | undefined;
       try {
         const body = (await response.json()) as {
-          error?: { message?: unknown };
+          error?: { message?: unknown; slug?: unknown };
           message?: unknown;
         };
         const message = body.error?.message ?? body.message;
         if (typeof message === 'string') detail = ': ' + message.slice(0, 300);
+        if (typeof body.error?.slug === 'string') slug = body.error.slug;
       } catch {
         detail = '';
       }
       throw new ComposioError(
         response.status,
         `Composio returned HTTP ${response.status}${detail}`,
+        slug,
       );
     }
     if (response.status === 204) return undefined;
