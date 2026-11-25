@@ -337,6 +337,8 @@ export function createHostSessionsMethods(
         withSources: true,
       });
       if (read === undefined) return unavailable;
+      if (sessionAccessKey(scope) !== access)
+        return { ok: true, value: { reset: true, cursor: changes.cursor } };
       const visible = new Map(read.sessions.map((row) => [row.sessionId, row]));
       const sessions: HostSessionRow[] = [];
       const removed: string[] = [];

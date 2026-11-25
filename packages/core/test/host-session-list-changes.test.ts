@@ -19,9 +19,10 @@ function setup() {
     row('owner-only', { title: 'Owner bot work' }),
     row('child', { parentSessionId: 'native' }),
   ];
+  const list = vi.fn(async () => rows);
   const f = fixture({
     nativeSessions: {
-      list: vi.fn(async () => rows),
+      list,
       read: vi.fn(),
       isRoot: vi.fn(),
       send: vi.fn(),
@@ -36,7 +37,7 @@ function setup() {
     ['owner-gone', 'owner-bot'],
   ] as const)
     f.ownership.claim({ sessionId: id, botSlug, rootRole: 'orchestrator', at: '2026-11-26' });
-  return { f, changes, setRows: (next: typeof rows) => (rows = next) };
+  return { f, changes, list, setRows: (next: typeof rows) => (rows = next) };
 }
 
 async function memberEpoch(bridge: {
@@ -202,4 +203,23 @@ it('resets a member who lost or gained a Bot, and keeps the cursor while access 
   const next = { sinceSeq: after.value.cursor.seq, epoch: after.value.cursor.epoch };
   owner('bob-bot', 'alice');
   expect(await member.sessionListChanges(next)).toMatchObject({ ok: true, value: { reset: true } });
+});
+
+it('resets when the member access changes while their changed rows are read', async () => {
+  const { f, changes, list } = setup();
+  const member = f.bridge(alice);
+  const start = await member.sessionListChanges({});
+  if (!start.ok) throw new Error('no cursor');
+  changes.changed(true, 'alice');
+  const rows = await list();
+  list.mockImplementationOnce(async () => {
+    f.channels.getOrCreateDm(bob, 'alice-bot', 'alice-bot');
+    return rows;
+  });
+  expect(
+    await member.sessionListChanges({
+      sinceSeq: start.value.cursor.seq,
+      epoch: start.value.cursor.epoch,
+    }),
+  ).toMatchObject({ ok: true, value: { reset: true } });
 });
