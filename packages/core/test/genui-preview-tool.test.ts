@@ -66,6 +66,22 @@ describe('GenUI preview Tool', () => {
     ]);
   });
 
+  it('accepts a width the model writes as a numeric string', async () => {
+    const tool = createGenuiPreviewTool({
+      saveImage: vi.fn().mockResolvedValue({ type: 'image', id: 'synthetic-image' }),
+    });
+    for (const [width, expected] of [
+      [760, 760],
+      ['760', 760],
+      [' 880px ', 880],
+    ] as const) {
+      await tool.execute({ genui_json: '{}', width }, execution);
+      expect(preview).toHaveBeenLastCalledWith({}, expect.objectContaining({ width: expected }));
+    }
+    await tool.execute({ genui_json: '{}', width: 'wide' }, execution);
+    expect(preview).toHaveBeenLastCalledWith({}, expect.objectContaining({ width: Number.NaN }));
+  });
+
   it('refuses oversized JSON before launching a browser', async () => {
     const tool = createGenuiPreviewTool({ saveImage: vi.fn() });
     await expect(tool.execute({ genui_json: 'x'.repeat(262_145) }, execution)).rejects.toThrow(
