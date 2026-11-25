@@ -7,10 +7,23 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 83, left: 0, right: 0 }),
+}));
+vi.mock('../src/ui/shell/window-insets', () => ({
+  useWindowInsets: () => ({ top: 0, bottom: 34, left: 0, right: 0 }),
 }));
 vi.mock('react-native-keyboard-controller', () => ({
-  KeyboardStickyView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  KeyboardStickyView: ({
+    children,
+    offset,
+  }: {
+    children: ReactNode;
+    offset: { closed: number; opened: number };
+  }) => (
+    <div data-testid="keyboard-sticky" data-opened={offset.opened}>
+      {children}
+    </div>
+  ),
 }));
 vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
@@ -181,9 +194,18 @@ it('expands the Search pill into a field only when tapped, and starts a New Sess
     expect.anything(),
   );
   await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-cancel"]')!.click(),
+    view.querySelector<HTMLElement>('[data-testid="session-drawer-search-close"]')!.click(),
   );
   expect(view.querySelector('[data-testid="session-drawer-search-field"]')).toBeNull();
+});
+
+it('keeps Search and New Session at the window bottom inset, not the tab bar’s', async () => {
+  const { view } = await render();
+  const footer = view.querySelector<HTMLElement>('[data-testid="session-drawer-footer"]')!;
+  expect(JSON.parse(footer.getAttribute('data-style')!)).toMatchObject({ paddingBottom: 34 });
+  expect(view.querySelector('[data-testid="keyboard-sticky"]')!.getAttribute('data-opened')).toBe(
+    '34',
+  );
 });
 
 it('hides New Session from a member', async () => {
