@@ -58,11 +58,12 @@ export function isConnectRequest(request: Pick<IncomingMessage, 'headers'>): boo
   return request.headers[DEVICE_ROUTE_HEADER] === connectTag;
 }
 
+export function isManagedTlsRoute(request: Pick<IncomingMessage, 'headers'>): boolean {
+  return request.headers[DEVICE_ROUTE_HEADER] === managedTlsTag;
+}
+
 export function isManagedTlsRequest(request: Pick<IncomingMessage, 'headers'>): boolean {
-  return (
-    request.headers[DEVICE_ROUTE_HEADER] === managedTlsTag &&
-    request.headers['x-forwarded-proto'] === 'https'
-  );
+  return isManagedTlsRoute(request) && request.headers['x-forwarded-proto'] === 'https';
 }
 
 export function forwardDeviceRoute(request: IncomingMessage): Record<string, string> {

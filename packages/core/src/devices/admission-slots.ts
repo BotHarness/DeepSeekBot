@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { isAddressRouteRequest, isConnectRequest, isManagedTlsRequest } from './route-context.js';
+import { isAddressRouteRequest, isConnectRequest, isManagedTlsRoute } from './route-context.js';
 
 export const OPEN_ROUTE_PENDING_LIMIT = 8;
 
@@ -11,7 +11,7 @@ export type AdmissionSlot = { route: OpenRoute; release(): void };
 function openRoute(request: IncomingMessage): OpenRoute | undefined {
   if (isAddressRouteRequest(request)) return 'address';
   if (isConnectRequest(request)) return 'connect';
-  if (isManagedTlsRequest(request)) return 'managed-tls';
+  if (isManagedTlsRoute(request)) return 'managed-tls';
 }
 
 export function createAdmissionSlots(limit = OPEN_ROUTE_PENDING_LIMIT) {
