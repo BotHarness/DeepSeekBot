@@ -135,7 +135,7 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录原生 Go 的 Session 请求头要求及经核验的 DSH 0.2.0 RC1 适配器补丁，通过真实模型调用和已保存 DM 回复验证；DSH／Cordis 词汇与 Skill 行为不变（[#1079](https://github.com/BotHarness/BotHarness/issues/1079), [AX 指南](../../../docs/agents/ax-model.md)）。
 
-- 链接应用定义的 Human Channel 媒体授权及候选 Lark 图片指南；DSH／Cordis 词汇、API Gateway 归属与 Skill 行为保持不变（[#1021](https://github.com/BotHarness/BotHarness/issues/1021), [指南](../../../docs/lark-connection.md), [ADR](../../../docs/adr/0135-human-bridge-media-uses-channel-source-authority.md)）。
+- 链接应用定义的 Human Channel 媒体授权及候选 Lark 图片指南；DSH／Cordis 词汇、API Gateway 归属与 Skill 行为保持不变（[#1021](https://github.com/BotHarness/BotHarness/issues/1021), [指南](../../../docs/lark-connection.md), [ADR](../../../docs/decisions/im-providers.md#adr-0137)）。
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录应用角色文件修改与已持久化 QA Session 中冻结指令的区别，通过 DSH 0.2.0 RC1 的真实模型事件核验；平台词汇与 Skill 行为不变（[#905](https://github.com/BotHarness/BotHarness/issues/905)）。
 

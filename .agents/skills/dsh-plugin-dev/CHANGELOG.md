@@ -136,7 +136,7 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 - Recorded the native Go Session header requirement and the qualified DSH 0.2.0 RC1 adapter patch in the [local development guide](../dsh-dev/SKILL.md), verified with an actual model call and committed DM reply; DSH/Cordis vocabulary and Skill behavior remain unchanged ([#1079](https://github.com/BotHarness/BotHarness/issues/1079), [AX guide](../../../docs/agents/ax-model.md)).
 
-- Linked the application-defined Human Channel media authority and candidate Lark image guide; DSH/Cordis vocabulary, API Gateway ownership and Skill behavior remain unchanged ([#1021](https://github.com/BotHarness/BotHarness/issues/1021), [guide](../../../docs/lark-connection.md), [ADR](../../../docs/adr/0135-human-bridge-media-uses-channel-source-authority.md)).
+- Linked the application-defined Human Channel media authority and candidate Lark image guide; DSH/Cordis vocabulary, API Gateway ownership and Skill behavior remain unchanged ([#1021](https://github.com/BotHarness/BotHarness/issues/1021), [guide](../../../docs/lark-connection.md), [ADR](../../../docs/decisions/im-providers.md#adr-0137)).
 
 - Recorded the distinction between edited application role files and frozen instructions in a persisted QA Session in the [local development guide](../dsh-dev/SKILL.md), verified from real DSH 0.2.0 RC1 model events; platform vocabulary and Skill behavior remain unchanged ([#905](https://github.com/BotHarness/BotHarness/issues/905)).
 

@@ -321,7 +321,11 @@ export function createPairingText(options: {
     if (!target && !parsed.reference && knownRole) {
       const pending = requests.filter((item) => item.status === 'pending' && reachable(item));
       if (pending.length === 1 && !approvalPending(conversation)) target = pending[0];
-      else if (!pending.length && event.conversation.kind === 'dm') {
+      else if (
+        !pending.length &&
+        event.conversation.kind === 'dm' &&
+        !approvalPending(conversation)
+      ) {
         const cutoff = Date.now() - RECENT_MS;
         target = requests
           .filter(

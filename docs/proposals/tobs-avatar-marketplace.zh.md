@@ -4,7 +4,7 @@
 
 第一条完整路径走 Web。Tobs 对用户开放前，移动端用同一套验收再走一遍。
 
-术语见 [GLOSSARY.md](../../GLOSSARY.md) 中的 Marketplace、Marketplace Avatar、Apply、Apply Count、Marketplace Ranking。关键取舍见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)（按 Bot 计数，不防刷）和 [ADR-0359](../adr/0359-marketplace-avatar-images-are-processed-on-the-client.md)（图片由客户端处理，服务端只做低成本检查）。
+术语见 [GLOSSARY.md](../../GLOSSARY.md) 中的 Marketplace、Marketplace Avatar、Apply、Apply Count、Marketplace Ranking。关键取舍见 [ADR-0358](../decisions/marketplace.md#adr-0358)（按 Bot 计数，不防刷）和 [ADR-0359](../decisions/marketplace.md#adr-0359)（图片由客户端处理，服务端只做低成本检查）。
 
 本修订以 `main@e9d601ed3` 源码为依据，未启动 Host，也未在 Cloudflare 环境中验证。
 

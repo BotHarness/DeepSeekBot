@@ -61,6 +61,7 @@ import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 type SessionTranscriptRead = SessionTranscript & {
   sessionId: string;
   role: SessionRootRole | 'native';
+  parentSessionId?: string;
   currentTarget?: TurnTarget;
 };
 
@@ -647,10 +648,10 @@ export function createSessionsBridgeMethods(
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
       const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+      if (owner?.botSlug !== slug)
         return {
           ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+          error: { code: 'not-found', message: `unknown Session: ${sessionId}` },
         };
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
@@ -664,6 +665,9 @@ export function createSessionsBridgeMethods(
         value: {
           sessionId,
           role: owner.rootRole,
+          ...(owner.parentSessionId === undefined
+            ? {}
+            : { parentSessionId: owner.parentSessionId }),
           ...(displayTitle === undefined ? {} : { displayTitle }),
           ...(engine === undefined || currentTarget?.kind === 'dsh' ? {} : { engine }),
           ...(currentTarget === undefined ? {} : { currentTarget }),
@@ -686,10 +690,10 @@ export function createSessionsBridgeMethods(
       if (callId === undefined) return invalidInput('callId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
       const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+      if (owner?.botSlug !== slug)
         return {
           ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+          error: { code: 'not-found', message: `unknown Session: ${sessionId}` },
         };
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
