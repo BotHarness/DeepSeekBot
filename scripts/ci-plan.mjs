@@ -188,8 +188,8 @@ export const RULES = [
     PROTOCOL,
   ),
   related(
-    'packages/computer/src/local-video-contract.ts',
-    'Local Computer media wire contract',
+    'packages/computer/src/{local-video-contract,unlock-contract}.ts',
+    'Local Computer media and unlock wire contracts',
     false,
     PROTOCOL,
   ),
@@ -221,9 +221,12 @@ export const RULES = [
   related('packages/*/profile-extension/**', 'Browser profile extension sources'),
   related('packages/*/assets/**', 'Package assets'),
   related(
-    'packages/computer/native/**',
-    'Windows Local Computer media helper source and protocol fixtures',
+    '{packages/computer/native/unlock,apps/mobile/modules/computer-unlock}/**',
+    'Signed Mac and iOS Computer unlock sources',
+    false,
+    AUTH,
   ),
+  related('packages/computer/native/**', 'Local Computer native helpers and protocol fixtures'),
   related(
     'packages/*/migrations/**',
     'D1 migrations read by worker test harnesses',

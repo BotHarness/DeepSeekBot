@@ -247,10 +247,7 @@ export interface BotRuntimeOptions {
   registry: PersonaBotRegistry;
   channels: ChannelStore;
   agents: BotAgentAdapter;
-  memory?: Pick<
-    MemoryService,
-    'prepareTurn' | 'reconcileTurn' | 'abortTurn' | 'switchBranch' | 'continueFromCommit'
-  > &
+  memory?: Pick<MemoryService, 'prepareTurn' | 'reconcileTurn' | 'abortTurn'> &
     Partial<
       Pick<
         MemoryService,

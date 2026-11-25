@@ -187,10 +187,6 @@ export interface OrchestratorAgentRun {
     update(id: string, change: BotScheduleChange): BotSchedule;
     remove(id: string): boolean;
   };
-  memory?: {
-    switchBranch(branch: string): { from: string; to: string; head: string };
-    continueFromCommit(sha: string, branch: string): { from: string; to: string; head: string };
-  };
 }
 
 export interface InterruptedToolCall {

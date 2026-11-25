@@ -33,6 +33,7 @@ import {
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { join } from 'node:path';
+import type { ComputerService } from '../../../computer/src/service.js';
 import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
 import { localVideoCommand } from '../../../computer/src/local-video-http.js';
 import type { VoiceCallResult } from '../voice/call-contract.js';
@@ -130,7 +131,7 @@ export function mountDevicePairing(
   let push: PushDelivery | undefined;
   let activity: ActivityDelivery | undefined;
   const videoOwner = (): LocalVideoOwner | undefined =>
-    (ctx.get('botharnessComputer') as { localVideo?: LocalVideoOwner } | undefined)?.localVideo;
+    (ctx.get('botharnessComputer') as ComputerService | undefined)?.localVideo;
   const voiceCall = async (
     caller: { deviceId: string },
     command: unknown,
@@ -425,6 +426,8 @@ export function mountDevicePairing(
           key: identity.key,
           port: () => webServer.port,
           route: 'lan',
+          computerUnlock: () =>
+            (ctx.get('botharnessComputer') as ComputerService | undefined)?.unlock,
           localVideo: ({ deviceId, command, signal }) =>
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
           voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),

@@ -1,6 +1,7 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { isConnectRoute, isEncryptedRoute, isLanRoute } from '@botharness/host-protocol/route';
 import type { AttachmentRef, ClientRequest } from '@botharness/host-protocol/wire';
+import { COMPUTER_UNLOCK_PATH } from '../../computer/src/unlock-contract';
 import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
 import { secretRouteRefusal } from '../../core/src/bridge/secret-route';
 import { VOICE_CALL_CONNECT_REFUSAL, VOICE_CALL_PATH } from '../../core/src/voice/call-contract';
@@ -161,6 +162,8 @@ export function createHostRequests(
 
   const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
     withDeadline(async (signal) => {
+      if (path === COMPUTER_UNLOCK_PATH && !isLanRoute(connection.route))
+        return { status: 403, body: { code: 'unavailable' } };
       if (isConnectRoute(connection.route) && path === LOCAL_VIDEO_PATH)
         return {
           status: 403,
@@ -175,7 +178,10 @@ export function createHostRequests(
       if (
         isEncryptedRoute(connection.route, options.encryption) &&
         /^\/api\/(?:browser|computer)\//u.test(path) &&
-        !(isLanRoute(connection.route) && path === LOCAL_VIDEO_PATH)
+        !(
+          isLanRoute(connection.route) &&
+          (path === LOCAL_VIDEO_PATH || path === COMPUTER_UNLOCK_PATH)
+        )
       )
         throw new MethodRefused(
           'connect-viewer-unavailable',
