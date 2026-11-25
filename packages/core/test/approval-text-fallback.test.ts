@@ -76,6 +76,7 @@ describe('approvals without cards', () => {
     expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.status).toBe(
       'pending',
     );
+    await vi.waitFor(() => expect(f.replies.mock.calls.at(-1)![2]).toContain('该回复未生效'));
   });
 
   it('does not let a quote of a settled approval pick another one', async () => {

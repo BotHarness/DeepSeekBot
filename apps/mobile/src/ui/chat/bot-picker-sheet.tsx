@@ -1,6 +1,6 @@
 import type { ReactElement, RefCallback } from 'react';
 import { FlatList, View } from 'react-native';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { ParticipantChoice } from '../primitives/participant-choice';
 import { useStrings } from '../strings';
 import { Sheet, SheetCallout } from './sheet';
@@ -29,7 +29,7 @@ export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerShe
   return (
     <View ref={props.mount}>
       <Sheet visible label={props.title} onClose={props.onClose}>
-        <DrawerHeader
+        <SheetHeader
           title={props.title}
           onClose={props.onClose}
           {...(props.canConfirm ? { onConfirm: () => void props.onConfirm() } : {})}

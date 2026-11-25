@@ -309,6 +309,7 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
     expect(parameterNames(service.sessions)).toEqual(['slug', 'includeTitles']);
+    expect(parameterNames(service.sessionListChanges)).toEqual(['sinceSeq', 'epoch']);
     expect(parameterNames(service.sessionList)).toEqual([
       'search',
       'sort',

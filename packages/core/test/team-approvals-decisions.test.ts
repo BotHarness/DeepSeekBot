@@ -703,6 +703,10 @@ describe('M5 approval projections and decisions', () => {
       db.prepare("INSERT INTO human_roles VALUES ('alice', 'admin')").run(),
     );
     expect(() => f.team.approvals.require(alice, 'alice-bot', true)).not.toThrow();
+    expect(() => f.team.approvals.require(alice, 'alice-bot', 'host-owner')).toThrow(
+      'approval-not-allowed',
+    );
+    expect(() => f.team.approvals.require(owner, 'alice-bot', 'host-owner')).not.toThrow();
     f.database.transaction((db) =>
       db.prepare("DELETE FROM human_roles WHERE human_id = 'alice' AND role_id = 'admin'").run(),
     );

@@ -34,6 +34,7 @@ import { PROFILE_COMMANDS } from './cli-profile.js';
 import { TODO_COMMANDS } from './cli-todos.js';
 import { APPROVAL_TEMPLATE_COMMANDS } from './cli-approval-templates.js';
 import { PROMPT_PRESET_COMMANDS } from './cli-prompt-presets.js';
+import { CONNECTOR_COMMANDS } from './cli-connectors.js';
 import { APPROVAL_REVIEWER_COMMANDS } from './cli-approval-reviewer.js';
 import { VOICE_COMMANDS } from './cli-voice.js';
 import { CALL_COMMANDS } from './cli-call.js';
@@ -95,6 +96,7 @@ export const LIVE_COMMANDS = [
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,
+  ...CONNECTOR_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
   ...VOICE_COMMANDS,
   ...CALL_COMMANDS,
@@ -259,6 +261,11 @@ export const LIVE_COMMANDS = [
   {
     command: 'computer-status',
     description: 'read the profile Computer target and state',
+  },
+  {
+    command: 'computer-unlock-status',
+    description:
+      'read whether the Mac can be unlocked from a paired iPhone and whether it is locked',
   },
   {
     command: 'computer-video',

@@ -11,6 +11,7 @@ const native = vi.hoisted(() => ({
   swipe: undefined as (() => void) | undefined,
   layout: undefined as ((height: number) => void) | undefined,
   hostMounts: 0,
+  detent: undefined as ((detent: string) => void) | undefined,
 }));
 const design = vi.hoisted(() => ({ scheme: 'light' as 'light' | 'dark' }));
 
@@ -44,8 +45,15 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   frame: (params: unknown) => ({ frame: params }),
   padding: (params: unknown) => ({ padding: params }),
-  presentationDetents: (detents: unknown) => ({ detents }),
+  presentationDetents: (
+    detents: unknown,
+    options?: { selection?: string; onSelectionChange?: (detent: string) => void },
+  ) => {
+    native.detent = options?.onSelectionChange;
+    return { detents, selection: options?.selection };
+  },
   presentationDragIndicator: (visibility: unknown) => ({ dragIndicator: visibility }),
+  presentationBackground: (color: unknown) => ({ background: color }),
 }));
 vi.mock('@expo/ui/swift-ui', async () => {
   const { useState } = await import('react');
@@ -109,7 +117,9 @@ async function mount(node: ReactNode) {
 function modifiers(view: HTMLElement) {
   return JSON.parse(view.querySelector('article')?.getAttribute('data-modifiers') ?? '[]') as {
     detents?: string[];
+    selection?: string;
     dragIndicator?: string;
+    background?: string;
   }[];
 }
 function detents(view: HTMLElement) {
@@ -128,6 +138,9 @@ it('opens the shell as a native SwiftUI sheet with the system grabber and hosted
   );
   expect(view.querySelector('dialog')?.hasAttribute('open')).toBe(true);
   expect(modifiers(view)).toContainEqual({ dragIndicator: 'visible' });
+  expect(modifiers(view)).not.toContainEqual(
+    expect.objectContaining({ background: expect.anything() }),
+  );
   expect(view.querySelector('section')?.getAttribute('data-match')).toBe('{"vertical":true}');
   expect(view.querySelector('section [aria-label="Model"] header')?.textContent).toContain('Model');
   expect(view.querySelector('section p')?.textContent).toBe('body');
@@ -213,6 +226,23 @@ it('opens short content at medium and switches to large once it measures taller'
   expect(detents(view)).toEqual(['medium']);
   await act(async () => native.layout?.(520));
   expect(detents(view)).toEqual(['large']);
+});
+
+it('opens a resizable sheet at medium, lets it grow to large and fills each detent', async () => {
+  const view = await mount(
+    <Sheet visible resizable label="Model" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  const detent = () => modifiers(view).find((modifier) => modifier.detents !== undefined);
+  expect(detent()).toEqual({ detents: ['medium', 'large'], selection: 'medium' });
+  expect(view.querySelector('section')?.getAttribute('data-match')).toBe('false');
+  expect(contentStyle(view)).toEqual({ flex: 1, paddingBottom: expect.any(Number) });
+  await act(async () => native.layout?.(900));
+  expect(detent()?.selection).toBe('medium');
+  await act(async () => native.detent?.('large'));
+  expect(detent()?.selection).toBe('large');
+  expect(contentStyle(view).maxHeight).toBeUndefined();
 });
 
 it('opens keyboard sheets large and caps the content above the keyboard', async () => {

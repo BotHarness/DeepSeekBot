@@ -42,6 +42,8 @@ function noticeText(t: Strings, notice: CallNotice): string {
       return t.call.missing['bot'];
     case 'missing.local-voice-off':
       return t.call.missing['local-voice-off'];
+    case 'missing.calls-full':
+      return t.call.missing['calls-full'];
     case 'missing.media-helper-missing':
       return t.call.missing['media-helper-missing'];
     case 'missing.media-unavailable':

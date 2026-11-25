@@ -355,6 +355,21 @@ describe('Team subscription grants', () => {
     expect(await f.methods.sessionModel({ ...payload, choice })).toMatchObject(refusal(f.work.id));
   });
 
+  it('answers a new Session’s default without a sessionId and only saves with one', async () => {
+    const f = fixture();
+    const existing = await f.methods.sessionModel({ slug: 'ada', sessionId: 'session' });
+    expect(existing).toMatchObject({ ok: true, value: { override: null } });
+    const fresh = await f.methods.sessionModel({ slug: 'ada' });
+    expect(fresh).toEqual({
+      ok: true,
+      value: { override: null, default: existing.ok ? existing.value.default : undefined },
+    });
+    expect(await f.methods.sessionModel({ slug: 'ada', choice: null })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
   it('lets members read their granted quota without the email and reserves refresh for managers', async () => {
     const f = fixture();
     f.grant(f.work.id);

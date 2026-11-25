@@ -141,8 +141,6 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     scanChangesAsync: (botSlug) => requireAcceptance().scanChangesAsync(botSlug),
     sourceReferences: (ids) => requireAcceptance().sourceReferences(ids),
     ...createMemoryFiles(registry),
-    continueFromCommit: (input) => requireAcceptance().continueFromCommit(input),
-    switchBranch: (input) => requireAcceptance().switchBranch(input),
     prepareTurn: (botSlug, sessionId, options) =>
       requireAcceptance().prepareTurn(botSlug, sessionId, options),
     scanChanges: (botSlug) => requireAcceptance().scanChanges(botSlug),

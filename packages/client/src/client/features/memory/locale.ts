@@ -151,7 +151,7 @@ export const zh = {
   'memory.newBranch': '新分支名称',
   'memory.createAndSwitch': '创建并切换',
   'memory.continuePrompt':
-    '请从你的 Memory Git 提交 {sha} 创建新分支 {branch}，并立即切换。请使用 memory_continue_from_commit，随后在同一 Orchestrator Session 用原生工具检查当前分支和 {path}；若文件不存在，也请如实报告。',
+    '请从你的 Memory Git 提交 {sha} 创建新分支 {branch}，并立即切换。请在 Memory 工作区运行 git switch -c {branch} {sha}，随后在同一 Orchestrator Session 用原生工具检查当前分支和 {path}；若文件不存在，也请如实报告。',
 } as const;
 
 export const en = {
@@ -319,5 +319,5 @@ export const en = {
   'memory.newBranch': 'New branch name',
   'memory.createAndSwitch': 'Create and switch',
   'memory.continuePrompt':
-    'Create a new branch {branch} at your Memory Git commit {sha} and switch to it now. Use memory_continue_from_commit, then inspect the current branch and {path} with native tools in this same Orchestrator Session. Report the actual content or that the file is absent.',
+    'Create a new branch {branch} at your Memory Git commit {sha} and switch to it now. Run git switch -c {branch} {sha} in the Memory working tree, then inspect the current branch and {path} with native tools in this same Orchestrator Session. Report the actual content or that the file is absent.',
 } satisfies Record<keyof typeof zh, string>;

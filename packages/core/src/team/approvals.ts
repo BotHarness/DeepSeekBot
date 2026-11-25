@@ -7,6 +7,14 @@ import type { ChannelMessage } from '../channels/channel.js';
 import type { ChannelMessageAuthor } from '../channels/message-author.js';
 import { type HumanContext } from '../humans/context.js';
 import { isDshGovernedTool } from '../workspaces/grant-execution.js';
+
+type ApprovalGate = boolean | 'host-owner';
+
+const HOST_OWNER_TOOLS = new Set(['connector_request']);
+
+function approvalGate(toolName: string): ApprovalGate {
+  return HOST_OWNER_TOOLS.has(toolName) ? 'host-owner' : isDshGovernedTool(toolName);
+}
 import type { TeamRoles } from './roles.js';
 import { TeamError } from './error.js';
 
@@ -80,7 +88,7 @@ export class TeamApprovals {
     return row === undefined ? undefined : botSchema.parse(row).owner;
   }
 
-  canApprove(human: HumanContext, botSlug: string, opaque = false): boolean {
+  canApprove(human: HumanContext, botSlug: string, opaque: ApprovalGate = false): boolean {
     try {
       this.require(human, botSlug, opaque);
       return true;
@@ -90,7 +98,7 @@ export class TeamApprovals {
     }
   }
 
-  require(human: HumanContext, botSlug: string, opaque = false): void {
+  require(human: HumanContext, botSlug: string, opaque: ApprovalGate = false): void {
     const owner = this.botOwner(botSlug);
     const permissions = this.roles.permissions(human);
     if (
@@ -107,6 +115,8 @@ export class TeamApprovals {
       throw new TeamError('permission-required', undefined, {
         permission: 'approvals.opaqueTools',
       });
+    if (opaque === 'host-owner' && human.humanId !== this.roles.ownerContext().humanId)
+      throw new TeamError('approval-not-allowed');
   }
 
   private active(human: HumanContext): boolean {
@@ -167,8 +177,9 @@ export class TeamApprovals {
     this.require(
       human,
       message.author.slug,
-      message.toolApprovalRequest !== undefined &&
-        isDshGovernedTool(message.toolApprovalRequest.toolName),
+      message.toolApprovalRequest === undefined
+        ? false
+        : approvalGate(message.toolApprovalRequest.toolName),
     );
   }
 
@@ -192,8 +203,9 @@ export class TeamApprovals {
     const kind: ApprovalKind =
       index === 0 ? 'tool-approval' : index === 1 ? 'user-question' : 'private-input';
     const opaque =
-      message.toolApprovalRequest !== undefined &&
-      isDshGovernedTool(message.toolApprovalRequest.toolName);
+      message.toolApprovalRequest === undefined
+        ? false
+        : approvalGate(message.toolApprovalRequest.toolName);
     const row = this.database.read((db) =>
       db
         .prepare(`SELECT created_at, payload_json FROM source_events
@@ -229,7 +241,7 @@ export class TeamApprovals {
     return {
       masked: false,
       ...base,
-      opaque,
+      opaque: opaque !== false,
       ...(decidedBy.success ? { decidedBy: decidedBy.data } : {}),
     };
   }

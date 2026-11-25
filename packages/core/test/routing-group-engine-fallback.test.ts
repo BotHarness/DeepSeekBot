@@ -407,7 +407,7 @@ it('starts mixed-group engines in read-only mode across quota continuation', asy
     {
       model: CLAUDE.model,
       permissionMode: 'default',
-      tools: ['Read', 'Glob', 'Grep'],
+      tools: ['Read', 'Glob', 'Grep', 'Agent'],
       disallowedTools: ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'],
     },
   ]);

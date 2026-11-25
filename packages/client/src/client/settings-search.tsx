@@ -126,6 +126,12 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   notifications: ['desktopNotify.row.title'],
   shortcuts: ['shortcuts.title', 'workspace.shortcutSearch', ...SHORTCUT_INDEX],
   prompts: ['prompts.global', 'prompts.new'],
+  connectors: [
+    'connectors.key.section',
+    'connectors.key.title',
+    'connectors.accounts.section',
+    'connectors.accounts.botsTitle',
+  ],
   voice: [
     'voice.default.title',
     'voice.providers.new',
@@ -346,6 +352,7 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
   messaging: 'botSettings.section.messaging',
   prompts: 'botSettings.section.prompts',
   voice: 'botSettings.section.voice',
+  connectors: 'botSettings.section.connectors',
   'auto-approval': 'botSettings.section.autoApproval',
   'im-apps': 'botSettings.section.imApps',
   companions: 'botSettings.section.companions',
@@ -368,6 +375,8 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
     '模型 模型配置 模型预设 默认模型 默认预设 主模型 副模型 路由组 编排 任务 model configuration preset default model choice orchestrator assignment routing group',
   prompts: '提示词 预设 prompt preset',
   voice: '语音 麦克风 voice microphone speech',
+  connectors:
+    '应用连接 连接器 邮件 日历 Composio Gmail Calendar Drive Notion Slack GitHub connector integration email',
   notifications: '提醒 alert',
   'im-apps': '飞书 Lark Feishu Slack Discord',
   devices: '设备 手机 配对 devices phone mobile pair',

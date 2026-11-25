@@ -38,6 +38,14 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 **Speech Catalog**：
 供应商可供选择的语音模型和音色。部分公开音色需要先添加到账户才能使用。
 
+**Meeting**：
+外部会议平台上的一场会，例如一场 Zoom 或 Google Meet 会议，以会议链接区分。
+_避免使用_：通话（通话是 Human 和 Bot 之间的）、会话
+
+**Meeting Attendance**：
+一个 Bot 参加一场 Meeting，作为一通远端是会议的通话来运行。状态有等候中、在会、已离开和失败，结束后在 Bot 记忆里留下转写和纪要，不进任何对话。
+_避免使用_：会议机器人、会议 Session、录音
+
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
@@ -195,7 +203,7 @@ Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 
 _避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
 
 **Subagent**：
-由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
+由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。Subscription Engine 自带的 sub-agent 也这样显示：一个只读的 child Session，不能以 Bot 身份行动。
 _避免使用_：sub-bot、worker、helper
 
 **Session**：
@@ -730,6 +738,10 @@ _避免使用_：sync、mirror、用 Bridge 指代这条记录
 **App**：
 UI 上叫「应用」：一个已认证 Provider account 的名称，例如 Lark 应用、Slack 应用、Discord bot 或已配对的微信 Bot。一个应用最多绑定到一个 PersonaBot；一个 PersonaBot 可以绑定多个应用，包括同一平台的多个应用。「设置 → IM 应用」列出每个应用及使用它的 Bot。
 _避免使用_：UI 文案里的「IM账号」、connector、integration
+
+**App connection**：
+UI 上叫「应用连接」：外部数据应用中的一个账号，例如 Gmail、Google 日历、Drive、Notion 或 GitHub。Host Owner 通过自己的 Composio 项目在 Host 上连接一次。Owner 为每个 PersonaBot 在每个应用连接上设置「不可用」「只读」或「读写」；Bot 只能通过 Host 守护的 `mcp__composio__` 工具使用它，看不到 Composio key。它与 IM 应用和 External connectors 无关。
+_避免使用_：UI 文案里单独的 connector、integration、用 App 指代这条记录、plugin
 
 **Default traffic**：
 启用的外部身份 Binding 无需逐会话同意即可接收的消息：发给应用的私聊，以及合格 Provider 报告为 @ 该应用的群消息。谁能触达应用由平台决定；群里的普通文字、跟进的话题和 Channel 同步仍需显式开启。

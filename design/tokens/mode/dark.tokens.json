@@ -120,6 +120,11 @@
             "hex": "#000000"
           },
           "$description": "No fill; lets a style turn a surface off without carrying a colour value."
+        },
+        "logo": {
+          "$type": "color",
+          "$description": "Fixed light tile behind third-party brand logos, so dark marks stay legible in every theme.",
+          "$value": "{palette.neutral.100}"
         }
       },
       "ink": {

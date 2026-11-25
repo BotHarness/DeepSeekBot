@@ -50,7 +50,7 @@ const TOOLS: EngineTool[] = [
     description: 'Read the Channel',
     parameters: { type: 'object', properties: {} },
   },
-  { name: 'memory_switch_branch', description: 'Not for engines', parameters: { type: 'object' } },
+  { name: 'call_frame', description: 'Not for engines', parameters: { type: 'object' } },
 ];
 
 const gateways: EngineGateway[] = [];
