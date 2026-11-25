@@ -7,7 +7,7 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 ### Product naming
 
 **Tobs / 托布**:
-The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Bot.
 _Avoid_: 拖布, Tob (when referring to the product)
 
 **BotHarness**:
@@ -40,12 +40,8 @@ The speech models and voices a provider offers for selection. A shared voice may
 
 ### PersonaBots
 
-**Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
-_Avoid_: global Orchestrator, Home panel, dashboard
-
 **Tob**:
-The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access. ADR-0366 makes it an ordinary Bot that has the App management grant on by default; the protection described here goes away with that implementation.
+The built-in local PersonaBot every Profile creates first; its name reverses “Bot” and also stands for “Thousands of Bot.” It is an ordinary Bot: the Human can rename, archive, delete or share it, and its Soul and Memory stay editable and portable. It starts with both **App management grant** switches on, so it is the Bot that helps the Human configure the rest of the App; the grant, never its name, decides what it may manage ([Tob decisions](docs/decisions/tob.md#adr-0366)).
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
@@ -58,10 +54,10 @@ _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, no
 
 **Steward**:
 Retired ([ADR-0366](docs/decisions/tob.md#adr-0366)). The singleton role of ADR-0365 was replaced by the **App management grant**.
-_Avoid_: Steward role, Steward transfer
+_Avoid_: Steward role, Steward transfer, Steward Bot
 
 **App management grant**:
-The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([ADR-0366](docs/decisions/tob.md#adr-0366)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
+The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([ADR-0366](docs/decisions/tob.md#adr-0366)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' PersonaBot Profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
 _Avoid_: Steward, Admin, administrator
 
 **PersonaBot**:

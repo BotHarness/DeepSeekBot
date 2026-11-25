@@ -861,7 +861,7 @@ try {
     );
     assert.equal(conflict.error.code, 'operation-key-conflict');
     assert.deepEqual(await snapshot(fixture.channelId), before);
-    const stewardInvite = await humanCli(
+    const tobInvite = await humanCli(
       'group-invite',
       inviteArguments(
         {
@@ -869,24 +869,33 @@ try {
           botSlug: home.botSlug,
           expectedChannel: before.channelFingerprint,
         },
-        'steward-invite-' + Date.now(),
+        'tob-invite-' + Date.now(),
       ),
     );
-    const afterSteward = await snapshot(fixture.channelId);
-    assert.ok(
-      afterSteward.channel.members.includes(home.botSlug),
-      'the Steward did not join through an ordinary invitation',
-    );
+    const afterTob = await snapshot(fixture.channelId);
+    if (fixture.autoAccept === true) {
+      assert.ok(
+        afterTob.channel.members.includes(home.botSlug),
+        'Tob did not join through an ordinary invitation',
+      );
+      fixture.extraMembers = [home.botSlug];
+    } else
+      assert.ok(
+        afterTob.channel.invitations.some(
+          (item) => item.targetBotSlug === home.botSlug && item.status === 'pending',
+        ) && !afterTob.channel.members.includes(home.botSlug),
+        'Tob invitation is not pending while automatic acceptance is off',
+      );
     writeFileSync(
       resolve(out, 'direct-refusals.json'),
       JSON.stringify(
-        { conflict: conflict.error.code, stewardInvite, members: afterSteward.channel.members },
+        { conflict: conflict.error.code, tobInvite, members: afterTob.channel.members },
         null,
         2,
       ),
     );
     steps.push(
-      'independent Human CLI exact replay, changed-key-payload conflict and an ordinary Steward invitation with membership readback',
+      'independent Human CLI exact replay, changed-key-payload conflict and an ordinary invitation of Tob with membership or pending readback',
     );
   }
   if (phase === 'restart-read') {
@@ -902,10 +911,7 @@ try {
     assert.equal(invitation.respondedBy, fixture.autoAccept === true ? 'profile-policy' : 'bot');
     assert.deepEqual(
       [...state.channel.members].sort(),
-      fixture.bots
-        .slice(0, 2)
-        .map((bot) => bot.slug)
-        .sort(),
+      [...fixture.bots.slice(0, 2).map((bot) => bot.slug), ...(fixture.extraMembers ?? [])].sort(),
     );
     await openGroup(fixture, fixture.bots.slice(0, 2));
     steps.push(

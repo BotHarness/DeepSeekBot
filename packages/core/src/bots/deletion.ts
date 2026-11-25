@@ -335,7 +335,11 @@ export function createPersonaBotDeletions(options: {
       refusal = error instanceof Error ? error.message : 'Memory ownership check failed';
     }
     const dependencies = options.dependencies(slug);
-    const snapshot = { record, path, proof, refusal, dependencies, state };
+    const appManagers = managementGrantHolders(port)
+      .filter((holder) => holder.capabilities.includes('manage-app'))
+      .map((holder) => holder.botSlug);
+    const lastAppManager = appManagers.length === 1 && appManagers[0] === slug;
+    const snapshot = { record, path, proof, refusal, dependencies, state, appManagers };
     return {
       slug,
       displayName: record.displayName,
@@ -345,15 +349,10 @@ export function createPersonaBotDeletions(options: {
       ...(refusal === undefined ? {} : { refusal }),
       dependencies,
       ...(state === undefined ? {} : { deletion: state }),
+      ...(lastAppManager ? { lastAppManager: true as const } : {}),
     };
   };
-  const preview = (slug: string): PersonaBotDeletionPreview => {
-    const appManagers = managementGrantHolders(port).filter((holder) =>
-      holder.capabilities.includes('manage-app'),
-    );
-    const last = appManagers.length === 1 && appManagers[0]!.botSlug === slug;
-    return { ...snapshot(slug), ...(last ? { lastAppManager: true as const } : {}) };
-  };
+  const preview = snapshot;
   const run = (state: PersonaBotDeletion): Promise<PersonaBotDeletion> => {
     const active = pending.get(state.slug);
     if (active !== undefined) return active;

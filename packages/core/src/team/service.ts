@@ -979,12 +979,12 @@ export class TeamService {
       this.accessChanged(true);
       await this.accessSettled();
     } else this.invalidate();
+    for (const device of oldDevices)
+      await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     for (const listener of this.ownerListeners)
       await listener().catch(() => {
         this.log('owner-transfer-tob-unavailable', { humanId });
       });
-    for (const device of oldDevices)
-      await this.memberDeviceRevoke(human, human.humanId, device.grantId);
     this.log('owner-transferred', { initiator: 'owner', humanId });
     return null;
   }

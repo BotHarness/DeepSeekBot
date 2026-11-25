@@ -17,7 +17,7 @@ export const zh: typeof en = {
     tabLabel: (name: string, unread?: string) =>
       unread === undefined ? `${name}，固定标签页` : `${name}，固定标签页，${unread} 条未读`,
     emptyTitle: '还没有可固定的对话',
-    emptyBody: '添加电脑后，它的主管会出现在这里。',
+    emptyBody: '添加电脑后，它的 Tob 会出现在这里。',
     emptyAction: '添加电脑',
     loading: '正在载入固定的对话',
     loadFailed: '连不上这台电脑。',

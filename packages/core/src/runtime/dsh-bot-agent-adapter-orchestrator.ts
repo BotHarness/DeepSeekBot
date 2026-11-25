@@ -648,11 +648,19 @@ export async function orchestratorHandle(
       return current?.role === 'orchestrator' && current.run.holdsManagementGrant?.() === true;
     };
     let managerPrompt = holdsManagementGrant();
+    let managerPromptStale = false;
+    const managerPromptNow = () => {
+      if (managerPromptStale && adapter.runs.get(run.sessionId)?.role === 'orchestrator') {
+        managerPrompt = holdsManagementGrant();
+        managerPromptStale = false;
+      }
+      return managerPrompt;
+    };
     const disposeManagerPromptRefresh = agentCtx.on(
       'session/event',
       (session: { id: string }, event: { type: string }) => {
         if (session.id === agent.session.id && event.type === 'compaction/end')
-          managerPrompt = holdsManagementGrant();
+          managerPromptStale = true;
       },
     );
     if (borrowed) borrowedDisposers.push(() => void disposeManagerPromptRefresh());
@@ -685,7 +693,8 @@ export async function orchestratorHandle(
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
-      text: () => orchestratorPromptSections(adapter.promptText(run.sessionId), managerPrompt).role,
+      text: () =>
+        orchestratorPromptSections(adapter.promptText(run.sessionId), managerPromptNow()).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
     const disposeReplyPrompt = agentCtx.systemPrompt.section({

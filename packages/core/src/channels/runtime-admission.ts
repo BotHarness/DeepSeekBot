@@ -753,6 +753,8 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
         SELECT MAX(p.revision) AS revision FROM channel_placements p
         JOIN source_events e ON e.source_event_id = p.source_event_id
         WHERE p.channel_id = ? AND p.revision < ? AND e.source_kind = 'human-message'
+          AND json_type(e.payload_json, '$.toolAutoApprovalOverride') IS NULL
+          AND json_type(e.payload_json, '$.takeoverResolution') IS NULL
       `)
         .get(channelId, current)?.revision;
       return db

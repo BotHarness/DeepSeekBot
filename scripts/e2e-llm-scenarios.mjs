@@ -494,7 +494,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
         },
       });
     },
-    async toolCalls(key) {
+    async toolCalls(key, { partial = false } = {}) {
       const { sessions } = await call('sessions', { slug: slugs[key] ?? key });
       const calls = [];
       let incomplete = false;
@@ -506,6 +506,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       for (const { sessionId } of ordered) {
         const snapshot = await sessionSnapshot(instance, sessionId).catch(() => undefined);
         if (snapshot === undefined) {
+          if (!partial) throw new Error(`could not read Session ${sessionId}`);
           incomplete = true;
           continue;
         }

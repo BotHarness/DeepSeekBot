@@ -84,7 +84,7 @@ export const zh = {
   ...workspacesCopy.zh,
   'home.starters': '快捷提问',
   'home.greeting': '你好，我是托布',
-  'home.description': '你的本地总管。了解 Bot 的状态，或告诉我你想调整什么。',
+  'home.description': '你在这里的第一个 Bot。了解 Bot 的状态，或告诉我你想调整什么。',
   'settings.search': '搜索设置',
   'settings.back': '返回设置列表',
   'settings.results': '搜索结果',
@@ -251,7 +251,7 @@ export const en = {
   'home.starters': 'Suggested questions',
   'home.greeting': 'Hello, I’m Tob',
   'home.description':
-    'I can manage this App for you. Check on your Bots or tell me what you’d like to change.',
+    'Your first Bot here. Check on your Bots or tell me what you’d like to change.',
   'settings.search': 'Search settings',
   'settings.back': 'Back to settings list',
   'settings.results': 'Search results',

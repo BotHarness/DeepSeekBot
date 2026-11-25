@@ -7,7 +7,7 @@
 ### 产品命名
 
 **Tobs / 托布**：
-原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置总管 Bot「Tob」区分。
+原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置 Bot「Tob」区分。
 _避免使用_：拖布、Tob（指代产品时）
 
 **BotHarness**：
@@ -40,12 +40,8 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 
 ### PersonaBot（持久机器人身份）
 
-**Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。Team mode 下，只有当前 Host Owner 拥有 Tob。
-_避免使用_：全局 Orchestrator、Home 面板、Dashboard
-
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。 ADR-0366 让它成为默认开启 App 管理授权的普通 Bot；上述保护会随实现一起移除。
+每个 Profile 首先创建的内置本地 PersonaBot；名称是 Bot 的倒写，也寓意 Thousands of Bot。它是普通 Bot：Human 可以改名、归档、删除或分享它，其 Soul 与 Memory 可以编辑和迁移。它默认打开 **App 管理授权** 的两个开关，因此由它帮助 Human 配置 App 的其余部分；能管理什么由授权决定，与名字无关（[Tob 决策](docs/decisions/tob.md#adr-0366)）。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
@@ -58,7 +54,7 @@ _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Ses
 
 **Steward**：
 已停用（ADR-0366）。ADR-0365 的单例主管角色已由 **App 管理授权** 取代。
-_避免使用_：主管角色、主管转移
+_避免使用_：主管角色、主管转移、Steward Bot、总管
 
 **App management grant**：
 App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[ADR-0366](docs/decisions/tob.md#adr-0366)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
