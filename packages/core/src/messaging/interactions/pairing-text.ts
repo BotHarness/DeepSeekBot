@@ -62,6 +62,7 @@ export function parsePairingReply(text: string): PairingReply | undefined {
   };
 }
 
+const RECENT_MS = 30 * 60 * 1000;
 const routeKey = (pairingId: string) => `route:${pairingId}`;
 
 const NOTICE = {
@@ -255,6 +256,19 @@ export function createPairingText(options: {
     if (!target && !parsed.reference) {
       const pending = requests.filter((item) => item.status === 'pending' && reachable(item));
       if (pending.length === 1 && !approvalPending(conversation)) target = pending[0];
+      else if (!pending.length) {
+        const cutoff = Date.now() - RECENT_MS;
+        target = requests
+          .filter(
+            (item) =>
+              item.status !== 'pending' &&
+              reachable(item) &&
+              Date.parse(item.updatedAt ?? item.reviewedAt ?? item.createdAt) >= cutoff,
+          )
+          .sort((a, b) =>
+            (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),
+          )[0];
+      }
     }
     if (!target) return false;
     const scope = assignable(binding.botSlug, binding.id, event.actor.id);

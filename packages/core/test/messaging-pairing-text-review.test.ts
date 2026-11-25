@@ -265,5 +265,11 @@ it('the approval route receives the full review and can approve from its own con
       }),
     ]),
   );
+  await fx.receive(directMessage('slack', 'route-redelivered', reviewer, '同意 Colleague'));
+  expect(fx.replies.at(-1)).toMatchObject({
+    route: expect.objectContaining({ conversationId: 'DQAREV' }),
+    text: expect.stringContaining(`Pairing request ${request.reference} is no longer waiting`),
+  });
   expect(fx.runs).toHaveLength(0);
+  expect(fx.admissions()).toEqual([]);
 });
