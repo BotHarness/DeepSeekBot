@@ -61,7 +61,7 @@ _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Ses
 _避免使用_：主管角色、主管转移
 
 **App management grant**：
-App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[ADR-0366](docs/adr/0366-managing-the-app-is-a-grant.md)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
+App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[ADR-0366](docs/decisions/tob.md#adr-0366)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
 _避免使用_：主管、Steward、Admin、管理员
 
 **PersonaBot**：

@@ -57,11 +57,11 @@ Tob handing a Human's request to the colleague PersonaBot it judges best suited,
 _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **Steward**:
-Retired (ADR-0366). The singleton role of ADR-0365 was replaced by the **App management grant**.
+Retired ([ADR-0366](docs/decisions/tob.md#adr-0366)). The singleton role of ADR-0365 was replaced by the **App management grant**.
 _Avoid_: Steward role, Steward transfer
 
 **App management grant**:
-The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([ADR-0366](docs/adr/0366-managing-the-app-is-a-grant.md)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
+The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([ADR-0366](docs/decisions/tob.md#adr-0366)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
 _Avoid_: Steward, Admin, administrator
 
 **PersonaBot**:
