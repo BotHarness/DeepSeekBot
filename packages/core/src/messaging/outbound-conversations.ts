@@ -6,13 +6,13 @@ import {
   changeSenderAccess,
   bumpSenderPolicy,
   readSourceSenderPermissions,
-} from './sender-access.js';
+  initializeGroupReceptionPolicy,
+} from './permissions/index.js';
 import {
   assertMessagingIdentity,
   readMessagingIdentity,
   type MessagingIdentity,
 } from './identity.js';
-import { initializeGroupReceptionPolicy } from './group-policy.js';
 import {
   admissionBound,
   readBlock,

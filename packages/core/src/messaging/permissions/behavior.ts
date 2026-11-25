@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { MessagingError } from './provider.js';
+import { MessagingError } from '../provider.js';
 import type { BehaviorPermission, BehaviorChoices } from './behavior-policy.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
 export { resolveBehaviorPermissions } from './behavior-policy.js';

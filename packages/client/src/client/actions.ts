@@ -49,7 +49,10 @@ import type {
   PersonaBotDeletion,
 } from '../../../core/src/bots/deletion.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
-import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
+import type {
+  SenderAccessInput,
+  GroupReceptionInput,
+} from '../../../core/src/messaging/permissions/index.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
@@ -91,7 +94,6 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
@@ -244,7 +246,7 @@ export interface BridgeActions
   messagingThreadPolicy(
     slug: string,
     sourceEventId: string,
-    policy: import('../../../core/src/messaging/thread-policy.js').ThreadReceptionInput,
+    policy: import('../../../core/src/messaging/permissions/index.js').ThreadReceptionInput,
   ): Promise<void>;
   messagingGroupPolicy(slug: string, grantId: string, policy: GroupReceptionInput): Promise<void>;
   messagingSource(slug: string, sourceEventId: string): Promise<ExternalSource>;

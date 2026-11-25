@@ -4,7 +4,7 @@ import type { ChannelRecord } from '../channels/channel.js';
 import type { BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { ConversationRef } from './conversations.js';
 import { MessagingError } from './provider.js';
-import { sourceSenderAllowed } from './sender-access.js';
+import { sourceAdmission } from './permissions/index.js';
 
 export interface ConversationIngestWake {
   mode: 'mentions' | 'digest' | 'all';
@@ -162,8 +162,10 @@ export function admitIngestMembers(
 ): string[] {
   const admitted: string[] = [];
   for (const botSlug of channel.members) {
-    if (!isBotActive(botSlug) || !sourceSenderAllowed(db, botSlug, sourceEventId, true)) continue;
-    const passive = !sourceSenderAllowed(db, botSlug, sourceEventId);
+    if (!isBotActive(botSlug)) continue;
+    const admission = sourceAdmission(db, botSlug, sourceEventId);
+    if (admission === 'refused') continue;
+    const passive = admission === 'context';
     const rule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
     const custom = channel.wakePolicies?.[botSlug];
     const policy = custom ?? { ...ingest.wake, revision: ingest.revision };

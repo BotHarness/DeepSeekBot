@@ -3,7 +3,11 @@ import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import { createPersonaBotReaders } from './features/personabots/bridge.js';
 import { createChannelHumanNameBridge } from './features/humans/bridge.js';
 import { createMemberBridgeGuard } from './features/team/bridge.js';
-import type { ThreadReceptionInput } from '../../../core/src/messaging/thread-policy.js';
+import type {
+  ThreadReceptionInput,
+  SenderAccessInput,
+  GroupReceptionInput,
+} from '../../../core/src/messaging/permissions/index.js';
 import { createSessionOwnerBridge } from './features/sessions/bridge.js';
 import { sessionLive } from '@botharness/host-client/session-detail';
 import type { SessionLiveSnapshot } from './features/sessions/bridge.js';
@@ -45,7 +49,6 @@ import {
 } from '../../../core/src/channels/turn-stop.js';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
-import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
@@ -101,7 +104,6 @@ import type { MarketplaceLanguage } from '../../../core/src/marketplace/language
 import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { isPartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';

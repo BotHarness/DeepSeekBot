@@ -1,8 +1,12 @@
 import { ReceiverRecovery } from './receiver-recovery.js';
 import { admissionBound, readBlock } from './conversations.js';
 import type { PairingRequest } from './pairing.js';
-import { chatPairingApplies } from './chat-sender.js';
-import { readSenderPolicy, senderAdmissionAllowed } from './sender-access.js';
+import {
+  chatPairingApplies,
+  platformPeople,
+  readSenderPolicy,
+  senderAdmission,
+} from './permissions/index.js';
 import { readMessagingIdentity } from './identity.js';
 import { assertMessagingIdentity } from './identity.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -318,10 +322,10 @@ export function createInboundControlReceiver(wiring: {
         (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
       )
         return true;
-      if (!database.read((db) => senderAdmissionAllowed(db, identity.botSlug, event))) {
+      if (database.read((db) => senderAdmission(db, identity.botSlug, event)) !== 'wake') {
         try {
           const request = options.pairing.request(row.id, event, 'conversation');
-          if (request.status === 'pending' && event.channel === 'feishu')
+          if (request.status === 'pending' && platformPeople(event.channel)?.roles)
             options.onPairingRequest?.(request);
           if (request.status === 'pending')
             setImmediate(() => {

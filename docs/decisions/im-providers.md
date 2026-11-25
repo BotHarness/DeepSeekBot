@@ -225,7 +225,9 @@ Effective management capability is the union of the Role, Authorization Groups a
 
 Why: anyone can reach a community Bot before its maintainer, so neither the first applicant, a display name, a pasted token nor a model reply can establish authority. Separate use and delegation stop existing approvers from silently recruiting administrators.
 
-Enforced by: `bot-pairing.test.ts`, `lark-pairing-cards.test.ts`, `pairing-settings.test.ts`, `messaging-lark-dm.test.ts`.
+All of this lives in one module, `messaging/permissions`, and other code imports only its index. Each platform profile declares its people: the sender id namespace and check, and whether chat pairing works in groups, Roles and management pairing apply. No permission code names a platform. One admission call says whether a sender's message may wake the Bot, serve only as context, or is refused.
+
+Enforced by: `bot-pairing.test.ts`, `lark-pairing-cards.test.ts`, `pairing-settings.test.ts`, `messaging-lark-dm.test.ts`, [package boundaries](../../scripts/check-package-boundaries.mjs).
 
 ## 15. IM approvals and rules rejoin the native owner
 

@@ -12,10 +12,10 @@ import {
   type BehaviorPermission,
   type BehaviorChoices,
   type EffectiveBehaviorPermission,
-} from '../../../core/src/messaging/behavior-policy.js';
-import type { ExternalPermissionGroup } from '../../../core/src/messaging/permission-groups.js';
+  type ExternalPermissionGroup,
+  type SenderAccessInput,
+} from '../../../core/src/messaging/permissions/index.js';
 import type { PairingRequest } from '../../../core/src/messaging/pairing.js';
-import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { PairingTable } from './pairing-table.js';
 import { TextAreaField, TextField } from './ds/field.js';

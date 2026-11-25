@@ -5,7 +5,7 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
-import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
+import type { GroupReceptionInput } from '../../../core/src/messaging/permissions/index.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 import type { MessagingSnapshot } from '../../../core/src/messaging/outbound.js';
 import type { BotHarnessTranslate } from './locale.js';

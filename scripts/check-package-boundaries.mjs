@@ -6,6 +6,7 @@ import { parse } from '@babel/parser';
 import { compareBaselineCounts, countsByRule } from './baseline-counts.mjs';
 
 const cliAdapter = /^packages\/core\/src\/bots\/cli-[^/]+\.[cm]?[jt]s$/u;
+const permissionsModule = 'packages/core/src/messaging/permissions/';
 const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlite-store\.)/u;
 
 const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
@@ -77,6 +78,14 @@ function inspectPackageBoundaries(file, source, workspaces) {
           `${file}:${input.loc.start.line}: CLI adapters must use the Host for operational database access (${specifier})`,
         );
       if (
+        target?.startsWith(permissionsModule) &&
+        target !== `${permissionsModule}index.js` &&
+        !file.startsWith(permissionsModule)
+      )
+        errors.push(
+          `${file}:${input.loc.start.line}: import messaging permissions through permissions/index.js (${specifier})`,
+        );
+      if (
         file.startsWith('packages/client/src/') &&
         (target === 'packages/core' ||
           target?.startsWith('packages/core/') ||
@@ -93,10 +102,22 @@ function inspectPackageBoundaries(file, source, workspaces) {
   return { errors, clientHostImports };
 }
 
+const movedClientHostTargets = new Map(
+  [
+    'sender-access',
+    'permission-groups',
+    'behavior-policy',
+    'behavior-permissions',
+    'group-policy',
+    'thread-policy',
+  ].map((name) => [`packages/core/src/messaging/${name}.js`, `${permissionsModule}index.js`]),
+);
+
 function clientHostRule(file, specifier) {
-  return specifier.startsWith('.')
+  const target = specifier.startsWith('.')
     ? posix.normalize(posix.join(posix.dirname(file), specifier))
     : specifier;
+  return movedClientHostTargets.get(target) ?? target;
 }
 
 function compareClientHostImports(current, previous) {
