@@ -9,7 +9,7 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
-import { createInteractionAuthority } from './authority.js';
+import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
@@ -117,6 +117,7 @@ export function createApprovalMessaging(options: {
   pairing: BotPairing;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): ApprovalMessaging {
@@ -526,7 +527,7 @@ export function createApprovalMessaging(options: {
         !started ||
         (error instanceof MessagingProviderError && error.disposition === 'not-started');
       write({
-        ...latest,
+        ...withoutFailedGroup(latest, error),
         delivery: definite ? 'failed' : 'unknown-outcome',
         reason:
           error instanceof MessagingError || error instanceof MessagingProviderError
@@ -585,7 +586,7 @@ export function createApprovalMessaging(options: {
       )
         return;
       if (!selected) return;
-      const destination = authority.groupDestination(selected, notice.channelId);
+      const destination = authority.groupDestination(selected, notice);
       write({
         ...(destination ? { destination } : {}),
         id: notice.messageId,

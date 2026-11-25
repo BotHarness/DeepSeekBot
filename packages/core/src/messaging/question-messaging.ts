@@ -9,6 +9,7 @@ import {
   createInteractionAuthority,
   type InteractionContext,
   type InteractionDestination,
+  withoutFailedGroup,
 } from './authority.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
@@ -66,6 +67,7 @@ export function createQuestionMessaging(options: {
   approvals: ApprovalMessaging;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): QuestionMessaging {
@@ -260,6 +262,7 @@ export function createQuestionMessaging(options: {
     const startedAt = performance.now();
     busy.add(id);
     let started = false;
+    let fallback = false;
     write({ ...value, attempts: value.attempts + 1 });
     try {
       const { identity, paired, provider } = context(value);
@@ -296,9 +299,11 @@ export function createQuestionMessaging(options: {
       if (latest) write({ ...latest, delivery: 'sent', receipt: result.receipt });
     } catch (error) {
       const latest = read(id);
-      if (latest)
+      if (latest) {
+        const remaining = withoutFailedGroup(latest, error);
+        fallback = remaining !== latest;
         write({
-          ...latest,
+          ...remaining,
           delivery:
             !started ||
             (error instanceof MessagingProviderError && error.disposition === 'not-started')
@@ -309,6 +314,7 @@ export function createQuestionMessaging(options: {
               ? error.code
               : 'provider-result-unknown',
         });
+      }
     } finally {
       busy.delete(id);
       const latest = read(id);
@@ -317,6 +323,7 @@ export function createQuestionMessaging(options: {
         if (latest.receipt && state(latest) !== 'pending') void update(id);
       }
     }
+    if (fallback) await send(id).catch(() => options.warn?.('question-notification-send-failed'));
   };
   const notify = (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => {
     if (closed) return;
@@ -325,7 +332,7 @@ export function createQuestionMessaging(options: {
       const route = options.approvals.snapshot(notice.botSlug).route;
       const question = channels?.message(notice.channelId, notice.messageId)?.userQuestionRequest;
       if (!route || !question) return;
-      const destination = authority.groupDestination(route, notice.channelId);
+      const destination = authority.groupDestination(route, notice);
       write({
         ...(destination ? { destination } : {}),
         id: notice.messageId,
