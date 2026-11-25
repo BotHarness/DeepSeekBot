@@ -12,6 +12,7 @@ import {
   effectivePairingPermissions,
   externalUserRoles,
   platformPeople,
+  readSenderPolicy,
   type ExternalUserRole,
 } from '../permissions/index.js';
 import { isMessagingPlatform } from '../platforms/index.js';
@@ -64,6 +65,7 @@ export function parsePairingReply(text: string): PairingReply | undefined {
 
 const RECENT_MS = 30 * 60 * 1000;
 const routeKey = (pairingId: string) => `route:${pairingId}`;
+const privateKey = (actorId: string) => `private:${actorId}`;
 
 const NOTICE = {
   unauthorized:
@@ -76,10 +78,27 @@ const NOTICE = {
     `Choose a Role: reply "approve <role>". Roles you can assign: ${roles.join(', ')}. / 请指定角色，回复「同意 <角色>」。可分配的角色：${roles.join('、')}。`,
   unknownRole: (name: string, roles: string[]) =>
     `Role "${name}" was not found. Roles you can assign: ${roles.join(', ') || 'none'}. / 没有找到角色「${name}」。可分配的角色：${roles.join('、') || '无'}。`,
+  chooseRolePublic:
+    'Choose a Role: reply "approve <role>". The Roles you can assign were sent to you privately. / 请指定角色，回复「同意 <角色>」。可分配的角色已私信发给你。',
+  unknownRolePublic: (name: string) =>
+    `Role "${name}" was not found. The Roles you can assign were sent to you privately. / 没有找到角色「${name}」。可分配的角色已私信发给你。`,
+  rolesInWeb:
+    'Choose a Role: reply "approve <role>". See the Roles you can assign in Web settings. / 请指定角色，回复「同意 <角色>」。可分配的角色请在 Web 设置中查看。',
+  privateRoles: (reference: string, roles: string[], unknown?: string) =>
+    [
+      unknown
+        ? `Role "${unknown}" was not found for pairing request ${reference}. / 配对申请 ${reference} 没有找到角色「${unknown}」。`
+        : `Pairing request ${reference} needs a Role. / 配对申请 ${reference} 需要指定角色。`,
+      `Roles you can assign / 可分配的角色: ${roles.join(', ')}`,
+      'Reply to this message or in the original thread with "approve <role>". / 回复本消息或在原线程回复「同意 <角色>」。',
+      `#${reference}`,
+    ].join('\n\n'),
   deniedRole: (name: string) =>
     `You cannot assign the Role "${name}". / 你不能分配角色「${name}」。`,
   approved: (reference: string, role: string) =>
     `Approved pairing request ${reference} with Role ${role}. / 已批准配对申请 ${reference}，角色：${role}。`,
+  approvedPublic: (reference: string) =>
+    `Approved pairing request ${reference}. / 已批准配对申请 ${reference}。`,
   rejected: (reference: string) =>
     `Rejected pairing request ${reference}. / 已拒绝配对申请 ${reference}。`,
   ambiguous:
@@ -92,8 +111,11 @@ export function renderPairingReview(
   request: PairingRequest,
   platform: string,
   roles: ExternalUserRole[],
+  defaultRoleId?: string,
 ): string {
-  const names = roles.map((role) => role.name);
+  const names = roles.map((role) =>
+    role.id === defaultRoleId ? `${role.name} (default / 默认)` : role.name,
+  );
   return [
     'Pairing review / 配对审核',
     [
@@ -103,7 +125,9 @@ export function renderPairingReview(
       `Expires / 到期: ${request.expiresAt}`,
       `Roles you can assign / 可分配角色: ${names.join(', ') || 'None / 无'}`,
     ].join('\n'),
-    'Reply to this message with "approve <role>" or "reject". / 回复本消息「同意 <角色>」或「拒绝」。',
+    defaultRoleId && roles.some((role) => role.id === defaultRoleId)
+      ? 'Reply to this message with "approve" for the default Role, "approve <role>" or "reject". / 回复本消息「同意」使用默认角色，或「同意 <角色>」「拒绝」。'
+      : 'Reply to this message with "approve <role>" or "reject". / 回复本消息「同意 <角色>」或「拒绝」。',
     `#${request.reference}`,
   ]
     .join('\n\n')
@@ -138,6 +162,7 @@ export function createPairingText(options: {
           ),
         ),
         all: externalUserRoles(db, botSlug),
+        defaultRoleId: readSenderPolicy(db, botSlug).defaultRoleId,
       };
     });
 
@@ -187,7 +212,12 @@ export function createPairingText(options: {
         accountRef: identity.accountRef,
         fingerprint: identity.fingerprint,
         route: target,
-        text: renderPairingReview(request, platformName(request, identity), scope.roles),
+        text: renderPairingReview(
+          request,
+          platformName(request, identity),
+          scope.roles,
+          scope.defaultRoleId,
+        ),
         signal: AbortSignal.timeout(15000),
         beforeSend: live,
         standalone: true,
@@ -241,7 +271,8 @@ export function createPairingText(options: {
       (item.conversationId === conversation ||
         (item.notifications?.some(
           (notice) =>
-            notice.key.startsWith('pending:') && notice.receipt?.conversationId === conversation,
+            (notice.key.startsWith('pending:') || notice.key === privateKey(event.actor.id)) &&
+            notice.receipt?.conversationId === conversation,
         ) ??
           false));
     const reachable = (item: PairingRequest) => threadNotice(item) || routeNotice(item);
@@ -313,24 +344,53 @@ export function createPairingText(options: {
       reply(NOTICE.settled(target.reference));
       return true;
     }
+    const dm = event.conversation.kind === 'dm';
+    const listRoles = (unknown?: string) => {
+      const names = scope.roles.map((item) => item.name);
+      if (dm) {
+        reply(unknown ? NOTICE.unknownRole(unknown, names) : NOTICE.chooseRole(names));
+        return;
+      }
+      setImmediate(() => {
+        if (signal.aborted) return;
+        void privately(providerId, binding, event, target!, names, unknown).then((sent) =>
+          send(
+            providerId,
+            binding,
+            event,
+            sent
+              ? unknown
+                ? NOTICE.unknownRolePublic(unknown)
+                : NOTICE.chooseRolePublic
+              : NOTICE.rolesInWeb,
+            signal,
+          ),
+        );
+      });
+    };
     let role: ExternalUserRole | undefined;
     if (parsed.decision === 'approve') {
-      const names = scope.roles.map((item) => item.name);
       if (parsed.role) {
         const wanted = parsed.role.toLowerCase();
         role = scope.all.find((item) => item.name.trim().toLowerCase() === wanted);
         if (!role) {
-          reply(NOTICE.unknownRole(parsed.role, names));
+          if (scope.roles.length) listRoles(parsed.role);
+          else reply(NOTICE.noRole);
           return true;
         }
         if (!scope.roles.some((item) => item.id === role!.id)) {
           reply(NOTICE.deniedRole(role.name));
           return true;
         }
-      } else if (scope.roles.length === 1) role = scope.roles[0];
-      else {
-        reply(scope.roles.length ? NOTICE.chooseRole(names) : NOTICE.noRole);
-        return true;
+      } else {
+        role =
+          scope.roles.find((item) => item.id === scope.defaultRoleId) ??
+          (scope.roles.length === 1 ? scope.roles[0] : undefined);
+        if (!role) {
+          if (scope.roles.length) listRoles();
+          else reply(NOTICE.noRole);
+          return true;
+        }
       }
     }
     if (signal.aborted) return true;
@@ -355,7 +415,9 @@ export function createPairingText(options: {
       reply(
         parsed.decision === 'reject'
           ? NOTICE.rejected(target.reference)
-          : NOTICE.approved(target.reference, role!.name),
+          : dm
+            ? NOTICE.approved(target.reference, role!.name)
+            : NOTICE.approvedPublic(target.reference),
       );
     } catch (error) {
       log('review', error instanceof MessagingError ? error.code : 'failed');
@@ -381,6 +443,69 @@ export function createPairingText(options: {
           )
           .get(conversationId),
     );
+
+  const privately = async (
+    providerId: string,
+    binding: MessagingIdentity,
+    event: MessagingInboundEvent,
+    request: PairingRequest,
+    roles: string[],
+    unknown?: string,
+  ) => {
+    const provider = options.provider(providerId);
+    const own = pairing
+      .list(binding.botSlug)
+      .find(
+        (item) =>
+          item.status === 'approved' &&
+          item.bindingId === binding.id &&
+          item.actorId === event.actor.id &&
+          item.conversationKind === 'dm',
+      );
+    const route = own && pairedRoute(own);
+    if (!provider.reply || !route) return false;
+    const key = privateKey(event.actor.id);
+    const first = pairing.notice(request.id, key);
+    try {
+      const sent = await provider.reply({
+        accountRef: binding.accountRef,
+        fingerprint: binding.fingerprint,
+        route,
+        text: NOTICE.privateRoles(request.reference, roles, unknown),
+        signal: AbortSignal.timeout(15000),
+        standalone: true,
+        beforeSend: () => {
+          try {
+            const current = database.read((db) => readMessagingIdentity(db, binding.id));
+            return (
+              current.enabled &&
+              !current.revokedAt &&
+              current.fingerprint === binding.fingerprint &&
+              options.isBotActive(binding.botSlug)
+            );
+          } catch {
+            return false;
+          }
+        },
+      });
+      if (first)
+        pairing.notice(
+          request.id,
+          key,
+          sent.receipt ? 'accepted' : 'unconfirmed',
+          sent.receipt && {
+            messageId: sent.receipt.messageId,
+            conversationId: sent.receipt.conversationId,
+          },
+        );
+      log('private-roles', sent.receipt ? 'accepted' : 'unconfirmed');
+      return true;
+    } catch {
+      if (first) pairing.notice(request.id, key, 'unconfirmed');
+      log('private-roles', 'unconfirmed');
+      return false;
+    }
+  };
 
   const send = async (
     providerId: string,
