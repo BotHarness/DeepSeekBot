@@ -123,6 +123,7 @@ export class ConnectorService {
   >();
   #config: Promise<Config | undefined> | undefined;
   readonly #names = new Map<string, string>();
+  readonly #logos = new Map<string, Promise<string | null>>();
 
   constructor(options: {
     store: ConnectorStore;
@@ -201,6 +202,35 @@ export class ConnectorService {
 
   appName(service: string): string {
     return catalogEntry(service)?.name ?? this.#names.get(service) ?? service;
+  }
+
+  async logos(services: readonly string[]): Promise<Record<string, string>> {
+    const wanted = [...new Set(services)].filter((service) => SLUG.test(service)).slice(0, 60);
+    const found = await Promise.all(
+      wanted.map(async (service) => [service, await this.#logo(service)] as const),
+    );
+    const logos: Record<string, string> = {};
+    for (const [service, logo] of found) if (logo !== null) logos[service] = logo;
+    return logos;
+  }
+
+  #logo(service: string): Promise<string | null> {
+    const cached = this.#logos.get(service);
+    if (cached !== undefined) return cached;
+    if (this.#logos.size >= 3000) this.#logos.delete(this.#logos.keys().next().value!);
+    const pending = this.#client.logo(service).then(
+      (logo) => logo ?? null,
+      (error: unknown) => {
+        this.#logos.delete(service);
+        this.#log('logo-failed', {
+          service,
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+        return null;
+      },
+    );
+    this.#logos.set(service, pending);
+    return pending;
   }
 
   async searchApps(query: string, after?: string): Promise<ConnectorAppSearch> {

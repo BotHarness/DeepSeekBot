@@ -60,6 +60,10 @@ function fakeClient(overrides: Partial<ComposioClient> = {}) {
     removeAccount: async (apiKey, accountId) => {
       calls.push(['removeAccount', apiKey, accountId]);
     },
+    logo: async (service) => {
+      calls.push(['logo', service]);
+      return service === 'capsule_crm' ? 'data:image/png;base64,AA==' : undefined;
+    },
     toolkits: async (apiKey, query, cursor) => {
       calls.push(['toolkits', apiKey, query, cursor]);
       return {
@@ -486,6 +490,87 @@ describe('connector app search', () => {
     } finally {
       owner.close();
     }
+  });
+});
+
+describe('connector app logos', () => {
+  it('fetches each logo once and skips invalid services', async () => {
+    const { client, calls } = fakeClient();
+    const { owner, service } = setup(client);
+    try {
+      expect(await service.logos(['capsule_crm', 'nologo', 'Bad Slug', 'capsule_crm'])).toEqual({
+        capsule_crm: 'data:image/png;base64,AA==',
+      });
+      expect(await service.logos(['capsule_crm', 'nologo'])).toEqual({
+        capsule_crm: 'data:image/png;base64,AA==',
+      });
+      expect(calls.filter((call) => call[0] === 'logo')).toEqual([
+        ['logo', 'capsule_crm'],
+        ['logo', 'nologo'],
+      ]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('retries a logo after a network failure', async () => {
+    let attempts = 0;
+    const { client } = fakeClient({
+      logo: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new TypeError('fetch failed');
+        return 'data:image/png;base64,AA==';
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      expect(await service.logos(['zoho'])).toEqual({});
+      expect(await service.logos(['zoho'])).toEqual({ zoho: 'data:image/png;base64,AA==' });
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('accepts images and rejects active SVG content', async () => {
+    const bodies: Record<string, { type: string; body: string }> = {
+      plain: { type: 'image/svg+xml', body: '<svg viewBox="0 0 1 1"><path fill="url(#g)"/></svg>' },
+      script: { type: 'image/svg+xml', body: '<svg><script>alert(1)</script></svg>' },
+      handler: { type: 'image/svg+xml', body: '<svg onload="x()"></svg>' },
+      remote: { type: 'image/svg+xml', body: '<svg><a href="https://x.dev">a</a></svg>' },
+      png: { type: 'image/png', body: 'PNG' },
+      html: { type: 'text/html', body: '<html></html>' },
+      doctype: {
+        type: 'image/svg+xml',
+        body: '<?xml version="1.0"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">\n<!-- logo -->\n<svg><path/></svg>',
+      },
+      entity: {
+        type: 'image/svg+xml',
+        body: '<!DOCTYPE svg [<!ENTITY a "b">]><svg>&a;</svg>',
+      },
+      fallback: {
+        type: 'image/svg+xml',
+        body: '<svg><pattern id="composio-fallback-grid"/></svg>',
+      },
+    };
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      const name = url.split('/').pop()!;
+      const entry = bodies[name];
+      if (entry === undefined) return new Response('', { status: 404 });
+      return new Response(entry.body, { status: 200, headers: { 'content-type': entry.type } });
+    }) as unknown as typeof fetch;
+    const client = createComposioClient({ fetch: fetchImpl });
+    expect(await client.logo('plain')).toBe(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg viewBox="0 0 1 1"><path fill="url(#g)"/></svg>')}`,
+    );
+    expect(await client.logo('png')).toBe('data:image/png;base64,UE5H');
+    expect(await client.logo('doctype')).toBe(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg><path/></svg>')}`,
+    );
+    for (const name of ['script', 'handler', 'remote', 'html', 'entity', 'fallback', 'missing'])
+      expect(await client.logo(name)).toBeUndefined();
+    expect(urls[0]).toBe('https://logos.composio.dev/api/plain');
   });
 });
 

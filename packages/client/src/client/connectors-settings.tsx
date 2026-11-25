@@ -4,7 +4,6 @@ import { MaskedEmail } from './account-quota.js';
 import type { BridgeActions } from './actions.js';
 import { ConnectAppDialog } from './app-connections-catalog.js';
 import { errorMessage } from './bridge.js';
-import { BrandLogo } from './ds/brand-logo.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -13,7 +12,7 @@ import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { StatusList, StatusListAction, StatusListRow, type StatusTone } from './ds/status-block.js';
 import type { ConnectorAccess, ConnectorsView } from './features/connectors/bridge.js';
-import { connectorLogo } from './ds/brand-logos.js';
+import { ConnectorLogo } from './features/connectors/logos.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -27,6 +26,7 @@ type Actions = Pick<
   | 'connectorReconnect'
   | 'connectorRefresh'
   | 'connectorSearch'
+  | 'connectorLogos'
   | 'connectorGrantSet'
   | 'connectorAccountRemove'
 >;
@@ -222,7 +222,9 @@ export function ConnectorsSettings({
                 return (
                   <StatusListRow
                     key={account.accountId}
-                    leading={<BrandLogo src={connectorLogo(account.service)} />}
+                    leading={
+                      <ConnectorLogo service={account.service} logos={actions.connectorLogos} />
+                    }
                     tone={TONE[account.status]}
                     title={title}
                     meta={

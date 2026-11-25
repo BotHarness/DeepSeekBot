@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 export const COMPOSIO_API = 'https://backend.composio.dev/api/v3.1';
+export const COMPOSIO_LOGOS = 'https://logos.composio.dev/api';
+const LOGO_BYTES = 256 * 1024;
+const LOGO_TYPES = new Set(['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const SVG_PROLOG = /^\s*(?:(?:<\?xml[^>]*\?>|<!DOCTYPE svg[^>[]*>)\s*)*/i;
+const COMPOSIO_FALLBACK_LOGO = 'composio-fallback';
+const UNSAFE_SVG =
+  /<!|<\?|<script|<foreignObject|<image|<iframe|<use\b|\bon[a-z]+\s*=|(?:xlink:)?href\s*=\s*["'](?!#)|url\(\s*["']?(?!#)/i;
 
 export class ComposioError extends Error {
   constructor(
@@ -94,6 +101,7 @@ export interface ComposioClient {
   accounts(apiKey: string, userId: string): Promise<ComposioAccount[]>;
   removeAccount(apiKey: string, accountId: string): Promise<void>;
   toolkits(apiKey: string, query: string, cursor?: string): Promise<ComposioToolkitPage>;
+  logo(service: string): Promise<string | undefined>;
   session(
     apiKey: string,
     userId: string,
@@ -140,9 +148,10 @@ export function trustedComposioUrl(value: string, base = COMPOSIO_API): boolean 
 }
 
 export function createComposioClient(
-  options: { base?: string; fetch?: typeof fetch } = {},
+  options: { base?: string; logos?: string; fetch?: typeof fetch } = {},
 ): ComposioClient {
   const base = (options.base ?? COMPOSIO_API).replace(/\/$/, '');
+  const logos = (options.logos ?? COMPOSIO_LOGOS).replace(/\/$/, '');
   const fetchImpl = options.fetch ?? fetch;
   const call = async (
     apiKey: string,
@@ -247,6 +256,27 @@ export function createComposioClient(
       } catch (error) {
         if (!(error instanceof ComposioError) || error.status !== 404) throw error;
       }
+    },
+    async logo(service) {
+      const response = await fetchImpl(`${logos}/${encodeURIComponent(service)}`, {
+        signal: AbortSignal.timeout(8_000),
+      });
+      const type = (response.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+      if (!response.ok || !LOGO_TYPES.has(type)) return undefined;
+      const declared = Number(response.headers.get('content-length') ?? '0');
+      if (declared > LOGO_BYTES) return undefined;
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length === 0 || bytes.length > LOGO_BYTES) return undefined;
+      if (type !== 'image/svg+xml') return `data:${type};base64,${bytes.toString('base64')}`;
+      const svg = bytes
+        .toString('utf8')
+        .replace(/\s+/g, ' ')
+        .replace(/<!--.*?-->/g, '')
+        .replace(SVG_PROLOG, '')
+        .trim();
+      if (!/^<svg[\s>]/i.test(svg) || UNSAFE_SVG.test(svg) || svg.includes(COMPOSIO_FALLBACK_LOGO))
+        return undefined;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     },
     async toolkits(apiKey, query, cursor) {
       const params = new URLSearchParams({ limit: '30', sort_by: 'usage' });

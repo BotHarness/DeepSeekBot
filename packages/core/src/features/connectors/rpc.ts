@@ -37,6 +37,10 @@ export const connectorsRpc = {
     );
   },
 
+  connectorLogos(services: string[]): Promise<{ logos: Record<string, string> }> {
+    return unwrapAsync(this.methods.connectorLogos({ services }));
+  },
+
   connectorGrantSet(
     slug: string,
     accountId: string,

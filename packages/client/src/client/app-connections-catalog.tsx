@@ -3,11 +3,10 @@ import { useRef, useState, type ReactElement } from 'react';
 
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
+import { ConnectorLogo, type FetchLogos } from './features/connectors/logos.js';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
-import { BrandLogo } from './ds/brand-logo.js';
-import { connectorLogo } from './ds/brand-logos.js';
 import { Button } from './ds/button.js';
 import { CatalogCard, CatalogGrid } from './ds/catalog-grid.js';
 import { FieldStack, SearchField, TextField } from './ds/field.js';
@@ -93,12 +92,14 @@ export function AppCatalog({
   view,
   t,
   search,
+  logos,
   disabled,
   onPick,
 }: {
   view: ConnectorsView;
   t: BotHarnessTranslate;
   search?: Search | undefined;
+  logos?: FetchLogos | undefined;
   disabled?: boolean;
   onPick: (app: PickedApp) => void;
 }): ReactElement {
@@ -189,7 +190,7 @@ export function AppCatalog({
                     ? t('connectors.catalog.connected', { count })
                     : t('connectors.catalog.available')
                 }
-                leading={<BrandLogo src={connectorLogo(app.service)} size={40} />}
+                leading={<ConnectorLogo service={app.service} size={40} logos={logos} />}
                 actionLabel={t('connectors.catalog.connect')}
                 disabled={disabled === true}
                 data={{ 'data-connector-service': app.service }}
@@ -216,7 +217,7 @@ export function ConnectAppDialog({
   onClose,
   onLinked,
 }: {
-  actions: Pick<BridgeActions, 'connectorConnect' | 'connectorSearch'>;
+  actions: Pick<BridgeActions, 'connectorConnect' | 'connectorSearch' | 'connectorLogos'>;
   view: ConnectorsView;
   t: BotHarnessTranslate;
   service?: PickedApp | undefined;
@@ -240,7 +241,13 @@ export function ConnectAppDialog({
         showCancel
         onCancel={onClose}
       >
-        <AppCatalog view={view} t={t} search={actions.connectorSearch} onPick={setPicked} />
+        <AppCatalog
+          view={view}
+          t={t}
+          search={actions.connectorSearch}
+          logos={actions.connectorLogos}
+          onPick={setPicked}
+        />
       </FormDialog>
     );
 
@@ -281,7 +288,7 @@ export function ConnectAppDialog({
       <FieldStack>
         <SettingsRow
           title={picked.name}
-          icon={<BrandLogo src={connectorLogo(picked.service)} size={28} />}
+          icon={<ConnectorLogo service={picked.service} size={28} logos={actions.connectorLogos} />}
         />
         <TextField
           label={t('connectors.connect.label')}
@@ -300,7 +307,10 @@ export function MarketAppConnections({
   actions,
   t,
 }: {
-  actions: Pick<BridgeActions, 'connectors' | 'connectorConnect' | 'connectorSearch'>;
+  actions: Pick<
+    BridgeActions,
+    'connectors' | 'connectorConnect' | 'connectorSearch' | 'connectorLogos'
+  >;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [view, setView] = useState<ConnectorsView | undefined>();
@@ -331,7 +341,13 @@ export function MarketAppConnections({
         ) : !view.configured ? (
           <Note inset>{t('connectors.accounts.empty')}</Note>
         ) : (
-          <AppCatalog view={view} t={t} search={actions.connectorSearch} onPick={setService} />
+          <AppCatalog
+            view={view}
+            t={t}
+            search={actions.connectorSearch}
+            logos={actions.connectorLogos}
+            onPick={setService}
+          />
         )}
         {signIn === undefined ? null : (
           <Note>

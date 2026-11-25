@@ -66,6 +66,7 @@ export interface ConnectorActions {
   connectorReconnect?(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }>;
   connectorRefresh?(): Promise<ConnectorsView>;
   connectorSearch?(query: string, cursor?: string): Promise<ConnectorAppSearch>;
+  connectorLogos?(services: string[]): Promise<{ logos: Record<string, string> }>;
   connectorGrantSet?(
     slug: string,
     accountId: string,
@@ -86,6 +87,7 @@ export function createConnectorActions(invoke: InvokeAction) {
     connectorRefresh: () => invoke('connectorRefresh', {}),
     connectorSearch: (query, cursor) =>
       invoke('connectorSearch', cursor === undefined ? { query } : { query, cursor }),
+    connectorLogos: (services) => invoke('connectorLogos', { services }),
     connectorGrantSet: (slug, accountId, access) =>
       invoke('connectorGrantSet', { slug, accountId, access }),
     connectorAccountRemove: (accountId) => invoke('connectorAccountRemove', { accountId }),
