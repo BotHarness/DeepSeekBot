@@ -4,6 +4,7 @@ export const HOST_SESSION_SORTS = ['last-human-turn', 'created', 'last-activity'
 export type HostSessionSort = (typeof HOST_SESSION_SORTS)[number];
 export type HostSessionFilter = 'all' | 'native' | `bot:${string}`;
 export const HOST_SESSION_SEARCH_MAX = 200;
+export const HOST_SESSION_PAGE_MAX = 200;
 
 export function isHostSessionSort(value: unknown): value is HostSessionSort {
   return HOST_SESSION_SORTS.some((sort) => sort === value);
@@ -21,6 +22,8 @@ export interface HostSessionListOptions {
   search?: string;
   sort?: HostSessionSort;
   source?: HostSessionFilter;
+  limit?: number;
+  cursor?: string;
 }
 
 export type HostSessionCreateRequest = (
@@ -51,6 +54,7 @@ export interface HostSessionListResult {
   sessions: HostSessionRow[];
   queryVersion?: 1;
   sources?: HostSessionSourceOption[];
+  nextCursor?: string;
 }
 
 export interface HostSessionRow {

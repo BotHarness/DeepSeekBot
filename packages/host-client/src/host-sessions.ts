@@ -87,7 +87,13 @@ export async function readHostSessionList(
       return [{ kind: 'bot', botSlug: option['botSlug'], displayName: option['displayName'] }];
     return [];
   });
-  return { sessions, queryVersion: 1, sources };
+  const nextCursor = answer['nextCursor'];
+  return {
+    sessions,
+    queryVersion: 1,
+    sources,
+    ...(typeof nextCursor === 'string' && nextCursor !== '' ? { nextCursor } : {}),
+  };
 }
 
 export async function createHostSession(

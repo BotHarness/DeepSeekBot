@@ -32,12 +32,14 @@ vi.mock('../src/ui/primitives/drawer-material', () => ({
 
 import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-panel';
 import { interfacePreferences } from '../src/ui/interface-preferences';
+import { sessionQueries } from '../src/features/sessions/session-list-query';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
+  sessionQueries.clear();
 });
 
 const now = Date.now();
@@ -123,7 +125,13 @@ async function render(
       />,
     ),
   );
+  await settle();
   return { view, call, other };
+}
+
+async function settle() {
+  for (let tick = 0; tick < 3; tick += 1)
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 }
 
 it('lists Sessions by day with the open one highlighted under the Environment name', async () => {
@@ -134,7 +142,7 @@ it('lists Sessions by day with the open one highlighted under the Environment na
   );
   expect(call).toHaveBeenCalledWith(
     'sessionList',
-    { search: '', sort: 'last-human-turn', source: 'all', queryVersion: 1 },
+    { search: '', sort: 'last-human-turn', source: 'all', limit: 50, queryVersion: 1 },
     expect.anything(),
   );
   const sections = [...view.querySelectorAll('section')].map((section) => section.textContent);
@@ -261,4 +269,54 @@ it('renders the Stacked-style Session list with ✎ in the header and Search abo
 it('hides ✎ from a member on the Stacked-style Session list', async () => {
   const { view } = await render({ variant: 'page', canCreate: false });
   expect(view.querySelector('[data-testid="session-list-new"]')).toBeNull();
+});
+
+it('shows the cached Sessions at once when the drawer opens again, and refreshes them in the background', async () => {
+  const { view, call } = await render();
+  expect(view.textContent).toContain('Fresh work');
+  act(() => root?.unmount());
+  let answer: (value: unknown) => void = () => undefined;
+  call.mockImplementation(
+    () =>
+      new Promise<never>((resolve) => {
+        answer = resolve as (value: unknown) => void;
+      }),
+  );
+  const again = document.createElement('div');
+  root = createRoot(again);
+  await act(async () =>
+    root!.render(
+      <SessionDrawerPanel
+        hosts={[{ hostId: 'studio', hostName: 'Studio', client: client(call) }]}
+        title="Studio"
+        showHost={false}
+        active
+        canCreate
+        onOpen={() => {}}
+        onNew={() => {}}
+      />,
+    ),
+  );
+  expect(again.textContent).toContain('Fresh work');
+  expect(again.textContent).toContain('Old research');
+  expect(call).toHaveBeenCalledTimes(2);
+  await act(async () =>
+    answer({
+      queryVersion: 1,
+      sources: [{ kind: 'native' }],
+      sessions: [
+        {
+          sessionId: 'newer',
+          title: 'Newer work',
+          source: { kind: 'native' },
+          running: false,
+          lastPromptAt: now,
+          updatedAt: now,
+        },
+      ],
+    }),
+  );
+  await settle();
+  expect(again.textContent).toContain('Newer work');
+  expect(again.textContent).not.toContain('Old research');
 });

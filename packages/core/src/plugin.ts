@@ -573,7 +573,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(ctx, dshSessions),
+    nativeSessions: dshHostSessions(ctx, dshSessions, () =>
+      core.live.publishResourceChanged('sessions'),
+    ),
     takeovers,
     folders,
     mountedToolApproval,

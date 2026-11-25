@@ -10,13 +10,67 @@ import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionStore } from '../../sessions/source.js';
 import { hostSessionQueries } from './dsh-host-session-query.js';
-import type { NativeSessions } from './host-sessions.js';
+import type { DshSessionListRow, NativeSessions } from './host-sessions.js';
+import {
+  cacheSessionRows,
+  changesSessionRow,
+  createSessionListChanges,
+} from './session-list-changes.js';
 
-export function dshHostSessions(ctx: Context, sessions: DshSessionStore): NativeSessions {
+export function dshHostSessions(
+  ctx: Context,
+  sessions: DshSessionStore,
+  publishChanged: () => void = () => undefined,
+): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
     return service;
+  }
+  const changes = createSessionListChanges(publishChanged);
+  ctx.on('session/event', (_session, event) => changes.changed(changesSessionRow(event.type)), {
+    global: true,
+  });
+  for (const event of ['agent/created', 'agent/disposed', 'agent/status'] as const)
+    ctx.on(event, () => changes.changed(), { global: true });
+  ctx.effect(() => () => changes.close(), 'botharness: Session list changes');
+  const list = cacheSessionRows(readRows, changes);
+
+  async function readRows(): Promise<readonly DshSessionListRow[]> {
+    const service = controller();
+    const signal = new AbortController().signal;
+    const { items } = await service.list({}, signal);
+    const roots = items.filter((row) => row.origin !== 'subagent');
+    const waiting = new Set(
+      (
+        await Promise.all(
+          roots
+            .filter((row) => row.running)
+            .map((row) =>
+              service.state({ sessionId: row.sessionId }, signal).then(
+                (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
+                () => undefined,
+              ),
+            ),
+        )
+      ).filter((id) => id !== undefined),
+    );
+    return roots.map((row) => {
+      const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
+      const metadata = row.projections?.values;
+      const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
+      return {
+        sessionId,
+        ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+        ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
+        ...(cwd === undefined ? {} : { cwd }),
+        ...(parentSessionId === undefined ? {} : { parentSessionId }),
+        ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
+        lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
+        running,
+        updatedAt,
+      };
+    });
   }
 
   return {
@@ -25,42 +79,7 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
       if (query === undefined) throw new Error('DSH Session Query unavailable');
       return query;
     }),
-    async list() {
-      const service = controller();
-      const signal = new AbortController().signal;
-      const { items } = await service.list({}, signal);
-      const roots = items.filter((row) => row.origin !== 'subagent');
-      const waiting = new Set(
-        (
-          await Promise.all(
-            roots
-              .filter((row) => row.running)
-              .map((row) =>
-                service.state({ sessionId: row.sessionId }, signal).then(
-                  (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
-                  () => undefined,
-                ),
-              ),
-          )
-        ).filter((id) => id !== undefined),
-      );
-      return roots.map((row) => {
-        const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
-        const metadata = row.projections?.values;
-        const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
-        return {
-          sessionId,
-          ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-          ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
-          ...(cwd === undefined ? {} : { cwd }),
-          ...(parentSessionId === undefined ? {} : { parentSessionId }),
-          ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
-          lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
-          running,
-          updatedAt,
-        };
-      });
-    },
+    list,
     async isRoot(id) {
       const sessionId = SessionId(id);
       const header =
