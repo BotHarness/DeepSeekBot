@@ -52,7 +52,7 @@ import type { PairingRequest, PairingReviewInput } from '../../../core/src/messa
 import type {
   SenderAccessInput,
   GroupReceptionInput,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
@@ -246,7 +246,7 @@ export interface BridgeActions
   messagingThreadPolicy(
     slug: string,
     sourceEventId: string,
-    policy: import('../../../core/src/messaging/permissions/index.js').ThreadReceptionInput,
+    policy: import('../../../core/src/messaging/permissions/client.js').ThreadReceptionInput,
   ): Promise<void>;
   messagingGroupPolicy(slug: string, grantId: string, policy: GroupReceptionInput): Promise<void>;
   messagingSource(slug: string, sourceEventId: string): Promise<ExternalSource>;

@@ -7,7 +7,7 @@ import type {
   ThreadReceptionInput,
   SenderAccessInput,
   GroupReceptionInput,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import { createSessionOwnerBridge } from './features/sessions/bridge.js';
 import { sessionLive } from '@botharness/host-client/session-detail';
 import type { SessionLiveSnapshot } from './features/sessions/bridge.js';

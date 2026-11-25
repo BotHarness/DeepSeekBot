@@ -18,7 +18,7 @@ import type {
 import { Combobox } from './combobox.js';
 import { ExternalConversations, type ConversationSync } from './external-conversations.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
-import type { GroupReceptionInput } from '../../../core/src/messaging/permissions/index.js';
+import type { GroupReceptionInput } from '../../../core/src/messaging/permissions/client.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Field, TextField } from './ds/field.js';
 import {

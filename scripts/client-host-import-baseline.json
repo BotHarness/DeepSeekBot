@@ -32,7 +32,7 @@
     "../../../core/src/messaging/inbound.js": 1,
     "../../../core/src/messaging/outbound.js": 1,
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 2,
+    "../../../core/src/messaging/permissions/client.js": 2,
     "../../../core/src/messaging/provider.js": 2,
     "../../../core/src/onboarding/types.js": 1,
     "../../../core/src/purge/contracts.js": 1,
@@ -52,7 +52,7 @@
   },
   "packages/client/src/client/activity-list-pairing.tsx": {
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/activity-live.ts": {
     "../../../core/src/state/tool-activity.js": 1
@@ -76,7 +76,7 @@
   },
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/bot-presentation.ts": {
     "../../../core/src/channels/message-preview.js": 1
@@ -121,7 +121,7 @@
     "../../../core/src/messaging/inbound.js": 1,
     "../../../core/src/messaging/outbound.js": 1,
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1,
+    "../../../core/src/messaging/permissions/client.js": 1,
     "../../../core/src/messaging/provider.js": 1,
     "../../../core/src/runtime/assignment-human-context.js": 1,
     "../../../core/src/skills/events.js": 1,
@@ -221,7 +221,7 @@
     "../../../core/src/messaging/conversations.js": 1,
     "../../../core/src/messaging/identity.js": 1,
     "../../../core/src/messaging/outbound.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/external-entries.tsx": {
     "../../../core/src/messaging/identity.js": 1
@@ -230,7 +230,7 @@
     "../../../core/src/messaging/conversations.js": 1,
     "../../../core/src/messaging/identity.js": 1,
     "../../../core/src/messaging/outbound.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/external-message-text.tsx": {
     "../../../core/src/messaging/provider.js": 1
@@ -370,7 +370,7 @@
   },
   "packages/client/src/client/messaging-grant.tsx": {
     "../../../core/src/messaging/outbound.js": 2,
-    "../../../core/src/messaging/permissions/index.js": 1,
+    "../../../core/src/messaging/permissions/client.js": 1,
     "../../../core/src/messaging/provider.js": 1
   },
   "packages/client/src/client/messaging-store.ts": {
@@ -402,11 +402,11 @@
   },
   "packages/client/src/client/pairing-settings.tsx": {
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/permission-group-settings.tsx": {
     "../../../core/src/messaging/pairing.js": 2,
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/personabot-deletion.tsx": {
     "../../../core/src/bots/deletion.js": 1
@@ -532,7 +532,7 @@
     "../../../core/src/takeover/contracts.js": 1
   },
   "packages/client/src/client/thread-reception-settings.tsx": {
-    "../../../core/src/messaging/permissions/index.js": 1
+    "../../../core/src/messaging/permissions/client.js": 1
   },
   "packages/client/src/client/turn-continuation.ts": {
     "../../../core/src/channels/channel-notice.js": 1

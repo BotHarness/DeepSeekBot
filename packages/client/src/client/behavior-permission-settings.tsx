@@ -14,7 +14,7 @@ import {
   type EffectiveBehaviorPermission,
   type ExternalPermissionGroup,
   type SenderAccessInput,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import type { PairingRequest } from '../../../core/src/messaging/pairing.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { PairingTable } from './pairing-table.js';

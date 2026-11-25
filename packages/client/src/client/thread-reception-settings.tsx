@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type {
   ThreadReceptionInput,
   ThreadReceptionView,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';

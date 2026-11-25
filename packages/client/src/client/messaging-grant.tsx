@@ -14,7 +14,7 @@ import { ThreadReceptionSettings } from './thread-reception-settings.js';
 import type {
   GroupReceptionInput,
   GroupReceptionPolicy,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import { useRef, useState, type ReactElement } from 'react';
 
 import type { OutboxState } from '../../../core/src/messaging/outbound.js';

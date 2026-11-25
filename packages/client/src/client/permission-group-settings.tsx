@@ -12,7 +12,7 @@ import type {
   SenderAccessInput,
   BehaviorPermission,
   BehaviorChoices,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import type { PairingRequest } from '../../../core/src/messaging/pairing.js';
 import type { PairingCapability } from '../../../core/src/messaging/pairing.js';
 import type { BotHarnessTranslate } from './locale.js';

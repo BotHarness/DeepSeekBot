@@ -77,13 +77,16 @@ function inspectPackageBoundaries(file, source, workspaces) {
         errors.push(
           `${file}:${input.loc.start.line}: CLI adapters must use the Host for operational database access (${specifier})`,
         );
+      const permissionsEntry = file.startsWith('packages/client/')
+        ? `${permissionsModule}client.js`
+        : `${permissionsModule}index.js`;
       if (
         target?.startsWith(permissionsModule) &&
-        target !== `${permissionsModule}index.js` &&
+        target !== permissionsEntry &&
         !file.startsWith(permissionsModule)
       )
         errors.push(
-          `${file}:${input.loc.start.line}: import messaging permissions through permissions/index.js (${specifier})`,
+          `${file}:${input.loc.start.line}: import messaging permissions through ${permissionsEntry.slice(permissionsModule.length)} (${specifier})`,
         );
       if (
         file.startsWith('packages/client/src/') &&
@@ -110,7 +113,7 @@ const movedClientHostTargets = new Map(
     'behavior-permissions',
     'group-policy',
     'thread-policy',
-  ].map((name) => [`packages/core/src/messaging/${name}.js`, `${permissionsModule}index.js`]),
+  ].map((name) => [`packages/core/src/messaging/${name}.js`, `${permissionsModule}client.js`]),
 );
 
 function clientHostRule(file, specifier) {

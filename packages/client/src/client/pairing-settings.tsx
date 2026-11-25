@@ -18,7 +18,7 @@ import type {
   ExternalUserRole,
   SenderAccessInput,
   SenderPolicy,
-} from '../../../core/src/messaging/permissions/index.js';
+} from '../../../core/src/messaging/permissions/client.js';
 import {
   GroupDetails,
   GroupDialog,
