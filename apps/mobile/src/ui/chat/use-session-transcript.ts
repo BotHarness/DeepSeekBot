@@ -106,8 +106,8 @@ export function useSessionTranscript(
             liveObservations += 1;
           }
           if (durable !== undefined && next.seq > durable.seq) {
+            if (asked) publish();
             if (previous?.seq !== next.seq) load();
-            else if (asked) publish();
           } else if (asked || previous?.revision !== next.revision) {
             publish();
           }
