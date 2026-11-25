@@ -81,6 +81,7 @@ export function createQuestionMessaging(options: {
   let closed = false;
   const controller = new AbortController();
   const busy = new Set<string>();
+  const again = new Set<string>();
   const rows = (slug: string): QuestionDelivery[] =>
     database.read((db) =>
       (
@@ -212,7 +213,11 @@ export function createQuestionMessaging(options: {
   };
   const update = async (id: string): Promise<void> => {
     const value = read(id);
-    if (!value?.receipt || busy.has(id) || !safe(value)) return;
+    if (!value?.receipt || !safe(value)) return;
+    if (busy.has(id)) {
+      again.add(id);
+      return;
+    }
     const startedAt = performance.now();
     const card = render(value);
     busy.add(id);
@@ -251,7 +256,7 @@ export function createQuestionMessaging(options: {
       const latest = read(id);
       if (latest) {
         trace('update', latest, startedAt);
-        if (render(latest).status !== card.status) void update(id);
+        if (again.delete(id) || render(latest).status !== card.status) void update(id);
       }
     }
   };
@@ -603,6 +608,7 @@ export function createQuestionMessaging(options: {
       controller.abort();
       detach?.();
       busy.clear();
+      again.clear();
       owner = undefined;
       channels = undefined;
     },

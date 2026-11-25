@@ -668,3 +668,30 @@ it('a quoted free-text question does not take an unknown #reference as its answe
   await f.text('Ship it', receipt);
   expect(await answer).toEqual({ answers: [{ id: 'note', selected: [], custom: 'Ship it' }] });
 });
+
+it('in text mode, a second refused answer during an update is still told', async () => {
+  const f = await fixture(true);
+  const { delivery } = await f.start();
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  vi.spyOn(f.owner, 'answer').mockResolvedValue(false);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const reply = f.replies.getMockImplementation()!;
+  f.replies.mockImplementationOnce(async (...args) => {
+    await held;
+    return reply(...args);
+  });
+  const notices = () =>
+    f.replies.mock.calls.filter((call) => String(call[2]).includes('回答未被接受')).length;
+  await f.text('A', receipt);
+  await vi.waitFor(() => expect(notices()).toBe(1));
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.questions.snapshot('ada').find((d) => d.id === delivery.id)
+        ?.submission,
+    ).toBe('refused'),
+  );
+  await f.text('B', receipt);
+  release();
+  await vi.waitFor(() => expect(notices()).toBe(2));
+});
