@@ -404,6 +404,9 @@ export function ExternalLinkIcon(props: IconProps) {
     />
   );
 }
+export function CodeIcon(props: IconProps) {
+  return <Glyph {...props} d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />;
+}
 export function TerminalIcon(props: IconProps) {
   return <Glyph {...props} d="m4 5 6 7-6 7m9 0h7" />;
 }

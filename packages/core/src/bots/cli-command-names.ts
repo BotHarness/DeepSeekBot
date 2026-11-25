@@ -9,8 +9,16 @@ const activityCommandNames = new Map([
   ['activity-ignore', 'inbox-ignore'],
   ['activity-snooze', 'inbox-snooze'],
 ]);
+const loadoutCommandNames = new Map([
+  ['loadouts', 'bot-modes'],
+  ['loadout-default-set', 'bot-mode-default-set'],
+  ['loadout-set', 'bot-mode-set'],
+  ['loadout-template-save', 'bot-mode-template-save'],
+  ['loadout-template-delete', 'bot-mode-template-delete'],
+  ['loadout-template-set', 'bot-mode-template-set'],
+]);
 const canonicalCommands = new Map(
-  [...activityCommandNames].map(([current, legacy]) => [legacy, current]),
+  [...activityCommandNames, ...loadoutCommandNames].map(([current, legacy]) => [legacy, current]),
 );
 
 export function canonicalCliCommandName(command: string): string {

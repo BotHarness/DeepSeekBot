@@ -1,4 +1,4 @@
-import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,7 +30,6 @@ import {
 import { SHEET_GROUP, Sheet } from '../../ui/chat/sheet';
 import { useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
-import { useSessionsTab } from '../../ui/interface-preferences';
 import { KeyboardChatFrame } from '../../ui/primitives/keyboard-frame';
 import { SettingsGroupItem, SettingsRow } from '../../ui/primitives/settings-row';
 import { Text } from '../../ui/primitives/text';
@@ -56,7 +55,6 @@ function NewSessionLeading({ stacked }: { stacked: boolean }) {
 }
 
 export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
-  const enabled = useSessionsTab();
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -82,7 +80,6 @@ export function NewSessionScreen({ stacked = false }: { stacked?: boolean }) {
   const target = computers.find((host) => host.saved.hostId === hostId);
   useFocusEffect(useCallback(() => (stacked ? undefined : enterDrawerRoot()), [stacked]));
   useSessionsStackFit();
-  if (!enabled) return <Redirect href="/" />;
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }} testID="new-session-screen">
       <Stack.Screen options={{ title: t.create, headerShown: false }} />

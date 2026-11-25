@@ -145,7 +145,7 @@ export const RULES = [
     AUTH,
   ),
   related(
-    'packages/core/src/messaging/{behavior-permissions,permission-groups}.ts',
+    'packages/core/src/messaging/permissions/*.ts',
     'Host Messaging authorization',
     true,
     AUTH,

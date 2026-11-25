@@ -126,3 +126,13 @@ row. Publish its evidence with `--browser-evidence-prefix ./verified`. The broad
 lifecycle/tools rows remain gaps: this result does not qualify multi-tab, upload, profile
 reset, takeover, alternate targets or model use. Inspect four Web states and the captured
 Browser frame before recording `browser-lifecycle-report.mjs --visual-review pass`.
+
+## Container Computer evidence
+
+Select `--computer-run <attempt>` for `desktop.computer.container-start-frame-stop` and
+publish its files with `--computer-evidence-prefix ./verified`. Follow the
+[Container-only recipe](../../.agents/skills/verify-deepseekbot/features/computer-lifecycle.md).
+The row requires task resource ownership, actual panel and CLI picture inspection,
+correlated container/volume state, diagnostics, Stop and a subsequent `not-running` frame
+refusal. Missing Docker prerequisites remain blocked. Local Computer, input, exports,
+phone WebRTC and model use are not qualified by this row.

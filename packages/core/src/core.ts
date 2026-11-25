@@ -175,6 +175,7 @@ function initializeCore(
         const owner = ownership.resolve(sessionId);
         return owner?.botSlug === slug && owner.rootRole === role;
       },
+      turnSources: (slug, sessionId) => runtime?.turnSourceEventIds?.(slug, sessionId),
       onAuthorizationChanged: (slug) => reconcileToolRuleCreators?.(slug),
       onDefaultsChanged: () => live?.publishRosterCommitted(),
       onReceptionChanged: () => live?.publishRosterCommitted(),

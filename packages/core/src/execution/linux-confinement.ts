@@ -13,6 +13,7 @@ export interface ExecutionPlan {
   writable: string[];
   hidden: string[];
   tools?: string[] | undefined;
+  pathEnv?: string | undefined;
   home: string;
   resolvConf?: string | undefined;
 }
@@ -138,6 +139,7 @@ export function bwrapArgs(
   if (mode === 'workspace-write' && !writable.has(plan.home))
     args.push('--bind', plan.home, plan.home);
   else if (!writable.has(plan.home)) args.push('--ro-bind', plan.home, plan.home);
+  if (plan.pathEnv !== undefined) args.push('--setenv', 'PATH', plan.pathEnv);
   args.push(
     '--setenv',
     'HOME',

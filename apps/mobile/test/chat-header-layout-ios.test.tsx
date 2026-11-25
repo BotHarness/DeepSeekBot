@@ -203,4 +203,17 @@ describe('iOS chat header size contract', () => {
       }
     },
   );
+
+  it('drops the back control when the page is a tab root', () => {
+    device.scale = 1;
+    const html = renderToStaticMarkup(
+      <NativePageHeader
+        backID="back"
+        title={<ChatTitle bot={bot} fallback="QA" onPress={noPress} />}
+        action={{ label: 'Profile', testID: 'profile', onPress: noPress }}
+      />,
+    );
+    expect(html).not.toContain('data-symbol="chevron.left"');
+    expect(html).toContain('data-symbol="ellipsis"');
+  });
 });

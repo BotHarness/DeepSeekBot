@@ -291,6 +291,10 @@ _Avoid_: reviewer Session, auto-approval Session, Orchestrator Session, Assignme
 A Human-controlled per-PersonaBot choice applied when a new Assignment is created. The default is DSH workspace-write with ask; dangerous full access is an explicit opt-in to DSH danger-full-access with never. The chosen mode is frozen in each Assignment's permission snapshot, while its selected Workspace Grant remains required.
 _Avoid_: Workspace Grant, in-place Session mode switch, Orchestrator permission
 
+**Loadout**:
+A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI, `create_assignment` and the CLI say Loadout; DSH still calls it a mode.
+_Avoid_: Session mode, mode (bare, beside Team mode, Developer Mode and Tob Mode), agent preset (outside DSH seams), instruction set
+
 **Delegation**:
 Handing responsibility to a PersonaBot from a Chat or the Roster. Its Orchestrator may answer directly or create or reuse one or more Assignment Sessions.
 _Avoid_: direct Session creation, task entity, job entity
@@ -1287,7 +1291,7 @@ The Composer-shaped tap target above the tab island on Chats that opens Tob Mode
 _Avoid_: Tob input, quick composer, pull to Tob
 
 **Pinned tab**:
-Planned (#5191): the phone tab-island slot bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and opening it as its own tab. It defaults to the Steward's DM and replaces the Tob entry bar and Tob Mode.
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the Steward's DM, follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
 _Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:

@@ -4,14 +4,21 @@ import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/type
 import type { ChannelStore } from '../channels/store.js';
 import type { ChannelQuestionNotice, ChannelUserQuestions } from '../channels/user-questions.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 import type { ApprovalMessaging, ApprovalRoute } from './approval-messaging.js';
-import { assertMessagingIdentity } from './identity.js';
 import {
+  createInteractionAuthority,
+  type InteractionContext,
+  type InteractionDestination,
+  withoutFailedGroup,
+} from './authority.js';
+import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
+import {
+  answerText,
   explainQuestionReply,
   parseQuestionReply,
   renderQuestionText,
 } from './interactions/text-answers.js';
+import { questionSurface } from './interactions/surface.js';
 import type { BotPairing } from './pairing.js';
 import {
   MessagingError,
@@ -21,6 +28,7 @@ import {
   type MessagingQuestionAction,
   type MessagingQuestionCard,
   type MessagingReceipt,
+  type MessagingReplyRoute,
 } from './provider.js';
 
 export interface QuestionDelivery {
@@ -36,6 +44,8 @@ export interface QuestionDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
+  destination?: InteractionDestination;
   submission: 'none' | 'submitting' | 'accepted' | 'refused' | 'unknown-outcome';
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
   reason?: string;
@@ -61,16 +71,19 @@ export function createQuestionMessaging(options: {
   approvals: ApprovalMessaging;
   provider(id: string): MessagingProvider;
   isBotActive(slug: string): boolean;
+  turnSources?(botSlug: string, sessionId: string): readonly string[] | undefined;
   recover?: boolean;
   warn?(message: string): void;
 }): QuestionMessaging {
-  const { database, pairing } = options;
+  const { database } = options;
+  const authority = createInteractionAuthority(options);
   let owner: ChannelUserQuestions | undefined;
   let channels: ChannelStore | undefined;
   let detach: (() => void) | undefined;
   let closed = false;
   const controller = new AbortController();
   const busy = new Set<string>();
+  const again = new Set<string>();
   const rows = (slug: string): QuestionDelivery[] =>
     database.read((db) =>
       (
@@ -124,20 +137,18 @@ export function createQuestionMessaging(options: {
       selected.pairingId !== value.route.pairingId
     )
       throw new MessagingError('approval-route-stale');
-    const identity = database.read((db) => assertMessagingIdentity(db, value.route.bindingId));
-    if (identity.botSlug !== value.botSlug || identity.platform !== 'feishu')
-      throw new MessagingError('untrusted-source');
-    const paired = pairing.list(value.botSlug).find((item) => item.id === value.route.pairingId);
-    if (
-      !paired ||
-      paired.status !== 'approved' ||
-      paired.bindingId !== identity.id ||
-      paired.revision !== value.route.pairingRevision ||
-      !paired.capabilities.includes('answer')
-    )
+    let granted: InteractionContext;
+    try {
+      granted = authority.context(value.route);
+    } catch (error) {
+      if (error instanceof MessagingError && error.code === 'untrusted-source') throw error;
       throw new MessagingError('question-answer-unavailable');
-    const provider = options.provider(identity.providerId);
-    if (!provider.questionCard) throw new MessagingError('capability-unavailable');
+    }
+    const { identity, paired, provider } = granted;
+    if (!paired.capabilities.includes('answer'))
+      throw new MessagingError('question-answer-unavailable');
+    if (!questionSurface({ identity, paired, provider }))
+      throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
   const safe = (value: QuestionDelivery) => {
@@ -204,21 +215,28 @@ export function createQuestionMessaging(options: {
   };
   const update = async (id: string): Promise<void> => {
     const value = read(id);
-    if (!value?.receipt || busy.has(id) || !safe(value)) return;
+    if (!value?.receipt || !safe(value)) return;
+    if (busy.has(id)) {
+      again.add(id);
+      return;
+    }
     const startedAt = performance.now();
     const card = render(value);
     busy.add(id);
     write({ ...value, status: state(value), update: 'sending' });
     try {
-      const { identity, provider } = context(value);
+      const granted = context(value);
+      const { identity } = granted;
       const result = await bounded((signal) =>
-        provider.questionCard!({
+        questionSurface(granted)!({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
           route: value.receipt!,
           card,
           signal,
           update: true,
+          ...(value.replyTo ? { replyTo: value.replyTo } : {}),
+          ...(value.submission === 'refused' ? { notice: true } : {}),
           beforeSend: () => safe(value) && render(read(id)!).status === card.status,
         }),
       );
@@ -241,7 +259,9 @@ export function createQuestionMessaging(options: {
       const latest = read(id);
       if (latest) {
         trace('update', latest, startedAt);
-        if (render(latest).status !== card.status) void update(id);
+        const queued = again.delete(id);
+        if (render(latest).status !== card.status || (queued && latest.submission === 'refused'))
+          void update(id);
       }
     }
   };
@@ -257,22 +277,29 @@ export function createQuestionMessaging(options: {
     const startedAt = performance.now();
     busy.add(id);
     let started = false;
+    let fallback = false;
     write({ ...value, attempts: value.attempts + 1 });
     try {
-      const { identity, paired, provider } = context(value);
-      if (!live(value) || !paired.messageIds?.[0])
+      const granted = context(value);
+      const { identity, paired } = granted;
+      const target =
+        value.destination?.reply ??
+        (paired.messageIds?.[0]
+          ? {
+              messageId: paired.messageIds[0],
+              actorId: paired.actorId,
+              conversationId: paired.conversationId,
+            }
+          : undefined);
+      if (!live(value) || !target)
         throw new MessagingProviderError('question-owner-unavailable', 'not-started');
       write({ ...value, attempts: value.attempts + 1, delivery: 'sending' });
       started = true;
       const result = await bounded((signal) =>
-        provider.questionCard!({
+        questionSurface(granted)!({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
-          route: {
-            messageId: paired.messageIds![0]!,
-            actorId: paired.actorId,
-            conversationId: paired.conversationId,
-          },
+          route: target,
           card: render(value),
           signal,
           beforeSend: () => safe(value) && live(value),
@@ -281,16 +308,24 @@ export function createQuestionMessaging(options: {
       if (
         result.sent !== true ||
         result.receipt?.version !== 1 ||
-        result.receipt.conversationId !== paired.conversationId
+        result.receipt.conversationId !== target.conversationId
       )
         throw new MessagingProviderError('provider-result-unknown', 'unknown');
-      const latest = read(id);
-      if (latest) write({ ...latest, delivery: 'sent', receipt: result.receipt });
-    } catch (error) {
       const latest = read(id);
       if (latest)
         write({
           ...latest,
+          delivery: 'sent',
+          receipt: result.receipt,
+          ...(result.replyTo ? { replyTo: result.replyTo } : {}),
+        });
+    } catch (error) {
+      const latest = read(id);
+      if (latest) {
+        const remaining = withoutFailedGroup(latest, error);
+        fallback = remaining !== latest;
+        write({
+          ...remaining,
           delivery:
             !started ||
             (error instanceof MessagingProviderError && error.disposition === 'not-started')
@@ -301,6 +336,7 @@ export function createQuestionMessaging(options: {
               ? error.code
               : 'provider-result-unknown',
         });
+      }
     } finally {
       busy.delete(id);
       const latest = read(id);
@@ -309,6 +345,7 @@ export function createQuestionMessaging(options: {
         if (latest.receipt && state(latest) !== 'pending') void update(id);
       }
     }
+    if (fallback) await send(id).catch(() => options.warn?.('question-notification-send-failed'));
   };
   const notify = (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => {
     if (closed) return;
@@ -317,7 +354,9 @@ export function createQuestionMessaging(options: {
       const route = options.approvals.snapshot(notice.botSlug).route;
       const question = channels?.message(notice.channelId, notice.messageId)?.userQuestionRequest;
       if (!route || !question) return;
+      const destination = authority.groupDestination(route, notice);
       write({
+        ...(destination ? { destination } : {}),
         id: notice.messageId,
         botSlug: notice.botSlug,
         channelId: notice.channelId,
@@ -344,28 +383,29 @@ export function createQuestionMessaging(options: {
       void update(value.id);
     }
   };
-  const authorized = (
+  const answerer = (
     value: QuestionDelivery,
     providerId: string,
-    event: { botId: string; fingerprint: string; actorId: string; conversationId: string },
-  ) => {
-    try {
-      const { identity, paired } = context(value);
-      const current = pairing.assert(value.botSlug, identity.id, event.actorId, 'answer');
-      return (
-        safe(value) &&
-        live(value) &&
-        identity.providerId === providerId &&
-        identity.accountRef === event.botId &&
-        identity.fingerprint === event.fingerprint &&
-        paired.id === current.id &&
-        current.revision === value.route.pairingRevision &&
-        paired.conversationId === event.conversationId
-      );
-    } catch {
-      return false;
-    }
-  };
+    event: {
+      botId: string;
+      fingerprint: string;
+      actorId: string;
+      conversationId: string;
+      messageId: string;
+    },
+  ) =>
+    safe(value) && live(value)
+      ? authority.authorize({
+          grant: value.route,
+          source: { ...event, providerId },
+          capability: 'answer',
+          expected: {
+            conversationId: value.receipt?.conversationId ?? event.conversationId,
+            shared: value.destination !== undefined,
+          },
+        })
+      : undefined;
+  const authorized = (...input: Parameters<typeof answerer>) => answerer(...input) !== undefined;
   const submit = (
     value: QuestionDelivery,
     answer: AskUserQuestionAnswer,
@@ -383,20 +423,11 @@ export function createQuestionMessaging(options: {
       signal.aborted ||
       value.status !== 'pending' ||
       ['submitting', 'unknown-outcome'].includes(value.submission) ||
-      value.delivery !== 'sent' ||
-      !authorized(value, providerId, event)
+      value.delivery !== 'sent'
     )
       return false;
-    const actor: ToolApprovalActor = {
-      platform: 'feishu',
-      bindingId: value.route.bindingId,
-      fingerprint: event.fingerprint,
-      actorId: event.actorId,
-      pairingId: value.route.pairingId,
-      pairingRevision: value.route.pairingRevision,
-      conversationId: event.conversationId,
-      messageId: event.messageId,
-    };
+    const actor = answerer(value, providerId, event);
+    if (!actor) return false;
     write({ ...value, submission: 'submitting' });
     queueMicrotask(() => {
       void owner
@@ -513,9 +544,9 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const body = event.text.trim();
+      const body = answerText(event);
       const command = /^\/answer(?:\s|$)/.test(body);
-      const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
+      const reference = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
         (
           db
@@ -525,14 +556,19 @@ export function createQuestionMessaging(options: {
             .all(event.conversation.id) as { body: string }[]
         ).map((row) => JSON.parse(row.body) as QuestionDelivery),
       );
+      const explicit =
+        reference &&
+        (command || candidates.some((item) => item.reference === reference[1]!.toUpperCase()))
+          ? reference
+          : null;
       const sender = { ...event, actorId: event.actor.id, conversationId: event.conversation.id };
       const supported =
-        event.channel === 'feishu' &&
-        event.conversation.kind === 'dm' &&
+        isMessagingPlatform(event.channel) &&
+        !!messagingPlatform(event.channel).features.interactions &&
         !event.attachments?.length;
       const quoted = candidates.find((value) => value.receipt?.messageId === event.reply.parentId);
       if (!command && !quoted && !explicit) {
-        if (!supported || signal.aborted) return false;
+        if (!supported || event.conversation.kind !== 'dm' || signal.aborted) return false;
         const mine = candidates.filter((item) => authorized(item, providerId, sender));
         const only = mine.length === 1 ? mine[0]! : undefined;
         const question = only && request(only);
@@ -542,12 +578,13 @@ export function createQuestionMessaging(options: {
         return true;
       }
       if (!supported) return true;
-      const reference = explicit?.[1]!.toUpperCase();
+      const named = explicit?.[1]!.toUpperCase();
       const value =
-        quoted ?? (reference ? candidates.find((item) => item.reference === reference) : undefined);
+        quoted ?? (named ? candidates.find((item) => item.reference === named) : undefined);
       const ambiguous =
-        (command || !!explicit) &&
-        (!explicit || (quoted !== undefined && quoted.reference !== reference));
+        (!!reference && !explicit) ||
+        ((command || !!explicit) &&
+          (!explicit || (quoted !== undefined && quoted.reference !== named)));
       const trusted = candidates.find((item) => authorized(item, providerId, sender));
       if (!trusted || signal.aborted) return true;
       const question = value && request(value);
@@ -582,6 +619,7 @@ export function createQuestionMessaging(options: {
       controller.abort();
       detach?.();
       busy.clear();
+      again.clear();
       owner = undefined;
       channels = undefined;
     },

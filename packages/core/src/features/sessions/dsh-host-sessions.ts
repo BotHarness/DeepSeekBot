@@ -3,6 +3,8 @@ import type {
   SessionCreateRequest,
   SessionRequestId,
 } from '@deepseek-ai/dsh-api-session-controller';
+import type {} from '@deepseek-ai/dsh-api-workspace-controller';
+import type {} from '@deepseek-ai/dsh-workspace';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ModelSelection } from '@deepseek-ai/dsh-agent';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
@@ -10,9 +12,14 @@ import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionStore } from '../../sessions/source.js';
 import { hostSessionQueries } from './dsh-host-session-query.js';
+import type { DshHostSessionInput } from './dsh-host-session-input.js';
 import type { NativeSessions } from './host-sessions.js';
 
-export function dshHostSessions(ctx: Context, sessions: DshSessionStore): NativeSessions {
+export function dshHostSessions(
+  ctx: Context,
+  sessions: DshSessionStore,
+  input?: DshHostSessionInput,
+): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
@@ -25,10 +32,18 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
       if (query === undefined) throw new Error('DSH Session Query unavailable');
       return query;
     }),
+    ...(input === undefined
+      ? {}
+      : {
+          pendingInput: input.pending,
+          answerApproval: input.answerApproval,
+          answerQuestion: input.answerQuestion,
+        }),
     async list() {
       const service = controller();
       const signal = new AbortController().signal;
       const { items } = await service.list({}, signal);
+      const archived = new Set(ctx.get('workspaceRegistry')?.archivedSessionIds);
       const roots = items.filter((row) => row.origin !== 'subagent');
       const waiting = new Set(
         (
@@ -50,6 +65,7 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
         const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
         return {
           sessionId,
+          ...(archived.has(sessionId) ? { archived: true as const } : {}),
           ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
           ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
           ...(cwd === undefined ? {} : { cwd }),
@@ -97,6 +113,11 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
           return {
             events: frame.records.map((record) => record.event),
             seq: frame.cursor,
+            ...(input === undefined
+              ? {}
+              : {
+                  pendingInput: input.fromSnapshot(id, frame.projections.values.userQuestions),
+                }),
             running: ctx.agents.get(sessionId)?.status === 'running',
             ...(typeof title === 'string' ? { title } : {}),
             ...(cwd === undefined ? {} : { cwd }),
@@ -178,6 +199,14 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
             },
       );
       return { sessionId };
+    },
+    async stop(id) {
+      controller().cancel({ sessionId: SessionId(id) });
+    },
+    async archive(id) {
+      const workspace = ctx.get('workspaceController');
+      if (workspace === undefined) throw new Error('DSH Workspace Controller unavailable');
+      await workspace.archiveSession({ sessionId: SessionId(id) });
     },
     async send(id, text) {
       const requestId = randomUUID() as SessionRequestId;

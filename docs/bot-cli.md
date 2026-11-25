@@ -3,7 +3,7 @@
 Installing `@botharness/tobs` provides the `tobs` command; the compatibility package `deepseekbot` provides `deepseekbot`. This guide retains `deepseekbot` examples: with the new package, substitute `tobs` and keep the same arguments.
 See the [installation guide](https://tobs.app/en/docs/installation/) for the current install command.
 
-Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp.
+Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp. Deleted Bots are left out of `list`; the Web keeps their history.
 
 `deepseekbot create` makes a new PersonaBot without clicking: blank, from a bot bundle (a directory or a zip with the same shape as the [bot-zip export](docs/bot-zip.md)), or from GitHub. It is built for external coding agents driving a DSH install, so its output is machine-first.
 
@@ -534,6 +534,8 @@ deepseekbot im-app-remove discord --app <app-id>
 deepseekbot messaging-defaults discord
 printf '{"expectedRevision":1,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true}' \
   | deepseekbot messaging-defaults-set discord --input-stdin
+printf '{"expectedRevision":2,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true,"groupInteractions":false}' \
+  | deepseekbot messaging-defaults-set feishu --input-stdin
 deepseekbot messaging-grants <bot-id>
 deepseekbot messaging-targets <app-ref>
 deepseekbot messaging-authorize <bot-id> --app <app-ref> --target <target-ref>
@@ -551,6 +553,7 @@ deepseekbot messaging-reachable <bot-id> --binding <binding-id> [--cursor <curso
 deepseekbot messaging-post <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin [--request-id <id>]
 deepseekbot messaging-post-status <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin --request-id <id>
 deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-10000|none>
+deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
@@ -567,6 +570,8 @@ deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
+
+`groupInteractions` (default on when absent) decides where a Bot's question or execution approval goes when the Bot turn that asks is handling a message from an IM group of the same account: on, the card is a reply in that group and any person with an approved management pairing holding the needed capability can answer or decide there; off, it goes to the selected management DM as before. `messaging-group-interactions` overrides it for one Binding, so two apps on the same platform can differ; `--inherit` follows the platform default again, and `messaging-grants` shows each Binding's effective value and whether it is inherited. Answering or deciding in the group does not move the next card to the DM. Saving an exact rule from a group card is not offered. A later save that omits the field keeps its value ([#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)).
 
 For a qualified WeChat private connector, the update JSON also accepts independent `dmMirror` and `dmForward` booleans; both default to `false`. Read `channel-bridges` first and send its current grant/route revisions with the update. The preference is shared by entries for the same Binding and conversation. Turning a switch off stops uncommitted work, including offline; it does not purge history or revoke normal reply authority. Forwarding requires an existing proactive target in the same account. For example, add `"dmMirror":true,"dmForward":false` to an otherwise unchanged update payload to enable local presentation only.
 
@@ -672,8 +677,12 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
 deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
+deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
+deepseekbot session-answer-question --session <session-id> --request <request-id> --answer-stdin < answer.json
+deepseekbot session-stop --session <session-id>
+deepseekbot session-archive --session <session-id> --confirm
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
@@ -681,6 +690,10 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 ```
 
 These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+
+The Host Owner can read native approval and question cards in `pendingInput` from `session-transcript` and `session-live`. Pass the card's `requestId` to the matching answer command. For a question, send a JSON object such as `{"answers":[{"id":"format","selected":["Compact"]}]}` on stdin, with one answer per question. A free-text answer uses `"selected":[]` and a `custom` string. Omit `custom` with an empty selection to skip an individual question. An already settled request returns `session-input-not-pending`.
+
+`session-stop --session` asks DSH to cancel the active native turn. `session-archive` archives an idle native Session. Stop a running Session and let it settle before archiving it. Archived Sessions are hidden from list and search by default. Use `--include-archived` to include them with `archived: true`. Team members cannot view or act on native Session requests.
 
 `session-create` starts a native Session, as the phone's New Session screen does: DSH creates it in the folder (`--cwd`) or in a DSH Workspace (`--workspace`, the `workspaceId` that `workspace/create` returns; a Team space id such as `spaces/local-human` is not one, so pass its folder with `--cwd`), applies the optional direct API model (`--model`, otherwise the Default preset), then admits `--message` as its first prompt. It returns `{ sessionId, requestId }`; follow the reply with `session-live --session <sessionId>`. Only the Host Owner can create native Sessions; a Team member is refused with `remote-access/denied` before the request reaches the method, which also refuses non-Owners with `permission-required`, and a Routing Group or subscription engine choice is refused with `usage` before anything is created. If DSH creates the Session but the model choice then fails, the error carries `details.sessionId`; rerun with `--session <that id>` and DSH reuses the blank Session instead of creating another.
 
@@ -1074,24 +1087,24 @@ deepseekbot approval-reviewer-model-set bot
 
 Both commands return `{follows, model}`: `follows` is `bot` (each Bot's own model, `model` is `null`), `model` (the named model is used for every review) or `invalid` (the setting file cannot be read). For a named model they also return `available` and, when it is `false`, `unavailableReason`. A model that is not in the catalog, or whose provider has no working key, is still saved, but every review then posts the ordinary Human card and writes `fallback=model-unavailable` with the reason to `logs.db`; the reviewer never switches to another model on its own. Each review's `approval-review` line in `logs.db` names the `model` and the `reviewSession` it used. When a Bot runs `approval-reviewer-model-set` from its own Shell, the call requires a Human decision or an explicit management-scope saved rule; the model Approval Reviewer cannot answer it. Refusals carry a code: `usage` (no `<provider>/<model>`, or `--effort` with `bot`) and `invalid-input`.
 
-### Bot modes
+### Loadouts
 
-A Bot's Sessions run in a DSH mode (an Agent Preset). Every Bot without its own mode uses the Profile-wide default, which is Tobs unless the Human picks another installed mode, such as standard, PTC or a plugin's mode. A Bot can also set its own. DSH fixes a Session's mode when it starts, so a change applies from each Bot's next new Orchestrator or Assignment Session.
+A Bot's Sessions run with a Loadout: a system prompt and tool set, which DSH calls a mode or Agent Preset. The former `bot-modes` and `bot-mode-*` command names still work as aliases. JSON fields (`modes`, `mode`), error codes (`mode-not-allowed` and the rest) and `bot-modes.json` keep their names. Every Bot without its own Loadout uses the Profile-wide default, which is Tobs unless the Human picks another installed mode, such as standard, PTC or a plugin's mode. A Bot can also set its own. DSH fixes a Session's mode when it starts, so a change applies from each Bot's next new Orchestrator or Assignment Session.
 
 ```bash
-deepseekbot bot-modes [<bot-id>]
-deepseekbot bot-mode-default-set <mode>|@product
-deepseekbot bot-mode-set <bot-id> <mode>|@global
-deepseekbot bot-mode-template-save [--id <template-id>] <name> <mode>...
-deepseekbot bot-mode-template-delete <template-id>
-deepseekbot bot-mode-template-set <bot-id> <template-id>|@all
+deepseekbot loadouts [<bot-id>]
+deepseekbot loadout-default-set <loadout>|@product
+deepseekbot loadout-set <bot-id> <loadout>|@global
+deepseekbot loadout-template-save [--id <template-id>] <name> <loadout>...
+deepseekbot loadout-template-delete <template-id>
+deepseekbot loadout-template-set <bot-id> <template-id>|@all
 ```
 
 Each command returns `{modes, productDefault, globalDefault, effectiveDefault, templates}`; with a Bot it also returns `bot: {slug, mode, effective, template, allowed}`. `modes` is the DSH roster (`id`, `name`, `description`, `order`, and `broken` when the mode failed to load). `productDefault` is Tobs (`deepseekbot`), `globalDefault` is the Human's choice or `null`, and a Bot's `mode` is its own choice or `null` when it follows the default. `@product` returns the default to Tobs and `@global` makes a Bot follow the default again. Only in Tobs does a question card left unanswered for 45 seconds stop holding the Bot: the Bot handles other messages and the card stays open for a later answer. In other modes a pending question card holds the Bot. Refusals carry a code: `usage`, `invalid-input`, `not-found` (unknown Bot or template id), `mode-not-found` (not installed), `mode-broken`, `modes-unavailable` (no DSH mode service) and `settings-unreadable` (`bot-modes.json` cannot be read; fix or delete it, and meanwhile templates do not apply, a Bot with its own mode keeps it and a Bot that follows the default runs in the product default; until then every change except clearing a Bot's own mode is refused). In Team mode a member's Bot follows the same rules as the Owner's Bot; only the `danger-full-access` Assignment preset stays Owner-only.
 
-A mode template (`{id, name, modes}`) limits which modes a Bot can use. A Bot without one (`template: null`, `allowed: null`) can use every installed mode; `@all` returns a Bot to that. With a template, `bot-mode-set` refuses a mode outside it with `mode-not-allowed`, and so do `bot-mode-template-set` and a template edit that would leave out a Bot's own mode; change the Bot's mode first. `bot-mode-template-delete` refuses a template a Bot still uses with `template-in-use`. A template also bounds a Bot that follows the default: when the default is outside the template, the Bot uses the template's first installed mode, and `bot.effective` shows it. If none of the template's modes is installed, the Bot still uses the template's first mode, so new Sessions fail to start with DSH's `agent-preset/not-found` rather than run outside the template; fix the template or remove it with `@all`. `@all` removes only the template; a Bot whose own mode is no longer installed also needs `bot-mode-set <bot-id> @global` or an installed mode before new Sessions start. To move a Bot with its own mode to a template that leaves that mode out, run `bot-mode-set <bot-id> @global` first, then `bot-mode-template-set`, then pick an allowed mode. A template that names a mode which is no longer installed must drop that mode before it can be saved again. `bot-sessions` returns each Session's mode as `agentPreset` once the Session has started; the Sessions panel shows the same.
+A mode template (`{id, name, modes}`) limits which modes a Bot can use. A Bot without one (`template: null`, `allowed: null`) can use every installed mode; `@all` returns a Bot to that. With a template, `loadout-set` refuses a mode outside it with `mode-not-allowed`, and so do `loadout-template-set` and a template edit that would leave out a Bot's own mode; change the Bot's mode first. `loadout-template-delete` refuses a template a Bot still uses with `template-in-use`. A template also bounds a Bot that follows the default: when the default is outside the template, the Bot uses the template's first installed mode, and `bot.effective` shows it. If none of the template's modes is installed, the Bot still uses the template's first mode, so new Sessions fail to start with DSH's `agent-preset/not-found` rather than run outside the template; fix the template or remove it with `@all`. `@all` removes only the template; a Bot whose own mode is no longer installed also needs `loadout-set <bot-id> @global` or an installed mode before new Sessions start. To move a Bot with its own mode to a template that leaves that mode out, run `loadout-set <bot-id> @global` first, then `loadout-template-set`, then pick an allowed mode. A template that names a mode which is no longer installed must drop that mode before it can be saved again. `bot-sessions` returns each Session's mode as `agentPreset` once the Session has started; the Sessions panel shows the same.
 
-An Orchestrator can start an Assignment in another mode: `list_assignment_models` returns `assignmentModes: {default, allowed}`, and `create_assignment` takes an optional `mode` from `allowed` (the Bot's template, or every installed mode). Without `mode` the Assignment uses the Bot's mode at the time its Session is created. The choice is stored with the Assignment and DSH fixes it once the Session starts; a keyed Assignment that is reused keeps its mode. The same works through `bot-tool <bot-id> create_assignment --args-stdin` with `{"title":"…","description":"…","grant_id":"<grant-id>","mode":"ptc"}`. When a Bot may use more than one mode, `create_assignment`'s `mode` parameter lists the allowed ids with each mode's description, read when the Orchestrator Session is prepared, so the Orchestrator can choose without calling `list_assignment_models` first. A mode removed from the Bot's template later is still refused.
+An Orchestrator can start an Assignment with another Loadout: `list_assignment_models` returns `assignmentLoadouts: {default, allowed}`, and `create_assignment` takes an optional `loadout` from `allowed` (the Bot's template, or every installed Loadout). The former `mode` argument is still accepted. Without `loadout` the Assignment uses the Bot's Loadout at the time its Session is created. The choice is stored with the Assignment and DSH fixes it once the Session starts; a keyed Assignment that is reused keeps its Loadout. The same works through `bot-tool <bot-id> create_assignment --args-stdin` with `{"title":"…","description":"…","grant_id":"<grant-id>","loadout":"ptc"}`. When a Bot may use more than one Loadout, `create_assignment`'s `loadout` parameter lists the allowed ids with each Loadout's description, read when the Orchestrator Session is prepared, so the Orchestrator can choose without calling `list_assignment_models` first. A Loadout removed from the Bot's template later is still refused.
 
 Besides Tobs, the product ships three scenario modes for Assignments. Each is Tobs with only the plugins its kind of work needs, so its tool definitions cost fewer input tokens on every step: `tobs-research` (Tobs 调研: web search and fetch, file read and write, no terminal), `tobs-code` (Tobs 编程: terminal, files, background jobs, skills and web lookups, no plan mode or workflows) and `tobs-script` (Tobs 脚本: terminal and files only, no web). `node scripts/sync-bot-preset.mjs` generates them with Tobs from the DSH standard preset.
 

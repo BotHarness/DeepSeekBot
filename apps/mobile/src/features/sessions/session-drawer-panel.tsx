@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Keyboard, Pressable, SectionList, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useHideChromeOnScroll } from '../../ui/shell/tab-chrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HOST_SESSION_SEARCH_MAX } from '@botharness/host-protocol/host-sessions';
 import { SheetLoading } from '../../ui/chat/sheet';
@@ -14,7 +16,7 @@ import type { SessionQueryRow } from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
 import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
 import { useStrings } from '../../ui/strings';
-import { sessionDrawerSections } from './session-drawer-model';
+import { sessionDrawerSections, type SessionDrawerGroup } from './session-drawer-model';
 import { SessionOptionsMenu } from './session-options-menu';
 import { HeaderCircleButton } from '../../ui/chat/header-chrome';
 import { useFloatingTabInset } from '../../ui/shell/floating-tab-inset';
@@ -31,6 +33,10 @@ export type SessionDrawerPanelProps = {
   onNew(): void;
   variant?: 'drawer' | 'page';
 };
+
+const AnimatedSectionList = Animated.createAnimatedComponent(
+  SectionList<SessionQueryRow, { group: SessionDrawerGroup; data: SessionQueryRow[] }>,
+);
 
 export function SessionDrawerPanel({
   hosts,
@@ -50,6 +56,7 @@ export function SessionDrawerPanel({
   const insets = useSafeAreaInsets();
   const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
+  const hideChrome = useHideChromeOnScroll(page && !searching);
   const sections = sessionDrawerSections(query.rows ?? [], query.sort, Date.now());
   const closeSearch = () => {
     query.changeSearch('');
@@ -147,8 +154,10 @@ export function SessionDrawerPanel({
       {page ? (
         <View style={{ paddingHorizontal: space.x4, paddingBottom: space.x2 }}>{searchBlock}</View>
       ) : null}
-      <SectionList
+      <AnimatedSectionList
         testID="session-drawer-list"
+        onScroll={hideChrome}
+        scrollEventThrottle={1}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

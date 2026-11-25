@@ -112,6 +112,9 @@ const SNAPSHOT = {
       revision: 4,
       postLimit: 3,
       postLimitRevision: 7,
+      groupInteractions: true,
+      groupInteractionsInheritance: 'inherit',
+      groupInteractionsRevision: 2,
     },
   ],
   grants: [
@@ -197,7 +200,16 @@ describe('IM messaging commands', () => {
       channelId: null,
     });
     expect(grants.json.bindings).toEqual([
-      { id: BINDING, app: 'feishu_1', platform: 'feishu', postLimit: 3, postLimitRevision: 7 },
+      {
+        id: BINDING,
+        app: 'feishu_1',
+        platform: 'feishu',
+        postLimit: 3,
+        postLimitRevision: 7,
+        groupInteractions: true,
+        groupInteractionsInheritance: 'inherit',
+        groupInteractionsRevision: 2,
+      },
     ]);
     expect(grants.text).not.toContain('d'.repeat(64));
     const targets = await invoke(['messaging-targets', 'feishu_1'], live.url);
@@ -330,6 +342,29 @@ describe('IM messaging commands', () => {
       ['messaging-source', BOT, '--source', 'x', '--input-stdin'],
     ])
       expect((await invoke(argv, live.url, '{}')).json.error.code).toBe('usage');
+  });
+
+  it('turns group approvals and answers on, off or back to the platform default for one binding', async () => {
+    const live = await snapshotHost((_method, args) => ({
+      identity: { id: BINDING, groupInteractions: args['enabled'] },
+    }));
+    for (const flag of ['--disabled', '--enabled', '--inherit'])
+      expect(
+        (await invoke(['messaging-group-interactions', BOT, '--binding', BINDING, flag], live.url))
+          .code,
+      ).toBe(0);
+    expect(live.calls.filter((call) => call.method === 'messagingGroupInteractions')).toEqual(
+      [false, true, null].map((enabled) => ({
+        method: 'messagingGroupInteractions',
+        args: { slug: BOT, bindingId: BINDING, expectedRevision: 2, enabled },
+      })),
+    );
+    for (const argv of [
+      ['messaging-group-interactions', BOT, '--binding', BINDING],
+      ['messaging-group-interactions', BOT, '--binding', BINDING, '--enabled', '--inherit'],
+      ['messaging-group-interactions', BOT, '--enabled'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
   });
 
   it('posts proactively with a stable request id, reads it back and sets the post limit', async () => {

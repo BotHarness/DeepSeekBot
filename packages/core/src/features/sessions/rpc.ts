@@ -1,4 +1,3 @@
-import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
@@ -294,15 +293,27 @@ export const sessionDetailsRpc = {
     return sessionModel(this.methods, slug, sessionId, choice);
   },
 
+  sessionAnswerApproval(sessionId: string, requestId: string, decision: string) {
+    return unwrapAsync(this.methods.sessionAnswerApproval({ sessionId, requestId, decision }));
+  },
+
+  sessionAnswerQuestion(sessionId: string, requestId: string, answer: unknown) {
+    return unwrapAsync(this.methods.sessionAnswerQuestion({ sessionId, requestId, answer }));
+  },
+
+  sessionNativeStop(sessionId: string) {
+    return unwrapAsync(this.methods.sessionNativeStop({ sessionId }));
+  },
+
+  sessionNativeArchive(sessionId: string) {
+    return unwrapAsync(this.methods.sessionNativeArchive({ sessionId }));
+  },
+
   sessionTranscript(slug: string | null, sessionId: string) {
     return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   },
 
-  sessionLive(
-    slug: string | null,
-    sessionId: string,
-    after?: number,
-  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+  sessionLive(slug: string | null, sessionId: string, after?: number) {
     return unwrapAsync(
       this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
     );
@@ -320,8 +331,16 @@ export const sessionDetailsRpc = {
 export const sessionListRpc = {
   sessions: SessionListRpc.prototype.sessions,
 
-  sessionList(search?: string, sort?: string, source?: string, queryVersion?: number) {
-    return unwrapAsync(this.methods.sessionList({ search, sort, source, queryVersion }));
+  sessionList(
+    search?: string,
+    sort?: string,
+    source?: string,
+    queryVersion?: number,
+    includeArchived?: boolean,
+  ) {
+    return unwrapAsync(
+      this.methods.sessionList({ search, sort, source, queryVersion, includeArchived }),
+    );
   },
 
   sessionCreate(

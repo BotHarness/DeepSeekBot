@@ -6,7 +6,7 @@ import {
   installAgentNativeTools,
   selectNativeModel,
 } from './native-agent-compat.js';
-import type { AssignmentModeChoices } from '../features/assignments/tools.js';
+import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import { replyReminderText } from '../features/messaging/prompt.js';
 import { GENUI_AUTHORING_SECTION } from '../features/genui/prompt.js';
 import { nativeScheduleToolRefusal } from '../features/schedules/tools.js';

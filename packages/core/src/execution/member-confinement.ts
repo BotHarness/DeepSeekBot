@@ -84,6 +84,14 @@ function resolverTarget(): string | undefined {
   }
 }
 
+export function confinedPath(entries: readonly string[], hidden: readonly string[]): string {
+  return [
+    ...new Set(
+      entries.map((entry) => (hidden.some((root) => within(root, entry)) ? real(entry) : entry)),
+    ),
+  ].join(':');
+}
+
 export function memberExecutionPlan(
   core: ConfinementCore,
   dshHome: string,
@@ -122,8 +130,12 @@ export function memberExecutionPlan(
       .filter((path) => !allowed.includes(path)),
   );
   const sensitive = [real(dshHome), real(homedir()), ...others];
-  const tools = [...(process.env['PATH'] ?? '').split(':'), dirname(dirname(process.execPath))]
-    .filter((path) => path.startsWith('/') && existsSync(path))
+  const nodeBin = dirname(process.execPath);
+  const inheritedPath = process.env['PATH'] ?? '';
+  const pathEntries = [...inheritedPath.split(':'), nodeBin].filter((path) => path.startsWith('/'));
+  const pathEnv = confinedPath(pathEntries, hidden);
+  const tools = [...pathEntries, dirname(nodeBin)]
+    .filter((path) => existsSync(path))
     .map(real)
     .filter(
       (path) =>
@@ -139,6 +151,7 @@ export function memberExecutionPlan(
       writable,
       hidden,
       tools: [...new Set(tools)],
+      pathEnv: pathEnv === inheritedPath ? undefined : pathEnv,
       home: real(home),
       resolvConf: resolverTarget(),
     },

@@ -155,6 +155,7 @@ export interface MessagingApprovalCard {
   detail: string;
   rules?: ['exact'] | ['exact', 'all-opaque'];
   ruleConfirmation?: { id: string; kind: 'exact' | 'all-opaque' };
+  actions?: ['allowed-once'] | ['rejected'];
   status:
     | 'pending'
     | 'web-required'
@@ -170,7 +171,7 @@ export interface MessagingApprovalCard {
 export interface MessagingApprovalAction {
   kind?: undefined;
   version: 1;
-  channel: 'feishu';
+  channel: MessagingInboundEvent['channel'];
   botId: string;
   fingerprint: string;
   actorId: string;

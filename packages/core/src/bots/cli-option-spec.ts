@@ -132,6 +132,7 @@ export const INBOX_OPTIONS = {
   set: { type: 'string' },
   channel: { type: 'string' },
   request: { type: 'string' },
+  decision: { type: 'string' },
   sort: { type: 'string' },
   search: { type: 'string' },
   unread: { type: 'boolean' },

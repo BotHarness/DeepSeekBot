@@ -7,6 +7,15 @@ export const slackProfile: DshImPlatformProfile<'slack'> = {
     target.kind === 'conversation' && typeof target.route['channelId'] === 'string'
       ? { kind: 'group', conversationId: target.route['channelId'] }
       : undefined,
+  people: {
+    namespace: 'slack-workspace-user-id',
+    sender: (event) =>
+      /^[UW][A-Z0-9]+$/.test(event.actor.id) &&
+      /^D[A-Z0-9]+$/.test(event.conversation.id) &&
+      event.reply.actorId === event.actor.id &&
+      event.reply.conversationId === event.conversation.id &&
+      event.reply.messageId === event.messageId,
+  },
   features: {
     reactions: true,
     reachableConversations: true,
