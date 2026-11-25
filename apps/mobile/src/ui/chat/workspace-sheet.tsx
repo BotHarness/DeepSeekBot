@@ -208,9 +208,9 @@ export function Crumbs({
               paddingVertical: space.x3,
               borderRadius: radius.round,
               backgroundColor: pressed
-                ? theme.layer.canvas.pressed
+                ? theme.layer[SHEET_GROUP].pressed
                 : current
-                  ? theme.layer.canvas.selected
+                  ? theme.layer[SHEET_GROUP].selected
                   : theme.layer[SHEET_GROUP].fill,
             })}
           >
@@ -415,7 +415,7 @@ export function WorkspaceSheet({
         <SheetActions>
           <Button
             label={t.cancel}
-            on="canvas"
+            on="sheet"
             disabled={busy !== undefined}
             onPress={() => {
               setPending(undefined);
@@ -425,7 +425,7 @@ export function WorkspaceSheet({
           <Button
             label={t.authorize}
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy === 'confirm'}
             disabled={busy !== undefined}
             onPress={confirmGrant}
@@ -599,7 +599,7 @@ export function WorkspaceSheet({
         <SheetActions>
           <Button
             label={t.back}
-            on="canvas"
+            on="sheet"
             disabled={busy !== undefined}
             onPress={() => {
               setError(undefined);
@@ -609,7 +609,7 @@ export function WorkspaceSheet({
           <Button
             label={t.authorizeHere}
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy === 'resolve'}
             disabled={busy !== undefined || listing.status !== 'ready'}
             onPress={() => {

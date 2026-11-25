@@ -1,5 +1,9 @@
-import { commitThreadReceptionPolicy, threadReceptionPolicy } from './thread-policy.js';
-import { commitGroupReceptionPolicy, groupReceptionPolicy } from './group-policy.js';
+import {
+  commitThreadReceptionPolicy,
+  threadReceptionPolicy,
+  commitGroupReceptionPolicy,
+  groupReceptionPolicy,
+} from './permissions/index.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MessagingGrant } from './outbound.js';

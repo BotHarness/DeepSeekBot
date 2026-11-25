@@ -1,4 +1,6 @@
-export type CreateIntent = 'bot' | 'channel';
+import type { ImportProduct } from '@botharness/host-client/session-bot';
+
+export type CreateIntent = 'bot' | 'channel' | { kind: 'bot-sessions'; product?: ImportProduct };
 
 const EVENT = 'botharness/create';
 let pending: CreateIntent | undefined;

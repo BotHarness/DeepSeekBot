@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { isHostSessionSort, type HostSessionSort } from '@botharness/host-protocol/host-sessions';
+import { defaultTabOrder, parseTabOrder, type TabSlot } from './shell/tab-slots';
 
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
@@ -11,6 +12,7 @@ export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
   sessionsTab: boolean;
+  tabOrder: readonly TabSlot[];
   sessionSort: HostSessionSort;
   hideBotSessions: boolean;
   sessionNavigation: SessionNavigationStyle;
@@ -38,6 +40,7 @@ export function createInterfacePreferences() {
     language: 'system',
     appearance: 'system',
     sessionsTab: false,
+    tabOrder: defaultTabOrder,
     sessionSort: 'last-human-turn',
     hideBotSessions: false,
     sessionNavigation: 'drawer',
@@ -91,6 +94,8 @@ export function createInterfacePreferences() {
             typeof saved.sessionsTab === 'boolean'
           )
             value.sessionsTab = saved.sessionsTab;
+          if (!touched.has('tabOrder') && 'tabOrder' in saved)
+            value.tabOrder = parseTabOrder(saved.tabOrder);
           if (
             !touched.has('sessionSort') &&
             'sessionSort' in saved &&
@@ -169,6 +174,9 @@ export function createInterfacePreferences() {
     setSessionsTab(sessionsTab: boolean) {
       change('sessionsTab', sessionsTab);
     },
+    setTabOrder(tabOrder: readonly TabSlot[]) {
+      change('tabOrder', parseTabOrder(tabOrder));
+    },
     setSessionSort(sessionSort: HostSessionSort) {
       change('sessionSort', sessionSort);
     },
@@ -206,6 +214,7 @@ export function createInterfacePreferences() {
 export const interfacePreferences = createInterfacePreferences();
 
 const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
+const tabOrderSnapshot = () => interfacePreferences.getSnapshot().tabOrder;
 const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
 
 const hideBotSessionsSnapshot = () => interfacePreferences.getSnapshot().hideBotSessions;
@@ -232,6 +241,10 @@ export function useSessionsTab() {
     sessionsTabSnapshot,
     sessionsTabSnapshot,
   );
+}
+
+export function useTabOrder() {
+  return useSyncExternalStore(interfacePreferences.subscribe, tabOrderSnapshot, tabOrderSnapshot);
 }
 
 const sessionNavigationSnapshot = () => interfacePreferences.getSnapshot().sessionNavigation;

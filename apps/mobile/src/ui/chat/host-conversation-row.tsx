@@ -1,3 +1,4 @@
+import { canDisbandGroup } from '../../host/group-channel';
 import { useHostLook } from '../../host/native-host-look';
 import type { DeletionTarget } from '../../host/deletion';
 import { ManagedConversationRow } from './managed-conversation-row';
@@ -27,6 +28,7 @@ export function HostRow({
       look={look}
       {...(showSourceLabel ? { sourceLabel: shownHostName(look, saved.hostName) } : {})}
       arrangement={snapshot.roster?.arrangement}
+      canDisband={canDisbandGroup(saved)}
       onDelete={onDelete}
       onError={onError}
     />

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import { TeamError } from './error.js';
+import { resolveGrants } from '../authorization/grants.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
@@ -64,12 +65,16 @@ export class TeamRoles {
         ),
       );
     if (rows.some((row) => row.owner)) return [...ALL_PERMISSIONS];
-    const effective = new Set(
-      rows.flatMap((row) =>
-        row.permissions === null ? [] : z.array(z.string()).parse(JSON.parse(row.permissions)),
-      ),
-    );
-    return ALL_PERMISSIONS.filter((permission) => effective.has(permission));
+    return resolveGrants(
+      rows.map((row) => ({
+        allow:
+          row.permissions === null
+            ? []
+            : (z.array(z.string()).parse(JSON.parse(row.permissions)) as HostPermission[]),
+        deny: [],
+      })),
+      ALL_PERMISSIONS,
+    ).granted;
   }
 
   modelsAllowed(human: HumanContext): ModelsAllowed {

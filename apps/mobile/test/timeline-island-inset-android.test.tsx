@@ -8,6 +8,7 @@ vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android', select: (options: { android?: unknown }) => options.android },
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 24, left: 0, right: 0 }),
 }));

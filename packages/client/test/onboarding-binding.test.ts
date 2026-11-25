@@ -138,6 +138,9 @@ function identity(
     availability: 'available',
     reception,
     grantCount: 0,
+    groupInteractions: true,
+    groupInteractionsInheritance: 'inherit' as const,
+    groupInteractionsRevision: 1,
     scopes: [],
   };
 }

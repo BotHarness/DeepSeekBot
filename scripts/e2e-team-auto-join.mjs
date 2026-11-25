@@ -29,6 +29,7 @@ const report = {
   status: 'running',
   checks: [],
   screenshots: [],
+  streamRefusals: [],
   scope:
     'Real packaged Host, CLI member carrier and rendered member Web Client; no model or native mobile acceptance',
 };
@@ -159,7 +160,12 @@ try {
   }
   const { chromium } = require(playwright);
   browser = await chromium.launch();
-  const capture = async (label, scheme, cookies, action) => {
+  const liveEndpoints = ['botharness/followRoster', 'botharness/followActivity'];
+  const streamCommand = (request) => {
+    if (!new URL(request.url()).pathname.endsWith('/__share/rpc')) return;
+    return request.postDataJSON();
+  };
+  const capture = async (label, scheme, cookies, action, screenshot = true) => {
     const context = await browser.newContext({
       colorScheme: scheme,
       viewport: { width: 1280, height: 800 },
@@ -169,28 +175,78 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(new URL('/botharness-device/team/', url.origin).href);
-    let result;
+    const refusals = [];
+    page.on('response', (response) => {
+      if (response.status() !== 429) return;
+      const command = streamCommand(response.request());
+      if (command?.op === 'stream-open') {
+        refusals.push(command.endpoint);
+        report.streamRefusals.push({ label, scheme, endpoint: command.endpoint, status: 429 });
+      }
+    });
     try {
+      const streams = new Map();
+      const polling = new Set();
+      const live = page.waitForRequest((request) => {
+        const command = streamCommand(request);
+        if (command?.op === 'stream-open' && liveEndpoints.includes(command.endpoint))
+          streams.set(command.id, { endpoint: command.endpoint, polls: 0 });
+        if (command?.op !== 'stream-next') return false;
+        const stream = streams.get(command.id);
+        if (!stream) return false;
+        stream.polls += 1;
+        if (stream.polls === 2) polling.add(stream.endpoint);
+        return polling.size === liveEndpoints.length;
+      });
+      await Promise.all([page.goto(new URL('/botharness-device/team/', url.origin).href), live]);
       await page.locator('text=Lobby >> visible=true').first().waitFor({ timeout: 30_000 });
-      result = await action(page);
+      const result = await action(page);
+      assert.deepEqual(refusals, [], `${label}: rate-limited live streams`);
+      assert.deepEqual(errors, [], label);
+      if (screenshot) {
+        const file = join(directory, `${label}-${scheme}.png`);
+        await page.screenshot({ path: file });
+        report.screenshots.push({ label, scheme, file, pageErrors: errors });
+      }
+      return result;
     } catch (error) {
       await page.screenshot({ path: join(directory, `${label}-${scheme}-failure.png`) });
       throw error;
+    } finally {
+      await context.close();
     }
-    const file = join(directory, `${label}-${scheme}.png`);
-    await page.screenshot({ path: file });
-    report.screenshots.push({ label, scheme, file, pageErrors: errors });
-    await context.close();
-    return result;
+  };
+  const dismissProfile = async (page) => {
+    const dialog = page.locator('[data-profile-setup]');
+    await dialog.waitFor();
+    await page
+      .getByRole('button', { name: /^(稍后|Later)$/u })
+      .first()
+      .click();
+    await dialog.waitFor({ state: 'detached' });
   };
   const bobCookies = await signIn(bob);
   for (const scheme of ['light', 'dark'])
     await capture('member-auto-joined', scheme, bobCookies, async (page) => {
+      if (scheme === 'light') await dismissProfile(page);
       assert.equal(await page.getByText('Books').count(), 0);
       assert.equal(await page.getByText('Secret').count(), 0);
     });
   check('rendered member list shows the public Channel without a join step', null);
+
+  const memberStreamLimit = 16;
+  for (let reopen = 1; reopen <= memberStreamLimit + 1; reopen += 1) {
+    await capture(
+      `member-reopened-${reopen}`,
+      'light',
+      bobCookies,
+      async (page) => {
+        assert.equal(await page.getByText('Books').count(), 0);
+      },
+      false,
+    );
+  }
+  check('member live streams start on each of 17 consecutive reopens with the same cookie', null);
 
   for (const scheme of ['light', 'dark']) {
     run(['members', 'roles', bob, '--set', 'member']);
@@ -231,6 +287,7 @@ try {
   const aliceCookies = await signIn(alice);
   for (const scheme of ['light', 'dark'])
     await capture('member-own-sections', scheme, aliceCookies, async (page) => {
+      if (scheme === 'light') await dismissProfile(page);
       await page
         .locator('.bh-section-name >> text=Reading >> visible=true')
         .first()

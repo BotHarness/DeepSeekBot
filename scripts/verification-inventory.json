@@ -754,11 +754,11 @@
     },
     {
       "id": "desktop.computer.lifecycle",
-      "label": "Enable/stop Computer and export/restore container state",
+      "label": "Broader Computer lifecycle and export/restore container state",
       "source": "packages/core/src/bots/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": "Container start/frame/stop has a separate bounded row; export/restore and broader lifecycle remain unmapped and unqualified."
     },
     {
       "id": "desktop.computer.native",
@@ -839,6 +839,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/workspace-grant.md",
       "task": 1974,
       "gap": null
+    },
+    {
+      "id": "desktop.settings.app-connections",
+      "label": "Owner adds a Composio key, connects apps and gives each Bot Read or Read and write; Bots reach them only through guarded tools",
+      "source": "packages/core/src/connectors/service.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/app-connections.md",
+      "task": 5332,
+      "gap": "Isolated Host covers the settings page, CLI and key rejection. A live Composio sign-in and Bot turn need the Owner's key."
     },
     {
       "id": "desktop.browser.open-observe-stop",
@@ -1176,6 +1184,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/model-presets.md",
       "task": 4657,
       "gap": "Run preset CRUD and application in the Web Client and M15 C4 for the Member and Admin CLI authorization paths."
+    },
+    {
+      "id": "desktop.computer.container-start-frame-stop",
+      "label": "Start one task-owned Container Computer, observe its real frame and stop",
+      "source": "packages/computer/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/computer-lifecycle.md",
+      "task": 1977,
+      "gap": null
     }
   ],
   "scripts": [
@@ -1732,6 +1748,14 @@
       "sha256": "bfd0a4efda98bb5357a372f3d6ba9a4107ee7a536feced5f2fa4548b0df734fa"
     },
     {
+      "path": "scripts/e2e-computer-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.computer.container-start-frame-stop"],
+      "task": 1977,
+      "reason": "Isolated Container-only Web/CLI lifecycle journey qualified on Docker Desktop (PR #5287 records the exact-source run); requires a healthy Engine, the product default image and fresh task-owned Profile/container/volume. Tolerates only #5274 desktop-viewer churn. No Local Computer, input, import/export or phone WebRTC.",
+      "sha256": "4cb7a0eb86326619ab80c1615fe0779509740341bdee52a4f4143aeb47b3cb39"
+    },
+    {
       "path": "scripts/e2e-computer-settings.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.lifecycle"],
@@ -2063,9 +2087,9 @@
       "path": "scripts/e2e-team-auto-join.mjs",
       "category": "mapped",
       "behaviors": ["team.channel-auto-join"],
-      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Fresh named Host; role and visibility driven Channel membership through --as, per-user pins, grant, revoke while open, a member's own sections in the wide Web Channel list panel and private removal, with member Web Client screenshots in light and dark; no model or native mobile qualification. #4393 re-audit: dismisses first-run profile setup and reopens the member page past the per-member stream cap before the live grant; journey classification unchanged; this hash is not runtime qualification. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4222,
-      "sha256": "9c8ff5f363a5cc858a3890f18546c258c82c8b436b519446cec82affa7a2a556"
+      "sha256": "e5f9da501d9a79b922becbca6687b3e741ac65f65e63a3991cb0ae5774fb515a"
     },
     {
       "path": "scripts/e2e-team-human-dm.mjs",
@@ -2862,7 +2886,7 @@
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
       "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send and Model Choice. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates. B1 uses a synthetic Host data file with a distinct sentinel. B6 uses the live CLI and filesystem state to verify the folder creation permission, granted-parent containment, symlink refusal, and selection of the returned Workspace for a Bot grant.",
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell (bash-only probe, no Node) against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. C6 creates a DSH-native Session and checks the Owner transcript and prompt, a member-owned Bot root in the member list, and member refusals for native read, follow, send, Model Choice, approval and question answers, Stop, and Archive. C7 checks Owner and member voice commands against loopback TTS and ASR fixtures and verifies that the member list hides endpoints and templates. B1 uses a synthetic Host data file with a distinct sentinel. B6 uses the live CLI and filesystem state to verify the folder creation permission, granted-parent containment, symlink refusal, and selection of the returned Workspace for a Bot grant.",
       "task": 4197,
       "sha256": "3f4ce32c9b4f2c6d29436ce2c3a20b2b17771f9909682006be35391a6ed9c400"
     },

@@ -13,6 +13,7 @@ const unscopedResources = z.enum([
   'account',
   'model-providers',
   'engine-device-login',
+  'sessions',
 ]);
 
 const cardResources = z.enum(['tool-approval', 'user-question']);

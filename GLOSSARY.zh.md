@@ -38,6 +38,14 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 **Speech Catalog**：
 供应商可供选择的语音模型和音色。部分公开音色需要先添加到账户才能使用。
 
+**Meeting**：
+外部会议平台上的一场会，例如一场 Zoom 或 Google Meet 会议，以会议链接区分。
+_避免使用_：通话（通话是 Human 和 Bot 之间的）、会话
+
+**Meeting Attendance**：
+一个 Bot 参加一场 Meeting，作为一通远端是会议的通话来运行。状态有等候中、在会、已离开和失败，结束后在 Bot 记忆里留下转写和纪要，不进任何对话。
+_避免使用_：会议机器人、会议 Session、录音
+
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
@@ -195,7 +203,7 @@ Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 
 _避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
 
 **Subagent**：
-由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
+由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。Subscription Engine 自带的 sub-agent 也这样显示：一个只读的 child Session，不能以 Bot 身份行动。
 _避免使用_：sub-bot、worker、helper
 
 **Session**：
@@ -289,6 +297,10 @@ _避免使用_：reviewer Session、auto-approval Session、Orchestrator Session
 **Assignment Access Preset**：
 Human 为单个 PersonaBot 选择、在新建 Assignment 时应用的权限预设。默认是 DSH workspace-write 与 ask；危险完全访问需要明确开启 DSH danger-full-access 与 never。所选模式固化在每个 Assignment 的权限快照中，仍须选择有效 Workspace Grant。
 _避免使用_：Workspace Grant、就地切换 Session 模式、Orchestrator 权限
+
+**Loadout**：
+Session 运行时使用的一套具名 system prompt 加有限工具集（中文称「配装」），Session 开始后即固定。Tobs 和 Tobs 场景 Loadout（调研、编程、脚本）是内置的；精简 Loadout 让简单任务只带短 prompt 和少量工具，每一步发送的内容少得多，Orchestrator 还可以给它搭配更便宜的 Model Choice。PersonaBot 自己的 Loadout、Orchestrator 为每个 Assignment 的选择以及模式模板见 [Session 决策 §15](docs/decisions/sessions.md#bot-modes)。界面、`create_assignment` 和 CLI 都叫配装 / Loadout；DSH 里仍叫模式。
+_避免使用_：Session 模式、单独的 mode / 模式（与 Team mode、Developer Mode、Tob Mode 混淆）、DSH 接缝以外的 agent preset、指令集
 
 **Delegation**：
 从 Chat 或 Roster 把责任交给 PersonaBot。其 Orchestrator 可以直接回答，也可以创建或复用一个或多个 Assignment Session。
@@ -726,6 +738,10 @@ _避免使用_：sync、mirror、用 Bridge 指代这条记录
 **App**：
 UI 上叫「应用」：一个已认证 Provider account 的名称，例如 Lark 应用、Slack 应用、Discord bot 或已配对的微信 Bot。一个应用最多绑定到一个 PersonaBot；一个 PersonaBot 可以绑定多个应用，包括同一平台的多个应用。「设置 → IM 应用」列出每个应用及使用它的 Bot。
 _避免使用_：UI 文案里的「IM账号」、connector、integration
+
+**App connection**：
+UI 上叫「应用连接」：外部数据应用中的一个账号，例如 Gmail、Google 日历、Drive、Notion 或 GitHub。Host Owner 通过自己的 Composio 项目在 Host 上连接一次。Owner 为每个 PersonaBot 在每个应用连接上设置「不可用」「只读」或「读写」；Bot 只能通过 Host 守护的 `mcp__composio__` 工具使用它，看不到 Composio key。它与 IM 应用和 External connectors 无关。
+_避免使用_：UI 文案里单独的 connector、integration、用 App 指代这条记录、plugin
 
 **Default traffic**：
 启用的外部身份 Binding 无需逐会话同意即可接收的消息：发给应用的私聊，以及合格 Provider 报告为 @ 该应用的群消息。谁能触达应用由平台决定；群里的普通文字、跟进的话题和 Channel 同步仍需显式开启。
@@ -1274,7 +1290,7 @@ Sessions tab 的空白状态：Human 在这里选电脑环境和工作目录，�
 _避免使用_：创建 Session 表单、空白 Session
 
 **Session drawer**：
-Session 抽屉。Sessions tab 的左侧导航抽屉，从左边缘右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
+Session 抽屉。Sessions tab 的左侧模态导航抽屉（Android `ModalNavigationDrawer` ↔ iOS 原生复刻），在抽屉式 Session 根页面任意位置右滑或点 header 按钮打开，列出当前 Environment Scope 下的 Session，带搜索、排序和筛选。选中一行会替换 Sessions tab 的当前内容。
 _避免使用_：Session 侧边栏、Session 列表页、Host drawer
 
 **Session navigation style**：
@@ -1286,7 +1302,7 @@ Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 
 **Pinned tab**：
-固定对话 tab（计划中，#5191）。手机端 tab island 中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像，点击作为独立 tab 打开。默认绑定主管的 DM，取代 Tob 入口栏与 Tob 模式。
+固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定主管的 DM，跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。
 _避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：

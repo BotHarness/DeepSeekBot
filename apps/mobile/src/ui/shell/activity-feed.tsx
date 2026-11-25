@@ -1,4 +1,3 @@
-import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
@@ -72,6 +71,7 @@ import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar'
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { FixedToolbar } from './fixed-toolbar';
+import { useHideChromeOnScroll } from './tab-chrome';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
@@ -509,9 +509,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      {Platform.OS === 'web' ? (
+      {Platform.OS !== 'android' ? (
         <ActivityFilters
-          visible={filtering}
+          visible={filtering && focused}
           {...filterOptions}
           onClose={() => setFiltering(false)}
         />
@@ -540,13 +540,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
       {content}
     </>
   ) : (
-    <ActivityInspector
-      visible={filtering && focused}
-      {...filterOptions}
-      onClose={() => setFiltering(false)}
-    >
-      {content}
-    </ActivityInspector>
+    content
   );
 });
 
@@ -588,6 +582,7 @@ const ActivityPage = memo(function ActivityPage({
   const t = useStrings();
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
+  const hideChrome = useHideChromeOnScroll(!searchFocused && search === '');
   const filter = useMemo<ActivityFilter>(
     () => ({
       section,
@@ -813,6 +808,7 @@ const ActivityPage = memo(function ActivityPage({
             )}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            onScroll={hideChrome}
             scrollEventThrottle={1}
             style={{
               backgroundColor: theme.color.base,

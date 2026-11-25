@@ -147,7 +147,7 @@ export function FolderPickerSheet({
         <SheetActions>
           <Button
             label={t.back}
-            on="canvas"
+            on="sheet"
             disabled={busy !== undefined}
             onPress={() => {
               setError(undefined);
@@ -158,7 +158,7 @@ export function FolderPickerSheet({
             label={t.grantAllow}
             testID="grant-allow-read-write"
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy === 'confirm'}
             disabled={busy !== undefined}
             onPress={() => run('confirm', () => onConfirm?.(chosen) ?? Promise.resolve())}
@@ -346,12 +346,12 @@ export function FolderPickerSheet({
         <SheetNote>{pick.target(listing.value.path)}</SheetNote>
       ) : null}
       <SheetActions>
-        <Button label={t.cancel} on="canvas" disabled={busy !== undefined} onPress={close} />
+        <Button label={t.cancel} on="sheet" disabled={busy !== undefined} onPress={close} />
         <Button
           label={pick?.confirm ?? t.authorizeHere}
           testID="grant-choose-here"
           tone="primary"
-          on="canvas"
+          on="sheet"
           busy={busy === 'resolve'}
           disabled={
             busy !== undefined || (manual ? typed.trim() === '' : listing.status !== 'ready')

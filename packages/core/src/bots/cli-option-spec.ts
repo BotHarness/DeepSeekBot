@@ -132,6 +132,7 @@ export const INBOX_OPTIONS = {
   set: { type: 'string' },
   channel: { type: 'string' },
   request: { type: 'string' },
+  decision: { type: 'string' },
   sort: { type: 'string' },
   search: { type: 'string' },
   unread: { type: 'boolean' },
@@ -235,6 +236,13 @@ export const PROMPT_PRESET_OPTIONS = {
   'parts-stdin': { type: 'boolean' },
   'prompt-limit': { type: 'string', multiple: true },
   'expected-revision': { type: 'string' },
+  confirm: { type: 'boolean' },
+} as const;
+
+export const CONNECTOR_OPTIONS = {
+  'key-stdin': { type: 'boolean' },
+  label: { type: 'string' },
+  access: { type: 'string' },
   confirm: { type: 'boolean' },
 } as const;
 
@@ -372,6 +380,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
+  ...CONNECTOR_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
   ...CALL_OPTIONS,
@@ -450,6 +459,8 @@ export const BOT_CLI_OPTIONS = {
   'from-zip': { type: 'string' },
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
+  'from-sessions': { type: 'string' },
+  'add-workspaces': { type: 'boolean' },
   'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },

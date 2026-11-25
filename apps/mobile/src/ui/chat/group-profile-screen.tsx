@@ -2,7 +2,12 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-channel';
+import {
+  canDisbandGroup,
+  groupActions,
+  groupInfo,
+  loadGroupAssignments,
+} from '../../host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { followConnection } from '../../host/follow-connection';
@@ -131,7 +136,7 @@ export function GroupProfileScreen({
             params: { slug, hostId: saved?.hostId },
           })
         }
-        onDisbanded={() => router.dismissAll()}
+        {...(canDisbandGroup(saved) ? { onDisbanded: () => router.dismissAll() } : {})}
         {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
         onOpenAssignment={(assignment) => {
           if (assignment.botSlug === undefined) return;

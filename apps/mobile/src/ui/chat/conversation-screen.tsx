@@ -11,10 +11,12 @@ import { MAX_PICKED } from '../../host/pick-files';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
-import { useStackRoot } from '../shell/stack-root';
+import { useStackRoot, useTabRoot } from '../shell/stack-root';
 import { useEntranceSettled } from '../shell/entrance-settled';
 import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
+import { useHistoryChrome } from './history-chrome';
+import { HistoryChromeContext } from './history-chrome-context';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -47,6 +49,9 @@ import {
   conversationNotice,
 } from './conversation-header';
 import { renderConversation } from './conversation-layout';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import { useChatBottom } from '../primitives/chat-keyboard';
+import { useOverlaySettle } from '../primitives/composer-drop';
 
 export type { ChatPlace } from './chat-place';
 
@@ -213,7 +218,12 @@ function ChatConversation({
     timeline,
   });
   const { viewportLayout, composable, compose } = composer;
+  const history = useHistoryChrome({
+    enabled: island && focused && !composer.typing,
+    inverted: Platform.OS === 'android',
+  });
   const stackRoot = useStackRoot();
+  const tabRoot = useTabRoot();
   const closePresentation = presentation?.onClose;
   const leave = useCallback(() => {
     if (closePresentation) closePresentation();
@@ -340,7 +350,16 @@ function ChatConversation({
   });
   const ios = Platform.OS === 'ios';
   const initialScroll = useChatInitialScroll(focus === undefined, rows.length);
-  const header = conversationHeader({ t, theme, insets, windowWidth, leave, ios, profile });
+  const header = conversationHeader({
+    t,
+    theme,
+    insets,
+    windowWidth,
+    leave,
+    tabRoot,
+    ios,
+    profile,
+  });
   const notice = conversationNotice({
     latestWindowOnly,
     t,
@@ -355,8 +374,12 @@ function ChatConversation({
     timelineRows,
     profile,
   });
+  const islandFloor = useTimelineIslandFloor();
+  const overlaySettle = useOverlaySettle(useChatBottom().island, history.hiddenNow);
   const screenTree = renderConversation({
     focused,
+    islandFloor,
+    overlaySettle,
     presentation,
     t,
     theme,
@@ -378,6 +401,7 @@ function ChatConversation({
     windowWidth,
     listSafeArea,
     stackRoot,
+    tabRoot,
     leave,
     pull,
     markdownViewport,
@@ -398,13 +422,14 @@ function ChatConversation({
     profile,
     header,
     notice,
+    history,
   });
   return (
-    <>
+    <HistoryChromeContext value={history}>
       {screenTree}
       {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
       {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
-    </>
+    </HistoryChromeContext>
   );
 }
 

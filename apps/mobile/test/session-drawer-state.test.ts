@@ -19,9 +19,9 @@ import {
 it('dismisses the keyboard as it opens and hides once closed', () => {
   openSessionDrawer();
   expect(keyboard.dismiss).toHaveBeenCalledOnce();
-  expect(sessionDrawer.getSnapshot()).toEqual({ open: true, shown: true });
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: true, shown: true, animated: true });
   closeSessionDrawer(false);
-  expect(sessionDrawer.getSnapshot()).toEqual({ open: false, shown: false });
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: false, shown: false, animated: false });
   expect(sessionDrawerProgress.value).toBe(0);
 });
 
@@ -30,6 +30,21 @@ it('follows the Compose drawer’s reported target', () => {
   expect(sessionDrawer.getSnapshot().open).toBe(true);
   sessionDrawer.nativeChange(false);
   expect(sessionDrawer.getSnapshot().open).toBe(false);
+});
+
+it('hides the revealed panel when an opening drag falls back to closed', () => {
+  sessionDrawer.nativeProgress(0.3);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: true });
+  sessionDrawer.nativeProgress(0);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: false });
+});
+
+it('keeps an open drawer shown while it reports progress back towards closed', () => {
+  sessionDrawer.nativeChange(true);
+  sessionDrawer.nativeProgress(0);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: true, shown: true });
+  sessionDrawer.nativeChange(false);
+  expect(sessionDrawer.getSnapshot()).toMatchObject({ open: false, shown: false });
 });
 
 it('enables the edge gesture only while a Drawer-style root is focused', () => {

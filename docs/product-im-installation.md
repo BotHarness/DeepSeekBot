@@ -35,7 +35,7 @@ fails before packing.
 
 ```bash
 git clone https://github.com/DoodleBears/dsh-im.git /tmp/bh-im-source
-git -C /tmp/bh-im-source checkout bb0c7956896f5f5845950a0707837cd7938a11b3
+git -C /tmp/bh-im-source checkout b79f94809af560313bda30398ae37f95fd9894c1
 npm ci --prefix /tmp/bh-im-source --ignore-scripts --no-audit --no-fund
 pnpm install --frozen-lockfile
 pnpm build

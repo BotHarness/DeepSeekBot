@@ -124,6 +124,7 @@ export interface BotHarnessCore {
   voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
+  connectors?: import('./connectors/service.js').ConnectorService;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
 }
@@ -135,6 +136,8 @@ export type BotAgentSetup = (
 ) => void;
 
 export interface CoreOptions {
+  nativeSessions?: () => import('./features/sessions/host-sessions.js').NativeSessions | undefined;
+  externalSessions?: import('./features/sessions/external-sessions.js').ExternalSessionReader;
   botNetwork?: import('./runtime/bot-network.js').BotNetworkPort;
   dshHome?: string;
   legacyDefaultModel?: () => LegacyDefaultModel;

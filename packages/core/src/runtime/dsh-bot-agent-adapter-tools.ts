@@ -20,7 +20,6 @@ import {
 } from '../features/channels/tools.js';
 import { registerExternalMessagingTools } from '../features/messaging/tools.js';
 import { createListAssignmentModelsTool } from '../features/models/tools.js';
-import { registerMemoryTools } from '../features/memory/tools.js';
 import {
   createBridgeAttachmentSaveTool,
   registerChannelFileTools,
@@ -139,7 +138,6 @@ export function orchestratorTools(
       },
     ),
   );
-  registerMemoryTools(currentRun, registerTool);
   const resolveModelPlan = () => adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
   const loadAssignmentModes = () => adapter.assignmentModes?.(run.bot.slug);
   const assignmentOptions: AssignmentToolOptions = {
@@ -217,6 +215,28 @@ export function orchestratorTools(
       },
     }),
   );
+  if (run === CATALOG_RUN || run.workspaceSessions)
+    registerTool(
+      defineTool({
+        name: 'workspace_sessions',
+        description:
+          "Read the Human's own DeepSeek Sessions that worked inside one of your active Workspace Grants. Omit session_id to list them newest first (id, title, folder, last activity); pass a session_id to read that Session as Markdown: Human requests, assistant replies and one line per tool call. Read-only; a Session outside your Grants is refused.",
+        parameters: { session_id: { type: 'string' } },
+        output: {
+          schema: { type: 'string' },
+          render: (_args, value) => [{ type: 'text', text: value }],
+        },
+        execute: async (args) => {
+          const active = adapter.runs.get(run.sessionId);
+          const sessions =
+            active?.role === 'orchestrator' ? active.run.workspaceSessions : undefined;
+          if (sessions === undefined) throw new Error('workspace-sessions-unavailable');
+          const id = typeof args.session_id === 'string' ? args.session_id.trim() : '';
+          if (id === '') return JSON.stringify({ sessions: await sessions.list() });
+          return sessions.read(id);
+        },
+      }),
+    );
   registerAssignmentTools(assignmentOptions, registerTool);
   registerTool(createChannelListTool(currentRun));
   if (run === CATALOG_RUN || run.speakerPolicy)

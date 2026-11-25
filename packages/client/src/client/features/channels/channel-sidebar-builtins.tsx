@@ -2,6 +2,7 @@ import { Icon } from '../../ds/icon.js';
 import { Tag } from '../../ds/tag.js';
 import { ASSIGNMENT_SESSION_ICON } from '../../channel-sidebar-icon.js';
 import { useTeamMode } from '../../team-state.js';
+import { memberPage } from '../../member-page.js';
 import { BotAccessEntry } from '../../bot-access-entry.js';
 import type { ConversationStateView } from '../../store.js';
 import { Menu } from '../../appearance-primitives.js';
@@ -52,6 +53,7 @@ import { DisbandGroupDialog, GroupManagementSettings } from '../../group-managem
 import { MembersEntry, MembersHeaderAction } from '../../group-member-controls.js';
 import { setSessionTarget, useSessionTarget } from '../../session-target.js';
 import { PrivateAccountsSection } from '../../private-accounts-section.js';
+import { BotConnectorsSection } from '../../bot-connectors-section.js';
 import { BotSchedulesEntry, BotSchedulesHeaderAction } from '../../schedules-entry.js';
 import {
   SessionsEntry,
@@ -138,7 +140,9 @@ function GroupManagementHeaderForChannel({
   const group = useClientStore((state) => state.conversation.channel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const team = useTeamMode(actions.teamCall);
   if (group?.type !== 'group' || group.id !== channelId) return <></>;
+  if (memberPage() || team?.viewer.kind === 'member') return <></>;
   const items: readonly MenuEntry[] = [{ id: 'disband', label: t('members.delete') }];
   return (
     <>
@@ -739,6 +743,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: ExternalConnectorsEntry,
       attention: ExternalConnectorsAttention,
+    },
+    {
+      id: 'app-connectors',
+      surface: 'settings',
+      icon: 'cable',
+      label: t('entry.appConnectors'),
+      order: 28.5,
+      scope: 'personabot',
+      component: BotConnectorsSection,
     },
     {
       id: 'private-accounts',

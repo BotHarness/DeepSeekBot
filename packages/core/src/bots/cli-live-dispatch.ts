@@ -63,6 +63,7 @@ import { isProfileCommand, runProfileCommand } from './cli-profile.js';
 import { isTodoCommand, runTodoCommand } from './cli-todos.js';
 import { isApprovalTemplateCommand, runApprovalTemplateCommand } from './cli-approval-templates.js';
 import { isPromptPresetCommand, runPromptPresetCommand } from './cli-prompt-presets.js';
+import { isConnectorCommand, runConnectorCommand } from './cli-connectors.js';
 import { isApprovalReviewerCommand, runApprovalReviewerCommand } from './cli-approval-reviewer.js';
 import { isVoiceCommand, runVoiceCommand } from './cli-voice.js';
 import { isCallCommand, runCallCommand } from './cli-call.js';
@@ -271,8 +272,12 @@ export async function runLiveCli(
     return runMessaging(operation, (await connectLiveHost(values, io, signal)).rpc);
   }
   if (isInboxCommand(command))
-    return runInboxCommand(command, rest, values, () =>
-      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    return runInboxCommand(
+      command,
+      rest,
+      values,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+      io.readStdin,
     );
   if (isScheduleCommand(command)) {
     const prepared = prepareScheduleCommand(command, rest, values);
@@ -358,6 +363,11 @@ export async function runLiveCli(
       },
       values.id === undefined ? {} : { id: values.id },
     );
+  if (isConnectorCommand(command))
+    return runConnectorCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (isPromptPresetCommand(command))
     return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));

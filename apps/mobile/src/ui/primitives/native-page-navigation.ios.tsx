@@ -67,7 +67,7 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
         <ScreenStackHeaderCenterView>
           <ChatHeaderRow
             title={title}
-            back={{ label: t.back, testID: backID, onPress: onBack }}
+            back={onBack && { label: t.back, testID: backID, onPress: onBack }}
             controls={{
               kind: 'actions',
               actions: [
@@ -79,20 +79,21 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
         </ScreenStackHeaderCenterView>
       </ScreenStackHeaderConfig>
     );
-  const items: HeaderBarButtonItem[] = headerIslands
-    ? []
-    : [
-        {
-          type: 'button',
-          index: 0,
-          title: '',
-          icon: { type: 'sfSymbol', name: 'chevron.left' },
-          onPress: onBack,
-          identifier: backID,
-          accessibilityLabel: t.back,
-          sharesBackground: false,
-        },
-      ];
+  const items: HeaderBarButtonItem[] =
+    headerIslands || onBack === undefined
+      ? []
+      : [
+          {
+            type: 'button',
+            index: 0,
+            title: '',
+            icon: { type: 'sfSymbol', name: 'chevron.left' },
+            onPress: onBack,
+            identifier: backID,
+            accessibilityLabel: t.back,
+            sharesBackground: false,
+          },
+        ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
   const grouped = call !== undefined && action !== undefined;
   const right: HeaderBarButtonItem[] = [];
@@ -129,7 +130,7 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       headerLeftBarButtonItems={items}
       headerRightBarButtonItems={right}
     >
-      {headerIslands ? (
+      {headerIslands && onBack !== undefined ? (
         <ScreenStackHeaderLeftView>
           <HeaderBackButton plain={false} onPress={onBack} />
         </ScreenStackHeaderLeftView>

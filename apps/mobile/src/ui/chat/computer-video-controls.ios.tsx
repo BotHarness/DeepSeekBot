@@ -83,12 +83,14 @@ export function ComputerVideoControls({
   keyboard,
   reset,
   recovery,
+  security,
 }: {
   control: Action;
   controlling?: boolean;
   keyboard?: Action & { open: boolean };
   reset?: () => void;
   recovery?: Action;
+  security?: () => void;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -110,7 +112,7 @@ export function ComputerVideoControls({
           action={keyboard}
         />
       ) : null}
-      {reset || recovery ? (
+      {reset || recovery || security ? (
         <Menu
           testID="computer-video-more"
           label={
@@ -130,6 +132,14 @@ export function ComputerVideoControls({
             frame({ minHeight: theme.touch }),
           ]}
         >
+          {security ? (
+            <Button
+              testID="computer-video-security"
+              label={t.computerSecurity}
+              systemImage="lock.shield"
+              onPress={security}
+            />
+          ) : null}
           {reset ? (
             <Button
               testID="computer-video-reset"

@@ -9,7 +9,7 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createCore } from '../src/plugin.js';
 import { commitMessagingDefaults, messagingDefaults } from '../src/messaging/defaults.js';
-import { groupReceptionPolicy } from '../src/messaging/group-policy.js';
+import { groupReceptionPolicy } from '../src/messaging/permissions/index.js';
 import { readMessagingIdentity } from '../src/messaging/identity.js';
 import type { QuestionDelivery } from '../src/messaging/question-messaging.js';
 import { createPersonaBotRegistry } from '../src/bots/registry.js';

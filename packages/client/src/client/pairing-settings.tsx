@@ -12,20 +12,20 @@ import { FormDialog } from './ds/form-dialog.js';
 import { space } from './ds/tokens.stylex.js';
 import { PairingTable } from './pairing-table.js';
 import { BehaviorPermissionsPanel } from './behavior-permission-settings.js';
-import type { BehaviorPermission } from '../../../core/src/messaging/behavior-policy.js';
+import type {
+  BehaviorPermission,
+  ExternalPermissionGroup,
+  ExternalUserRole,
+  SenderAccessInput,
+  SenderPolicy,
+} from '../../../core/src/messaging/permissions/client.js';
 import {
   GroupDetails,
   GroupDialog,
   PersonPermissions,
   type GroupBinding,
 } from './permission-group-settings.js';
-import type { ExternalPermissionGroup } from '../../../core/src/messaging/permission-groups.js';
 import type { ColumnDef } from '@tanstack/react-table';
-import type {
-  ExternalUserRole,
-  SenderAccessInput,
-  SenderPolicy,
-} from '../../../core/src/messaging/sender-access.js';
 import type {
   PairingCapability,
   PairingRequest,
@@ -176,7 +176,19 @@ export function PairingSettings({
     auditColumn<PairingRequest>(t),
   ];
   const roleColumns: ColumnDef<ExternalUserRole>[] = [
-    { id: 'name', accessorKey: 'name', header: t('pairing.roleName') },
+    {
+      id: 'name',
+      accessorKey: 'name',
+      header: t('pairing.roleName'),
+      cell: (cell) => (
+        <span {...stylex.props(roleStyles.inline)}>
+          {String(cell.getValue())}
+          {cell.row.original.id === policy?.defaultRoleId ? (
+            <Tag>{t('pairing.defaultRole')}</Tag>
+          ) : null}
+        </span>
+      ),
+    },
     {
       id: 'behavior',
       accessorKey: 'behavior',
@@ -207,7 +219,11 @@ export function PairingSettings({
                 }).catch(() => undefined)
               }
             />
-            <MessagingHelp title={t('pairing.restricted')} text={t('pairing.policyLimit')} t={t} />
+            <MessagingHelp
+              title={t('pairing.restricted')}
+              text={t('pairing.restrictedHelp')}
+              t={t}
+            />
           </>
         ) : null}
         <span className="bh-pairing-toolbar-gap" />
@@ -366,6 +382,7 @@ export function PairingSettings({
                   <RoleDetails
                     key={`${selectedRole.id}:${selectedRole.revision}`}
                     role={selectedRole}
+                    policy={policy}
                     busy={busy}
                     change={senderAccess}
                     t={t}
@@ -382,6 +399,7 @@ export function PairingSettings({
                     setTab('groups');
                   }}
                   roles={roles}
+                  defaultRoleId={policy?.defaultRoleId}
                   busy={busy}
                   review={review}
                   {...(senderAccess ? { senderAccess } : {})}
@@ -421,6 +439,7 @@ function PairingRow({
   request,
   selectGroup,
   roles,
+  defaultRoleId,
   busy,
   review,
   senderAccess,
@@ -429,13 +448,16 @@ function PairingRow({
   request: PairingRequest;
   selectGroup(id: string): void;
   roles: ExternalUserRole[];
+  defaultRoleId?: string | undefined;
   busy: boolean;
   review(input: PairingReviewInput): Promise<void>;
   senderAccess?(input: SenderAccessInput): Promise<void>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [selected, setSelected] = useState<PairingCapability[]>([]);
-  const [roleId, setRoleId] = useState(request.roleId ?? '');
+  const [roleId, setRoleId] = useState(
+    request.roleId ?? (request.status === 'pending' ? (defaultRoleId ?? '') : ''),
+  );
   const selectedRole = roles.find((role) => role.id === roleId);
   const assignedRole = roles.find((role) => role.id === request.roleId);
   const input = { id: request.id, expectedRevision: request.revision };
@@ -637,19 +659,26 @@ function PairingRow({
 
 function RoleDetails({
   role,
+  policy,
   busy,
   change,
   t,
 }: {
   role: ExternalUserRole;
+  policy?: SenderPolicy | undefined;
   busy: boolean;
   change?: ((input: SenderAccessInput) => Promise<void>) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [editing, setEditing] = useState(false);
+  const isDefault = policy?.defaultRoleId === role.id;
   return (
     <article className="bh-im-pairing-request">
-      <strong>{role.name}</strong>
+      <div className="bh-im-actions">
+        <strong>{role.name}</strong>
+        {isDefault ? <Tag>{t('pairing.defaultRole')}</Tag> : null}
+        <MessagingHelp title={t('pairing.defaultRole')} text={t('pairing.defaultRoleHelp')} t={t} />
+      </div>
       <div className="bh-im-actions">
         <span>{t('pairing.behavior')}</span>
         <MessagingHelp title={t('pairing.behavior')} text={t('pairing.policyLimit')} t={t} />
@@ -671,9 +700,27 @@ function RoleDetails({
         </div>
       ) : null}
       {change ? (
-        <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setEditing(true)}>
-          {t('pairing.editRole')}
-        </Button>
+        <div className="bh-im-actions">
+          <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setEditing(true)}>
+            {t('pairing.editRole')}
+          </Button>
+          {policy ? (
+            <Button
+              size="sm"
+              variant="toolbar"
+              disabled={busy}
+              onClick={() =>
+                void change({
+                  kind: 'default-role',
+                  roleId: isDefault ? null : role.id,
+                  expectedRevision: policy.revision,
+                }).catch(() => undefined)
+              }
+            >
+              {t(isDefault ? 'pairing.clearDefaultRole' : 'pairing.setDefaultRole')}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {editing && change ? (
         <RoleDialog

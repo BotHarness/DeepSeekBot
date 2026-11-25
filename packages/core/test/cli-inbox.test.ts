@@ -129,6 +129,35 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
   });
 
+  it('pages the Session list with --limit and --cursor', async () => {
+    const live = await host(echo);
+    const argv = ['session-list', '--limit', '50', '--cursor', '[10,20,"s-1"]'];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: { limit: 50, cursor: '[10,20,"s-1"]' } },
+    ]);
+    for (const limit of ['0', '201', '2.5'])
+      expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
+  });
+
+  it('reads the Session change cursor, then the changes since it', async () => {
+    const live = await host(echo);
+    expect((await invoke(['session-list-changes'], live.url)).code).toBe(0);
+    expect(
+      (await invoke(['session-list-changes', '--since', '12', '--epoch', 'e1'], live.url)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionListChanges', args: {} },
+      { method: 'sessionListChanges', args: { sinceSeq: 12, epoch: 'e1' } },
+    ]);
+    for (const argv of [
+      ['session-list-changes', '--since', '-1'],
+      ['session-list-changes', '--since', 'x'],
+      ['session-list-changes', '--epoch', 'e1'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -147,6 +176,50 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
         method: 'sessionMessageSend',
         args: { botSlug: null, sessionId: 'native-1', text: '  Continue from here.  ' },
       },
+    ]);
+  });
+
+  it('maps native Session actions and archived inventory to the authenticated Host', async () => {
+    const live = await host((method, args) =>
+      method === 'sessionList'
+        ? { ok: true, value: { sessions: [], includeArchived: true } }
+        : echo(method, args),
+    );
+    const target = ['--session', 'native-1'];
+    const request = ['--request', 'request-1'];
+    const answer = { answers: [{ id: 'style', selected: ['Compact'] }] };
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'rejected'],
+      ['session-answer-question', ...target, ...request, '--answer-stdin'],
+      ['session-stop', ...target],
+      ['session-archive', ...target, '--confirm'],
+      ['session-list', '--include-archived'],
+    ]) {
+      const result = await invoke(argv, live.url, JSON.stringify(answer));
+      expect(result.code, `${argv[0]}: ${result.text}`).toBe(0);
+    }
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'always'],
+      ['session-answer-question', ...target, ...request],
+      ['session-archive', ...target],
+      ['session-stop', ...target, '--channel', 'dm-1'],
+    ])
+      expect((await invoke(argv, live.url)).code).toBe(2);
+
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionAnswerApproval',
+        args: { sessionId: 'native-1', requestId: 'request-1', decision: 'rejected' },
+      },
+      {
+        method: 'sessionAnswerQuestion',
+        args: { sessionId: 'native-1', requestId: 'request-1', answer },
+      },
+      { method: 'sessionNativeStop', args: { sessionId: 'native-1' } },
+      { method: 'sessionNativeArchive', args: { sessionId: 'native-1' } },
+      { method: 'sessionList', args: { includeArchived: true } },
     ]);
   });
 
@@ -512,6 +585,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke([...args, '--clear'], live.url)).json).toMatchObject({
       method: 'sessionModel',
       args: { choice: null },
+    });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
     });
   });
 

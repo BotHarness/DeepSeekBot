@@ -38,6 +38,14 @@ A voice identity that a compatible speech model can use to speak. It can be buil
 **Speech Catalog**:
 The speech models and voices a provider offers for selection. A shared voice may need to be added to the provider account before it becomes usable.
 
+**Meeting**:
+One session on an outside meeting platform, such as a Zoom or Google Meet meeting, identified by its link.
+_Avoid_: call (a call is between a Human and a Bot), conference
+
+**Meeting Attendance**:
+One Bot's presence in one Meeting, run as a call whose far end is the meeting. It is waiting, in the meeting, left or failed, and leaves a transcript and recap in the Bot's Memory, not in any conversation.
+_Avoid_: meeting bot, meeting session, recording
+
 ### PersonaBots
 
 **Steward Bot**:
@@ -196,7 +204,7 @@ The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in
 _Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
 
 **Subagent**:
-A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.
+A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session. A Subscription Engine's own sub-agent is shown the same way, as a read-only child Session that cannot act as the Bot.
 _Avoid_: sub-bot, worker, helper
 
 **Session**:
@@ -290,6 +298,10 @@ _Avoid_: reviewer Session, auto-approval Session, Orchestrator Session, Assignme
 **Assignment Access Preset**:
 A Human-controlled per-PersonaBot choice applied when a new Assignment is created. The default is DSH workspace-write with ask; dangerous full access is an explicit opt-in to DSH danger-full-access with never. The chosen mode is frozen in each Assignment's permission snapshot, while its selected Workspace Grant remains required.
 _Avoid_: Workspace Grant, in-place Session mode switch, Orchestrator permission
+
+**Loadout**:
+A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI, `create_assignment` and the CLI say Loadout; DSH still calls it a mode.
+_Avoid_: Session mode, mode (bare, beside Team mode, Developer Mode and Tob Mode), agent preset (outside DSH seams), instruction set
 
 **Delegation**:
 Handing responsibility to a PersonaBot from a Chat or the Roster. Its Orchestrator may answer directly or create or reuse one or more Assignment Sessions.
@@ -727,6 +739,10 @@ _Avoid_: sync, mirror, Bridge (for this record)
 **App**:
 The UI name (应用) for one authenticated Provider account, such as a Lark app, a Slack app, a Discord bot or a paired WeChat Bot. An App is bound to at most one PersonaBot; a PersonaBot may bind several Apps, including several of one platform. Bot Settings → IM apps lists every App and the PersonaBot that uses it.
 _Avoid_: IM account (in UI copy), connector, integration
+
+**App connection**:
+The UI name (应用连接) for one account in an outside data app, such as Gmail, Google Calendar, Drive, Notion or GitHub, that the Host Owner connects once on the Host through the Owner's own Composio project. The Owner gives each PersonaBot No access, Read or Read and write on each App connection; a Bot reaches it only through Host-guarded `mcp__composio__` tools and never sees the Composio key. It is unrelated to an IM App and to External connectors.
+_Avoid_: connector (bare, in UI copy), integration, App (for this record), plugin
 
 **Default traffic**:
 The messages an enabled external identity Binding admits without any per-conversation consent: direct messages to the App and group messages the qualified Provider reports as mentioning it. Where the App can be reached is decided on the platform; ordinary group text, followed threads and Channel syncs stay explicit.
@@ -1275,7 +1291,7 @@ The empty state of the Sessions tab where the Human picks a computer Environment
 _Avoid_: create Session form, blank Session
 
 **Session drawer**:
-The left navigation drawer of the Sessions tab, opened by swiping from the left edge or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
+The left modal navigation drawer of the Sessions tab (Android `ModalNavigationDrawer` ↔ a native iOS replica), opened by a rightward swipe anywhere on a Drawer-style Session root or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
 _Avoid_: Session sidebar, Session list page, Host drawer
 
 **Session navigation style**:
@@ -1287,7 +1303,7 @@ The Composer-shaped tap target above the tab island on Chats that opens Tob Mode
 _Avoid_: Tob input, quick composer, pull to Tob
 
 **Pinned tab**:
-Planned (#5191): the phone tab-island slot bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and opening it as its own tab. It defaults to the Steward's DM and replaces the Tob entry bar and Tob Mode.
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the Steward's DM, follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
 _Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:

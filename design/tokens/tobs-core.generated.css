@@ -1,6 +1,7 @@
 :root {
   --tobs-core-brand: #3466db;
   --tobs-core-brand-hover: #2f5cc5;
+  --tobs-core-brand-vivid: #3d5afe;
   --tobs-core-on-solid: #ffffff;
   --tobs-core-accent-classic-blue: #3466db;
   --tobs-core-accent-mist-purple: #7957c9;
@@ -20,6 +21,7 @@
 :root[data-theme='dark'] {
   --tobs-core-brand: #78a0ff;
   --tobs-core-brand-hover: #86aaff;
+  --tobs-core-brand-vivid: #8c9eff;
   --tobs-core-on-solid: #111318;
   --tobs-core-accent-classic-blue: #78a0ff;
   --tobs-core-accent-mist-purple: #b19af0;

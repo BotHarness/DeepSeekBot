@@ -168,6 +168,7 @@ export interface BotRuntime {
   ): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
+  turnSourceEventIds?(botSlug: string, sessionId: string): readonly string[] | undefined;
   hasPendingInbox?(botSlug: string): boolean;
   tobCli?(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus>;
   directBotTools?(): DirectBotToolSpec[];
@@ -209,6 +210,7 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  workspaceSessions?: import('../features/sessions/workspace-sessions.js').WorkspaceSessionReader;
   team?: TeamService;
   readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
   autoContinueDelaysMs?: readonly number[];
@@ -245,10 +247,7 @@ export interface BotRuntimeOptions {
   registry: PersonaBotRegistry;
   channels: ChannelStore;
   agents: BotAgentAdapter;
-  memory?: Pick<
-    MemoryService,
-    'prepareTurn' | 'reconcileTurn' | 'abortTurn' | 'switchBranch' | 'continueFromCommit'
-  > &
+  memory?: Pick<MemoryService, 'prepareTurn' | 'reconcileTurn' | 'abortTurn'> &
     Partial<
       Pick<
         MemoryService,

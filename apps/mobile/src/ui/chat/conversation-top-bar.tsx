@@ -20,7 +20,7 @@ export type ConversationTopBarProps = {
   initial?: string | undefined;
   connectionLabel?: string | undefined;
   onBack(): void;
-  leading?: 'back' | 'drawer';
+  leading?: 'back' | 'drawer' | 'none';
   onCompose?: (() => void) | undefined;
   titleMenu?: ChatHeaderMenu | undefined;
   titlePending?: boolean;

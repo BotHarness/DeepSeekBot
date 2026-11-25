@@ -51,6 +51,8 @@ describe('local store', () => {
       'message_text',
       'messages',
       'search_rows',
+      'session_list_state',
+      'sessions',
     ]);
     expect(await store.get<{ user_version: number }>('pragma user_version')).toEqual({
       user_version: LOCAL_STORE_MIGRATIONS.length,

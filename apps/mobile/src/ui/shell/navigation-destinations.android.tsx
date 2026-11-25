@@ -1,193 +1,160 @@
-import { BadgedBox, Host, NavigationBar, NavigationBarItem, Icon } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
-import { useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  BadgedBox,
+  Box,
+  Host,
+  HorizontalFloatingToolbar,
+  Icon,
+  RNHostView,
+} from '@expo/ui/jetpack-compose';
+import {
+  background,
+  clip,
+  combinedClickable,
+  padding,
+  paddingAll,
+  Shapes,
+  size,
+  testID,
+} from '@expo/ui/jetpack-compose/modifiers';
+import type { ReactNode } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
 import { useDesignTheme } from '../design/theme';
-import { haptic } from '../haptics';
-import { showActionMenu } from '../primitives/app-dialog';
-import type { MenuGlyph } from '../primitives/menu-icon';
-import { noteTouch } from '../primitives/touch-anchor';
-import { ActivityIcon, AssignmentSessionIcon, PlusIcon } from './icons';
-import type { TabMenuEntry, TabMenuGlyph } from './tab-menu-model';
-import { materialNavigationBar } from '../design/tokens';
-import { badgeCount } from '../primitives/badge-count';
-import { MaterialDotBadge } from '../primitives/count-badge.android';
+import { cornerBadge, floatingToolbar } from '../design/tokens';
+import { MaterialCountBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
-import type { NavigationDestination } from './navigation-destination';
-import { navigationLabel } from './navigation-label';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
+import type { TabSlot } from './tab-slots';
 
-function iconFor(item: NavigationDestination) {
-  if (item.settings)
-    return item.focused
+function glyphFor(slot: TabSlot, focused: boolean) {
+  if (slot === 'settings')
+    return focused
       ? require('../../../assets/toolbar/settings.xml')
       : require('../../../assets/toolbar/settings-outline.xml');
-  if (item.activity)
-    return item.focused
+  if (slot === 'activity')
+    return focused
       ? require('../../../assets/toolbar/activity-filled.xml')
       : require('../../../assets/toolbar/activity.xml');
-  if (item.sessions)
-    return item.focused
-      ? require('../../../assets/toolbar/sessions-filled.xml')
-      : require('../../../assets/toolbar/sessions.xml');
-  return item.focused
+  if (slot === 'sessions') return require('../../../assets/toolbar/code.xml');
+  return focused
     ? require('../../../assets/toolbar/chats-filled.xml')
     : require('../../../assets/toolbar/chats.xml');
+}
+
+export function tabTestID(slot: TabSlot): string {
+  if (slot === 'settings') return 'settings-button';
+  if (slot === 'activity') return 'navigation-activity';
+  if (slot === 'sessions') return 'sessions-tab';
+  if (slot === 'pinned') return 'navigation-pinned';
+  return 'navigation-chats';
 }
 
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const colors = {
-    selectedIconColor: theme.color.fg,
-    selectedTextColor: theme.color.fg,
-    selectedIndicatorColor: 'transparent',
-    unselectedIconColor: theme.color.muted,
-    unselectedTextColor: theme.color.muted,
-  };
-  const [width, setWidth] = useState(0);
-  const current = useRef(items);
-  current.current = items;
-  const longPress = useMemo(
-    () =>
-      Gesture.LongPress()
-        .runOnJS(true)
-        .onStart((event) => {
-          const list = current.current;
-          const slot = width / Math.max(list.length, 1);
-          const index = Math.min(list.length - 1, Math.max(0, Math.floor(event.x / (slot || 1))));
-          const item = list[index];
-          if (item?.menu === undefined) return;
-          noteTouch({
-            nativeEvent: { pageX: slot * (index + 0.5), pageY: event.absoluteY - event.y },
-          });
-          haptic('menu');
-          openTabMenu(navigationLabel(t, item), item.menu);
-        }),
-    [width, t],
-  );
+  const { item, height, inset } = floatingToolbar;
+  const gap = toolbarGap(useWindowDimensions().width, items.length);
+  const badged = (entry: NavigationDestination, face: ReactNode) =>
+    entry.count === 0 ? (
+      face
+    ) : (
+      <BadgedBox>
+        <BadgedBox.Badge>
+          <MaterialCountBadge
+            count={entry.count}
+            tone={entry.slot === 'activity' ? 'needs-you' : 'unread'}
+            fontSize={
+              (cornerBadge.materialLabel * Math.min(theme.fontScale, cornerBadge.maxTextScale)) /
+              theme.fontScale
+            }
+          />
+        </BadgedBox.Badge>
+        {face}
+      </BadgedBox>
+    );
+  const face = (entry: NavigationDestination) =>
+    entry.slot === 'pinned' ? (
+      <RNHostView modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}>
+        <View>
+          <PinnedAvatar
+            conversation={entry.conversation}
+            size={floatingToolbar.avatar}
+            selected={entry.focused}
+          />
+        </View>
+      </RNHostView>
+    ) : (
+      <Icon
+        source={glyphFor(entry.slot, entry.focused)}
+        size={floatingToolbar.icon}
+        tint={entry.focused ? theme.color.fg : theme.color.muted}
+      />
+    );
   return (
-    <GestureDetector gesture={longPress}>
-      <View
-        collapsable={false}
-        style={{ width: '100%' }}
-        onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
-      >
-        <View importantForAccessibility="no-hide-descendants">
-          <Host
-            matchContents={{ vertical: true }}
-            style={{ width: '100%' }}
-            colorScheme={theme.scheme}
-            seedColor={theme.color.accent}
-            ignoreSafeAreaKeyboardInsets
-          >
-            <NavigationBar
-              containerColor={theme.color.base}
-              contentColor={theme.color.fg}
-              tonalElevation={0}
-              modifiers={[fillMaxWidth(), testID('android-navigation-bar')]}
+    <View collapsable={false}>
+      <View importantForAccessibility="no-hide-descendants">
+        <Host
+          key={theme.scheme}
+          matchContents
+          colorScheme={theme.scheme}
+          seedColor={theme.color.accent}
+          ignoreSafeAreaKeyboardInsets
+        >
+          <Box modifiers={[paddingAll(inset)]}>
+            <HorizontalFloatingToolbar
+              colors={{
+                toolbarContainerColor: theme.color.base,
+                toolbarContentColor: theme.color.fg,
+              }}
+              modifiers={[testID('android-navigation-bar')]}
             >
-              {items.map((item) => {
-                const showCount = item.activity && item.count > 0;
-                const normal = navigationLabel(t, item);
-                const pending = t.activityPendingLabel(badgeCount(item.count));
-                const icon = <Icon source={iconFor(item)} size={materialNavigationBar.iconSize} />;
-                return (
-                  <NavigationBarItem
-                    key={item.key}
-                    selected={item.focused}
-                    alwaysShowLabel={false}
-                    onClick={item.onPress}
-                    colors={colors}
-                    modifiers={[
-                      weight(1),
-                      testID(tabTestID(item)),
-                      semantics({
-                        contentDescription:
-                          item.activity && showCount ? `${t.activity}, ${pending}` : normal,
-                      }),
-                    ]}
-                  >
-                    <NavigationBarItem.Icon>
-                      {showCount ? (
-                        <BadgedBox>
-                          <BadgedBox.Badge>
-                            <MaterialDotBadge tone="needs-you" />
-                          </BadgedBox.Badge>
-                          {icon}
-                        </BadgedBox>
-                      ) : (
-                        icon
-                      )}
-                    </NavigationBarItem.Icon>
-                  </NavigationBarItem>
-                );
-              })}
-            </NavigationBar>
-          </Host>
-        </View>
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
-          {items.map((item) => {
-            const label = navigationLabel(t, item);
-            const menu = item.menu;
-            return (
-              <View
-                key={item.key}
-                testID={`${tabTestID(item)}-a11y`}
-                accessible
-                accessibilityRole="tab"
-                accessibilityLabel={
-                  item.activity && item.count > 0
-                    ? `${t.activity}, ${t.activityPendingLabel(badgeCount(item.count))}`
-                    : label
-                }
-                accessibilityState={{ selected: item.focused }}
-                accessibilityActions={[
-                  { name: 'activate' },
-                  ...(menu === undefined ? [] : [{ name: 'longpress', label: t.tabMenuAction }]),
-                ]}
-                onAccessibilityAction={({ nativeEvent }) => {
-                  if (nativeEvent.actionName === 'activate') item.onPress();
-                  if (nativeEvent.actionName === 'longpress' && menu !== undefined)
-                    openTabMenu(label, menu);
-                }}
-                style={{ flex: 1 }}
-              />
-            );
-          })}
-        </View>
+              {items.map((entry, index) => (
+                <Box
+                  key={entry.key}
+                  contentAlignment="center"
+                  modifiers={[
+                    padding(index === 0 ? 0 : gap, 0, 0, 0),
+                    size(item, height),
+                    clip(Shapes.RoundedCorner(height / 2)),
+                    background(entry.focused ? theme.layer.raised.chosen : 'transparent'),
+                    combinedClickable({ onClick: entry.onPress, onLongClick: entry.onLongPress }),
+                    testID(tabTestID(entry.slot)),
+                  ]}
+                >
+                  {badged(entry, face(entry))}
+                </Box>
+              ))}
+            </HorizontalFloatingToolbar>
+          </Box>
+        </Host>
       </View>
-    </GestureDetector>
-  );
-}
-
-function tabTestID(item: NavigationDestination): string {
-  return item.settings
-    ? 'settings-button'
-    : item.activity
-      ? 'navigation-activity'
-      : item.sessions
-        ? 'sessions-tab'
-        : 'navigation-chats';
-}
-
-const menuGlyphs: Record<TabMenuGlyph, MenuGlyph> = {
-  bot: 'chat',
-  channel: 'channel',
-  person: 'person',
-  session: AssignmentSessionIcon,
-  activity: ActivityIcon,
-  new: PlusIcon,
-};
-
-function openTabMenu(title: string, entries: readonly TabMenuEntry[]) {
-  showActionMenu(
-    title,
-    entries.map((entry) => ({
-      text: entry.label,
-      icon: menuGlyphs[entry.glyph],
-      group: entry.glyph === 'new' ? 1 : 0,
-      onPress: entry.run,
-    })),
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
+        {items.map((entry, index) => (
+          <View
+            key={entry.key}
+            testID={`${tabTestID(entry.slot)}-a11y`}
+            accessible
+            accessibilityRole="tab"
+            accessibilityLabel={entry.accessibilityLabel}
+            accessibilityState={{ selected: entry.focused }}
+            accessibilityActions={[
+              { name: 'activate' },
+              ...(entry.menu === undefined ? [] : [{ name: 'longpress', label: t.tabMenuAction }]),
+            ]}
+            onAccessibilityAction={({ nativeEvent }) => {
+              if (nativeEvent.actionName === 'activate') entry.onPress();
+              if (nativeEvent.actionName === 'longpress') entry.onLongPress();
+            }}
+            style={{ width: item, height, marginLeft: index === 0 ? 0 : gap }}
+          />
+        ))}
+      </View>
+    </View>
   );
 }

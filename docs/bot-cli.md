@@ -3,7 +3,7 @@
 Installing `@botharness/tobs` provides the `tobs` command; the compatibility package `deepseekbot` provides `deepseekbot`. This guide retains `deepseekbot` examples: with the new package, substitute `tobs` and keep the same arguments.
 See the [installation guide](https://tobs.app/en/docs/installation/) for the current install command.
 
-Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp.
+Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp. Deleted Bots are left out of `list`; the Web keeps their history.
 
 `deepseekbot create` makes a new PersonaBot without clicking: blank, from a bot bundle (a directory or a zip with the same shape as the [bot-zip export](docs/bot-zip.md)), or from GitHub. It is built for external coding agents driving a DSH install, so its output is machine-first.
 
@@ -96,6 +96,8 @@ deepseekbot create --name <name> [--persona <text> | --persona-stdin]
 deepseekbot create --name <name> --from-git <url | owner/repo> [...]
 deepseekbot create [--name <name>] --from-zip <file> [...]
 deepseekbot create [--name <name>] --from-dir <directory> [...]
+deepseekbot create --host <host> --name <name> --from-sessions <id,id,...> [--add-workspaces] [--persona <text> | --persona-stdin]
+                   [--description <text>] [--role <tag> ...] [--operation-key <key>]
 deepseekbot list [--home <dsh-home>]
 deepseekbot show <id> [--home <dsh-home>]
 deepseekbot model-presets [--home <dsh-home>]
@@ -130,6 +132,10 @@ deepseekbot search <words>
 ```
 
 Exactly one source per create. `--name` is required for blank and GitHub bots; for bundle imports it overrides the name from `.botharness/bot.json` (or the file name). A `--from-git` value accepts a full Git URL (`https://`, `ssh://`, `git@host:path`) or an `owner/repo` shorthand for `https://github.com/owner/repo.git`, which also covers Bot Marketplace entries through their clone URL. A `--from-dir` bundle skips `.git` as files but packs it as history when present.
+
+`--from-sessions` creates a blank Bot from up to 50 of your DeepSeek Sessions on a running Host ([ADR-0366](decisions/bots.md#adr-0366)). The Host grants the Bot each Workspace that contains a Session's working directory and sends a seed message asking it to read the Sessions with its `workspace_sessions` tool and set up `SOUL.md` and Memory; nothing is copied. Errors: `session-not-found` (unknown, child or Bot-owned Session), `session-without-workspace`, `workspace-unavailable` (no Workspace contains the directory). With the same `--operation-key` a retry returns the same Bot and sends no second seed message. Run `bot-tool <bot-id> workspace_sessions` to list the readable Sessions, or pass `{"session_id":"<id>"}` on stdin with `--args-stdin` to read one as Markdown.
+
+The ids can also name Claude Code and Codex sessions found on the Host ([ADR-0367](decisions/bots.md#adr-0367)). `session-import-list` lists them (Host Owner only) as `{ sessionId, source, title, cwd, lastActivityAt }`, newest first, with ids like `claude-code:<id>` and `codex:<id>`. The Host reads `~/.claude/projects` (or `$CLAUDE_CONFIG_DIR/projects`) and `~/.codex/sessions` (or `$CODEX_HOME/sessions`) read-only. Such a session often worked in a folder that is not a DSH Workspace yet: pass `--add-workspaces` to register the outermost such folders as Workspaces before granting them, or the create fails with `workspace-unavailable`. A failed registration returns `workspace-register-failed`.
 
 `--memory-location <absolute-dir>` keeps a blank bot's Memory outside the DSH data folder (for example on another drive): the Bot's Memory repository is created in a new `<dir>/<bot-id>` folder, and `dataDir` reports that path. The path must be an existing absolute folder and the per-Bot folder must not exist yet (`invalid-memory-dir`); imports keep the default location. The create dialog offers the same choice under **Advanced settings → Memory location**.
 
@@ -309,7 +315,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` contains `genui_json` (the complete document serialized as a JSON string), optional `width` (240–1600) and `theme` (`light` or `dark`). Preview uses an installed Chrome, Edge or Chromium with a disposable profile; no automatic browser download. It returns document/policy identities, a `genui_preview_id`, `runtimeSha256` for the exact packaged renderer, bounded diagnostics and a DSH image attachment, never a Channel message. The preview renders in the browser's own first page and waits for two painted frames before capturing. It has a 15-second deadline, one concurrent owner and a 1 MiB image budget. Browser teardown can extend response time. Generated scripts run in a separately supervised QuickJS Worker with a limited DOM adapter, not in the Browser mirror. Interpreter/WASM budgets do not bound total Browser/process memory or guarantee immediate physical reclamation. Missing, corrupt or unsupported runtime assets refuse without silently falling back to native script execution.
+`document-preview.json` contains `genui_json` (the complete document serialized as a JSON string), optional `width` (240–1600; an integer or a numeric string such as `"728"` or `"728px"`) and `theme` (`light` or `dark`). Preview uses an installed Chrome, Edge or Chromium with a disposable profile; no automatic browser download. It returns document/policy identities, a `genui_preview_id`, `runtimeSha256` for the exact packaged renderer, bounded diagnostics and a DSH image attachment, never a Channel message. The preview renders in the browser's own first page and waits for two painted frames before capturing. It has a 15-second deadline, one concurrent owner and a 1 MiB image budget. Browser teardown can extend response time. Generated scripts run in a separately supervised QuickJS Worker with a limited DOM adapter, not in the Browser mirror. Interpreter/WASM budgets do not bound total Browser/process memory or guarantee immediate physical reclamation. Missing, corrupt or unsupported runtime assets refuse without silently falling back to native script execution.
 
 Direct CLI refusals preserve preview-owned codes: `genui-preview-timeout`, `genui-preview-busy`, `genui-preview-unavailable`, `genui-preview-too-large`, and stage-specific `genui-preview-{assets,browser,document,renderer,capture}-failed`. Recognized Browser-owner startup failures retain their bounded kind as `genui-preview-browser-<kind>` (for example, `genui-preview-browser-startup-timeout`), not process stderr or profile paths. `genui_diagram` refusals keep their `genui-diagram-*` code the same way. Renderer refusals use `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`. `genui-preview-image-unavailable` means rendering succeeded but saving the image attachment failed. These classifications do not include guest content, private service details or raw transport errors; retain the first failure before another diagnostic run.
 
@@ -329,7 +335,7 @@ To publish exactly what was previewed, send `genui_preview_id` from the preview 
 
 `request.json` has `{ "body": "Compare my selection", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`. Use `refresh` to request a new linked snapshot. Submission is an ordinary visible Human message with validated snapshot context, using normal routing and admission. Retry the same logical request with the same `human-<uuid>` and unchanged input; changed-content reuse is refused. Refresh publication requires a new `snapshotId` and `predecessorMessageId` pointing to the previous report; it never edits the old message. Inputs accept exactly one of `--genui-file` or `--genui-stdin`, at most 32 KiB. All three commands require a live authenticated Host and recheck access.
 
-`genui_diagram` is offline authoring, not publication: `source` is required Mermaid (8 KiB UTF-8); optional integer `width` is 240–1600, default 728. The pinned Pele 1.13.0 worker supports flowchart, sequenceDiagram and xychart-beta only, with links/images disabled. It returns `svg`, `bytes`, dimensions, family, compiler version and source/SVG SHA-256. Use it to check or debug a diagram; to publish, embed the source as `<genui-diagram>` and include a readable caption or equivalent data. Quote CJK XY category labels, for example `x-axis ["一月", "二月"]`. There is no CDN or renderer-library payload. The 48 KiB SVG budget is separate from the final 192 KiB HTML budget. One compilation runs at a time with a 3-second deadline and cancellation/worker termination; V8 heap limits are not a total process-memory guarantee.
+`genui_diagram` is offline authoring, not publication: `source` is required Mermaid (8 KiB UTF-8); optional `width` is 240–1600, default 728, as an integer or a numeric string such as `"728"`. The pinned Pele 1.13.0 worker supports flowchart, sequenceDiagram and xychart-beta only, with links/images disabled. It returns `svg`, `bytes`, dimensions, family, compiler version and source/SVG SHA-256. Use it to check or debug a diagram; to publish, embed the source as `<genui-diagram>` and include a readable caption or equivalent data. Quote CJK XY category labels, for example `x-axis ["一月", "二月"]`. There is no CDN or renderer-library payload. The 48 KiB SVG budget is separate from the final 192 KiB HTML budget. One compilation runs at a time with a 3-second deadline and cancellation/worker termination; V8 heap limits are not a total process-memory guarantee.
 
 Default styling uses `.genui-surface`, `.genui-well`, `.genui-selection`, `.genui-grid`, `.genui-table` and `.genui-legend`, with eight distinct `--chart-*` colors and mapped Pele variables. Keep stable category-to-series assignments, value labels and non-color cues; group with background and spacing rather than decorative borders. Meaningful graph/axis lines and keyboard focus remain. Defaults are overridable CSS, not a sanitizer or mandatory HTML rewrite. See [ADR-0302](decisions/genui.md#adr-0302).
 
@@ -534,6 +540,8 @@ deepseekbot im-app-remove discord --app <app-id>
 deepseekbot messaging-defaults discord
 printf '{"expectedRevision":1,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true}' \
   | deepseekbot messaging-defaults-set discord --input-stdin
+printf '{"expectedRevision":2,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true,"groupInteractions":false}' \
+  | deepseekbot messaging-defaults-set feishu --input-stdin
 deepseekbot messaging-grants <bot-id>
 deepseekbot messaging-targets <app-ref>
 deepseekbot messaging-authorize <bot-id> --app <app-ref> --target <target-ref>
@@ -551,8 +559,10 @@ deepseekbot messaging-reachable <bot-id> --binding <binding-id> [--cursor <curso
 deepseekbot messaging-post <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin [--request-id <id>]
 deepseekbot messaging-post-status <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin --request-id <id>
 deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-10000|none>
+deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"default-role","roleId":"<role-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
@@ -567,6 +577,8 @@ deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
+
+`groupInteractions` (default on when absent) decides where a Bot's question or execution approval goes when the Bot turn that asks is handling a message from an IM group of the same account: on, the card is a reply in that group and any person with an approved management pairing holding the needed capability can answer or decide there; off, it goes to the selected management DM as before. `messaging-group-interactions` overrides it for one Binding, so two apps on the same platform can differ; `--inherit` follows the platform default again, and `messaging-grants` shows each Binding's effective value and whether it is inherited. Answering or deciding in the group does not move the next card to the DM. Saving an exact rule from a group card is not offered. A later save that omits the field keeps its value ([#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)).
 
 For a qualified WeChat private connector, the update JSON also accepts independent `dmMirror` and `dmForward` booleans; both default to `false`. Read `channel-bridges` first and send its current grant/route revisions with the update. The preference is shared by entries for the same Binding and conversation. Turning a switch off stops uncommitted work, including offline; it does not purge history or revoke normal reply authority. Forwarding requires an existing proactive target in the same account. For example, add `"dmMirror":true,"dmForward":false` to an otherwise unchanged update payload to enable local presentation only.
 
@@ -583,6 +595,7 @@ deepseekbot browser-takeover <bot-id> --enabled
 deepseekbot browser-takeover <bot-id> --disabled
 deepseekbot browser-stop <bot-id>
 deepseekbot computer-status
+deepseekbot computer-unlock-status
 deepseekbot computer-start --target local
 deepseekbot computer-stop
 deepseekbot computer-frame --out /tmp/desktop.jpg
@@ -593,6 +606,11 @@ deepseekbot grants <bot-id>
 ```
 
 `browser-open` starts the Bot's Browser (Browser Access must be on) and returns its tab and viewer URL. `browser-frame` saves the current picture to an absolute path and reports its size and viewport, so an agent can look at what the Bot sees. `browser-takeover --enabled` pauses the Bot's Browser for Human input and `--disabled` hands it back. `computer-start` carries the explicit authorization the panel button sends; read the result with `computer-status`, whose `status.detail` explains a refusal such as a missing OS permission or display. `grants` lists a Bot's Workspace Grants from a live Host. Route refusals keep the Host's code, or `host-refused` with its message.
+
+`computer-unlock-status` reads the Mac helper capability and observed lock state.
+`ready` means the signed helper can be reached. `accessibility-required` means the
+Human needs to enable the helper in macOS System Settings. Open Computer on the
+paired iPhone to unlock it.
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 
@@ -645,6 +663,7 @@ deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
 deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
+deepseekbot session-model <bot-id>
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -672,15 +691,25 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived] [--limit <1-200>] [--cursor <cursor>]
+deepseekbot session-list-changes [--since <seq> [--epoch <epoch>]]
+deepseekbot session-import-list
 deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
+deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
+deepseekbot session-answer-question --session <session-id> --request <request-id> --answer-stdin < answer.json
+deepseekbot session-stop --session <session-id>
+deepseekbot session-archive --session <session-id> --confirm
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
 deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
 ```
 
-These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. With `--limit`, the list returns one page and a `nextCursor`; pass it as `--cursor` to read the next page. `session-list-changes` without `--since` returns the current change cursor (`reset: true`). With `--since` and `--epoch` from an earlier cursor, it returns the rows that changed, the IDs of removed Sessions and a new cursor, or `reset: true` when the Host restarted or the change log no longer covers that cursor; then read the full list again. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+
+The Host Owner can read native approval and question cards in `pendingInput` from `session-transcript` and `session-live`. Pass the card's `requestId` to the matching answer command. For a question, send a JSON object such as `{"answers":[{"id":"format","selected":["Compact"]}]}` on stdin, with one answer per question. A free-text answer uses `"selected":[]` and a `custom` string. Omit `custom` with an empty selection to skip an individual question. An already settled request returns `session-input-not-pending`.
+
+`session-stop --session` asks DSH to cancel the active native turn. `session-archive` archives an idle native Session. Stop a running Session and let it settle before archiving it. Archived Sessions are hidden from list and search by default. Use `--include-archived` to include them with `archived: true`. Team members cannot view or act on native Session requests.
 
 `session-create` starts a native Session, as the phone's New Session screen does: DSH creates it in the folder (`--cwd`) or in a DSH Workspace (`--workspace`, the `workspaceId` that `workspace/create` returns; a Team space id such as `spaces/local-human` is not one, so pass its folder with `--cwd`), applies the optional direct API model (`--model`, otherwise the Default preset), then admits `--message` as its first prompt. It returns `{ sessionId, requestId }`; follow the reply with `session-live --session <sessionId>`. Only the Host Owner can create native Sessions; a Team member is refused with `remote-access/denied` before the request reaches the method, which also refuses non-Owners with `permission-required`, and a Routing Group or subscription engine choice is refused with `usage` before anything is created. If DSH creates the Session but the model choice then fails, the error carries `details.sessionId`; rerun with `--session <that id>` and DSH reuses the blank Session instead of creating another.
 
@@ -714,7 +743,7 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 `session-transcript` includes `turnTargets` on replies and turn endings when attribution is available. Targets appear in execution order. The final entry produced the reply. DSH entries carry `provider` and `model`. Subscription Engine entries carry `engine` and any model and reasoning effort the Host could establish. `model-plan <bot-id>` also includes `currentTarget` for the Bot’s current Orchestrator Session after its first execution.
 
-`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Give `--set` one JSON Model Choice object:
+`session-model` reads a root Session’s saved `override` and Bot `default`. During an active Turn, `active` is the override captured for that Turn. Without `--session` it reads the `default` a new Orchestrator Session of the Bot would start with (`override` is `null`); the phone names that model in the composer before the first message. Give `--set` one JSON Model Choice object:
 
 - API model: `{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
 - Subscription Engine: `{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`. Add `accountId` to select a particular granted account.
@@ -1074,24 +1103,24 @@ deepseekbot approval-reviewer-model-set bot
 
 Both commands return `{follows, model}`: `follows` is `bot` (each Bot's own model, `model` is `null`), `model` (the named model is used for every review) or `invalid` (the setting file cannot be read). For a named model they also return `available` and, when it is `false`, `unavailableReason`. A model that is not in the catalog, or whose provider has no working key, is still saved, but every review then posts the ordinary Human card and writes `fallback=model-unavailable` with the reason to `logs.db`; the reviewer never switches to another model on its own. Each review's `approval-review` line in `logs.db` names the `model` and the `reviewSession` it used. When a Bot runs `approval-reviewer-model-set` from its own Shell, the call requires a Human decision or an explicit management-scope saved rule; the model Approval Reviewer cannot answer it. Refusals carry a code: `usage` (no `<provider>/<model>`, or `--effort` with `bot`) and `invalid-input`.
 
-### Bot modes
+### Loadouts
 
-A Bot's Sessions run in a DSH mode (an Agent Preset). Every Bot without its own mode uses the Profile-wide default, which is Tobs unless the Human picks another installed mode, such as standard, PTC or a plugin's mode. A Bot can also set its own. DSH fixes a Session's mode when it starts, so a change applies from each Bot's next new Orchestrator or Assignment Session.
+A Bot's Sessions run with a Loadout: a system prompt and tool set, which DSH calls a mode or Agent Preset. The former `bot-modes` and `bot-mode-*` command names still work as aliases. JSON fields (`modes`, `mode`), error codes (`mode-not-allowed` and the rest) and `bot-modes.json` keep their names. Every Bot without its own Loadout uses the Profile-wide default, which is Tobs unless the Human picks another installed mode, such as standard, PTC or a plugin's mode. A Bot can also set its own. DSH fixes a Session's mode when it starts, so a change applies from each Bot's next new Orchestrator or Assignment Session.
 
 ```bash
-deepseekbot bot-modes [<bot-id>]
-deepseekbot bot-mode-default-set <mode>|@product
-deepseekbot bot-mode-set <bot-id> <mode>|@global
-deepseekbot bot-mode-template-save [--id <template-id>] <name> <mode>...
-deepseekbot bot-mode-template-delete <template-id>
-deepseekbot bot-mode-template-set <bot-id> <template-id>|@all
+deepseekbot loadouts [<bot-id>]
+deepseekbot loadout-default-set <loadout>|@product
+deepseekbot loadout-set <bot-id> <loadout>|@global
+deepseekbot loadout-template-save [--id <template-id>] <name> <loadout>...
+deepseekbot loadout-template-delete <template-id>
+deepseekbot loadout-template-set <bot-id> <template-id>|@all
 ```
 
 Each command returns `{modes, productDefault, globalDefault, effectiveDefault, templates}`; with a Bot it also returns `bot: {slug, mode, effective, template, allowed}`. `modes` is the DSH roster (`id`, `name`, `description`, `order`, and `broken` when the mode failed to load). `productDefault` is Tobs (`deepseekbot`), `globalDefault` is the Human's choice or `null`, and a Bot's `mode` is its own choice or `null` when it follows the default. `@product` returns the default to Tobs and `@global` makes a Bot follow the default again. Only in Tobs does a question card left unanswered for 45 seconds stop holding the Bot: the Bot handles other messages and the card stays open for a later answer. In other modes a pending question card holds the Bot. Refusals carry a code: `usage`, `invalid-input`, `not-found` (unknown Bot or template id), `mode-not-found` (not installed), `mode-broken`, `modes-unavailable` (no DSH mode service) and `settings-unreadable` (`bot-modes.json` cannot be read; fix or delete it, and meanwhile templates do not apply, a Bot with its own mode keeps it and a Bot that follows the default runs in the product default; until then every change except clearing a Bot's own mode is refused). In Team mode a member's Bot follows the same rules as the Owner's Bot; only the `danger-full-access` Assignment preset stays Owner-only.
 
-A mode template (`{id, name, modes}`) limits which modes a Bot can use. A Bot without one (`template: null`, `allowed: null`) can use every installed mode; `@all` returns a Bot to that. With a template, `bot-mode-set` refuses a mode outside it with `mode-not-allowed`, and so do `bot-mode-template-set` and a template edit that would leave out a Bot's own mode; change the Bot's mode first. `bot-mode-template-delete` refuses a template a Bot still uses with `template-in-use`. A template also bounds a Bot that follows the default: when the default is outside the template, the Bot uses the template's first installed mode, and `bot.effective` shows it. If none of the template's modes is installed, the Bot still uses the template's first mode, so new Sessions fail to start with DSH's `agent-preset/not-found` rather than run outside the template; fix the template or remove it with `@all`. `@all` removes only the template; a Bot whose own mode is no longer installed also needs `bot-mode-set <bot-id> @global` or an installed mode before new Sessions start. To move a Bot with its own mode to a template that leaves that mode out, run `bot-mode-set <bot-id> @global` first, then `bot-mode-template-set`, then pick an allowed mode. A template that names a mode which is no longer installed must drop that mode before it can be saved again. `bot-sessions` returns each Session's mode as `agentPreset` once the Session has started; the Sessions panel shows the same.
+A mode template (`{id, name, modes}`) limits which modes a Bot can use. A Bot without one (`template: null`, `allowed: null`) can use every installed mode; `@all` returns a Bot to that. With a template, `loadout-set` refuses a mode outside it with `mode-not-allowed`, and so do `loadout-template-set` and a template edit that would leave out a Bot's own mode; change the Bot's mode first. `loadout-template-delete` refuses a template a Bot still uses with `template-in-use`. A template also bounds a Bot that follows the default: when the default is outside the template, the Bot uses the template's first installed mode, and `bot.effective` shows it. If none of the template's modes is installed, the Bot still uses the template's first mode, so new Sessions fail to start with DSH's `agent-preset/not-found` rather than run outside the template; fix the template or remove it with `@all`. `@all` removes only the template; a Bot whose own mode is no longer installed also needs `loadout-set <bot-id> @global` or an installed mode before new Sessions start. To move a Bot with its own mode to a template that leaves that mode out, run `loadout-set <bot-id> @global` first, then `loadout-template-set`, then pick an allowed mode. A template that names a mode which is no longer installed must drop that mode before it can be saved again. `bot-sessions` returns each Session's mode as `agentPreset` once the Session has started; the Sessions panel shows the same.
 
-An Orchestrator can start an Assignment in another mode: `list_assignment_models` returns `assignmentModes: {default, allowed}`, and `create_assignment` takes an optional `mode` from `allowed` (the Bot's template, or every installed mode). Without `mode` the Assignment uses the Bot's mode at the time its Session is created. The choice is stored with the Assignment and DSH fixes it once the Session starts; a keyed Assignment that is reused keeps its mode. The same works through `bot-tool <bot-id> create_assignment --args-stdin` with `{"title":"…","description":"…","grant_id":"<grant-id>","mode":"ptc"}`. When a Bot may use more than one mode, `create_assignment`'s `mode` parameter lists the allowed ids with each mode's description, read when the Orchestrator Session is prepared, so the Orchestrator can choose without calling `list_assignment_models` first. A mode removed from the Bot's template later is still refused.
+An Orchestrator can start an Assignment with another Loadout: `list_assignment_models` returns `assignmentLoadouts: {default, allowed}`, and `create_assignment` takes an optional `loadout` from `allowed` (the Bot's template, or every installed Loadout). The former `mode` argument is still accepted. Without `loadout` the Assignment uses the Bot's Loadout at the time its Session is created. The choice is stored with the Assignment and DSH fixes it once the Session starts; a keyed Assignment that is reused keeps its Loadout. The same works through `bot-tool <bot-id> create_assignment --args-stdin` with `{"title":"…","description":"…","grant_id":"<grant-id>","loadout":"ptc"}`. When a Bot may use more than one Loadout, `create_assignment`'s `loadout` parameter lists the allowed ids with each Loadout's description, read when the Orchestrator Session is prepared, so the Orchestrator can choose without calling `list_assignment_models` first. A Loadout removed from the Bot's template later is still refused.
 
 Besides Tobs, the product ships three scenario modes for Assignments. Each is Tobs with only the plugins its kind of work needs, so its tool definitions cost fewer input tokens on every step: `tobs-research` (Tobs 调研: web search and fetch, file read and write, no terminal), `tobs-code` (Tobs 编程: terminal, files, background jobs, skills and web lookups, no plan mode or workflows) and `tobs-script` (Tobs 脚本: terminal and files only, no web). `node scripts/sync-bot-preset.mjs` generates them with Tobs from the DSH standard preset.
 
@@ -1423,6 +1452,25 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 ```
 
 Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>` for an OpenAI-compatible service. Add and key replacement report whether the key was stored, how many models are listed and whether a test reply succeeded on the new route. The JSON shows at most the last four characters of a key. Removal is refused when the provider is inherited or referenced by a default model, Routing Group, Model Preset or Bot. Enter keys on the Host or over Tailscale.
+
+### App connections (Composio)
+
+The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key needs write access to Session management, Session tool execution, Connected accounts and Auth configs; a read-only key can list accounts but cannot create sign-in links. When one Bot has both a Read and a Read and write account for the same app, the app is treated as Read for that Bot. The key stays in the Host credential store and is never shown to a Bot.
+
+```bash
+deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-connect gmail --label "Work Gmail"
+deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+deepseekbot bot-connectors <bot-id>
+deepseekbot connector-grant <bot-id> <account-id> --access none
+deepseekbot connector-remove <account-id> --confirm
+deepseekbot connector-key-clear --confirm
+```
+
+`connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 

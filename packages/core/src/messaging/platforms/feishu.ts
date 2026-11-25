@@ -72,9 +72,17 @@ export const feishuProfile: DshImPlatformProfile<'feishu'> = {
       return { kind: 'dm', conversationId: chatId };
     return undefined;
   },
+  people: {
+    namespace: 'lark-app-open-id',
+    sender: (event) => /^ou_[A-Za-z0-9]+$/.test(event.actor.id),
+    groups: true,
+    roles: true,
+    management: true,
+  },
   features: {
     reactions: true,
     cards: true,
+    interactions: true,
     reachableConversations: true,
     targetPost: { required: [] },
   },

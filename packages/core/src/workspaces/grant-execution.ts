@@ -375,6 +375,7 @@ const BOT_TOOL_NAMES = new Set([
   'list_subagent_models',
   'request_workspace_grant',
   'list_workspace_grants',
+  'workspace_sessions',
   'list_assignments',
   'archive_assignment',
   'unarchive_assignment',
@@ -396,6 +397,8 @@ const BOT_TOOL_NAMES = new Set([
   'bridge_context',
   'bridge_group_policy_list',
   'bridge_group_policy_set',
+  'connector_catalog',
+  'connector_request',
   'bridge_thread_policy_list',
   'bridge_thread_policy_set',
   'bridge_attachment_save',
@@ -438,8 +441,6 @@ const BOT_TOOL_NAMES = new Set([
   'ask_user_question',
   'ask_secret',
   'secret_mcp_disconnect',
-  'memory_switch_branch',
-  'memory_continue_from_commit',
   'report_to_orchestrator',
 ]);
 
