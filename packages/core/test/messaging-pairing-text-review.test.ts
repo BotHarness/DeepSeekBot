@@ -305,3 +305,23 @@ it('a notice repeated in a second channel binds the reply there', async () => {
   expect(fx.replies.some((reply) => reply.text.includes('send your question again'))).toBe(true);
   expect(fx.runs).toHaveLength(0);
 });
+
+it('a thread reply matching two requests asks for the reference instead of guessing', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack');
+  const { applicant, other, reviewer } = ids.slack;
+  const thread = { threadId: 'om-root', rootId: 'om-root' };
+  await fx.receive(channelMessage('slack', 'first', applicant, 'question', thread));
+  await fx.receive(channelMessage('slack', 'second', other, 'question', thread));
+  await fx.receive(channelMessage('slack', 'which', reviewer, '同意 Colleague', thread, false));
+  expect(fx.replies.at(-1)!.text).toContain('Several pairing requests match');
+  expect(pendingFor(fx, applicant).status).toBe('pending');
+  expect(pendingFor(fx, other).status).toBe('pending');
+  const second = pendingFor(fx, other);
+  await fx.receive(
+    channelMessage('slack', 'pick', reviewer, `同意 Colleague #${second.reference}`, thread, false),
+  );
+  expect(pendingFor(fx, other).status).toBe('approved');
+  expect(pendingFor(fx, applicant).status).toBe('pending');
+  expect(fx.runs).toHaveLength(0);
+});

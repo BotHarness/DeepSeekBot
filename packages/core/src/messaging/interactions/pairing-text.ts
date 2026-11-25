@@ -82,6 +82,8 @@ const NOTICE = {
     `Approved pairing request ${reference} with Role ${role}. / 已批准配对申请 ${reference}，角色：${role}。`,
   rejected: (reference: string) =>
     `Rejected pairing request ${reference}. / 已拒绝配对申请 ${reference}。`,
+  ambiguous:
+    'Several pairing requests match this reply. Reply with the request number, for example "approve Colleague #ABCDEF0123". / 有多个配对申请匹配这条回复，请带上申请编号，例如「同意 Colleague #ABCDEF0123」。',
   failed: (reference: string) =>
     `Pairing request ${reference} could not be reviewed here. Review it in Web settings. / 配对申请 ${reference} 无法在此审核，请在 Web 设置中处理。`,
 };
@@ -257,21 +259,27 @@ export function createPairingText(options: {
     };
     const sharedThread = (item: PairingRequest) =>
       !!item.reply?.threadId && anchors.includes(item.reply.threadId);
-    const anchoredTarget = () => {
-      const candidates = requests.filter(reachable);
-      const exactMatches = candidates.filter(exact);
-      if (exactMatches.length) return exactMatches.length === 1 ? exactMatches[0] : undefined;
-      const threadMatches = candidates.filter(sharedThread);
-      return threadMatches.length === 1 ? threadMatches[0] : undefined;
-    };
+    const candidates = requests.filter(reachable);
+    const exactMatches = candidates.filter(exact);
+    const anchorMatches = exactMatches.length ? exactMatches : candidates.filter(sharedThread);
+    const ambiguous = !parsed.reference && anchorMatches.length > 1;
     const reviewerFor = (item: PairingRequest): PairingReviewer =>
       threadNotice(item)
         ? { bindingId: binding.id, actorId: event.actor.id }
         : { bindingId: binding.id, actorId: event.actor.id, approvalRoute: true };
     let target = parsed.reference
       ? requests.find((item) => item.reference === parsed.reference && reachable(item))
-      : anchoredTarget();
+      : anchorMatches.length === 1
+        ? anchorMatches[0]
+        : undefined;
     let explicit = !!target;
+    if (ambiguous) {
+      if (!assignable(binding.botSlug, binding.id, event.actor.id).reviewer) return false;
+      setImmediate(() => {
+        if (!signal.aborted) void send(providerId, binding, event, NOTICE.ambiguous, signal);
+      });
+      return true;
+    }
     if (!target && !parsed.reference) {
       const pending = requests.filter((item) => item.status === 'pending' && reachable(item));
       if (pending.length === 1 && !approvalPending(conversation)) target = pending[0];
