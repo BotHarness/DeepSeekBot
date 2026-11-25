@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { View, type ColorValue, type LayoutChangeEvent } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   KeyboardAvoidingView,
   KeyboardProvider,
   useKeyboardState,
 } from 'react-native-keyboard-controller';
 
+import { useComposerDrop } from './composer-drop';
 import { composerKeyboardGap, useChatBottom } from './chat-keyboard';
 
 export interface KeyboardChatFrameProps {
@@ -36,6 +38,7 @@ export function KeyboardChatFrame({
   onComposerLayout,
 }: KeyboardChatFrameProps) {
   const { safe, island } = useChatBottom();
+  const lowered = useComposerDrop(island);
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
@@ -46,12 +49,12 @@ export function KeyboardChatFrame({
       >
         <View style={{ flex: 1 }}>
           {children}
-          <View
+          <Animated.View
             onLayout={onComposerLayout}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+            style={[{ position: 'absolute', left: 0, right: 0, bottom: 0 }, lowered]}
           >
             {composer}
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </View>
