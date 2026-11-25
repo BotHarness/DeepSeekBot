@@ -1,5 +1,6 @@
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import { expect, it, vi } from 'vitest';
+import type { SessionQueryRow } from '../src/features/sessions/session-query-model';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 
@@ -7,6 +8,7 @@ import {
   preselectedComputer,
   sessionDrawerSections,
   sessionDrawerWidth,
+  sessionRowIdentity,
   settleSessionDrawer,
 } from '../src/features/sessions/session-drawer-model';
 
@@ -62,4 +64,65 @@ it('preselects the scope’s Computer, then the most recent one', () => {
   expect(preselectedComputer('all', computers, 'laptop')).toBe('laptop');
   expect(preselectedComputer('all', computers, 'gone')).toBe('studio');
   expect(preselectedComputer('all', [], 'studio')).toBeUndefined();
+});
+
+const listed = (extra: Partial<SessionQueryRow>): SessionQueryRow => ({
+  sessionId: 's',
+  hostId: 'laptop',
+  hostName: 'Laptop',
+  source: { kind: 'native' },
+  running: false,
+  lastPromptAt: null,
+  updatedAt: 0,
+  ...extra,
+});
+const ada = {
+  kind: 'bot',
+  botSlug: 'ada',
+  displayName: 'Ada',
+  avatar: '/avatars/ada.png',
+} as const;
+
+it('names the Host only under All and the Bot only on Bot-created Sessions', () => {
+  const host = { hostId: 'laptop', hostName: 'Laptop' };
+  expect(sessionRowIdentity(listed({ source: ada }), true, 8)).toMatchObject({ host, bot: ada });
+  const own = sessionRowIdentity(listed({}), true, 8);
+  expect(own.host).toEqual(host);
+  expect(own.bot).toBeUndefined();
+  const scopedBot = sessionRowIdentity(listed({ source: ada }), false, 8);
+  expect(scopedBot.host).toBeUndefined();
+  expect(scopedBot.bot).toEqual(ada);
+  expect(sessionRowIdentity(listed({}), false, 8)).toEqual({});
+});
+
+it('carries the folder monogram, colour and path, and the model brand when known', () => {
+  const identity = sessionRowIdentity(
+    listed({
+      folderName: 'deploy-tools',
+      cwd: '/work/deploy-tools',
+      model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    }),
+    false,
+    8,
+  );
+  expect(identity.folder).toEqual({
+    name: 'deploy-tools',
+    monogram: 'DT',
+    colorIndex: identity.folder!.colorIndex,
+    path: '/work/deploy-tools',
+  });
+  expect(identity.folder!.colorIndex).toBeGreaterThanOrEqual(0);
+  expect(identity.folder!.colorIndex).toBeLessThan(8);
+  expect(identity.model).toEqual({
+    provider: 'opencode-go',
+    model: 'deepseek-v4.1-flash',
+    brand: 'deepseek',
+  });
+  const member = sessionRowIdentity(listed({ folderName: '笔记' }), false, 8);
+  expect(member.folder).toEqual({
+    name: '笔记',
+    monogram: '笔',
+    colorIndex: member.folder!.colorIndex,
+  });
+  expect(sessionRowIdentity(listed({ folderName: '' }), false, 8).folder).toBeUndefined();
 });

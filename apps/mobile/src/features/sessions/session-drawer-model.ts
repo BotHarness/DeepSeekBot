@@ -1,5 +1,11 @@
-import type { HostSessionRow, HostSessionSort } from '@botharness/host-protocol/host-sessions';
+import type {
+  HostSessionRow,
+  HostSessionSort,
+  HostSessionSource,
+} from '@botharness/host-protocol/host-sessions';
+import { modelBrand, type ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { materialDrawer } from '../../ui/design/tokens';
+import { folderColorIndex, folderMonogram, type SessionQueryRow } from './session-query-model';
 
 export const SESSION_DRAWER_GROUPS = ['today', 'yesterday', 'earlier'] as const;
 export type SessionDrawerGroup = (typeof SESSION_DRAWER_GROUPS)[number];
@@ -64,4 +70,36 @@ export function preselectedComputer(
     computers.find((computer) => computer.hostId === recent)?.hostId ??
     computers[0]?.hostId
   );
+}
+
+export type SessionRowIdentity = {
+  host?: { hostId: string; hostName: string };
+  bot?: Extract<HostSessionSource, { kind: 'bot' }>;
+  folder?: { name: string; monogram: string; colorIndex: number; path?: string };
+  model?: { provider: string; model: string; brand?: ModelBrand };
+};
+
+export function sessionRowIdentity(
+  row: SessionQueryRow,
+  showHost: boolean,
+  colorCount: number,
+): SessionRowIdentity {
+  const brand = row.model === undefined ? undefined : modelBrand(row.model);
+  return {
+    ...(showHost ? { host: { hostId: row.hostId, hostName: row.hostName } } : {}),
+    ...(row.source.kind === 'bot' ? { bot: row.source } : {}),
+    ...(row.folderName === undefined || row.folderName === ''
+      ? {}
+      : {
+          folder: {
+            name: row.folderName,
+            monogram: folderMonogram(row.folderName),
+            colorIndex: folderColorIndex(row.folderName, colorCount),
+            ...(row.cwd === undefined ? {} : { path: row.cwd }),
+          },
+        }),
+    ...(row.model === undefined
+      ? {}
+      : { model: { ...row.model, ...(brand === undefined ? {} : { brand }) } }),
+  };
 }
