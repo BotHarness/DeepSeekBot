@@ -184,7 +184,17 @@ The product calls a mode a Loadout ([glossary](../../GLOSSARY.md)). `create_assi
 
 Enforced by: `adr-0187-mode-resolution.property.test.ts`, `bot-modes.test.ts`, `dsh-bot-agent-adapter.test.ts` (mode parameter, recorded mode on resume), `scripts/test/sync-bot-preset.test.mjs` and `pnpm lint` (`sync-bot-preset --check`).
 
-## 16. A PersonaBot Session can run on a Subscription Engine
+## 16. Subscription Engine Bots keep the small gateway list and their own tools, and instructions tell the jobs apart
+
+<a id="adr-0368"></a>
+
+An engine Orchestrator keeps the MCP gateway as it is: `bot_send_message`, `channel_read` and `inbox_resolve` are listed, and every other Bot tool is found through `tool_search` and run through `tool_call`. An engine Assignment gets only `report_to_orchestrator`. Connector tools granted to a Bot will join the Orchestrator's catalog behind `tool_search`, not a separate MCP server. Engines keep all their own tools, sub-agents, cron and wake-ups included, and their own defaults: the Host sets no tool filter and no tool-search mode, so a Claude Code update keeps working as shipped. On a Claude subscription Claude Code's tool search is on by default and loads its rarely used built-ins on demand. The engine instructions name the jobs that belong to the Bot: a reminder or anything at a time or on a repeat is a Bot Schedule (`bot_schedule_create`), and a task the Human asks to start, or work they should see, follow or steer, or that outlives the turn, is an Assignment (`create_assignment`). The engine's own sub-agents, cron and wake-ups are private help that ends with the engine process. Its sub-agents share the Bot's gateway, so the instructions keep messages, Schedules, Assignments and an Assignment's `report_to_orchestrator` to the engine itself. This is an instruction, not a Host-enforced rule: the gateway cannot yet tell a sub-agent's call from its parent's. An engine Assignment may use its own sub-agents inside the Assignment and asks its Orchestrator for reminders or new visible tasks. Unlike the DSH Orchestrator's Subagent guard (ADR-0265), nothing refuses an engine's sub-agents: they never reach the Assignment Directory, and refusing them would break the engine's own harness.
+
+Why: a live A/B ran Claude Code 2.1.332 and codex-cli 0.172.0 on `deepseek-v4.1-flash` against the real 63-tool engine catalog, 3 runs per arm. On Claude Code, listing every Bot tool cost 24–28% more than the gateway list at the same accuracy (30/30), and a core set of 19 listed tools saved nothing. With Claude Code's tool search off, as it is behind a third-party endpoint, its built-ins made up half of a 22.3k-token prefix; with tool search on, its first-party default, the session cost about half as much ($0.0068 against $0.0130 typical, $0.0062 against $0.0138 heavy), as much as hiding the built-ins saved, while keeping them usable. On Codex with the hand-slimmed descriptions (#5338), listing every tool took fewer steps but cost 30–90% more than the gateway list ($0.0069 against $0.0053 typical, $0.0082 against $0.0043 heavy), all 30/30. With every built-in available, both engines put reminders, including "check that task in 10 minutes", on Bot Schedules and requested tasks on Assignments, and used their own shell or sub-agents for a quick calculation or lookup the Human asked for directly (21/21 on each engine without the paragraph, 21/21 with it); no run used the engine's own cron or wake-ups. In one Codex run a sub-agent repeated the Bot's earlier actions through the shared gateway, creating two extra Assignments; telling the engine to keep Bot actions to itself stopped that in the rerun (3/3). The paragraph costs about 200 tokens and makes the boundary explicit rather than left to the model. Proxying a connector through the gateway was as cheap as giving the engine a separate MCP server (9/9 against 8/9 on both engines) and keeps credentials, account pinning and approvals on the Host.
+
+Enforced by: `engine-persona.test.ts`, `engine-claude.test.ts` (no `disallowedTools` or tool-search variable in the Claude options), `engine-tools.test.ts`.
+
+## 17. A PersonaBot Session can run on a Subscription Engine
 
 <a id="adr-0353"></a>
 _Formerly ADR-0353, with its amendments for the seam (#4485), engine file access (#4655) and Codex device sign-in (#4559)._
@@ -195,7 +205,7 @@ A PersonaBot's Orchestrator Session and each Assignment Session can run on a **S
 - **Messages and approvals.** The engine's final text stays private; a Bot speaks only through `bot_send_message`, and an Assignment that ends without reporting has its final text forwarded as an unreported completion. Claude's `canUseTool` and Codex approval requests become `ChannelToolApproval` cards, and Always-allow rules record the engine's tool name.
 - **Persona isolation.** The Host builds the system prompt. Claude runs with `settingSources: []` and `strictMcpConfig: true`, so the Human's CLAUDE.md, MCP servers and hooks never enter a Bot.
 - **The seam.** An engine Session is an ordinary DSH Session that runs no internal Agent. The Host creates it through the public Session Store and appends the existing event types (`turn/start`, `step/start`, `user/message`, `assistant/message`, `tool/call`, `tool/result`, `step/end`, `turn/end`), so Session detail, Activity, usage and recovery work unchanged. Because it bypasses `DshAgentHost`, the engine runner calls the admission checks itself, writes `approval/asked` and `approval/decided` events, and leaves compaction to the engine. The engine's native session ID is stored on the Session and resumed; one process per Session closes when idle. A lost native session is rebuilt from the Host's records, and an Assignment with no recoverable context ends as failed and reports it.
-- **Sign-in and billing.** The Host starts the official sign-in (`claude auth login`, `codex login`, or `codex login --device-auth` for a code entered on another device) and never reads, stores or forwards an engine's OAuth token. It strips provider API-key variables from every engine process and refuses to run a login that is not a subscription: the account report must carry a subscription type and the key source must be `none`. A report of paid overage counts as metered billing. When a subscription is exhausted the Bot stops with a limit card and a reset time, unless the Human set a fallback beforehand (§18).
+- **Sign-in and billing.** The Host starts the official sign-in (`claude auth login`, `codex login`, or `codex login --device-auth` for a code entered on another device) and never reads, stores or forwards an engine's OAuth token. It strips provider API-key variables from every engine process and refuses to run a login that is not a subscription: the account report must carry a subscription type and the key source must be `none`. A report of paid overage counts as metered billing. When a subscription is exhausted the Bot stops with a limit card and a reset time, unless the Human set a fallback beforehand (§19).
 - **File access follows Host authority.** Before each engine turn the Host resolves the effective access: an Assignment uses its frozen access preset and its current Grant, including the write switch ([Workspace decisions](workspaces.md#adr-0356)); an Orchestrator keeps its private directory and the chat access preset, and gets read-only engine tools while any active Grant is read-only. Codex maps this to its read-only, working-directory or full-access sandbox; Claude Code to read-only tools, approval-gated edits and shells, or bypass. A change of mode closes the process and resumes the native session with the new settings.
 - **CLI parity.** `deepseekbot engine list|status|login|use <bot> --role orchestrator|assignment`.
 
@@ -203,7 +213,7 @@ Why: Humans asked to run their Bots on the Claude or ChatGPT subscription they a
 
 Enforced by: `engine-session.test.ts`, `engine-claude.test.ts`, `engine-accounts.test.ts`, `engine-runner.test.ts`, `engine-recovery.test.ts`, `engine-approval.test.ts`, `engine-write-authority.test.ts`, `engine-quota.test.ts`, `dsh-bot-agent-adapter-engine-lifecycle.test.ts`, `apps/docs/test/bot-cli-engine-scope.test.ts`.
 
-## 17. Orchestrator turns carry a bounded work context
+## 18. Orchestrator turns carry a bounded work context
 
 <a id="adr-0354"></a>
 _Formerly ADR-0354, which amends section 2 (formerly ADR-0045)._
@@ -214,7 +224,7 @@ Why: once the coordination prompt made the Orchestrator delegate all real work (
 
 Enforced by: `dsh-bot-agent-adapter.test.ts` (work context block), `orchestrator-coordination-prompt.test.ts`.
 
-## 18. Model Fallback is Host-owned and moves a Session at a step boundary
+## 19. Model Fallback is Host-owned and moves a Session at a step boundary
 
 <a id="adr-0355"></a>
 _Formerly ADR-0355 (#4410). The ADR was still marked Proposed, but the Host ships it._
