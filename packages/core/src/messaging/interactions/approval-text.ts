@@ -1,13 +1,14 @@
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { ApprovalDelivery, ApprovalMessaging } from '../approval-messaging.js';
 import { isMessagingPlatform, messagingPlatform } from '../platforms/index.js';
-import type { MessagingInboundEvent } from '../provider.js';
+import type { MessagingInboundEvent, MessagingProvider } from '../provider.js';
 import { answerText } from './text-answers.js';
 import { approvalReference, parseApprovalReply } from './text-approvals.js';
 
 export function createApprovalText(options: {
   database: OperationalDatabaseModulePort;
   approvals: Pick<ApprovalMessaging, 'action'>;
+  provider?(id: string): MessagingProvider;
 }) {
   return async (
     providerId: string,
@@ -42,7 +43,7 @@ export function createApprovalText(options: {
           ? candidates[0]
           : undefined);
     if (!target?.receipt || signal.aborted) return false;
-    await options.approvals.action(
+    const ack = await options.approvals.action(
       providerId,
       {
         version: 1,
@@ -57,6 +58,26 @@ export function createApprovalText(options: {
       },
       signal,
     );
+    if (ack.status === 'refused') setImmediate(() => void refuse(providerId, event, signal));
     return true;
   };
+
+  async function refuse(providerId: string, event: MessagingInboundEvent, signal: AbortSignal) {
+    if (signal.aborted) return;
+    const provider = options.provider?.(providerId);
+    if (!provider?.reply) return;
+    try {
+      await provider.reply({
+        accountRef: event.botId,
+        fingerprint: event.fingerprint,
+        route: event.reply,
+        text: REFUSED,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+        ...(event.conversation.kind === 'dm' ? { standalone: true as const } : {}),
+      });
+    } catch {}
+  }
 }
+
+const REFUSED =
+  'This reply was not applied. You may not be allowed to make this decision, or the approval is no longer waiting. / 该回复未生效：你可能没有权限做这个决定，或该审批已不在等待中。';

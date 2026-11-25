@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { dmChannelId } from '../channels/channel.js';
+import { humanDmForSource } from './management-grants.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MemoryAcceptance } from '../memory/accepted-types.js';
 import { requireSourceEffects } from '../purge/fence.js';
@@ -135,7 +135,7 @@ export interface TobMemoryLeaseDeps {
   registry: Pick<PersonaBotRegistry, 'get'>;
   ownership: Pick<SessionOwnership, 'resolve' | 'contentAvailable'>;
   memory: () => Pick<MemoryAcceptance, 'snapshot' | 'readAccepted' | 'history' | 'diff'>;
-  isTob(slug: string): boolean;
+  canManageBots(slug: string): boolean;
   now?: () => Date;
 }
 
@@ -197,27 +197,17 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
 
   const tobOwner = (tobSlug: string): string => {
     const tob = deps.registry.get(tobSlug);
-    if (!tob || !deps.isTob(tobSlug)) refuse('tob-authority-required');
+    if (!tob || !deps.canManageBots(tobSlug)) refuse('tob-authority-required');
     return botOwner(tob);
   };
 
   const sourceDenial = (row: LeaseRow): string | undefined => {
     const owner = deps.registry.get(row.tob_slug);
-    if (!owner || !deps.isTob(row.tob_slug) || row.source_channel_id !== dmChannelId(row.tob_slug))
-      return 'lease-source-revoked';
+    if (!owner || !deps.canManageBots(row.tob_slug)) return 'lease-source-revoked';
     try {
       deps.database.read((db) => {
         for (const id of sources(row)) {
-          const event = db
-            .prepare(
-              'SELECT source_kind, channel_id, human_id FROM source_events WHERE source_event_id = ?',
-            )
-            .get(id);
-          if (
-            event?.source_kind !== 'human-message' ||
-            event.channel_id !== row.source_channel_id ||
-            (event.human_id ?? 'local-human') !== botOwner(owner)
-          )
+          if (humanDmForSource(db, row.tob_slug, botOwner(owner), id) !== row.source_channel_id)
             throw new Error('source');
           requireSourceEffects(db, id, row.tob_slug);
         }
@@ -476,12 +466,16 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
         return { slug: bot.slug, createdAt: bot.createdAt };
       });
       const sourceIds = [...input.sourceEventIds].sort();
+      const sourceChannel = deps.database.read((db) =>
+        humanDmForSource(db, input.tobSlug, owner, sourceIds[0]!),
+      );
+      if (sourceChannel === undefined) refuse('lease-source-revoked');
       const row: LeaseRow = {
         lease_id: randomUUID(),
         tob_slug: input.tobSlug,
         lease_key: key,
         assignment_session_id: input.assignmentSessionId,
-        source_channel_id: dmChannelId(input.tobSlug),
+        source_channel_id: sourceChannel,
         source_event_ids_json: JSON.stringify(sourceIds),
         targets_json: JSON.stringify(chosen),
         created_at: now(),

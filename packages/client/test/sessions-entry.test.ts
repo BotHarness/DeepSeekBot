@@ -429,34 +429,34 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     ],
   }));
   const openSession = vi.fn();
+  const props = {
+    scope: 'personabot',
+    channelId: 'dm-ada',
+    botSlug: 'subagent-qa',
+    actions: {
+      refreshSessions: vi.fn(async () => undefined),
+      sessionSubagents,
+      openSession,
+    } as unknown as BridgeActions,
+    t: zhTranslate,
+    nativeSessions: catalog({
+      orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+      'a-1': { displayTitle: 'Build', updatedAt: 2, running: false },
+      'orc-sub': { displayTitle: 'Summarize the thread', updatedAt: 3, running: true },
+    }),
+  } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog };
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
   try {
-    await act(async () =>
-      root.render(
-        createElement(SessionsEntry, {
-          scope: 'personabot',
-          channelId: 'dm-ada',
-          botSlug: 'subagent-qa',
-          actions: {
-            refreshSessions: vi.fn(async () => undefined),
-            sessionSubagents,
-            openSession,
-          } as unknown as BridgeActions,
-          t: zhTranslate,
-          nativeSessions: catalog({
-            orc: { displayTitle: 'Main', updatedAt: 1, running: true },
-            'a-1': { displayTitle: 'Build', updatedAt: 2, running: false },
-            'orc-sub': { displayTitle: 'Summarize the thread', updatedAt: 3, running: true },
-          }),
-        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
-      ),
-    );
+    await act(async () => root.render(createElement(SessionsEntry, props)));
     const toggles = container.querySelectorAll<HTMLButtonElement>(
       '[data-session-subagents-toggle]',
     );
     expect(toggles).toHaveLength(1);
+    expect(toggles[0]!.closest('.bh-card-chips')).not.toBeNull();
+    expect(toggles[0]!.closest('.bh-card-main')?.tagName).toBe('DIV');
+    expect(toggles[0]!.getAttribute('aria-expanded')).toBe('false');
     const work = [];
     for (const node of container.querySelectorAll('[data-flip-key]')) {
       const item = await menuItem(node, 'work');
@@ -464,7 +464,7 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     }
     expect(work).toEqual([zhTranslate('assignmentWork.tooltip')]);
     const modelChips = [...container.querySelectorAll('[data-session-meta-chip="model"]')];
-    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · 高API');
+    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · 高');
     expect(modelChips.map((chip) => chip.getAttribute('title'))).toContain(
       'deepseek/deepseek-v4-pro · high',
     );
@@ -476,6 +476,23 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     expect(list.textContent).toContain('deepseek/deepseek-v4 · medium');
     await act(async () => list.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
     expect(openSession).toHaveBeenCalledWith('orc-sub');
+    const onSessionSelect = vi.fn();
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          ...props,
+          onSessionSelect,
+          selectedSessionId: 'orc-sub',
+        }),
+      ),
+    );
+    const subagentRow = container
+      .querySelector('[data-session-subagents="orc"]')!
+      .querySelector<HTMLButtonElement>('.bh-card-main')!;
+    expect(subagentRow.getAttribute('aria-expanded')).toBe('true');
+    await act(async () => subagentRow.click());
+    expect(onSessionSelect).toHaveBeenCalledWith('orc-sub', 'Summarize the thread');
+    expect(openSession).toHaveBeenCalledTimes(1);
   } finally {
     await act(async () => root.unmount());
     container.remove();

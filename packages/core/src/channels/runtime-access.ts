@@ -25,7 +25,7 @@ import type { SessionOwnership } from '../sessions/ownership.js';
 import { botOwner } from '../team/bot-access.js';
 import { TeamError } from '../team/error.js';
 import type { TeamService } from '../team/service.js';
-import { TobError, type TobService } from '../tob/service.js';
+import { TobError } from '../tob/service.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import type { WorkspaceGrantStore } from '../workspaces/grants.js';
 import type { createCausalSending } from './causal-sending.js';
@@ -85,7 +85,6 @@ interface ChannelAccessPorts {
   requireMembership: (botSlug: string, channelId: string) => ChannelRecord;
   requireTurnAccess: (botSlug: string, ids: Iterable<string>) => void;
   team: TeamService | undefined;
-  tob: TobService | undefined;
   turnSources: ReadonlyMap<
     string,
     {
@@ -199,9 +198,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         ports.database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
       authorize(database);
     };
-    const requireOrdinaryGroupActor = () => {
-      if (ports.tob?.isTob(botSlug)) throw new TobError('tob-cli-required');
-    };
     const resolve = (requested?: string): ChannelRecord => {
       const id = requested ?? defaultChannelId;
       if (id === undefined)
@@ -268,7 +264,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         return ports.botContacts(botSlug, input);
       },
       createGroup: (name) => {
-        requireOrdinaryGroupActor();
         const sender = ports.registry.get(botSlug);
         if (sender === undefined || sender.paused === true)
           throw new Error('Bot Group creator is no longer active');
@@ -282,7 +277,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         });
       },
       inviteGroup: (input) => {
-        requireOrdinaryGroupActor();
         const channel = ports.channels.get(input.channelId);
         const target = ports.registry.get(input.targetBotSlug);
         if (ports.team)
@@ -292,7 +286,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           (target && botOwner(target) !== botOwner(ports.registry.get(botSlug)!))
         )
           throw new TobError('bot-not-found');
-        if (ports.tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
         if (
           channel?.type !== 'group' ||
           channel.ownerBotSlug !== botSlug ||
@@ -323,7 +316,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         return invitation;
       },
       requestGroupJoin: (input) => {
-        requireOrdinaryGroupActor();
         const target = ports.channels.get(input.channelId);
         const requester = ports.registry.get(botSlug);
         const source = ports.database.read((database) =>
@@ -388,15 +380,12 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         return request;
       },
       decideGroupJoin: (input) => {
-        requireOrdinaryGroupActor();
         const target = ports.channels.get(input.channelId);
         const request = target?.joinRequests?.find((item) => item.id === input.requestId);
         const requester =
           request === undefined ? undefined : ports.registry.get(request.requesterBotSlug);
         if (requester && botOwner(requester) !== botOwner(ports.registry.get(botSlug)!))
           throw new TobError('bot-not-found');
-        if (request !== undefined && ports.tob?.isTob(request.requesterBotSlug))
-          throw new TobError('protected-bot');
         if (
           target?.type !== 'group' ||
           target.ownerBotSlug !== botSlug ||
@@ -429,7 +418,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         return { channel: decided.channel, request: decided.request };
       },
       respondToGroupInvite: (input) => {
-        requireOrdinaryGroupActor();
         const target = ports.registry.get(botSlug);
         if (target === undefined || target.paused === true)
           throw new Error('Archived PersonaBot cannot answer a Group invitation');
@@ -442,7 +430,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         });
       },
       renameGroup: (input) => {
-        requireOrdinaryGroupActor();
         const channel = ports.channels.get(input.channelId);
         if (
           channel?.type !== 'group' ||
@@ -457,7 +444,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         return renamed;
       },
       removeGroupMember: (input) => {
-        requireOrdinaryGroupActor();
         const channel = ports.channels.get(input.channelId);
         if (
           channel?.type !== 'group' ||
@@ -505,7 +491,6 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         callFrames: ports.callFrames,
       }),
       leaveGroup: (input) => {
-        requireOrdinaryGroupActor();
         const channel = ports.channels.get(input.channelId);
         if (channel === undefined) throw new Error('group_leave: channel-unavailable');
         if (channel.type !== 'group') throw new Error('group_leave: group-required');

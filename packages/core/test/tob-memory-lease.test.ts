@@ -59,6 +59,9 @@ function fixture() {
   const heads: Record<string, string> = { ada: HEAD_ADA, bob: HEAD_BOB };
   port.transaction((db) => {
     db.prepare(
+      'INSERT INTO channel_records (channel_id, record_json, owner_human_id) VALUES (?, ?, ?)',
+    ).run('dm-tob', JSON.stringify({ type: 'dm', botSlug: 'tob' }), 'local-human');
+    db.prepare(
       `INSERT INTO session_ownership (session_id, bot_slug, root_role, created_at)
        VALUES ('asg-1', 'tob', 'assignment', ?)`,
     ).run(AT);
@@ -105,7 +108,7 @@ function fixture() {
       ],
       diff: (_slug: string, sha: string) => ({ sha, diff: '+line\n' }),
     }),
-    isTob: (slug: string) => slug === 'tob',
+    canManageBots: (slug: string) => slug === 'tob',
     now: () => new Date(AT),
   };
   const leases = createTobMemoryLeases(deps);

@@ -127,7 +127,10 @@ describe('Market panel', () => {
         const choices = [
           ...document.body.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
         ];
-        expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual(['Writer']);
+        expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual([
+          'Writer',
+          'Tob',
+        ]);
         await click(host, 'Writer');
         expect(document.body.querySelector('[data-market-draft-meta]')?.textContent).toBe(
           'Tob 会逐个文件问你，原文件不会改动。',

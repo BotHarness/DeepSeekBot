@@ -163,7 +163,6 @@
     "client:zh.grant.requestContinueFailed",
     "client:zh.grant.stopRunning",
     "client:zh.group.avatarCrop.error",
-    "client:zh.group.tobPrivateOnly",
     "client:zh.humanAvatar.error",
     "client:zh.humanName.error",
     "client:zh.identity.failed",

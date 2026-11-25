@@ -530,6 +530,7 @@ export function StatusList({
 
 export function StatusListRow({
   icon,
+  leading,
   tone = 'neutral',
   title,
   meta,
@@ -542,6 +543,7 @@ export function StatusListRow({
   children,
 }: {
   icon?: string;
+  leading?: ReactNode;
   tone?: StatusTone;
   title: string;
   meta?: ReactNode;
@@ -556,7 +558,7 @@ export function StatusListRow({
   return (
     <div {...data}>
       <div {...stylex.props(styles.row)}>
-        {icon === undefined ? null : <StatusBadge icon={icon} tone={tone} />}
+        {leading ?? (icon === undefined ? null : <StatusBadge icon={icon} tone={tone} />)}
         <div {...stylex.props(styles.grow)}>
           <span {...stylex.props(styles.groupHead)}>
             <span {...stylex.props(styles.rowTitle)}>{title}</span>

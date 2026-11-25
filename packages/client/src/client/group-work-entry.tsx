@@ -238,17 +238,21 @@ function GroupWorkPanel({
               onOpen={() => setWork(assignment)}
               t={t}
             />
-            {subagents === undefined ? null : (
-              <SessionSubagentToggle
-                count={subagents}
-                title={assignment.title}
-                open={subagentsExpanded}
-                onToggle={() => toggleSubagents(assignment.sessionId)}
-                t={t}
-              />
-            )}
           </>
         }
+        {...(subagents === undefined
+          ? {}
+          : {
+              chipActions: (
+                <SessionSubagentToggle
+                  count={subagents}
+                  title={assignment.title}
+                  open={subagentsExpanded}
+                  onToggle={() => toggleSubagents(assignment.sessionId)}
+                  t={t}
+                />
+              ),
+            })}
         {...(subagentsExpanded
           ? {
               detail: (

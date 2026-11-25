@@ -894,7 +894,6 @@ const HomeContent = memo(function HomeContent({
         </LastChatSwipe>
       </HomeHeader>
       {tobEntry ? <TobEntryBar href={tobEntry.href} name={tobEntry.name} /> : null}
-      {create.panel}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet

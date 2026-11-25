@@ -3,7 +3,7 @@ import type { ColorValue } from 'react-native';
 
 import { SystemSymbol } from './system-symbol';
 
-const symbols = {
+export const menuSymbols = {
   delete: { ios: 'trash', android: 'delete' },
   edit: { ios: 'pencil', android: 'edit' },
   settings: { ios: 'gearshape', android: 'settings' },
@@ -27,6 +27,8 @@ const symbols = {
     android: 'account_tree',
   },
   join: { ios: 'link', android: 'link' },
+  plus: { ios: 'plus', android: 'add' },
+  group: { ios: 'person.2', android: 'group' },
   invite: { ios: 'person.badge.plus', android: 'person_add' },
   channel: { ios: 'bubble.left.and.bubble.right', android: 'chat' },
   back: { ios: 'chevron.left', android: 'arrow_back' },
@@ -42,13 +44,13 @@ const symbols = {
 } as const;
 
 export type MenuGlyph =
-  | keyof typeof symbols
+  | keyof typeof menuSymbols
   | ((props: { color: ColorValue; size: number }) => ReactNode);
 
 export function MenuIcon({ icon, color, size }: { icon: MenuGlyph; color: string; size: number }) {
   return typeof icon === 'function' ? (
     icon({ color, size })
   ) : (
-    <SystemSymbol name={symbols[icon]} color={color} size={size} />
+    <SystemSymbol name={menuSymbols[icon]} color={color} size={size} />
   );
 }

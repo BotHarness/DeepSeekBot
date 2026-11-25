@@ -1,4 +1,5 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { afterEach, expect, it } from 'vitest';
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -276,6 +277,20 @@ it('the approval route receives the full review and can approve from its own con
   });
   expect(fx.runs).toHaveLength(0);
   expect(fx.admissions()).toEqual([]);
+  attachOperationalModule(fx.core.operationalDatabase, 'test').transaction((db) =>
+    db
+      .prepare('INSERT INTO messaging_approval_deliveries (id, bot_slug, body) VALUES (?, ?, ?)')
+      .run(
+        'tool-approval',
+        'ada',
+        JSON.stringify({ status: 'pending', receipt: { conversationId: 'DQAREV' } }),
+      ),
+  );
+  const before = fx.replies.length;
+  await fx.receive(directMessage('slack', 'route-tool-allow', reviewer, '允许'));
+  expect(fx.replies.slice(before).some((reply) => reply.text.includes('no longer waiting'))).toBe(
+    false,
+  );
 });
 
 it('a notice repeated in a second channel binds the reply there', async () => {

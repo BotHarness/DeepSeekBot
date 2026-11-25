@@ -43,3 +43,25 @@ The Host reports completed installs from UI and CLI for both sources. A marketpl
 Why: Hosting files through the existing account authority opens publication to authors without GitHub. Draft review makes the selected files visible before sharing, and counting completed installs keeps catalog statistics tied to actual creation.
 
 Enforced by: [upload ownership and file limits](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-uploads.test.ts), [Share Draft](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/share-draft.test.ts), [Host upload and install](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/marketplace-uploaded-bots.test.ts), [receipts](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-receipts.test.ts), [rankings](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-rankings.test.ts), [digest](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-digest.test.ts).
+
+## Apply Count counts PersonaBots, without anti-abuse
+
+<a id="adr-0358"></a>
+_Formerly ADR-0358._
+
+A Marketplace Avatar's Apply Count, and the Hot and Rising rankings built on it, count distinct PersonaBots, not Hosts. The Worker deduplicates on a SHA-256 of the random Marketplace Host ID together with the PersonaBot ID. Like an Install Receipt, the Host reports once, asynchronously, after the Avatar write succeeds; a failure is not retried, and there is no receipt credential, HMAC secret or retry queue. A PersonaBot re-created on another Host or imported on its own counts again. A restore keeps the PersonaBot ID, but a Profile Backup does not carry the Marketplace Host ID (`marketplace-host.json` in the data directory), so a restore that starts without that file reports under a new Host ID and counts again. ADR-0358 said a restored Bot is not counted again; the code does not guarantee that.
+
+Why: the number people want to see is how many Bots use an Avatar. Creating a PersonaBot is cheap, so one Host can inflate the count, and we accept that, together with a lost report meaning a missed count, rather than add signed receipts and a retry queue to protect a number with nothing at stake. Revisit this before rankings or counts are used for rewards; a later change of deduplication key cannot recover what old counts meant.
+
+Enforced by: [Host apply report](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/marketplace-avatar-apply.test.ts), [Worker avatars and counts](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-avatars.test.ts).
+
+## Marketplace Avatar images are processed on the client
+
+<a id="adr-0359"></a>
+_Formerly ADR-0359._
+
+The Web and mobile clients crop, resize and re-encode an Avatar image before publishing. The result is a square still PNG, JPEG or WebP, 256 to 512 pixels on a side, with no metadata, of at most 128 KiB (`MIN_MARKETPLACE_AVATAR_SIDE`, `MAX_MARKETPLACE_AVATAR_SIDE`, `MAX_MARKETPLACE_AVATAR_BYTES` in `host-protocol`), the same as the Host's Avatar limit. The Worker reads only headers and chunk structure, never pixels: signature, header dimensions, squareness and bounds, size, no animation (APNG, animated WebP) and no metadata chunk (JPEG APP1 EXIF/XMP; PNG `eXIf`, `tEXt`, `iTXt`, `zTXt`; WebP `EXIF`, `XMP`). Anything that fails is refused as unprocessed, never silently fixed. The code also refuses PNG `zTXt`, which the ADR did not list.
+
+Why: everyone who applies an Avatar receives its image, so a published image must carry no location or other metadata and must not be a disguised file, and the Worker cannot afford to decode every upload. A metadata chunk not on the list can still pass; the fix is to add it to the list, not to decode on the server.
+
+Enforced by: [client image processing](https://github.com/BotHarness/BotHarness/blob/main/apps/mobile/test/marketplace-avatar-image.test.ts), [Worker avatar checks](https://github.com/BotHarness/BotHarness/blob/main/packages/market/test/market-avatars.test.ts).
