@@ -155,6 +155,7 @@ export interface MessagingApprovalCard {
   detail: string;
   rules?: ['exact'] | ['exact', 'all-opaque'];
   ruleConfirmation?: { id: string; kind: 'exact' | 'all-opaque' };
+  actions?: ['allowed-once'] | ['rejected'];
   status:
     | 'pending'
     | 'web-required'

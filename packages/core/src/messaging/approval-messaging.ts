@@ -9,6 +9,7 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
+import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
@@ -218,21 +219,8 @@ export function createApprovalMessaging(options: {
       (value.savedRuleId
         ? owner?.rule(value.botSlug, value.savedRuleId)?.scopeKey
         : owner?.ruleScope(value.botSlug, value.requestMessageId ?? '')?.scopeKey);
-    const labels: Record<MessagingApprovalCard['status'], string> = {
-      'web-required':
-        'Native session authorization; review in Web / 此请求授予原生会话权限，请在 Web 审核',
-      pending: 'Awaiting an authorized decision / 等待授权用户处理',
-      'allowed-once': 'Decision accepted; execution not yet confirmed / 已批准一次，执行结果待确认',
-      rejected: 'Rejected; approval does not permit execution / 已拒绝，不允许执行',
-      expired:
-        'Expired or owner unavailable; use a new request / 已过期或执行者不可用，请使用新请求',
-      executed: 'Native execution result recorded / 已记录原生执行结果',
-      'execution-failed': 'Native execution failed / 原生执行失败',
-      'execution-unknown': 'Execution not confirmed; inspect Web / 执行结果未确认，请查看 Web',
-      test: 'Management route test; no operation or approval / 管理通知测试，不包含操作或授权',
-    };
     const fullDetail = [
-      labels[value.status],
+      approvalStatusLabels[value.status],
       ...(value.savedRuleId
         ? [
             savedRuleStatus(value) === 'active'
@@ -273,6 +261,9 @@ export function createApprovalMessaging(options: {
       title: notice ? 'Tool approval / 工具审批' : 'Management notification / 管理通知',
       detail,
       status: value.status,
+      ...approvalCardActions(
+        value.destination ? undefined : () => resolve(value.route).paired.capabilities,
+      ),
       ...(value.status === 'pending' && value.ruleConfirmation
         ? { ruleConfirmation: { id: value.ruleConfirmation.id, kind: value.ruleConfirmation.kind } }
         : value.status === 'pending' &&
