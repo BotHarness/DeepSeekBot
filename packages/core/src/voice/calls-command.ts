@@ -101,7 +101,8 @@ function syntheticPeer(): VoiceCallMediaPeer {
 
 export function createCallCommands(wiring: {
   deps: VoiceCallsDeps;
-  live: () => Call | undefined;
+  live: (slug: string) => Call | undefined;
+  openCalls: () => readonly Call[];
   calls: Map<string, Call>;
   end: (call: Call, reason: VoiceCallEndReason) => Promise<void>;
   barge: VoiceCallBargeIn;
@@ -132,6 +133,7 @@ export function createCallCommands(wiring: {
   const {
     deps,
     live,
+    openCalls,
     calls,
     end,
     barge,
@@ -178,7 +180,9 @@ export function createCallCommands(wiring: {
     if (availability === 'unsupported-platform') missing.push('media-unsupported');
     else if (availability === 'helper-missing') missing.push('media-helper-missing');
     else if (availability === 'unavailable') missing.push('media-unavailable');
-    const active = live();
+    const active = live(slug);
+    const mine = openCalls().find((call) => sameCaller(call, caller));
+    if (active === undefined && mine === undefined && full()) missing.push('calls-full');
     return {
       slug,
       ready: missing.length === 0,
@@ -193,6 +197,8 @@ export function createCallCommands(wiring: {
       callElsewhere: active !== undefined && !sameCaller(active, caller),
     };
   };
+
+  const full = () => openCalls().length >= VOICE_CALL_LIMITS.maxCalls;
 
   const own = (caller: VoiceCaller, value: unknown, admin = false): Call => {
     if (typeof value !== 'string' || !CALL_ID.test(value))
@@ -228,7 +234,7 @@ export function createCallCommands(wiring: {
         'Bind a TTS Provider to this Bot before calling it.',
       );
     const media = kind === 'webrtc' ? deps.media() : undefined;
-    if (kind === 'webrtc' && (media === undefined || live() !== undefined)) {
+    if (kind === 'webrtc' && (media === undefined || live(slug) !== undefined)) {
       const availability =
         media === undefined ? 'unsupported-platform' : await media.availability(signal);
       signal.throwIfAborted();
@@ -243,11 +249,19 @@ export function createCallCommands(wiring: {
           'Start Local Computer once on this Host to install its media helper, then call again.',
         );
     }
-    const active = live();
-    if (active !== undefined) {
-      if (!sameCaller(active, caller))
-        throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
-      await end(active, 'replaced');
+    const active = live(slug);
+    if (active !== undefined && !sameCaller(active, caller))
+      throw new CallRefusal('call-active', 'This Bot is already on a call.');
+    const mine = openCalls().find((call) => sameCaller(call, caller));
+    if (mine === undefined && full())
+      throw new CallRefusal('calls-full', 'This Host is at its call limit. End a call first.');
+    if (mine !== undefined) {
+      await end(mine, 'replaced');
+      signal.throwIfAborted();
+      if (live(slug) !== undefined)
+        throw new CallRefusal('call-active', 'This Bot is already on a call.');
+      if (full())
+        throw new CallRefusal('calls-full', 'This Host is at its call limit. End a call first.');
     }
     signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;

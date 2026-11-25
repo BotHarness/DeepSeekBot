@@ -56,6 +56,7 @@ export const CALL_NOTICES = [
   'missing.media-helper-missing',
   'missing.media-unavailable',
   'missing.local-voice-off',
+  'missing.calls-full',
   'elsewhere',
   'unreachable',
   'connect-only',
@@ -187,6 +188,8 @@ export function callRefusalNotice(code: string | undefined): CallNotice {
       return 'missing.media-unavailable';
     case 'call-active':
       return 'elsewhere';
+    case 'calls-full':
+      return 'missing.calls-full';
     case 'unreachable':
       return 'unreachable';
     case undefined:

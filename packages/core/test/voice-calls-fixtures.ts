@@ -40,6 +40,7 @@ export function fakeMedia(
     gains: [] as number[],
     failGain: undefined as number | undefined,
     playDelay: undefined as Promise<void> | undefined,
+    closeDelay: undefined as Promise<void> | undefined,
     stats: undefined as VoiceCallMediaStats | undefined,
   };
   const media: VoiceCallMedia = {
@@ -82,6 +83,7 @@ export function fakeMedia(
         },
         async close() {
           state.closed += 1;
+          await state.closeDelay;
         },
       };
     },
@@ -92,6 +94,7 @@ export function fakeMedia(
 export function harness(
   options: {
     bot?: VoiceCallBot | undefined;
+    others?: readonly VoiceCallBot[];
     providers?: VoiceCallsDeps['providers'];
     media?: VoiceCallMedia | undefined;
     busy?: () => boolean;
@@ -134,7 +137,8 @@ export function harness(
     },
   };
   const calls = createVoiceCalls({
-    bot: (slug) => (slug === bot?.slug ? bot : undefined),
+    bot: (slug) =>
+      slug === bot?.slug ? bot : options.others?.find((other) => other.slug === slug),
     providers,
     media: () => options.media,
     send:
@@ -146,7 +150,7 @@ export function harness(
     record:
       options.record ??
       (async ({ channelId, record }) => {
-        expect(channelId).toBe('dm-mira');
+        expect(channelId).toBe(`dm-${record.botSlug}`);
         records.push(record);
         log.push(`record:${record.state}`);
         return `voice-call-${record.state}-${record.callId}`;
