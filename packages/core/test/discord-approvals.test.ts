@@ -46,7 +46,12 @@ async function fixture() {
       channel: 'discord',
       connected: true,
       account: { fingerprint, name: 'QA Discord' },
-      capabilities: ['proactive-text-checked', 'exclusive-text-consumer', 'reply-text-checked'],
+      capabilities: [
+        'proactive-text-checked',
+        'exclusive-text-consumer',
+        'reply-text-checked',
+        'reply-standalone-checked',
+      ],
     }),
     sendChecked: async () => ({ sent: true }),
     replyChecked: replies,
@@ -135,4 +140,8 @@ it('pairs a Discord DM for management and decides an approval by text', async ()
   await f.text('allow', undefined, '7000000002');
   await f.text('reject');
   expect(await answer).toBe('rejected');
+  const prompt = f.replies.mock.calls.find((call) => String(call[2]).includes('「允许」'))!;
+  expect(prompt[3]).toMatchObject({ standalone: true });
+  await vi.waitFor(() => expect(f.replies.mock.calls.length).toBeGreaterThan(1));
+  expect(f.replies.mock.calls.at(-1)![3]).not.toHaveProperty('standalone');
 });

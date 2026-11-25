@@ -332,6 +332,7 @@ export interface MessagingProvider {
     text: string;
     signal: AbortSignal;
     beforeSend?: () => boolean;
+    standalone?: true;
   }): Promise<{ accepted: true; receipt?: MessagingReceipt }>;
   history?(input: {
     accountRef: string;

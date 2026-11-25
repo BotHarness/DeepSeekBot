@@ -56,6 +56,7 @@ async function sendText(
     text,
     signal: input.signal,
     beforeSend: input.beforeSend,
+    ...(input.update ? {} : { standalone: true as const }),
   });
   if (input.update) return { updated: true };
   if (!result.receipt) throw new MessagingProviderError('provider-result-unknown', 'unknown');

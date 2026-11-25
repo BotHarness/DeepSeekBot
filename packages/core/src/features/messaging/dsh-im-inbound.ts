@@ -482,11 +482,14 @@ export function dshImInbound(
               const tags = profile.features.mentionMarkup
                 ? mentionTags(input.text)
                 : { mentions: [], render: () => input.text };
+              const capabilities =
+                tags.mentions.length > 0 || input.standalone
+                  ? (await host.describeBot(input.accountRef)).capabilities
+                  : [];
               const checkedMentions =
-                tags.mentions.length > 0 &&
-                (await host.describeBot(input.accountRef)).capabilities.includes(
-                  'reply-mention-checked',
-                );
+                tags.mentions.length > 0 && capabilities.includes('reply-mention-checked');
+              const standalone =
+                input.standalone === true && capabilities.includes('reply-standalone-checked');
               const text =
                 tags.mentions.length === 0
                   ? input.text
@@ -499,6 +502,7 @@ export function dshImInbound(
                 ...(checkedMentions
                   ? { mentionUserIds: [...new Set(tags.mentions.map((mention) => mention.id))] }
                   : {}),
+                ...(standalone ? { standalone: true as const } : {}),
                 ...(host.replyReceiptVersion === 1 ? { receipt: true as const } : {}),
                 ...(host.replyFenceVersion === 1 && input.beforeSend
                   ? { beforeSend: input.beforeSend }

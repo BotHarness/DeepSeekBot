@@ -162,6 +162,7 @@ export function createFailureAlerts(options: {
           text: text(value),
           signal,
           beforeSend: currentDestination,
+          standalone: true,
         });
       });
       if (!result.receipt || result.receipt.conversationId !== context.paired.conversationId)
