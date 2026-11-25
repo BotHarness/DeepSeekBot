@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { parseBotCliArgs } from '../src/bots/cli-options.js';
-import { validatedCreate } from '../src/features/personabots/cli-create.js';
+import { runCreate, validatedCreate } from '../src/features/personabots/cli-create.js';
 
 const values = (...argv: string[]) => parseBotCliArgs(['create', ...argv]).values;
 const stdin = async () => '';
@@ -28,4 +28,15 @@ it('refuses --from-sessions without a name, with another source or with blank-on
     ['--name', 'K', '--from-sessions', '  '],
   ])
     await expect(validatedCreate(values(...argv), stdin)).rejects.toMatchObject({ code: 'usage' });
+});
+
+it('refuses offline --from-sessions before reading stdin', async () => {
+  let read = false;
+  await expect(
+    runCreate(values('--from-sessions', 'a', '--persona-stdin'), {} as never, async () => {
+      read = true;
+      return '';
+    }),
+  ).rejects.toMatchObject({ code: 'usage', message: expect.stringContaining('--host') });
+  expect(read).toBe(false);
 });

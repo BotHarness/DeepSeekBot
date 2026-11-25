@@ -122,24 +122,27 @@ export function ImportStep({
 }): ReactElement {
   const [{ chosen }, setChoice] = choice;
   const [rows, setRows] = useState<readonly ImportableSession[]>();
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const load = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     if (sessions === undefined) {
       setRows([]);
       return;
     }
+    setFailed(false);
     void sessions().then(
       (next) => {
         if (live) setRows(next);
       },
       () => {
-        if (live) setRows([]);
+        if (live) setFailed(true);
       },
     );
     return () => {
       live = false;
     };
-  }, [sessions]);
+  }, [sessions, attempt]);
   const counts = productCounts(rows ?? []);
   const local = chosen.flatMap((id) => {
     const product = LOCAL[id];
@@ -217,7 +220,19 @@ export function ImportStep({
           </Button>
         </div>
       ) : null}
-      {rows !== undefined && missing.length > 0 ? (
+      {failed && local.length > 0 ? (
+        <div {...stylex.props(styles.result)} role="status">
+          <p {...stylex.props(styles.resultCopy)}>{t('intro.import.failed')}</p>
+          <Button
+            variant="outline"
+            data-intro-import-retry=""
+            onClick={() => setAttempt(attempt + 1)}
+          >
+            {t('intro.import.retry')}
+          </Button>
+        </div>
+      ) : null}
+      {!failed && rows !== undefined && missing.length > 0 ? (
         <p {...stylex.props(styles.note)} role="status">
           {t('intro.import.none', {
             products: missing.map((product) => name(product)).join(t('intro.import.join')),

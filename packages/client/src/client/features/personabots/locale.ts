@@ -33,6 +33,8 @@ export const zh = {
   'intro.import.ready':
     '在 {products} 里找到 {count} 个会话。用它们创建的 Bot 会先读完，再来自我介绍。',
   'intro.import.join': '、',
+  'intro.import.failed': '没能读取这台电脑上的会话。',
+  'intro.import.retry': '重试',
   'intro.import.start': '选择会话',
   'intro.import.none': '这台电脑上没找到 {products} 的会话。',
   'intro.import.exportLater': '从这些工具导入还在做，我们先记下你用过它们。',
@@ -282,7 +284,9 @@ export const zh = {
   'bot.create.source.git': '使用 GitHub 仓库中的 Bot 配置和记忆。',
   'bot.create.source.zip': '从已导出的 zip 文件恢复 Bot。',
   'roster.menu.createBot.sessions': '从 Session 创建',
-  'bot.create.source.sessions': '选几个 DeepSeek Session，让新 Bot 接手它们所在的工作区。',
+  'bot.create.source.sessions':
+    '选几个 DeepSeek、Claude Code 或 Codex 的会话，让新 Bot 接手它们所在的工作区。',
+
   'bot.create.sessions.title': '从 Session 创建 Bot',
   'bot.create.sessions.description':
     '新 Bot 会获得这些 Session 所在工作区的权限，并在第一条消息里被要求读完它们来完成初始化。',
@@ -487,6 +491,8 @@ export const en = {
   'intro.import.ready':
     'Sessions found in {products}: {count}. A Bot created from them reads them first, then introduces itself.',
   'intro.import.join': ', ',
+  'intro.import.failed': 'Could not read the sessions on this computer.',
+  'intro.import.retry': 'Try again',
   'intro.import.start': 'Choose sessions',
   'intro.import.none': 'No {products} sessions found on this computer.',
   'intro.import.exportLater':
@@ -744,7 +750,7 @@ export const en = {
   'bot.create.source.zip': 'Restore a Bot from an exported zip file.',
   'roster.menu.createBot.sessions': 'Create from Sessions',
   'bot.create.source.sessions':
-    'Pick DeepSeek Sessions and let a new Bot take over their Workspaces.',
+    'Pick DeepSeek, Claude Code or Codex sessions and let a new Bot take over their Workspaces.',
   'bot.create.sessions.title': 'Create Bot from Sessions',
   'bot.create.sessions.description':
     'The new Bot gets access to these Sessions’ workspaces, and its first message asks it to read them to set itself up.',

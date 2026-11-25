@@ -236,7 +236,7 @@ export function CreateBotFromSessionsModal({
             ) : (
               <>
                 <div {...stylex.props(styles.bar)}>
-                  {products.length > 1 ? (
+                  {products.length > 1 || (product !== ALL && counts[product] === 0) ? (
                     <Select
                       label={t('bot.create.sessions.product')}
                       value={product}

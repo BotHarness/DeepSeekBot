@@ -80,3 +80,38 @@ it('asks which tools were used, shows found sessions and starts the import for l
     node.remove();
   }
 });
+
+it('offers a retry when this computer could not be read', async () => {
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  let fail = true;
+  const sessions = vi.fn(async () => {
+    if (fail) throw new Error('offline');
+    return [session('codex:a', 'codex')];
+  });
+  function Retry() {
+    const choice = useState<ImportChoice>(NO_IMPORT);
+    return createElement(ImportStep, { t, choice, sessions, track: () => {}, start: () => {} });
+  }
+  try {
+    await act(() => root.render(createElement(Retry)));
+    await act(async () => {});
+    await act(() =>
+      document.body.querySelector<HTMLButtonElement>('[data-import-source="codex"]')!.click(),
+    );
+    expect(document.body.textContent).toContain(t('intro.import.failed'));
+    expect(document.body.textContent).not.toContain('这台电脑上没找到');
+    fail = false;
+    await act(() =>
+      document.body.querySelector<HTMLButtonElement>('[data-intro-import-retry]')!.click(),
+    );
+    await act(async () => {});
+    expect(sessions).toHaveBeenCalledTimes(2);
+    expect(document.body.querySelector('[data-intro-import-retry]')).toBeNull();
+    expect(document.body.querySelector('[data-intro-import-start]')).not.toBeNull();
+  } finally {
+    await act(() => root.unmount());
+    node.remove();
+  }
+});
