@@ -10,9 +10,7 @@ import {
   type useChatInitialScroll,
 } from './chat-timeline-chrome';
 import { ChatList } from '../primitives/chat-list';
-import { useTimelineIslandFloor } from '../primitives/chat-scroll';
-import { useChatBottom } from '../primitives/chat-keyboard';
-import { useOverlaySettle } from '../primitives/composer-drop';
+import type { useOverlaySettle } from '../primitives/composer-drop';
 import type { usePullToCompose } from './pull-to-compose';
 import { SwipeOpen } from '../shell/swipe-open';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -40,6 +38,8 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export function renderConversationTimeline({
   t,
+  islandFloor,
+  overlaySettle,
   paging,
   focus,
   focusRequest,
@@ -65,6 +65,8 @@ export function renderConversationTimeline({
 }: {
   history: Pick<HistoryChrome, 'onScroll' | 'onScrollToTop' | 'hiddenNow'>;
   t: ReturnType<typeof useStrings>;
+  islandFloor: number;
+  overlaySettle: ReturnType<typeof useOverlaySettle>;
   paging: ReturnType<typeof useProfilePaging>;
   focus: string | undefined;
   focusRequest: string | undefined;
@@ -109,8 +111,6 @@ export function renderConversationTimeline({
   } = scrollState;
   const { viewport, attachList, latest } = timeline;
   const { composerHeight, viewportHeight, viewportLayout, stage, flights, composable } = composer;
-  const islandFloor = useTimelineIslandFloor();
-  const overlaySettle = useOverlaySettle(useChatBottom().island, history.hiddenNow);
   const { rows } = timelineRows;
   const { key, ...initialScrollProps } = initialScroll;
   const { jump } = focusJump;
