@@ -30,11 +30,15 @@ it('gives a new built-in Tob both grants and lets only the Human Owner change th
   expect(MEMBER_METHODS.has('managementGrantSet')).toBe(false);
   expect(methods(bob).managementGrants({})).toEqual({
     ok: true,
-    value: { tobSlug: home.botSlug, holders: [] },
+    value: { tobSlug: home.botSlug, holders: [], editable: false },
   });
   expect(methods(owner).managementGrants({})).toEqual({
     ok: true,
-    value: { tobSlug: home.botSlug, holders: [{ botSlug: home.botSlug, capabilities: both }] },
+    value: {
+      tobSlug: home.botSlug,
+      holders: [{ botSlug: home.botSlug, capabilities: both }],
+      editable: true,
+    },
   });
   expect(methods(bob).managementGrantSet(on)).toMatchObject(denial);
   expect(methods({ ...owner, caller: 'bot' }).managementGrantSet(on)).toMatchObject(denial);

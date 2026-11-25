@@ -35,6 +35,7 @@ export interface TobAdapterMethods {
   managementGrants(payload: unknown): BridgeResult<{
     tobSlug?: string;
     holders: { botSlug: string; capabilities: ManagementCapability[] }[];
+    editable: boolean;
   }>;
   managementGrantSet(payload: unknown): BridgeResult<ManagementGrantChange>;
   tobHome(
@@ -70,6 +71,7 @@ export function createTobAdapterMethods(
         value: {
           ...(tobSlug === undefined ? {} : { tobSlug }),
           holders: isHostOwner() ? deps.tob.managementGrantHolders() : [],
+          editable: isHostOwner() && human.caller !== 'bot',
         },
       };
     },
