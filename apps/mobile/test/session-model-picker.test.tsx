@@ -27,13 +27,22 @@ vi.mock('../src/ui/primitives/drawer-header', () => ({
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) => children,
-  SettingsRow: ({ testID, title, trailing, selected, onPress, detail }: SettingsRowProps) => (
+  SettingsRow: ({
+    testID,
+    title,
+    leading,
+    trailing,
+    selected,
+    onPress,
+    detail,
+  }: SettingsRowProps) => (
     <button
       data-testid={testID}
       aria-pressed={selected}
       disabled={onPress === undefined}
       onClick={onPress}
     >
+      {leading}
       {title}
       {trailing}
       {detail}
@@ -96,13 +105,21 @@ beforeEach(() => {
 
 afterEach(() => act(() => root.unmount()));
 
-function ComposerModel({ host, width = 390 }: { host: HostCall; width?: number }) {
+function ComposerModel({
+  host,
+  width = 390,
+  fresh = false,
+}: {
+  host: HostCall;
+  width?: number;
+  fresh?: boolean;
+}) {
   const control = useSessionModelControl({
     host,
     slug: 'ada',
     enabled: true,
-    sessionId: 'current',
-    running: true,
+    sessionId: fresh ? undefined : 'current',
+    running: !fresh,
     target: { ...target, kind: 'dsh' },
   });
   return (
@@ -275,4 +292,18 @@ it('keeps the cached models when a background refresh fails', async () => {
   await act(async () => button('composer-session-model').click());
   expect(button('session-model-option-model-0').textContent).toContain('API');
   expect(container.textContent).not.toContain('Couldn’t load');
+});
+
+it('names the default model and its brand on "Use Bot default", also before a new Session starts', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? catalog : { override: null, default: api },
+  );
+  await act(async () => root.render(<ComposerModel host={{ call }} fresh />));
+  expect(call).toHaveBeenCalledWith('sessionModel', { slug: 'ada' });
+  expect(button('composer-session-model').textContent).toContain('V4.1 Flash');
+  await act(async () => button('composer-session-model').click());
+  const row = button('session-model-option-default');
+  expect(row.textContent).toContain('Use Bot default');
+  expect(row.textContent).toContain('V4.1 Flash');
+  expect(row.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('deepseek');
 });
