@@ -201,11 +201,11 @@ function RenameSheet({
           />
         </View>
         <SheetActions>
-          <Button label={t.cancel} on="canvas" onPress={onClose} />
+          <Button label={t.cancel} on="sheet" onPress={onClose} />
           <Button
             label={t.groupRenameSave}
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy}
             disabled={(!allowEmpty && next === '') || next === name}
             onPress={() => void save()}
@@ -221,7 +221,7 @@ export interface GroupProfileProps {
   actions: GroupActions;
   pickAvatar(): Promise<string | undefined>;
   onOpenBot(slug: string): void;
-  onDisbanded(): void;
+  onDisbanded?: (() => void) | undefined;
   onClose(): void;
   tabMemory: ProfileTabMemory;
   loadWork?: (() => Promise<ProfileAssignment[]>) | undefined;
@@ -347,7 +347,7 @@ export function GroupProfilePage({
         style: 'destructive',
         onPress: () =>
           run('disband', actions.disband).then((ok) => {
-            if (ok) onDisbanded();
+            if (ok) onDisbanded?.();
             return ok;
           }),
       },
@@ -482,19 +482,23 @@ export function GroupProfilePage({
             </SettingsSection>,
           ),
         ]),
-    node('settings:disband', () => (
-      <View style={{ paddingTop: space.x6 }}>
-        <SettingsSection on={ON}>
-          <SettingsRow
-            on={ON}
-            testID="group-disband"
-            title={t.groupDisband}
-            tone="danger"
-            onPress={busy === 'disband' ? undefined : confirmDisband}
-          />
-        </SettingsSection>
-      </View>
-    )),
+    ...(onDisbanded === undefined
+      ? []
+      : [
+          node('settings:disband', () => (
+            <View style={{ paddingTop: space.x6 }}>
+              <SettingsSection on={ON}>
+                <SettingsRow
+                  on={ON}
+                  testID="group-disband"
+                  title={t.groupDisband}
+                  tone="danger"
+                  onPress={busy === 'disband' ? undefined : confirmDisband}
+                />
+              </SettingsSection>
+            </View>
+          )),
+        ]),
   ];
 
   const bodies: Record<'members' | 'work' | 'settings', ProfileTabBody> = {

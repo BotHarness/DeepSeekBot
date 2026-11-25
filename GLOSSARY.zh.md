@@ -38,6 +38,14 @@ Host 配置的语音服务，用于语音合成（TTS）或语音识别（ASR）
 **Speech Catalog**：
 供应商可供选择的语音模型和音色。部分公开音色需要先添加到账户才能使用。
 
+**Meeting**：
+外部会议平台上的一场会，例如一场 Zoom 或 Google Meet 会议，以会议链接区分。
+_避免使用_：通话（通话是 Human 和 Bot 之间的）、会话
+
+**Meeting Attendance**：
+一个 Bot 参加一场 Meeting，作为一通远端是会议的通话来运行。状态有等候中、在会、已离开和失败，结束后在 Bot 记忆里留下转写和纪要，不进任何对话。
+_避免使用_：会议机器人、会议 Session、录音
+
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
@@ -199,7 +207,7 @@ Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 
 _避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
 
 **Subagent**：
-由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
+由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。Subscription Engine 自带的 sub-agent 也这样显示：一个只读的 child Session，不能以 Bot 身份行动。
 _避免使用_：sub-bot、worker、helper
 
 **Session**：

@@ -38,6 +38,14 @@ A voice identity that a compatible speech model can use to speak. It can be buil
 **Speech Catalog**:
 The speech models and voices a provider offers for selection. A shared voice may need to be added to the provider account before it becomes usable.
 
+**Meeting**:
+One session on an outside meeting platform, such as a Zoom or Google Meet meeting, identified by its link.
+_Avoid_: call (a call is between a Human and a Bot), conference
+
+**Meeting Attendance**:
+One Bot's presence in one Meeting, run as a call whose far end is the meeting. It is waiting, in the meeting, left or failed, and leaves a transcript and recap in the Bot's Memory, not in any conversation.
+_Avoid_: meeting bot, meeting session, recording
+
 ### PersonaBots
 
 **Steward Bot**:
@@ -200,7 +208,7 @@ The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in
 _Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
 
 **Subagent**:
-A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.
+A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session. A Subscription Engine's own sub-agent is shown the same way, as a read-only child Session that cannot act as the Bot.
 _Avoid_: sub-bot, worker, helper
 
 **Session**:

@@ -6,6 +6,7 @@ import {
   dynamicTypeSize,
   font,
   foregroundStyle,
+  disabled as disabledModifier,
   frame,
 } from '@expo/ui/swift-ui/modifiers';
 import { Platform } from 'react-native';
@@ -17,14 +18,14 @@ import {
 } from './navigation-action-pressable';
 
 export function NavigationAction(props: NavigationActionProps) {
-  return props.close ? (
-    <NavigationCloseAction {...props} />
+  return props.close || props.search ? (
+    <NavigationGlassAction {...props} />
   ) : (
     <NavigationActionPressable {...props} />
   );
 }
 
-function NavigationCloseAction({ size, label, onPress }: NavigationActionProps) {
+function NavigationGlassAction({ size, label, search, disabled, onPress }: NavigationActionProps) {
   const theme = useDesignTheme();
   const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
   return (
@@ -32,6 +33,7 @@ function NavigationCloseAction({ size, label, onPress }: NavigationActionProps) 
       <Button
         onPress={onPress}
         modifiers={[
+          ...(disabled ? [disabledModifier(true)] : []),
           buttonStyle(glass ? 'glass' : 'bordered'),
           buttonBorderShape('circle'),
           accessibilityLabel(label),
@@ -39,7 +41,7 @@ function NavigationCloseAction({ size, label, onPress }: NavigationActionProps) 
         ]}
       >
         <Image
-          systemName="xmark"
+          systemName={search ? 'magnifyingglass' : 'xmark'}
           modifiers={[
             font({ textStyle: 'title2' }),
             dynamicTypeSize({ max: 'xxxLarge' }),

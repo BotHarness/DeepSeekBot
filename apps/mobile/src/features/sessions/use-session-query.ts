@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
@@ -23,6 +23,14 @@ import {
   sessionQueries,
   type SessionCursors,
 } from './session-list-query';
+import {
+  localSessionKey,
+  localSessionRows,
+  localSessionSources,
+  readLocalSessionLists,
+  readStoredSessionLists,
+  storedSessionKey,
+} from './session-list-local';
 
 export type SessionQueryHost = { hostId: string; hostName: string; client: HostClient };
 
@@ -55,20 +63,44 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   const online = useOnline(hosts);
   const options = { sort, source, search };
   const hostIds = hosts.map((host) => host.hostId);
+  const local = search === '' && sort === 'last-human-turn';
+  const reachable = active && online && searchReady && hosts.length > 0;
+  const synced = useQuery(
+    {
+      queryKey: localSessionKey(hostIds),
+      queryFn: ({ signal }) => readLocalSessionLists(hosts, signal),
+      enabled: reachable && local,
+    },
+    sessionQueries,
+  );
+  const stored = useQuery(
+    {
+      queryKey: storedSessionKey(hostIds),
+      queryFn: () => readStoredSessionLists(hosts),
+      enabled: local && hosts.length > 0,
+      staleTime: Infinity,
+    },
+    sessionQueries,
+  );
   const list = useInfiniteQuery(
     {
       queryKey: sessionListKey(hostIds, options),
       queryFn: ({ pageParam, signal }) => readSessionListPage(hosts, options, pageParam, signal),
       initialPageParam: undefined as SessionCursors | undefined,
       getNextPageParam: nextSessionCursors,
-      enabled: active && online && searchReady && hosts.length > 0,
+      enabled: reachable && !local,
     },
     sessionQueries,
   );
-  const read = sessionListRows(list.data, hosts);
+  const localLists = synced.data ?? stored.data;
+  const read = local
+    ? localSessionRows(localLists, hosts, source)
+    : sessionListRows(list.data, hosts);
   const rows = hideBots ? read?.filter((row) => row.source.kind !== 'bot') : read;
-  const sources = sessionListSources(list.data);
-  const failed = list.isError || sessionListPartlyFailed(list.data);
+  const sources = local ? localSessionSources(localLists) : sessionListSources(list.data);
+  const failed = local
+    ? synced.isError || (synced.data?.failed ?? 0) > 0
+    : list.isError || sessionListPartlyFailed(list.data);
   const [pulling, setPulling] = useState(false);
 
   const changeSearch = (text: string, immediate = false) => {
@@ -87,7 +119,7 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   );
 
   const enabled = active && online && searchReady;
-  const refetch = list.refetch;
+  const refetch = local ? synced.refetch : list.refetch;
   const refresh = useCallback(
     (origin?: 'pull') => {
       if (!enabled) return;
@@ -102,7 +134,8 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     }, [refresh]),
   );
   const loadMore = () => {
-    if (enabled && list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage();
+    if (enabled && !local && list.hasNextPage && !list.isFetchingNextPage)
+      void list.fetchNextPage();
   };
 
   const groups: SessionOptionGroup[] = [
@@ -161,11 +194,11 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     searchReady,
     rows,
     failed,
-    busy: list.isFetching,
+    busy: local ? synced.isFetching : list.isFetching,
     online,
-    pullRefreshing: pulling && list.isFetching,
-    hasMore: list.hasNextPage,
-    loadingMore: list.isFetchingNextPage,
+    pullRefreshing: pulling && (local ? synced.isFetching : list.isFetching),
+    hasMore: !local && list.hasNextPage,
+    loadingMore: !local && list.isFetchingNextPage,
     loadMore,
     groups,
     canQuery: online && sources !== undefined,

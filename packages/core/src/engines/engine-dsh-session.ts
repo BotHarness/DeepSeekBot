@@ -20,7 +20,10 @@ export interface EngineSessionStore {
 export interface EngineSessionHandle {
   readonly header: SessionHeader;
   readonly inheritedEventCount: SessionLogOffset;
-  read(): Promise<{ events: readonly SessionEvent[]; eventState: SessionSeedEventState }>;
+  read(): Promise<{
+    events: readonly SessionEvent[];
+    eventState: SessionSeedEventState;
+  }>;
   append(events: readonly SessionEvent[]): Promise<void>;
   close(): Promise<void>;
 }
@@ -40,11 +43,17 @@ export interface OpenedEngineDshSession {
   close(): Promise<void>;
 }
 
+export interface EngineSubagentLineage {
+  parentSession: string;
+  delegationDepth: number;
+}
+
 export async function openEngineDshSession(
   store: EngineSessionStore,
   persistence: EngineSessionPersistence,
   sessionId: string,
   cwd: string,
+  lineage?: EngineSubagentLineage,
 ): Promise<OpenedEngineDshSession> {
   const id = SessionId(sessionId);
   if (store.get(id) !== undefined)
@@ -69,7 +78,17 @@ export async function openEngineDshSession(
       );
       if (marker.length > 0) await handle.append(marker);
     } else {
-      session = store.prepare(id, { meta: { cwd } });
+      session = store.prepare(id, {
+        meta:
+          lineage === undefined
+            ? { cwd }
+            : {
+                cwd,
+                parentSession: SessionId(lineage.parentSession),
+                origin: 'subagent',
+                delegationDepth: lineage.delegationDepth,
+              },
+      });
       handle = await persistence.create(session.header, {
         inheritedEventCount: session.inheritedEventCount,
       });
