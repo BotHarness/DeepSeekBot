@@ -13,6 +13,7 @@ export interface SessionBotInput {
   persona?: string;
   operationKey?: string;
   language?: 'zh' | 'en';
+  workspacePaths?: readonly string[];
 }
 
 export type ImportableSession = HostSessionRow & { cwd: string; workspacePath: string };
@@ -97,6 +98,7 @@ export async function createBotFromSessions(
       ...(input.persona === undefined ? {} : { persona: input.persona }),
       ...(input.operationKey === undefined ? {} : { operationKey: input.operationKey }),
       ...(input.language === undefined ? {} : { language: input.language }),
+      ...(input.workspacePaths === undefined ? {} : { workspacePaths: [...input.workspacePaths] }),
     }),
     'createFromSessions',
   );

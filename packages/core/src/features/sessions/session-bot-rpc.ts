@@ -11,6 +11,7 @@ export const sessionBotRpc = {
     persona?: string,
     operationKey?: string,
     language?: 'zh' | 'en',
+    workspacePaths?: string[],
   ): Promise<SessionBotCreated> {
     return unwrapAsync(
       this.methods.createFromSessions({
@@ -21,6 +22,7 @@ export const sessionBotRpc = {
         persona,
         operationKey,
         language,
+        workspacePaths,
       }),
     );
   },

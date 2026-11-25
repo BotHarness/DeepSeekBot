@@ -95,6 +95,7 @@ it('selects the latest Sessions, names the Workspaces to grant and submits the c
         displayName: 'App keeper',
         sessionIds: ['a1', 'a2', 'a3'],
         language: 'zh',
+        workspacePaths: ['/work/app'],
       }),
       undefined,
     );

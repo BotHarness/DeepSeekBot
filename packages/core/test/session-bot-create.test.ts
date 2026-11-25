@@ -138,3 +138,23 @@ it('refuses non-owners, Bot-owned or child Sessions and Sessions outside any Wor
   });
   expect(create).not.toHaveBeenCalled();
 });
+
+it('refuses creation when the previewed Workspaces differ from the ones the Host resolves', async () => {
+  const { methods, create, store } = setup();
+  expect(
+    await methods.createFromSessions({
+      displayName: 'x',
+      sessionIds: ['a1', 'b1'],
+      workspacePaths: ['/work/app'],
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'workspace-preview-changed' } });
+  expect(create).not.toHaveBeenCalled();
+  expect(store.create).not.toHaveBeenCalled();
+  expect(
+    await methods.createFromSessions({
+      displayName: 'x',
+      sessionIds: ['a1', 'b1'],
+      workspacePaths: ['/work/docs', '/work/app'],
+    }),
+  ).toMatchObject({ ok: true });
+});

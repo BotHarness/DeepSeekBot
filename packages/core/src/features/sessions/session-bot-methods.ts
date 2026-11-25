@@ -74,6 +74,12 @@ export function createSessionBotMethods(
         return invalidInput(
           'operationKey must be 8 to 128 letters, digits, dots, colons, underscores or hyphens',
         );
+      const previewed = source['workspacePaths'];
+      if (
+        previewed !== undefined &&
+        (!Array.isArray(previewed) || !previewed.every((path) => typeof path === 'string'))
+      )
+        return invalidInput('workspacePaths must list the previewed Workspace paths');
       const { nativeSessions, creations, grants } = deps;
       if (nativeSessions === undefined || creations === undefined || grants === undefined)
         return failure(
@@ -111,6 +117,17 @@ export function createSessionBotMethods(
           return failure('workspace-unavailable', `No DSH Workspace contains ${seed.cwd}`);
         workspaces.set(match.id, match);
       }
+      const resolved = [
+        ...new Set([...workspaces.values()].map((workspace) => workspace.path)),
+      ].sort();
+      if (
+        previewed !== undefined &&
+        JSON.stringify([...new Set(previewed as string[])].sort()) !== JSON.stringify(resolved)
+      )
+        return failure(
+          'workspace-preview-changed',
+          `These Sessions would grant ${resolved.join(', ')}; review the Workspaces and try again.`,
+        );
 
       let created;
       try {

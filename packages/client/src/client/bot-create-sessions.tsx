@@ -141,6 +141,7 @@ export function CreateBotFromSessionsModal({
           ...(about.length === 0 ? {} : { description: about }),
           operationKey: attempt.current.key,
           language: marketplaceLanguage(t),
+          workspacePaths: granted,
         },
         sectionId,
       )
