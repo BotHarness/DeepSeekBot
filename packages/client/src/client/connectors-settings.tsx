@@ -1,10 +1,10 @@
 import { useState, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
+import { ConnectAppDialog } from './app-connections-catalog.js';
 import { errorMessage } from './bridge.js';
 import { BrandLogo } from './ds/brand-logo.js';
 import { Button } from './ds/button.js';
-import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { MaskedText } from './ds/masked-text.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -86,7 +86,7 @@ export function ConnectorsSettings({
   const [busy, setBusy] = useState(false);
   const [keyDraft, setKeyDraft] = useState<string | undefined>();
   const [clearing, setClearing] = useState(false);
-  const [connect, setConnect] = useState<{ service?: string; label: string } | undefined>();
+  const [connecting, setConnecting] = useState(false);
   const [open, setOpen] = useState<string | undefined>();
   const [links, setLinks] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<Account | undefined>();
@@ -141,23 +141,14 @@ export function ConnectorsSettings({
     if (done) setKeyDraft(undefined);
   };
 
-  const opened = (accountId: string, url: string) => {
+  const linked = (accountId: string, url: string) => {
     setLinks((current) => ({ ...current, [accountId]: url }));
-    window.open(url, '_blank', 'noopener,noreferrer');
     setNotice(t('connectors.connect.opened'));
   };
 
-  const startConnect = async () => {
-    const service = connect?.service;
-    if (connect === undefined || service === undefined || actions.connectorConnect === undefined)
-      return;
-    const label = connect.label.trim();
-    await run(async () => {
-      const linked = await actions.connectorConnect!(service, label === '' ? undefined : label);
-      opened(linked.account.accountId, linked.url);
-      setConnect(undefined);
-      setView(await actions.connectors!());
-    });
+  const opened = (accountId: string, url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    linked(accountId, url);
   };
 
   const reconnect = (accountId: string) =>
@@ -184,9 +175,6 @@ export function ConnectorsSettings({
       setNotice(undefined);
       setView(await actions.connectorRefresh!());
     });
-
-  const catalogName = (service: string) =>
-    view.catalog.find((entry) => entry.service === service)?.name ?? service;
 
   return (
     <div ref={mount} data-connectors-settings="">
@@ -336,7 +324,7 @@ export function ConnectorsSettings({
                 data={{ 'data-connectors-connect-open': '' }}
                 onClick={() => {
                   setError(undefined);
-                  setConnect({ label: '' });
+                  setConnecting(true);
                 }}
               />,
             ]}
@@ -346,7 +334,7 @@ export function ConnectorsSettings({
         )}
       </SettingsSection>
       {notice === undefined ? null : <Note>{notice}</Note>}
-      {error === undefined || keyDraft !== undefined || connect !== undefined ? null : (
+      {error === undefined || keyDraft !== undefined || connecting ? null : (
         <Note tone="danger">{error}</Note>
       )}
       {keyDraft === undefined ? null : (
@@ -389,65 +377,18 @@ export function ConnectorsSettings({
           </FieldStack>
         </FormDialog>
       )}
-      {connect === undefined ? null : connect.service === undefined ? (
-        <FormDialog
-          title={t('connectors.connect.pick')}
-          labels={labels}
-          submitLabel={t('connectors.connect.submit')}
-          scroll
-          showCancel
-          busy={busy}
-          error={error}
-          onCancel={() => setConnect(undefined)}
-        >
-          <FieldStack>
-            {view.catalog.map((entry) => (
-              <ChoiceButton
-                key={entry.service}
-                title={entry.name}
-                description={entry.summary}
-                leading={<BrandLogo src={connectorLogo(entry.service)} size={32} />}
-                data={{ 'data-connector-service': entry.service }}
-                onClick={() => setConnect({ ...connect, service: entry.service })}
-              />
-            ))}
-          </FieldStack>
-        </FormDialog>
-      ) : (
-        <FormDialog
-          title={t('connectors.connect.title')}
-          labels={labels}
-          submitLabel={t('connectors.connect.submit')}
-          busy={busy}
-          error={error}
-          onCancel={() => setConnect(undefined)}
-          onSubmit={() => void startConnect()}
-          secondary={
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => setConnect({ label: connect.label })}
-            >
-              {t('connectors.connect.change')}
-            </Button>
-          }
-        >
-          <FieldStack>
-            <SettingsRow
-              title={catalogName(connect.service)}
-              icon={<BrandLogo src={connectorLogo(connect.service)} size={28} />}
-            />
-            <TextField
-              label={t('connectors.connect.label')}
-              hint={t('connectors.connect.labelHint')}
-              placeholder={catalogName(connect.service)}
-              initialFocus
-              value={connect.label}
-              onChange={(label) => setConnect({ ...connect, label })}
-            />
-          </FieldStack>
-        </FormDialog>
+      {!connecting ? null : (
+        <ConnectAppDialog
+          actions={actions}
+          view={view}
+          t={t}
+          onClose={() => setConnecting(false)}
+          onLinked={(accountId, url) => {
+            setConnecting(false);
+            linked(accountId, url);
+            void actions.connectors?.().then(setView, () => undefined);
+          }}
+        />
       )}
       {!clearing ? null : (
         <ConfirmDialog

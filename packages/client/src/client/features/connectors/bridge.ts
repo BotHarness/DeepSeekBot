@@ -21,7 +21,12 @@ export interface ConnectorsView {
       grants: Array<{ botSlug: string; botName?: string; access: ConnectorAccess }>;
     }
   >;
-  catalog: ReadonlyArray<{ service: string; name: string; summary: string }>;
+  catalog: ReadonlyArray<{
+    service: string;
+    name: string;
+    summary: string;
+    keywords?: readonly string[];
+  }>;
 }
 
 export interface BotConnector {

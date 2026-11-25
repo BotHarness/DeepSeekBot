@@ -48,6 +48,13 @@ export const zh = {
   'connectors.bot.write': '读写',
   'connectors.bot.empty': '在设置 › 应用连接中连接应用后，可在这里分配给 Bot。',
   'connectors.bot.ownerOnly': '只有 Host Owner 可以分配应用。',
+  'connectors.market.about': '应用连接让 Bot 使用你在外部服务里的数据，不会改动 Tobs 本身。',
+  'connectors.market.opened':
+    '已在新标签页打开登录页。完成后，在 Bot 设置 › 应用连接 中把它分配给 Bot。',
+  'connectors.catalog.search': '搜索应用',
+  'connectors.catalog.empty': '没有匹配的应用。',
+  'connectors.catalog.connected': '已连接 {count} 个账号',
+  'connectors.catalog.available': '可连接',
   'connectors.identity.show': '显示账号',
   'connectors.identity.hide': '隐藏账号',
   'connectors.error': '操作失败：{message}',
@@ -108,6 +115,14 @@ export const en = {
   'connectors.bot.empty':
     'Connect apps in Settings › App connections, then give them to Bots here.',
   'connectors.bot.ownerOnly': 'Only the Host Owner can give apps to Bots.',
+  'connectors.market.about':
+    'App connections let a Bot use your data in outside services. They do not change Tobs itself.',
+  'connectors.market.opened':
+    'The sign-in page opened in a new tab. When you finish, give the app to a Bot in Bot settings › App connections.',
+  'connectors.catalog.search': 'Search apps',
+  'connectors.catalog.empty': 'No apps match.',
+  'connectors.catalog.connected': 'Connected: {count}',
+  'connectors.catalog.available': 'Available',
   'connectors.identity.show': 'Show account',
   'connectors.identity.hide': 'Hide account',
   'connectors.error': 'That did not work: {message}',
