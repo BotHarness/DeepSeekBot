@@ -301,6 +301,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
         });
         return {};
       } catch (error) {
+        reservation.unwatchSocket?.();
         controller.abort();
         return { failure: failure(error) };
       } finally {
