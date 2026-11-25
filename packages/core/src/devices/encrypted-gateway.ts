@@ -25,13 +25,13 @@ import {
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
 import { ADDRESS_ROUTE_SOURCE, noisePeerHeaders } from './route-context.js';
-import { createAddressSlots, type AddressSlot } from './address-slots.js';
+import { createAdmissionSlots, type AdmissionSlot } from './admission-slots.js';
 import { createPendingPairs } from './pending-pairs.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
 const DEADLINE = 10_000;
-const ADDRESS_ADMISSION_DEADLINE = 30_000;
+const ADMISSION_DEADLINE = 30_000;
 const field = (input: Record<string, unknown>, name: string): string | undefined =>
   typeof input[name] === 'string' ? input[name] : undefined;
 function record(value: unknown): Record<string, unknown> {
@@ -84,7 +84,7 @@ type CloseTrigger =
   | 'revoked'
   | 'idle-timeout'
   | 'handshake-timeout'
-  | 'address-admission-timeout'
+  | 'admission-timeout'
   | 'pair-replaced'
   | 'gateway-dispose'
   | 'invalid-frame'
@@ -110,7 +110,7 @@ export function createEncryptedGateway(options: {
   pairing: DevicePairing;
   memberDevices?: MemberDevices;
   route?: 'connect' | 'lan';
-  addressDeadlineMs?: number;
+  admissionDeadlineMs?: number;
   key(): Promise<Uint8Array>;
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
@@ -146,14 +146,14 @@ export function createEncryptedGateway(options: {
   let negotiating = 0,
     encrypted = 0,
     upgrading = 0;
-  const addressSlot = createAddressSlots();
+  const admissionSlot = createAdmissionSlots();
   const waitForApproval = createPendingPairs();
   const changed = () => options.changed?.({ negotiating, encrypted });
   const serve = (
     socket: WebSocket,
     key: Uint8Array,
     remoteAddress: string,
-    address: AddressSlot | undefined,
+    slot: AdmissionSlot | undefined,
   ) => {
     const channel = new ConnectChannel({
       role: 'responder',
@@ -244,7 +244,7 @@ export function createEncryptedGateway(options: {
       if (observedCalls.size === 0 && callPending > 0) diagnostic('channel-close', trigger);
       for (const callId of observedCalls) diagnostic('channel-close', trigger, callId);
       clearTimeout(deadline);
-      clearTimeout(addressDeadline);
+      clearTimeout(admissionDeadline);
       clearInterval(keepalive);
       detach?.();
       stopWatchingKey();
@@ -263,14 +263,12 @@ export function createEncryptedGateway(options: {
       socket.terminate();
     };
     const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
-    const addressDeadline = address
-      ? setTimeout(() => {
-          if (!admitted) close('address-admission-timeout');
-        }, options.addressDeadlineMs ?? ADDRESS_ADMISSION_DEADLINE)
-      : undefined;
+    const admissionDeadline = setTimeout(() => {
+      if (!admitted) close('admission-timeout');
+    }, options.admissionDeadlineMs ?? ADMISSION_DEADLINE);
     const progressed = () => {
-      clearTimeout(addressDeadline);
-      address?.release();
+      clearTimeout(admissionDeadline);
+      slot?.release();
     };
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
@@ -956,8 +954,8 @@ export function createEncryptedGateway(options: {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
-      const address = addressSlot(request, socket);
-      if (address === 'full') {
+      const slot = admissionSlot(request, socket);
+      if (slot === 'full') {
         socket.end(
           'HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
         );
@@ -968,7 +966,7 @@ export function createEncryptedGateway(options: {
       try {
         key = await options.key();
         if (disposed || socket.destroyed) {
-          address?.release();
+          slot?.release();
           socket.destroy();
           key.fill(0);
           return;
@@ -978,12 +976,14 @@ export function createEncryptedGateway(options: {
           serve(
             client,
             identity,
-            address ? ADDRESS_ROUTE_SOURCE : (request.socket.remoteAddress ?? 'unknown'),
-            address,
+            slot?.route === 'address'
+              ? ADDRESS_ROUTE_SOURCE
+              : (request.socket.remoteAddress ?? 'unknown'),
+            slot,
           ),
         );
       } catch {
-        address?.release();
+        slot?.release();
         socket.destroy();
       } finally {
         key?.fill(0);

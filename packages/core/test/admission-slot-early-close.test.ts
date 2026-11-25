@@ -5,7 +5,7 @@ import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { ADDRESS_PENDING_LIMIT } from '../src/devices/address-slots.js';
+import { OPEN_ROUTE_PENDING_LIMIT } from '../src/devices/admission-slots.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { addressRouteHeader, DEVICE_ROUTE_HEADER } from '../src/devices/route-context.js';
@@ -53,13 +53,13 @@ it('never holds an address slot for a socket that closed before or during the up
     },
     port: () => 0,
   });
-  for (let index = 0; index < ADDRESS_PENDING_LIMIT; index++) {
+  for (let index = 0; index < OPEN_ROUTE_PENDING_LIMIT; index++) {
     const closed = recordingSocket().socket;
     closed.destroy();
     await new Promise((resolve) => closed.once('close', resolve));
     await gateway.upgrade(addressRequest(), closed, Buffer.alloc(0));
   }
-  for (let index = 0; index < ADDRESS_PENDING_LIMIT; index++) {
+  for (let index = 0; index < OPEN_ROUTE_PENDING_LIMIT; index++) {
     destroyDuringKey = recordingSocket().socket;
     await gateway.upgrade(addressRequest(), destroyDuringKey, Buffer.alloc(0));
   }
