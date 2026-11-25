@@ -148,14 +148,22 @@ describe('platform people', () => {
       providerId: 'dsh-im/slack',
       namespace: 'slack-workspace-user-id',
     });
-    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'group', id: 'C123' }))).toBe(
+    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'group', id: 'C123' }))).toEqual({
+      providerId: 'dsh-im/slack',
+      namespace: 'slack-workspace-user-id',
+    });
+    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'group', id: 'D123' }))).toBe(
       undefined,
     );
+    expect(chatSenderIdentity(event('slack', 'U123', { kind: 'dm', id: 'C123' }))).toBe(undefined);
     expect(
       chatSenderIdentity(event('discord', '123456789', { kind: 'dm', id: '987654321' })),
     ).toEqual({ providerId: 'dsh-im/discord', namespace: 'discord-user-id' });
     expect(
       chatSenderIdentity(event('discord', '123456789', { kind: 'group', id: '987654321' })),
+    ).toEqual({ providerId: 'dsh-im/discord', namespace: 'discord-user-id' });
+    expect(
+      chatSenderIdentity(event('discord', '123456789', { kind: 'group', id: 'general' })),
     ).toBe(undefined);
     expect(chatSenderIdentity(event('discord', 'bot', { kind: 'dm', id: '987654321' }))).toBe(
       undefined,
@@ -168,7 +176,16 @@ describe('platform people', () => {
       'slack',
       'discord',
     ]);
-    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.roles)).toEqual(['feishu']);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.roles)).toEqual([
+      'feishu',
+      'slack',
+      'discord',
+    ]);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.groups)).toEqual([
+      'feishu',
+      'slack',
+      'discord',
+    ]);
     expect(messagingPlatformIds.filter((id) => platformPeople(id))).toEqual([
       'feishu',
       'slack',
