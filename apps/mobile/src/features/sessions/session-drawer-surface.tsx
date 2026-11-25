@@ -102,28 +102,28 @@ export function SessionDrawerSurface({ children }: { children: ReactNode }) {
             />
           </Animated.View>
         ) : null}
-        {state.shown ? (
-          <Animated.View
-            accessible={false}
-            accessibilityViewIsModal={state.open}
-            onAccessibilityEscape={() => closeSessionDrawer()}
-            pointerEvents={state.open ? 'auto' : 'none'}
-            style={[
-              {
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: 0,
-                width,
-                backgroundColor: theme.color.base,
-              },
-              panelStyle,
-            ]}
-          >
-            {state.open ? <View ref={holdBackWhileOpen} /> : null}
-            <SessionDrawerContent active={state.open} />
-          </Animated.View>
-        ) : null}
+        <Animated.View
+          accessible={false}
+          accessibilityViewIsModal={state.open}
+          accessibilityElementsHidden={!state.open}
+          importantForAccessibility={state.open ? 'auto' : 'no-hide-descendants'}
+          onAccessibilityEscape={() => closeSessionDrawer()}
+          pointerEvents={state.open ? 'auto' : 'none'}
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width,
+              backgroundColor: theme.color.base,
+            },
+            panelStyle,
+          ]}
+        >
+          {state.open ? <View ref={holdBackWhileOpen} /> : null}
+          <SessionDrawerContent active={state.open || state.shown} />
+        </Animated.View>
       </View>
     </GestureDetector>
   );

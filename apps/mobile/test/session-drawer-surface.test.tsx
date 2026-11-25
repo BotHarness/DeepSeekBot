@@ -31,7 +31,9 @@ vi.mock('../src/ui/shell/back-owner', () => ({
   },
 }));
 vi.mock('../src/features/sessions/session-drawer-content', () => ({
-  SessionDrawerContent: () => <span data-testid="js-drawer-panel" />,
+  SessionDrawerContent: ({ active }: { active: boolean }) => (
+    <span data-testid="js-drawer-panel" data-active={String(active)} />
+  ),
 }));
 
 import {
@@ -65,10 +67,13 @@ async function render() {
 
 it('lays the panel and a scrim over the Sessions stack without wrapping the stack in them', async () => {
   const view = await render();
-  expect(view.querySelector('[data-testid="js-drawer-panel"]')).toBeNull();
+  const closed = view.querySelector('[data-testid="js-drawer-panel"]')!;
+  expect(closed.getAttribute('data-active')).toBe('false');
   await act(async () => openSessionDrawer());
   const stack = view.querySelector('[data-testid="sessions-stack"]')!;
   const panel = view.querySelector('[data-testid="js-drawer-panel"]')!;
+  expect(panel).toBe(closed);
+  expect(panel.getAttribute('data-active')).toBe('true');
   const scrim = view.querySelector('[data-testid="session-drawer-scrim"]')!;
   expect(panel.contains(stack) || stack.contains(panel)).toBe(false);
   expect(scrim.contains(stack)).toBe(false);
