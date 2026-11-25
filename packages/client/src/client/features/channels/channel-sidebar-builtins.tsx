@@ -2,6 +2,7 @@ import { Icon } from '../../ds/icon.js';
 import { Tag } from '../../ds/tag.js';
 import { ASSIGNMENT_SESSION_ICON } from '../../channel-sidebar-icon.js';
 import { useTeamMode } from '../../team-state.js';
+import { memberPage } from '../../member-page.js';
 import { BotAccessEntry } from '../../bot-access-entry.js';
 import type { ConversationStateView } from '../../store.js';
 import { Menu } from '../../appearance-primitives.js';
@@ -138,7 +139,9 @@ function GroupManagementHeaderForChannel({
   const group = useClientStore((state) => state.conversation.channel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const team = useTeamMode(actions.teamCall);
   if (group?.type !== 'group' || group.id !== channelId) return <></>;
+  if (memberPage() || team?.viewer.kind === 'member') return <></>;
   const items: readonly MenuEntry[] = [{ id: 'disband', label: t('members.delete') }];
   return (
     <>

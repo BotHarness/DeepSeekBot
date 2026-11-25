@@ -12,6 +12,7 @@ const native = vi.hoisted(() => ({
 }));
 
 type Modifier = {
+  detents?: string[];
   label?: string;
   traits?: string[];
   description?: string;
@@ -67,7 +68,14 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     imageScale: none,
     padding: none,
     onGeometryChange: none,
-    presentationBackground: none,
+    buttonBorderShape: none,
+    listRowBackground: none,
+    listRowInsets: none,
+    listRowSeparator: none,
+    listSectionMargins: none,
+    listStyle: none,
+    scrollContentBackground: none,
+    presentationDetents: (detents: string[]) => ({ detents }),
     presentationDragIndicator: (visibility: string) => ({ grabber: visibility }),
     shapes: { circle: none, rectangle: none, roundedRectangle: none },
   };
@@ -81,6 +89,7 @@ vi.mock('@expo/ui/swift-ui', () => {
         {
           'aria-label': labelOf(modifiers),
           'data-fixed': String(modifiers?.some((modifier) => modifier.fixed) ?? false),
+          'data-detents': modifiers?.find((modifier) => modifier.detents)?.detents?.join(),
         },
         children,
       );
@@ -126,6 +135,11 @@ vi.mock('@expo/ui/swift-ui', () => {
       ),
     Divider: () => createElement('hr'),
     Group: box('section'),
+    Label: ({ title, systemImage }: { title: string; systemImage: string }) =>
+      createElement('span', null, createElement('i', { 'data-symbol': systemImage }), title),
+    List: box('div'),
+    Section: ({ header, children }: { header?: ReactNode; children?: ReactNode }) =>
+      createElement('div', { 'data-section': 'true' }, header, children),
     HStack: box('div'),
     Host: box('div'),
     Image: ({ systemName, modifiers }: { systemName: string; modifiers: Modifier[] }) =>
@@ -317,11 +331,11 @@ describe('iOS message sheet', () => {
     ]);
   });
 
-  it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {
+  it('presents a resizable native List sheet with a grabber, a reaction row and icon-led actions', () => {
     mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     const sheet = host?.querySelector('[role="dialog"]');
     expect(sheet?.getAttribute('data-open')).toBe('true');
-    expect(sheet?.getAttribute('data-fit')).toBe('true');
+    expect(sheet?.querySelector('section')?.getAttribute('data-detents')).toBe('medium,large');
     expect(byLabel(t.messageActions)).not.toBeNull();
     expect(host?.querySelector('[data-testid="message-menu-time"]')).not.toBeNull();
     expect(host?.querySelector('[data-testid="message-menu-turn-targets"]')).toBeNull();
@@ -338,9 +352,8 @@ describe('iOS message sheet', () => {
       ['doc.on.doc', t.copy],
       ['square.and.arrow.up', t.shareText],
     ]);
-    expect(host?.querySelectorAll('hr')).toHaveLength(1);
-    expect(host?.querySelector('[data-fixed="true"]')).not.toBeNull();
-    expect(host?.querySelector('[data-width]')).toBeNull();
+    expect(host?.querySelectorAll('hr')).toHaveLength(0);
+    expect(host?.querySelectorAll('[data-section]')).toHaveLength(2);
   });
 
   it('toggles a reaction and closes', () => {

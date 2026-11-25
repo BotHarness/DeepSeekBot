@@ -469,6 +469,15 @@ describe('Group profile', () => {
     expect(props.onDisbanded).toHaveBeenCalled();
   });
 
+  it('hides Disband from a viewer who cannot disband the group', async () => {
+    const view = await render(
+      <GroupProfilePage {...sheet({ onDisbanded: undefined }, 'settings')} />,
+    );
+    expect(view.querySelector('[data-testid="group-disband"]')).toBeNull();
+    expect(button(view, t.groupDisband)).toBeNull();
+    expect(view.querySelector('[data-testid="group-rename"]')).not.toBeNull();
+  });
+
   it('stays on the page when disbanding fails', async () => {
     const props = sheet(
       {
