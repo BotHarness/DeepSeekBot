@@ -416,35 +416,6 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
       ...(ports.schedules === undefined
         ? {}
         : { schedules: bindScheduleCommands(ports.schedules, bot, () => turn.markSideEffect()) }),
-      ...(turn.observeMemory
-        ? {
-            memory: {
-              continueFromCommit: (sha, branch) => {
-                if (ports.memory === undefined) throw new Error('Memory is unavailable');
-                turn.requireSideEffectAccess();
-                const result = ports.memory.continueFromCommit({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  sha,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-              switchBranch: (branch) => {
-                if (ports.memory === undefined) throw new Error('Memory is unavailable');
-                turn.requireSideEffectAccess();
-                const result = ports.memory.switchBranch({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-            },
-          }
-        : {}),
       assignments: ports.assignmentAccess(
         bot,
         turn.sourceEventId,

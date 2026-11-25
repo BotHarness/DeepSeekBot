@@ -154,7 +154,6 @@ it('lists a few Bot tools directly and no DSH generic tool', async () => {
       expect.arrayContaining([
         'memory_read',
         'memory_write',
-        'memory_switch_branch',
         'channel_action',
         'genui_diagram',
         'create_assignment',
