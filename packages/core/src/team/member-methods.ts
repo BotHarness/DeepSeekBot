@@ -50,6 +50,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'spaceUpdate',
   'spaceDelete',
   'workspaceOptions',
+  'folderCreate',
   'teamMode',
   'modelsAllowed',
   'modelCatalog',

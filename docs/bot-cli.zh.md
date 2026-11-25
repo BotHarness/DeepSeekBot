@@ -1581,9 +1581,12 @@ deepseekbot grants <bot-id>
 deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
 deepseekbot folder-browse 'D:\code' --offset 500
+deepseekbot folder-create --parent 'D:\code' --name '新项目'
 ```
 
 `folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`：只有文件夹名称和路径，不含文件，每页最多 500 个。`truncated` 为 true 时，把 `nextOffset` 作为 `--offset` 传回即可取下一页。`roots` 是主目录和各个磁盘（Windows 上读系统盘符表，不打开任何磁盘）或 `/`。`nativePicker: true` 表示 Host 使用系统文件夹对话框，桌面 Client 会改为打开它。Host 在单独的进程里读取文件夹，截止时间 5 秒。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹、无权读取或读取失败分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`、`folder-browse/unreadable`；文件夹没有按时响应（例如网络盘断开）返回 `folder-browse/timeout`。浏览不授予任何权限：选好路径后按上文登记并授权。
+
+用 `deepseekbot folder-create --parent <path> --name <name>` 新建一个子文件夹并将其登记为工作区。传入父文件夹的绝对路径和单个文件夹名称，命令返回工作区的 `{id, path, title}`。Host Owner 可以在 Host 进程有写入权限的位置新建文件夹。Team 模式成员需要 `workspaces.createFolder` 权限，且父文件夹必须位于自己的账号文件夹或已获授权的共享文件夹中。缺少权限时 Host 返回 `permission-required`，目标超出授权范围时返回 `folder-create/outside-grant`，子文件夹名称已被占用时返回 `folder-create/already-exists`。
 
 ## Memory
 

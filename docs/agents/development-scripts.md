@@ -246,6 +246,8 @@ B5 requires both native tool completions and both outside-Grant fixture writes, 
 
 C7 uses `deepseekbot` and a loopback speech fixture to check Owner-only management of TTS and ASR providers. It also checks that the member list exposes template presence without provider endpoints, headers, or keys.
 
+B6 uses `deepseekbot folder-create` to check the Owner, a member without `workspaces.createFolder`, and a member with that permission. It confirms the created child can be selected as a Workspace and that refused parents, including a symlink to an unshared folder, receive no child.
+
 The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Run the suite on the exact PR head for every Team mode authority change, including offboarding, device access and model allowlists. Publish the report and transcripts through `pnpm evidence:publish` and link them from the PR. A failing scenario blocks merge unless the PR names the known gap and links its tracking issue.
 
 ## Call keyframe evaluation (VC8)

@@ -53,6 +53,7 @@ export function teamFixture(
     warn?: (message: string) => void;
     voice?: boolean;
     liveRosterChanges?: boolean;
+    workspaceResource?: boolean;
   } = {},
 ) {
   const root = createTempRoot('team-mode-');
@@ -209,7 +210,10 @@ export function teamFixture(
           ? { wire: 'public', resolve: (value: unknown) => z.boolean().parse(value) }
           : undefined,
     },
-    resources: { entries: () => [] },
+    resources: {
+      entries: () =>
+        options.workspaceResource ? [{ kind: 'workspace', field: 'workspaceId' }] : [],
+    },
   });
   const access = new RemoteAccessService(ctx);
   access.registerPolicy('botharness-member', memberPolicy(team));

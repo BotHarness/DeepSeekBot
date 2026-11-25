@@ -12,11 +12,17 @@ import {
 } from '../../messaging/provider.js';
 import type { DshImOutboundService } from './dsh-im-types.js';
 import { identifier, providerFailure } from './dsh-im-validation.js';
+import {
+  isMessagingPlatform,
+  messagingPlatform,
+  messagingPlatformIds,
+  type DshImPlatformProfile,
+} from '../../messaging/platforms/index.js';
 
 const inboundSchema = z
   .object({
     version: z.literal(1),
-    channel: z.enum(['feishu', 'slack', 'discord', 'weixin', 'qq']),
+    channel: z.enum(messagingPlatformIds),
     botId: identifier,
     fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     eventId: identifier,
@@ -143,9 +149,8 @@ const inboundSchema = z
   .refine(
     (event) =>
       !event.voice ||
-      ((event.channel === 'weixin' ||
-        event.channel === 'qq' ||
-        (event.channel === 'feishu' && event.attachments?.length === 1)) &&
+      (isMessagingPlatform(event.channel) &&
+        messagingPlatform(event.channel).voiceSource(event) &&
         (!event.attachments?.length ||
           (event.attachments.length === 1 &&
             event.attachments[0]?.mediaType?.startsWith('audio/')))),
@@ -160,62 +165,15 @@ const inboundSchema = z
     { message: 'Bot senders are accepted only when they mention this account in a group' },
   );
 
-function isLarkVideo(event: z.infer<typeof inboundSchema>, images: boolean): boolean {
-  const video = event.video;
-  const items = event.attachments ?? [];
-  if (
-    !video ||
-    !event.mentionedAccount ||
-    !event.reply.parentId ||
-    event.reply.parentId === event.messageId ||
-    event.contentParts ||
-    event.voice ||
-    video.playLength !== undefined ||
-    video.reportedSizeBytes !== undefined ||
-    items.length !== (video.posterAttachmentId === undefined ? 1 : 2)
-  )
-    return false;
-  return (
-    items.every((item) =>
-      item.messageId !== event.reply.parentId
-        ? false
-        : item.id === video.itemId
-          ? item.mediaType === 'video/unknown'
-          : images && item.id === video.posterAttachmentId && item.mediaType === 'image/unknown',
-    ) && items.some((item) => item.id === video.itemId)
-  );
-}
-
-function isLarkVoice(event: z.infer<typeof inboundSchema>): boolean {
-  const voice = event.voice;
-  const item = event.attachments?.[0];
-  return (
-    voice !== undefined &&
-    event.mentionedAccount &&
-    !!event.reply.parentId &&
-    event.reply.parentId !== event.messageId &&
-    !event.contentParts &&
-    !event.video &&
-    voice.transcript === 'unavailable' &&
-    voice.encodeType === undefined &&
-    voice.sampleRate === undefined &&
-    voice.bitsPerSample === undefined &&
-    event.attachments?.length === 1 &&
-    item !== undefined &&
-    item.id === voice.itemId &&
-    item.messageId === event.reply.parentId &&
-    item.mediaType === 'audio/unknown'
-  );
-}
-
 export function dshImInbound(
   host: DshImOutboundService,
-  platform: 'feishu' | 'slack' | 'discord' | 'weixin' | 'qq',
+  profile: DshImPlatformProfile,
   rememberRuleCapability: (
     ref: string,
     info: Awaited<ReturnType<DshImOutboundService['describeBot']>>,
   ) => void,
 ): Pick<MessagingProvider, 'consume' | 'reply' | 'history'> {
+  const platform = profile.id;
   return {
     ...(typeof host.consumeInbound === 'function' && typeof host.replyChecked === 'function'
       ? {
@@ -245,59 +203,17 @@ export function dshImInbound(
               !info.capabilities.includes('reply-text-checked')
             )
               throw new MessagingError('provider-incompatible');
-            const sourceImages =
-              (platform === 'weixin' || platform === 'feishu' || platform === 'qq') &&
-              host.fileVersion === 1 &&
-              info.capabilities.includes('source-image-checked') &&
-              (platform === 'feishu' || info.capabilities.includes('reply-image-fence-checked'));
-            const sourceFiles =
-              host.fileVersion === 1 &&
-              info.capabilities.includes('source-file-checked') &&
-              info.capabilities.includes('reply-file-checked') &&
-              (platform !== 'weixin' || info.capabilities.includes('reply-file-fence-checked')) &&
-              (platform !== 'qq' ||
-                (info.capabilities.includes('source-generic-file-checked') &&
-                  info.capabilities.includes('reply-file-fence-checked')));
-            const larkVideos =
-              platform === 'feishu' &&
-              sourceFiles &&
-              info.capabilities.includes('source-video-checked');
-            const larkVoices =
-              platform === 'feishu' &&
-              sourceFiles &&
-              info.capabilities.includes('source-voice-audio-checked');
-            const qqDirect =
-              platform === 'qq' && info.capabilities.includes('direct-message-consumer');
+            const policy = profile.inbound(host, (capability) =>
+              info.capabilities.includes(capability),
+            );
             return host.consumeInbound!(input.accountRef, {
               expectedFingerprint: input.fingerprint,
               signal: input.signal,
               ...(info.capabilities.includes('ordinary-text-consumer')
                 ? { ordinaryText: true }
                 : {}),
-              ...(qqDirect ? { directMessages: true } : {}),
-              ...(sourceFiles ? { sourceFiles: true } : {}),
-              ...(sourceImages ? { sourceImages: true } : {}),
-              ...(platform === 'weixin' && info.capabilities.includes('source-quote-checked')
-                ? { sourceQuotes: true }
-                : {}),
-              ...((platform === 'weixin' || platform === 'qq') &&
-              info.capabilities.includes('source-voice-transcript-checked')
-                ? { sourceVoiceTranscripts: true }
-                : {}),
-              ...(larkVoices ||
-              ((platform === 'weixin' || platform === 'qq') &&
-                host.fileVersion === 1 &&
-                info.capabilities.includes('source-voice-audio-checked'))
-                ? { sourceVoiceAudio: true }
-                : {}),
-              ...(larkVideos ||
-              (platform === 'weixin' &&
-                host.fileVersion === 1 &&
-                info.capabilities.includes('source-video-checked') &&
-                info.capabilities.includes('reply-video-fence-checked'))
-                ? { sourceVideos: true }
-                : {}),
-              ...(platform === 'feishu' &&
+              ...policy.options,
+              ...(profile.features.cards &&
               host.approvalCardVersion === 1 &&
               info.capabilities.includes('approval-action-consumer') &&
               input.onAction
@@ -453,37 +369,10 @@ export function dshImInbound(
                 : {}),
               onEvent: async (raw, context) => {
                 const parsed = inboundSchema.parse(raw);
-                const larkVideo = larkVideos && isLarkVideo(parsed, sourceImages);
-                const larkVoice = larkVoices && isLarkVoice(parsed);
-                const qqAttachments = parsed.attachments?.every((item) =>
-                  item.mediaType?.startsWith('image/')
-                    ? sourceImages
-                    : parsed.voice && item.mediaType === 'audio/unknown'
-                      ? host.fileVersion === 1 &&
-                        info.capabilities.includes('source-voice-audio-checked')
-                      : sourceFiles && item.mediaType === 'application/octet-stream',
-                );
+                const shape = policy.inspect(parsed);
                 if (
                   parsed.channel !== platform ||
-                  (platform === 'qq' &&
-                    ((parsed.conversation.kind !== 'group' &&
-                      !(qqDirect && parsed.conversation.kind === 'dm')) ||
-                      parsed.reply.threadId !== undefined ||
-                      parsed.reply.rootId !== undefined ||
-                      parsed.reply.parentId !== undefined ||
-                      ((parsed.attachments?.length ?? 0) > 0 && !qqAttachments))) ||
-                  ((parsed.contentParts ||
-                    (parsed.attachments?.length ?? 0) > 1 ||
-                    (platform === 'feishu' &&
-                      parsed.attachments?.some((item) => item.mediaType?.startsWith('image/')))) &&
-                    !larkVideo &&
-                    (platform === 'qq'
-                      ? !qqAttachments
-                      : platform !== 'feishu' ||
-                        !info.capabilities.includes('source-image-checked') ||
-                        !parsed.attachments?.every((item) =>
-                          item.mediaType?.startsWith('image/'),
-                        ))) ||
+                  !shape.accepted ||
                   new Set(parsed.attachments?.map((item) => item.id)).size !==
                     (parsed.attachments?.length ?? 0) ||
                   parsed.contentParts?.some(
@@ -491,26 +380,9 @@ export function dshImInbound(
                       part.kind === 'attachment' &&
                       !parsed.attachments?.some((item) => item.id === part.id),
                   ) ||
-                  (parsed.quote &&
-                    (platform !== 'weixin' ||
-                      !info.capabilities.includes('source-quote-checked'))) ||
-                  (parsed.voice &&
-                    (platform === 'feishu'
-                      ? !larkVoice
-                      : !info.capabilities.includes('source-voice-transcript-checked'))) ||
                   (parsed.voice &&
                     parsed.attachments?.length &&
-                    !info.capabilities.includes('source-voice-audio-checked')) ||
-                  (platform !== 'feishu' &&
-                    (parsed.video?.durationMs !== undefined ||
-                      parsed.video?.posterAttachmentId !== undefined)) ||
-                  (parsed.video &&
-                    !larkVideo &&
-                    (platform !== 'weixin' ||
-                      !info.capabilities.includes('source-video-checked') ||
-                      !info.capabilities.includes('reply-video-fence-checked') ||
-                      parsed.attachments?.length !== 1 ||
-                      parsed.attachments[0]?.mediaType !== 'video/unknown'))
+                    !info.capabilities.includes('source-voice-audio-checked'))
                 )
                   throw new MessagingError('untrusted-source');
                 if (
@@ -589,11 +461,7 @@ export function dshImInbound(
                   event.reply.conversationId !== event.conversation.id ||
                   event.reply.actorId !== event.actor.id ||
                   event.attachments?.some(
-                    (item) =>
-                      item.messageId !==
-                      (platform === 'feishu' && (larkVideo || !item.mediaType?.startsWith('image/'))
-                        ? event.reply.parentId
-                        : event.messageId),
+                    (item) => item.messageId !== shape.attachmentMessageId(item),
                   )
                 )
                   throw new MessagingError('untrusted-source');
@@ -611,10 +479,9 @@ export function dshImInbound(
           },
           async reply(input: Parameters<NonNullable<MessagingProvider['reply']>>[0]) {
             try {
-              const tags =
-                platform === 'slack' || platform === 'discord'
-                  ? mentionTags(input.text)
-                  : { mentions: [], render: () => input.text };
+              const tags = profile.features.mentionMarkup
+                ? mentionTags(input.text)
+                : { mentions: [], render: () => input.text };
               const checkedMentions =
                 tags.mentions.length > 0 &&
                 (await host.describeBot(input.accountRef)).capabilities.includes(
@@ -652,7 +519,7 @@ export function dshImInbound(
                 if (
                   !receipt.success ||
                   receipt.data.conversationId !== input.route.conversationId ||
-                  (platform === 'weixin'
+                  (profile.receiptIdentity === 'client-acknowledgement'
                     ? receipt.data.identityKind !== 'client-acknowledgement'
                     : receipt.data.identityKind !== undefined)
                 )
