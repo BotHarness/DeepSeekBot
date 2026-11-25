@@ -556,6 +556,7 @@ export const NATIVE_SESSION_ATTENTION_KIND = 'native-session-input';
 export interface NativeSessionAttention {
   sessionId: string;
   sessionTitle?: string;
+  folderName?: string;
   input: 'approval' | 'question';
 }
 

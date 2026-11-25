@@ -19,6 +19,7 @@ import type { QuestionAnswer, QuestionItem } from '@botharness/host-protocol/wir
 import { z } from 'zod';
 import { validQuestionAnswer } from '../../channels/user-questions.js';
 import type { NativeSessionAttentionEntry } from '../activity/native-session-attention.js';
+import { sessionFolderName } from './session-folder-name.js';
 
 const question = z.object({
   id: z.string(),
@@ -292,11 +293,17 @@ export function dshHostSessionInput(
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
   };
 
+  const folder = (id: string): string | undefined => {
+    const cwd = ctx.agents.get(SessionId(id))?.session.header?.cwd;
+    return typeof cwd === 'string' && cwd !== '' ? sessionFolderName(cwd) : undefined;
+  };
+
   return {
     attention(): NativeSessionAttentionEntry[] {
       return [...pending.values()].flatMap(({ sessionId, card, createdAt }) => {
         if (!isUnowned(sessionId)) return [];
         const sessionTitle = title(sessionId);
+        const folderName = folder(sessionId);
         return [
           {
             sessionId,
@@ -308,6 +315,7 @@ export function dshHostSessionInput(
                 : card.questions.map((item) => item.question).join(' · '),
             createdAt: createdAt ?? new Date(0).toISOString(),
             ...(sessionTitle === undefined ? {} : { sessionTitle }),
+            ...(folderName === undefined ? {} : { folderName }),
           },
         ];
       });

@@ -65,7 +65,8 @@ function isNativeSessionItem(row: Record<string, unknown>): boolean {
     native !== undefined &&
     text(native['sessionId']) &&
     (native['input'] === 'approval' || native['input'] === 'question') &&
-    optional(native['sessionTitle'], text)
+    optional(native['sessionTitle'], text) &&
+    optional(native['folderName'], text)
   );
 }
 

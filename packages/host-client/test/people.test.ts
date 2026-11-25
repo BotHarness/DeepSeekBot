@@ -129,7 +129,12 @@ describe('Human attention', () => {
       botSlug: '',
       summary: 'bash',
       requestId: 'event-1',
-      nativeSession: { sessionId: 'native-1', input: 'approval', sessionTitle: 'Ship it' },
+      nativeSession: {
+        sessionId: 'native-1',
+        input: 'approval',
+        sessionTitle: 'Ship it',
+        folderName: 'site',
+      },
     };
     const page = { items: [item, native], source: 'all' };
     const read = await readHumanAttention(host(page), { source: 'all' });
@@ -141,6 +146,7 @@ describe('Human attention', () => {
       { ...native, requestId: undefined },
       { ...native, nativeSession: { sessionId: 'native-1', input: 'other' } },
       { ...native, nativeSession: { input: 'approval' } },
+      { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
       { ...item, nativeSession: native.nativeSession },
     ])
       await expect(readHumanAttention(host({ items: [bad] }), {})).rejects.toBeInstanceOf(

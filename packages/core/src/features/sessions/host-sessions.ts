@@ -3,7 +3,7 @@ import {
   type SessionModelChoice,
   type SessionModelState,
 } from '@botharness/host-protocol/session-model';
-import { posix, win32 } from 'node:path';
+import { sessionFolderName } from './session-folder-name.js';
 import {
   HOST_SESSION_PAGE_MAX,
   HOST_SESSION_SEARCH_MAX,
@@ -170,11 +170,6 @@ function dshFailure(cause: unknown): BridgeResult<never> {
   return { ok: false, error: { code, message: failure.message } };
 }
 
-function folderName(cwd: string): string {
-  const path = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
-  return path.basename(cwd) || path.parse(cwd).root;
-}
-
 function isNativeTranscriptEvent(event: DshSessionEvent): boolean {
   if (event.type !== 'user/message') return true;
   const data = asObject(event.data);
@@ -280,7 +275,7 @@ export function createHostSessionsMethods(
         const base = {
           sessionId: row.sessionId,
           ...(row.title === undefined ? {} : { title: row.title }),
-          ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
+          ...(cwd === undefined ? {} : { folderName: sessionFolderName(cwd) }),
           ...(row.archived === true ? { archived: true as const } : {}),
           ...(cwd === undefined || !owner ? {} : { cwd }),
           ...(row.waiting === true ? { waiting: true as const } : {}),
