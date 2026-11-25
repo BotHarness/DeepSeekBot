@@ -1,6 +1,6 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -606,6 +606,138 @@ describe('Memory move', () => {
       expect(f.core.ownership.resolve(f.runs[1]!.sessionId)?.cwdReference).toBe(
         join(location, 'ada'),
       );
+    } finally {
+      await f.close();
+    }
+  });
+});
+
+describe('Memory move rollback', () => {
+  it('keeps the old answer when moving Memory back succeeds', async () => {
+    const f = await fixture();
+    try {
+      await f.send();
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-move-target-');
+      const setMemoryDir = vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementation(() => {
+        throw new Error('registry unavailable');
+      });
+      try {
+        const result = await f.methods.memoryMove({ slug: 'ada', location });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('expected refusal');
+        expect(result.error.message).toContain('Memory was not moved: registry unavailable');
+        expect(existsSync(before)).toBe(true);
+        expect(existsSync(join(location, 'ada'))).toBe(false);
+      } finally {
+        setMemoryDir.mockRestore();
+      }
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('names the directory and the registry path when both the rollback and the retry fail', async () => {
+    const f = await fixture();
+    try {
+      await f.send();
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-move-target-');
+      const target = join(location, 'ada');
+      const parent = dirname(before);
+      let restricted = false;
+      const setMemoryDir = vi.spyOn(f.core.registry, 'setMemoryDir').mockImplementation(() => {
+        chmodSync(parent, 0o500);
+        restricted = true;
+        throw new Error('registry unavailable');
+      });
+      try {
+        const result = await f.methods.memoryMove({ slug: 'ada', location });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('expected refusal');
+        expect(result.error.message).toContain(`Memory is at ${target}`);
+        expect(result.error.message).toContain(`but the registry names ${before}`);
+        expect(result.error.message).not.toContain('Memory was not moved');
+        expect(existsSync(target)).toBe(true);
+        expect(existsSync(before)).toBe(false);
+        expect(f.core.registry.memoryDirFor('ada')).toBe(before);
+      } finally {
+        if (restricted) chmodSync(parent, 0o700);
+        setMemoryDir.mockRestore();
+      }
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('agrees on the target when the registry committed before the failure', async () => {
+    const f = await fixture();
+    try {
+      await f.send();
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-move-target-');
+      const target = join(location, 'ada');
+      const parent = dirname(before);
+      const real = f.core.registry.setMemoryDir.bind(f.core.registry);
+      let restricted = false;
+      const setMemoryDir = vi
+        .spyOn(f.core.registry, 'setMemoryDir')
+        .mockImplementation((slug, dir) => {
+          real(slug, dir);
+          chmodSync(parent, 0o500);
+          restricted = true;
+          throw new Error('ownership transfer failed');
+        });
+      try {
+        const result = await f.methods.memoryMove({ slug: 'ada', location });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('expected refusal');
+        expect(f.core.registry.memoryDirFor('ada')).toBe(target);
+        expect(existsSync(target)).toBe(true);
+        expect(existsSync(before)).toBe(false);
+        expect(result.error.message).toContain(
+          `Memory is at ${target} and the registry names it too`,
+        );
+      } finally {
+        if (restricted) chmodSync(parent, 0o700);
+        setMemoryDir.mockRestore();
+      }
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('leaves the directory and the registry naming one path after a failed rollback', async () => {
+    const f = await fixture();
+    try {
+      await f.send();
+      const before = f.core.registry.memoryDirFor('ada')!;
+      const location = createTempRoot('botharness-memory-move-target-');
+      const target = join(location, 'ada');
+      const parent = dirname(before);
+      const real = f.core.registry.setMemoryDir.bind(f.core.registry);
+      let restricted = false;
+      const setMemoryDir = vi
+        .spyOn(f.core.registry, 'setMemoryDir')
+        .mockImplementationOnce(() => {
+          chmodSync(parent, 0o500);
+          restricted = true;
+          throw new Error('registry commit failed');
+        })
+        .mockImplementation((slug, dir) => real(slug, dir));
+      try {
+        const result = await f.methods.memoryMove({ slug: 'ada', location });
+        expect(result.ok).toBe(false);
+        if (result.ok) throw new Error('expected refusal');
+        expect(f.core.registry.memoryDirFor('ada')).toBe(target);
+        expect(existsSync(target)).toBe(true);
+        expect(result.error.message).toContain(
+          `Memory is at ${target} and the registry names it too`,
+        );
+      } finally {
+        if (restricted) chmodSync(parent, 0o700);
+        setMemoryDir.mockRestore();
+      }
     } finally {
       await f.close();
     }
