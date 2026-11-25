@@ -4,8 +4,8 @@ services:
     image: tobs-relay:local
     restart: unless-stopped
     ports:
-      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}80:80'
-      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}443:443'
+      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}80:8080'
+      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}443:8443'
     volumes:
       - relay-data:/data
       - ./hosts:/run/relay-hosts:ro
@@ -16,7 +16,5 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    sysctls:
-      net.ipv4.ip_unprivileged_port_start: '0'
 volumes:
   relay-data:

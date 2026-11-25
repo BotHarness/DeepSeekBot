@@ -8,7 +8,7 @@
 
 在服务器上安装 Docker 和 Compose 插件。从包含 `tobs-relay` 的 [Tobs Release](https://github.com/BotHarness/DeepSeekBot/releases) 中复制完整的 `deploy/private-relay` 目录到你管理的路径，记录发布标签。多 Host 认领要求电脑运行 Tobs 1.7.0 或更新版本。
 
-使用指向 VPS 的公网域名，或服务器的公网 IPv4、IPv6 地址。在**云控制台的防火墙或安全组**和服务器防火墙中开放入站 **TCP 80 和 443**。中继默认通过 80 端口上的 HTTP-01 向 Let's Encrypt 申请证书，通过 443 提供 HTTPS，并自动续期域名证书或短期 IP 证书。初始化时使用不带方括号的 IP 地址，在 HTTPS URL 中给 IPv6 地址加方括号。
+使用指向 VPS 的公网域名，或服务器的公网 IPv4、IPv6 地址。在**云控制台的防火墙或安全组**和服务器防火墙中开放入站 **TCP 80 和 443**。中继默认在 80 端口处理 Let's Encrypt HTTP-01 校验，将其他请求重定向到 443 端口的 HTTPS，并自动续期域名证书和短期 IP 证书。中继注册 ACME 账户时会接受证书授权机构的条款。启动前请阅读 [Let's Encrypt 订户协议](https://letsencrypt.org/repository/)。初始化时使用不带方括号的 IP 地址，在 HTTPS URL 中给 IPv6 地址加方括号。
 
 ### Docker Compose
 
@@ -25,7 +25,11 @@ docker compose --project-name botharness-private --project-directory /opt/bothar
 
 初始化以 0600 权限写入 `.env` 和 `bootstrap.secret`，只输出密钥文件位置和 HTTPS 地址。请妥善保管这些文件。Compose 从 `.env` 将认领密钥传入容器环境，服务器管理员仍可查看。中继以非特权用户运行，认领记录只保存哈希。
 
-如果 `tailscale serve` 已在自己的接口监听 443，在 `.env` 中用 `RELAY_BIND_ADDRESS` 指定 VPS 的入站接口地址。例如，云服务商将公网 IP 映射到 `10.0.0.4` 时，设为 `RELAY_BIND_ADDRESS=10.0.0.4`，Docker 就会在该地址发布端口。IPv6 绑定地址需加方括号。
+请将初始化文件和中继数据存放在支持硬链接的文件系统上。中继用硬链接保证每把认领密钥只能使用一次。
+
+在 Linux 上，`tailscale serve` 可能已在 `100.x.x.x` 或 `fd7a:…` 等 Tailscale 地址上占用 443 端口，导致通配地址绑定失败。此时请在 `.env` 中将 `RELAY_BIND_ADDRESS` 设为接收公网流量的网卡的本地地址。例如，云服务商通过 NAT 将公网 IP 转发到 `eth0` 上的 `10.0.0.4` 时，使用 `RELAY_BIND_ADDRESS=10.0.0.4`。IPv6 绑定地址需加方括号。
+
+`RELAY_BIND_ADDRESS` 只绑定一个地址。如果域名有 AAAA 记录，Let's Encrypt 可能通过 IPv6 验证。仅绑定 IPv4 时，请删除 AAAA 记录，或为同一中继增加独立的 IPv6 端口映射并确保公网可达。
 
 ### 直接用 Docker
 
@@ -34,7 +38,7 @@ docker compose --project-name botharness-private --project-directory /opt/bothar
 ```bash
 docker build -t tobs-relay:local .
 docker run --rm -v botharness-private-data:/data tobs-relay:local setup relay.example.com
-docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true --sysctl net.ipv4.ip_unprivileged_port_start=0 -p 80:80 -p 443:443 -v botharness-private-data:/data tobs-relay:local
+docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true -p 80:8080 -p 443:8443 -v botharness-private-data:/data tobs-relay:local
 ```
 
 ### 静态二进制文件
@@ -62,7 +66,9 @@ VPS 没有 Docker 和 Node 时，可以从与 VPS 架构匹配的镜像中提取
 
 ## 一个中继服务多台电脑
 
-一个部署最多服务 16 台电脑。每台电脑有自己的一次性认领密钥、自己的所有者凭据和自己的手机准入，所以和一台电脑配对的手机无法经中继访问另一台，释放或撤销一台电脑也不会影响其他电脑。
+一个部署最多服务 16 台电脑，每台可建立一个控制连接和 32 个手机通道，总计最多 528 个已升级的 WebSocket 连接。每个监听端口另有 128 个待处理的 TCP 和 HTTP 连接名额，每个对端 IP 最多占用 32 个。WebSocket 升级成功即释放待处理名额。使用反向代理时，待处理连接计入代理的 IP。
+
+每台电脑有独立的一次性认领密钥、所有者凭据和手机准入。手机只能通过中继访问与它配对的电脑，释放认领只影响该电脑。
 
 在服务器上为每台新增电脑生成密钥：
 
@@ -77,6 +83,8 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/config" \
 直接用 Docker 时，运行 `docker run --rm -v botharness-private-data:/data tobs-relay:local add-host office-mac`。使用二进制文件时，在初始化目录运行 `./tobs-relay add-host office-mac`。
 
 从 Node 和 Caddy 升级时，保留 `.env`、`hosts/keys`、设置密钥文件和 `relay-data` 卷。在原目录替换部署文件，沿用原项目名，只执行上面的 Compose `up --build --detach --remove-orphans` 命令。该命令释放 Caddy 占用的端口，让 Go 中继读取原有认领记录并延续手机配对。需要回退时保留旧 Caddy 数据卷。旧部署如果没有 `hosts` 目录，启动前执行 `mkdir -p hosts`。线上协议见[中继标准](private-relay-standard.zh.md)，附第三方中继可用的一致性测试脚本。
+
+在[真机验收 #3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) 通过前，`server.mjs`、`setup.mjs`、`Caddyfile`、`package.json` 中的 Node 部署入口和 `scripts/test/private-relay.test.mjs` 仅为回退而保留。回退时请使用上一版本的部署文件。一致性测试客户端使用 Node 依赖，按同一协议验证 Go 中继。
 
 ## 失败恢复
 

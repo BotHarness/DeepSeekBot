@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -112,6 +113,14 @@ func readHostKeys(path string) (map[string]string, error) {
 	return keys, lines.Err()
 }
 
+// A directory sync can fail after the new contents become visible.
+type publishedFileError struct{ error }
+
+func wasPublished(err error) bool {
+	var published publishedFileError
+	return errors.As(err, &published)
+}
+
 // Publish a complete file at once. Link gives claims and secrets exclusive creation.
 func writeAtomic(path string, data []byte, mode os.FileMode, create bool) error {
 	file, err := os.CreateTemp(filepath.Dir(path), ".relay-*")
@@ -130,10 +139,30 @@ func writeAtomic(path string, data []byte, mode os.FileMode, create bool) error 
 	if err := errors.Join(err, closeErr); err != nil {
 		return err
 	}
+	var cleanupErr error
 	if create {
-		return os.Link(file.Name(), path)
+		if err := os.Link(file.Name(), path); err != nil {
+			return fmt.Errorf("create %s atomically (requires hard-link support): %w", path, err)
+		}
+		cleanupErr = os.Remove(file.Name())
+	} else if err := os.Rename(file.Name(), path); err != nil {
+		return err
 	}
-	return os.Rename(file.Name(), path)
+	// Windows does not support syncing a directory through os.File.Sync.
+	if runtime.GOOS == "windows" {
+		if cleanupErr != nil {
+			return publishedFileError{cleanupErr}
+		}
+		return nil
+	}
+	directory, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return publishedFileError{errors.Join(err, cleanupErr)}
+	}
+	if err := errors.Join(directory.Sync(), directory.Close(), cleanupErr); err != nil {
+		return publishedFileError{err}
+	}
+	return nil
 }
 
 func saveSlot(path string, state ownerState, create bool) error {

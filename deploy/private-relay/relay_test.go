@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -107,6 +108,34 @@ func writeText(t *testing.T, conn *websocket.Conn, text string) {
 }
 
 func auth(value string) http.Header { return http.Header{"Authorization": {"Bearer " + value}} }
+
+func TestHostCloseDrainsPhoneFrames(t *testing.T) {
+	dir := copyNodeState(t)
+	origin := runTestRelay(t, dir, filepath.Join(dir, "keys"))
+	host := openSocket(t, origin, "/host", auth(sampleToken("b")))
+	payload := strings.Repeat("a", 60_000)
+	for i := range 50 {
+		phone := openSocket(t, origin, channelPath, auth(sampleToken("c")))
+		var open struct{ Type, ID string }
+		if err := json.Unmarshal(mustMessage(t, host), &open); err != nil || open.Type != "open" {
+			t.Fatalf("attempt %d: expected the phone to open, got %+v (%v)", i, open, err)
+		}
+		writeText(t, host, `{"type":"data","id":"`+open.ID+`","data":"`+payload+`"}`)
+		writeText(t, host, `{"type":"close","id":"`+open.ID+`"}`)
+		kind, data, err := phone.ReadMessage()
+		if err != nil || kind != websocket.TextMessage || string(data) != payload {
+			t.Fatalf("attempt %d: read %d of %d bytes before close (%v)", i, len(data), len(payload), err)
+		}
+		var closeFrame *websocket.CloseError
+		if _, _, err := phone.ReadMessage(); !errors.As(err, &closeFrame) {
+			t.Fatalf("attempt %d: expected the relay to close the phone, got %v", i, err)
+		}
+		phone.Close()
+		if got := string(mustMessage(t, host)); got != string(message("close", open.ID)) {
+			t.Fatalf("attempt %d: expected the close announcement, got %s", i, got)
+		}
+	}
+}
 
 func TestMigrateNodeState(t *testing.T) {
 	dir := copyNodeState(t)

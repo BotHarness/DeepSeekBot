@@ -15,14 +15,14 @@ import (
 
 const (
 	pingInterval = 25 * time.Second
-	writeTimeout = 10 * time.Second
+	writeTimeout = 2 * pingInterval
 	maxQueue     = 2 * 1024 * 1024
 )
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin:      func(*http.Request) bool { return true },
 	Subprotocols:     []string{browserProtocol},
-	HandshakeTimeout: writeTimeout,
+	HandshakeTimeout: requestTimeout,
 }
 
 var channelID = regexp.MustCompile(`^[a-f0-9]{32}$`)
@@ -82,13 +82,8 @@ func (r *relay) upgrade(w http.ResponseWriter, req *http.Request) {
 		refuseUpgrade(w)
 		return
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	name := r.nameFor(token, !hosting)
-	host := r.live[name]
-	if r.closed || name == "" ||
-		(hosting && host != nil) ||
-		(!hosting && (host == nil || !host.control.open() || len(host.phones) >= maxPhones)) {
+	name, host := r.reserveUpgrade(token, hosting)
+	if host == nil {
 		refuseUpgrade(w)
 		return
 	}
@@ -98,13 +93,66 @@ func (r *relay) upgrade(w http.ResponseWriter, req *http.Request) {
 		req.Header.Set("Sec-WebSocket-Protocol", browserProtocol)
 	}
 	conn, err := upgrader.Upgrade(w, req, nil)
-	if err != nil {
+	if err == nil {
+		releasePendingConnection(req.Context())
+	}
+	r.finishUpgrade(name, host, hosting, conn)
+}
+
+func (r *relay) reserveUpgrade(token string, hosting bool) (string, *liveHost) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	name := r.nameFor(token, !hosting)
+	host := r.live[name]
+	if r.closed || name == "" {
+		return "", nil
+	}
+	if hosting {
+		if host != nil || len(r.live) >= maxHosts {
+			return "", nil
+		}
+		host = &liveHost{ready: make(chan struct{}), phones: make(map[string]*relaySocket)}
+		r.live[name] = host
+	} else {
+		if host != nil && host.control == nil {
+			r.mu.Unlock()
+			<-host.ready
+			r.mu.Lock()
+			if r.live[name] != host {
+				return "", nil
+			}
+		}
+		if !host.connected() || len(host.phones)+host.pendingPhones >= maxPhones {
+			return "", nil
+		}
+		host.pendingPhones++
+	}
+	return name, host
+}
+
+func (r *relay) finishUpgrade(name string, host *liveHost, hosting bool, conn *websocket.Conn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if hosting {
+		defer close(host.ready)
+	} else {
+		host.pendingPhones--
+	}
+	if r.live[name] != host || (!hosting && !host.connected()) {
+		if conn != nil {
+			_ = conn.Close()
+		}
+		return
+	}
+	if conn == nil {
+		if hosting {
+			delete(r.live, name)
+		}
 		return
 	}
 	socket := newSocket(conn)
 	if hosting {
-		host = &liveHost{control: socket, phones: make(map[string]*relaySocket)}
-		r.live[name] = host
+		host.control = socket
 		go r.readHost(name, host)
 		return
 	}
@@ -165,7 +213,7 @@ func (r *relay) handleControl(host *liveHost, data []byte) bool {
 		return true
 	}
 	if kind == "close" {
-		phone.stop()
+		phone.drain()
 	} else {
 		phone.send([]byte(*text))
 	}
@@ -185,6 +233,9 @@ func (r *relay) readPhone(host *liveHost, id string, phone *relaySocket) {
 		if !ok {
 			return
 		}
+		if phone.draining() {
+			continue
+		}
 		envelope, _ := json.Marshal(struct {
 			Type string `json:"type"`
 			ID   string `json:"id"`
@@ -203,6 +254,7 @@ type relaySocket struct {
 	mu          sync.Mutex
 	pending     [][]byte
 	queuedBytes int
+	drainTimer  *time.Timer
 	alive       atomic.Bool
 }
 
@@ -233,9 +285,27 @@ func (s *relaySocket) stop() {
 	s.closeLocked()
 }
 
+func (s *relaySocket) drain() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.open() && s.drainTimer == nil {
+		s.drainTimer = time.AfterFunc(writeTimeout, s.stop)
+		s.notifyWriter()
+	}
+}
+
+func (s *relaySocket) draining() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.drainTimer != nil
+}
+
 func (s *relaySocket) closeLocked() {
 	if s.open() {
 		close(s.done)
+		if s.drainTimer != nil {
+			s.drainTimer.Stop()
+		}
 		s.pending = nil
 		_ = s.conn.Close()
 	}
@@ -254,7 +324,7 @@ func frameCost(data []byte) int { return len(data) + 10 }
 func (s *relaySocket) send(data []byte) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.open() {
+	if !s.open() || s.drainTimer != nil {
 		return false
 	}
 	if s.queuedBytes+frameCost(data) > maxQueue {
@@ -276,6 +346,9 @@ func (s *relaySocket) write() {
 		case <-s.done:
 			return
 		case <-ticker.C:
+			if s.draining() {
+				continue
+			}
 			if !s.alive.Swap(false) ||
 				s.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)) != nil {
 				return
@@ -291,8 +364,9 @@ func (s *relaySocket) write() {
 func (s *relaySocket) writeNext() bool {
 	s.mu.Lock()
 	if len(s.pending) == 0 {
+		open := s.open() && s.drainTimer == nil
 		s.mu.Unlock()
-		return s.open()
+		return open
 	}
 	data := s.pending[0]
 	s.pending[0] = nil
@@ -307,6 +381,7 @@ func (s *relaySocket) writeNext() bool {
 	}
 	s.mu.Lock()
 	s.queuedBytes -= frameCost(data)
+	drained := s.drainTimer != nil && len(s.pending) == 0
 	s.mu.Unlock()
-	return true
+	return !drained
 }

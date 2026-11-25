@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -24,6 +25,7 @@ type relay struct {
 	directory     string
 	bootstrapHash string
 	keysPath      string
+	claimMu       sync.Mutex
 	mu            sync.Mutex
 	slots         map[string]ownerState
 	live          map[string]*liveHost
@@ -31,8 +33,14 @@ type relay struct {
 }
 
 type liveHost struct {
-	control *relaySocket
-	phones  map[string]*relaySocket
+	ready         chan struct{}
+	control       *relaySocket
+	phones        map[string]*relaySocket
+	pendingPhones int
+}
+
+func (h *liveHost) connected() bool {
+	return h != nil && h.control != nil && h.control.open()
 }
 
 func newRelay(directory, bootstrap, keysPath string) (*relay, error) {
@@ -120,7 +128,7 @@ func (r *relay) status(w http.ResponseWriter, req *http.Request) {
 	r.mu.Lock()
 	name := r.nameFor(bearer(req), false)
 	host := r.live[name]
-	connected := host != nil && host.control.open()
+	connected := host.connected()
 	r.mu.Unlock()
 	if name == "" {
 		refusal(w, 404, "not-found")
@@ -133,19 +141,35 @@ func (r *relay) status(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *relay) release(w http.ResponseWriter, req *http.Request) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	name := r.nameFor(bearer(req), false)
-	if name == "" {
-		refusal(w, 403, "release-refused")
+	status, code := r.releaseSlot(bearer(req))
+	if status != http.StatusOK {
+		refusal(w, status, code)
 		return
 	}
-	if err := saveSlot(slotPath(r.directory, name), ownerState{Released: true}, false); err != nil {
-		panic(http.ErrAbortHandler)
-	}
-	delete(r.slots, name)
-	r.dropHost(name)
 	writeJSON(w, 200, map[string]bool{"released": true})
+}
+
+func (r *relay) releaseSlot(token string) (int, string) {
+	r.claimMu.Lock()
+	defer r.claimMu.Unlock()
+	r.mu.Lock()
+	name := r.nameFor(token, false)
+	r.mu.Unlock()
+	if name == "" {
+		return 403, "release-refused"
+	}
+	err := saveSlot(slotPath(r.directory, name), ownerState{Released: true}, false)
+	if err == nil || wasPublished(err) {
+		r.mu.Lock()
+		delete(r.slots, name)
+		r.dropHost(name)
+		r.mu.Unlock()
+	}
+	if err != nil {
+		log.Printf("persist relay release: %v", err)
+		return 500, "release-storage-failed"
+	}
+	return 200, ""
 }
 
 func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
@@ -192,40 +216,55 @@ func (r *relay) claim(w http.ResponseWriter, req *http.Request) {
 	var owner, phone string
 	ownerErr := json.Unmarshal(input["ownerToken"], &owner)
 	phoneErr := json.Unmarshal(input["phoneToken"], &phone)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, err := os.Stat(path); err == nil {
-		refusal(w, 409, "already-claimed")
-		return
-	}
 	if ownerErr != nil || phoneErr != nil ||
 		!secretPattern.MatchString(owner) || !secretPattern.MatchString(phone) || owner == phone {
 		refusal(w, 400, "claim-invalid")
 		return
 	}
 	next := ownerState{Owner: digest(owner), Phone: digest(phone)}
-	if r.find(next.Owner, false) != "" || r.find(next.Owner, true) != "" ||
-		r.find(next.Phone, false) != "" || r.find(next.Phone, true) != "" {
-		refusal(w, 400, "claim-invalid")
+	status, code := r.claimSlot(name, next)
+	if status != http.StatusOK {
+		refusal(w, status, code)
 		return
 	}
-	if len(r.slots) >= maxHosts {
-		refusal(w, 409, "host-limit")
-		return
-	}
-	if err := saveSlot(path, next, true); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			refusal(w, 409, "already-claimed")
-		} else {
-			refusal(w, 400, "claim-invalid")
-		}
-		return
-	}
-	r.slots[name] = next
 	writeJSON(w, 200, struct {
 		Claimed bool   `json:"claimed"`
 		Host    string `json:"host"`
 	}{true, name})
+}
+
+func (r *relay) claimSlot(name string, next ownerState) (int, string) {
+	r.claimMu.Lock()
+	defer r.claimMu.Unlock()
+	path := slotPath(r.directory, name)
+	if _, err := os.Stat(path); err == nil {
+		return 409, "already-claimed"
+	}
+	r.mu.Lock()
+	duplicate := r.find(next.Owner, false) != "" || r.find(next.Owner, true) != "" ||
+		r.find(next.Phone, false) != "" || r.find(next.Phone, true) != ""
+	full := len(r.slots) >= maxHosts
+	r.mu.Unlock()
+	if duplicate {
+		return 400, "claim-invalid"
+	}
+	if full {
+		return 409, "host-limit"
+	}
+	err := saveSlot(path, next, true)
+	if err == nil || wasPublished(err) {
+		r.mu.Lock()
+		r.slots[name] = next
+		r.mu.Unlock()
+	}
+	if errors.Is(err, os.ErrExist) {
+		return 409, "already-claimed"
+	}
+	if err != nil {
+		log.Printf("persist relay claim: %v", err)
+		return 500, "claim-storage-failed"
+	}
+	return 200, ""
 }
 
 func (r *relay) dropHost(name string) {
@@ -238,7 +277,9 @@ func (r *relay) dropHost(name string) {
 }
 
 func (h *liveHost) stop() {
-	h.control.stop()
+	if h.control != nil {
+		h.control.stop()
+	}
 	for _, phone := range h.phones {
 		phone.stop()
 	}

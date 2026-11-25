@@ -8,7 +8,7 @@ Run the Tobs relay on a server you control. One deployment supports up to 16 com
 
 Install Docker with the Compose plugin. Copy the complete `deploy/private-relay` directory from a [Tobs release](https://github.com/BotHarness/DeepSeekBot/releases) that includes `tobs-relay` to a directory you control. Record the release tag. Multi-Host claims require Tobs 1.7.0 or later on the computer.
 
-Use a public DNS name pointing at the VPS, or the server's bare public IPv4 or IPv6 address. Open **inbound TCP 80 and 443 in your cloud firewall or security group** and in the server firewall. The relay uses Let's Encrypt HTTP-01 on port 80 by default and serves HTTPS on port 443. It automatically renews both DNS and short-lived IP certificates. Use the bare address for setup and bracket an IPv6 address in an HTTPS URL.
+Use a public DNS name pointing at the VPS, or the server's bare public IPv4 or IPv6 address. Open **inbound TCP 80 and 443 in your cloud firewall or security group** and in the server firewall. By default the relay handles Let's Encrypt HTTP-01 on port 80, redirects other requests to HTTPS on port 443, and renews DNS and short-lived IP certificates automatically. When it registers an ACME account, it accepts the certificate authority's terms. Review the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/) before starting the relay. Use the bare address for setup and bracket an IPv6 address in an HTTPS URL.
 
 ### Docker Compose
 
@@ -25,7 +25,11 @@ docker compose --project-name botharness-private --project-directory /opt/bothar
 
 Setup writes `.env` and `bootstrap.secret` with mode 0600 and prints the key file location and the HTTPS origin. Keep the files private. Compose loads its bootstrap key from `.env` into the container environment, which server administrators can inspect. The relay runs as an unprivileged user and saves only hashes in its claim records.
 
-If `tailscale serve` already listens on its interface at 443, set `RELAY_BIND_ADDRESS` in `.env` to the VPS ingress interface address, for example `RELAY_BIND_ADDRESS=10.0.0.4` when the cloud provider maps the public IP to that interface. The published ports then bind to that address. Use brackets for an IPv6 bind address.
+Use a filesystem that supports hard links for the setup files and relay data. The relay uses them to ensure each claim key can be used only once.
+
+On Linux, `tailscale serve` can already own port 443 on a Tailscale address such as `100.x.x.x` or `fd7a:…`. In that case the wildcard bind can fail. In `.env`, set `RELAY_BIND_ADDRESS` to the local address of the interface that receives public traffic. For example, if cloud NAT forwards the public IP to `10.0.0.4` on `eth0`, use `RELAY_BIND_ADDRESS=10.0.0.4`. Use brackets for an IPv6 bind address.
+
+`RELAY_BIND_ADDRESS` selects one address. For a DNS name with an AAAA record, Let's Encrypt can validate over IPv6. If you bind only IPv4, remove the AAAA record or add separate IPv6 port mappings for the same relay and ensure they are publicly reachable.
 
 ### Docker without Compose
 
@@ -34,7 +38,7 @@ Build the same image, then initialize a named volume and start one relay contain
 ```bash
 docker build -t tobs-relay:local .
 docker run --rm -v botharness-private-data:/data tobs-relay:local setup relay.example.com
-docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true --sysctl net.ipv4.ip_unprivileged_port_start=0 -p 80:80 -p 443:443 -v botharness-private-data:/data tobs-relay:local
+docker run -d --name botharness-private --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges:true -p 80:8080 -p 443:8443 -v botharness-private-data:/data tobs-relay:local
 ```
 
 ### Static binary
@@ -62,7 +66,9 @@ The first successful claim wins. A repeated or competing claim is refused. Relay
 
 ## More computers on one relay
 
-One deployment serves up to 16 computers. Each computer gets its own one-time claim key, its own owner credential and its own phone admission, so a phone paired with one computer cannot reach another through the relay, and releasing or revoking one computer never affects the others.
+One deployment serves up to 16 computers. Each computer can hold one control socket and 32 phone channels, for up to 528 upgraded WebSockets. Each listener separately allows 128 pending TCP and HTTP connections, with up to 32 per peer IP. A successful upgrade frees the pending slot. With a reverse proxy, pending connections are counted against the proxy's peer IP.
+
+Each computer gets its own one-time claim key, owner credential and phone admission. A phone paired with one computer can only reach that computer through the relay. Releasing a claim affects only that computer.
 
 On the server, create a key for each extra computer:
 
@@ -77,6 +83,8 @@ This writes `host-office-mac.secret` (the key, private to the server) and append
 For standalone Docker, run `docker run --rm -v botharness-private-data:/data tobs-relay:local add-host office-mac`. For the binary, run `./tobs-relay add-host office-mac` in the setup directory.
 
 To upgrade a Node and Caddy deployment, keep `.env`, `hosts/keys`, the setup key files, and the `relay-data` volume. Replace the deployment files in the same directory and run only the Compose `up --build --detach --remove-orphans` command above with the same project name. This releases Caddy's ports and starts the Go relay with the existing claims and pairings. Preserve the old Caddy volumes if you may roll back. For an older setup with no `hosts` directory, create it with `mkdir -p hosts` before starting Compose. The wire protocol is documented in [the relay standard](private-relay-standard.md), with a conformance script for third-party relays.
+
+The Node deployment files (`server.mjs`, `setup.mjs`, `Caddyfile`, and the Node entry points in `package.json`) and `scripts/test/private-relay.test.mjs` are legacy rollback material until [real-device acceptance #3746](https://github.com/BotHarness/DeepSeekBot/issues/3746) passes. For a rollback, use the deployment files from the previous release. The conformance client uses the Node dependencies and checks the Go relay over the same wire protocol.
 
 ## Failures and recovery
 

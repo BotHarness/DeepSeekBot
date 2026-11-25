@@ -14,13 +14,17 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
 
-const requestTimeout = 10 * time.Second
-const maxConnections = 256
+const (
+	requestTimeout  = 10 * time.Second
+	maxPendingConns = 128
+	maxPendingPerIP = 32
+)
 
 func envOr(name, fallback string) string {
 	if value := os.Getenv(name); value != "" {
@@ -135,9 +139,10 @@ func serve(ctx context.Context, o *options) error {
 
 	mainAddr := o.listen
 	var manager *certificateManager
+	var identity string
 	var challengeListener net.Listener
 	if o.tlsMode == "acme" {
-		identity, err := readIdentity(o.configDir)
+		identity, err = readIdentity(o.configDir)
 		if err != nil {
 			return err
 		}
@@ -160,17 +165,18 @@ func serve(ctx context.Context, o *options) error {
 		return err
 	}
 	defer listener.Close()
-	listener = &limitedListener{Listener: listener, permits: make(chan struct{}, maxConnections)}
+	listener = newPendingListener(listener)
 	if manager != nil {
 		listener = tls.NewListener(listener, manager.tlsConfig())
 	}
 	server := httpServer(relay)
+	server.ConnContext = pendingConnectionContext
 	defer server.Close()
 	failures := make(chan error, 2)
 	if challengeListener != nil {
-		challenges := httpServer(manager.challenges)
+		challenges := httpServer(challengeOrRedirect(identity, manager.challenges))
 		defer challenges.Close()
-		bounded := &limitedListener{Listener: challengeListener, permits: make(chan struct{}, maxConnections)}
+		bounded := newPendingListener(challengeListener)
 		go func() { failures <- challenges.Serve(bounded) }()
 	}
 	go func() { failures <- server.Serve(listener) }()
@@ -186,36 +192,91 @@ func serve(ctx context.Context, o *options) error {
 	}
 }
 
-type limitedListener struct {
-	net.Listener
-	permits chan struct{}
+func challengeOrRedirect(identity string, challenges http.Handler) http.Handler {
+	origin := httpsOrigin(identity)
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasPrefix(req.URL.Path, "/.well-known/acme-challenge/") {
+			challenges.ServeHTTP(w, req)
+			return
+		}
+		http.Redirect(w, req, origin+req.URL.RequestURI(), http.StatusPermanentRedirect)
+	})
 }
 
-func (l *limitedListener) Accept() (net.Conn, error) {
+type pendingListener struct {
+	net.Listener
+	mu    sync.Mutex
+	total int
+	byIP  map[string]int
+}
+
+func newPendingListener(listener net.Listener) *pendingListener {
+	return &pendingListener{Listener: listener, byIP: make(map[string]int)}
+}
+
+func (l *pendingListener) Accept() (net.Conn, error) {
 	for {
 		conn, err := l.Listener.Accept()
 		if err != nil {
 			return nil, err
 		}
-		select {
-		case l.permits <- struct{}{}:
-			return &limitedConnection{Conn: conn, release: func() { <-l.permits }}, nil
-		default:
-			_ = conn.Close()
+		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+		if l.acquire(ip) {
+			return &pendingConnection{Conn: conn, release: func() { l.release(ip) }}, nil
 		}
+		_ = conn.Close()
 	}
 }
 
-type limitedConnection struct {
+func (l *pendingListener) acquire(ip string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.total >= maxPendingConns || l.byIP[ip] >= maxPendingPerIP {
+		return false
+	}
+	l.total++
+	l.byIP[ip]++
+	return true
+}
+
+func (l *pendingListener) release(ip string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.total--
+	l.byIP[ip]--
+	if l.byIP[ip] == 0 {
+		delete(l.byIP, ip)
+	}
+}
+
+type pendingConnection struct {
 	net.Conn
 	release func()
 	once    sync.Once
 }
 
-func (c *limitedConnection) Close() error {
+func (c *pendingConnection) Close() error {
 	err := c.Conn.Close()
 	c.once.Do(c.release)
 	return err
+}
+
+type pendingConnectionKey struct{}
+
+func pendingConnectionContext(ctx context.Context, conn net.Conn) context.Context {
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		conn = tlsConn.NetConn()
+	}
+	if pending, ok := conn.(*pendingConnection); ok {
+		return context.WithValue(ctx, pendingConnectionKey{}, pending)
+	}
+	return ctx
+}
+
+func releasePendingConnection(ctx context.Context) {
+	if pending, ok := ctx.Value(pendingConnectionKey{}).(*pendingConnection); ok {
+		pending.once.Do(pending.release)
+	}
 }
 
 func health(ctx context.Context, o *options) error {

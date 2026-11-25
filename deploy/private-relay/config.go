@@ -7,18 +7,33 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
+var (
+	sharedConnectHost = regexp.MustCompile(`^h[a-z2-7]{12}\.(botharness\.dev|kite-u\.com|tobs\.app|deepseekbot\.app|botharness\.ai)$`)
+	carrierGradeNAT   = netip.MustParsePrefix("100.64.0.0/10")
+)
+
 func relayIdentity(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSuffix(value, "."))
+	if value == "localhost" || strings.HasPrefix(value, "127.") ||
+		strings.HasSuffix(value, ".ts.net") ||
+		value == "deepseekbot.dev" || strings.HasSuffix(value, ".deepseekbot.dev") ||
+		sharedConnectHost.MatchString(value) {
+		return "", errors.New("the Host refuses loopback, Tailscale, and built-in Connect addresses; use a public relay DNS name or IP address")
+	}
 	if ip, err := netip.ParseAddr(value); err == nil {
 		ip = ip.Unmap()
+		if carrierGradeNAT.Contains(ip) {
+			return "", errors.New("the Host refuses carrier-grade NAT addresses (100.64.0.0/10); use a public relay IP address")
+		}
 		if ip.IsGlobalUnicast() && !ip.IsPrivate() && ip.Zone() == "" {
 			return ip.String(), nil
 		}
 		return "", errors.New("use a public IP address")
 	}
-	value = strings.ToLower(strings.TrimSuffix(value, "."))
 	labels := strings.Split(value, ".")
 	if len(value) > 253 || len(labels) < 2 {
 		return "", errors.New("use a public DNS name or IP address")
@@ -66,6 +81,9 @@ func setup(directory, address string) error {
 	}
 	env := "RELAY_DOMAIN=" + identity + "\nRELAY_BOOTSTRAP=" + token + "\n"
 	if err := writeAtomic(envPath, []byte(env), 0600, true); err != nil {
+		if wasPublished(err) {
+			return err
+		}
 		return errors.Join(err, os.Remove(keyPath))
 	}
 	fmt.Printf("Relay origin: %s\nSetup key file: %s\n", httpsOrigin(identity), keyPath)
