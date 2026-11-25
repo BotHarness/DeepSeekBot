@@ -295,12 +295,18 @@ try {
   await page.goto(instance.url, { waitUntil: 'networkidle2', timeout: 30_000 });
   await page.waitForSelector('button[aria-label="Bot mode"]', { timeout: 30_000 });
   const dismissOnboarding = async () => {
-    for (let round = 0; round < 6; round++) {
+    let quiet = 0;
+    for (let round = 0; round < 60 && quiet < 6; round++) {
+      let dismissed = false;
       for (const label of ['Continue', 'Configure later', 'Skip tutorial', 'Skip']) {
         const handle = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
-        if (handle && (await handle.isVisible())) await handle.click();
+        if (handle && (await handle.isVisible())) {
+          await handle.click();
+          dismissed = true;
+        }
       }
-      await new Promise((done) => setTimeout(done, 250));
+      quiet = dismissed ? 0 : quiet + 1;
+      await new Promise((done) => setTimeout(done, 500));
     }
   };
   await dismissOnboarding();
@@ -368,12 +374,22 @@ try {
     );
     await capturePage(phase);
   };
+  const assertSelected = async () => {
+    const selected = await page.$$eval('[aria-current="page"][data-channel-id]', (rows) => [
+      ...new Set(rows.filter((e) => e.checkVisibility()).map((e) => e.dataset.channelId)),
+    ]);
+    if (selected.length !== 1 || selected[0] !== created.dm.channelId)
+      throw new Error('selected-channel-is-not-the-created-Bot');
+  };
   stage = 'observe-Access-off';
   await page.waitForSelector('button[aria-label="Enable Computer Access"]', { timeout: 15000 });
+  await assertSelected();
   await observe('off');
   stage = 'enable-Computer-Access';
+  await assertSelected();
   await click('Enable Computer Access');
   await page.waitForSelector('button[aria-label="Disable Computer Access"]', { timeout: 15000 });
+  await assertSelected();
   await click('Start');
   await page.waitForSelector('::-p-aria([name="Authorize and start"][role="button"])', {
     visible: true,
@@ -381,6 +397,7 @@ try {
   await observe('authorized');
   assertOwned(authority());
   stage = 'start-from-panel';
+  await assertSelected();
   startAttempted = true;
   await click('Authorize and start');
   save('running.json', await waitForState('running'));
@@ -470,6 +487,7 @@ try {
   run.actions.push({ click: 'Leave fullscreen', at: new Date().toISOString() });
   await page.waitForSelector(leave, { hidden: true, timeout: 15_000 });
   stage = 'stop-from-panel';
+  await assertSelected();
   assertOwned(authority());
   if (inspect().id !== container.id) throw new Error('Computer identity changed before stop');
   await page.locator(`${panel} ::-p-aria([name="Stop"][role="button"])`).click();
