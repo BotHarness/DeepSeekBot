@@ -8,6 +8,14 @@ import {
 import type { SessionOwnership } from '../../sessions/ownership.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
 import type { NativeSessions } from './host-sessions.js';
+import {
+  externalSessionLabel,
+  isExternalSessionId,
+  parseExternalSessionId,
+  renderExternalSessionMarkdown,
+  type ExternalSessionReader,
+  type ExternalSessionSource,
+} from './external-sessions.js';
 
 export const SESSION_SEED_MAX = 50;
 export const WORKSPACE_SESSION_LIST_MAX = 100;
@@ -16,6 +24,7 @@ const TITLE_CHARS = 120;
 
 export interface WorkspaceSessionSummary {
   sessionId: string;
+  source?: ExternalSessionSource;
   title?: string;
   cwd: string;
   lastActivityAt: string;
@@ -128,6 +137,7 @@ export function renderSessionMarkdown(session: {
 export function createWorkspaceSessionReader(
   service: () => NativeSessions | undefined,
   ownership: Pick<SessionOwnership, 'resolve'>,
+  external?: ExternalSessionReader,
 ): WorkspaceSessionReader {
   const native = (): NativeSessions => {
     const found = service();
@@ -142,23 +152,52 @@ export function createWorkspaceSessionReader(
       if (roots().length === 0) return [];
       const rows = await native().list();
       const current = roots();
-      return rows
+      const imported = external === undefined ? [] : await external.list().catch(() => []);
+      const native_ = rows
         .filter(
           (row) =>
             row.parentSessionId === undefined &&
             ownership.resolve(row.sessionId) === undefined &&
             inside(current, row.cwd),
         )
-        .sort((a, b) => (b.lastPromptAt ?? b.updatedAt) - (a.lastPromptAt ?? a.updatedAt))
-        .slice(0, WORKSPACE_SESSION_LIST_MAX)
         .map((row) => ({
-          sessionId: row.sessionId,
-          ...(row.title === undefined ? {} : { title: row.title }),
-          cwd: row.cwd!,
-          lastActivityAt: new Date(row.lastPromptAt ?? row.updatedAt).toISOString(),
+          at: row.lastPromptAt ?? row.updatedAt,
+          summary: {
+            sessionId: row.sessionId,
+            ...(row.title === undefined ? {} : { title: row.title }),
+            cwd: row.cwd!,
+            lastActivityAt: new Date(row.lastPromptAt ?? row.updatedAt).toISOString(),
+          } satisfies WorkspaceSessionSummary,
         }));
+      const others = imported
+        .filter((row) => inside(current, row.cwd))
+        .map((row) => ({
+          at: row.lastActivityAt,
+          summary: {
+            sessionId: row.sessionId,
+            source: row.source,
+            ...(row.title === undefined ? {} : { title: row.title }),
+            cwd: row.cwd,
+            lastActivityAt: new Date(row.lastActivityAt).toISOString(),
+          } satisfies WorkspaceSessionSummary,
+        }));
+      return [...native_, ...others]
+        .sort((a, b) => b.at - a.at)
+        .slice(0, WORKSPACE_SESSION_LIST_MAX)
+        .map((row) => row.summary);
     },
     async read(roots, sessionId) {
+      if (isExternalSessionId(sessionId)) {
+        const snapshot = await external?.read(sessionId).catch(() => undefined);
+        if (snapshot === undefined)
+          throw new WorkspaceSessionError('session-not-found', `No readable session ${sessionId}.`);
+        if (!inside(roots(), snapshot.cwd))
+          throw new WorkspaceSessionError(
+            'session-outside-grant',
+            `Session ${sessionId} did not work in one of your Workspace Grants.`,
+          );
+        return renderExternalSessionMarkdown(snapshot);
+      }
       const sessions = native();
       const missing = new WorkspaceSessionError(
         'session-not-found',
@@ -202,12 +241,22 @@ export function sessionSeedMessage(
       TITLE_CHARS,
     );
     const where = session.cwd === undefined ? '' : `${folderName(session.cwd)}, `;
-    return `- ${title} (${where}\`${session.sessionId}\`)`;
+    const parsed = parseExternalSessionId(session.sessionId);
+    const from = parsed === undefined ? '' : `${externalSessionLabel(parsed.source)}, `;
+    return `- ${title} (${from}${where}\`${session.sessionId}\`)`;
   });
+  const products = [
+    ...new Set(
+      sessions.map((session) => {
+        const parsed = parseExternalSessionId(session.sessionId);
+        return parsed === undefined ? 'DeepSeek' : externalSessionLabel(parsed.source);
+      }),
+    ),
+  ].join(language === 'zh' ? '、' : ', ');
   const folders = workspaces.map((path) => `- \`${path}\``);
   if (language === 'zh')
     return [
-      '你是根据我在 DeepSeek 里的这些 Session 创建的，之后由你来负责这个项目。请用 `workspace_sessions` 工具逐个读完它们，了解项目本身、我的工作方式和偏好，然后：',
+      `你是根据我在 ${products} 里的这些 Session 创建的，之后由你来负责这个项目。请用 \`workspace_sessions\` 工具逐个读完它们，了解项目本身、我的工作方式和偏好，然后：`,
       '',
       '1. 在 SOUL.md 里写下你在这个项目里的角色、职责和工作方式；',
       '2. 在 MEMORY.md 和其他记忆文件里记下值得长期记住的事实和决定，只记要点，不要整段复制对话；',
@@ -220,7 +269,7 @@ export function sessionSeedMessage(
       ...folders,
     ].join('\n');
   return [
-    'You were created from these DeepSeek Sessions of mine, and you will look after this project from now on. Read each of them with the `workspace_sessions` tool to learn the project, how I work and what I prefer. Then:',
+    `You were created from these ${products} sessions of mine, and you will look after this project from now on. Read each of them with the \`workspace_sessions\` tool to learn the project, how I work and what I prefer. Then:`,
     '',
     '1. Write your role, responsibilities and way of working on this project in SOUL.md.',
     '2. Record the facts and decisions worth keeping in MEMORY.md and other Memory files. Keep the key points; do not copy whole conversations.',

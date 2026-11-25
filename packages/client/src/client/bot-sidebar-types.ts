@@ -66,7 +66,12 @@ export interface PinDragState {
 
 export type CreateRequest =
   | { kind: 'bot-source'; sectionId?: string }
-  | { kind: 'bot'; source: 'empty' | 'git' | 'zip' | 'sessions'; sectionId?: string }
+  | {
+      kind: 'bot';
+      source: 'empty' | 'git' | 'zip' | 'sessions';
+      sectionId?: string;
+      product?: import('@botharness/host-client/session-bot').ImportProduct;
+    }
   | {
       kind: 'section';
       moveChannelId?: string;

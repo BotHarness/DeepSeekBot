@@ -425,6 +425,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botImportLookup',
   'createFromGit',
   'createFromSessions',
+  'externalSessions',
   'update',
   'dataResetPreview',
   'dataResetConfirm',

@@ -25,6 +25,7 @@ const row = (
 ): ImportableSession => ({
   sessionId,
   source: { kind: 'native' },
+  product: 'deepseek',
   cwd,
   workspacePath: cwd === '/work/app/api' ? '/work/app' : cwd,
   folderName: cwd.split('/').pop()!,
@@ -170,6 +171,74 @@ it('retries a failed creation with the same operation key', async () => {
     );
     expect(first).toMatch(/^sessions:/);
     expect(second).toBe(first);
+  } finally {
+    await act(() => root.unmount());
+    node.remove();
+  }
+});
+
+it('filters to one product and says which session folders become Workspaces', async () => {
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const createBotFromSessions = vi.fn(async () => ({}) as never);
+  const imported: ImportableSession[] = [
+    {
+      ...row('claude-code:c1', '/home/me/shop', 1, 'Checkout'),
+      product: 'claude-code',
+      workspacePath: '/home/me/shop',
+      addsWorkspace: true,
+    },
+    {
+      ...row('claude-code:c2', '/home/me/shop/web', 2),
+      product: 'claude-code',
+      workspacePath: '/home/me/shop/web',
+      addsWorkspace: true,
+    },
+    { ...row('codex:x1', '/work/app', 3, 'Rate limit'), product: 'codex' },
+  ];
+  try {
+    await act(() =>
+      root.render(
+        createElement(CreateBotFromSessionsModal, {
+          t,
+          product: 'claude-code',
+          actions: {
+            importableSessions: async () => [...rows, ...imported],
+            createBotFromSessions,
+          },
+          onCancel: vi.fn(),
+          onCreated: vi.fn(),
+        }),
+      ),
+    );
+    await act(async () => {});
+    const listed = [...document.body.querySelectorAll('[data-session-row]')].map((item) =>
+      item.getAttribute('data-session-row'),
+    );
+    expect(listed).toEqual(['claude-code:c1', 'claude-code:c2']);
+    expect(document.body.textContent).toContain('Claude Code · shop');
+    await act(() => document.body.querySelector<HTMLButtonElement>('[data-sessions-all]')!.click());
+    expect(document.body.querySelector('[data-sessions-grants]')?.textContent).toBe(
+      '/home/me/shop（将添加为工作区）',
+    );
+    const name = document.body.querySelector<HTMLInputElement>('input:not([type="checkbox"])')!;
+    await act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(name, 'Shop keeper');
+      name.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[data-sessions-create]')!.click(),
+    );
+    expect(createBotFromSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionIds: ['claude-code:c1', 'claude-code:c2'],
+        workspacePaths: ['/home/me/shop'],
+        addWorkspaces: true,
+      }),
+      undefined,
+    );
   } finally {
     await act(() => root.unmount());
     node.remove();

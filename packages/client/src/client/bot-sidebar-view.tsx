@@ -161,7 +161,17 @@ export function useBotSidebar(
   const createFromWelcome = useMountedResource<HTMLSpanElement>(
     () =>
       onCreationRequest((intent) =>
-        setCreateRequest(intent === 'bot' ? { kind: 'bot', source: 'empty' } : { kind: 'channel' }),
+        setCreateRequest(
+          intent === 'bot'
+            ? { kind: 'bot', source: 'empty' }
+            : intent === 'channel'
+              ? { kind: 'channel' }
+              : {
+                  kind: 'bot',
+                  source: 'sessions',
+                  ...(intent.product === undefined ? {} : { product: intent.product }),
+                },
+        ),
       ),
     [],
   );

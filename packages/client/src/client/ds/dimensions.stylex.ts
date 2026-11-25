@@ -13,4 +13,5 @@ export const dimension = stylex.defineConsts({
   hiddenChannelListMaxHeight: '360px',
   scheduleHistoryMaxHeight: '200px',
   questionCardWidth: '380px',
+  introToolCardMinWidth: '180px',
 });

@@ -468,7 +468,13 @@ export function createRuntime(
   return createBotRuntime({
     ...(options.nativeSessions === undefined
       ? {}
-      : { workspaceSessions: createWorkspaceSessionReader(options.nativeSessions, ownership) }),
+      : {
+          workspaceSessions: createWorkspaceSessionReader(
+            options.nativeSessions,
+            ownership,
+            options.externalSessions,
+          ),
+        }),
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     inheritedModelPlan: () => {

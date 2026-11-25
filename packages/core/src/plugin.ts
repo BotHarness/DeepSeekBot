@@ -66,6 +66,7 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
 
@@ -312,6 +313,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     routingDefaults,
   );
   let hostNativeSessions: NativeSessions | undefined;
+  const externalSessions = createExternalSessionReader();
   const core = createCore(
     Object.assign(
       createHostCoreOptions(ctx, {
@@ -343,7 +345,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           return imCommandServices;
         },
       }),
-      { nativeSessions: () => hostNativeSessions },
+      { nativeSessions: () => hostNativeSessions, externalSessions },
     ),
   );
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
@@ -579,6 +581,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
+    externalSessions,
     nativeSessions: (hostNativeSessions = dshHostSessions(
       ctx,
       dshSessions,

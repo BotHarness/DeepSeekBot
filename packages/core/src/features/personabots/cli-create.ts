@@ -179,7 +179,7 @@ export interface ValidatedCreate {
     | { kind: 'git'; gitUrl: string }
     | { kind: 'zip'; path: string }
     | { kind: 'dir'; path: string }
-    | { kind: 'sessions'; sessionIds: string[] };
+    | { kind: 'sessions'; sessionIds: string[]; addWorkspaces?: true };
 }
 
 export async function validatedCreate(
@@ -275,7 +275,11 @@ export async function validatedCreate(
       roles,
       description,
       presetId,
-      source: { kind: 'sessions', sessionIds },
+      source: {
+        kind: 'sessions',
+        sessionIds,
+        ...(values['add-workspaces'] === true ? { addWorkspaces: true as const } : {}),
+      },
     };
   }
   if (zip !== undefined) {

@@ -482,6 +482,7 @@ export interface BridgeMethodsDeps
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   nativeSessions?: NativeSessions;
+  externalSessions?: import('../features/sessions/external-sessions.js').ExternalSessionReader;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -796,6 +797,7 @@ function buildBridgeMethods(
     botImportPreview: personabotsMethods.botImportPreview,
     createFromGit: personabotsMethods.createFromGit,
     createFromSessions: sessionBots.createFromSessions,
+    externalSessions: sessionBots.externalSessions,
     ...marketplaceReads,
     releaseInfo: releaseAdapterMethods.releaseInfo,
     releaseUpdate: releaseAdapterMethods.releaseUpdate,

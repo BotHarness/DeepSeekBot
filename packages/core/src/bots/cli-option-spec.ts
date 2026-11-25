@@ -452,6 +452,7 @@ export const BOT_CLI_OPTIONS = {
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
   'from-sessions': { type: 'string' },
+  'add-workspaces': { type: 'boolean' },
   'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },

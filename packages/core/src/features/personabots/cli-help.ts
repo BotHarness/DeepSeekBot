@@ -301,10 +301,13 @@ Sources (exactly one per create):
   --from-zip   import a bot bundle zip (same shape as the bot-zip export)
   --from-dir   import a bot bundle directory (same shape as the bot-zip export;
                a .git subtree is skipped as files but packed as history)
-  --from-sessions  blank Bot seeded from up to 50 DeepSeek Session IDs on a live
-               Host (see session-list --source native): grants each Session's
-               Workspace and sends a first DM asking the Bot to read them with
-               workspace_sessions; repeat with the same --operation-key to recover
+  --from-sessions  blank Bot seeded from up to 50 Session IDs on a live Host:
+               DeepSeek Sessions (session-list --source native) or Claude Code
+               and Codex sessions (session-import-list, ids like
+               claude-code:<id>); grants each Session's Workspace and sends a
+               first DM asking the Bot to read them with workspace_sessions;
+               --add-workspaces adds a session folder no Workspace contains;
+               repeat with the same --operation-key to recover
 
 Machine contract:
   stdout carries exactly one JSON document. Success exits 0 with the bot id,

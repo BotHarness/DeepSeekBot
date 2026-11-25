@@ -243,6 +243,7 @@ export function renderLocalCreationDialogs({
           target={<LocalCreationTarget t={t} />}
           t={t}
           actions={actions}
+          product={createRequest.product}
           {...(createSectionId === undefined ? {} : { sectionId: createSectionId })}
           onCancel={() => setCreateRequest(undefined)}
           onCreated={() => setCreateRequest(undefined)}

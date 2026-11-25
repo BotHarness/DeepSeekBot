@@ -2,8 +2,12 @@ import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
 import {
+  grantPreview,
+  IMPORT_PRODUCTS,
   latestSessionIds,
+  productCounts,
   type ImportableSession,
+  type ImportProduct,
   SESSION_BOT_MAX,
   sessionActivityAt,
   sessionWorkspaces,
@@ -50,9 +54,26 @@ const styles = stylex.create({
   list: { minWidth: 0 },
 });
 
-export function sessionSummary(row: HostSessionRow, now: number, t: BotHarnessTranslate): string {
+export const IMPORT_PRODUCT_NAMES: Readonly<Record<ImportProduct, string>> = {
+  deepseek: 'DeepSeek',
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+};
+
+export function sessionSummary(
+  row: HostSessionRow & { product?: ImportProduct },
+  now: number,
+  t: BotHarnessTranslate,
+): string {
   const when = formatRelativeTime(sessionActivityAt(row), now, t);
-  return row.folderName === undefined ? when : `${row.folderName} · ${when}`;
+  const parts = [
+    ...(row.product === undefined || row.product === 'deepseek'
+      ? []
+      : [IMPORT_PRODUCT_NAMES[row.product]]),
+    ...(row.folderName === undefined ? [] : [row.folderName]),
+    when,
+  ];
+  return parts.join(' · ');
 }
 
 export function CreateBotFromSessionsModal({
@@ -60,6 +81,7 @@ export function CreateBotFromSessionsModal({
   sectionId,
   t,
   target,
+  product: initialProduct,
   onBack,
   onCancel,
   onCreated,
@@ -68,6 +90,7 @@ export function CreateBotFromSessionsModal({
   sectionId?: string;
   t: BotHarnessTranslate;
   target?: ReactNode;
+  product?: ImportProduct | undefined;
   onBack?: (() => void) | undefined;
   onCancel: () => void;
   onCreated: () => void;
@@ -75,6 +98,7 @@ export function CreateBotFromSessionsModal({
   const [rows, setRows] = useState<ImportableSession[]>();
   const [loadError, setLoadError] = useState<unknown>();
   const [workspace, setWorkspace] = useState(ALL);
+  const [product, setProduct] = useState<ImportProduct | typeof ALL>(initialProduct ?? ALL);
   const [latest, setLatest] = useState(LATEST_DEFAULT);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [displayName, setDisplayName] = useState('');
@@ -99,18 +123,15 @@ export function CreateBotFromSessionsModal({
     };
   }, [actions]);
 
-  const workspaces = rows === undefined ? [] : sessionWorkspaces(rows);
+  const counts = productCounts(rows ?? []);
+  const products = IMPORT_PRODUCTS.filter((id) => counts[id] > 0);
+  const scoped =
+    rows === undefined ? [] : rows.filter((row) => product === ALL || row.product === product);
+  const workspaces = sessionWorkspaces(scoped);
   const scope = workspace === ALL ? undefined : workspace;
-  const visible =
-    rows === undefined
-      ? []
-      : rows.filter((row) => scope === undefined || row.workspacePath === scope);
+  const visible = scoped.filter((row) => scope === undefined || row.workspacePath === scope);
   const over = selected.size > SESSION_BOT_MAX;
-  const granted = [
-    ...new Set(
-      (rows ?? []).flatMap((row) => (selected.has(row.sessionId) ? [row.workspacePath] : [])),
-    ),
-  ].sort();
+  const { paths: granted, added } = grantPreview(rows ?? [], selected);
   const invalid = displayName.trim().length === 0 || selected.size === 0 || over;
   const toggle = (id: string, on: boolean): void =>
     setSelected((current) => {
@@ -144,6 +165,7 @@ export function CreateBotFromSessionsModal({
           operationKey: attempt.current.key,
           language: marketplaceLanguage(t),
           workspacePaths: granted,
+          ...(added.length === 0 ? {} : { addWorkspaces: true }),
         },
         sectionId,
       )
@@ -214,6 +236,25 @@ export function CreateBotFromSessionsModal({
             ) : (
               <>
                 <div {...stylex.props(styles.bar)}>
+                  {products.length > 1 ? (
+                    <Select
+                      label={t('bot.create.sessions.product')}
+                      value={product}
+                      align="start"
+                      disabled={creating}
+                      options={[
+                        { value: ALL, label: t('bot.create.sessions.allProducts') },
+                        ...products.map((id) => ({
+                          value: id,
+                          label: `${IMPORT_PRODUCT_NAMES[id]} (${counts[id]})`,
+                        })),
+                      ]}
+                      onChange={(next) => {
+                        setProduct(next as ImportProduct | typeof ALL);
+                        setWorkspace(ALL);
+                      }}
+                    />
+                  ) : null}
                   <Select
                     label={t('bot.create.sessions.workspace')}
                     value={workspace}
@@ -312,7 +353,9 @@ export function CreateBotFromSessionsModal({
           {() => (
             <div data-sessions-grants="" {...stylex.props(styles.bar)}>
               {granted.map((cwd) => (
-                <Tag key={cwd}>{cwd}</Tag>
+                <Tag key={cwd}>
+                  {added.includes(cwd) ? t('bot.create.sessions.addFolder', { path: cwd }) : cwd}
+                </Tag>
               ))}
             </div>
           )}

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { statSync } from 'node:fs';
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
 import {
   asObject,
@@ -21,6 +22,15 @@ import {
   sessionSeedIds,
   sessionSeedMessage,
 } from './workspace-sessions.js';
+import { isExternalSessionId, type ExternalSessionSummary } from './external-sessions.js';
+
+function isFolder(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 export interface SessionBotCreated {
   bot: PersonaBotDetail;
@@ -53,6 +63,16 @@ export function createSessionBotMethods(
   send: Send,
 ) {
   return {
+    async externalSessions(): Promise<BridgeResult<{ sessions: ExternalSessionSummary[] }>> {
+      if (human.caller === 'bot' || !isHostOwner())
+        return failure('permission-required', 'Host Owner permission is required');
+      if (deps.externalSessions === undefined)
+        return failure('unavailable', 'Reading other products is unavailable on this Host.');
+      const sessions = await deps.externalSessions.list().catch(() => undefined);
+      if (sessions === undefined)
+        return failure('unavailable', 'The Host could not read sessions from other products.');
+      return { ok: true, value: { sessions } };
+    },
     async createFromSessions(payload: unknown): Promise<BridgeResult<SessionBotCreated>> {
       if (human.caller === 'bot' || !isHostOwner())
         return failure('permission-required', 'Host Owner permission is required');
@@ -80,6 +100,7 @@ export function createSessionBotMethods(
         (!Array.isArray(previewed) || !previewed.every((path) => typeof path === 'string'))
       )
         return invalidInput('workspacePaths must list the previewed Workspace paths');
+      const addFolders = source['addWorkspaces'] === true;
       const { nativeSessions, creations, grants } = deps;
       if (nativeSessions === undefined || creations === undefined || grants === undefined)
         return failure(
@@ -91,7 +112,22 @@ export function createSessionBotMethods(
       if (rows === undefined) return failure('unavailable', 'Host Sessions are unavailable');
       const byId = new Map(rows.map((row) => [row.sessionId, row]));
       const seeds: { sessionId: string; title?: string; cwd: string }[] = [];
+      const others = sessionIds.some(isExternalSessionId)
+        ? await (deps.externalSessions?.list() ?? Promise.resolve([])).catch(() => [])
+        : [];
+      const otherById = new Map(others.map((row) => [row.sessionId, row]));
       for (const id of sessionIds) {
+        if (isExternalSessionId(id)) {
+          const other = otherById.get(id);
+          if (other === undefined)
+            return failure('session-not-found', `Unknown imported session: ${id}`);
+          seeds.push({
+            sessionId: id,
+            ...(other.title === undefined ? {} : { title: other.title }),
+            cwd: other.cwd,
+          });
+          continue;
+        }
         const row = byId.get(id);
         if (
           row === undefined ||
@@ -109,16 +145,21 @@ export function createSessionBotMethods(
       }
       const available = grants.availableWorkspaces();
       const workspaces = new Map<string, { id: string; path: string }>();
+      const missing = new Set<string>();
       for (const seed of seeds) {
         const match = available
           .filter((workspace) => pathWithin(workspace.path, seed.cwd))
           .sort((a, b) => b.path.length - a.path.length)[0];
-        if (match === undefined)
-          return failure('workspace-unavailable', `No DSH Workspace contains ${seed.cwd}`);
-        workspaces.set(match.id, match);
+        if (match !== undefined) workspaces.set(match.id, match);
+        else if (addFolders && deps.registerWorkspace !== undefined && isFolder(seed.cwd))
+          missing.add(seed.cwd);
+        else return failure('workspace-unavailable', `No DSH Workspace contains ${seed.cwd}`);
       }
+      const outermost = [...missing].filter(
+        (path) => ![...missing].some((other) => other !== path && pathWithin(other, path)),
+      );
       const resolved = [
-        ...new Set([...workspaces.values()].map((workspace) => workspace.path)),
+        ...new Set([...[...workspaces.values()].map((workspace) => workspace.path), ...outermost]),
       ].sort();
       if (
         previewed !== undefined &&
@@ -129,19 +170,30 @@ export function createSessionBotMethods(
           `These Sessions would grant ${resolved.join(', ')}; review the Workspaces and try again.`,
         );
 
+      try {
+        for (const path of outermost) {
+          const added = await deps.registerWorkspace!(path);
+          workspaces.set(added.id, added);
+        }
+      } catch {
+        return failure(
+          'workspace-register-failed',
+          'The Host could not add a session folder as a Workspace.',
+        );
+      }
+
       let created;
+      let fresh = false;
       try {
         const soul = persona.value?.trim();
-        created = creations.create(
-          {
-            displayName: displayName.trim(),
-            ...(soul ? { persona: soul } : {}),
-            ...(description.value === undefined ? {} : { description: description.value }),
-            ...(roles.value === undefined ? {} : { roles: roles.value }),
-          },
-          operationKey,
-          { kind: 'sessions-v1', sessionIds },
-        );
+        const input = {
+          displayName: displayName.trim(),
+          ...(soul ? { persona: soul } : {}),
+          ...(description.value === undefined ? {} : { description: description.value }),
+          ...(roles.value === undefined ? {} : { roles: roles.value }),
+        };
+        fresh = creations.lookup(operationKey, input) === undefined;
+        created = creations.create(input, operationKey, { kind: 'sessions-v1', sessionIds });
       } catch (error) {
         if (error instanceof BotCreationError) return failure(error.code, error.message);
         throw error;
@@ -169,6 +221,13 @@ export function createSessionBotMethods(
         ),
       });
       if (!sent.ok) return sent;
+      if (fresh)
+        deps.telemetry?.capture?.('bot_library:sessions_import', {
+          has_deepseek: sessionIds.some((id) => !isExternalSessionId(id)),
+          has_claude_code: sessionIds.some((id) => id.startsWith('claude-code:')),
+          has_codex: sessionIds.some((id) => id.startsWith('codex:')),
+          added_workspace: outermost.length > 0,
+        });
       return {
         ok: true,
         value: {

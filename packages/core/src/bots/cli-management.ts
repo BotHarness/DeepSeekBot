@@ -438,6 +438,7 @@ export async function runOnlineManagement(
           }>('createFromSessions', {
             ...metadata,
             sessionIds: create.source.sessionIds,
+            ...(create.source.addWorkspaces === true ? { addWorkspaces: true } : {}),
             ...(create.persona === undefined ? {} : { persona: create.persona }),
             ...(operationKey === undefined ? {} : { operationKey }),
           })

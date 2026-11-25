@@ -157,3 +157,17 @@ The Host Owner can create a blank PersonaBot from up to 50 of their own DeepSeek
 Why: a user who already works on a project in DeepSeek wants a Bot that looks after that project. Copying transcripts into Memory would freeze a noisy snapshot and still leave the Bot without access to the files. This is an explicit grant chosen by the Human, unlike [Bot Zip](#adr-0135) import, which never inherits Grants.
 
 Enforced by: [Session reads and seed message](../../packages/core/test/workspace-sessions.test.ts), [creation, Grants and idempotency](../../packages/core/test/session-bot-create.test.ts), [CLI](../../packages/core/test/bot-create-from-sessions-cli.test.ts), [Client picker](../../packages/client/test/bot-create-sessions.test.tsx).
+
+## Sessions from Claude Code and Codex join the same Grant-scoped import
+
+<a id="adr-0367"></a>
+
+The Host also lists the Owner's Claude Code sessions (`~/.claude/projects/*/*.jsonl`, or under `$CLAUDE_CONFIG_DIR`) and Codex sessions (`~/.codex/sessions/**/rollout-*.jsonl`, or under `$CODEX_HOME`) as importable rows with ids `claude-code:<id>` and `codex:<id>`. It reads these files read-only, only from the 500 most recently changed files, and only the head of each file when listing. Each row keeps its working directory, so it follows [ADR-0366](#adr-0366) unchanged: the Bot gets Grants for the Workspaces that contain those folders, `workspace_sessions` lists and reads the sessions only inside its active Grants, and nothing is copied into Memory. Sidechains, meta records, compaction summaries, injected instructions and Codex subagent sessions are left out of the Markdown, and a long session keeps its most recent entries.
+
+A folder from another product is often not a DSH Workspace yet. The picker shows such folders as "will be added as a Workspace", and only then sends `addWorkspaces`; the Host registers the outermost of those folders through the native Workspace Registry before it grants them, and the preview check still has to match. Without the flag a missing Workspace is refused as before.
+
+The desktop intro gets an Import step before Start. It asks which AI tools the Human has used (Claude Code, Codex, Claude, ChatGPT, Grok, Cursor, other), shows how many sessions it found for the local ones, and opens the Session picker filtered to them. Web chat exports have no working directory, so they are only recorded for now. Telemetry stays anonymous, as all product telemetry is ([token telemetry](persistence.md#adr-0344)): `onboarding:import_source_select` carries the picked tool and whether sessions were found, `onboarding:intro_complete` carries `starter: import`, and the Host's `bot_library:sessions_import` says which products a created Bot came from. No PostHog person profile is created; cohorts are built from these events per anonymous installation.
+
+Why: people who come from another harness already have months of project context on the same computer, and T3 Code and DeepSeek's own chat import show that importing it at the first run is what makes switching cheap. Reading in place keeps the [ADR-0366](#adr-0366) authority model, where revoking a Grant revokes the reads, instead of copying a snapshot.
+
+Enforced by: [Claude Code and Codex parsing and reads](../../packages/core/test/external-sessions.test.ts), [creation with added Workspaces](../../packages/core/test/session-bot-create.test.ts), [intro import step](../../packages/client/test/bot-intro-import-step.test.tsx) and [its hand-off to the picker](../../packages/client/test/bot-intro-import.test.ts).

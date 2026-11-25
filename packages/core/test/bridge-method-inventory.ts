@@ -165,6 +165,7 @@ export const bridgeMethodInventory = [
   'botImportLookup',
   'createFromGit',
   'createFromSessions',
+  'externalSessions',
   'update',
   'dataResetPreview',
   'dataResetConfirm',

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import type { BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
@@ -23,13 +26,21 @@ const sessions = [
   { sessionId: 'stray', cwd: '/tmp/elsewhere', running: false, lastPromptAt: 6, updatedAt: 6 },
 ];
 
-function setup(human: HumanContext = OWNER_HUMAN_CONTEXT, owner = true) {
+function setup(
+  human: HumanContext = OWNER_HUMAN_CONTEXT,
+  owner = true,
+  extra: Partial<
+    Pick<BridgeMethodsDeps, 'externalSessions' | 'registerWorkspace' | 'telemetry'>
+  > = {},
+) {
   const grants: WorkspaceGrant[] = [];
+  const registered: { id: string; path: string; title: string }[] = [];
   const store = {
     availableWorkspaces: () => [
       { id: 'ws-work', path: '/work', title: 'work' },
       { id: 'ws-app', path: '/work/app', title: 'app' },
       { id: 'ws-docs', path: '/work/docs', title: 'docs' },
+      ...registered,
     ],
     list: (slug: string) => grants.filter((grant) => grant.botSlug === slug),
     create: vi.fn(async (slug: string, workspaceId: string) => {
@@ -63,8 +74,18 @@ function setup(human: HumanContext = OWNER_HUMAN_CONTEXT, owner = true) {
   const deps = {
     nativeSessions: { list: async () => sessions, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
     ownership: { resolve: (id: string) => (id === 'owned' ? {} : undefined) },
-    creations: { create },
+    creations: { create, lookup: vi.fn(() => undefined) },
     grants: store,
+    ...extra,
+    ...(extra.registerWorkspace === undefined
+      ? {}
+      : {
+          registerWorkspace: async (path: string) => {
+            const added = await extra.registerWorkspace!(path);
+            registered.push(added);
+            return added;
+          },
+        }),
   } as unknown as BridgeMethodsDeps;
   const methods = createSessionBotMethods(
     human,
@@ -157,4 +178,90 @@ it('refuses creation when the previewed Workspaces differ from the ones the Host
       workspacePaths: ['/work/docs', '/work/app'],
     }),
   ).toMatchObject({ ok: true });
+});
+
+it('creates from Claude Code sessions, adds their folder as a Workspace only when asked and records the products', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'cc-app-'));
+  const nested = join(folder, 'web');
+  mkdirSync(nested);
+  const externalSessions = {
+    list: async () => [
+      {
+        sessionId: 'claude-code:s1',
+        source: 'claude-code' as const,
+        title: 'Fix login',
+        cwd: folder,
+        lastActivityAt: 9,
+      },
+      { sessionId: 'codex:s2', source: 'codex' as const, cwd: nested, lastActivityAt: 8 },
+    ],
+    read: vi.fn(),
+  };
+  const registerWorkspace = vi.fn(async (path: string) => ({ id: 'ws-new', path, title: 'new' }));
+  const capture = vi.fn();
+  const refused = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  expect(
+    await refused.methods.createFromSessions({
+      displayName: 'Importer',
+      sessionIds: ['claude-code:s1'],
+      operationKey: 'sessions:import-refused',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'workspace-unavailable' } });
+  expect(registerWorkspace).not.toHaveBeenCalled();
+
+  const { methods, send, grants } = setup(OWNER_HUMAN_CONTEXT, true, {
+    externalSessions,
+    registerWorkspace,
+    telemetry: { status: vi.fn(), setPreference: vi.fn(), capture },
+  });
+  expect(
+    await methods.createFromSessions({
+      displayName: 'Importer',
+      sessionIds: ['claude-code:s1', 'codex:s2', 'a1'],
+      operationKey: 'sessions:import-changed',
+      addWorkspaces: true,
+      workspacePaths: ['/work/app'],
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'workspace-preview-changed' } });
+  expect(registerWorkspace).not.toHaveBeenCalled();
+
+  const result = await methods.createFromSessions({
+    displayName: 'Importer',
+    sessionIds: ['claude-code:s1', 'codex:s2', 'a1'],
+    operationKey: 'sessions:import-key',
+    addWorkspaces: true,
+    workspacePaths: ['/work/app', folder],
+    language: 'en',
+  });
+  expect(result.ok).toBe(true);
+  expect(registerWorkspace).toHaveBeenCalledTimes(1);
+  expect(registerWorkspace).toHaveBeenCalledWith(folder);
+  expect(grants.map((grant) => grant.workspaceId).sort()).toEqual(['ws-app', 'ws-new']);
+  const body = send.mock.calls[0]![0].body;
+  expect(body).toContain('DeepSeek, Claude Code, Codex sessions of mine');
+  expect(body).toContain('Fix login (Claude Code, ');
+  expect(body).toContain('`codex:s2`');
+  expect(capture).toHaveBeenCalledWith('bot_library:sessions_import', {
+    has_deepseek: true,
+    has_claude_code: true,
+    has_codex: true,
+    added_workspace: true,
+  });
+  expect(
+    await methods.createFromSessions({
+      displayName: 'Importer',
+      sessionIds: ['claude-code:missing'],
+      operationKey: 'sessions:import-missing',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'session-not-found' } });
+});
+
+it('lists sessions from other products only for the Host Owner', async () => {
+  const externalSessions = { list: async () => [], read: vi.fn() };
+  expect(
+    await setup(OWNER_HUMAN_CONTEXT, true, { externalSessions }).methods.externalSessions(),
+  ).toEqual({ ok: true, value: { sessions: [] } });
+  expect(
+    await setup(OWNER_HUMAN_CONTEXT, false, { externalSessions }).methods.externalSessions(),
+  ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
 });
