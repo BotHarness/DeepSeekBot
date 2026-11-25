@@ -78,15 +78,26 @@ export async function controlReply(input: {
 
 export function controlDeliveries(ttlMs = 10 * 60 * 1000, limit = 2000) {
   const seen = new Map<string, number>();
-  return (event: MessagingInboundEvent) => {
+  const key = (event: MessagingInboundEvent) =>
+    [event.channel, event.botId, event.conversation.id, event.messageId].join('\u0000');
+  const prune = () => {
     const now = Date.now();
-    for (const [key, at] of seen) {
+    for (const [item, at] of seen) {
       if (now - at <= ttlMs && seen.size < limit) break;
-      seen.delete(key);
+      seen.delete(item);
     }
-    const key = [event.channel, event.botId, event.conversation.id, event.messageId].join('\u0000');
-    if (seen.has(key)) return false;
-    seen.set(key, now);
-    return true;
+  };
+  return {
+    seen(event: MessagingInboundEvent) {
+      prune();
+      return seen.has(key(event));
+    },
+    claim(event: MessagingInboundEvent) {
+      prune();
+      const id = key(event);
+      if (seen.has(id)) return false;
+      seen.set(id, Date.now());
+      return true;
+    },
   };
 }

@@ -190,6 +190,41 @@ it('reads Lark style mention keys that share a prefix with the Bot mention', asy
   expect(fx.runs).toHaveLength(0);
 });
 
+it('takes the longest Bot mention key that starts the message', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack', ['review-pairing'], ['approve']);
+  const approver = await approverRole(fx);
+  await pairApplicant(fx);
+  const event = channelMessage('slack', 'lark-lead', reviewer, 'placeholder');
+  await fx.receive({
+    ...event,
+    text: '@_user_10 /role @_user_1 Approver',
+    mentions: [
+      { id: applicant, key: '@_user_1', name: 'Ana' },
+      { id: 'bot', key: '@_user_10' },
+    ],
+  });
+  expect(pendingFor(fx, applicant).roleId).toBe(approver.id);
+  expect(fx.runs).toHaveLength(0);
+});
+
+it('a redelivered bare review reply in a channel stays out of the Bot turn after approval', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack', ['review-pairing']);
+  await approverRole(fx);
+  await fx.receive(channelMessage('slack', 'blocked', applicant, 'question'));
+  const review = channelMessage('slack', 'bare', reviewer, '同意 Colleague');
+  await fx.receive(review);
+  await fx.settle();
+  expect(pendingFor(fx, applicant).status).toBe('approved');
+  await fx.receive({ ...review, eventId: `${review.eventId}-again` });
+  await fx.settle();
+  expect(
+    fx.replies.filter((reply) => reply.text.includes('Approved pairing request')),
+  ).toHaveLength(1);
+  expect(fx.runs).toHaveLength(0);
+});
+
 it('a redelivered command or review reply is answered once', async () => {
   const fx = await fixture('slack');
   await reviewerSetup(fx, 'slack', ['review-pairing']);

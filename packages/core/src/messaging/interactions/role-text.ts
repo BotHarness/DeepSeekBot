@@ -74,7 +74,7 @@ export function createRoleText(options: {
   warn?(message: string): void;
 }) {
   const { database, pairing } = options;
-  const firstDelivery = controlDeliveries();
+  const deliveries = controlDeliveries();
   const log = (phase: string, outcome: string) =>
     options.warn?.(JSON.stringify({ event: 'role-text', initiator: 'messaging', phase, outcome }));
 
@@ -110,7 +110,9 @@ export function createRoleText(options: {
       return false;
     const body = event.text.trim();
     const lead = event.mentionedAccount
-      ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+      ? event.mentions
+          .filter((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+          .sort((a, b) => b.key.length - a.key.length)[0]
       : undefined;
     let rest = lead ? body.slice(lead.key.length) : body;
     const targets: MessagingInboundEvent['mentions'] = [];
@@ -123,7 +125,7 @@ export function createRoleText(options: {
     if (!command) return false;
     const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
-    if (!firstDelivery(event)) return true;
+    if (!deliveries.claim(event)) return true;
     const dm = event.conversation.kind === 'dm';
     const reply = (message: string) =>
       setImmediate(() => {

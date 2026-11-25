@@ -154,7 +154,7 @@ export function createPairingText(options: {
   warn?(message: string): void;
 }) {
   const { database, pairing } = options;
-  const firstDelivery = controlDeliveries();
+  const deliveries = controlDeliveries();
   const log = (phase: string, outcome: string) =>
     options.warn?.(
       JSON.stringify({ event: 'pairing-text', initiator: 'messaging', phase, outcome }),
@@ -259,6 +259,7 @@ export function createPairingText(options: {
     if (!parsed) return false;
     const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
+    if (deliveries.seen(event)) return true;
     const conversation = event.conversation.id;
     const requests = pairing
       .list(binding.botSlug)
@@ -308,7 +309,7 @@ export function createPairingText(options: {
     let explicit = !!target;
     if (ambiguous) {
       if (!assignable(binding.botSlug, binding.id, event.actor.id).reviewer) return false;
-      if (!firstDelivery(event)) return true;
+      if (!deliveries.claim(event)) return true;
       setImmediate(() => {
         if (!signal.aborted) void send(providerId, binding, event, NOTICE.ambiguous, signal);
       });
@@ -344,7 +345,7 @@ export function createPairingText(options: {
     const scope = assignable(binding.botSlug, binding.id, event.actor.id);
     if (!explicit && !scope.reviewer) return false;
     explicit = true;
-    if (!firstDelivery(event)) return true;
+    if (!deliveries.claim(event)) return true;
     const reply = (text: string) =>
       setImmediate(() => {
         if (!signal.aborted) void send(providerId, binding, event, text, signal);
