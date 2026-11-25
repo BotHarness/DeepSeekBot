@@ -708,3 +708,22 @@ it('consumes local DM credentials when its queued turn collects a pending IM bat
     await f.close();
   }
 });
+
+it('a turn started by a bridged IM message asks for tool approval in the Bot DM', async () => {
+  const f = await fixture(true);
+  try {
+    await f.im();
+    const run = await f.started();
+    expect(
+      f.core.runtime.toolApprovalOrigin?.({ sessionId: run.sessionId, callId: 'call' }),
+    ).toEqual({
+      kind: 'turn',
+      channelId: 'dm-ada',
+    });
+    expect(
+      f.core.runtime.toolApprovalOrigin?.({ sessionId: 'other-session', callId: 'call' }),
+    ).toBeUndefined();
+  } finally {
+    await f.close();
+  }
+});
