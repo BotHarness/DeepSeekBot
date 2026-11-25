@@ -97,6 +97,11 @@ export const INBOX_COMMANDS = [
     description: 'list accessible root Sessions (--search, --sort, --source, --include-archived)',
   },
   {
+    command: 'session-import-list',
+    description:
+      'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
+  },
+  {
     command: 'session-create',
     description:
       'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message; --session retries a blank one',
@@ -598,6 +603,10 @@ function prepare(
       if (choice === undefined)
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
+    }
+    case 'session-import-list': {
+      positionals(command, rest, 0, '');
+      return { method: 'externalSessions', args: {} };
     }
     case 'session-list': {
       positionals(command, rest, 0, '');

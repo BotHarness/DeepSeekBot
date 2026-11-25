@@ -7,7 +7,19 @@ export const discordProfile: DshImPlatformProfile<'discord'> = {
     target.kind === 'channel' && typeof target.route['channelId'] === 'string'
       ? { kind: 'group', conversationId: target.route['channelId'] }
       : undefined,
-  features: { reachableConversations: true, mentionMarkup: true },
+  people: {
+    namespace: 'discord-user-id',
+    sender: (event) =>
+      /^[0-9]{5,30}$/.test(event.actor.id) &&
+      /^[0-9]{5,30}$/.test(event.conversation.id) &&
+      event.reply.actorId === event.actor.id &&
+      event.reply.conversationId === event.conversation.id &&
+      event.reply.messageId === event.messageId,
+    groups: true,
+    roles: true,
+    management: true,
+  },
+  features: { interactions: true, reachableConversations: true, mentionMarkup: true },
   files: {
     readAllowed: () => true,
     replyAllowed: () => true,

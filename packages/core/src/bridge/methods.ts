@@ -3,11 +3,12 @@ import {
   type HostSessionBridgeMethods,
   type NativeSessions,
 } from '../features/sessions/host-sessions.js';
+import { createSessionBotMethods } from '../features/sessions/session-bot-methods.js';
 import {
   createPersonaBotsBridgeMethods,
   type PersonaBotsBridgeMethods,
-  detail,
 } from '../features/personabots/methods.js';
+import { createBotDetails } from '../features/personabots/bot-details.js';
 import { createHumansBridgeMethods, type HumansBridgeMethods } from '../features/humans/methods.js';
 import {
   createTeamBridgeMethods,
@@ -399,6 +400,7 @@ export interface BridgeMethods
     HumansAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
+    ReturnType<typeof createSessionBotMethods>,
     WorkspacesAdapterMethods,
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
@@ -480,6 +482,7 @@ export interface BridgeMethodsDeps
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   nativeSessions?: NativeSessions;
+  externalSessions?: import('../features/sessions/external-sessions.js').ExternalSessionReader;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -612,21 +615,7 @@ function buildBridgeMethods(
   };
   const messagingCall = createMessagingCall(deps);
   const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
-  const runnerOf = (slug: string) => {
-    const orchestratorRunner = deps.orchestratorRunner?.(slug);
-    return orchestratorRunner === undefined ? {} : { orchestratorRunner };
-  };
-  const detailOf = (record: PersonaBotRecord): { bot: PersonaBotDetail } => ({
-    bot: {
-      ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
-      ...runnerOf(record.slug),
-      ownerHumanId: botOwner(record),
-      owner: botOwner(record) === human.humanId,
-      ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
-        ? { sessions: {} }
-        : {}),
-    },
-  });
+  const { runnerOf, detailOf } = createBotDetails(human, deps);
 
   const dmMemory = createDmMemoryReader(deps);
 
@@ -698,6 +687,9 @@ function buildBridgeMethods(
     deps,
     globalRegistry,
     channelSkillBots,
+  );
+  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
+    channelsSendAdapterMethods.channelSend(payload),
   );
   const channelsManagementAdapterMethods = createChannelsManagementAdapterMethods(
     human,
@@ -804,6 +796,8 @@ function buildBridgeMethods(
     botImportLookup: personabotsMethods.botImportLookup,
     botImportPreview: personabotsMethods.botImportPreview,
     createFromGit: personabotsMethods.createFromGit,
+    createFromSessions: sessionBots.createFromSessions,
+    externalSessions: sessionBots.externalSessions,
     ...marketplaceReads,
     releaseInfo: releaseAdapterMethods.releaseInfo,
     releaseUpdate: releaseAdapterMethods.releaseUpdate,

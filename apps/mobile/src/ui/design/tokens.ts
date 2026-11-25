@@ -110,12 +110,13 @@ export const materialNavigationBar = {
 } as const;
 export const floatingToolbar = {
   item: 56,
+  gap: 8,
   height: 48,
   icon: 24,
   avatar: 32,
   offset: 16,
-  shadowRoom: 12,
-  shadow: { radius: 6, offsetY: 3, alpha: { light: 0.18, dark: 0.4 } },
+  inset: 12,
+  padding: 8,
 } as const;
 export const pinnedTabIcon = { captureDelays: [300, 1500] } as const;
 export const materialIconButton = {
@@ -146,6 +147,10 @@ export const materialDrawer = {
   width: 360,
   scrimGutter: 56,
   addressMinScale: 0.6,
+} as const;
+export const overlaySidebar = {
+  dim: { light: 'rgba(0, 0, 0, 0.2)', dark: 'rgba(0, 0, 0, 0.4)' },
+  shadow: { radius: 16, opacity: { light: 0.12, dark: 0.4 } },
 } as const;
 export const loadingIndicator = {
   size: 48,
@@ -407,9 +412,6 @@ export const tabChrome = {
   hideDuration: 200,
   pillHold: 700,
   pillFade: 160,
-  tabFade: 200,
-  fadeThrough: 300,
-  fadeThroughScale: 0.92,
 } as const;
 
 export const markdownTable = {

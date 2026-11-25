@@ -21,17 +21,15 @@ import { usePinnedTab, type PinnedTab } from '../../features/pinned-tab/use-pinn
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
 import { TabNamePill, tabSlotCenter, type TabSlots } from './tab-name-pill';
-import { tabTransition } from './tab-transition';
 import { navigationAccessibilityLabel, navigationLabel } from './navigation-label';
 import { openTabMenu } from './tab-menu-sheet';
 import { useTabMenus, type TabMenuRoute } from './use-tab-menus';
-import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
-import { useTabOrder } from '../interface-preferences';
+import { useSessionsTab, useTabOrder } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
-import type { NavigationDestination } from './navigation-destination';
+import { toolbarGap, type NavigationDestination } from './navigation-destination';
 import { sessionsStack } from './sessions-stack';
-import { tabRoute, tabSlotOf, type TabSlot } from './tab-slots';
+import { tabRoute, tabSlotOf, visibleTabs, type TabSlot } from './tab-slots';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -48,17 +46,18 @@ export function BottomNavigation() {
 function NavigationLayout() {
   const t = useStrings();
   const order = useTabOrder();
+  const sessionsTab = useSessionsTab();
+  const shown = visibleTabs(order, sessionsTab);
   const pinned = usePinnedTab();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const reduced = useSystemReducedMotion();
   const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
   const size = android
-    ? (nativeHeight ?? floatingToolbar.height + floatingToolbar.shadowRoom * 2)
+    ? (nativeHeight ?? floatingToolbar.height + floatingToolbar.inset * 2)
     : navigationBar.height;
   const bottom = android
-    ? insets.bottom + floatingToolbar.offset - floatingToolbar.shadowRoom
+    ? insets.bottom + floatingToolbar.offset - floatingToolbar.inset
     : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const hidden = useSharedValue(0);
@@ -88,16 +87,22 @@ function NavigationLayout() {
                   bottom={bottom}
                   onNativeHeight={setNativeHeight}
                   pinned={pinned}
+                  shown={shown}
+                  sessionsTab={sessionsTab}
                 />
               )}
               screenOptions={{
                 headerShown: false,
                 sceneStyle: { backgroundColor: theme.color.base },
-                ...tabTransition(android ? 'android' : 'ios', reduced),
+                animation: 'none',
               }}
             >
               {order.map((slot) => (
-                <Tabs.Screen key={slot} name={tabRoute(slot)} options={{ title: titles[slot] }} />
+                <Tabs.Screen
+                  key={slot}
+                  name={tabRoute(slot)}
+                  options={shown.includes(slot) ? { title: titles[slot] } : { href: null }}
+                />
               ))}
             </Tabs>
           </View>
@@ -111,6 +116,8 @@ type NavigationBarLayout = TabBarProps & {
   size: number;
   bottom: number;
   pinned: PinnedTab | undefined;
+  shown: readonly TabSlot[];
+  sessionsTab: boolean;
   onNativeHeight(height: number): void;
 };
 
@@ -121,6 +128,8 @@ function NavigationBar({
   size,
   bottom,
   pinned,
+  shown,
+  sessionsTab,
   onNativeHeight,
 }: NavigationBarLayout) {
   const t = useStrings();
@@ -136,8 +145,12 @@ function NavigationBar({
   const hiddenNow = useChromeHidden(chrome?.hidden);
   const drawerOpen = useSessionDrawer().open;
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
-  const routes = state.routes.filter((route) => tabSlotOf(route.name) !== undefined);
+  const routes = state.routes.filter((route) => {
+    const slot = tabSlotOf(route.name);
+    return slot !== undefined && shown.includes(slot);
+  });
   const { menus, load: loadMenus } = useTabMenus({
+    sessionsTab,
     focusedRoute: state.routes[state.index]?.name,
     go: (name) => {
       const key = state.routes.find((route) => route.name === name)?.key;
@@ -145,11 +158,13 @@ function NavigationBar({
     },
   });
   const android = Platform.OS === 'android';
+  const gap = toolbarGap(width, routes.length);
+  const toolbarWidth = floatingToolbar.item * routes.length + gap * Math.max(0, routes.length - 1);
   const slots: TabSlots = android
     ? {
-        left: (width - floatingToolbar.item * routes.length) / 2,
-        width: floatingToolbar.item * routes.length,
-        gap: 0,
+        left: (width - toolbarWidth) / 2,
+        width: toolbarWidth,
+        gap,
         count: routes.length,
       }
     : {
@@ -198,7 +213,7 @@ function NavigationBar({
   });
   const band = size + bottom;
   const pillBottom = android
-    ? size - floatingToolbar.shadowRoom + space.x2
+    ? bottom + size - floatingToolbar.inset + space.x2
     : bottom + size / 2 + navigationBar.symbolBox / 2 + space.x1;
   const slide = useAnimatedStyle(() => ({
     opacity: 1 - sessionDrawerProgress.value,
@@ -209,7 +224,15 @@ function NavigationBar({
       pointerEvents={hiddenNow || drawerOpen ? 'none' : 'box-none'}
       style={[
         android
-          ? { position: 'absolute', left: 0, right: 0, bottom, alignItems: 'center' }
+          ? {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              paddingBottom: bottom,
+              alignItems: 'center',
+              backgroundColor: theme.color.base,
+            }
           : {
               position: 'absolute',
               left: 0,

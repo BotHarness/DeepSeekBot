@@ -27,7 +27,6 @@ public final class NativeTabMenusModule: Module {
       Prop("pill") { (view: NativeTabMenusView, pill: Bool) in view.pillEnabled = pill }
       Prop("pillFade") { (view: NativeTabMenusView, ms: Double) in view.pillFade = ms / 1000 }
       Prop("pillHold") { (view: NativeTabMenusView, ms: Double) in view.pillHold = ms / 1000 }
-      Prop("fade") { (view: NativeTabMenusView, ms: Double) in view.fade = ms / 1000 }
     }
   }
 }
@@ -38,8 +37,6 @@ final class NativeTabMenusView: ExpoView, UIContextMenuInteractionDelegate, UIGe
   var pillEnabled = false
   var pillFade = 0.16
   var pillHold = 0.7
-  var fade = 0.0
-  private var selectedAtTouch: String?
   private var specs: [NativeTabMenuSpec] = []
   private weak var controller: UITabBarController?
   private weak var attachedBar: UITabBar?
@@ -211,42 +208,13 @@ final class NativeTabMenusView: ExpoView, UIContextMenuInteractionDelegate, UIGe
     true
   }
 
-  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    if #available(iOS 18.0, *) { selectedAtTouch = controller?.selectedTab?.identifier }
-    return true
-  }
-
   @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
     guard recognizer.state == .ended, let bar = attachedBar,
       let (spec, view) = spec(at: recognizer.location(in: bar), in: bar)
     else { return }
-    let switching = selectedAtTouch.map { $0 != spec.tab && !$0.hasPrefix(spec.tab + "-") } ?? false
-    if switching { crossFade(above: bar) }
     guard pillEnabled, !spec.name.isEmpty else { return }
     showPill(spec.name, over: view, in: bar)
     onPill(["tab": spec.tab])
-  }
-
-  private func crossFade(above bar: UITabBar) {
-    guard fade > 0, !UIAccessibility.isReduceMotionEnabled, let host = controller?.view,
-      let snapshot = host.snapshotView(afterScreenUpdates: false)
-    else { return }
-    let barTop = bar.convert(bar.bounds, to: host).minY
-    let mask = CALayer()
-    mask.backgroundColor = UIColor.black.cgColor
-    mask.frame = CGRect(x: 0, y: 0, width: host.bounds.width, height: barTop)
-    snapshot.layer.mask = mask
-    snapshot.isUserInteractionEnabled = false
-    snapshot.isAccessibilityElement = false
-    snapshot.accessibilityElementsHidden = true
-    snapshot.frame = host.bounds
-    host.addSubview(snapshot)
-    if let pill { host.bringSubviewToFront(pill) }
-    UIView.animate(withDuration: fade, delay: 0, options: [.curveEaseOut]) {
-      snapshot.alpha = 0
-    } completion: { _ in
-      snapshot.removeFromSuperview()
-    }
   }
 
   private func showPill(_ text: String, over item: UIView, in bar: UITabBar) {

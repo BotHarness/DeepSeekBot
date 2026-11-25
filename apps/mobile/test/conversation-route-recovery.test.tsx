@@ -30,6 +30,14 @@ let profileHistory = channelNavigationHarness();
 
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 
+vi.mock('../src/ui/primitives/chat-scroll', async (importOriginal) => {
+  const { useState } = await import('react');
+  return {
+    ...(await importOriginal<typeof import('../src/ui/primitives/chat-scroll')>()),
+    useTimelineIslandFloor: () => useState(0)[0],
+  };
+});
+
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -505,6 +513,15 @@ describe('disbanded group presentation', () => {
     await act(async () => {});
     expect(view.textContent).toContain(t.groupUnavailableTitle);
     expect(view.textContent).not.toContain(t.groupAccessRemovedTitle);
+  });
+  it('replaces an open group with the unavailable page when it disappears', async () => {
+    state.host.roster.channels = [{ id: 'open', name: 'Open group', members: [], memberCount: 0 }];
+    const place: ChatPlace = { kind: 'channel', channelId: 'open' };
+    const view = await render(place);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).toBeNull();
+    state.host.roster.channels = [];
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.querySelector('[data-testid="group-unavailable"]')).not.toBeNull();
   });
   it('dismisses the keyboard only when the missing group becomes focused', async () => {
     const dismiss = vi.spyOn(Keyboard, 'dismiss');
