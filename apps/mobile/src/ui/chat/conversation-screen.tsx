@@ -15,6 +15,8 @@ import { useStackRoot, useTabRoot } from '../shell/stack-root';
 import { useEntranceSettled } from '../shell/entrance-settled';
 import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
+import { useHistoryChrome } from './history-chrome';
+import { HistoryChromeContext } from './history-chrome-context';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -213,6 +215,10 @@ function ChatConversation({
     timeline,
   });
   const { viewportLayout, composable, compose } = composer;
+  const history = useHistoryChrome({
+    enabled: island && focused && !composer.typing,
+    inverted: Platform.OS === 'android',
+  });
   const stackRoot = useStackRoot();
   const tabRoot = useTabRoot();
   const closePresentation = presentation?.onClose;
@@ -409,13 +415,14 @@ function ChatConversation({
     profile,
     header,
     notice,
+    history,
   });
   return (
-    <>
+    <HistoryChromeContext value={history}>
       {screenTree}
       {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
       {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
-    </>
+    </HistoryChromeContext>
   );
 }
 

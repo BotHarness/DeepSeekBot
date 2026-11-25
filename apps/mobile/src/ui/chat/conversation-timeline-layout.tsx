@@ -1,4 +1,5 @@
 import type { useProfilePaging } from './profile-paging';
+import type { HistoryChrome } from './history-chrome-context';
 import { Platform, type NativeScrollEvent, type NativeSyntheticEvent, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -58,7 +59,9 @@ export function renderConversationTimeline({
   focusJump,
   rowRendering,
   profile,
+  history,
 }: {
+  history: Pick<HistoryChrome, 'onScroll' | 'onScrollToTop'>;
   t: ReturnType<typeof useStrings>;
   paging: ReturnType<typeof useProfilePaging>;
   focus: string | undefined;
@@ -204,7 +207,9 @@ export function renderConversationTimeline({
                   onScroll={(event: ScrollEvent) => {
                     latest.listProps.onScroll(event);
                     pull.onScroll(event);
+                    history.onScroll(event.nativeEvent);
                   }}
+                  onScrollToTop={history.onScrollToTop}
                   onScrollEndDrag={(event: ScrollEvent) => {
                     latest.listProps.onScrollEndDrag(event);
                     pull.onScrollEndDrag(event);
