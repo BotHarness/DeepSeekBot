@@ -19,6 +19,7 @@ export const messagingDefaultsInput = z
     identityEnabled: z.boolean(),
     typingEnabled: z.boolean().optional(),
     newConversations: z.enum(['auto', 'ask']).optional(),
+    groupInteractions: z.boolean().optional(),
   })
   .strict()
   .refine(
@@ -75,6 +76,9 @@ export function commitMessagingDefaults(
   const value = {
     ...preferences,
     newConversations: preferences.newConversations ?? prior.newConversations ?? 'auto',
+    ...((preferences.groupInteractions ?? prior.groupInteractions) === undefined
+      ? {}
+      : { groupInteractions: preferences.groupInteractions ?? prior.groupInteractions }),
     ...(parsed.platform === 'weixin'
       ? { typingEnabled: preferences.typingEnabled ?? prior.typingEnabled ?? true }
       : {}),

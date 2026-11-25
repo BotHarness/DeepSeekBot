@@ -645,3 +645,16 @@ export const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const BINDING_GROUP_INTERACTIONS_MIGRATION: SchemaMigration = {
+  id: 'binding-group-interactions',
+  module: 'messaging',
+  description:
+    'Let one Binding opt in or out of group approvals and answers apart from its platform',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE messaging_bindings ADD COLUMN group_interactions INTEGER CHECK (group_interactions IS NULL OR group_interactions IN (0, 1));
+      ALTER TABLE messaging_bindings ADD COLUMN group_interactions_revision INTEGER NOT NULL DEFAULT 1 CHECK (group_interactions_revision >= 1);
+    `);
+  },
+};

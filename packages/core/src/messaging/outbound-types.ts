@@ -265,6 +265,12 @@ export interface OutboundMessaging {
     expectedRevision: number,
     limit: number | null,
   ): Promise<MessagingIdentity>;
+  setGroupInteractions(input: {
+    botSlug: string;
+    bindingId: string;
+    expectedRevision: number;
+    enabled: boolean | null;
+  }): Promise<MessagingIdentity>;
   postConversation(
     botSlug: string,
     bindingId: string,

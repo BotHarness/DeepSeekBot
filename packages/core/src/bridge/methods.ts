@@ -760,6 +760,7 @@ function buildBridgeMethods(
     messagingPostRequest: messagingMethods.messagingPostRequest,
     messagingPostConversation: messagingMethods.messagingPostConversation,
     messagingPostLimit: messagingMethods.messagingPostLimit,
+    messagingGroupInteractions: messagingMethods.messagingGroupInteractions,
     messagingTargets: messagingMethods.messagingTargets,
     messagingAuthorize: messagingMethods.messagingAuthorize,
     messagingRevoke: messagingMethods.messagingRevoke,

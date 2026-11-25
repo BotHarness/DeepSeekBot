@@ -534,6 +534,8 @@ deepseekbot im-app-remove discord --app <app-id>
 deepseekbot messaging-defaults discord
 printf '{"expectedRevision":1,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true}' \
   | deepseekbot messaging-defaults-set discord --input-stdin
+printf '{"expectedRevision":2,"collection":"mentions","wake":"digest","count":5,"intervalSeconds":30,"identityEnabled":true,"groupInteractions":false}' \
+  | deepseekbot messaging-defaults-set feishu --input-stdin
 deepseekbot messaging-grants <bot-id>
 deepseekbot messaging-targets <app-ref>
 deepseekbot messaging-authorize <bot-id> --app <app-ref> --target <target-ref>
@@ -551,6 +553,7 @@ deepseekbot messaging-reachable <bot-id> --binding <binding-id> [--cursor <curso
 deepseekbot messaging-post <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin [--request-id <id>]
 deepseekbot messaging-post-status <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin --request-id <id>
 deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-10000|none>
+deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
@@ -567,6 +570,8 @@ deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
+
+`groupInteractions` (default on when absent) decides where a Bot's question or execution approval goes when the Bot's latest message in that conversation came from an IM group of the same account: on, the card is a reply in that group and any person with an approved management pairing holding the needed capability can answer or decide there; off, it goes to the selected management DM as before. `messaging-group-interactions` overrides it for one Binding, so two apps on the same platform can differ; `--inherit` follows the platform default again, and `messaging-grants` shows each Binding's effective value and whether it is inherited. Answering or deciding in the group does not move the next card to the DM. Saving an exact rule from a group card is not offered. A later save that omits the field keeps its value ([#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)).
 
 For a qualified WeChat private connector, the update JSON also accepts independent `dmMirror` and `dmForward` booleans; both default to `false`. Read `channel-bridges` first and send its current grant/route revisions with the update. The preference is shared by entries for the same Binding and conversation. Turning a switch off stops uncommitted work, including offline; it does not purge history or revoke normal reply authority. Forwarding requires an existing proactive target in the same account. For example, add `"dmMirror":true,"dmForward":false` to an otherwise unchanged update payload to enable local presentation only.
 

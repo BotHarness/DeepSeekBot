@@ -75,6 +75,7 @@ export const feishuProfile: DshImPlatformProfile<'feishu'> = {
   features: {
     reactions: true,
     cards: true,
+    interactions: true,
     reachableConversations: true,
     targetPost: { required: [] },
   },
