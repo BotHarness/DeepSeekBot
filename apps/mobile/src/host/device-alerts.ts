@@ -28,6 +28,7 @@ export interface LocalApprovalAlert {
     messageId: string;
     sender: string;
     text: string;
+    sessionId?: string;
   };
 }
 

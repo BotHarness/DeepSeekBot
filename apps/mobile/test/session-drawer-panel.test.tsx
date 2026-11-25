@@ -264,3 +264,46 @@ it('hides ✎ from a member on the Stacked-style Session list', async () => {
   const { view } = await render({ variant: 'page', canCreate: false });
   expect(view.querySelector('[data-testid="session-list-new"]')).toBeNull();
 });
+
+it('takes the Host’s needs-you rule for list status and falls back for an older Host', async () => {
+  const { sessionRowStatus } = await import('../src/features/sessions/session-drawer-row');
+  const { readHostSessionList } = await import('@botharness/host-client/host-sessions');
+  const read = await readHostSessionList(
+    client(
+      vi.fn(async () => ({
+        queryVersion: 1,
+        sources: [{ kind: 'native' }],
+        sessions: [
+          {
+            sessionId: 'failed',
+            source: { kind: 'native' },
+            running: false,
+            status: 'needs-you',
+            attention: 'failed',
+            updatedAt: now,
+          },
+          {
+            sessionId: 'odd',
+            source: { kind: 'native' },
+            running: true,
+            status: 'later',
+            attention: 'maybe',
+            updatedAt: now,
+          },
+        ],
+      })),
+    ),
+    {},
+  );
+  const [failed, odd] = read.sessions;
+  expect(failed).toMatchObject({ status: 'needs-you', attention: 'failed' });
+  expect(odd).not.toHaveProperty('status');
+  expect(odd).not.toHaveProperty('attention');
+  expect(sessionRowStatus(failed!)).toBe('needs-you');
+  expect(sessionRowStatus(odd!)).toBe('working');
+  expect(sessionRowStatus({ running: true, status: 'idle' })).toBe('done');
+  expect(sessionRowStatus({ running: false, status: 'running' })).toBe('working');
+  expect(sessionRowStatus({ running: false, attention: 'question' })).toBe('needs-you');
+  expect(sessionRowStatus({ running: false, waiting: true })).toBe('needs-you');
+  expect(sessionRowStatus({ running: false })).toBe('done');
+});

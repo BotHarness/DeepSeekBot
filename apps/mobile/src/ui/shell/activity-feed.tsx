@@ -76,12 +76,19 @@ import { useHideChromeOnScroll } from './tab-chrome';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
+  activityQuerySource,
   ActivityFilters,
   ActivityFilterContent,
   type ActivityFilter,
   type ActivitySort,
 } from './activity-filters';
 import { feedRows, type HiddenItems } from './activity-feed-rows';
+import {
+  NativeSessionMark,
+  nativeSessionName,
+  nativeSessionOf,
+  nativeSessionPreview,
+} from './activity-native';
 import { activityItemActions } from './activity-item-actions';
 export { type HiddenItems, feedRows } from './activity-feed-rows';
 
@@ -143,6 +150,7 @@ function ActivityAvatar({
   size: number;
 }) {
   const corner = size >= CONVERSATION_AVATAR ? radius.md : radius.sm;
+  if (nativeSessionOf(item) !== undefined) return <NativeSessionMark size={size} corner={corner} />;
   const avatar = activityAvatar(item, bot);
   if (avatar.kind === 'bot')
     return <BotAvatar bot={avatar.bot} size={size} corner={corner} ring={false} />;
@@ -178,13 +186,21 @@ const Row = memo(function Row({
   const t = useStrings();
   const theme = useDesignTheme();
   const kind = t.kind[item.kind] ?? t.otherKind;
+  const native = nativeSessionOf(item);
   const localName =
-    item.kind === 'channel-unread'
-      ? (item.channelName ?? t.otherKind)
-      : (bot?.displayName ?? item.botSlug);
+    native !== undefined
+      ? nativeSessionName(native, t)
+      : item.kind === 'channel-unread'
+        ? (item.channelName ?? t.otherKind)
+        : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const summary = summaryPreview(itemSummary(item));
-  const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
+  const preview =
+    native !== undefined
+      ? nativeSessionPreview(native, summary, t)
+      : summary.length > 0
+        ? `${kind} · ${summary}`
+        : kind;
   const time = shortTime(item.createdAt, new Date(now));
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
@@ -193,7 +209,10 @@ const Row = memo(function Row({
         accessibilityLabel={t.openPost(
           kind,
           name,
-          [(item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '', summary]
+          [
+            (item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '',
+            native !== undefined ? preview : summary,
+          ]
             .filter((part) => part !== '')
             .join(', '),
         )}
@@ -469,6 +488,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
               filterBot={filter.bot}
               filterChannel={filter.channel}
               filterUnread={filter.unreadOnly}
+              filterSource={filter.source}
               search={search}
               sort={sort}
               active={focused}
@@ -489,7 +509,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             filter.section !== 'all' ||
             filter.bot !== undefined ||
             filter.channel !== undefined ||
-            filter.unreadOnly === true
+            filter.unreadOnly === true ||
+            filter.source !== undefined
           }
           options={filterOptions}
           onSearch={setSearch}
@@ -565,6 +586,7 @@ const ActivityPage = memo(function ActivityPage({
   filterBot,
   filterChannel,
   filterUnread,
+  filterSource,
   search,
   sort,
   active,
@@ -580,6 +602,7 @@ const ActivityPage = memo(function ActivityPage({
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
   filterUnread: ActivityFilter['unreadOnly'];
+  filterSource: ActivityFilter['source'];
   search: string;
   sort: ActivitySort;
   active: boolean;
@@ -596,8 +619,9 @@ const ActivityPage = memo(function ActivityPage({
       bot: filterBot,
       channel: filterChannel,
       ...(filterUnread === undefined ? {} : { unreadOnly: filterUnread }),
+      ...(filterSource === undefined ? {} : { source: filterSource }),
     }),
-    [section, filterBot, filterChannel, filterUnread],
+    [section, filterBot, filterChannel, filterUnread, filterSource],
   );
   const [refreshing, setRefreshing] = useState(false);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
@@ -618,6 +642,7 @@ const ActivityPage = memo(function ActivityPage({
             unreadOnly: filter.unreadOnly,
             search,
             sort,
+            source: activityQuerySource(filter),
           })
         : client === undefined
           ? undefined
@@ -629,8 +654,9 @@ const ActivityPage = memo(function ActivityPage({
               unreadOnly: filter.unreadOnly,
               search,
               sort,
+              source: activityQuerySource(filter),
             }),
-    [sources, client, filter.section, filter.bot, filter.channel, filter.unreadOnly, search, sort],
+    [sources, client, filter, search, sort],
   );
   const settlementScope = useMemo(() => ({}), [hostId, scoped, filter, search, sort, active]);
   const activeSettlementScope = useRef<object | undefined>(undefined);
@@ -680,6 +706,7 @@ const ActivityPage = memo(function ActivityPage({
     ...new Set(
       rows.flatMap((row) =>
         (row.kind === 'row' || row.kind === 'post') &&
+        nativeSessionOf(row.item) === undefined &&
         clearSections.some((section) => section === row.section)
           ? [row.item.kind]
           : [],

@@ -1,7 +1,11 @@
 import { readHumanAttention } from './people';
 import { loadUnreadCounts, type ChannelUnread } from './channel-messages';
 import type { HostClient } from './client';
-import type { HumanAttentionItem, HumanAttentionPage } from '@botharness/host-protocol/wire';
+import type {
+  HumanAttentionItem,
+  HumanAttentionPage,
+  HumanAttentionSource,
+} from '@botharness/host-protocol/wire';
 
 export const INBOX_SECTIONS = ['action', 'replies', 'unread', 'handled'] as const;
 export type InboxSection = (typeof INBOX_SECTIONS)[number];
@@ -24,6 +28,7 @@ export interface InboxQuery {
   section?: InboxSection | InboxSetAside | 'all';
   activity?: boolean;
   notifications?: boolean;
+  source?: HumanAttentionSource | undefined;
 }
 
 export type InboxSnapshot =
@@ -83,8 +88,13 @@ export function createInbox(
       ...(setAside === 'cleared' ? { dismissed: true } : {}),
       ...(setAside === 'snoozed' ? { snoozed: true } : {}),
       ...(options.activity ? { queryVersion: 1 } : {}),
+      ...(options.source ? { source: options.source } : {}),
       ...(cursor ? { cursor } : {}),
     });
+    if (options.source === 'native' && page.source === undefined) {
+      const { nextCursor: _next, ...rest } = page;
+      return { ...rest, items: [] };
+    }
     if (options.activity && page.queryVersion !== 1)
       throw new Error(
         options.activityUpdateHost?.() ?? 'Update this Host to use Activity search and sorting.',
@@ -339,6 +349,7 @@ export function observeInbox(client: HostClient, query: InboxQuery): InboxObserv
     query.search ?? '',
     query.unreadOnly ?? false,
     query.sort ?? 'default',
+    query.source ?? '',
   ]);
   const existing = cache.get(key);
   if (existing !== undefined) {

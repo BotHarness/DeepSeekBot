@@ -14,6 +14,7 @@ import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings
 import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
 import { SendJumpSetting } from '../../../src/ui/shell/send-jump-setting';
+import { SessionRequestsSetting } from '../../../src/features/sessions/session-requests-setting';
 import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
 import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
@@ -58,6 +59,7 @@ export default function SettingsScreen() {
         activityCount={<ActivityCountLink />}
         hapticFeedback={<HapticFeedbackSetting />}
         deliveryReceipts={<DeliveryReceiptSetting />}
+        sessionRequests={<SessionRequestsSetting />}
         chatBackground={
           <SettingsRow
             on={SHEET_GROUP}

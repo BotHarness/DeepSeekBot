@@ -39,6 +39,7 @@ export function SettingsView({
   chatBackground,
   hapticFeedback,
   deliveryReceipts,
+  sessionRequests,
 }: {
   environment?: ReactNode;
   environmentFooter?: string | undefined;
@@ -53,6 +54,7 @@ export function SettingsView({
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
   deliveryReceipts?: ReactNode;
+  sessionRequests?: ReactNode;
 }) {
   const t = useStrings();
   const [versionCopied, setVersionCopied] = useState(false);
@@ -143,6 +145,7 @@ export function SettingsView({
         {deliveryReceipts}
       </SettingsSection>
       <SessionNavigationSettings on={SHEET_GROUP} />
+      {sessionRequests}
       <InterfaceSaveNotice />
       <SettingsSection title={t.about} on={SHEET_GROUP}>
         <SettingsRow

@@ -5,8 +5,10 @@ import type {
   HostSessionPendingInput,
   HostSessionListOptions,
   HostSessionListResult,
+  HostSessionAttention,
   HostSessionRow,
   HostSessionSourceOption,
+  HostSessionStatus,
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
 import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
@@ -15,6 +17,23 @@ function modelOf(value: Record<string, unknown> | undefined) {
   return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
     ? { model: { provider: value['provider'], model: value['model'] } }
     : {};
+}
+
+const STATUSES: ReadonlySet<unknown> = new Set<HostSessionStatus>(['running', 'needs-you', 'idle']);
+const ATTENTIONS: ReadonlySet<unknown> = new Set<HostSessionAttention>([
+  'approval',
+  'question',
+  'failed',
+]);
+
+function statusOf(
+  status: unknown,
+  attention: unknown,
+): { status?: HostSessionStatus; attention?: HostSessionAttention } {
+  return {
+    ...(STATUSES.has(status) ? { status: status as HostSessionStatus } : {}),
+    ...(ATTENTIONS.has(attention) ? { attention: attention as HostSessionAttention } : {}),
+  };
 }
 
 export async function listHostSessions(host: HostCall): Promise<HostSessionRow[]> {
@@ -56,6 +75,7 @@ export async function readHostSessionList(
       ...(typeof row['title'] === 'string' ? { title: row['title'] } : {}),
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
+      ...statusOf(row['status'], row['attention']),
       ...(row['archived'] === true ? { archived: true as const } : {}),
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
       ...modelOf(record(row['model'])),

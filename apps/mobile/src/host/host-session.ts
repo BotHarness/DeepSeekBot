@@ -352,6 +352,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   if (saved.member !== undefined) clientSelves.set(client, saved.member.humanId);
   warmHostConversations(saved.hostId);
   const inbox = createInbox(client, {
+    source: 'all',
     notifications: localAlerts,
     activityUpdateHost: () => t.activityUpdateHost,
   });

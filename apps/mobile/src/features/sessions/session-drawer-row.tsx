@@ -19,9 +19,13 @@ import { folderColorIndex, folderMonogram, type SessionQueryRow } from './sessio
 
 export type SessionRowStatus = 'working' | 'needs-you' | 'done';
 
+const HOST_STATUS = { 'needs-you': 'needs-you', running: 'working', idle: 'done' } as const;
+
 export function sessionRowStatus(
-  row: Pick<SessionQueryRow, 'running' | 'waiting'>,
+  row: Pick<SessionQueryRow, 'running' | 'waiting' | 'status' | 'attention'>,
 ): SessionRowStatus {
+  if (row.attention !== undefined) return 'needs-you';
+  if (row.status !== undefined) return HOST_STATUS[row.status];
   return row.waiting === true ? 'needs-you' : row.running ? 'working' : 'done';
 }
 

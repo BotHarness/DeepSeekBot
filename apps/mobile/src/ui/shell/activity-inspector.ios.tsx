@@ -10,6 +10,10 @@ import {
   ACTIVITY_SECTIONS,
   DEFAULT_ACTIVITY,
   sectionLabel,
+  withActivityBot,
+  withActivityChannel,
+  withActivitySource,
+  type ActivityItemSource,
   type ActivitySection,
   type ActivitySort,
 } from './activity-filters';
@@ -97,10 +101,27 @@ export function ActivityInspector({
                 modifiers={[accessibilityIdentifier('activity-filter-unread')]}
               />
               <Picker<string>
+                label={t.activityFrom}
+                selection={filter.source ?? ALL}
+                onSelectionChange={(source) =>
+                  onFilter(
+                    withActivitySource(
+                      filter,
+                      source === ALL ? undefined : (source as ActivityItemSource),
+                    ),
+                  )
+                }
+                modifiers={[pickerStyle('menu'), accessibilityIdentifier('activity-filter-source')]}
+              >
+                <Text modifiers={[tag(ALL)]}>{t.filterAll}</Text>
+                <Text modifiers={[tag('bot')]}>{t.bots}</Text>
+                <Text modifiers={[tag('native')]}>{t.hostSessions.title}</Text>
+              </Picker>
+              <Picker<string>
                 label={t.bots}
                 selection={filter.bot ?? ALL}
                 onSelectionChange={(bot) =>
-                  onFilter({ ...filter, bot: bot === ALL ? undefined : bot })
+                  onFilter(withActivityBot(filter, bot === ALL ? undefined : bot))
                 }
                 modifiers={[pickerStyle('menu'), accessibilityIdentifier('activity-filter-bot')]}
               >
@@ -115,7 +136,7 @@ export function ActivityInspector({
                 label={t.channels}
                 selection={filter.channel ?? ALL}
                 onSelectionChange={(channel) =>
-                  onFilter({ ...filter, channel: channel === ALL ? undefined : channel })
+                  onFilter(withActivityChannel(filter, channel === ALL ? undefined : channel))
                 }
                 modifiers={[
                   pickerStyle('menu'),

@@ -25,3 +25,22 @@ export async function describeHostSettings(host: HostCall): Promise<HostSettings
     ];
   });
 }
+
+export async function updateHostSettings(
+  host: HostCall,
+  ns: string,
+  patch: Record<string, unknown>,
+  expectedRevision: unknown,
+): Promise<HostSettingsNamespace> {
+  const row = record(
+    await host.call('settings/update', {
+      ns,
+      patch,
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+    }),
+  );
+  const value = record(row?.['value']);
+  if (row === undefined || value === undefined)
+    throw new HostAnswerInvalid(`settings/update returned no value for ${ns}.`);
+  return { ns, ...('revision' in row ? { revision: row['revision'] } : {}), value };
+}
