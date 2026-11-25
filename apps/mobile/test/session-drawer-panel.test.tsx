@@ -13,6 +13,7 @@ vi.mock('../src/ui/shell/window-insets', () => ({
   useWindowInsets: () => ({ top: 0, bottom: 34, left: 0, right: 0 }),
 }));
 vi.mock('react-native-keyboard-controller', () => ({
+  KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   KeyboardStickyView: ({
     children,
     offset,
@@ -29,6 +30,18 @@ vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+const edge = vi.hoisted(() => ({ on: false }));
+vi.mock('../src/features/sessions/session-drawer-edge', () => ({
+  get edgeBars() {
+    return edge.on;
+  },
+  EdgeBar: ({ edge: side, children }: { edge: string; children: ReactNode }) => (
+    <div data-edge={side}>{children}</div>
+  ),
+}));
+vi.mock('react-native-screens/experimental', () => ({
+  ScrollViewMarker: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock('../src/ui/shell/tab-chrome', () => ({ useHideChromeOnScroll: () => undefined }));
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({ BotPortrait: () => null }));
@@ -214,6 +227,28 @@ it('keeps Search and New Session at the window bottom inset, not the tab bar’s
   expect(view.querySelector('[data-testid="keyboard-sticky"]')!.getAttribute('data-opened')).toBe(
     '34',
   );
+});
+
+it('floats the header and footer over the list when the native edge bars exist', async () => {
+  edge.on = true;
+  try {
+    const onNew = vi.fn();
+    const { view } = await render({ onNew });
+    const top = view.querySelector('[data-edge="top"]')!;
+    expect(top.querySelector('[data-testid="session-drawer-environment"]')).not.toBeNull();
+    const bottom = view.querySelector('[data-edge="bottom"]')!;
+    const search = bottom.querySelector<HTMLElement>('[data-testid="session-drawer-search"]')!;
+    expect(search.getAttribute('aria-label')).toBe('Search sessions');
+    const create = bottom.querySelector<HTMLElement>('[data-testid="session-drawer-new"]')!;
+    expect(create.textContent).toBe('New Session');
+    await act(async () => create.click());
+    expect(onNew).toHaveBeenCalledOnce();
+    await act(async () => search.click());
+    expect(view.querySelector('[data-testid="session-drawer-search-field"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="session-drawer-new"]')).toBeNull();
+  } finally {
+    edge.on = false;
+  }
 });
 
 it('hides New Session from a member', async () => {
