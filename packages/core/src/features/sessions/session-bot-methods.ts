@@ -45,13 +45,6 @@ export function seedMessageId(operationKey: string): string {
   return `human-${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-export function sessionCreationKey(operationKey: string, sessionIds: readonly string[]): string {
-  const hex = createHash('sha256')
-    .update(`${operationKey}\n${sessionIds.join('\n')}`)
-    .digest('hex');
-  return `sessions-${hex.slice(0, 48)}`;
-}
-
 export function createSessionBotMethods(
   human: HumanContext,
   deps: BridgeMethodsDeps,
@@ -81,7 +74,6 @@ export function createSessionBotMethods(
         return invalidInput(
           'operationKey must be 8 to 128 letters, digits, dots, colons, underscores or hyphens',
         );
-      const creationKey = sessionCreationKey(operationKey, sessionIds);
       const { nativeSessions, creations, grants } = deps;
       if (nativeSessions === undefined || creations === undefined || grants === undefined)
         return failure(
@@ -130,7 +122,8 @@ export function createSessionBotMethods(
             ...(description.value === undefined ? {} : { description: description.value }),
             ...(roles.value === undefined ? {} : { roles: roles.value }),
           },
-          creationKey,
+          operationKey,
+          { kind: 'sessions-v1', sessionIds },
         );
       } catch (error) {
         if (error instanceof BotCreationError) return failure(error.code, error.message);
@@ -151,7 +144,7 @@ export function createSessionBotMethods(
       }
       const sent = await send({
         channelId: created.channelId,
-        messageId: seedMessageId(creationKey),
+        messageId: seedMessageId(operationKey),
         body: sessionSeedMessage(
           seeds,
           granted.map((grant) => grant.workspacePath),

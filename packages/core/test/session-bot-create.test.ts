@@ -4,7 +4,6 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js
 import {
   createSessionBotMethods,
   seedMessageId,
-  sessionCreationKey,
 } from '../src/features/sessions/session-bot-methods.js';
 import type { WorkspaceGrant } from '../src/workspaces/grants.js';
 
@@ -85,18 +84,19 @@ it('creates a blank Bot, grants each Session Workspace once and sends one seed m
     operationKey: 'sessions:test-key',
     language: 'zh',
   };
-  const key = sessionCreationKey('sessions:test-key', ['a1', 'a2', 'b1']);
   const result = await methods.createFromSessions(input);
   expect(result).toMatchObject({
     ok: true,
     value: {
       channelId: 'dm:bot-1',
-      seedMessageId: seedMessageId(key),
+      seedMessageId: seedMessageId('sessions:test-key'),
       receipt: { operationKey: 'sessions:test-key' },
     },
   });
-  expect(create).toHaveBeenCalledWith({ displayName: 'App keeper' }, key);
-  expect(sessionCreationKey('sessions:test-key', ['a1'])).not.toBe(key);
+  expect(create).toHaveBeenCalledWith({ displayName: 'App keeper' }, 'sessions:test-key', {
+    kind: 'sessions-v1',
+    sessionIds: ['a1', 'a2', 'b1'],
+  });
   expect(store.create.mock.calls.map((call) => call[1])).toEqual(['ws-app', 'ws-docs']);
   const body = send.mock.calls[0]![0].body;
   expect(body).toContain('workspace_sessions');

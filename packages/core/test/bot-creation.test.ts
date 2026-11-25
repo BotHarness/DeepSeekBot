@@ -129,6 +129,9 @@ describe('canonical keyed Bot creation', () => {
     expect(() => f.owner.create({ ...input, displayName: 'Different' }, key)).toThrowError(
       expect.objectContaining({ code: 'creation-key-conflict' }),
     );
+    expect(() => f.owner.create(input, key, { sessionIds: ['a1'] })).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
     f.core.registry.setPaused(first.record.slug, true);
     expect(() => f.owner.create(input, key)).toThrowError(
       expect.objectContaining({ code: 'creation-identity-unavailable' }),

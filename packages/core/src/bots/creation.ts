@@ -60,7 +60,7 @@ function matchImport(row: CreationRow, input: BotImportReference): void {
 }
 
 export interface BotCreationService {
-  create(input: BotCreationInput, operationKey?: string): BotCreationResult;
+  create(input: BotCreationInput, operationKey?: string, scope?: object): BotCreationResult;
   lookup(operationKey: string, input: BotCreationInput): BotCreationReceipt | undefined;
   lookupImport(operationKey: string, input: BotImportReference): BotCreationReceipt | undefined;
   importBot(
@@ -118,8 +118,10 @@ export function createBotCreation(options: {
           )
           .get(key) as CreationRow | undefined,
     );
-  const match = (row: CreationRow, input: BotCreationInput): void => {
-    if (row.payload_hash !== fingerprint(input))
+  const keyed = (input: BotCreationInput, scope?: object): string =>
+    fingerprint(scope === undefined ? input : { ...input, scope });
+  const match = (row: CreationRow, input: BotCreationInput, scope?: object): void => {
+    if (row.payload_hash !== keyed(input, scope))
       throw new BotCreationError(
         'creation-key-conflict',
         'This operation key belongs to a different creation request.',
@@ -301,7 +303,7 @@ export function createBotCreation(options: {
       match(row, input);
       return receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
     },
-    create(input, operationKey) {
+    create(input, operationKey, scope) {
       let row: CreationRow | undefined;
       if (operationKey !== undefined) {
         checkedKey(operationKey);
@@ -310,14 +312,14 @@ export function createBotCreation(options: {
             'invalid-create-scope',
             'Stable creation uses the managed Memory location; move Memory separately after creation.',
           );
-        const hash = fingerprint(input);
+        const hash = keyed(input, scope);
         database.transaction((db) => {
           db.prepare(
             'INSERT OR IGNORE INTO bot_creation_operations (operation_key,payload_hash,bot_slug,status) VALUES (?,?,?,?)',
           ).run(operationKey, hash, 'bot-' + randomUUID().replaceAll('-', ''), 'reserved');
         });
         row = read(operationKey)!;
-        match(row, input);
+        match(row, input, scope);
         receipt(row, input.ownerHumanId ?? OWNER_HUMAN_CONTEXT.humanId);
       }
       const slug = row?.bot_slug ?? 'bot-' + randomUUID().replaceAll('-', '');
@@ -415,7 +417,7 @@ export function privateBotCreations(
       const found = service.lookup(key(operationKey), inputFor(input));
       return found === undefined ? undefined : { ...found, operationKey };
     },
-    create(input, operationKey) {
+    create(input, operationKey, scope) {
       const created = service.create(
         inputFor(input),
         operationKey === undefined ? undefined : key(operationKey),
