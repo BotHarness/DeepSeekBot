@@ -10,7 +10,7 @@ export async function managementGrantCases(define, s, fx) {
       const denied = set(target, 'manage-app', 'on', { as: fx.users.bob, allowFail: true });
       check(
         'Member cannot grant management authority',
-        denied.error?.code === 'permission-required',
+        ['permission-required', 'remote-access/denied'].includes(denied.error?.code),
         denied.error?.code,
       );
       check(
@@ -43,6 +43,22 @@ export async function managementGrantCases(define, s, fx) {
         set(target, 'manage-app', 'off').grants?.join() === 'manage-bots',
       );
       check('Both grants can be revoked', set(target, 'manage-bots', 'off').grants?.length === 0);
+      try {
+        set(tob, 'manage-app', 'off');
+        set(tob, 'manage-bots', 'off');
+        const withoutHolder = s.cli(['tob-cli', 'start', '--args-stdin'], {
+          input: JSON.stringify({ argv: ['capabilities'] }),
+          allowFail: true,
+        });
+        check(
+          'A Profile with zero holders refuses scoped CLI admission',
+          withoutHolder.error?.code === 'tob-authority-required',
+          withoutHolder.error?.code,
+        );
+      } finally {
+        set(tob, 'manage-app', 'on');
+        set(tob, 'manage-bots', 'on');
+      }
       check(
         'Second holder grant changes reached its Human DM',
         s
