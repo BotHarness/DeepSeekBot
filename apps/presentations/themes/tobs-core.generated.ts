@@ -3,6 +3,7 @@ export const tobsCore = {
   light: {
     brand: '#3466db',
     brandHover: '#2f5cc5',
+    brandVivid: '#3d5afe',
     onSolid: '#ffffff',
     accentClassicBlue: '#3466db',
     accentMistPurple: '#7957c9',
@@ -20,6 +21,7 @@ export const tobsCore = {
   dark: {
     brand: '#78a0ff',
     brandHover: '#86aaff',
+    brandVivid: '#8c9eff',
     onSolid: '#111318',
     accentClassicBlue: '#78a0ff',
     accentMistPurple: '#b19af0',
