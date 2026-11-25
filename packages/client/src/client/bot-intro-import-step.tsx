@@ -11,6 +11,7 @@ import { Button } from './ds/button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { ModelBrandIcon, type ModelBrand } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
 import { styles as stepStyles } from './bot-intro-step-styles.js';
 
@@ -25,14 +26,14 @@ export const IMPORT_SOURCES = [
 ] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
-const ICONS: Readonly<Record<ImportSource, string>> = {
-  'claude-code': 'terminal',
-  codex: 'cpu',
-  claude: 'message-square',
-  chatgpt: 'messages-square',
-  grok: 'zap',
-  cursor: 'keyboard',
-  other: 'puzzle',
+const LOGOS: Readonly<Record<ImportSource, ModelBrand | undefined>> = {
+  'claude-code': 'claudecode',
+  codex: 'codex',
+  claude: 'claude',
+  chatgpt: 'openai',
+  grok: 'grok',
+  cursor: 'cursor',
+  other: undefined,
 };
 
 const LOCAL: Partial<Record<ImportSource, Exclude<ImportProduct, 'deepseek'>>> = {
@@ -73,10 +74,20 @@ const styles = stylex.create({
     width: size.nav,
     height: size.nav,
     borderRadius: radius.md,
+    position: 'relative',
     backgroundColor: color.modal,
     color: color.fg,
   },
-  chosenIcon: { backgroundColor: color.accent, color: color.onAccent },
+  check: {
+    position: 'absolute',
+    insetInlineEnd: `calc(-1 * ${space.x2})`,
+    bottom: `calc(-1 * ${space.x2})`,
+    display: 'inline-flex',
+    padding: border.hairline,
+    borderRadius: radius.round,
+    backgroundColor: color.accent,
+    color: color.onAccent,
+  },
   label: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   strong: { fontWeight: text.strong },
   meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
@@ -179,8 +190,17 @@ export function ImportStep({
               }}
               {...stylex.props(styles.card, on && styles.chosen)}
             >
-              <span {...stylex.props(styles.icon, on && styles.chosenIcon)}>
-                <Icon name={on ? 'check' : ICONS[id]} />
+              <span {...stylex.props(styles.icon)}>
+                {LOGOS[id] === undefined ? (
+                  <Icon name="puzzle" />
+                ) : (
+                  <ModelBrandIcon brand={LOGOS[id]} size={20} />
+                )}
+                {on ? (
+                  <span {...stylex.props(styles.check)}>
+                    <Icon name="check" size={10} />
+                  </span>
+                ) : null}
               </span>
               <span {...stylex.props(styles.label)}>
                 <span {...stylex.props(styles.strong)}>{name(id)}</span>

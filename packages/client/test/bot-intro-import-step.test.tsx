@@ -55,6 +55,11 @@ it('asks which tools were used, shows found sessions and starts the import for l
     const card = (id: string) =>
       document.body.querySelector<HTMLButtonElement>(`[data-import-source="${id}"]`)!;
     expect(card('claude-code').textContent).toContain('找到 2 个会话');
+    const logo = (id: string) =>
+      card(id).querySelector('[data-model-brand]')?.getAttribute('data-model-brand');
+    expect(
+      ['claude-code', 'codex', 'claude', 'chatgpt', 'grok', 'cursor', 'other'].map(logo),
+    ).toEqual(['claudecode', 'codex', 'claude', 'openai', 'grok', 'cursor', undefined]);
     expect(document.body.querySelector('[data-intro-import-start]')).toBeNull();
 
     await act(() => card('codex').click());
@@ -68,6 +73,7 @@ it('asks which tools were used, shows found sessions and starts the import for l
     await act(() => card('claude-code').click());
     expect(track).toHaveBeenLastCalledWith('claude-code', true);
     expect(card('claude-code').getAttribute('aria-pressed')).toBe('true');
+    expect(logo('claude-code')).toBe('claudecode');
     await act(() =>
       document.body.querySelector<HTMLButtonElement>('[data-intro-import-start]')!.click(),
     );
