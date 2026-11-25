@@ -25,7 +25,11 @@ export function GroupUnavailable({ onBack, reason }: GroupUnavailableProps) {
       >
         <Column horizontalAlignment="center" verticalArrangement={{ spacedBy: space.x5 }}>
           <Icon
-            source={require('../../../assets/button/message-square.xml')}
+            source={
+              reason === 'removed'
+                ? require('../../../assets/button/lock.xml')
+                : require('../../../assets/button/message-square.xml')
+            }
             size={groupUnavailable.icon * theme.fontScale}
             tint={roles.onSurfaceVariant}
           />
