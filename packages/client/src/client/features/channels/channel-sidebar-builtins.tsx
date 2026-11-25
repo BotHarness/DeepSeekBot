@@ -744,7 +744,7 @@ export function createChannelSidebarBuiltins(
     {
       id: 'app-connectors',
       surface: 'settings',
-      icon: 'zap',
+      icon: 'cable',
       label: t('entry.appConnectors'),
       order: 28.5,
       scope: 'personabot',

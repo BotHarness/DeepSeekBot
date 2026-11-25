@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { connectorStatusLabel } from './connectors-settings.js';
+import { ConnectorMeta } from './connectors-settings.js';
 import { BrandLogo } from './ds/brand-logo.js';
 import { Select } from './ds/select.js';
 import type { ConnectorAccess, ConnectorsView } from './features/connectors/bridge.js';
@@ -106,9 +106,7 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
               }
               meta={
                 <span className="bh-card-meta-line">
-                  {[connectorStatusLabel(account.status, t), account.identity]
-                    .filter((part) => part !== undefined)
-                    .join(' · ')}
+                  <ConnectorMeta status={account.status} identity={account.identity} t={t} />
                 </span>
               }
               trailing={

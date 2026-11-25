@@ -6,6 +6,7 @@ import { BrandLogo } from './ds/brand-logo.js';
 import { Button } from './ds/button.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextField } from './ds/field.js';
+import { MaskedText } from './ds/masked-text.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
@@ -42,6 +43,35 @@ const TONE: Record<Account['status'], StatusTone> = {
 
 export function connectorStatusLabel(status: Account['status'], t: BotHarnessTranslate): string {
   return t(`connectors.status.${status}`);
+}
+
+export function ConnectorMeta({
+  status,
+  identity,
+  extra,
+  t,
+}: {
+  status: Account['status'];
+  identity: string | undefined;
+  extra?: string | undefined;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <>
+      {connectorStatusLabel(status, t)}
+      {identity === undefined ? null : (
+        <>
+          {' · '}
+          <MaskedText
+            value={identity}
+            showLabel={t('connectors.identity.show')}
+            hideLabel={t('connectors.identity.hide')}
+          />
+        </>
+      )}
+      {extra === undefined ? null : ` · ${extra}`}
+    </>
+  );
 }
 
 export function ConnectorsSettings({
@@ -210,15 +240,18 @@ export function ConnectorsSettings({
                     leading={<BrandLogo src={connectorLogo(account.service)} />}
                     tone={TONE[account.status]}
                     title={title}
-                    meta={[
-                      connectorStatusLabel(account.status, t),
-                      account.identity,
-                      account.grants.length > 0
-                        ? t('connectors.accounts.bots', { count: account.grants.length })
-                        : undefined,
-                    ]
-                      .filter((part) => part !== undefined)
-                      .join(' · ')}
+                    meta={
+                      <ConnectorMeta
+                        status={account.status}
+                        identity={account.identity}
+                        extra={
+                          account.grants.length > 0
+                            ? t('connectors.accounts.bots', { count: account.grants.length })
+                            : undefined
+                        }
+                        t={t}
+                      />
+                    }
                     data={{ 'data-connector-account': account.service }}
                     open={open === account.accountId}
                     onToggle={() =>

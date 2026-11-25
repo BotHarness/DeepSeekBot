@@ -48,6 +48,8 @@ export const zh = {
   'connectors.bot.write': '读写',
   'connectors.bot.empty': '在设置 › 应用连接中连接应用后，可在这里分配给 Bot。',
   'connectors.bot.ownerOnly': '只有 Host Owner 可以分配应用。',
+  'connectors.identity.show': '显示账号',
+  'connectors.identity.hide': '隐藏账号',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -106,5 +108,7 @@ export const en = {
   'connectors.bot.empty':
     'Connect apps in Settings › App connections, then give them to Bots here.',
   'connectors.bot.ownerOnly': 'Only the Host Owner can give apps to Bots.',
+  'connectors.identity.show': 'Show account',
+  'connectors.identity.hide': 'Hide account',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;
