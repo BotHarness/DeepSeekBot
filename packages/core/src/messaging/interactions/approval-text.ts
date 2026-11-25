@@ -38,7 +38,7 @@ export function createApprovalText(options: {
       candidates.find((value) => value.receipt?.messageId === event.reply.parentId) ??
       (explicit
         ? candidates.find((value) => approvalReference(value.id) === explicit[1]!.toUpperCase())
-        : event.conversation.kind === 'dm' && candidates.length === 1
+        : !event.reply.parentId && event.conversation.kind === 'dm' && candidates.length === 1
           ? candidates[0]
           : undefined);
     if (!target?.receipt || signal.aborted) return false;

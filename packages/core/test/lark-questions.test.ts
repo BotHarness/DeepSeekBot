@@ -655,3 +655,16 @@ it('asks by text when cards are unavailable and takes a quoted letter', async ()
   expect(await answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
   await vi.waitFor(() => expect(f.replies.mock.calls.at(-1)![2]).toContain('Answered / 已回答'));
 });
+
+it('a quoted free-text question does not take an unknown #reference as its answer', async () => {
+  const f = await fixture(true);
+  const { answer, delivery } = await f.start([{ id: 'note', question: 'Anything to add?' }]);
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  await f.text('#0123456789AB allow', receipt);
+  await vi.waitFor(() =>
+    expect(f.replies.mock.calls.at(-1)![2]).toContain(`#${delivery.reference}`),
+  );
+  expect(f.owner.pending('ada', delivery.id)).toBeDefined();
+  await f.text('Ship it', receipt);
+  expect(await answer).toEqual({ answers: [{ id: 'note', selected: [], custom: 'Ship it' }] });
+});

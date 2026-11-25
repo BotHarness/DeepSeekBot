@@ -31,6 +31,7 @@ export async function fixture(
   allOpaqueAccount = allOpaque,
   ensureDm = true,
   textOnly = false,
+  uncheckedCards = false,
 ) {
   const core = createCore({ dshHome: createTempRoot('bh-lark-approval-') });
   cores.push(core);
@@ -61,7 +62,8 @@ export async function fixture(
   );
   const provider: DshImOutboundService = {
     contractVersion: 1,
-    ...(textOnly ? { replyReceiptVersion: 1 as const } : { approvalCardVersion: 1 as const }),
+    ...(textOnly ? { replyReceiptVersion: 1 as const } : {}),
+    ...(!textOnly || uncheckedCards ? { approvalCardVersion: 1 as const } : {}),
     ...(saveRules ? { approvalRuleCardVersion: allOpaque ? (2 as const) : (1 as const) } : {}),
     listBots: async () => [{ botId: 'lark-qa', channel: 'feishu' }],
     listTargets: async () => [],
@@ -75,9 +77,9 @@ export async function fixture(
         'proactive-text-checked',
         'exclusive-text-consumer',
         'reply-text-checked',
-        'approval-card-checked',
-        'approval-card-update-checked',
-        'approval-action-consumer',
+        ...(uncheckedCards
+          ? []
+          : ['approval-card-checked', 'approval-card-update-checked', 'approval-action-consumer']),
         ...(saveRules ? ['approval-rule-card-checked'] : []),
         ...(allOpaqueAccount ? ['approval-rule-all-opaque-card-checked'] : []),
       ],
@@ -88,7 +90,7 @@ export async function fixture(
       receiver = input;
       return () => {};
     },
-    ...(textOnly ? {} : { approvalCardChecked: cards }),
+    ...(!textOnly || uncheckedCards ? { approvalCardChecked: cards } : {}),
   };
   core.externalMessaging.register(createDshImProvider(provider)!);
   const binding = await core.externalMessaging.identity('ada', {

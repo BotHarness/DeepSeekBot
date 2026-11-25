@@ -47,11 +47,41 @@ async function sendText(
   return { sent: true, receipt: result.receipt };
 }
 
+const cardOrText =
+  <I extends { card: object }, R>(
+    card: (input: I) => Promise<R>,
+    text: ((input: I) => Promise<R>) | undefined,
+  ) =>
+  async (input: I): Promise<R> => {
+    try {
+      return await card(input);
+    } catch (error) {
+      if (
+        !text ||
+        ('kind' in input.card && input.card.kind === 'pairing') ||
+        !(error instanceof MessagingProviderError) ||
+        error.code !== 'capability-unavailable' ||
+        error.disposition !== 'not-started'
+      )
+        throw error;
+      return text(input);
+    }
+  };
+
 const settled = (detail: string, reference: string) => `${detail.split('\n')[0]}\n#${reference}`;
 
 export function approvalSurface(context: SurfaceContext): ApprovalSend | undefined {
   const card = context.provider.approvalCard;
-  if (card && cards(context)) return (input) => card.call(context.provider, input);
+  const text = approvalText(context);
+  if (card && cards(context))
+    return cardOrText<Parameters<ApprovalSend>[0], Awaited<ReturnType<ApprovalSend>>>(
+      (input) => card.call(context.provider, input),
+      text,
+    );
+  return text;
+}
+
+function approvalText(context: SurfaceContext): ApprovalSend | undefined {
   if (!context.provider.reply) return undefined;
   return async (input) => {
     if (input.card.kind === 'pairing')
@@ -76,19 +106,34 @@ const QUESTION_STATUS = {
   'web-required': 'Answer not confirmed; check in Web / 回答结果未确认，请在 Web 核对',
 } as const;
 
-export function questionSurface(context: SurfaceContext): QuestionSend | undefined {
+type QuestionSurface = (
+  input: Parameters<QuestionSend>[0] & { notice?: true },
+) => ReturnType<QuestionSend>;
+
+export function questionSurface(context: SurfaceContext): QuestionSurface | undefined {
   const card = context.provider.questionCard;
-  if (card && cards(context)) return (input) => card.call(context.provider, input);
+  const text = questionText(context);
+  if (card && cards(context))
+    return cardOrText<Parameters<QuestionSurface>[0], Awaited<ReturnType<QuestionSend>>>(
+      ({ notice: _notice, ...input }) => card.call(context.provider, input),
+      text,
+    );
+  return text;
+}
+
+function questionText(context: SurfaceContext): QuestionSurface | undefined {
   if (!context.provider.reply) return undefined;
-  return async (input) => {
-    if (input.update && input.card.status === 'pending') return { updated: true };
+  return async ({ notice, ...input }) => {
+    if (input.update && input.card.status === 'pending' && !notice) return { updated: true };
     return sendText(
       context,
       input,
       input.update
         ? [
-            QUESTION_STATUS[input.card.status],
-            ...(input.card.status === 'answered' ? [input.card.detail] : []),
+            ...(input.card.status === 'pending' ? [] : [QUESTION_STATUS[input.card.status]]),
+            ...(input.card.status === 'answered' || input.card.status === 'pending'
+              ? [input.card.detail]
+              : []),
             `#${input.card.reference}`,
           ].join('\n')
         : renderQuestionText(input.card.questions, input.card.reference),

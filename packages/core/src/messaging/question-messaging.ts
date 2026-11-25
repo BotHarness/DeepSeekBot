@@ -228,6 +228,7 @@ export function createQuestionMessaging(options: {
           card,
           signal,
           update: true,
+          ...(value.submission === 'refused' ? { notice: true } : {}),
           beforeSend: () => safe(value) && render(read(id)!).status === card.status,
         }),
       );
@@ -565,8 +566,9 @@ export function createQuestionMessaging(options: {
       const value =
         quoted ?? (named ? candidates.find((item) => item.reference === named) : undefined);
       const ambiguous =
-        (command || !!explicit) &&
-        (!explicit || (quoted !== undefined && quoted.reference !== named));
+        (!!reference && !explicit) ||
+        ((command || !!explicit) &&
+          (!explicit || (quoted !== undefined && quoted.reference !== named)));
       const trusted = candidates.find((item) => authorized(item, providerId, sender));
       if (!trusted || signal.aborted) return true;
       const question = value && request(value);
