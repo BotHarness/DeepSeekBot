@@ -1,0 +1,29 @@
+import { expect, it } from 'vitest';
+import { parseBotCliArgs } from '../src/bots/cli-options.js';
+import { validatedCreate } from '../src/features/personabots/cli-create.js';
+
+const values = (...argv: string[]) => parseBotCliArgs(['create', ...argv]).values;
+const stdin = async () => '';
+
+it('parses --from-sessions into unique Session ids for online creation', async () => {
+  expect(
+    await validatedCreate(
+      values('--name', 'Keeper', '--from-sessions', 'a, b,a', '--persona', 'Calm'),
+      stdin,
+    ),
+  ).toMatchObject({
+    displayName: 'Keeper',
+    persona: 'Calm',
+    source: { kind: 'sessions', sessionIds: ['a', 'b'] },
+  });
+});
+
+it('refuses --from-sessions without a name, with another source or with blank-only options', async () => {
+  for (const argv of [
+    ['--from-sessions', 'a'],
+    ['--name', 'K', '--from-sessions', 'a', '--from-git', 'o/r'],
+    ['--name', 'K', '--from-sessions', 'a', '--memory-location', '/tmp/m'],
+    ['--name', 'K', '--from-sessions', ' , '],
+  ])
+    await expect(validatedCreate(values(...argv), stdin)).rejects.toMatchObject({ code: 'usage' });
+});

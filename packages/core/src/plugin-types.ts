@@ -135,6 +135,7 @@ export type BotAgentSetup = (
 ) => void;
 
 export interface CoreOptions {
+  nativeSessions?: () => import('./features/sessions/host-sessions.js').NativeSessions | undefined;
   botNetwork?: import('./runtime/bot-network.js').BotNetworkPort;
   dshHome?: string;
   legacyDefaultModel?: () => LegacyDefaultModel;

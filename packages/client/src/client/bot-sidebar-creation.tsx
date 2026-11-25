@@ -9,6 +9,7 @@ import type { BotModeSortMode } from '@botharness/host-client/shared/bot-mode-se
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ImportBotZipModal } from './bot-zip.js';
+import { CreateBotFromSessionsModal } from './bot-create-sessions.js';
 import { MarketplaceModal } from './marketplace.js';
 import type { RosterSection } from './roster.js';
 import { CreateSectionModal } from './section-management.js';
@@ -28,8 +29,9 @@ function LocalCreationTarget({ t }: { t: BotHarnessTranslate }): ReactElement {
   );
 }
 
-export function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
+export function botCreateSource(id: string): 'empty' | 'git' | 'zip' | 'sessions' | undefined {
   if (id === 'bot:empty') return 'empty';
+  if (id === 'bot:sessions') return 'sessions';
   if (id === 'bot:git') return 'git';
   if (id === 'bot:zip') return 'zip';
   return undefined;
@@ -139,7 +141,9 @@ export function renderEnvironmentCreationDialogs({
       <span ref={createFromWelcome} hidden aria-hidden="true" />
       {createRequest?.kind === 'channel' ||
       createRequest?.kind === 'message-person' ||
-      (createRequest?.kind === 'bot' && createRequest.source !== 'zip') ? (
+      (createRequest?.kind === 'bot' &&
+        createRequest.source !== 'zip' &&
+        createRequest.source !== 'sessions') ? (
         <EnvironmentCreation
           request={
             createRequest.kind === 'message-person'
@@ -225,6 +229,23 @@ export function renderLocalCreationDialogs({
           onImported={() => {
             setCreateRequest(undefined);
           }}
+        />
+      ) : null,
+    fromSessions:
+      createRequest?.kind === 'bot' && createRequest.source === 'sessions' ? (
+        <CreateBotFromSessionsModal
+          onBack={() =>
+            setCreateRequest({
+              kind: 'bot-source',
+              ...(createRequest.sectionId ? { sectionId: createRequest.sectionId } : {}),
+            })
+          }
+          target={<LocalCreationTarget t={t} />}
+          t={t}
+          actions={actions}
+          {...(createSectionId === undefined ? {} : { sectionId: createSectionId })}
+          onCancel={() => setCreateRequest(undefined)}
+          onCreated={() => setCreateRequest(undefined)}
         />
       ) : null,
     marketplace:

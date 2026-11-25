@@ -105,7 +105,7 @@ export function BotCreateSourceModal({
   t: BotHarnessTranslate;
   member: boolean;
   localImports: boolean;
-  onSelect: (source: 'empty' | 'git' | 'zip') => void;
+  onSelect: (source: 'empty' | 'git' | 'zip' | 'sessions') => void;
   onClose: () => void;
 }): ReactElement {
   return (
@@ -130,6 +130,17 @@ export function BotCreateSourceModal({
           </SidebarCardList>
           {!member ? (
             <>
+              <SidebarCardList>
+                <SidebarCardRow
+                  icon="messages-square"
+                  title={t('roster.menu.createBot.sessions')}
+                  meta={t(
+                    localImports ? 'bot.create.source.sessions' : 'environment.create.localOnly',
+                  )}
+                  disabled={!localImports}
+                  onClick={() => onSelect('sessions')}
+                />
+              </SidebarCardList>
               <SidebarCardList>
                 <SidebarCardRow
                   icon="git-branch"

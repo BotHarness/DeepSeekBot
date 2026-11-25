@@ -96,6 +96,8 @@ deepseekbot create --name <name> [--persona <text> | --persona-stdin]
 deepseekbot create --name <name> --from-git <url | owner/repo> [...]
 deepseekbot create [--name <name>] --from-zip <file> [...]
 deepseekbot create [--name <name>] --from-dir <directory> [...]
+deepseekbot create --host <host> --name <name> --from-sessions <id,id,...> [--persona <text> | --persona-stdin]
+                   [--description <text>] [--role <tag> ...] [--operation-key <key>]
 deepseekbot list [--home <dsh-home>]
 deepseekbot show <id> [--home <dsh-home>]
 deepseekbot model-presets [--home <dsh-home>]
@@ -130,6 +132,8 @@ deepseekbot search <words>
 ```
 
 Exactly one source per create. `--name` is required for blank and GitHub bots; for bundle imports it overrides the name from `.botharness/bot.json` (or the file name). A `--from-git` value accepts a full Git URL (`https://`, `ssh://`, `git@host:path`) or an `owner/repo` shorthand for `https://github.com/owner/repo.git`, which also covers Bot Marketplace entries through their clone URL. A `--from-dir` bundle skips `.git` as files but packs it as history when present.
+
+`--from-sessions` creates a blank Bot from up to 50 of your DeepSeek Sessions on a running Host ([ADR-0366](decisions/bots.md#adr-0366)). The Host grants the Bot each Workspace that contains a Session's working directory and sends a seed message asking it to read the Sessions with its `workspace_sessions` tool and set up `SOUL.md` and Memory; nothing is copied. Errors: `session-not-found` (unknown, child or Bot-owned Session), `session-without-workspace`, `workspace-unavailable` (no Workspace contains the directory). With the same `--operation-key` a retry returns the same Bot and sends no second seed message. Run `bot-tool <bot-id> workspace_sessions` to list the readable Sessions, or pass `{"session_id":"<id>"}` on stdin with `--args-stdin` to read one as Markdown.
 
 `--memory-location <absolute-dir>` keeps a blank bot's Memory outside the DSH data folder (for example on another drive): the Bot's Memory repository is created in a new `<dir>/<bot-id>` folder, and `dataDir` reports that path. The path must be an existing absolute folder and the per-Bot folder must not exist yet (`invalid-memory-dir`); imports keep the default location. The create dialog offers the same choice under **Advanced settings → Memory location**.
 

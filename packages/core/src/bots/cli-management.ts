@@ -128,7 +128,7 @@ export async function runOnlineManagement(
     operationKey !== undefined &&
     (!['create', 'create-status'].includes(command) ||
       !validBotCreationKey(operationKey) ||
-      !['blank', 'git'].includes(create?.source.kind ?? '') ||
+      !['blank', 'git', 'sessions'].includes(create?.source.kind ?? '') ||
       create?.presetId !== undefined ||
       create?.memoryLocation !== undefined)
   )
@@ -147,6 +147,8 @@ export async function runOnlineManagement(
     usage('Stable Git creation requires --expected-commit from bot-import-preview.');
   if (command === 'create-status' && operationKey === undefined)
     usage('create-status requires --operation-key.');
+  if (command === 'create-status' && create?.source.kind === 'sessions')
+    usage('Repeat create --from-sessions with the same --operation-key to recover it.');
   const noTarget = [
     'create',
     'create-status',
@@ -425,36 +427,47 @@ export async function runOnlineManagement(
       ...(create.description === undefined ? {} : { description: create.description }),
     };
     const result =
-      create.source.kind === 'zip' || create.source.kind === 'dir'
-        ? await importBotZip<{
+      create.source.kind === 'sessions'
+        ? await rpc<{
             bot: PersonaBotDetail;
             receipt?: BotCreationReceipt;
             httpsFallback?: BotCreateResult['httpsFallback'];
-          }>(bundle!.archive, {
+          }>('createFromSessions', {
             ...metadata,
-            ...(bundle!.name === undefined ? {} : { name: bundle!.name }),
-          })
-        : await rpc<{
-            bot: PersonaBotDetail;
-            receipt?: BotCreationReceipt;
-            httpsFallback?: BotCreateResult['httpsFallback'];
-          }>(create.source.kind === 'git' ? 'createFromGit' : 'create', {
-            ...metadata,
+            sessionIds: create.source.sessionIds,
+            ...(create.persona === undefined ? {} : { persona: create.persona }),
             ...(operationKey === undefined ? {} : { operationKey }),
-            ...(create.source.kind === 'git'
-              ? {
-                  gitUrl: create.source.gitUrl,
-                  ...(expectedCommit === undefined ? {} : { expectedCommit }),
-                }
-              : {
-                  ...(create.persona === undefined ? {} : { persona: create.persona }),
-                  ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
-                  ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
-                }),
-            ...(create.memoryLocation === undefined
-              ? {}
-              : { memoryLocation: create.memoryLocation }),
-          });
+          })
+        : create.source.kind === 'zip' || create.source.kind === 'dir'
+          ? await importBotZip<{
+              bot: PersonaBotDetail;
+              receipt?: BotCreationReceipt;
+              httpsFallback?: BotCreateResult['httpsFallback'];
+            }>(bundle!.archive, {
+              ...metadata,
+              ...(bundle!.name === undefined ? {} : { name: bundle!.name }),
+            })
+          : await rpc<{
+              bot: PersonaBotDetail;
+              receipt?: BotCreationReceipt;
+              httpsFallback?: BotCreateResult['httpsFallback'];
+            }>(create.source.kind === 'git' ? 'createFromGit' : 'create', {
+              ...metadata,
+              ...(operationKey === undefined ? {} : { operationKey }),
+              ...(create.source.kind === 'git'
+                ? {
+                    gitUrl: create.source.gitUrl,
+                    ...(expectedCommit === undefined ? {} : { expectedCommit }),
+                  }
+                : {
+                    ...(create.persona === undefined ? {} : { persona: create.persona }),
+                    ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+                    ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+                  }),
+              ...(create.memoryLocation === undefined
+                ? {}
+                : { memoryLocation: create.memoryLocation }),
+            });
     if (!result.bot?.slug || !result.bot.displayName)
       throw new CliLiveError('host-protocol-error', 'The Host returned no created Bot identity.');
     bot = { id: result.bot.slug, name: result.bot.displayName };
@@ -479,6 +492,11 @@ export async function runOnlineManagement(
           : {}),
       });
     steps.push({ name: 'create-bot', status: 'ok' });
+    if (create.source.kind === 'sessions')
+      steps.push(
+        { name: 'grant-workspaces', status: 'ok' },
+        { name: 'seed-message', status: 'ok' },
+      );
     if (create.presetId !== undefined) {
       await rpc('modelPresetApply', { slug: bot.id, presetId: create.presetId });
       steps.push({ name: 'model', status: 'ok' });

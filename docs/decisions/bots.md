@@ -147,3 +147,13 @@ Only a Human can disband a local Group. The Host ends membership and routes, sto
 Why: Disbanding should finish the local Group lifecycle in one confirmation. Independent work and other placements have their own owners and should survive removal of this one conversation.
 
 Enforced by: [disband authority, execution and content cleanup](../../packages/core/test/group-disband.test.ts).
+
+## A Bot created from Sessions reads them through its Workspace Grants
+
+<a id="adr-0366"></a>
+
+The Host Owner can create a blank PersonaBot from up to 50 of their own DeepSeek Sessions. The Host matches each Session's working directory to the deepest available Workspace, grants those Workspaces to the new Bot and sends one seed message in its DM. The message lists the Sessions and asks the Bot to read them with the `workspace_sessions` tool, write its role in `SOUL.md` and record key points in Memory. Nothing is copied: the tool reads unowned root Sessions whose directory lies inside one of the Bot's active Grants, so revoking a Grant also revokes the reads. The creation, the Grants and the seed message reuse the operation key, so a retry neither creates a second Bot nor sends the message twice. The dialog names every directory it will grant before the Human confirms.
+
+Why: a user who already works on a project in DeepSeek wants a Bot that looks after that project. Copying transcripts into Memory would freeze a noisy snapshot and still leave the Bot without access to the files. This is an explicit grant chosen by the Human, unlike [Bot Zip](#adr-0135) import, which never inherits Grants.
+
+Enforced by: [Session reads and seed message](../../packages/core/test/workspace-sessions.test.ts), [creation, Grants and idempotency](../../packages/core/test/session-bot-create.test.ts), [CLI](../../packages/core/test/bot-create-from-sessions-cli.test.ts), [Client picker](../../packages/client/test/bot-create-sessions.test.tsx).

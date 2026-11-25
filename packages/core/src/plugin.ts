@@ -1,3 +1,4 @@
+import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
 import * as profileStorage from './features/profile-storage/plugin.js';
@@ -310,36 +311,40 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     routingDefaults,
   );
+  let hostNativeSessions: NativeSessions | undefined;
   const core = createCore(
-    createHostCoreOptions(ctx, {
-      dshHome,
-      routeRests,
-      engineHost,
-      groupFallback,
-      agentAdapter,
-      modelCatalog,
-      diagnosticEvents,
-      updateLifecycle,
-      telemetry,
-      get core() {
-        return core;
-      },
-      get botNetwork() {
-        return botNetwork;
-      },
-      get userQuestions() {
-        return userQuestions;
-      },
-      get toolApproval() {
-        return toolApproval;
-      },
-      get privateInputs() {
-        return privateInputs;
-      },
-      get imCommandServices() {
-        return imCommandServices;
-      },
-    }),
+    Object.assign(
+      createHostCoreOptions(ctx, {
+        dshHome,
+        routeRests,
+        engineHost,
+        groupFallback,
+        agentAdapter,
+        modelCatalog,
+        diagnosticEvents,
+        updateLifecycle,
+        telemetry,
+        get core() {
+          return core;
+        },
+        get botNetwork() {
+          return botNetwork;
+        },
+        get userQuestions() {
+          return userQuestions;
+        },
+        get toolApproval() {
+          return toolApproval;
+        },
+        get privateInputs() {
+          return privateInputs;
+        },
+        get imCommandServices() {
+          return imCommandServices;
+        },
+      }),
+      { nativeSessions: () => hostNativeSessions },
+    ),
   );
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
@@ -574,7 +579,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(
+    nativeSessions: (hostNativeSessions = dshHostSessions(
       ctx,
       dshSessions,
       dshHostSessionInput(
@@ -582,7 +587,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         (id) => core.ownership.resolve(id) === undefined,
         (id) => sessionLive.observe(id, { type: 'native-input' }),
       ),
-    ),
+    )),
     takeovers,
     folders,
     mountedToolApproval,

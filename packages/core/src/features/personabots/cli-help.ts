@@ -11,6 +11,7 @@ Usage:
   tobs create --name <name> --from-git <url | owner/repo> [...]
   tobs create [--name <name>] --from-zip <file> [...]
   tobs create [--name <name>] --from-dir <directory> [...]
+  tobs create --name <name> --from-sessions <session-id,...> --host <url> [--persona <text>] [...]
   tobs bot-import-preview --from-git <url | owner/repo> --host <url>
   tobs create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
   tobs list [--home <dsh-home>]
@@ -300,6 +301,10 @@ Sources (exactly one per create):
   --from-zip   import a bot bundle zip (same shape as the bot-zip export)
   --from-dir   import a bot bundle directory (same shape as the bot-zip export;
                a .git subtree is skipped as files but packed as history)
+  --from-sessions  blank bot seeded from up to 50 DeepSeek Session IDs on a live
+               Host (see session-list --source native): grants each Session's
+               Workspace and sends a first DM asking the Bot to read them with
+               workspace_sessions; repeat with the same --operation-key to recover
 
 Machine contract:
   stdout carries exactly one JSON document. Success exits 0 with the bot id,
