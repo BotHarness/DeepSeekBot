@@ -211,6 +211,10 @@ export const RULES = [
     'packages/core/test/fixtures/memory-images/**',
     'Binary image fixtures are loaded dynamically by Host, CLI and mobile tests',
   ),
+  full(
+    'packages/core/test/fixtures/release-upgrade/**',
+    'Historical SQLite upgrade databases are discovered at test time',
+  ),
   related('packages/*/test/**', 'Package tests and helpers'),
   related('packages/*/lib/**', 'Committed client bundles read by stylesheet tests'),
   related('packages/*/extension/**', 'Browser extension sources'),
