@@ -11,4 +11,12 @@ A local Expo view that gives the phone's Session drawer (#5255) native gesture a
 - **State.** JavaScript owns `open`. `onDragStart` fires when a drag takes the drawer. `onOpenChange` reports every settle at closed (so a drag that falls back closed hides the panel JavaScript revealed) and an open only when it changes. `animated: false` makes the next change of `open` jump (used when the Sessions tab loses focus).
 - **Accessibility.** JavaScript hides the page from VoiceOver while the drawer is open, marks the panel modal, and renders the scrim as a "Close Session drawer" button.
 
+## Edge bars (`SessionDrawerEdge`)
+
+The drawer's header (title and filter) and footer (Search and New Session) float over the Session list, the way a navigation bar and a toolbar float over a scroll view. `SessionDrawerEdgeView` wraps each bar and adds a `UIScrollEdgeElementContainerInteraction` (iOS 26) pointed at the list, with `edge` `top` or `bottom`. UIKit then draws its own soft scroll edge effect under the whole bar, the same progressive blur the Chat page gets under its navigation bar. The list's edge style comes from `ScrollViewMarker` in `react-native-screens/experimental`. Without the interaction, UIKit draws the effect only over the safe area, so the title sat on top of sharp rows.
+
+- The bar finds the list as the nearest `UIScrollView` outside itself, searched breadth-first from its parent outward.
+- While Search is open, the panel avoids the keyboard by padding, so the list's bottom edge and the footer move up together. The footer's edge effect then stays under the search field instead of behind the keyboard.
+- JavaScript turns the floating layout on only when this module is present (`edgeBars` in `session-drawer-edge.ios.tsx`). An older dev client keeps the inline header and footer.
+
 It uses public UIKit API only. This is native code: rebuild the dev client before loading the JS that uses it. An older dev client without it falls back to the React Native drawer in `session-drawer-surface.tsx`.
