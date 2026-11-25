@@ -20,7 +20,6 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/des
 import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { refreshMemberPermissions } from '../src/host/member-permissions';
-import type { CreationPanelControls } from '../src/ui/shell/creation-panel';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -131,17 +130,6 @@ vi.mock('expo-router', () => {
 vi.mock('../src/host/host-session', mockHostSession);
 
 vi.mock('../src/host/native-section-collapse', mockSectionCollapse);
-
-vi.mock('../src/ui/shell/creation-panel', () => ({
-  CreationPanel: ({ children }: { children: (controls: CreationPanelControls) => ReactNode }) =>
-    children({
-      level: 'actions',
-      showSources: vi.fn(),
-      back: vi.fn(),
-      dismiss: vi.fn(),
-      firstAction: { current: null },
-    }),
-}));
 
 vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
 
