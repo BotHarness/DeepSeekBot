@@ -295,19 +295,19 @@ export const en = {
   'onboarding.short.title': 'Get started',
   'onboarding.short.progress': '{done} of 5 done',
   'onboarding.short.model': 'Configure a model',
-  'onboarding.short.modelHint': 'Choose a model, then tell your steward what you want to do.',
-  'onboarding.short.bot': 'Ask your steward to create a Bot',
+  'onboarding.short.modelHint': 'Choose a model, then tell Tob what you want to do.',
+  'onboarding.short.bot': 'Ask Tob to create a Bot',
   'onboarding.short.botHint':
-    'Describe the assistant you need. Your steward then asks you to approve creating it; choose Allow once.',
+    'Describe the assistant you need. If Tob asks you to approve creating it, choose Allow once.',
   'onboarding.short.botPrompt': 'Create a Bot called “Study helper” to help me plan my learning.',
   'onboarding.short.group': 'Create a group',
   'onboarding.short.groupHint':
-    '{name} is ready. Say hi to it first, then ask your steward to add it to a group.',
+    '{name} is ready. Say hi to it first, then ask Tob to add it to a group.',
   'onboarding.short.groupPrompt':
     'Create a group called “Study group” with the {name} Bot you just created.',
   'onboarding.short.chat': 'Start chatting',
   'onboarding.short.chatHint':
-    'Try it now: open your steward conversation from the Channel list. Your draft stays saved.',
+    'Try it now: open your Tob conversation from the Channel list. Your draft stays saved.',
   'onboarding.short.configure': 'Configure a model',
   'onboarding.short.layout': 'Arrange your workspace',
   'onboarding.short.layoutHint': 'Learn to move, resize, hide and reopen panels.',

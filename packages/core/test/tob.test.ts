@@ -85,12 +85,7 @@ describe('Tob canonical identity and settings', () => {
       expect(f.core.tob.isTob('spoof')).toBe(false);
       expect(f.core.registry.get('existing')?.displayName).toBe('DeepSeek Bot');
       expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
-      expect(() => f.core.deletions.preview(home.botSlug)).toThrow('protected-bot');
-      expect(() => f.core.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
-      expect(bridge.pause({ slug: home.botSlug })).toMatchObject({
-        ok: false,
-        error: { code: 'protected-bot' },
-      });
+      expect(f.core.deletions.preview(home.botSlug)).toMatchObject({ lastAppManager: true });
       const dir = f.core.registry.memoryDirFor(home.botSlug);
       expect(dir).toBeTruthy();
       await f.close();
@@ -160,8 +155,7 @@ describe('Tob canonical identity and settings', () => {
           value: { bot: { displayName: 'Tob', tob: { defaultName: false, defaultAvatar: false } } },
         });
         expect(next.registry.get(home.botSlug)?.avatar).toBe(png);
-        expect(() => next.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
-        expect(() => next.deletions.preview(home.botSlug)).toThrow('protected-bot');
+        expect(next.tob.holdsManagementGrant(home.botSlug)).toBe(true);
       } finally {
         await next.runtime.close();
         next.operationalDatabase.close();
@@ -331,7 +325,7 @@ describe('Tob canonical identity and settings', () => {
     const f = fixture(async (run) => {
       try {
         const authorize = f.core.runtime.captureTobCliAuthority!(run.sessionId);
-        expect(run.stewardActive?.()).toBe(true);
+        expect(run.holdsManagementGrant?.()).toBe(true);
         authorize();
         outcomes.push(f.core.tob.readSetting());
         outcomes.push(await f.core.tob.writeSetting(3, 0, authorize));
@@ -551,39 +545,7 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
-  it('refuses legacy Group management at the runtime boundary while keeping Tob private replies available', async () => {
-    let checked = false;
-    const f = fixture(async (run) => {
-      const actions = [
-        () => run.channels.createGroup('Group'),
-        () => run.channels.inviteGroup({ channelId: 'group', targetBotSlug: 'peer' }),
-        () => run.channels.respondToGroupInvite({ invitationId: 'invite', accept: true }),
-        () => run.channels.requestGroupJoin!({ channelId: 'group' }),
-        () =>
-          run.channels.decideGroupJoin!({ channelId: 'group', requestId: 'request', accept: true }),
-        () => run.channels.renameGroup({ channelId: 'group', name: 'Renamed' }),
-        () => run.channels.removeGroupMember({ channelId: 'group', botSlug: 'peer' }),
-        () => run.channels.leaveGroup({ channelId: 'group' }),
-      ];
-      for (const action of actions) expect(action).toThrow('tob-cli-required');
-      const sent = await run.channels.send({ body: 'I can manage groups from this private DM.' });
-      expect(sent.body).toBe('I can manage groups from this private DM.');
-      checked = true;
-    });
-    try {
-      const home = await f.core.tob.ensure();
-      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
-        channelId: home.channelId,
-        messageId: 'human-' + crypto.randomUUID(),
-        body: 'Create a group',
-      });
-      await f.core.runtime.whenIdle();
-      expect(checked).toBe(true);
-    } finally {
-      await f.close();
-    }
-  });
-  it('keeps ordinary Group tools working for Groups that include the Steward', async () => {
+  it('keeps ordinary Group tools working for Groups that include Tob', async () => {
     let checked = false;
     let tobSlug!: string;
     const f = fixture(async (run) => {

@@ -23,7 +23,7 @@ import { sessionDirectSpeaker } from '../../runtime/session-direct-message.js';
 import type { BotSourcePolicyStore } from '../../runtime/source-policy.js';
 import { botOwner } from '../../team/bot-access.js';
 import type { TeamService } from '../../team/service.js';
-import { isStewardDmSource } from '../../tob/steward-role.js';
+import { holdsManagementGrant } from '../../tob/management-grants.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
@@ -102,7 +102,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             },
           }
         : {}),
-      stewardActive: () => isStewardDmSource(ports.database, bot.slug, turn.sourceEventId),
+      holdsManagementGrant: () => holdsManagementGrant(ports.database, bot.slug),
       ...(ports.workspaceSessions === undefined || ports.grants === undefined
         ? {}
         : {

@@ -8,7 +8,7 @@ import {
   isChannelTurnStopTarget,
 } from './turn-stop.js';
 import { isValidSlug } from '../bots/slug.js';
-import { isChannelStewardTransfer } from '@botharness/host-protocol/steward-transfer';
+import { isChannelManagementGrant } from '@botharness/host-protocol/management-grant';
 import { isChannelModelSwitch } from './model-switch.js';
 import { isChannelVoiceCallRecord } from './voice-call-record.js';
 import { isChannelAttachmentRef, isChannelClearedAttachment } from '../attachments/ref.js';
@@ -418,10 +418,10 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   }
   const memberDeparture = message['memberDeparture'];
   if (
-    message['stewardTransfer'] !== undefined &&
+    message['managementGrant'] !== undefined &&
     ((message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
-      !isChannelStewardTransfer(message['stewardTransfer']) ||
-      !isValidSlug(message['stewardTransfer'].botSlug))
+      !isChannelManagementGrant(message['managementGrant']) ||
+      !isValidSlug(message['managementGrant'].botSlug))
   )
     return false;
   if (memberDeparture !== undefined) {
@@ -515,7 +515,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   ) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
-    message['stewardTransfer'] === undefined &&
+    message['managementGrant'] === undefined &&
     !(
       typeof message['onboardingWelcome'] === 'object' &&
       message['onboardingWelcome'] !== null &&

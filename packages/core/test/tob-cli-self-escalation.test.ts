@@ -23,7 +23,7 @@ const deps = {
           : undefined,
   },
   human: humanContext('owner'),
-  isSteward: (slug: string) => slug === 'tob',
+  holdsManagementGrant: (slug: string) => slug === 'tob',
 };
 
 async function broker() {
@@ -116,9 +116,9 @@ describe('Tob grant, approval policy and Browser commands', () => {
       expect(() => authorizeTobHostCli(argv, deps)).not.toThrow();
   });
 
-  it('refuses Steward transfer before the broker opens an approval card', async () => {
+  it('refuses App management grant changes before the broker opens an approval card', async () => {
     const { invoke, run, approve } = await broker();
-    expect(await invoke(['steward-transfer', 'ada', '--confirm'])).toMatchObject({
+    expect(await invoke(['bot-grant', 'ada', 'manage-app', 'on', '--confirm'])).toMatchObject({
       ok: false,
       error: { code: 'cli-command-refused' },
     });

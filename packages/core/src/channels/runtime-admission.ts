@@ -49,7 +49,6 @@ import type {
   TobCliRequestLease,
 } from '../runtime/bot-runtime.js';
 import type { GroupContext } from '../runtime/group-digest.js';
-import { isSteward } from '../tob/steward-role.js';
 
 interface ChannelAdmissionPorts {
   readonly acceptTurnSources: (botSlug: string, sourceEventIds: readonly string[]) => void;
@@ -741,27 +740,38 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}${skills}`,
     ];
-    const stewardTransfer = ports.database.read((db) =>
-      db
+    const grantMarkers = ports.database.read((db) => {
+      const placement = db
+        .prepare(
+          'SELECT revision FROM channel_placements WHERE channel_id = ? AND message_id = ? LIMIT 1',
+        )
+        .get(channelId, messageId);
+      const current = typeof placement?.revision === 'number' ? placement.revision : undefined;
+      if (current === undefined) return [];
+      const previous = db
         .prepare(`
-        SELECT e.payload_json FROM source_events e INDEXED BY source_events_steward_transfer
+        SELECT MAX(p.revision) AS revision FROM channel_placements p
+        JOIN source_events e ON e.source_event_id = p.source_event_id
+        WHERE p.channel_id = ? AND p.revision < ? AND e.source_kind = 'human-message'
+      `)
+        .get(channelId, current)?.revision;
+      return db
+        .prepare(`
+        SELECT e.payload_json FROM source_events e INDEXED BY source_events_management_grant
         JOIN channel_placements p ON p.source_event_id = e.source_event_id AND p.channel_id = e.channel_id
         WHERE e.channel_id = ? AND e.source_kind = 'system-message'
-          AND json_type(e.payload_json, '$.stewardTransfer') IS NOT NULL
-        ORDER BY p.revision DESC LIMIT 1
+          AND json_type(e.payload_json, '$.managementGrant') IS NOT NULL
+          AND p.revision > ? AND p.revision < ?
+        ORDER BY p.revision
       `)
-        .get(channelId),
-    );
-    if (typeof stewardTransfer?.payload_json === 'string') {
-      const { stewardTransfer: marker } = JSON.parse(
-        stewardTransfer.payload_json,
-      ) as ChannelMessage;
-      if (marker)
-        parts.push(
-          isSteward(ports.database, marker.botSlug)
-            ? `[Host timeline] ${JSON.stringify(marker.botName)} is now the Steward.`
-            : `[Host timeline] ${JSON.stringify(marker.botName)} was the Steward until a later transfer; it no longer holds the role.`,
-        );
+        .all(channelId, typeof previous === 'number' ? previous : 0, current)
+        .map((row) => row.payload_json);
+    });
+    for (const payload of grantMarkers) {
+      if (typeof payload !== 'string') continue;
+      const { managementGrant: marker } = JSON.parse(payload) as ChannelMessage;
+      if (marker?.botSlug !== botSlug) continue;
+      parts.push(managementGrantTimeline(marker.capability, marker.enabled));
     }
     if (message.genuiReplyContext !== undefined) parts.push(message.genuiReplyContext);
     if (message.voiceCall !== undefined) {
@@ -837,4 +847,17 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
     recoverPendingChannelAdmissions,
     inboundChannelMessage,
   };
+}
+
+export function managementGrantTimeline(
+  capability: 'manage-app' | 'manage-bots',
+  enabled: boolean,
+): string {
+  if (capability === 'manage-app')
+    return enabled
+      ? '[Host timeline] The Human turned on "Manage the App" for you. You can now manage this App through the scoped deepseekbot CLI in your Human DM turns. For problems with the App or its settings, run deepseekbot capabilities and doctor first and use the CLI yourself rather than an Assignment.'
+      : '[Host timeline] The Human turned off "Manage the App" for you. You can no longer manage this App through the deepseekbot CLI; earlier instructions saying you could no longer apply.';
+  return enabled
+    ? '[Host timeline] The Human turned on "Manage other Bots" for you. Through the scoped deepseekbot CLI you can now change other Bots\' profiles, edit their Memory with the Human\'s decision, and lease their Memory for comparison.'
+    : '[Host timeline] The Human turned off "Manage other Bots" for you. You can no longer change or lease other Bots\' profiles or Memory.';
 }

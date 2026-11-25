@@ -251,7 +251,7 @@ export const en = {
   'home.starters': 'Suggested questions',
   'home.greeting': 'Hello, I’m Tob',
   'home.description':
-    'Your local steward. Check on your Bots or tell me what you’d like to change.',
+    'I can manage this App for you. Check on your Bots or tell me what you’d like to change.',
   'settings.search': 'Search settings',
   'settings.back': 'Back to settings list',
   'settings.results': 'Search results',

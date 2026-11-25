@@ -8,18 +8,27 @@ import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { authorizeTobHostCli } from '../src/tob/cli-host-commands.js';
 import { createTempRoot } from './helpers.js';
 
+const capabilities = ['manage-app', 'manage-bots'] as const;
+
 it(
-  'keeps one Steward and moves both broker admission and self-escalation protection on every transfer',
-  { timeout: 90_000 },
+  'admits the broker exactly for grant holders and refuses authority changes that name any holder',
+  { timeout: 120_000 },
   async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 1, maxLength: 8 }),
-        async (transfers) => {
+        fc.array(
+          fc.record({
+            bot: fc.integer({ min: 0, max: 2 }),
+            capability: fc.constantFrom(...capabilities),
+            enabled: fc.boolean(),
+          }),
+          { minLength: 1, maxLength: 8 },
+        ),
+        async (changes) => {
           const observed: Array<{ slug: string; admitted: boolean }> = [];
           let core: BotHarnessCore;
           core = createCore({
-            dshHome: createTempRoot('steward-property-'),
+            dshHome: createTempRoot('management-grant-property-'),
             agents: {
               async runOrchestrator(run) {
                 let admitted = false;
@@ -29,7 +38,7 @@ it(
                 } catch (error) {
                   expect(error).toMatchObject({ code: 'tob-authority-required' });
                 }
-                expect(run.stewardActive?.() === true).toBe(admitted);
+                expect(run.holdsManagementGrant?.() === true).toBe(admitted);
                 observed.push({ slug: run.bot.slug, admitted });
               },
               async runAssignment() {},
@@ -47,47 +56,54 @@ it(
               expect(core.registry.create({ slug, displayName: slug })).toMatchObject({ ok: true });
               core.channels.getOrCreateDm(owner, slug, slug);
             }
-            for (const index of transfers) {
-              const current = choices[index]!;
-              expect(await bridge.stewardTransfer({ slug: current, confirm: true })).toEqual({
-                ok: true,
-                value: { botSlug: current },
-              });
+            const model = new Map<string, Set<string>>([
+              [home.botSlug, new Set(capabilities)],
+              ['ada', new Set()],
+              ['bea', new Set()],
+            ]);
+            for (const change of changes) {
+              const slug = choices[change.bot]!;
               expect(
-                core.registry
-                  .list()
-                  .filter((bot) => core.tob.isSteward(bot.slug))
-                  .map((bot) => bot.slug),
-              ).toEqual([current]);
-              expect(await bridge.steward({})).toEqual({ ok: true, value: { botSlug: current } });
+                bridge.managementGrantSet({
+                  slug,
+                  capability: change.capability,
+                  enabled: change.enabled,
+                  confirm: true,
+                }),
+              ).toMatchObject({ ok: true });
+              if (change.enabled) model.get(slug)!.add(change.capability);
+              else model.get(slug)!.delete(change.capability);
+              const holds = (bot: string) => model.get(bot)!.size > 0;
               observed.length = 0;
-              for (const slug of choices) {
-                const channelId = dmChannelId(slug);
-                for (const target of [slug, channelId]) {
+              for (const bot of choices) {
+                for (const target of [bot, dmChannelId(bot)]) {
                   const command = () =>
                     authorizeTobHostCli(['approval-template-set', target, 'full-access'], {
                       registry: core.registry,
                       channels: core.channels,
                       human: owner,
-                      isSteward: core.tob.isSteward,
+                      holdsManagementGrant: (value) => core.tob.holdsManagementGrant(value),
                     });
-                  if (slug === current)
+                  if (holds(bot))
                     expect(command).toThrow(
                       expect.objectContaining({ commandCode: 'self-escalation-refused' }),
                     );
                   else expect(command).not.toThrow();
                 }
-                const sent = await bridge.channelSend({
-                  channelId,
-                  messageId: 'human-' + randomUUID(),
-                  body: 'Read settings',
-                });
-                expect(sent.ok).toBe(true);
+                expect(
+                  (
+                    await bridge.channelSend({
+                      channelId: dmChannelId(bot),
+                      messageId: 'human-' + randomUUID(),
+                      body: 'Read settings',
+                    })
+                  ).ok,
+                ).toBe(true);
               }
               await core.runtime.whenIdle();
               expect(observed.sort((a, b) => a.slug.localeCompare(b.slug))).toEqual(
                 choices
-                  .map((slug) => ({ slug, admitted: slug === current }))
+                  .map((bot) => ({ slug: bot, admitted: holds(bot) }))
                   .sort((a, b) => a.slug.localeCompare(b.slug)),
               );
             }

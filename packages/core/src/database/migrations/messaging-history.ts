@@ -351,42 +351,45 @@ export const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
   },
 };
 
-const stewardNoticeOf = (payload: string) =>
-  `CASE WHEN json_valid(${payload}) THEN coalesce(json_type(${payload}, '$.stewardTransfer') = 'object' OR ${noticeOf(payload)}, 0) ELSE 0 END`;
+const managementNoticeOf = (payload: string) =>
+  `CASE WHEN json_valid(${payload}) THEN coalesce(json_type(${payload}, '$.managementGrant') = 'object' OR ${noticeOf(payload)}, 0) ELSE 0 END`;
 
-export const STEWARD_ROLE_MIGRATION: SchemaMigration = {
-  id: 'steward-role',
+export const BOT_MANAGEMENT_GRANTS_MIGRATION: SchemaMigration = {
+  id: 'bot-management-grants',
   module: 'tob',
-  description: 'Persist the Profile Steward independently of the built-in Tob identity',
+  description: 'Persist App management grants per Bot and give the built-in Tob both',
   migrate(database) {
     database.exec(`
-      CREATE TABLE steward_role (
-        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-        bot_slug TEXT NOT NULL REFERENCES persona_bots(slug),
-        revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0)
-      ) STRICT;
-      CREATE INDEX source_events_steward_transfer
+      CREATE TABLE bot_management_grants (
+        bot_slug TEXT NOT NULL REFERENCES persona_bots(slug) ON DELETE CASCADE,
+        capability TEXT NOT NULL CHECK (capability IN ('manage-app', 'manage-bots')),
+        granted_at TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, capability)
+      ) STRICT, WITHOUT ROWID;
+      CREATE INDEX source_events_management_grant
         ON source_events (channel_id)
-        WHERE source_kind = 'system-message' AND json_type(payload_json, '$.stewardTransfer') IS NOT NULL;
+        WHERE source_kind = 'system-message' AND json_type(payload_json, '$.managementGrant') IS NOT NULL;
       DROP TRIGGER channel_placements_notice_insert;
       DROP TRIGGER channel_placements_notice_update;
       CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
         BEGIN
           UPDATE channel_placements SET notice = coalesce((
-            SELECT ${stewardNoticeOf('payload_json')} FROM source_events
+            SELECT ${managementNoticeOf('payload_json')} FROM source_events
              WHERE source_event_id = NEW.source_event_id
           ), 0)
            WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
         END;
       CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
         BEGIN
-          UPDATE channel_placements SET notice = ${stewardNoticeOf('NEW.payload_json')}
+          UPDATE channel_placements SET notice = ${managementNoticeOf('NEW.payload_json')}
            WHERE source_event_id = NEW.source_event_id;
         END;
-      INSERT INTO steward_role (singleton, bot_slug)
-        SELECT 1, t.bot_slug FROM tob_identity t
+      INSERT INTO bot_management_grants (bot_slug, capability, granted_at)
+        SELECT t.bot_slug, c.capability, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        FROM tob_identity t
         JOIN team_settings s ON s.owner_human_id = t.human_id
-        JOIN persona_bots b ON b.slug = t.bot_slug;
+        JOIN persona_bots b ON b.slug = t.bot_slug
+        CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots') c;
     `);
   },
 };

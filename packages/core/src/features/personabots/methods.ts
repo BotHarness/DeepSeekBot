@@ -331,11 +331,6 @@ export function createPersonaBotsBridgeMethods(
   ): BridgeResult<{ bot: PersonaBotDetail }> => {
     const slug = asSlug(payload);
     if (slug === undefined) return invalidInput('slug is required');
-    if (paused && deps.tob?.isSteward(slug))
-      return {
-        ok: false,
-        error: { code: 'protected-bot', message: 'The current Steward cannot be archived' },
-      };
     const result = deps.registry.setPaused(slug, paused);
     if (!result.ok) return unknownBot(slug);
     if (paused) deps.channels.cancelInvitationsForBot(slug);
@@ -352,11 +347,6 @@ export function createPersonaBotsBridgeMethods(
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isSteward(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'The current Steward cannot be deleted' },
-          };
         return { ok: true, value: { preview: deps.deletions.preview(slug) } };
       } catch (error) {
         return invalidInput(
@@ -375,11 +365,6 @@ export function createPersonaBotsBridgeMethods(
         return invalidInput('Explicit deletion scope is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isSteward(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'The current Steward cannot be deleted' },
-          };
         const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
         deps.computerAccess?.changed(slug);
         deps.browserAccess?.changed(slug);

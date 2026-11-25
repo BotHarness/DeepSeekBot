@@ -22,7 +22,7 @@ describe('Channel message format', () => {
   });
 });
 
-it('validates a Steward transfer marker even beside another system notice', () => {
+it('validates an App management grant marker even beside another system notice', () => {
   const base = {
     id: 'notice',
     at: '2026-11-25T00:00:00.000Z',
@@ -35,17 +35,24 @@ it('validates a Steward transfer marker even beside another system notice', () =
     humanName: 'Owner',
     sessionId: 'session',
   };
-  expect(isChannelMessage({ ...base, stewardTransfer: { botSlug: 'ada', botName: 'Ada' } })).toBe(
-    true,
-  );
+  expect(
+    isChannelMessage({
+      ...base,
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'manage-app', enabled: true },
+    }),
+  ).toBe(true);
   expect(isChannelMessage({ ...base, turnStop })).toBe(true);
   expect(
-    isChannelMessage({ ...base, turnStop, stewardTransfer: { botSlug: 7, botName: 42 } }),
+    isChannelMessage({
+      ...base,
+      turnStop,
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'admin', enabled: true },
+    }),
   ).toBe(false);
   expect(
     isChannelMessage({
       ...base,
-      stewardTransfer: { botSlug: 'ada', botName: 'Ada' },
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'manage-app', enabled: true },
       modelSwitch: 7,
     }),
   ).toBe(false);

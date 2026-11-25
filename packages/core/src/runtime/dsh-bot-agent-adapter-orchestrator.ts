@@ -43,7 +43,7 @@ import {
   untilAborted,
 } from './dsh-bot-agent-adapter-shared.js';
 import { runEngineTurn } from './dsh-bot-agent-adapter-engine.js';
-import { orchestratorTools, TOB_CLI_ONLY_TOOLS } from './dsh-bot-agent-adapter-tools.js';
+import { orchestratorTools } from './dsh-bot-agent-adapter-tools.js';
 import { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
@@ -643,15 +643,21 @@ export async function orchestratorHandle(
     if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
     const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
     if (borrowed) borrowedDisposers.push(disposeSelection);
-    const isStewardTurn = () => {
+    const holdsManagementGrant = () => {
       const current = adapter.runs.get(run.sessionId);
-      return current?.role === 'orchestrator' && current.run.stewardActive?.() === true;
+      return current?.role === 'orchestrator' && current.run.holdsManagementGrant?.() === true;
     };
+    let managerPrompt = holdsManagementGrant();
+    const disposeManagerPromptRefresh = agentCtx.on(
+      'session/event',
+      (session: { id: string }, event: { type: string }) => {
+        if (session.id === agent.session.id && event.type === 'compaction/end')
+          managerPrompt = holdsManagementGrant();
+      },
+    );
+    if (borrowed) borrowedDisposers.push(() => void disposeManagerPromptRefresh());
     const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-      const dispose = agentCtx.tools.register(
-        tool,
-        TOB_CLI_ONLY_TOOLS.has(tool.name) ? { when: () => !isStewardTurn() } : undefined,
-      );
+      const dispose = agentCtx.tools.register(tool);
       if (borrowed) borrowedDisposers.push(dispose);
       return dispose;
     };
@@ -679,16 +685,9 @@ export async function orchestratorHandle(
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
-      text: () =>
-        orchestratorPromptSections(adapter.promptText(run.sessionId), isStewardTurn()).role,
+      text: () => orchestratorPromptSections(adapter.promptText(run.sessionId), managerPrompt).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
-    const disposeLegacyManagement = agentCtx.tools.guard(({ name }) =>
-      isStewardTurn() && TOB_CLI_ONLY_TOOLS.has(name)
-        ? 'The Steward must use the scoped deepseekbot CLI'
-        : undefined,
-    );
-    if (borrowed) borrowedDisposers.push(disposeLegacyManagement);
     const disposeReplyPrompt = agentCtx.systemPrompt.section({
       name: 'botharness:reply-delivery',
       order: 10_450,

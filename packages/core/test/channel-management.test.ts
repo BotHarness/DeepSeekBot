@@ -259,14 +259,14 @@ describe('canonical Channel management receipts', () => {
     expect(f.core.channels.get(f.created.channel.id)?.invitations).toBeUndefined();
   });
 
-  it('continues to manage a Group owned by the new Steward', async () => {
+  it('continues to manage a Group owned by a Bot that can manage the App', async () => {
     const f = inviteFixture();
     const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
-      name: 'Steward group',
+      name: 'Manager group',
       members: ['ada'],
       ownerBotSlug: 'ada',
     });
-    await f.core.tob.transferSteward(OWNER_HUMAN_CONTEXT, 'ada');
+    f.core.tob.setManagementGrant(OWNER_HUMAN_CONTEXT, 'ada', 'manage-app', true);
     expect(f.owner.snapshot(group.id).channel.members).toEqual(['ada']);
     const invited = f.owner.invite(OWNER_HUMAN_CONTEXT, { channelId: group.id, botSlug: 'bob' });
     expect(invited.invitation?.targetBotSlug).toBe('bob');

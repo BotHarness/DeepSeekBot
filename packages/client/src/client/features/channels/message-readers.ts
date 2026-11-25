@@ -16,7 +16,7 @@ import { parseToolApprovalActor } from '../../bridge.js';
 import { isChannelVoiceCallRecord } from '../../bridge.js';
 import { isChannelTurnStopEngine, isChannelTurnStopRests } from '../../bridge.js';
 import { isChannelModelSwitch } from '../../bridge.js';
-import { isChannelStewardTransfer } from '../../bridge.js';
+import { isChannelManagementGrant } from '../../bridge.js';
 import { parseMessagePerf } from '../../message-perf.js';
 import { isChannelClearedAttachment } from '../../bridge.js';
 
@@ -264,7 +264,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
-  let stewardTransfer: ChannelMessage['stewardTransfer'];
+  let managementGrant: ChannelMessage['managementGrant'];
   let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
@@ -344,10 +344,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
-  } else if (record['stewardTransfer'] !== undefined) {
-    if (author.kind !== 'system' || !isChannelStewardTransfer(record['stewardTransfer']))
+  } else if (record['managementGrant'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelManagementGrant(record['managementGrant']))
       return undefined;
-    stewardTransfer = record['stewardTransfer'];
+    managementGrant = record['managementGrant'];
   } else if (record['modelSwitch'] !== undefined) {
     if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
     modelSwitch = record['modelSwitch'];
@@ -886,7 +886,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
     ...(modelSwitch === undefined ? {} : { modelSwitch }),
-    ...(stewardTransfer === undefined ? {} : { stewardTransfer }),
+    ...(managementGrant === undefined ? {} : { managementGrant }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),

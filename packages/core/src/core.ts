@@ -307,7 +307,7 @@ function initializeCore(
     spaces,
     options,
   });
-  team.onOwnerTransferred(() => tob.steward());
+  team.onOwnerTransferred(() => tob.onOwnerChanged());
   startup.enter('bot-creation', 'initialize');
   const creations = personabotsFeature.apply({ operationalDatabase, registry, channels, options });
   startup.enter('bot-import', 'initialize');

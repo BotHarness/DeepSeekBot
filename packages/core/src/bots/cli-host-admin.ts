@@ -60,11 +60,15 @@ export const HOST_ADMIN_COMMANDS = [
     command: 'acknowledge',
     description: 'record that this Profile has seen a one-time notice',
   },
-  { command: 'steward', description: 'read the current Steward Bot id' },
   {
-    command: 'steward-transfer',
+    command: 'bot-grants',
     description:
-      '<bot> --confirm moves scoped CLI management and delegation to an active Bot owned by the Host Owner',
+      'list the Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id',
+  },
+  {
+    command: 'bot-grant',
+    description:
+      '<bot> <manage-app|manage-bots> <on|off> turns an App management grant on or off for a Bot the Host Owner owns; on needs --confirm. Human-only',
   },
   { command: 'pause', description: 'archive a Bot through the Host owner' },
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
@@ -232,8 +236,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   pause: 1,
   resume: 1,
   'tob-home': 0,
-  steward: 0,
-  'steward-transfer': 1,
+  'bot-grants': 0,
+  'bot-grant': 3,
   onboarding: 0,
   acknowledgements: 0,
   acknowledge: 1,
@@ -285,6 +289,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
 const POSITIONAL_NAMES: Record<number, string> = {
   1: 'exactly one target',
   2: 'a bot id and a pairing id',
+  3: 'a Bot id, manage-app or manage-bots, and on or off',
 };
 
 interface PairingReview {
@@ -372,10 +377,17 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('marketplace-author-avatar needs exactly one of --file or --clear.');
   if (values.replaces !== undefined && command !== 'marketplace-upload')
     usage('--replaces only applies to marketplace-upload.');
-  if (command === 'steward-transfer' && values.confirm !== true)
-    usage(
-      'Transferring grants the Bot scoped Host management and delegation in your DM. Pass --confirm.',
-    );
+  if (command === 'bot-grant') {
+    if (rest[1] !== 'manage-app' && rest[1] !== 'manage-bots')
+      usage('bot-grant needs manage-app or manage-bots.');
+    if (rest[2] !== 'on' && rest[2] !== 'off') usage('bot-grant needs on or off.');
+    if (rest[2] === 'on' && values.confirm !== true)
+      usage(
+        rest[1] === 'manage-app'
+          ? 'manage-app lets the Bot change settings and models, run diagnostics and maintenance, create Bots and manage Channels through the CLI in its Human DM; writes follow its Approval Template. Pass --confirm.'
+          : "manage-bots lets the Bot change other Bots' profiles, edit their Memory and lease their Memory for comparison; Memory edits always need your decision. Pass --confirm.",
+      );
+  }
   if (command === 'marketplace-delete' && values.confirm !== true)
     usage(
       'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
@@ -547,10 +559,15 @@ export async function runHostAdminCommand(
         key: rest[0]!.trim(),
         ...(values.version === undefined ? {} : { value: values.version }),
       });
-    case 'steward':
-      return rpc('steward', {});
-    case 'steward-transfer':
-      return rpc('stewardTransfer', { slug: target, confirm: true });
+    case 'bot-grants':
+      return rpc('managementGrants', {});
+    case 'bot-grant':
+      return rpc('managementGrantSet', {
+        slug: target,
+        capability: rest[1],
+        enabled: rest[2] === 'on',
+        confirm: values.confirm === true,
+      });
     case 'tob-home':
       return rpc('tobHome', {});
     case 'marketplace-list': {

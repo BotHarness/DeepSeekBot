@@ -21,7 +21,7 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
   };
 }
 
-it('counts only the current Steward delegating from its Human DM', async () => {
+it('counts every Bot delegating from its Human DM', async () => {
   const capture = vi.fn();
   let tobSlug = '';
   const core = createCore({
@@ -43,9 +43,8 @@ it('counts only the current Steward delegating from its Human DM', async () => {
       [home.channelId, 'human-tob'],
       [adaDm, 'human-ada'],
       [home.channelId, 'human-former'],
-      [adaDm, 'human-steward'],
+      [adaDm, 'human-manager'],
     ] as const) {
-      if (id === 'human-former') await core.tob.transferSteward(OWNER_HUMAN_CONTEXT, 'ada');
       await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id,
         at: '2026-10-28T00:00:00.000Z',
@@ -62,10 +61,9 @@ it('counts only the current Steward delegating from its Human DM', async () => {
     expect(
       core.channels.list().filter((channel) => channel.type === 'dm' && !channel.botSlug),
     ).toHaveLength(2);
-    expect(capture.mock.calls.filter(([event]) => event === 'tob:delegation_send')).toEqual([
-      ['tob:delegation_send', { surface: 'bot_tool' }],
-      ['tob:delegation_send', { surface: 'bot_tool' }],
-    ]);
+    expect(capture.mock.calls.filter(([event]) => event === 'tob:delegation_send')).toEqual(
+      Array.from({ length: 4 }, () => ['tob:delegation_send', { surface: 'bot_tool' }]),
+    );
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();

@@ -45,7 +45,7 @@ export function commitOwnerTransfer(
       db.prepare('DELETE FROM human_roles WHERE human_id IN (?, ?)').run(from, to);
       db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(from);
       db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(to);
-      db.prepare('DELETE FROM steward_role WHERE singleton = 1').run();
+      db.prepare('DELETE FROM bot_management_grants').run();
       db.prepare(`
       UPDATE tob_memory_leases SET revoked_at = ?, revoke_reason = 'host-owner-transferred'
       WHERE revoked_at IS NULL

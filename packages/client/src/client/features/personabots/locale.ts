@@ -477,7 +477,7 @@ export const en = {
   'intro.step.start': 'Start',
   'intro.welcome.greeting': 'Hi, I’m Tob',
   'intro.welcome.body':
-    'My name is Bot spelled backwards: Tob. I’m your local steward. Ask me to create Bots, start groups and plan tasks, or ask what each Bot has been up to. Every Bot here has its own personality and memory, and remembers what you talked about.',
+    'My name is Bot spelled backwards: Tob. I can manage this App for you. Ask me to create Bots, start groups and plan tasks, or ask what each Bot has been up to. Every Bot here has its own personality and memory, and remembers what you talked about.',
   'intro.welcome.next': 'Take a minute to make this place yours, then let’s get started.',
   'intro.founder.title': 'From the founder',
   'intro.founder.body':

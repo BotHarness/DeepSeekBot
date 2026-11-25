@@ -366,8 +366,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.inject(['workspaceRegistry'], (workspaceCtx) => {
     if (core.operationalDatabase.mode !== 'ready') return;
-    void core.tob.steward().catch(() => {
-      workspaceCtx.logger.warn('Could not initialize the Profile Steward');
+    void core.tob.ensure().catch(() => {
+      workspaceCtx.logger.warn('Could not initialize the built-in Tob');
     });
   });
   const storage = profileStorage.mountStorage(ctx, core, dshHome);
@@ -383,7 +383,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (topics.includes('host-relationships'))
           core.live.publishResourceChanged('relationships');
         if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
-        if (topics.includes('steward')) core.live.publishRosterCommitted();
+        if (topics.includes('management-grants')) core.live.publishRosterCommitted();
         if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
       }),
     'botharness: live resource changes',

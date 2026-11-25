@@ -20,11 +20,6 @@ export const TOB_GROUP_TOOL_CASES: readonly (readonly [
   ['group_leave', { channel_id: 'group' }, 'leaveGroup'],
 ] as const;
 
-export const TOB_CLI_TOOL_NAMES: string[] = [
-  'bot_create',
-  ...TOB_GROUP_TOOL_CASES.map(([name]) => name),
-];
-
 export const ORCHESTRATOR_TOOL_ORDER: string[] = [
   'genui_diagram',
   'genui_preview',
@@ -58,7 +53,6 @@ export const ORCHESTRATOR_TOOL_ORDER: string[] = [
   'call_frame',
   'list_bot_contacts',
   'group_create',
-  'bot_create',
   'group_invite_bot',
   'group_invite_respond',
   'group_join_request',

@@ -10,7 +10,7 @@ import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { BotHopLimitReached } from './hop-limit.js';
 import { SendReviewRequired, type GroupSendReview } from './send-review.js';
-import { isStewardDmSource } from '../tob/steward-role.js';
+import { isOwnerHumanDmSource } from '../tob/management-grants.js';
 import { TobError } from '../tob/service.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import { createHash } from 'node:crypto';
@@ -544,7 +544,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
     ports.admitBotDmMessage(channel.id, result.message.id);
     if (
       result.status === 'appended' &&
-      isStewardDmSource(ports.database, botSlug, input.sourceEventId)
+      isOwnerHumanDmSource(ports.database, botSlug, input.sourceEventId)
     )
       ports.onTobDelegation();
     return { channelId: channel.id, message: result.message };

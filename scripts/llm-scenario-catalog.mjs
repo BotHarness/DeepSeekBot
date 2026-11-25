@@ -495,7 +495,7 @@ export const SCENARIOS = [
   {
     id: 'tob-report-problem',
     summary:
-      'The Steward runs deepseekbot doctor before it diagnoses a problem the Human reports, and reports from that output in its Human DM (#5193).',
+      'Tob, which holds the App management grant, runs deepseekbot doctor before it diagnoses a problem the Human reports, and reports from that output in its Human DM (#5193).',
     areas: [
       'packages/core/src/tob/',
       'packages/core/src/bots/cli-doctor.ts',
@@ -537,7 +537,7 @@ export const SCENARIOS = [
               message.body.includes(call.arguments.body.trim().slice(0, 60)),
           );
       const calls = await ctx.waitFor(
-        'The Steward runs doctor and reports from it in its Human DM',
+        'Tob runs doctor and reports from it in its Human DM',
         async () => {
           const current = (await ctx.toolCalls(botSlug)).filter(
             (call) => !earlier.has(call.callId),
@@ -567,7 +567,7 @@ export const SCENARIOS = [
               /原因是|是因为|caused by/iu.test(JSON.stringify(call.arguments)),
           )
       )
-        throw new Error('the Steward named a cause before it ran doctor');
+        throw new Error('Tob named a cause before it ran doctor');
     },
   },
   {

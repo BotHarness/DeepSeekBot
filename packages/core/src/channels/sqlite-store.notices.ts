@@ -54,7 +54,7 @@ export function createChannelNotices({
             return { channelId, message, revision };
           });
         },
-        ['source-event', 'channel', 'steward'],
+        ['source-event', 'channel', 'management-grants'],
       );
       if (placements === undefined) return false;
       for (const placement of placements)

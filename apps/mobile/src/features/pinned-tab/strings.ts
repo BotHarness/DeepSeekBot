@@ -4,7 +4,7 @@ export const en = {
     tabLabel: (name: string, unread?: string) =>
       unread === undefined ? `${name}, pinned tab` : `${name}, pinned tab, ${unread} unread`,
     emptyTitle: 'Nothing to pin yet',
-    emptyBody: 'Add a computer and its Steward appears here.',
+    emptyBody: 'Add a computer and its Tob appears here.',
     emptyAction: 'Add a computer',
     loading: 'Loading the pinned conversation',
     loadFailed: 'Could not reach this computer.',

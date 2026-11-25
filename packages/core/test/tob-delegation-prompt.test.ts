@@ -6,10 +6,10 @@ import { TOB_DIAGNOSTIC_CAPABILITIES } from '../src/tob/cli-diagnostic-operation
 import { TOB_HOST_CLI_CAPABILITY } from '../src/tob/cli-host-commands.js';
 import { TOB_SHARE_DRAFT_CAPABILITIES } from '../src/tob/cli-share-draft-operations.js';
 
-it('gives the Steward one short management and delegation instruction', () => {
-  const steward = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
+it('gives an App management grant holder one short management instruction', () => {
+  const manager = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
   const ordinary = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, false).role;
-  const additions = steward
+  const additions = manager
     .split('\n')
     .filter(
       (line) => !ordinary.split('\n').includes(line) && !line.startsWith('In a Group Channel'),
@@ -17,13 +17,12 @@ it('gives the Steward one short management and delegation instruction', () => {
   expect(additions).toHaveLength(1);
   expect(additions[0]!.length).toBeLessThan(450);
   expect(additions[0]).toContain('deepseekbot capabilities');
-  expect(additions[0]).toContain('delegate once to a suitable colleague');
-  expect(additions[0]).toContain('report their result in the Human DM');
-  expect(ordinary).toContain('Create a new PersonaBot with bot_create');
-  expect(steward).not.toContain('You are Tob');
+  expect(additions[0]).toContain('doctor first');
+  expect(ordinary).not.toContain('bot_create');
+  expect(manager).not.toContain('You are Tob');
 });
 
-it('keeps the Steward operating rules in the capability descriptions', () => {
+it('keeps the management operating rules in the capability descriptions', () => {
   const describe = (command: string) =>
     [
       ...TOB_SHARE_DRAFT_CAPABILITIES,

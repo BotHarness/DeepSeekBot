@@ -49,12 +49,17 @@ export function botToolRun(
 }
 
 export const tobRpcMethods = {
-  steward() {
-    return unwrapAsync(this.methods.steward({}));
+  managementGrants() {
+    return unwrap(this.methods.managementGrants({}));
   },
 
-  stewardTransfer(slug: string, confirm: boolean) {
-    return unwrapAsync(this.methods.stewardTransfer({ slug, confirm }));
+  managementGrantSet(
+    slug: string,
+    capability: 'manage-app' | 'manage-bots',
+    enabled: boolean,
+    confirm: boolean,
+  ) {
+    return unwrap(this.methods.managementGrantSet({ slug, capability, enabled, confirm }));
   },
 
   tobHome() {

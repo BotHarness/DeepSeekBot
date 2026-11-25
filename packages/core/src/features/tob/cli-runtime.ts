@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import { humanDmForSource } from '../../tob/steward-role.js';
+import { humanDmForSource } from '../../tob/management-grants.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { HumanContext } from '../../humans/context.js';
@@ -32,7 +32,7 @@ export interface TobCliRequestLease {
   finishedAt: number | undefined;
 }
 
-export function stewardShellAuthority(capture: () => TobCliAuthority | undefined): TobCliAuthority {
+export function managerShellAuthority(capture: () => TobCliAuthority | undefined): TobCliAuthority {
   try {
     const authority = capture();
     if (authority) return authority;
@@ -103,7 +103,8 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       return structuredClone(request.status);
     }
     if (!ports.tob) throw new TobError('tob-authority-required');
-    const { botSlug } = await ports.tob.steward();
+    const { botSlug } = await ports.tob.ensure(human);
+    if (!ports.tob.holdsManagementGrant(botSlug)) throw new TobError('tob-authority-required');
     if (ports.closed()) throw new TobError('runtime-closed');
     const bot = ports.registry.get(botSlug);
     if (!bot || botOwner(bot) !== human.humanId || bot.paused || !ports.memberBotEnabled(bot))
@@ -211,14 +212,13 @@ export function createTobCliRuntime(ports: TobCliPorts) {
   function captureTobCliAuthority(sessionId: string): TobCliAuthority {
     const owner = ports.ownership.resolve(sessionId);
     const tob = ports.tob;
-    const role = tob?.stewardRole();
     if (
       ports.closed() ||
       !ports.ownership.contentAvailable(sessionId) ||
       owner?.rootRole !== 'orchestrator' ||
       owner.parentSessionId !== undefined ||
       !tob ||
-      role?.botSlug !== owner.botSlug
+      !tob.holdsManagementGrant(owner.botSlug)
     )
       throw new TobError('tob-authority-required');
     const humanId = tob.ownerId();
@@ -239,7 +239,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         currentOwner?.botSlug !== owner.botSlug ||
         currentOwner.rootRole !== 'orchestrator' ||
         currentOwner.parentSessionId !== undefined ||
-        tob.stewardRole()?.revision !== role.revision ||
+        !tob.holdsManagementGrant(owner.botSlug) ||
         tob.ownerId() !== humanId
       )
         throw new TobError('tob-authority-required');

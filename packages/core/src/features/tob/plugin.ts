@@ -8,10 +8,16 @@ import {
   TOB_MEMORY_EDIT_CAPABILITIES,
 } from '../../tob/cli-memory-edit-operations.js';
 import { TOB_DIAGNOSTIC_CAPABILITIES } from '../../tob/cli-diagnostic-operations.js';
-import { authorizeTobBotTargets, TOB_HOST_CLI_CAPABILITY } from '../../tob/cli-host-commands.js';
+import {
+  authorizeTobBotTargets,
+  TobCliCommandError,
+  TOB_HOST_CLI_CAPABILITY,
+} from '../../tob/cli-host-commands.js';
+import type { ManagementCapability } from '../../tob/management-grants.js';
+import { managementCapabilitiesFor, managementCapabilityList } from './management-scope.js';
 import { TOB_SHARE_DRAFT_CAPABILITIES } from '../../tob/cli-share-draft-operations.js';
 import { TobError } from '../../tob/service.js';
-import { stewardShellAuthority } from './cli-runtime.js';
+import { managerShellAuthority } from './cli-runtime.js';
 import { TOB_MODEL_CAPABILITIES } from '../../tob/cli-model-operations.js';
 import { TOB_MAINTENANCE_CAPABILITIES } from '../../tob/cli-maintenance-operations.js';
 import { installTobCliShell } from '../../tob/cli-shell.js';
@@ -172,13 +178,13 @@ export function mountOperations(
     registry: core.registry,
     human: () => core.team.ownerContext(),
     bridge: () => bridgeMethods,
-    isProtectedBot: (slug) => core.tob.isSteward(slug),
+    isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
   });
   const tobMemoryEditOperations = createTobMemoryEditOperations({
     registry: core.registry,
     memory: () => core.memory,
     human: () => core.team.ownerContext(),
-    isProtectedBot: (slug) => core.tob.isSteward(slug),
+    isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
   });
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
@@ -214,7 +220,7 @@ export function mountOperations(
         registry: core.registry,
         channels: core.channels,
         human: core.team.ownerContext(),
-        isSteward: (slug) => core.tob.isSteward(slug),
+        holdsManagementGrant: (slug) => core.tob.holdsManagementGrant(slug),
       }),
     run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
   });
@@ -228,7 +234,7 @@ export function mountOperations(
     registry: core.registry,
     ownership: core.ownership,
     memory: () => core.memory,
-    isSteward: (slug) => core.tob.isSteward(slug),
+    canManageBots: (slug) => core.tob.holdsManagementGrant(slug, 'manage-bots'),
   });
   return {
     tobMemoryLeases,
@@ -272,7 +278,7 @@ export function createOrchestratorFileSetup(
         installTobCliShell(shellCtx, shell, {
           nativeCli: {
             available: () =>
-              deps.core.tob.isSteward(
+              deps.core.tob.holdsManagementGrant(
                 deps.core.ownership.resolve(agent.session.id)?.botSlug ?? '',
               ) && deps.agentAdapter.ownsModelFreeTobTurn(agent),
             register: (definition) =>
@@ -286,11 +292,20 @@ export function createOrchestratorFileSetup(
           capture: (execution) => {
             const actor = execution.agent;
             const slug = actor && deps.core.ownership.resolve(actor.session.id)?.botSlug;
-            if (!actor || !slug || !deps.core.tob.isSteward(slug)) return undefined;
-            const steward = deps.core.registry.get(slug);
-            if (!steward) return undefined;
-            const human = humanContext(botOwner(steward));
-            const source = stewardShellAuthority(() =>
+            if (!actor || !slug || !deps.core.tob.holdsManagementGrant(slug)) return undefined;
+            const manager = deps.core.registry.get(slug);
+            if (!manager) return undefined;
+            const human = humanContext(botOwner(manager));
+            const requireGrant = (capability: ManagementCapability) => {
+              if (!deps.core.tob.holdsManagementGrant(slug, capability))
+                throw new TobCliCommandError(
+                  `${capability}-required`,
+                  capability === 'manage-app'
+                    ? 'This Bot cannot manage the App. The Human can turn on "Manage the App" for it in Bot settings.'
+                    : 'This Bot cannot manage other Bots. The Human can turn on "Manage other Bots" for it in Bot settings.',
+                );
+            };
+            const source = managerShellAuthority(() =>
               deps.core.runtime.captureTobCliAuthority?.(actor.session.id),
             );
             const requireAuthority = (requireOrigin: () => void) => {
@@ -307,7 +322,11 @@ export function createOrchestratorFileSetup(
             const started = Date.now();
             return {
               signal: execution.signal,
-              authorize: () => requireAuthority(source),
+              authorize: () => {
+                requireAuthority(source);
+                if (!deps.core.tob.holdsManagementGrant(slug))
+                  throw new TobError('tob-authority-required');
+              },
               beginWrite: () => {
                 const scope = source.beginWrite();
                 return { ...scope, authorize: () => requireAuthority(scope.authorize) };
@@ -320,9 +339,11 @@ export function createOrchestratorFileSetup(
                     human,
                   });
                 checkTargets();
+                const required = managementCapabilitiesFor(command, args, slug, deps.core);
+                required.forEach(requireGrant);
                 const lease = createTobMemoryLeaseOperations({
                   leases: () => deps.tobOperations.tobMemoryLeases,
-                  tobSlug: () => steward.slug,
+                  tobSlug: () => manager.slug,
                   sources: () => {
                     requireAuthority(source);
                     return source.sources;
@@ -343,6 +364,7 @@ export function createOrchestratorFileSetup(
                 if (!prepared) return prepared;
                 const scopedGuard = (guard: () => void) => () => {
                   guard();
+                  required.forEach(requireGrant);
                   checkTargets();
                 };
                 if (!['create', 'group-create'].includes(command))
@@ -364,7 +386,7 @@ export function createOrchestratorFileSetup(
                   },
                 };
               },
-              capabilities: [
+              capabilities: managementCapabilityList(deps.core.tob.managementGrants(slug), [
                 ...TOB_MODEL_CAPABILITIES,
                 ...TOB_MAINTENANCE_CAPABILITIES,
                 ...TOB_BOT_CREATE_CAPABILITIES,
@@ -376,7 +398,7 @@ export function createOrchestratorFileSetup(
                 ...TOB_VOICE_CAPABILITIES,
                 ...TOB_MEMORY_LEASE_CAPABILITIES,
                 TOB_HOST_CLI_CAPABILITY,
-              ],
+              ]),
               readSetting: () => deps.core.tob.readSetting(),
               writeSetting: (value, revision, guard) =>
                 deps.core.tob.writeSetting(value, revision, guard),
@@ -411,7 +433,10 @@ export function createAssignmentShellSetup(
 ): NonNullable<Parameters<typeof createDshBotAgentAdapter>[0]['onAssignmentShellSetup']> {
   return async (agentCtx, agent) => {
     const owner = deps.core.ownership.resolve(agent.session.id);
-    if (owner?.rootRole !== 'assignment' || !deps.core.tob.isSteward(owner.botSlug))
+    if (
+      owner?.rootRole !== 'assignment' ||
+      !deps.core.tob.holdsManagementGrant(owner.botSlug, 'manage-bots')
+    )
       return undefined;
     const assignmentSessionId = agent.session.id;
     const leases = () => deps.tobOperations.tobMemoryLeases;
@@ -427,7 +452,10 @@ export function createAssignmentShellSetup(
             const authorize = () => {
               if (execution.signal.aborted) throw new TobError('agent-context-expired');
               const current = deps.core.ownership.resolve(assignmentSessionId);
-              if (current?.rootRole !== 'assignment' || !deps.core.tob.isSteward(current.botSlug))
+              if (
+                current?.rootRole !== 'assignment' ||
+                !deps.core.tob.holdsManagementGrant(current.botSlug, 'manage-bots')
+              )
                 throw new TobError('tob-authority-required');
               if (!leases().active(assignmentSessionId)) throw new TobError('lease-unavailable');
             };

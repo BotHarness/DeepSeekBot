@@ -981,7 +981,7 @@ export class TeamService {
     } else this.invalidate();
     for (const listener of this.ownerListeners)
       await listener().catch(() => {
-        this.log('owner-transfer-steward-unavailable', { humanId });
+        this.log('owner-transfer-tob-unavailable', { humanId });
       });
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);

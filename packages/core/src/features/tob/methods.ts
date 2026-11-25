@@ -8,7 +8,8 @@ import {
 } from '../../bridge/method-utils.js';
 import { TeamError } from '../../team/error.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';
-import { TobError, type TobHome } from '../../tob/service.js';
+import { TobError, type ManagementGrantChange, type TobHome } from '../../tob/service.js';
+import { isManagementCapability, type ManagementCapability } from '../../tob/management-grants.js';
 import { tobCliRequestSchema, type TobCliStatus } from '../../tob/cli-request.js';
 import { DirectBotToolError } from '../../runtime/bot-runtime.js';
 import { GenuiDiagramError } from '../../runtime/genui-diagram.js';
@@ -31,8 +32,11 @@ function directToolsUnavailable(): BridgeResult<never> {
 }
 
 export interface TobAdapterMethods {
-  steward(payload: unknown): Promise<BridgeResult<{ botSlug: string }>>;
-  stewardTransfer(payload: unknown): Promise<BridgeResult<{ botSlug: string }>>;
+  managementGrants(payload: unknown): BridgeResult<{
+    tobSlug?: string;
+    holders: { botSlug: string; capabilities: ManagementCapability[] }[];
+  }>;
+  managementGrantSet(payload: unknown): BridgeResult<ManagementGrantChange>;
   tobHome(
     payload: unknown,
   ): Promise<
@@ -58,30 +62,43 @@ export function createTobAdapterMethods(
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {
-    async steward() {
+    managementGrants() {
       if (!deps.tob) return unavailable();
-      try {
-        return { ok: true, value: await deps.tob.steward() };
-      } catch (error) {
-        if (!(error instanceof TobError)) throw error;
-        return { ok: false, error: { code: error.code, message: error.message } };
-      }
+      const tobSlug = deps.tob.slug();
+      return {
+        ok: true,
+        value: {
+          ...(tobSlug === undefined ? {} : { tobSlug }),
+          holders: isHostOwner() ? deps.tob.managementGrantHolders() : [],
+        },
+      };
     },
-    async stewardTransfer(payload) {
+    managementGrantSet(payload) {
       if (!isHostOwner() || human.caller === 'bot')
         return {
           ok: false,
           error: {
             code: 'permission-required',
-            message: 'The Human Host Owner must transfer the Steward role.',
+            message: 'Only the Human Host Owner can change App management grants.',
           },
         };
       const slug = asSlug(payload);
-      if (!slug || asObject(payload)['confirm'] !== true)
-        return invalidInput('Steward transfer requires a Bot slug and explicit confirmation.');
+      const { capability, enabled, confirm } = asObject(payload);
+      if (
+        !slug ||
+        !isManagementCapability(capability) ||
+        typeof enabled !== 'boolean' ||
+        (enabled && confirm !== true)
+      )
+        return invalidInput(
+          'A management grant change needs a Bot slug, manage-app or manage-bots, enabled true or false, and confirm true when turning it on.',
+        );
       if (!deps.tob) return unavailable();
       try {
-        return { ok: true, value: await deps.tob.transferSteward(human, slug) };
+        return {
+          ok: true,
+          value: deps.tob.setManagementGrant(human, slug, capability, enabled),
+        };
       } catch (error) {
         if (!(error instanceof TobError)) throw error;
         return { ok: false, error: { code: error.code, message: error.message } };

@@ -7,7 +7,14 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { botOwner } from '../team/bot-access.js';
-import { initializeSteward, isSteward, readSteward } from './steward-role.js';
+import {
+  grantAllManagement,
+  holdsManagementGrant,
+  managementGrantHolders,
+  managementGrants,
+  writeManagementGrant,
+  type ManagementCapability,
+} from './management-grants.js';
 import type { ChannelMessage } from '../channels/channel.js';
 import type { WorkspaceGrantStore } from '../workspaces/grants.js';
 
@@ -42,14 +49,26 @@ export function isTob(database: OperationalDatabaseModulePort, slug: string): bo
     ) !== undefined
   );
 }
+export interface ManagementGrantChange {
+  botSlug: string;
+  capabilities: ManagementCapability[];
+  changed: boolean;
+  noAppManager: boolean;
+}
 export interface TobService {
   ensure(human?: HumanContext): Promise<TobHome>;
   close(): Promise<void>;
   isTob(slug: string): boolean;
-  isSteward(slug: string): boolean;
-  stewardRole(): ReturnType<typeof readSteward>;
-  steward(): Promise<{ botSlug: string }>;
-  transferSteward(human: HumanContext, botSlug: string): Promise<{ botSlug: string }>;
+  managementGrants(slug: string): ManagementCapability[];
+  holdsManagementGrant(slug: string, capability?: ManagementCapability): boolean;
+  managementGrantHolders(): { botSlug: string; capabilities: ManagementCapability[] }[];
+  setManagementGrant(
+    human: HumanContext,
+    botSlug: string,
+    capability: ManagementCapability,
+    enabled: boolean,
+  ): ManagementGrantChange;
+  onOwnerChanged(): Promise<void>;
   ownerId(): string;
   slug(human?: HumanContext): string | undefined;
   readSetting(): TobSetting;
@@ -90,15 +109,8 @@ export function createTobService(options: {
       join(options.workspaceRoot, slug);
     mkdirSync(workspacePath, { recursive: true });
     let bot = registry.get(slug);
-    if (bot?.paused || (!bot && registry.getHistorical(slug))) {
-      const role = readSteward(database);
-      const current = role && registry.get(role.botSlug);
-      if (!current || botOwner(current) !== human.humanId)
-        throw new TobError('tob-identity-unavailable');
-      const channel = channels.getOrCreateDm(human, current.slug, current.displayName);
-      if (!channel) throw new TobError('tob-channel-unavailable');
-      return { botSlug: current.slug, channelId: channel.id, workspacePath };
-    }
+    if (bot?.paused || (!bot && registry.getHistorical(slug)))
+      throw new TobError('tob-identity-unavailable');
     if (!bot) {
       const created = await registry.createAsync(
         {
@@ -122,9 +134,11 @@ export function createTobService(options: {
       );
       if (!created.ok) throw new TobError(created.reason);
       bot = created.record;
+      database.transaction(
+        (db) => grantAllManagement(db, slug, new Date().toISOString()),
+        ['management-grants'],
+      );
     }
-    if (readSteward(database) === undefined)
-      database.transaction((db) => initializeSteward(db, slug), ['steward']);
     if (options.ensureWorkspace) {
       const workspace = await options.ensureWorkspace(workspacePath);
       const current = registry.get(slug);
@@ -174,71 +188,60 @@ export function createTobService(options: {
       await Promise.allSettled(pending.values());
     },
     isTob: (slug) => isTob(database, slug),
-    isSteward: (slug) => isSteward(database, slug),
-    stewardRole: () => readSteward(database),
+    managementGrants: (slug) => managementGrants(database, slug),
+    holdsManagementGrant: (slug, capability) => holdsManagementGrant(database, slug, capability),
+    managementGrantHolders: () => managementGrantHolders(database),
     ownerId,
-    async steward() {
-      await service.ensure();
-      const role = readSteward(database);
-      if (!role) throw new TobError('steward-unavailable');
-      return { botSlug: role.botSlug };
-    },
-    async transferSteward(human, botSlug) {
-      const requireOwner = () => {
-        if (human.caller === 'bot' || human.humanId !== ownerId())
-          throw new TobError('permission-required');
-      };
-      requireOwner();
-      await service.steward();
-      requireOwner();
-      const previous = readSteward(database);
-      const next = registry.get(botSlug);
-      if (!previous || !next || botOwner(next) !== human.humanId)
-        throw new TobError('bot-not-found');
-      if (next.paused) throw new TobError('archived-bot');
-      if (previous.botSlug === botSlug) return { botSlug };
-      const former = registry.get(previous.botSlug);
-      if (!former || !channels.appendSystemNotices) throw new TobError('steward-unavailable');
-      const from = channels.getOrCreateDm(
-        humanContext(botOwner(former)),
-        former.slug,
-        former.displayName,
-      );
-      const to = channels.getOrCreateDm(human, next.slug, next.displayName);
-      if (!from || !to) throw new TobError('steward-unavailable');
+    setManagementGrant(human, botSlug, capability, enabled) {
+      if (human.caller === 'bot' || human.humanId !== ownerId())
+        throw new TobError('permission-required');
+      const bot = registry.get(botSlug);
+      if (!bot || botOwner(bot) !== human.humanId) throw new TobError('bot-not-found');
+      if (enabled && bot.paused) throw new TobError('archived-bot');
+      const at = new Date().toISOString();
       const message: ChannelMessage = {
-        id: `steward-transfer-${randomUUID()}`,
-        at: new Date().toISOString(),
+        id: `management-grant-${randomUUID()}`,
+        at,
         author: { kind: 'system' },
-        body: `${next.displayName} is now the Steward.`,
-        stewardTransfer: { botSlug, botName: next.displayName },
+        body: enabled
+          ? `${bot.displayName} can now ${capability === 'manage-app' ? 'manage the App' : 'manage other Bots'}.`
+          : `${bot.displayName} can no longer ${capability === 'manage-app' ? 'manage the App' : 'manage other Bots'}.`,
+        managementGrant: { botSlug, botName: bot.displayName, capability, enabled },
       };
-      const committed = channels.appendSystemNotices(
-        [from, to].map((channel) => ({ channelId: channel.id, message })),
-        (db) => {
-          const result = db
-            .prepare(`
-            UPDATE steward_role SET bot_slug = ?, revision = revision + 1
-            WHERE singleton = 1 AND revision = ?
-              AND EXISTS (SELECT 1 FROM team_settings WHERE owner_human_id = ?)
-              AND EXISTS (
-                SELECT 1 FROM persona_bots
-                WHERE slug = ? AND owner_human_id = ?
-                  AND COALESCE(json_extract(body, '$.paused'), 0) = 0
-                  AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions WHERE slug = ?)
-              )
-          `)
-            .run(botSlug, previous.revision, human.humanId, botSlug, human.humanId, botSlug);
-          if (result.changes !== 1) return false;
+      const write = (db: Parameters<typeof grantAllManagement>[0]) => {
+        const changed = writeManagementGrant(db, botSlug, capability, enabled, at);
+        if (changed && !enabled && capability === 'manage-bots')
           db.prepare(`
-            UPDATE tob_memory_leases SET revoked_at = ?, revoke_reason = 'steward-transferred'
+            UPDATE tob_memory_leases SET revoked_at = ?, revoke_reason = 'management-grant-revoked'
             WHERE tob_slug = ? AND revoked_at IS NULL
-          `).run(message.at, previous.botSlug);
-          return true;
-        },
+          `).run(at, botSlug);
+        return changed;
+      };
+      const dm = channels.getOrCreateDm(human, bot.slug, bot.displayName);
+      let changed: boolean;
+      if (dm && channels.appendSystemNotices) {
+        let wrote = false;
+        channels.appendSystemNotices([{ channelId: dm.id, message }], (db) => {
+          wrote = write(db);
+          return wrote;
+        });
+        changed = wrote;
+      } else changed = database.transaction((db) => write(db), ['management-grants']);
+      return {
+        botSlug,
+        capabilities: managementGrants(database, botSlug),
+        changed,
+        noAppManager: !managementGrantHolders(database).some((holder) =>
+          holder.capabilities.includes('manage-app'),
+        ),
+      };
+    },
+    async onOwnerChanged() {
+      const home = await service.ensure();
+      database.transaction(
+        (db) => grantAllManagement(db, home.botSlug, new Date().toISOString()),
+        ['management-grants'],
       );
-      if (!committed) throw new TobError('steward-changed');
-      return { botSlug };
     },
     slug: (human = humanContext(ownerId())) =>
       (

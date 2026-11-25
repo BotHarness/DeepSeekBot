@@ -1,4 +1,3 @@
-import { initializeSteward } from '../../tob/steward-role.js';
 import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
@@ -280,7 +279,6 @@ export function createRegistry(
     validateMemoryPath: (slug, humanId, path) => deps.spaces.assertMemoryPath(humanId, slug, path),
     creationTopics: ['workspace-grants'],
     onCreated: (bot, connection) => {
-      initializeSteward(connection, bot.slug);
       const humanId = bot.ownerHumanId ?? deps.team.ownerContext().humanId;
       if (!deps.team.isOwner(humanContext(humanId)))
         deps.grants.initializeAccount(bot.slug, 'spaces/' + humanId, connection);

@@ -500,7 +500,7 @@ it('keeps a cancelled native publication reserved until its late handle is clean
   const cancelled = adapter
     .runOrchestrator({
       ...reportRun,
-      stewardActive: () => true,
+      holdsManagementGrant: () => true,
       tobCliTurn: {
         command: { argv: ['approval-templates'], stdin: '' },
         signal: controller.signal,

@@ -308,11 +308,7 @@ export function createMarketplaceBridgeMethods(
         };
   const shareDraftSlug = (payload: unknown): string | undefined => {
     const slug = asSlug(payload);
-    return slug === undefined ||
-      deps.registry.get(slug) === undefined ||
-      deps.tob?.isSteward(slug) === true
-      ? undefined
-      : slug;
+    return slug === undefined || deps.registry.get(slug) === undefined ? undefined : slug;
   };
   const draftResult = (
     result: { ok: true; value: ShareDraft } | { ok: false; code: string; path?: string },
@@ -721,7 +717,7 @@ export function createMarketplaceBridgeMethods(
         const slug = asSlug(payload);
         const source = asObject(payload);
         const record = slug === undefined ? undefined : deps.registry.get(slug);
-        if (slug === undefined || record === undefined || deps.tob?.isSteward(slug) === true)
+        if (slug === undefined || record === undefined)
           return invalidInput('slug must name one of your Bots');
         const displayName = source['displayName'];
         const bio = parseOptional(source, 'bio');

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { humanDmForSource } from './steward-role.js';
+import { humanDmForSource } from './management-grants.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MemoryAcceptance } from '../memory/accepted-types.js';
 import { requireSourceEffects } from '../purge/fence.js';
@@ -135,7 +135,7 @@ export interface TobMemoryLeaseDeps {
   registry: Pick<PersonaBotRegistry, 'get'>;
   ownership: Pick<SessionOwnership, 'resolve' | 'contentAvailable'>;
   memory: () => Pick<MemoryAcceptance, 'snapshot' | 'readAccepted' | 'history' | 'diff'>;
-  isSteward(slug: string): boolean;
+  canManageBots(slug: string): boolean;
   now?: () => Date;
 }
 
@@ -197,13 +197,13 @@ export function createTobMemoryLeases(deps: TobMemoryLeaseDeps): TobMemoryLeases
 
   const tobOwner = (tobSlug: string): string => {
     const tob = deps.registry.get(tobSlug);
-    if (!tob || !deps.isSteward(tobSlug)) refuse('tob-authority-required');
+    if (!tob || !deps.canManageBots(tobSlug)) refuse('tob-authority-required');
     return botOwner(tob);
   };
 
   const sourceDenial = (row: LeaseRow): string | undefined => {
     const owner = deps.registry.get(row.tob_slug);
-    if (!owner || !deps.isSteward(row.tob_slug)) return 'lease-source-revoked';
+    if (!owner || !deps.canManageBots(row.tob_slug)) return 'lease-source-revoked';
     try {
       deps.database.read((db) => {
         for (const id of sources(row)) {

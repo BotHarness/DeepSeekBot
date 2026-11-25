@@ -6,7 +6,7 @@ export const CHANNEL_NOTICE_FIELDS = [
   'botChannelPost',
   'memoryCommit',
   'modelSwitch',
-  'stewardTransfer',
+  'managementGrant',
   'toolAutoApproval',
   'toolAutoApprovalPause',
 ] as const;

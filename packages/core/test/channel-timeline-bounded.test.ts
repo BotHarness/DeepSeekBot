@@ -797,7 +797,7 @@ describe('SQLite bounded timeline hydration', () => {
       toolAutoApproval: { outcome: 'approved' },
       toolAutoApprovalPause: { until: timestamp },
       modelSwitch: { botSlug: 'ada', from: {}, to: {} },
-      stewardTransfer: { botSlug: 'ada', botName: 'Ada' },
+      managementGrant: { botSlug: 'ada', botName: 'Ada', capability: 'manage-app', enabled: true },
     } satisfies Record<(typeof CHANNEL_NOTICE_FIELDS)[number], object>;
     expect(Object.keys(notices).sort()).toEqual([...CHANNEL_NOTICE_FIELDS].sort());
     const flags = () =>
