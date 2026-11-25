@@ -5,7 +5,7 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
 }
 export type NativePageHeaderProps = {
   title?: ReactNode;
-  onBack(): void;
+  onBack?: (() => void) | undefined;
   backID: string;
   action?: { label: string; testID: string; onPress(): void } | undefined;
   call?: { label: string; testID: string; onPress(): void } | undefined;

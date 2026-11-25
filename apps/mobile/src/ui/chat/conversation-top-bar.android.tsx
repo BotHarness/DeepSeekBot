@@ -240,21 +240,23 @@ export function ConversationTopBar({
             horizontalArrangement={{ spacedBy: space.x2 }}
             modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
           >
-            <Surface {...island} modifiers={actionLook}>
-              {leading === 'drawer'
-                ? action(
-                    'session-drawer-button',
-                    t.hostSessions.openDrawer,
-                    require('../../../assets/header/menu.xml'),
-                    onBack,
-                  )
-                : action(
-                    'chat-back',
-                    t.back,
-                    require('../../../assets/header/arrow-back.xml'),
-                    onBack,
-                  )}
-            </Surface>
+            {leading === 'none' ? null : (
+              <Surface {...island} modifiers={actionLook}>
+                {leading === 'drawer'
+                  ? action(
+                      'session-drawer-button',
+                      t.hostSessions.openDrawer,
+                      require('../../../assets/header/menu.xml'),
+                      onBack,
+                    )
+                  : action(
+                      'chat-back',
+                      t.back,
+                      require('../../../assets/header/arrow-back.xml'),
+                      onBack,
+                    )}
+              </Surface>
+            )}
             {titleMenu === undefined ? (
               <Surface
                 {...island}

@@ -114,7 +114,10 @@ export const floatingToolbar = {
   icon: 24,
   avatar: 32,
   offset: 16,
+  shadowRoom: 12,
+  shadow: { radius: 6, offsetY: 3, alpha: { light: 0.18, dark: 0.4 } },
 } as const;
+export const pinnedTabIcon = { captureDelays: [300, 1500] } as const;
 export const materialIconButton = {
   target: 48,
   container: 40,

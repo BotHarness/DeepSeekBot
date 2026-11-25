@@ -11,7 +11,7 @@ import { MAX_PICKED } from '../../host/pick-files';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
-import { useStackRoot } from '../shell/stack-root';
+import { useStackRoot, useTabRoot } from '../shell/stack-root';
 import { useEntranceSettled } from '../shell/entrance-settled';
 import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
@@ -214,6 +214,7 @@ function ChatConversation({
   });
   const { viewportLayout, composable, compose } = composer;
   const stackRoot = useStackRoot();
+  const tabRoot = useTabRoot();
   const closePresentation = presentation?.onClose;
   const leave = useCallback(() => {
     if (closePresentation) closePresentation();
@@ -340,7 +341,16 @@ function ChatConversation({
   });
   const ios = Platform.OS === 'ios';
   const initialScroll = useChatInitialScroll(focus === undefined, rows.length);
-  const header = conversationHeader({ t, theme, insets, windowWidth, leave, ios, profile });
+  const header = conversationHeader({
+    t,
+    theme,
+    insets,
+    windowWidth,
+    leave,
+    tabRoot,
+    ios,
+    profile,
+  });
   const notice = conversationNotice({
     latestWindowOnly,
     t,
@@ -378,6 +388,7 @@ function ChatConversation({
     windowWidth,
     listSafeArea,
     stackRoot,
+    tabRoot,
     leave,
     pull,
     markdownViewport,

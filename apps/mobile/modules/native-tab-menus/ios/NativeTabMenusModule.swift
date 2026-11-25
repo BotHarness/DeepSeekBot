@@ -143,16 +143,18 @@ final class NativeTabMenusView: ExpoView, UIContextMenuInteractionDelegate, UIGe
     _ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
-    guard let bar = attachedBar, let (spec, _) = spec(at: location, in: bar),
-      !(spec.recent.isEmpty && spec.actions.isEmpty)
-    else { return nil }
+    guard let bar = attachedBar, let (spec, view) = spec(at: location, in: bar) else { return nil }
+    if spec.recent.isEmpty && spec.actions.isEmpty {
+      if pillEnabled, !spec.name.isEmpty { showPill(spec.name, over: view, in: bar) }
+      return nil
+    }
     return UIContextMenuConfiguration(identifier: spec.tab as NSString, previewProvider: nil) {
       [weak self] _ in
       guard let self else { return nil }
       let recent = spec.recent.map { self.action(spec.tab, $0) }
       let actions = spec.actions.map { self.action(spec.tab, $0) }
       let groups: [UIMenuElement] = recent.isEmpty ? actions : [UIMenu(options: .displayInline, children: recent)] + actions
-      return UIMenu(children: groups)
+      return UIMenu(title: spec.name, children: groups)
     }
   }
 
