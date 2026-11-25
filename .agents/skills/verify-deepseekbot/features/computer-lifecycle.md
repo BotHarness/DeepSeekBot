@@ -30,7 +30,7 @@ Bot mode → skip the Tob welcome and the four-step coach marks → select the n
 **AX Computer …** row in **Channels** → open the **Subpanel column** from the channel header
 when it is closed → expand **Computer** (collapse other expanded subpanels). Inspect Access
 off, then **Enable Computer Access** → **Start** → read **Authorize and start** → confirm.
-The target must be **Docker Computer**. The running panel must show the actual test window
+The target must be the Container Computer (panel label **Docker Computer**). The running panel must show the actual test window
 whose large text reads **AX Container Computer 1977** and this task's container name.
 Connecting, a blank viewer, a reachable port or a running container alone cannot satisfy
 the image check. **Open fullscreen** on the docked viewer expands its controls in place

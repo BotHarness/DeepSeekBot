@@ -7,18 +7,16 @@ import { fileURLToPath } from 'node:url';
 
 export function redactComputerEvidence(text, instance, root) {
   let value = String(text);
-  if (instance?.url) {
+  let url;
+  if (typeof instance?.url === 'string') {
     value = value.replaceAll(instance.url, '[redacted]');
-    const origin = new URL(instance.url).origin;
-    value = value.replaceAll(origin, (match, offset, whole) =>
+    url = URL.canParse(instance.url) ? new URL(instance.url) : undefined;
+  }
+  if (url)
+    value = value.replaceAll(url.origin, (match, offset, whole) =>
       /\d/u.test(whole[offset + match.length] ?? '') ? match : '[redacted]',
     );
-  }
-  for (const secret of [
-    instance?.home,
-    root,
-    instance?.url && new URL(instance.url).searchParams.get('token'),
-  ].filter(Boolean))
+  for (const secret of [instance?.home, root, url?.searchParams.get('token')].filter(Boolean))
     value = value.replaceAll(secret, '[redacted]');
   return value;
 }
@@ -170,13 +168,17 @@ const viewerLifecycleStages = [
   'observe-real-frame',
   'stop-from-panel',
 ];
-const viewerPath = /\/botharness-computer\/viewer\/[^?#]*$/u;
+const viewerResource =
+  /\/botharness-computer\/viewer\/(?:api\/status|api\/websockets|manifest\.json)$/u;
+const viewerScript = /\/botharness-computer\/viewer\/selkies-core\.js$/u;
 
 export function knownViewerTransient(entry) {
   if (entry?.source === 'pageerror' || !viewerLifecycleStages.includes(entry?.stage)) return false;
-  if (!viewerPath.test(entry.url ?? '')) return false;
-  if (entry.status !== undefined) return entry.status === 404 || entry.status === 503;
-  return /status of (404|503)|\[websockets\] Error/u.test(entry.message ?? '');
+  const url = entry.url ?? '';
+  if (entry.status !== undefined)
+    return viewerResource.test(url) && (entry.status === 404 || entry.status === 503);
+  if (viewerResource.test(url)) return /status of (404|503)/u.test(entry.message ?? '');
+  return viewerScript.test(url) && /^\[websockets\] Error/u.test(entry.message ?? '');
 }
 
 export function coverageRow(directory, commit, dirty = false) {
@@ -196,6 +198,7 @@ export function coverageRow(directory, commit, dirty = false) {
   let run;
   try {
     run = JSON.parse(readFileSync(resolve(directory, 'run.json'), 'utf8'));
+    if (run === null || typeof run !== 'object' || Array.isArray(run)) throw new Error('not a run');
   } catch {
     return { ...row, status: 'needs-revalidation', reason: 'Missing or invalid run record' };
   }
@@ -346,7 +349,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       { flag: 'wx', mode: 0o600 },
     );
   }
-  const row = coverageRow(directory, commit, at < 0 && git('status', '--porcelain').length > 0);
+  const row = coverageRow(directory, commit, git('status', '--porcelain').length > 0);
   console.log(
     args.includes('--json')
       ? JSON.stringify(row, null, 2)

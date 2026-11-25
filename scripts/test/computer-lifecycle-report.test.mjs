@@ -265,6 +265,14 @@ describe('bounded Container Computer qualification', () => {
       { ...booting, stage: 'observe-Access-off' },
       { ...booting, stage: 'enable-Computer-Access' },
       { ...booting, status: 502 },
+      { ...booting, url: '[redacted]/botharness-computer/viewer/index.html' },
+      { ...booting, url: '[redacted]/botharness-computer/viewer/selkies-core.js' },
+      {
+        source: 'console',
+        stage: 'observe-real-frame',
+        url: '[redacted]/botharness-computer/viewer/selkies-core.js',
+        message: 'Uncaught TypeError: frame is undefined',
+      },
       { ...booting, url: '[redacted]/api/botharness/computer/status' },
       { source: 'pageerror', stage: 'observe-real-frame', message: 'TypeError: x is undefined' },
       {
@@ -275,6 +283,14 @@ describe('bounded Container Computer qualification', () => {
       },
     ])
       expect(knownViewerTransient(entry)).toBe(false);
+  });
+  it('expires a null run record instead of aborting the report', () => {
+    const dir = fixture();
+    writeFileSync(join(dir, 'run.json'), 'null');
+    expect(coverageRow(dir, commit)).toMatchObject({
+      status: 'needs-revalidation',
+      reason: 'Missing or invalid run record',
+    });
   });
   it('keeps a first failure or prerequisite blocker distinct from later success', () => {
     for (const status of ['fail', 'blocked']) {

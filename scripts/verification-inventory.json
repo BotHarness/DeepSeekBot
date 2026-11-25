@@ -1744,8 +1744,8 @@
       "category": "mapped",
       "behaviors": ["desktop.computer.container-start-frame-stop"],
       "task": 1977,
-      "reason": "Isolated Container-only Web/CLI lifecycle journey qualified on Docker Desktop at exact source 4bd61842; requires a healthy Engine, the product default image and fresh task-owned Profile/container/volume. Tolerates only #5274 desktop-viewer churn. No Local Computer, input, import/export or phone WebRTC.",
-      "sha256": "724b72f17351cc4993ffa6ebb9fc7d2d9e122b82da296956b3870a83f0479c32"
+      "reason": "Isolated Container-only Web/CLI lifecycle journey qualified on Docker Desktop (PR #5287 records the exact-source run); requires a healthy Engine, the product default image and fresh task-owned Profile/container/volume. Tolerates only #5274 desktop-viewer churn. No Local Computer, input, import/export or phone WebRTC.",
+      "sha256": "4cb7a0eb86326619ab80c1615fe0779509740341bdee52a4f4143aeb47b3cb39"
     },
     {
       "path": "scripts/e2e-computer-settings.mjs",

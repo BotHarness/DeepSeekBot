@@ -60,7 +60,7 @@ async function port() {
 }
 try {
   if (existsSync(paths.home) || existsSync(paths.instance))
-    throw new Error('Use a fresh isolated instance name; do not reuse another Profile');
+    throw new Error('Use a fresh isolated Host name; do not reuse another Profile');
   const version = JSON.parse(command('docker', ['version', '--format', '{{json .}}']));
   record.docker = version;
   if (!version.Server?.Version) throw new Error('Docker Engine unavailable');
@@ -87,7 +87,7 @@ try {
     hostPort: await port(),
     createdAt: new Date().toISOString(),
   };
-  mkdirSync(paths.home, { recursive: true });
+  mkdirSync(paths.home);
   command(
     process.execPath,
     [
@@ -156,7 +156,13 @@ try {
           version: 1,
           behavior,
           commit: record.commit,
-          base: git('merge-base', 'HEAD', 'origin/main'),
+          base: (() => {
+            try {
+              return git('merge-base', 'HEAD', 'origin/main');
+            } catch {
+              return null;
+            }
+          })(),
           dirty: git('status', '--porcelain').length > 0,
           startedAt: record.startedAt,
           finishedAt: record.finishedAt,

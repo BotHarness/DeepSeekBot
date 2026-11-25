@@ -19,7 +19,7 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const name = process.argv[process.argv.indexOf('--name') + 1];
 if (!process.argv.includes('--name') || !/^[a-z0-9][a-z0-9-]*$/u.test(name ?? ''))
-  throw new Error('Usage: node scripts/e2e-computer-lifecycle.mjs --name <verify-app-instance>');
+  throw new Error('Usage: node scripts/e2e-computer-lifecycle.mjs --name <isolated Host name>');
 const paths = verifyPaths(name, root);
 const directory = resolve(paths.dir, 'computer-lifecycle', `attempt-${Date.now()}-${process.pid}`);
 mkdirSync(directory, { recursive: true });
@@ -183,9 +183,9 @@ const capturePage = async (phase = 'failure') => {
     (async () => save('http-errors.json', httpErrors))(),
   ]);
 };
-const click = async (label) => {
+const click = async (label, scope = '') => {
   await page
-    .locator(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`)
+    .locator(`${scope} ::-p-aria([name=${JSON.stringify(label)}][role="button"])`.trim())
     .setTimeout(20_000)
     .click();
   run.actions.push({ click: label, at: new Date().toISOString() });
@@ -194,7 +194,10 @@ try {
   run.commit = git('rev-parse', 'HEAD');
   run.dirty = git('status', '--porcelain').length > 0;
   run.base = git('merge-base', 'origin/main', 'HEAD');
-  instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
+  const saved = JSON.parse(readFileSync(paths.instance, 'utf8'));
+  if (typeof saved?.url !== 'string' || !URL.canParse(saved.url))
+    throw new Error('instance-url-invalid');
+  instance = saved;
   const url = new URL(instance.url);
   if (
     instance.worktree !== root ||
@@ -387,10 +390,10 @@ try {
   await observe('off');
   stage = 'enable-Computer-Access';
   await assertSelected();
-  await click('Enable Computer Access');
+  await click('Enable Computer Access', panel);
   await page.waitForSelector('button[aria-label="Disable Computer Access"]', { timeout: 15000 });
   await assertSelected();
-  await click('Start');
+  await click('Start', panel);
   await page.waitForSelector('::-p-aria([name="Authorize and start"][role="button"])', {
     visible: true,
   });
@@ -399,7 +402,7 @@ try {
   stage = 'start-from-panel';
   await assertSelected();
   startAttempted = true;
-  await click('Authorize and start');
+  await click('Authorize and start', panel);
   save('running.json', await waitForState('running'));
   const container = inspect();
   if (
@@ -409,6 +412,12 @@ try {
     !container.mounts.some((m) => m.name === ownership.volume && m.destination === '/config')
   )
     throw new Error('Started container is not this task resource');
+  const volumeCreatedAt = Date.parse(
+    docker(['volume', 'inspect', ownership.volume, '--format', '{{.CreatedAt}}']),
+  );
+  if (!(volumeCreatedAt >= Date.parse(ownership.createdAt) - 1000))
+    throw new Error('Config volume predates this task preparation; refusing to adopt it');
+  container.volumeCreatedAt = new Date(volumeCreatedAt).toISOString();
   save('container-running.json', container);
   stage = 'prepare-test-picture';
   docker([
@@ -456,6 +465,10 @@ try {
   let frame;
   while (!frame) {
     await new Promise((done) => setTimeout(done, 3000));
+    if (Date.now() >= frameDeadline) {
+      save('frame-attempts.json', frameAttempts);
+      throw new Error('cli-computer-frame-driver-not-ready');
+    }
     const read = command(
       ['computer-frame', '--out', resolve(directory, 'frame.jpg')],
       undefined,
@@ -466,8 +479,11 @@ try {
       exitCode: read.exitCode,
       value: read.value,
     });
-    if (read.exitCode === 0) frame = read.value;
-    else if (read.value?.error?.code !== 'capture-failed' || Date.now() > frameDeadline) {
+    const driverInstalling =
+      read.value?.error?.code === 'capture-failed' &&
+      /Connection closed/u.test(read.value.error.message ?? '');
+    if (read.exitCode === 0 && Date.now() <= frameDeadline) frame = read.value;
+    else if (read.exitCode === 0 || !driverInstalling) {
       save('frame-attempts.json', frameAttempts);
       throw new Error(`cli-computer-frame-${read.value?.error?.code ?? 'failed'}`);
     }
@@ -552,6 +568,10 @@ try {
     run.status = 'fail';
     run.reason ??= 'browser-cleanup-failed';
   });
+  if (page) {
+    save('console.json', errors);
+    save('http-errors.json', httpErrors);
+  }
   if (run.status === 'pass') {
     let problems;
     try {
