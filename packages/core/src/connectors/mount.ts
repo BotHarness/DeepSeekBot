@@ -18,7 +18,10 @@ interface Mounted {
   fiber: Fiber | undefined;
   queue: Promise<void>;
   disposed: boolean;
+  retry: ReturnType<typeof setTimeout> | undefined;
 }
+
+const SESSION_RETRY_MS = 30_000;
 
 export function connectorAccessMap(
   service: Pick<ConnectorService, 'forBot'>,
@@ -27,7 +30,7 @@ export function connectorAccessMap(
   const access: Record<string, ConnectorAccess> = {};
   for (const connector of service.forBot(botSlug)) {
     if (connector.status !== 'active') continue;
-    if (access[connector.service] !== 'write') access[connector.service] = connector.access;
+    access[connector.service] = access[connector.service] === 'read' ? 'read' : connector.access;
   }
   return access;
 }
@@ -86,13 +89,23 @@ export function mountConnectors(
   const sync = (entry: Mounted): Promise<void> => {
     entry.queue = entry.queue.then(async () => {
       if (entry.disposed) return;
-      const session = await service.session(entry.botSlug).catch((error: unknown) => {
+      if (entry.retry !== undefined) clearTimeout(entry.retry);
+      entry.retry = undefined;
+      let session: Awaited<ReturnType<ConnectorService['session']>>;
+      try {
+        session = await service.session(entry.botSlug);
+      } catch (error) {
         ctx.logger.warn(
           'botharness: connector session unavailable %j',
           error instanceof ConnectorError ? error.code : 'error',
         );
-        return undefined;
-      });
+        if (!entry.disposed)
+          entry.retry = setTimeout(() => {
+            entry.retry = undefined;
+            void sync(entry);
+          }, SESSION_RETRY_MS);
+        return;
+      }
       if (entry.disposed || session?.signature === entry.signature) return;
       const previous = entry.fiber;
       entry.fiber = undefined;
@@ -212,11 +225,14 @@ export function mountConnectors(
           fiber: undefined,
           queue: Promise.resolve(),
           disposed: false,
+          retry: undefined,
         };
         mounted.set(agent, entry);
         agentCtx.effect(
           () => () => {
             entry.disposed = true;
+            if (entry.retry !== undefined) clearTimeout(entry.retry);
+            entry.retry = undefined;
             if (mounted.get(agent) === entry) mounted.delete(agent);
             const fiber = entry.fiber;
             entry.fiber = undefined;

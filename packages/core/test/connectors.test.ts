@@ -138,6 +138,7 @@ describe('connector accounts and grants', () => {
       const relinked = await service.reconnect(account.accountId);
       expect(relinked.url).toBe('https://connect.composio.dev/link/abc');
       expect(relinked.account).toMatchObject({ accountId: account.accountId, status: 'pending' });
+      expect(relinked.account.identity).toBeUndefined();
       expect(calls.slice(-2).map(([name]) => name)).toEqual(['removeAccount', 'link']);
       expect(service.forBot('ada')).toMatchObject([
         { accountId: account.accountId, access: 'write' },
@@ -154,6 +155,65 @@ describe('connector accounts and grants', () => {
       await service.clearKey();
       expect((await service.view()).configured).toBe(false);
       expect(vault.records.size).toBe(0);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('treats an app as read-only when any of its accounts is read-only for the Bot', async () => {
+    const { client } = fakeClient({
+      link: async (_apiKey, _userId, service, alias) => ({
+        url: 'https://connect.composio.dev/link/abc',
+        accountId: `ca_${service}_${alias.length}`,
+      }),
+      accounts: async () => [
+        { id: 'ca_gmail_4', service: 'gmail', status: 'active' },
+        { id: 'ca_gmail_8', service: 'gmail', status: 'active' },
+      ],
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const work = await service.connect({ service: 'gmail', label: 'Work' });
+      const personal = await service.connect({ service: 'gmail', label: 'Personal' });
+      await service.refresh();
+      service.grant('ada', work.account.accountId, 'write');
+      service.grant('ada', personal.account.accountId, 'read');
+      expect(connectorAccessMap(service, 'ada')).toEqual({ gmail: 'read' });
+      expect(
+        connectorToolDenial(
+          'mcp__composio__GMAIL_SEND_EMAIL',
+          {},
+          connectorAccessMap(service, 'ada'),
+        ),
+      ).toContain('read-only');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('names a default account after the app even when the name has punctuation', async () => {
+    const { client } = fakeClient();
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const { account } = await service.connect({ service: 'twitter' });
+      expect(account.label).toBe('X Twitter');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('keeps the key when the credential store cannot delete it', async () => {
+    const { client } = fakeClient();
+    const { owner, service, vault } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      vault.provider.deleteRecord = async () => {
+        throw new Error('locked');
+      };
+      await expect(service.clearKey()).rejects.toThrow('locked');
+      expect((await service.view()).configured).toBe(true);
     } finally {
       owner.close();
     }

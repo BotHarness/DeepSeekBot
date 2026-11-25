@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import { resolveGrants } from '../authorization/grants.js';
@@ -63,6 +63,16 @@ interface Config {
 const CONFIG_KEY = credentialKey('botharness-connectors', 'composio');
 const LABEL = /^[\p{L}\p{N}][\p{L}\p{N} ._@+-]{0,63}$/u;
 const SLUG = /^[a-z0-9][a-z0-9_]{0,63}$/;
+
+function defaultLabel(name: string): string {
+  const cleaned = name
+    .replace(/[^\p{L}\p{N} ._@+-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64)
+    .trim();
+  return LABEL.test(cleaned) ? cleaned : 'Account';
+}
 
 type Capability = `connector.${string}.${'read' | 'write'}`;
 
@@ -192,7 +202,7 @@ export class ConnectorService {
     if (key.length < 8 || key.length > 512 || /\s/.test(key))
       throw new ConnectorError('invalid', 'The Composio API key is malformed.');
     await this.#upstream(() => this.#client.verify(key));
-    const current = await this.#readConfig().catch(() => undefined);
+    const current = await this.#readConfig();
     const userId = current?.userId ?? 'botharness_' + randomUUID();
     await this.#native().modifyRecord(CONFIG_KEY, async () => ({
       kind: 'grant',
@@ -205,9 +215,7 @@ export class ConnectorService {
   }
 
   async clearKey(): Promise<ConnectorsView> {
-    await this.#native()
-      .deleteRecord(CONFIG_KEY)
-      .catch(() => undefined);
+    await this.#native().deleteRecord(CONFIG_KEY);
     this.#config = Promise.resolve(undefined);
     this.#log('key-cleared');
     this.#changed();
@@ -220,7 +228,7 @@ export class ConnectorService {
   }): Promise<{ account: ConnectorAccountRecord; url: string }> {
     const service = input.service.trim().toLowerCase();
     if (!SLUG.test(service)) throw new ConnectorError('invalid', 'The service name is invalid.');
-    const label = (input.label ?? catalogEntry(service)?.name ?? service).trim();
+    const label = (input.label ?? defaultLabel(catalogEntry(service)?.name ?? service)).trim();
     if (!LABEL.test(label)) throw new ConnectorError('invalid', 'The account label is invalid.');
     if (
       this.#store
@@ -253,6 +261,7 @@ export class ConnectorService {
     );
     const account = this.#store.updateAccount(accountId, {
       status: 'pending',
+      identity: null,
       externalId: link.accountId,
     })!;
     this.#log('account-relinking', { service: current.service });
@@ -366,7 +375,7 @@ export class ConnectorService {
       return {
         url: created.url,
         headers: { 'x-api-key': config.apiKey },
-        signature,
+        signature: `${signature}#${createHash('sha256').update(config.apiKey).digest('hex').slice(0, 16)}`,
       };
     })();
     this.#sessions.set(botSlug, { signature, session });

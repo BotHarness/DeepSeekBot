@@ -5,7 +5,7 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 
 import type { BridgeActions } from './actions.js';
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { BrandLogo } from './ds/brand-logo.js';
 import { connectorLogo } from './ds/brand-logos.js';
 import { Button } from './ds/button.js';
@@ -210,10 +210,15 @@ export function MarketAppConnections({
 }): ReactElement {
   const [view, setView] = useState<ConnectorsView | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const [denied, setDenied] = useState(false);
   const [service, setService] = useState<string | undefined>();
-  const [notice, setNotice] = useState<string | undefined>();
+  const [signIn, setSignIn] = useState<string | undefined>();
   const load = () =>
-    actions.connectors?.().then(setView, (failure: unknown) => setError(errorMessage(failure)));
+    actions.connectors?.().then(setView, (failure: unknown) => {
+      if (failure instanceof BridgeCallError && failure.code === 'permission-required')
+        setDenied(true);
+      else setError(errorMessage(failure));
+    });
   const mount = useMountedResource<HTMLDivElement>(() => {
     void load();
   }, [actions]);
@@ -222,7 +227,7 @@ export function MarketAppConnections({
     <div ref={mount} data-market-app-connections="">
       <div {...stylex.props(styles.stack)}>
         <Note inset>{t('connectors.market.about')}</Note>
-        {actions.connectors === undefined ? (
+        {actions.connectors === undefined || denied ? (
           <Note inset>{t('connectors.bot.ownerOnly')}</Note>
         ) : error !== undefined ? (
           <Note tone="danger">{t('connectors.error', { message: error })}</Note>
@@ -233,7 +238,14 @@ export function MarketAppConnections({
         ) : (
           <AppCatalog view={view} t={t} onPick={setService} />
         )}
-        {notice === undefined ? null : <Note>{notice}</Note>}
+        {signIn === undefined ? null : (
+          <Note>
+            {t('connectors.market.opened')}{' '}
+            <a href={signIn} target="_blank" rel="noopener noreferrer">
+              {t('connectors.accounts.signIn')}
+            </a>
+          </Note>
+        )}
       </div>
       {view === undefined || service === undefined ? null : (
         <ConnectAppDialog
@@ -242,9 +254,9 @@ export function MarketAppConnections({
           t={t}
           service={service}
           onClose={() => setService(undefined)}
-          onLinked={() => {
+          onLinked={(_accountId, url) => {
             setService(undefined);
-            setNotice(t('connectors.market.opened'));
+            setSignIn(url);
             void load();
           }}
         />

@@ -330,7 +330,11 @@ export function ConnectorsSettings({
         )}
       </SettingsSection>
       {notice === undefined ? null : <Note>{notice}</Note>}
-      {error === undefined || keyDraft !== undefined || connecting ? null : (
+      {error === undefined ||
+      keyDraft !== undefined ||
+      connecting ||
+      clearing ||
+      removing !== undefined ? null : (
         <Note tone="danger">{error}</Note>
       )}
       {keyDraft === undefined ? null : (
@@ -394,6 +398,7 @@ export function ConnectorsSettings({
           confirmLabel={t('connectors.key.remove')}
           danger
           busy={busy}
+          error={error}
           onCancel={() => setClearing(false)}
           onConfirm={() =>
             void run(async () => {
@@ -411,6 +416,7 @@ export function ConnectorsSettings({
           confirmLabel={t('connectors.accounts.remove')}
           danger
           busy={busy}
+          error={error}
           onCancel={() => setRemoving(undefined)}
           onConfirm={() =>
             void run(async () => {

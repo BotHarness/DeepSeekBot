@@ -197,7 +197,10 @@ export function createComposioClient(
         if (!body.next_cursor) return accounts;
         cursor = body.next_cursor;
       }
-      return accounts;
+      throw new ComposioError(
+        502,
+        'Composio returned more connected accounts than one listing reads.',
+      );
     },
     async removeAccount(apiKey, accountId) {
       try {

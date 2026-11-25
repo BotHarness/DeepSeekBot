@@ -181,7 +181,13 @@ export function CatalogCard({
         <div {...stylex.props(styles.foot)}>
           <span {...stylex.props(styles.meta)}>{meta}</span>
           {actionLabel === undefined ? null : (
-            <Button size="sm" variant="primary" disabled={disabled} onClick={onClick}>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={disabled}
+              aria-label={`${actionLabel} ${title}`}
+              onClick={onClick}
+            >
               {actionLabel}
             </Button>
           )}

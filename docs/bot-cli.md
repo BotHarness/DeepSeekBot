@@ -1455,7 +1455,7 @@ Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>
 
 ### App connections (Composio)
 
-The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key stays in the Host credential store and is never shown to a Bot.
+The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key needs write access to Session management, Session tool execution, Connected accounts and Auth configs; a read-only key can list accounts but cannot create sign-in links. When one Bot has both a Read and a Read and write account for the same app, the app is treated as Read for that Bot. The key stays in the Host credential store and is never shown to a Bot.
 
 ```bash
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key

@@ -1386,7 +1386,7 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 ### 应用连接（Composio）
 
-Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。应用连接通过 Owner 自己的 Composio 项目运行，先添加它的 API key。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
+Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。应用连接通过 Owner 自己的 Composio 项目运行，先添加它的 API key。这个 key 需要对 Session management、Session tool execution、Connected accounts 和 Auth configs 有写权限；只读 key 能列出账号，但无法生成登录链接。如果同一个 Bot 对同一应用既有只读账号又有读写账号，该应用对这个 Bot 按只读处理。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
 
 ```bash
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key
