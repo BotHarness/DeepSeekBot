@@ -568,6 +568,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       method: 'sessionModel',
       args: { choice: null },
     });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
+    });
   });
 
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {

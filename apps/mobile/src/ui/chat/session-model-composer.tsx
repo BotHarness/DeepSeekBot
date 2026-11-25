@@ -23,7 +23,7 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
 import { NativeSessionModelSheet } from './session-model-native';
-import { sessionModelKey, sessionModelLabel } from './session-model-label';
+import { sessionDefaultModel, sessionModelKey, sessionModelLabel } from './session-model-label';
 import {
   SHEET_GROUP,
   Sheet,
@@ -57,13 +57,17 @@ export function useSessionModelControl({
   const [refused, setRefused] = useState(false);
   const writing = useRef(false);
   const catalogOptions = catalogQuery(host);
-  const stateOptions = stateQuery(host, slug, sessionId ?? '');
+  const stateOptions = stateQuery(host, slug, sessionId);
   const catalogResult = useQuery({ ...catalogOptions, enabled }, sessionModelQueries);
   const saved = useQuery(
-    { ...stateOptions, enabled: enabled && sessionId !== undefined && saving === undefined },
+    {
+      ...stateOptions,
+      enabled: enabled && (sessionId !== undefined || slug !== null) && saving === undefined,
+    },
     sessionModelQueries,
   );
-  const state = sessionId === undefined ? draft : saved.data;
+  const state =
+    sessionId === undefined ? { ...draft, default: saved.data?.default ?? null } : saved.data;
   const catalog = catalogResult.data;
   const visible = enabled && open;
   const failed =
@@ -73,9 +77,9 @@ export function useSessionModelControl({
   const stateKey = JSON.stringify(stateOptions.queryKey);
 
   useLayoutEffect(() => {
-    if (!enabled || sessionId === undefined) return;
+    if (!enabled || (sessionId === undefined && slug === null)) return;
     void sessionModelQueries.invalidateQueries({ queryKey: JSON.parse(stateKey) });
-  }, [enabled, running, sessionId, stateKey]);
+  }, [enabled, running, sessionId, slug, stateKey]);
 
   useLayoutEffect(() => {
     if (!enabled) setOpen(false);
@@ -84,7 +88,7 @@ export function useSessionModelControl({
   function retry() {
     setRefused(false);
     void sessionModelQueries.invalidateQueries({ queryKey: catalogOptions.queryKey });
-    if (sessionId !== undefined)
+    if (sessionId !== undefined || slug !== null)
       void sessionModelQueries.invalidateQueries({ queryKey: stateOptions.queryKey });
   }
 
@@ -269,6 +273,10 @@ export function SessionModelPicker({ control }: { control: Control }) {
     retry,
     choose,
   } = control;
+  const defaultModel = useMemo(
+    () => sessionDefaultModel(state?.default ?? null, catalog),
+    [catalog, state?.default],
+  );
   const sections = useMemo(() => {
     if (!visible || catalog === undefined) return [];
     return [
@@ -277,7 +285,8 @@ export function SessionModelPicker({ control }: { control: Control }) {
         data: [
           {
             choice: null,
-            name: fresh ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+            name: fresh && native ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+            ...defaultModel,
           },
         ],
       },
@@ -334,7 +343,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
         ),
       },
     ];
-  }, [catalog, copy, fresh, native, t.routingGroup.engines, visible]);
+  }, [catalog, copy, defaultModel, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
   const summary = useSessionModelSummary(control, Infinity);
   if (NativeSessionModelSheet !== undefined) {
