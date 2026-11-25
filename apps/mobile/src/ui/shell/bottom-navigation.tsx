@@ -55,10 +55,10 @@ function NavigationLayout() {
   const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
   const size = android
-    ? (nativeHeight ?? floatingToolbar.height + floatingToolbar.shadowRoom * 2)
+    ? (nativeHeight ?? floatingToolbar.height + floatingToolbar.inset * 2)
     : navigationBar.height;
   const bottom = android
-    ? insets.bottom + floatingToolbar.offset - floatingToolbar.shadowRoom
+    ? insets.bottom + floatingToolbar.offset - floatingToolbar.inset
     : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const hidden = useSharedValue(0);
@@ -198,7 +198,7 @@ function NavigationBar({
   });
   const band = size + bottom;
   const pillBottom = android
-    ? size - floatingToolbar.shadowRoom + space.x2
+    ? bottom + size - floatingToolbar.inset + space.x2
     : bottom + size / 2 + navigationBar.symbolBox / 2 + space.x1;
   const slide = useAnimatedStyle(() => ({
     opacity: 1 - sessionDrawerProgress.value,
@@ -209,7 +209,15 @@ function NavigationBar({
       pointerEvents={hiddenNow || drawerOpen ? 'none' : 'box-none'}
       style={[
         android
-          ? { position: 'absolute', left: 0, right: 0, bottom, alignItems: 'center' }
+          ? {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              paddingBottom: bottom,
+              alignItems: 'center',
+              backgroundColor: theme.color.base,
+            }
           : {
               position: 'absolute',
               left: 0,

@@ -10,7 +10,6 @@ import {
   background,
   clip,
   combinedClickable,
-  dropShadow,
   paddingAll,
   Shapes,
   size,
@@ -52,7 +51,7 @@ export function tabTestID(slot: TabSlot): string {
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { item, height, shadowRoom, shadow } = floatingToolbar;
+  const { item, height, inset } = floatingToolbar;
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face
@@ -99,20 +98,13 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           seedColor={theme.color.accent}
           ignoreSafeAreaKeyboardInsets
         >
-          <Box modifiers={[paddingAll(shadowRoom)]}>
+          <Box modifiers={[paddingAll(inset)]}>
             <HorizontalFloatingToolbar
               colors={{
-                toolbarContainerColor: theme.layer.raised.fill,
+                toolbarContainerColor: theme.color.base,
                 toolbarContentColor: theme.color.fg,
               }}
-              modifiers={[
-                dropShadow(Shapes.RoundedCorner(height), {
-                  radius: shadow.radius,
-                  offsetY: shadow.offsetY,
-                  alpha: shadow.alpha[theme.scheme],
-                }),
-                testID('android-navigation-bar'),
-              ]}
+              modifiers={[testID('android-navigation-bar')]}
             >
               {items.map((entry) => (
                 <Box
