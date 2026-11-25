@@ -150,10 +150,8 @@ export function mobileSheetSurface(file, ast) {
     CallExpression(call) {
       if (!call.get('callee').isIdentifier({ name: 'presentationBackground' })) return;
       const color = call.get('arguments.0');
-      if (color === undefined) return;
-      const text = chain(color.node);
-      if (text !== 'theme.overlay.fill')
-        report('sheetSurface', call.node, `presentationBackground: ${text ?? 'expression'}`);
+      const text = color?.node === undefined ? undefined : chain(color.node);
+      report('sheetSurface', call.node, `presentationBackground: ${text ?? 'expression'}`);
     },
     JSXElement: (element) => header(element),
   };

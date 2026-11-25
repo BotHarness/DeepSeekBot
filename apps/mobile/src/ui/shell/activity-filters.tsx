@@ -299,7 +299,7 @@ export function ActivityFilterContent({
       style={{
         flex: 1,
         flexShrink: 1,
-        backgroundColor: theme.overlay.fill,
+        backgroundColor: Platform.OS === 'ios' ? undefined : theme.overlay.fill,
       }}
     >
       {content}

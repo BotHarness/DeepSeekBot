@@ -5,12 +5,14 @@ import { Platform, View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { DrawerHeader, type DrawerHeaderProps } from './drawer-header';
+import { SystemSheet } from './system-sheet';
 
 export const SheetFramed = createContext(false);
 
 export function SheetHeader(props: DrawerHeaderProps) {
   const theme = useDesignTheme();
   const framed = useContext(SheetFramed);
+  const system = useContext(SystemSheet);
   return (
     <View
       testID="sheet-header"
@@ -19,7 +21,7 @@ export function SheetHeader(props: DrawerHeaderProps) {
         paddingHorizontal: space.x5,
         paddingTop: framed ? 0 : Platform.OS === 'ios' ? space.x4 : space.x3,
         paddingBottom: space.x3,
-        backgroundColor: theme.overlay.fill,
+        backgroundColor: system ? undefined : theme.overlay.fill,
       }}
     >
       <DrawerHeader

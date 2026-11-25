@@ -138,7 +138,9 @@ it('opens the shell as a native SwiftUI sheet with the system grabber and hosted
   );
   expect(view.querySelector('dialog')?.hasAttribute('open')).toBe(true);
   expect(modifiers(view)).toContainEqual({ dragIndicator: 'visible' });
-  expect(modifiers(view)).toContainEqual({ background: '#fff' });
+  expect(modifiers(view)).not.toContainEqual(
+    expect.objectContaining({ background: expect.anything() }),
+  );
   expect(view.querySelector('section')?.getAttribute('data-match')).toBe('{"vertical":true}');
   expect(view.querySelector('section [aria-label="Model"] header')?.textContent).toContain('Model');
   expect(view.querySelector('section p')?.textContent).toBe('body');

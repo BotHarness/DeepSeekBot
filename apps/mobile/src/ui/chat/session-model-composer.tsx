@@ -22,6 +22,7 @@ import { composerControl } from './composer-chrome';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
+import { NativeSessionModelSheet } from './session-model-native';
 import { sessionModelKey, sessionModelLabel } from './session-model-label';
 import {
   SHEET_GROUP,
@@ -336,6 +337,53 @@ export function SessionModelPicker({ control }: { control: Control }) {
   }, [catalog, copy, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
   const summary = useSessionModelSummary(control, Infinity);
+  if (NativeSessionModelSheet !== undefined) {
+    const choices = new Map(
+      sections
+        .flatMap((section) => section.data)
+        .map((item) => [sessionModelKey(item.choice), item]),
+    );
+    return (
+      <NativeSessionModelSheet
+        visible={visible}
+        title={copy.choice}
+        closeLabel={t.close}
+        note={
+          ready && summary.pending && summary.name !== undefined
+            ? `${summary.name} · ${copy.nextTurnNote}`
+            : refused
+              ? copy.saveFailed
+              : undefined
+        }
+        failure={failed ? copy.loadFailed : undefined}
+        retryLabel={t.retry}
+        loading={!failed && !ready}
+        current={current}
+        saving={saving}
+        savingLabel={copy.saving}
+        sections={sections.map((section) => ({
+          title: section.title,
+          data: section.data.map((item) => ({
+            key: sessionModelKey(item.choice),
+            name: item.name,
+            brand: item.brand,
+            detail: item.detail,
+            tag: item.tag,
+            disabled: item.disabled,
+            accessible: copy.accessible(
+              [item.name, item.tag, item.detail].filter((part) => part !== undefined),
+            ),
+          })),
+        }))}
+        onClose={close}
+        onRetry={retry}
+        onChoose={(key) => {
+          const item = choices.get(key);
+          if (item !== undefined) void choose(item.choice);
+        }}
+      />
+    );
+  }
   return (
     <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close} resizable>
       {failed ? (

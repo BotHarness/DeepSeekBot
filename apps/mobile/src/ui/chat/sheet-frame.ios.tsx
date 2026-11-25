@@ -2,7 +2,6 @@ import { BottomSheet, Group, Host, RNHostView } from '@expo/ui/swift-ui';
 import {
   frame,
   padding,
-  presentationBackground,
   presentationDetents,
   presentationDragIndicator,
 } from '@expo/ui/swift-ui/modifiers';
@@ -13,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
+import { SystemSheet } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 import { sheetContentCap, sheetDetent, type SheetDetent } from './sheet-detent';
 
@@ -51,12 +51,11 @@ export function SheetFrame({
           onAccessibilityEscape={onClose}
           style={{
             flex: 1,
-            backgroundColor: theme.overlay.fill,
             paddingTop: space.x6,
             paddingBottom: Math.max(insets.bottom, keyboard) + space.x5,
           }}
         >
-          {children}
+          <SystemSheet value>{children}</SystemSheet>
         </View>
       </Modal>
     );
@@ -98,7 +97,6 @@ export function SheetFrame({
                 })
               : presentationDetents([sheetDetent(room, content, typing)]),
             presentationDragIndicator('visible'),
-            presentationBackground(theme.overlay.fill),
           ]}
         >
           <RNHostView matchContents={resizable === true ? false : { vertical: true }}>
@@ -112,7 +110,7 @@ export function SheetFrame({
                   : { maxHeight: sheetContentCap(room, keyboard), paddingBottom: space.x5 }
               }
             >
-              {children}
+              <SystemSheet value>{children}</SystemSheet>
             </View>
           </RNHostView>
         </Group>

@@ -59,6 +59,7 @@ describe('mobile sheet surface', () => {
             <SheetScreen>
               <ModalBottomSheet containerColor={theme.layer.canvas.fill} />
               <Group modifiers={[presentationBackground(theme.color.surface)]} />
+              <Group modifiers={[presentationBackground(theme.overlay.fill)]} />
             </SheetScreen>
           );
         }
@@ -67,6 +68,7 @@ describe('mobile sheet surface', () => {
       ['sheetSurface', 'backgroundColor: theme.color.base', 3],
       ['sheetSurface', 'containerColor: theme.layer.canvas.fill', 6],
       ['sheetSurface', 'presentationBackground: theme.color.surface', 7],
+      ['sheetSurface', 'presentationBackground: theme.overlay.fill', 8],
     ]);
   });
 

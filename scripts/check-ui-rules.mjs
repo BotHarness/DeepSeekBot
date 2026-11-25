@@ -124,7 +124,7 @@ export const RULES = {
     section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
   },
   sheetSurface: {
-    help: 'paint the sheet with theme.overlay.fill, put grouped rows and cards on SHEET_GROUP, and give controls on the sheet itself on="sheet"; page tokens (color.base, color.surface, layer.canvas) and colour literals invert the sheet',
+    help: 'leave the sheet background to the system (no presentationBackground; iOS shows Liquid Glass), put grouped rows and cards on SHEET_GROUP or in a system List, and give controls on the sheet itself on="sheet"; page tokens (color.base, color.surface, layer.canvas) and colour literals invert the sheet',
     section: 'apps/mobile/DESIGN.md § Bottom sheets',
   },
   sheetHeader: {
