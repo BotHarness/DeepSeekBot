@@ -5,6 +5,7 @@ import type { ApprovalMessaging, ApprovalRoute } from './approval-messaging.js';
 import { readBlock } from './conversations.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
 import { MessagingError, MessagingProviderError, type MessagingReceipt } from './provider.js';
+import { pairedRoute } from './pairing.js';
 
 export interface FailureAlertSettings {
   enabled: boolean;
@@ -83,11 +84,7 @@ export function createFailureAlerts(options: {
   const destination = (slug: string) => {
     if (closed || !options.isBotActive(slug)) throw new MessagingError('bot-unavailable');
     const context = approvals.managementDestination(slug);
-    if (
-      !context.provider.qualifyReply ||
-      !context.provider.reply ||
-      !context.paired.messageIds?.[0]
-    )
+    if (!context.provider.qualifyReply || !context.provider.reply || !pairedRoute(context.paired))
       throw new MessagingError('capability-unavailable');
     if (
       database.read((db) =>
@@ -151,11 +148,7 @@ export function createFailureAlerts(options: {
         const route = await context.provider.qualifyReply!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
-          route: {
-            messageId: context.paired.messageIds![0]!,
-            conversationId: context.paired.conversationId,
-            actorId: context.paired.actorId,
-          },
+          route: pairedRoute(context.paired)!,
           signal,
         });
         if (!currentDestination() || signal.aborted)

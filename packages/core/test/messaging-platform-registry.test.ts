@@ -155,7 +155,10 @@ describe('platform people', () => {
   });
 
   it('keeps Roles and management pairing to platforms that declare them', () => {
-    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.management)).toEqual(['feishu']);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id)?.management)).toEqual([
+      'feishu',
+      'slack',
+    ]);
     expect(messagingPlatformIds.filter((id) => platformPeople(id)?.roles)).toEqual(['feishu']);
     expect(messagingPlatformIds.filter((id) => platformPeople(id))).toEqual(['feishu', 'slack']);
   });
