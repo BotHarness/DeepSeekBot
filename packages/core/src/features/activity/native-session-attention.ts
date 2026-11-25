@@ -1,3 +1,4 @@
+import type { HostSessionPendingInput } from '@botharness/host-protocol/host-sessions';
 import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import type { HumanContext } from '../../humans/context.js';
 import { attentionSummary } from './human-attention-query.js';
@@ -15,6 +16,7 @@ export interface NativeSessionAttentionEntry {
   createdAt: string;
   sessionTitle?: string;
   folderName?: string;
+  request?: HostSessionPendingInput;
 }
 
 export interface NativeSessionAttentionSource {
@@ -46,6 +48,7 @@ function item(entry: NativeSessionAttentionEntry): HumanAttentionItem {
       input: entry.input,
       ...(entry.sessionTitle === undefined ? {} : { sessionTitle: entry.sessionTitle }),
       ...(entry.folderName === undefined ? {} : { folderName: entry.folderName }),
+      ...(entry.request === undefined ? {} : { request: entry.request }),
     },
   };
 }

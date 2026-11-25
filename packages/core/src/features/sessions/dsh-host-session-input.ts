@@ -316,6 +316,7 @@ export function dshHostSessionInput(
             createdAt: createdAt ?? new Date(0).toISOString(),
             ...(sessionTitle === undefined ? {} : { sessionTitle }),
             ...(folderName === undefined ? {} : { folderName }),
+            request: card,
           },
         ];
       });

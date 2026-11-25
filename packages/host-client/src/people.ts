@@ -67,7 +67,18 @@ function isNativeSessionItem(row: Record<string, unknown>): boolean {
     text(native['sessionId']) &&
     (native['input'] === 'approval' || native['input'] === 'question') &&
     optional(native['sessionTitle'], text) &&
-    optional(native['folderName'], text)
+    optional(native['folderName'], text) &&
+    optional(native['request'], (value) => {
+      const request = record(value);
+      return (
+        request !== undefined &&
+        request['requestId'] === row['requestId'] &&
+        request['kind'] === native['input'] &&
+        (request['kind'] === 'approval'
+          ? text(request['toolName'])
+          : Array.isArray(request['questions']) && request['questions'].length > 0)
+      );
+    })
   );
 }
 
