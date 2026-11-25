@@ -525,14 +525,16 @@ export const SCENARIOS = [
       const sent = (call) => call.name === 'bot_send_message' && call.hasResult && !call.isError;
       const reportsAfter = (doctor, call) =>
         call.sessionId === doctor.sessionId && call.order > doctor.resultOrder;
-      const committedReport = () =>
+      const committedReport = (call) =>
+        typeof call.arguments?.body === 'string' &&
         ctx
           .messages(tob)
           .some(
             (message) =>
               message.author?.kind === 'bot' &&
               message.author.slug === botSlug &&
-              String(message.at) >= sentAt,
+              String(message.at) >= sentAt &&
+              message.body.includes(call.arguments.body.trim().slice(0, 60)),
           );
       const calls = await ctx.waitFor(
         'The Steward runs doctor and reports from it in its Human DM',
@@ -542,8 +544,9 @@ export const SCENARIOS = [
           );
           const doctor = current.find(doctorReported);
           return doctor !== undefined &&
-            current.some((call) => sent(call) && reportsAfter(doctor, call)) &&
-            committedReport()
+            current.some(
+              (call) => sent(call) && reportsAfter(doctor, call) && committedReport(call),
+            )
             ? current
             : undefined;
         },
@@ -551,7 +554,9 @@ export const SCENARIOS = [
       const doctor = calls.find(doctorReported);
       ctx.note({
         calls: calls.map((call) => ({ name: call.name, arguments: call.arguments })),
-        report: calls.find((call) => sent(call) && reportsAfter(doctor, call))?.arguments,
+        report: calls.find(
+          (call) => sent(call) && reportsAfter(doctor, call) && committedReport(call),
+        )?.arguments,
       });
       if (
         calls
