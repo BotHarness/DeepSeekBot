@@ -219,7 +219,7 @@ _Formerly ADR-0136, 0165, 0168, 0171, 0173 and 0174._
 Two kinds of pairing, never implied by each other, both scoped to one Bot and its current Binding and never transferred across Bots, apps, rebinding or restored Profiles:
 
 - **Management pairing** (`/pair` in a private DM on Lark, Slack or Discord): a deterministic control that creates no Source Event, Admission or wake. The authenticated Web Human approves it with an explicit selection of capabilities (`approve`, `reject`, `answer`, `save-rules`); nothing is preselected and the first applicant gets nothing special.
-- **Chat pairing** under the opt-in sender restriction (Lark, Slack and Discord DMs): an unpaired request stores only metadata, approval assigns one primary behavior Role and sends a fixed "ask again" notice; the blocked instruction is never replayed.
+- **Chat pairing** under the opt-in sender restriction (Lark DMs and groups, Slack and Discord DMs): an unpaired request stores only metadata, approval assigns one primary behavior Role and sends a fixed "ask again" notice; the blocked instruction is never replayed.
 
 Effective management capability is the union of the Role, Authorization Groups and person exceptions, minus any explicit Deny; reviewing pairings and delegating are separate grants, and a reviewer can only grant within their own current ceiling. Behavior items are referenced by ID with Deny precedence and declared exclusions checked before any write. Role text is prompt behavior, not an access control. `bridge_sender_permissions` and `bridge_directory` are read-only, dated lookups. The Web Human keeps full authority. Requests expire after 10 minutes and are bounded (5 attempts, 200 pending per Profile, 25 pending and 100 approved per Bot).
 
