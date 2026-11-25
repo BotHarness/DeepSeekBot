@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { notifyManager } from '@tanstack/react-query';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -9,11 +10,20 @@ import type { SheetFrameProps } from '../src/ui/chat/sheet-frame';
 
 vi.mock('react-native', async () => import('./react-native-shim'));
 vi.mock('../src/ui/chat/sheet-frame', () => ({
-  SheetFrame: ({ visible, children }: SheetFrameProps) =>
-    visible ? <div role="dialog">{children}</div> : null,
+  SheetFrame: ({ visible, children, resizable }: SheetFrameProps) =>
+    visible ? (
+      <div role="dialog" data-resizable={String(resizable)}>
+        {children}
+      </div>
+    ) : null,
 }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
-  DrawerHeader: ({ title }: { title: string }) => <h2>{title}</h2>,
+  DrawerHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+    <h2>
+      {title}
+      {onClose === undefined ? null : <button aria-label="Close" onClick={onClose} />}
+    </h2>
+  ),
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) => children,
@@ -51,6 +61,7 @@ const {
 } = await import('../src/ui/chat/session-model-composer');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+notifyManager.setScheduler((run) => run());
 
 const api = { kind: 'model', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
 const engine = {
@@ -206,4 +217,62 @@ it('shows the pending model as a logo, names it in the title menu and explains t
   expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
     'Next turn: Opus 5.5 · This turn keeps its model. Your pick applies from the next turn.',
   );
+});
+
+it('opens on a half-height sheet with skeleton rows while the first catalog load is pending', async () => {
+  let finish: (value: typeof catalog) => void = () => {};
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog'
+      ? new Promise<typeof catalog>((resolve) => (finish = resolve))
+      : defaultState,
+  );
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const dialog = container.querySelector('[role="dialog"]');
+  expect(dialog?.getAttribute('data-resizable')).toBe('true');
+  expect(dialog?.querySelector('[data-testid="sheet-skeleton"]')).not.toBeNull();
+  expect(dialog?.querySelector('[role="progressbar"]')?.getAttribute('aria-label')).toBeTruthy();
+  await act(async () => finish(catalog));
+  expect(container.querySelector('[data-testid="sheet-skeleton"]')).toBeNull();
+  expect(button('session-model-option-default')).toBeDefined();
+});
+
+it('shows the cached models at once on the next open and refreshes them in the background', async () => {
+  let pending: Promise<typeof catalog> | undefined;
+  let release: () => void = () => {};
+  const call = vi.fn(async (method: string) => {
+    if (method !== 'modelCatalog') return defaultState;
+    return pending ?? catalog;
+  });
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  expect(button('session-model-option-default')).toBeDefined();
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Close"]')?.click(),
+  );
+  expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+  pending = new Promise((resolve) => (release = () => resolve(catalog)));
+  const before = call.mock.calls.filter(([method]) => method === 'modelCatalog').length;
+  await act(async () => button('composer-session-model').click());
+  expect(container.querySelector('[data-testid="sheet-skeleton"]')).toBeNull();
+  expect(button('session-model-option-model-0').textContent).toContain('API');
+  expect(call.mock.calls.filter(([method]) => method === 'modelCatalog').length).toBe(before + 1);
+  await act(async () => release());
+  expect(button('session-model-option-model-0').textContent).toContain('API');
+});
+
+it('keeps the cached models when a background refresh fails', async () => {
+  let fail = false;
+  const call = vi.fn(async (method: string) => {
+    if (method !== 'modelCatalog') return defaultState;
+    if (fail) throw new Error('offline');
+    return catalog;
+  });
+  const host = { call };
+  await act(async () => root.render(<ComposerModel host={host} />));
+  fail = true;
+  await act(async () => button('composer-session-model').click());
+  expect(button('session-model-option-model-0').textContent).toContain('API');
+  expect(container.textContent).not.toContain('Couldn’t load');
 });

@@ -7,7 +7,7 @@ import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import type { SheetFrameProps } from './sheet-frame';
 
-export function SheetFrame({ visible, label, onClose, children }: SheetFrameProps) {
+export function SheetFrame({ visible, label, onClose, children, resizable }: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -22,8 +22,8 @@ export function SheetFrame({ visible, label, onClose, children }: SheetFrameProp
     >
       <ModalBottomSheet
         onDismissRequest={onClose}
-        skipPartiallyExpanded
-        containerColor={theme.layer.sheet.fill}
+        skipPartiallyExpanded={resizable !== true}
+        containerColor={theme.overlay.fill}
         contentColor={theme.color.fg}
       >
         <RNHostView matchContents={{ vertical: true }}>
