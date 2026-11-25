@@ -15,8 +15,10 @@ export const slackProfile: DshImPlatformProfile<'slack'> = {
       event.reply.actorId === event.actor.id &&
       event.reply.conversationId === event.conversation.id &&
       event.reply.messageId === event.messageId,
+    management: true,
   },
   features: {
+    interactions: true,
     reactions: true,
     reachableConversations: true,
     targetPost: { required: [] },

@@ -61,7 +61,7 @@ export interface DshImInboundPolicy {
   };
 }
 
-export type PeopleNamespace = 'lark-app-open-id' | 'slack-workspace-user-id';
+export type PeopleNamespace = 'lark-app-open-id' | 'slack-workspace-user-id' | 'discord-user-id';
 
 export interface PlatformPeople {
   namespace: PeopleNamespace;

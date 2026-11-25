@@ -11,11 +11,12 @@ class SessionDrawerModelTest {
   }
 
   @Test
-  fun fadesTheContentHalfwayWhenOpen() {
-    assertEquals(1f, sessionContentAlpha(0f), 0f)
-    assertEquals(0.75f, sessionContentAlpha(0.5f), 0.0001f)
-    assertEquals(0.5f, sessionContentAlpha(1f), 0f)
-    assertEquals(0.5f, sessionContentAlpha(2f), 0f)
+  fun streamsProgressInVisibleStepsAndAlwaysReachesTheEnds() {
+    assertEquals(true, progressChanged(-1f, 0f))
+    assertEquals(false, progressChanged(0.5f, 0.505f))
+    assertEquals(true, progressChanged(0.5f, 0.51f))
+    assertEquals(true, progressChanged(0.995f, 1f))
+    assertEquals(false, progressChanged(1f, 1f))
   }
 
   @Test

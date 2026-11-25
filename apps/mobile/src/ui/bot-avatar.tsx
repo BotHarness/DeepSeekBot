@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Image as CachedImage } from 'expo-image';
 import { Image, View } from 'react-native';
 import Animated, {
@@ -16,6 +16,7 @@ import Svg, { Rect } from 'react-native-svg';
 import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
 import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
 import type { RemoteSource, RosterBot } from '@botharness/host-client/client';
+import { avatarBackdrop } from './avatar-backdrop';
 import { ResourceImage } from './primitives/resource-image';
 import { stateRing } from './design/tokens';
 import { useMounted } from './mounted';
@@ -153,7 +154,13 @@ export function BotPortrait({
   onSettled?: (() => void) | undefined;
 }) {
   const theme = useTheme();
-  const settled = onSettled === undefined ? {} : { onLoadEnd: onSettled, onError: onSettled };
+  const [loaded, setLoaded] = useState<string>();
+  const image = bot.avatarSource?.uri ?? bot.avatarUrl;
+  const settle = () => {
+    setLoaded(image);
+    onSettled?.();
+  };
+  const settled = { onLoadEnd: settle, onError: onSettled ?? (() => {}) };
   const svg = useMemo(() => {
     if (bot.avatarSource !== undefined || bot.avatarUrl !== undefined) return undefined;
     const recipe = resolvedAvatarRecipe({
@@ -162,8 +169,14 @@ export function BotPortrait({
       appearance: bot.appearance,
       avatarSeed: bot.avatarSeed,
     });
-    return recipe === undefined ? undefined : avatarSvg(recipe);
+    return recipe === undefined ? undefined : avatarSvg(recipe, { squareBackdrop: true });
   }, [bot.avatarSource, bot.avatarUrl, bot.slug, bot.displayName, bot.appearance, bot.avatarSeed]);
+  const fill =
+    svg === undefined
+      ? image !== undefined && loaded === image
+        ? undefined
+        : theme.border
+      : avatarBackdrop(svg);
   return (
     <View
       style={{
@@ -171,7 +184,7 @@ export function BotPortrait({
         height: size,
         borderRadius: corner ?? size / 2,
         overflow: 'hidden',
-        backgroundColor: theme.border,
+        backgroundColor: fill,
       }}
     >
       {bot.avatarSource !== undefined ? (
@@ -185,13 +198,13 @@ export function BotPortrait({
         <Image
           source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
           style={{ width: size, height: size }}
-          {...(onSettled === undefined ? {} : { onLoadEnd: onSettled })}
+          onLoadEnd={settle}
         />
       ) : svg !== undefined ? (
         <CachedImage
           source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
           cachePolicy="memory"
-          contentFit="contain"
+          contentFit="cover"
           style={{ width: size, height: size }}
           {...settled}
         />

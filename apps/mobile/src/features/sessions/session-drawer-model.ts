@@ -4,9 +4,7 @@ import { materialDrawer } from '../../ui/design/tokens';
 export const SESSION_DRAWER_GROUPS = ['today', 'yesterday', 'earlier'] as const;
 export type SessionDrawerGroup = (typeof SESSION_DRAWER_GROUPS)[number];
 
-export const EDGE_WIDTH = 24;
-const EDGE_DRAG_START = 10;
-const ANYWHERE_DRAG_START = 24;
+const DRAG_START = 24;
 const VERTICAL_FAIL = 12;
 const SETTLE_SHARE = 0.4;
 const FLING = 500;
@@ -15,15 +13,7 @@ export function sessionDrawerWidth(windowWidth: number): number {
   return Math.max(0, windowWidth - materialDrawer.scrimGutter);
 }
 
-export function sessionDrawerSwipe(os: string): {
-  activeX: number;
-  failY: number;
-  hitSlop?: { left: number; width: number };
-} {
-  return os === 'android'
-    ? { activeX: ANYWHERE_DRAG_START, failY: VERTICAL_FAIL }
-    : { activeX: EDGE_DRAG_START, failY: VERTICAL_FAIL, hitSlop: { left: 0, width: EDGE_WIDTH } };
-}
+export const sessionDrawerSwipe = { activeX: DRAG_START, failY: VERTICAL_FAIL } as const;
 
 export function settleSessionDrawer(progress: number, velocityX: number): boolean {
   'worklet';
