@@ -99,6 +99,7 @@ vi.mock('../src/host/native-activity-count', () => ({ useActivityCount: () => ({
 vi.mock('../src/host/profile-setup-prompt', () => ({
   useProfileSetupPrompt: () => ({ load: () => {}, prompt: () => {} }),
 }));
+vi.mock('../src/features/sessions/uikit-session-drawer', () => ({ uikitSessionDrawer: false }));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
 vi.mock('../src/ui/shell/workspace-pager', () => ({
   WorkspacePager: ({ children }: { children: ReactNode }) => children,

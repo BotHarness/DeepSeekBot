@@ -6,21 +6,23 @@ import { spring } from '../../ui/design/motion';
 export interface SessionDrawerState {
   open: boolean;
   shown: boolean;
+  animated: boolean;
 }
 
-let state: SessionDrawerState = { open: false, shown: false };
+let state: SessionDrawerState = { open: false, shown: false, animated: true };
 const listeners = new Set<() => void>();
 
 export const sessionDrawerProgress = makeMutable(0);
 
 function publish(next: SessionDrawerState): void {
-  if (next.open === state.open && next.shown === state.shown) return;
+  if (next.open === state.open && next.shown === state.shown && next.animated === state.animated)
+    return;
   state = next;
   for (const listener of listeners) listener();
 }
 
 function hidden(): void {
-  if (!state.open) publish({ open: false, shown: false });
+  if (!state.open) publish({ open: false, shown: false, animated: state.animated });
 }
 
 export const sessionDrawer = {
@@ -33,11 +35,11 @@ export const sessionDrawer = {
   },
   reveal() {
     Keyboard.dismiss();
-    publish({ open: state.open, shown: true });
+    publish({ open: state.open, shown: true, animated: true });
   },
   settle(open: boolean, velocity = 0, animate = true) {
     if (open || state.open) Keyboard.dismiss();
-    publish({ open, shown: true });
+    publish({ open, shown: true, animated: animate });
     if (!animate) {
       sessionDrawerProgress.value = open ? 1 : 0;
       if (!open) hidden();
@@ -53,11 +55,15 @@ export const sessionDrawer = {
   },
   nativeChange(open: boolean) {
     if (open || state.open) Keyboard.dismiss();
-    publish({ open, shown: true });
-    sessionDrawerProgress.value = withSpring(open ? 1 : 0, {
-      ...spring.effects.default,
-      overshootClamping: true,
-    });
+    publish({ open, shown: open, animated: true });
+    sessionDrawerProgress.value = open ? 1 : 0;
+  },
+  nativeProgress(progress: number) {
+    if (progress > 0 && !state.shown) {
+      Keyboard.dismiss();
+      publish({ open: state.open, shown: true, animated: true });
+    }
+    sessionDrawerProgress.value = Math.min(1, Math.max(0, progress));
   },
 };
 

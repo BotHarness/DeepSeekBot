@@ -19,9 +19,9 @@ import {
 it('dismisses the keyboard as it opens and hides once closed', () => {
   openSessionDrawer();
   expect(keyboard.dismiss).toHaveBeenCalledOnce();
-  expect(sessionDrawer.getSnapshot()).toEqual({ open: true, shown: true });
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: true, shown: true, animated: true });
   closeSessionDrawer(false);
-  expect(sessionDrawer.getSnapshot()).toEqual({ open: false, shown: false });
+  expect(sessionDrawer.getSnapshot()).toEqual({ open: false, shown: false, animated: false });
   expect(sessionDrawerProgress.value).toBe(0);
 });
 

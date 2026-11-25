@@ -1,0 +1,12 @@
+# Session drawer (iOS)
+
+A local Expo view that gives the phone's Session drawer (#5255) native gesture and motion on iOS. UIKit has no navigation drawer, so this view rebuilds the Android Material 3 `ModalNavigationDrawer` that `modules/dismissible-drawer` renders: the panel slides in from the leading edge over the page, a dim scrim sits behind it, and the page itself never moves or blurs.
+
+- **Children.** `SessionDrawerView` takes exactly three React Native children, in order: the page content, the scrim and the panel. React Native lays them out (the panel at its full drawer width, the scrim full screen). The view changes only the panel's `transform`, the scrim's `alpha` and the system tab bar's `alpha`, so React Native's layout and props never fight it. A child that leaves the view gets its transform and alpha reset before Fabric recycles it.
+- **Gesture.** One `UIPanGestureRecognizer` on the whole view. While closed and `enabled`, a swipe toward the trailing edge that starts anywhere opens the drawer, unless the finger is on a horizontal scroller that can still scroll back. While open, a swipe toward the leading edge on the panel or the scrim closes it. The panel follows the finger 1:1. A vertical list waits only until the first movement proves vertical.
+- **Motion.** On release a fling (over 500 pt/s) decides, otherwise the drawer opens once it is more than 40% out, the same rule as `settleSessionDrawer` in `session-drawer-model.ts`. A `UIViewPropertyAnimator` with the JavaScript `spring.release` physics carries the release velocity into the settle and can be caught mid-flight. Reduce Motion settles without the spring.
+- **Tab bar.** The bar fades with the drawer's progress (`1 - progress`) through the nearest `UITabBarController`, so it is gone, and not hittable, while the drawer is open.
+- **State.** JavaScript owns `open`. `onDragStart` fires when a drag takes the drawer, and `onOpenChange` reports each value a drag settles at. `animated: false` makes the next change of `open` jump (used when the Sessions tab loses focus).
+- **Accessibility.** JavaScript hides the page from VoiceOver while the drawer is open, marks the panel modal, and renders the scrim as a "Close Session drawer" button.
+
+It uses public UIKit API only. This is native code: rebuild the dev client before loading the JS that uses it. An older dev client without it falls back to the React Native drawer in `session-drawer-surface.tsx`.

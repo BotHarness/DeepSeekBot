@@ -1,25 +1,14 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, type ReactNode } from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-  type ViewInstance,
-} from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle } from 'react-native-reanimated';
 import { useDesignTheme } from '../../ui/design/theme';
-import { space } from '../../ui/design/tokens';
-import { useMounted } from '../../ui/mounted';
 import { useSystemReducedMotion } from '../../ui/primitives/use-system-reduced-motion';
-import { holdBack } from '../../ui/shell/back-owner';
 import { useStrings } from '../../ui/strings';
-import { SessionDrawerBlur } from './session-drawer-blur';
+import { useSessionDrawerChrome } from './session-drawer-chrome';
 import { SessionDrawerContent } from './session-drawer-content';
 import {
-  sessionDrawerSwipe,
+  sessionDrawerSwipe as swipe,
   sessionDrawerWidth,
   settleSessionDrawer,
 } from './session-drawer-model';
@@ -30,8 +19,6 @@ import {
   useDrawerPlace,
   useSessionDrawer,
 } from './session-drawer-state';
-
-const CONTENT_FADE = 0.5;
 
 function clamp(value: number): number {
   'worklet';
@@ -46,30 +33,14 @@ function settle(open: boolean, velocity: number): void {
   sessionDrawer.settle(open, velocity);
 }
 
-export function SessionDrawerSurface({
-  children,
-  nativeDrawer,
-}: {
-  children: ReactNode;
-  nativeDrawer?: ReactNode;
-}) {
-  const native = nativeDrawer !== undefined;
+export function SessionDrawerSurface({ children }: { children: ReactNode }) {
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const reduced = useSystemReducedMotion();
   const width = sessionDrawerWidth(useWindowDimensions().width);
   const state = useSessionDrawer();
   const place = useDrawerPlace();
-  const swipe = sessionDrawerSwipe(Platform.OS);
-
-  useFocusEffect(useCallback(() => () => closeSessionDrawer(false), []));
-  const holdBackWhileOpen = useMounted<ViewInstance>(() => {
-    const held = holdBack(() => {
-      closeSessionDrawer();
-      return true;
-    });
-    return () => held.remove();
-  }, []);
+  const holdBackWhileOpen = useSessionDrawerChrome();
 
   const openPan = Gesture.Pan()
     .enabled(place.edge > 0 && !state.open)
@@ -87,7 +58,6 @@ export function SessionDrawerSurface({
         event.velocityX / width,
       );
     });
-  if (swipe.hitSlop) openPan.hitSlop(swipe.hitSlop);
 
   const closePan = Gesture.Pan()
     .enabled(state.open)
@@ -103,77 +73,58 @@ export function SessionDrawerSurface({
       );
     });
 
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: native ? 1 : 1 - CONTENT_FADE * progress.value,
-    transform: [{ translateX: progress.value * width }],
-  }));
-  const blurStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
-  const drawerStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ translateX: (progress.value - 1) * space.x6 }],
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const panelStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (progress.value - 1) * width }],
   }));
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.base }}>
-      <GestureDetector gesture={openPan}>
-        <Animated.View
-          style={[{ flex: 1 }, contentStyle]}
-          collapsable={false}
+    <GestureDetector gesture={Gesture.Race(openPan, closePan)}>
+      <View style={{ flex: 1, backgroundColor: theme.color.base }} collapsable={false}>
+        <View
+          style={{ flex: 1 }}
           importantForAccessibility={state.open ? 'no-hide-descendants' : 'auto'}
           accessibilityElementsHidden={state.open}
         >
           {children}
-          {state.shown ? (
-            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, blurStyle]}>
-              <SessionDrawerBlur />
-            </Animated.View>
-          ) : null}
-        </Animated.View>
-      </GestureDetector>
-      {native ? (
-        <View
-          style={StyleSheet.absoluteFill}
-          pointerEvents={state.open ? 'auto' : 'none'}
-          accessibilityViewIsModal={state.open}
-        >
-          {state.open ? <View ref={holdBackWhileOpen} /> : null}
-          {nativeDrawer}
         </View>
-      ) : state.shown ? (
-        <GestureDetector gesture={closePan}>
-          <View
-            style={StyleSheet.absoluteFill}
+        {state.shown ? (
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }, scrimStyle]}
             pointerEvents={state.open ? 'auto' : 'none'}
-            accessibilityViewIsModal={state.open}
           >
-            {state.open ? <View ref={holdBackWhileOpen} /> : null}
             <Pressable
-              testID="session-drawer-close-strip"
+              testID="session-drawer-scrim"
               accessibilityRole="button"
               accessibilityLabel={t.closeDrawer}
               onPress={() => closeSessionDrawer()}
-              style={{ position: 'absolute', top: 0, bottom: 0, left: width, right: 0 }}
+              style={StyleSheet.absoluteFill}
             />
-            <Animated.View
-              accessible={false}
-              onAccessibilityEscape={() => closeSessionDrawer()}
-              style={[
-                {
-                  position: 'absolute',
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  width,
-                  backgroundColor: theme.color.base,
-                },
-                drawerStyle,
-              ]}
-            >
-              <SessionDrawerContent active={state.open} />
-            </Animated.View>
-          </View>
-        </GestureDetector>
-      ) : null}
-    </View>
+          </Animated.View>
+        ) : null}
+        {state.shown ? (
+          <Animated.View
+            accessible={false}
+            accessibilityViewIsModal={state.open}
+            onAccessibilityEscape={() => closeSessionDrawer()}
+            pointerEvents={state.open ? 'auto' : 'none'}
+            style={[
+              {
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width,
+                backgroundColor: theme.color.base,
+              },
+              panelStyle,
+            ]}
+          >
+            {state.open ? <View ref={holdBackWhileOpen} /> : null}
+            <SessionDrawerContent active={state.open} />
+          </Animated.View>
+        ) : null}
+      </View>
+    </GestureDetector>
   );
 }
