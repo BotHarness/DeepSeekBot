@@ -10,6 +10,7 @@ import type {
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
 import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
+import { approvalSurface } from './interactions/surface.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
@@ -186,7 +187,8 @@ export function createApprovalMessaging(options: {
     )
       throw new MessagingError('approval-route-unavailable');
     const provider = options.provider(identity.providerId);
-    if (!provider.approvalCard) throw new MessagingError('capability-unavailable');
+    if (!approvalSurface({ identity, paired, provider }))
+      throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
   const canonical = (value: ApprovalDelivery): ToolApprovalNotice | undefined => {
@@ -399,7 +401,7 @@ export function createApprovalMessaging(options: {
       const context = cleanup ?? resolve(value.route);
       write({ ...value, update: 'sending' });
       await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: value.receipt!,
@@ -501,7 +503,7 @@ export function createApprovalMessaging(options: {
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;
       const result = await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: target,

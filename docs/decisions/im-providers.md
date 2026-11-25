@@ -238,9 +238,11 @@ A tool approval can be sent to one selected management DM of an approved pairing
 
 When the Bot turn that asks is handling a message from an IM group of the same Binding (or, outside a turn, the conversation's latest human message came from one), the approval or question card is a reply in that group, and anyone holding an approved management pairing with the needed capability may decide or answer there; everyone else is refused. Every platform goes through one interaction authority (`messaging/authority.ts`) that checks the Binding, the platform's `interactions` feature, the pairing, the actor and the conversation. This is on by default; the platform default `groupInteractions: false` or a per-Binding override sends cards back to the management DM. If the provider refuses the group card before sending it, the card goes to the management DM instead and is decided there. A bare text reply without a reference binds only in a DM, group cards never offer saving a rule, and they leave out the working directory, rule scope and raw tool result that DM and Web cards show. A DM card offers only the decisions its paired person holds (Allow once without `approve` or Reject without `reject` is left out); a group card offers both.
 
+Where a platform or provider has no cards, the same request goes out as a text reply carrying its reference. A paired person answers an approval by replying "允许" / "allow" or "拒绝" / "reject" to it, by `#<reference>` and the word, or with the bare word when it is the only pending approval in their DM. Questions take the text answers they already accept. A reply is translated into the same action a button sends, so it passes the same authorization; rules are not offered by text. A short status reply follows when the request settles.
+
 Why: an IM receipt or button press is not a decision, and a rule created by a reviewer who has since lost authority must not keep standing execution power.
 
-Enforced by: `lark-approval-native-cards.test.ts` (including the group approval test), `lark-approval-standing-rules.test.ts`, `tool-approval-rules.test.ts`, `lark-questions.test.ts` (including the group question test), `cli-messaging.test.ts`.
+Enforced by: `lark-approval-native-cards.test.ts` (including the group approval test), `lark-approval-standing-rules.test.ts`, `tool-approval-rules.test.ts`, `lark-questions.test.ts` (including the group question test), `approval-text-fallback.test.ts`, `cli-messaging.test.ts`.
 
 ## 16. Feedback, typing and alerts never risk duplicates
 

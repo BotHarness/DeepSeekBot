@@ -11,13 +11,14 @@ import {
   type InteractionDestination,
   withoutFailedGroup,
 } from './authority.js';
-import { withMentionNames } from './mention-text.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
+  answerText,
   explainQuestionReply,
   parseQuestionReply,
   renderQuestionText,
 } from './interactions/text-answers.js';
+import { questionSurface } from './interactions/surface.js';
 import type { BotPairing } from './pairing.js';
 import {
   MessagingError,
@@ -143,7 +144,8 @@ export function createQuestionMessaging(options: {
     const { identity, paired, provider } = granted;
     if (!paired.capabilities.includes('answer'))
       throw new MessagingError('question-answer-unavailable');
-    if (!provider.questionCard) throw new MessagingError('capability-unavailable');
+    if (!questionSurface({ identity, paired, provider }))
+      throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
   const safe = (value: QuestionDelivery) => {
@@ -216,9 +218,10 @@ export function createQuestionMessaging(options: {
     busy.add(id);
     write({ ...value, status: state(value), update: 'sending' });
     try {
-      const { identity, provider } = context(value);
+      const granted = context(value);
+      const { identity } = granted;
       const result = await bounded((signal) =>
-        provider.questionCard!({
+        questionSurface(granted)!({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
           route: value.receipt!,
@@ -266,7 +269,8 @@ export function createQuestionMessaging(options: {
     let fallback = false;
     write({ ...value, attempts: value.attempts + 1 });
     try {
-      const { identity, paired, provider } = context(value);
+      const granted = context(value);
+      const { identity, paired } = granted;
       const target =
         value.destination?.reply ??
         (paired.messageIds?.[0]
@@ -281,7 +285,7 @@ export function createQuestionMessaging(options: {
       write({ ...value, attempts: value.attempts + 1, delivery: 'sending' });
       started = true;
       const result = await bounded((signal) =>
-        provider.questionCard!({
+        questionSurface(granted)!({
           accountRef: identity.accountRef,
           fingerprint: identity.fingerprint,
           route: target,
@@ -525,7 +529,7 @@ export function createQuestionMessaging(options: {
       if (closed) return false;
       const body = answerText(event);
       const command = /^\/answer(?:\s|$)/.test(body);
-      const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
+      const reference = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
         (
           db
@@ -535,6 +539,11 @@ export function createQuestionMessaging(options: {
             .all(event.conversation.id) as { body: string }[]
         ).map((row) => JSON.parse(row.body) as QuestionDelivery),
       );
+      const explicit =
+        reference &&
+        (command || candidates.some((item) => item.reference === reference[1]!.toUpperCase()))
+          ? reference
+          : null;
       const sender = { ...event, actorId: event.actor.id, conversationId: event.conversation.id };
       const supported =
         isMessagingPlatform(event.channel) &&
@@ -552,12 +561,12 @@ export function createQuestionMessaging(options: {
         return true;
       }
       if (!supported) return true;
-      const reference = explicit?.[1]!.toUpperCase();
+      const named = explicit?.[1]!.toUpperCase();
       const value =
-        quoted ?? (reference ? candidates.find((item) => item.reference === reference) : undefined);
+        quoted ?? (named ? candidates.find((item) => item.reference === named) : undefined);
       const ambiguous =
         (command || !!explicit) &&
-        (!explicit || (quoted !== undefined && quoted.reference !== reference));
+        (!explicit || (quoted !== undefined && quoted.reference !== named));
       const trusted = candidates.find((item) => authorized(item, providerId, sender));
       if (!trusted || signal.aborted) return true;
       const question = value && request(value);
@@ -597,12 +606,4 @@ export function createQuestionMessaging(options: {
     },
   };
   return service;
-}
-
-function answerText(event: MessagingInboundEvent): string {
-  const body = event.text.trim();
-  const lead = event.mentionedAccount
-    ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
-    : undefined;
-  return withMentionNames(lead ? body.slice(lead.key.length) : body, event.mentions).trim();
 }

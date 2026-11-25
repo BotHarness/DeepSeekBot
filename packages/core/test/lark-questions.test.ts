@@ -29,7 +29,7 @@ afterEach(async () => {
     core.operationalDatabase.close();
   }
 });
-async function fixture() {
+async function fixture(textOnly = false) {
   const core = createCore({ dshHome: createTempRoot('bh-lark-question-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -53,16 +53,26 @@ async function fixture() {
           };
     },
   );
+  let sent = 0;
   const replies = vi.fn<NonNullable<DshImOutboundService['replyChecked']>>(
     async (_bot, _route, _text, input) => {
       expect(input.beforeSend?.()).toBe(true);
-      return { sent: true };
+      return textOnly
+        ? {
+            sent: true,
+            receipt: {
+              version: 1,
+              messageId: `om_text_${++sent}`,
+              conversationId: _route.conversationId,
+            },
+          }
+        : { sent: true };
     },
   );
   const host: DshImOutboundService = {
     contractVersion: 1,
     approvalCardVersion: 1,
-    questionCardVersion: 1,
+    ...(textOnly ? { replyReceiptVersion: 1 as const } : { questionCardVersion: 1 as const }),
     replyFenceVersion: 1,
     listBots: async () => [{ botId: 'lark-qa', channel: 'feishu' }],
     listTargets: async () => [],
@@ -87,7 +97,7 @@ async function fixture() {
     sendChecked: async () => ({ sent: true }),
     replyChecked: replies,
     approvalCardChecked: async () => ({ sent: true }),
-    questionCardChecked: cards,
+    ...(textOnly ? {} : { questionCardChecked: cards }),
     consumeInbound: async (_bot, input) => {
       receiver = input;
       return () => {};
@@ -631,4 +641,17 @@ it('a question raised from a Lark group conversation is answered in that group b
   await setBinding(false);
   await f.text('A', 'om_' + bindingOn.delivery.id, { conversation: group });
   expect(f.owner.pending('ada', bindingOn.delivery.id)).toBeDefined();
+});
+
+it('asks by text when cards are unavailable and takes a quoted letter', async () => {
+  const f = await fixture(true);
+  const { answer, delivery } = await f.start();
+  expect(f.cards).not.toHaveBeenCalled();
+  const asked = f.replies.mock.calls.find((call) => String(call[2]).includes('Choose a branch'))!;
+  expect(asked[2]).toContain('B. qa');
+  expect(asked[2]).toContain(`#${delivery.reference}`);
+  const receipt = f.core.externalMessaging.questions.snapshot('ada')[0]!.receipt!.messageId;
+  await f.text('B', receipt);
+  expect(await answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+  await vi.waitFor(() => expect(f.replies.mock.calls.at(-1)![2]).toContain('Answered / 已回答'));
 });

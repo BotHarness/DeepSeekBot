@@ -1,0 +1,76 @@
+import { describe, expect, it, vi } from 'vitest';
+import { fixture } from './lark-approval-fixtures.js';
+import {
+  approvalReference,
+  parseApprovalReply,
+} from '../src/messaging/interactions/text-approvals.js';
+
+const textOnly = () => fixture(false, false, false, false, true, true);
+type Fixture = Awaited<ReturnType<typeof textOnly>>;
+const sent = (f: Fixture) =>
+  f.replies.mock.calls.filter((call) => call[2].includes('#')).map((call) => call[2]);
+const receipt = (f: Fixture, callId = 'call-1') =>
+  f.core.externalMessaging.approvals.snapshot('ada').deliveries.find((d) => d.callId === callId)
+    ?.receipt?.messageId;
+
+describe('approvals without cards', () => {
+  it('reads allow and reject words', () => {
+    expect(parseApprovalReply('允许')).toBe('allowed-once');
+    expect(parseApprovalReply(' Approve. ')).toBe('allowed-once');
+    expect(parseApprovalReply('拒绝！')).toBe('rejected');
+    expect(parseApprovalReply('deny')).toBe('rejected');
+    expect(parseApprovalReply('ok')).toBeUndefined();
+    expect(parseApprovalReply('allow it please')).toBeUndefined();
+  });
+
+  it('sends the approval as text and takes a quoted allow', async () => {
+    const f = await textOnly();
+    const call = await f.start();
+    await vi.waitFor(() => expect(sent(f)).toHaveLength(1));
+    expect(f.cards).not.toHaveBeenCalled();
+    const text = sent(f)[0]!;
+    expect(text).toContain('bash');
+    expect(text).toContain('回复本消息「允许」或「拒绝」');
+    expect(text).toContain(`#${approvalReference(call.delivery.id)}`);
+    const id = receipt(f)!;
+    await f.text('允许', id);
+    expect(await call.answer).toBe('allowed-once');
+    await vi.waitFor(() => expect(sent(f)).toHaveLength(2));
+    expect(f.replies.mock.calls.at(-1)![1]).toMatchObject({ messageId: id });
+  });
+
+  it('takes a bare reject when it is the only pending approval in the DM', async () => {
+    const f = await textOnly();
+    const call = await f.start();
+    await vi.waitFor(() => expect(sent(f)).toHaveLength(1));
+    await f.text('拒绝');
+    expect(await call.answer).toBe('rejected');
+  });
+
+  it('takes a reference when several approvals wait', async () => {
+    const f = await textOnly();
+    const first = await f.start('call-1');
+    const second = await f.start('call-2');
+    await vi.waitFor(() => expect(sent(f)).toHaveLength(2));
+    await f.text('允许');
+    await f.text(`#${approvalReference(second.delivery.id)} 拒绝`);
+    expect(await second.answer).toBe('rejected');
+    await f.text('允许', receipt(f, 'call-1'));
+    expect(await first.answer).toBe('allowed-once');
+  });
+
+  it('ignores a decision from someone who is not paired', async () => {
+    const f = await textOnly();
+    const call = await f.start();
+    await vi.waitFor(() => expect(sent(f)).toHaveLength(1));
+    await f.text('允许', receipt(f), 'ou_mallory');
+    const settled = await Promise.race([
+      call.answer,
+      new Promise((resolve) => setTimeout(() => resolve('waiting'), 200)),
+    ]);
+    expect(settled).toBe('waiting');
+    expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.status).toBe(
+      'pending',
+    );
+  });
+});
