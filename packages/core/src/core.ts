@@ -40,6 +40,9 @@ import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import { createMeetingStore } from './meetings/store.js';
 import { createMeetings, type MeetingFarEnd } from './meetings/meetings.js';
+import { createBrowserFarEnd } from './meetings/browser-far-end.js';
+import { findMeetingChrome } from './meetings/meeting-browser.js';
+import { zoomDriver } from './meetings/zoom-driver.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -360,7 +363,9 @@ function initializeCore(
     options,
   );
   startup.enter('meetings', 'initialize');
-  const meetingFarEnds: { list: MeetingFarEnd[] } = { list: [] };
+  const meetingFarEnds: { list: MeetingFarEnd[] } = {
+    list: [createBrowserFarEnd(zoomDriver, { chrome: () => findMeetingChrome() })],
+  };
   const meetingStore = createMeetingStore({
     database: attachOperationalModule(operationalDatabase, 'meetings'),
   });
