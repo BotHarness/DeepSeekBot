@@ -102,12 +102,16 @@ function setup(
   const fingerprint = (input: unknown, scope: unknown) => JSON.stringify({ input, scope });
   const creations = {
     lookup: vi.fn(
-      (key: string, input: unknown, scope?: unknown): BotCreationReceipt | undefined => {
+      (
+        key: string,
+        input: { displayName: string },
+        scope?: unknown,
+      ): BotCreationReceipt | undefined => {
         const stored = receipts.get(key);
         if (stored === undefined) return undefined;
         if (stored !== fingerprint(input, scope))
           throw new BotCreationError('creation-key-conflict', 'key reused');
-        return create(input as { displayName: string }, key).receipt;
+        return create(input, key).receipt;
       },
     ),
     create: vi.fn((input: { displayName: string }, key?: string, scope?: unknown) => {

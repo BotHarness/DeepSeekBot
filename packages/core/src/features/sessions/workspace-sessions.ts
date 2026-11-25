@@ -256,9 +256,9 @@ export function sessionSeedMessage(
   const folders = workspaces.map((path) => `- \`${path}\``);
   if (language === 'zh')
     return [
-      `你是根据我在 ${products} 里的这些 Session 创建的，之后由你来负责这个项目。请用 \`workspace_sessions\` 工具逐个读完它们，了解项目本身、我的工作方式和偏好，然后：`,
+      `你是根据我在 ${products} 里的这些 Session 创建的，之后由你来负责下面这些工作区。请用 \`workspace_sessions\` 工具逐个读完它们，了解这些工作区、我的工作方式和偏好，然后：`,
       '',
-      '1. 在 SOUL.md 里写下你在这个项目里的角色、职责和工作方式；',
+      '1. 在 SOUL.md 里写下你在这些工作区里的角色、职责和工作方式；',
       '2. 在 MEMORY.md 和其他记忆文件里记下值得长期记住的事实和决定，只记要点，不要整段复制对话；',
       '3. 完成后用几句话告诉我你学到了什么，以及还有哪些不清楚的地方。',
       '',
@@ -269,9 +269,9 @@ export function sessionSeedMessage(
       ...folders,
     ].join('\n');
   return [
-    `You were created from these ${products} sessions of mine, and you will look after this project from now on. Read each of them with the \`workspace_sessions\` tool to learn the project, how I work and what I prefer. Then:`,
+    `You were created from these ${products} sessions of mine, and you will look after the Workspaces below from now on. Read each of them with the \`workspace_sessions\` tool to learn these Workspaces, how I work and what I prefer. Then:`,
     '',
-    '1. Write your role, responsibilities and way of working on this project in SOUL.md.',
+    '1. Write your role, responsibilities and way of working in these Workspaces in SOUL.md.',
     '2. Record the facts and decisions worth keeping in MEMORY.md and other Memory files. Keep the key points; do not copy whole conversations.',
     '3. When you are done, tell me in a few sentences what you learned and what is still unclear.',
     '',
