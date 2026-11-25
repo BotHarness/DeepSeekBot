@@ -275,7 +275,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       )
         throw new TeamError('rate-limited');
       const controller = new AbortController();
-      const reservation = { peer, controller };
+      const reservation: StreamLifetime = { peer, controller };
       pending.set(key, reservation);
       watchDisconnect(reservation);
       try {
