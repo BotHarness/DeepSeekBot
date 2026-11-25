@@ -578,6 +578,48 @@ it('opens a tool step into its command and output', async () => {
   expect(card?.textContent).toContain('退出码 1');
 });
 
+it('keeps tool output unwrapped until the wrap toggle is pressed', async () => {
+  const host = await render(
+    {
+      sessionTranscript: vi.fn(async () => ({
+        ...editTurn(),
+        items: [
+          {
+            kind: 'tool' as const,
+            id: 'c10',
+            tool: 'agent',
+            toolKind: 'other' as const,
+            status: 'done' as const,
+            at: '2026-11-17T00:00:02.000Z',
+          },
+        ],
+      })),
+      sessionToolDetail: vi.fn(async () => ({
+        card: 'text' as const,
+        input: '{"prompt": "a long line"}',
+        output: 'done',
+      })),
+    },
+    { level: 'detailed', collapse: 'nextInput', replies: 'all' },
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="process"] button')!.click(),
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="tool"] button')!.click(),
+  );
+  const card = host.querySelector('[data-tool-detail="text"]')!;
+  const blocks = () => [...card.querySelectorAll('pre')].map((pre) => pre.dataset.wrap);
+  const toggles = card.querySelectorAll<HTMLButtonElement>('[data-tool-detail-wrap]');
+  expect(blocks()).toEqual(['false', 'false']);
+  expect(toggles).toHaveLength(2);
+  expect(toggles[0]!.getAttribute('aria-pressed')).toBe('false');
+  expect(toggles[0]!.getAttribute('aria-label')).toBe('自动换行');
+  await act(async () => toggles[0]!.click());
+  expect(blocks()).toEqual(['true', 'true']);
+  expect(toggles[1]!.getAttribute('aria-pressed')).toBe('true');
+});
+
 it('streams the live reasoning and reply over the durable history', async () => {
   let resolveSecond: (value: SessionLiveSnapshot) => void = () => {};
   const sessionLive = vi
