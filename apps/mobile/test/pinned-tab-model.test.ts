@@ -92,6 +92,32 @@ describe('Pinned binding store', () => {
     expect(bindings.binding('a')).toEqual({ kind: 'channel', id: 'launch' });
     expect(writes.at(-1)).toEqual({ a: { kind: 'channel', id: 'launch' } });
   });
+
+  it('settles after a failed read without erasing saved bindings on the next change', async () => {
+    const writes: unknown[] = [];
+    let reads = 0;
+    const bindings = createPinnedBindings({
+      read: () => {
+        reads += 1;
+        return reads === 1
+          ? Promise.reject(new Error('busy'))
+          : Promise.resolve({ a: { kind: 'bot', slug: 'ada' } });
+      },
+      write: (value) => writes.push(value),
+    });
+    expect(bindings.settled()).toBe(false);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(bindings.settled()).toBe(true);
+    bindings.bind('b', { kind: 'channel', id: 'launch' });
+    expect(writes).toEqual([]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(writes.at(-1)).toEqual({
+      a: { kind: 'bot', slug: 'ada' },
+      b: { kind: 'channel', id: 'launch' },
+    });
+  });
 });
 
 describe('Pinned tab target', () => {
@@ -102,6 +128,7 @@ describe('Pinned tab target', () => {
     expect(pinnedHostId('all', hosts, [], 'h2')).toBe('h2');
     expect(pinnedHostId('all', hosts, [], undefined)).toBe('h1');
     expect(pinnedHostId('all', [], ['h1'], 'h1')).toBeUndefined();
+    expect(pinnedHostId(computerEnvironmentKey('gone'), hosts, ['h3'], 'h1')).toBeUndefined();
   });
 
   it('defaults to the Steward DM', () => {

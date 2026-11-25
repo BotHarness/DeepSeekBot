@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { PixelRatio, View, type ImageSourcePropType, type ViewInstance } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import type { Conversation } from '../../ui/chat/conversations';
@@ -49,11 +49,12 @@ export function useAvatarIcons(conversation: Conversation | undefined) {
       style={{ position: 'absolute', left: -navigationBar.height * 4, top: 0 }}
     >
       {[plain, ringed].map((ref, index) => (
-        <View key={`${key}:${index}`} ref={ref} collapsable={false}>
+        <View key={`${key}:${index}`} ref={ref.mount} collapsable={false}>
           <PinnedAvatar
             conversation={conversation}
             size={navigationBar.symbolBox}
             selected={index === 1}
+            onSettled={ref.again}
           />
         </View>
       ))}
@@ -63,24 +64,33 @@ export function useAvatarIcons(conversation: Conversation | undefined) {
 }
 
 function useCapture(key: string, done: (uri: string) => void) {
-  return useMounted<ViewInstance>(
-    (view) => {
-      let live = true;
+  const view = useRef<ViewInstance | undefined>(undefined);
+  const live = useRef(false);
+  const shoot = (target: ViewInstance) =>
+    captureRef(target, { format: 'png', quality: 1, result: 'tmpfile' }).then(
+      (uri) => {
+        if (live.current && view.current === target) done(uri);
+      },
+      () => undefined,
+    );
+  const mount = useMounted<ViewInstance>(
+    (target) => {
+      view.current = target;
+      live.current = true;
       const timers = pinnedTabIcon.captureDelays.map((delay) =>
-        setTimeout(() => {
-          captureRef(view, { format: 'png', quality: 1, result: 'tmpfile' }).then(
-            (uri) => {
-              if (live) done(uri);
-            },
-            () => undefined,
-          );
-        }, delay),
+        setTimeout(() => void shoot(target), delay),
       );
       return () => {
-        live = false;
+        live.current = false;
+        view.current = undefined;
         for (const timer of timers) clearTimeout(timer);
       };
     },
     [key],
   );
+  const again = () => {
+    const target = view.current;
+    if (target !== undefined) requestAnimationFrame(() => void shoot(target));
+  };
+  return { mount, again };
 }

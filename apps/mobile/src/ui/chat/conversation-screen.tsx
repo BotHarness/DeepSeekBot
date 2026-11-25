@@ -341,7 +341,16 @@ function ChatConversation({
   });
   const ios = Platform.OS === 'ios';
   const initialScroll = useChatInitialScroll(focus === undefined, rows.length);
-  const header = conversationHeader({ t, theme, insets, windowWidth, leave, ios, profile });
+  const header = conversationHeader({
+    t,
+    theme,
+    insets,
+    windowWidth,
+    leave,
+    tabRoot,
+    ios,
+    profile,
+  });
   const notice = conversationNotice({
     latestWindowOnly,
     t,

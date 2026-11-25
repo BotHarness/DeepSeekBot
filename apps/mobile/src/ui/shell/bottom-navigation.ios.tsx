@@ -85,8 +85,15 @@ function NativeNavigation() {
       actions: entries.filter((entry) => entry.glyph === 'new').map(item),
     };
   });
-  const select = (tab: string, id: string) =>
-    menus[tab as TabMenuRoute]?.find((entry) => entry.key === id)?.run();
+  const shown = useMemo(() => new Map<string, TabMenuEntry>(), []);
+  for (const [tab, entries] of Object.entries(menus))
+    for (const entry of entries ?? []) shown.set(`${tab}\n${entry.key}`, entry);
+  const select = (tab: string, id: string) => {
+    const entry =
+      menus[tab as TabMenuRoute]?.find((item) => item.key === id) ?? shown.get(`${tab}\n${id}`);
+    shown.clear();
+    entry?.run();
+  };
   const glyphTrigger = (route: TabRoute, slot: Exclude<(typeof order)[number], 'pinned'>) => (
     <NativeTabs.Trigger
       key={slot}

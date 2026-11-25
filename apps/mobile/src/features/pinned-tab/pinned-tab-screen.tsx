@@ -5,6 +5,8 @@ import { ConversationPages } from '../../ui/chat/conversation-pages';
 import { useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
 import { Button } from '../../ui/primitives/button';
+import { LoadingIndicator } from '../../ui/primitives/loading-indicator';
+import { ReadFailure } from '../../ui/primitives/read-failure';
 import { Text } from '../../ui/primitives/text';
 import { StackRoot, TabRoot } from '../../ui/shell/stack-root';
 import { TabIslandScreen } from '../../ui/shell/tab-island-screen';
@@ -30,10 +32,32 @@ export function PinnedTabScreen() {
       </TabIslandScreen>
     );
   if (state.kind === 'loading')
-    return (
-      <View testID="pinned-tab-loading" style={{ flex: 1, backgroundColor: theme.color.base }} />
-    );
+    return <PinnedTabLoading failed={state.failed} retry={state.retry} />;
   return <PinnedTabEmpty />;
+}
+
+function PinnedTabLoading({ failed, retry }: { failed: boolean; retry: () => void }) {
+  const t = useStrings().pinnedTab;
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      testID="pinned-tab-loading"
+      style={{
+        flex: 1,
+        backgroundColor: theme.color.base,
+        paddingTop: insets.top + space.x6,
+        paddingHorizontal: space.x5,
+        alignItems: failed ? 'stretch' : 'center',
+      }}
+    >
+      {failed ? (
+        <ReadFailure title={t.loadFailed} onRetry={retry} />
+      ) : (
+        <LoadingIndicator accessibilityLabel={t.loading} />
+      )}
+    </View>
+  );
 }
 
 function PinnedTabEmpty() {

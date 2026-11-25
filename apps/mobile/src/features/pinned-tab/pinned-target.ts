@@ -27,12 +27,22 @@ export function pinnedHostId(
 ): string | undefined {
   const selected = hostIds.find((hostId) => computerEnvironmentKey(hostId) === scope);
   if (selected !== undefined) return selected;
+  if (computerScope(scope)) return undefined;
   const order = [
     ...recentHostIds,
     ...(currentHostId === undefined ? [] : [currentHostId]),
     ...hostIds,
   ];
   return order.find((hostId) => hostIds.includes(hostId));
+}
+
+function computerScope(scope: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(scope);
+    return Array.isArray(parsed) && parsed[0] === 'computer';
+  } catch {
+    return false;
+  }
 }
 
 export function bindingKey(binding: PinnedBinding): string {

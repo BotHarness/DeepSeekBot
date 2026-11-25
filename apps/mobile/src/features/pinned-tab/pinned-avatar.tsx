@@ -11,10 +11,12 @@ export function PinnedAvatar({
   conversation,
   size,
   selected,
+  onSettled,
 }: {
   conversation: Conversation | undefined;
   size: number;
   selected: boolean;
+  onSettled?: (() => void) | undefined;
 }) {
   const theme = useDesignTheme();
   const inner = size - (edge.focus + space.x1) * 2;
@@ -36,7 +38,13 @@ export function PinnedAvatar({
       {conversation === undefined ? (
         <PinIcon color={selected ? theme.color.fg : theme.color.muted} size={inner} />
       ) : conversation.kind === 'bot' ? (
-        <BotAvatar bot={conversation.bot} size={inner} corner={inner / 2} ring={false} />
+        <BotAvatar
+          bot={conversation.bot}
+          size={inner}
+          corner={inner / 2}
+          ring={false}
+          onSettled={onSettled}
+        />
       ) : (
         <GroupMark
           avatar={conversation.person === true ? undefined : conversation.channel.avatar}
@@ -48,6 +56,7 @@ export function PinnedAvatar({
           fill={theme.color.base}
           variant="meta"
           strong={false}
+          onSettled={onSettled}
         />
       )}
     </View>

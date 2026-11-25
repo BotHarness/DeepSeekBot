@@ -80,7 +80,7 @@ const names = [
   'settings-outline',
 ];
 
-function withAssets(run: () => Promise<void> | void) {
+async function withAssets(run: () => Promise<void> | void) {
   const requireAsset = createRequire(import.meta.url);
   const assets = names.map((name) => requireAsset.resolve('../assets/toolbar/' + name + '.xml'));
   for (const [index, path] of assets.entries()) {
@@ -88,9 +88,11 @@ function withAssets(run: () => Promise<void> | void) {
     asset.exports = names[index];
     requireAsset.cache[path] = asset;
   }
-  return Promise.resolve(run()).finally(() => {
+  try {
+    await run();
+  } finally {
     for (const path of assets) delete requireAsset.cache[path];
-  });
+  }
 }
 
 function item(slot: TabSlot, extra: Partial<NavigationDestination> = {}): NavigationDestination {

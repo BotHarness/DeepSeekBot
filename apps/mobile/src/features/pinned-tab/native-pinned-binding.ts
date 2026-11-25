@@ -26,3 +26,7 @@ export function usePinnedBinding(hostId: string | undefined): PinnedBinding | un
     ),
   );
 }
+
+export function usePinnedBindingsSettled(): boolean {
+  return useSyncExternalStore(pinnedBindings.subscribe, pinnedBindings.settled);
+}

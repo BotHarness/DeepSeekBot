@@ -6,6 +6,8 @@ export const en = {
     emptyTitle: 'Nothing to pin yet',
     emptyBody: 'Add a computer and its Steward appears here.',
     emptyAction: 'Add a computer',
+    loading: 'Loading the pinned conversation',
+    loadFailed: 'Could not reach this computer.',
   },
 };
 
@@ -17,5 +19,7 @@ export const zh: typeof en = {
     emptyTitle: '还没有可固定的对话',
     emptyBody: '添加电脑后，它的主管会出现在这里。',
     emptyAction: '添加电脑',
+    loading: '正在载入固定的对话',
+    loadFailed: '连不上这台电脑。',
   },
 };

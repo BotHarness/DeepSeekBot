@@ -95,11 +95,13 @@ export function BotAvatar({
   size,
   ring = true,
   corner,
+  onSettled,
 }: {
   bot: RosterBot;
   size: number;
   ring?: boolean;
   corner?: number;
+  onSettled?: (() => void) | undefined;
 }) {
   const theme = useTheme();
   const frame = ring ? stateRing.inset * 2 : 0;
@@ -124,7 +126,12 @@ export function BotAvatar({
           running={running}
         />
       ) : null}
-      <BotPortrait bot={bot} size={size} {...(corner === undefined ? {} : { corner })} />
+      <BotPortrait
+        bot={bot}
+        size={size}
+        {...(corner === undefined ? {} : { corner })}
+        onSettled={onSettled}
+      />
     </View>
   );
 }
@@ -133,6 +140,7 @@ export function BotPortrait({
   bot,
   size,
   corner,
+  onSettled,
 }: {
   bot: Pick<
     RosterBot,
@@ -142,8 +150,10 @@ export function BotPortrait({
   };
   size: number;
   corner?: number;
+  onSettled?: (() => void) | undefined;
 }) {
   const theme = useTheme();
+  const settled = onSettled === undefined ? {} : { onLoadEnd: onSettled, onError: onSettled };
   const svg = useMemo(() => {
     if (bot.avatarSource !== undefined || bot.avatarUrl !== undefined) return undefined;
     const recipe = resolvedAvatarRecipe({
@@ -169,11 +179,13 @@ export function BotPortrait({
           source={bot.avatarSource}
           contentFit="cover"
           style={{ width: size, height: size }}
+          {...settled}
         />
       ) : bot.avatarUrl !== undefined ? (
         <Image
           source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
           style={{ width: size, height: size }}
+          {...(onSettled === undefined ? {} : { onLoadEnd: onSettled })}
         />
       ) : svg !== undefined ? (
         <CachedImage
@@ -181,6 +193,7 @@ export function BotPortrait({
           cachePolicy="memory"
           contentFit="contain"
           style={{ width: size, height: size }}
+          {...settled}
         />
       ) : null}
     </View>

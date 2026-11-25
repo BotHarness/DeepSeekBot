@@ -62,7 +62,10 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           <MaterialCountBadge
             count={entry.count}
             tone={entry.slot === 'activity' ? 'needs-you' : 'unread'}
-            fontSize={cornerBadge.materialLabel / theme.fontScale}
+            fontSize={
+              (cornerBadge.materialLabel * Math.min(theme.fontScale, cornerBadge.maxTextScale)) /
+              theme.fontScale
+            }
           />
         </BadgedBox.Badge>
         {face}

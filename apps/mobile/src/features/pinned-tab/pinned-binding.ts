@@ -7,6 +7,7 @@ export interface PinnedBindingStorage {
 
 export interface PinnedBindings {
   binding(hostId: string): PinnedBinding | undefined;
+  settled(): boolean;
   bind(hostId: string, binding: PinnedBinding | undefined): void;
   subscribe(listener: () => void): () => void;
 }
@@ -26,6 +27,8 @@ export function createPinnedBindings(storage: PinnedBindingStorage): PinnedBindi
   const changed = new Set<string>();
   const listeners = new Set<() => void>();
   let hydrated = false;
+  let settled = false;
+  let reading = false;
   const notify = () => {
     for (const listener of listeners) listener();
   };
@@ -34,28 +37,43 @@ export function createPinnedBindings(storage: PinnedBindingStorage): PinnedBindi
       storage.write(Object.fromEntries(byHost));
     } catch {}
   };
-  const finish = () => {
-    hydrated = true;
-    if (changed.size > 0) persist();
-    changed.clear();
-    notify();
+  const load = () => {
+    if (reading) return;
+    reading = true;
+    void storage.read().then(
+      (value) => {
+        reading = false;
+        if (typeof value === 'object' && value !== null)
+          for (const [hostId, stored] of Object.entries(value)) {
+            if (changed.has(hostId)) continue;
+            const binding = parsePinnedBinding(stored);
+            if (binding !== undefined) byHost.set(hostId, binding);
+          }
+        hydrated = true;
+        settled = true;
+        if (changed.size > 0) persist();
+        changed.clear();
+        notify();
+      },
+      () => {
+        reading = false;
+        settled = true;
+        notify();
+      },
+    );
   };
-  void storage.read().then((value) => {
-    if (typeof value === 'object' && value !== null)
-      for (const [hostId, stored] of Object.entries(value)) {
-        if (changed.has(hostId)) continue;
-        const binding = parsePinnedBinding(stored);
-        if (binding !== undefined) byHost.set(hostId, binding);
-      }
-    finish();
-  }, finish);
+  load();
   return {
     binding: (hostId) => byHost.get(hostId),
+    settled: () => settled,
     bind(hostId, binding) {
       if (binding === undefined) byHost.delete(hostId);
       else byHost.set(hostId, binding);
       if (hydrated) persist();
-      else changed.add(hostId);
+      else {
+        changed.add(hostId);
+        load();
+      }
       notify();
     },
     subscribe(listener) {

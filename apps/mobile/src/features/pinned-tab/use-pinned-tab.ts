@@ -6,7 +6,7 @@ import { countBadge, titleOf, type Conversation } from '../../ui/chat/conversati
 import { badgeCount } from '../../ui/primitives/badge-count';
 import { recentHostIds, useRecentChats } from '../../ui/shell/recent-chats';
 import { useStrings } from '../../ui/strings';
-import { usePinnedBinding } from './native-pinned-binding';
+import { usePinnedBinding, usePinnedBindingsSettled } from './native-pinned-binding';
 import { pinnedHostId, resolvePinnedTarget } from './pinned-target';
 
 export type PinnedTab = {
@@ -27,7 +27,7 @@ export function placeOf(conversation: Conversation): ChatPlace {
 }
 
 export type PinnedTabState =
-  | { kind: 'loading' }
+  | { kind: 'loading'; failed: boolean; retry: () => void }
   | { kind: 'none' }
   | { kind: 'ready'; tab: PinnedTab };
 
@@ -49,6 +49,7 @@ export function usePinnedTabState(): PinnedTabState {
     saved?.hostId,
   );
   const binding = usePinnedBinding(hostId);
+  const bindingsSettled = usePinnedBindingsSettled();
   const host = hosts.find((entry) => entry.saved.hostId === hostId);
   const ready = host?.attention.status === 'ready' ? host.attention : undefined;
   const target =
@@ -69,10 +70,23 @@ export function usePinnedTabState(): PinnedTabState {
   const count = badge === undefined || badge.tone === 'muted' ? 0 : badge.count;
   const name = conversation === undefined ? t.pinnedTab.title : titleOf(conversation);
   const key = conversation === undefined ? undefined : `${target?.hostId}:${conversation.key}`;
-  const loading = host !== undefined && host.snapshot.roster === undefined;
+  const loading = host !== undefined && (host.snapshot.roster === undefined || !bindingsSettled);
+  const status = host?.snapshot.connection.status;
+  const failed =
+    host?.snapshot.roster === undefined &&
+    (status === 'unreachable' || status === 'refused' || status === 'stopped');
+  const client = host?.client;
   return useMemo((): PinnedTabState => {
+    if (loading)
+      return {
+        kind: 'loading',
+        failed,
+        retry: () => {
+          void client?.refresh().catch(() => undefined);
+        },
+      };
     if (target === undefined || conversation === undefined || key === undefined)
-      return loading ? { kind: 'loading' } : { kind: 'none' };
+      return { kind: 'none' };
     const label = t.pinnedTab.tabLabel(name);
     const tab: PinnedTab = {
       key,
@@ -85,5 +99,5 @@ export function usePinnedTabState(): PinnedTabState {
       countedLabel: count > 0 ? t.pinnedTab.tabLabel(name, badgeCount(count)) : label,
     };
     return { kind: 'ready', tab };
-  }, [key, name, count, t, conversation, target, loading]);
+  }, [key, name, count, t, conversation, target, loading, failed, client]);
 }
