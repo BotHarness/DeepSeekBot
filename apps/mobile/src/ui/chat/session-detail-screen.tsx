@@ -460,8 +460,6 @@ export function SessionDetailBody({
           if (role === 'native') {
             await archiveHostSession(client, id);
             if (saved !== null && saved !== undefined) forgetLastSession(saved.hostId, id);
-            // The archived Session leaves the list, so land on the Sessions root, never on
-            // another tab through the shared back history.
             if (inSessions && drawer) openNewSession();
             else if (inSessions) router.dismissTo('/sessions');
             else if (router.canGoBack()) router.back();

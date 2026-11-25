@@ -21,7 +21,6 @@ import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 export type NativeApprovalInput = Extract<HostSessionPendingInput, { kind: 'approval' }>;
 export type NativeQuestionInput = Extract<HostSessionPendingInput, { kind: 'question' }>;
 
-/** Only the Host Owner controls native Sessions; the Host refuses Team members anyway. */
 export function nativeSessionControls({
   native,
   host,
@@ -39,7 +38,6 @@ export function pendingInputKey(pending: readonly HostSessionPendingInput[] | un
   return (pending ?? []).map((item) => `${item.kind}:${item.requestId}`).join('\n');
 }
 
-/** Cards the Human still has to answer: answered ones stay hidden while the Host catches up. */
 export function shownPendingInput(
   pending: readonly HostSessionPendingInput[] | undefined,
   handled: ReadonlySet<string>,
@@ -82,7 +80,6 @@ function notPending(error: unknown): boolean {
   return error instanceof MethodRefused && error.code === 'session-input-not-pending';
 }
 
-/** A stale request (answered elsewhere or ended) reads as decided, like a Bot request card. */
 async function settle(answer: () => Promise<unknown>): Promise<DecisionResult> {
   try {
     await answer();

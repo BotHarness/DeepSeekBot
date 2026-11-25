@@ -17,7 +17,6 @@ import {
 
 type Settled = (requestId: string, result: DecisionResult) => void;
 
-/** Each Host read parses fresh objects; keep the last equal one so a card keeps its port. */
 function useSameValue<T>(value: T): T {
   const [kept, setKept] = useState(value);
   const same = JSON.stringify(kept) === JSON.stringify(value);
@@ -25,7 +24,6 @@ function useSameValue<T>(value: T): T {
   return same ? kept : value;
 }
 
-/** Approval and question cards a native Session is waiting on, newest at the bottom. */
 export function NativeSessionInputCards({
   client,
   sessionId,

@@ -49,7 +49,6 @@ export function rememberLastSession(next: LastSession): void {
   } catch {}
 }
 
-/** An archived Session is no longer a place to land; forget it if it was the last one. */
 export function forgetLastSession(hostId: string, sessionId: string): void {
   const current = lastSession();
   if (current?.hostId !== hostId || current.sessionId !== sessionId) return;

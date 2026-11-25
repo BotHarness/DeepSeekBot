@@ -116,7 +116,6 @@ interface ApprovalCardProps {
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
-  /** False where the source offers only Allow once and Reject, such as a native Session. */
   alwaysAllow?: boolean;
   onSettled?(result: DecisionResult): void;
 }
