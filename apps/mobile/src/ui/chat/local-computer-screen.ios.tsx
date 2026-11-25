@@ -267,7 +267,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     [t, name, status, theme, close],
   );
   if (state.status === 'unsupported') return <Legacy />;
-  return (
+  const videoScreen = (
     <DesignThemeProvider appearance={{ scheme: 'dark' }}>
       <KeyboardAvoidingView
         behavior="padding"
@@ -467,8 +467,13 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               : {})}
           />
         </View>
-        <ComputerSecurity unlock={unlock} />
       </KeyboardAvoidingView>
     </DesignThemeProvider>
+  );
+  return (
+    <>
+      {videoScreen}
+      <ComputerSecurity unlock={unlock} />
+    </>
   );
 }
