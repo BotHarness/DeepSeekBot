@@ -20,6 +20,7 @@ export type ClaudeRecordedLine =
       input: Record<string, unknown>;
       toolUseID: string;
       title?: string;
+      agentID?: string;
     }
   | { kind: 'exit'; detail: string };
 
@@ -119,6 +120,7 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
               signal: new AbortController().signal,
               toolUseID: line.toolUseID,
               ...(line.title === undefined ? {} : { title: line.title }),
+              ...(line.agentID === undefined ? {} : { agentID: line.agentID }),
             });
             replay.permissions.push({ tool: line.tool, decision });
             if (decision.behavior === 'deny') denials.set(line.toolUseID, decision.message);
