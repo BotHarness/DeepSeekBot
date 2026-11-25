@@ -171,7 +171,7 @@ export interface MessagingApprovalCard {
 export interface MessagingApprovalAction {
   kind?: undefined;
   version: 1;
-  channel: 'feishu';
+  channel: MessagingInboundEvent['channel'];
   botId: string;
   fingerprint: string;
   actorId: string;
