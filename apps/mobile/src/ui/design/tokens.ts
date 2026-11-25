@@ -110,6 +110,7 @@ export const materialNavigationBar = {
 } as const;
 export const floatingToolbar = {
   item: 56,
+  gap: 8,
   height: 48,
   icon: 24,
   avatar: 32,

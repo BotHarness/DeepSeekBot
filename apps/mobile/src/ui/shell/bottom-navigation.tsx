@@ -145,11 +145,13 @@ function NavigationBar({
     },
   });
   const android = Platform.OS === 'android';
+  const toolbarWidth =
+    floatingToolbar.item * routes.length + floatingToolbar.gap * Math.max(0, routes.length - 1);
   const slots: TabSlots = android
     ? {
-        left: (width - floatingToolbar.item * routes.length) / 2,
-        width: floatingToolbar.item * routes.length,
-        gap: 0,
+        left: (width - toolbarWidth) / 2,
+        width: toolbarWidth,
+        gap: floatingToolbar.gap,
         count: routes.length,
       }
     : {

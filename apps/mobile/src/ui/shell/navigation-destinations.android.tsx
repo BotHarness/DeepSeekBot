@@ -10,6 +10,7 @@ import {
   background,
   clip,
   combinedClickable,
+  padding,
   paddingAll,
   Shapes,
   size,
@@ -51,7 +52,7 @@ export function tabTestID(slot: TabSlot): string {
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { item, height, inset } = floatingToolbar;
+  const { item, gap, height, inset } = floatingToolbar;
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face
@@ -106,11 +107,12 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               }}
               modifiers={[testID('android-navigation-bar')]}
             >
-              {items.map((entry) => (
+              {items.map((entry, index) => (
                 <Box
                   key={entry.key}
                   contentAlignment="center"
                   modifiers={[
+                    padding(index === 0 ? 0 : gap, 0, 0, 0),
                     size(item, height),
                     clip(Shapes.RoundedCorner(height / 2)),
                     background(entry.focused ? theme.layer.raised.chosen : 'transparent'),
@@ -132,7 +134,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
         ]}
       >
-        {items.map((entry) => (
+        {items.map((entry, index) => (
           <View
             key={entry.key}
             testID={`${tabTestID(entry.slot)}-a11y`}
@@ -148,7 +150,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               if (nativeEvent.actionName === 'activate') entry.onPress();
               if (nativeEvent.actionName === 'longpress') entry.onLongPress();
             }}
-            style={{ width: item, height }}
+            style={{ width: item, height, marginLeft: index === 0 ? 0 : gap }}
           />
         ))}
       </View>
