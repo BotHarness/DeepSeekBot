@@ -352,6 +352,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messagingPostConversation',
   'messagingPostRequest',
   'messagingPostLimit',
+  'messagingGroupInteractions',
   'messagingAuthorize',
   'messagingRevoke',
   'messagingConversation',

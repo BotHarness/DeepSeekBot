@@ -95,6 +95,7 @@ export const bridgeMethodInventory = [
   'messagingPostConversation',
   'messagingPostRequest',
   'messagingPostLimit',
+  'messagingGroupInteractions',
   'messagingAuthorize',
   'messagingRevoke',
   'messagingConversation',

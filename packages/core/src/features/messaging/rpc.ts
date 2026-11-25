@@ -251,6 +251,18 @@ export function messagingPostLimit(
   );
 }
 
+export function messagingGroupInteractions(
+  methods: MessagingBridgeMethods,
+  slug: string,
+  bindingId: string,
+  expectedRevision: number,
+  enabled: boolean | null,
+): Promise<{ identity: MessagingIdentity }> {
+  return unwrapAsync(
+    methods.messagingGroupInteractions({ slug, bindingId, expectedRevision, enabled }),
+  );
+}
+
 export function messagingTargets(
   methods: MessagingBridgeMethods,
   providerId: string,
@@ -480,6 +492,15 @@ export const messagingConnectionRpc = {
     limit: number | null,
   ): Promise<{ identity: MessagingIdentity }> {
     return messagingPostLimit(this.methods, slug, bindingId, expectedRevision, limit);
+  },
+
+  messagingGroupInteractions(
+    slug: string,
+    bindingId: string,
+    expectedRevision: number,
+    enabled: boolean | null,
+  ): Promise<{ identity: MessagingIdentity }> {
+    return messagingGroupInteractions(this.methods, slug, bindingId, expectedRevision, enabled);
   },
 
   messagingTargets(
