@@ -50,9 +50,9 @@ describe('Orchestrator coordination prompt', () => {
     expect(coordination).toContain(
       'to a person or Bot colleague instead when a rule below says so',
     );
-    expect(orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role).toContain(
-      'delegate once to a suitable colleague',
-    );
+    const manager = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
+    expect(manager).toContain('You can manage this App through the scoped deepseekbot CLI');
+    expect(manager).not.toContain('delegate once');
   });
 });
 

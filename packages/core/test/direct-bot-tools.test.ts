@@ -229,6 +229,7 @@ describe('direct Bot tool runner', () => {
             !exempt.includes(name) &&
             name !== 'cloud_work' &&
             name !== 'deepseekbot_cli' &&
+            name !== 'bot_create' &&
             !TURN_ONLY_BOT_TOOLS.has(name) &&
             !PRIVATE_INPUT_TOOLS.has(name) &&
             !TAKEOVER_TOOLS.has(name),
