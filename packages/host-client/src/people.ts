@@ -8,6 +8,7 @@ import type {
 } from '@botharness/host-protocol/wire';
 import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import { isApprovalCard } from './approval-readers';
+import { MethodRefused } from './client-errors';
 import {
   answer,
   count,
@@ -193,7 +194,14 @@ export async function readHumanAttention(
   host: HostCall,
   args: Record<string, unknown>,
 ): Promise<WireHumanAttentionPage> {
-  return parseHumanAttentionPage(await host.call('humanAttention', args));
+  try {
+    return parseHumanAttentionPage(await host.call('humanAttention', args));
+  } catch (error) {
+    if (args['source'] === undefined || !(error instanceof MethodRefused)) throw error;
+    if (error.code !== 'gateway/arguments-invalid') throw error;
+    const { source: _source, ...older } = args;
+    return parseHumanAttentionPage(await host.call('humanAttention', older));
+  }
 }
 
 function isDismissal(value: unknown): value is WireAttentionDismissal {
