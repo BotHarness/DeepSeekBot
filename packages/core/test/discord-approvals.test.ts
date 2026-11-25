@@ -95,6 +95,9 @@ async function fixture() {
 it('pairs a Discord DM for management and decides an approval by text', async () => {
   const f = await fixture();
   await f.text('/pair');
+  expect((await f.core.externalMessaging.snapshot('ada')).pairingReceivers).toEqual([
+    expect.objectContaining({ name: 'QA Discord' }),
+  ]);
   const pairing = f.core.externalMessaging.pairing.list('ada')[0]!;
   expect(pairing).toMatchObject({ status: 'pending', actorId: '7000000001' });
   f.core.externalMessaging.pairing.review('ada', {
