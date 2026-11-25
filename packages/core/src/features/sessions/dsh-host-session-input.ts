@@ -60,7 +60,7 @@ type Pending = {
   approvalOptions?: { id: string; approve: string; reject: string };
 };
 
-function pendingCard(
+export function pendingCard(
   event: Extract<z.infer<typeof frame>, { type: 'waterfall' }>,
 ): Pending | undefined {
   const { eventId: requestId, agentId: sessionId } = event;
@@ -82,9 +82,15 @@ function pendingCard(
   if (event.event !== 'user-questions/request') return undefined;
   const parsed = z.object({ questions: z.array(question).min(1) }).safeParse(event.request);
   if (!parsed.success) return undefined;
-  const [first] = parsed.data.questions;
+  const [first, ...rest] = parsed.data.questions;
   const intent = first?.intent;
-  if (first !== undefined && intent?.kind === 'approval' && intent.approve && intent.reject) {
+  if (
+    rest.length === 0 &&
+    first !== undefined &&
+    intent?.kind === 'approval' &&
+    intent.approve &&
+    intent.reject
+  ) {
     return {
       sessionId,
       card: {
