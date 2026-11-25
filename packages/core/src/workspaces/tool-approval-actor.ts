@@ -1,5 +1,7 @@
+import { isMessagingPlatform, type MessagingPlatformId } from '../messaging/platforms/index.js';
+
 export interface ToolApprovalActor {
-  platform: 'feishu';
+  platform: MessagingPlatformId;
   bindingId: string;
   fingerprint: string;
   actorId: string;
@@ -21,7 +23,7 @@ export function parseToolApprovalActor(value: unknown): ToolApprovalActor | unde
     'messageId',
   ] as const;
   if (
-    actor['platform'] !== 'feishu' ||
+    !isMessagingPlatform(actor['platform']) ||
     fields.some(
       (field) =>
         typeof actor[field] !== 'string' || actor[field].length === 0 || actor[field].length > 512,
@@ -32,7 +34,7 @@ export function parseToolApprovalActor(value: unknown): ToolApprovalActor | unde
   )
     return undefined;
   return {
-    platform: 'feishu',
+    platform: actor['platform'],
     bindingId: actor['bindingId'] as string,
     fingerprint: actor['fingerprint'] as string,
     actorId: actor['actorId'] as string,

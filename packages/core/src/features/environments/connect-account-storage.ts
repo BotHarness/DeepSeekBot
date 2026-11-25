@@ -35,9 +35,12 @@ export function createConnectAccountStorage(
     return current?.kind === 'session' ? current : undefined;
   };
 
-  const save = async (next: StoredAccount): Promise<void> => {
+  const save = async (next: StoredAccount, signal?: AbortSignal): Promise<void> => {
     try {
-      await native().modifyRecord(key, async () => ({ kind: 'grant', payload: { ...next } }));
+      await native().modifyRecord(key, async () => {
+        signal?.throwIfAborted();
+        return { kind: 'grant', payload: { ...next } };
+      });
     } catch {
       throw new AccountError('credential-unavailable');
     }

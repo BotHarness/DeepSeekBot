@@ -13,7 +13,6 @@ import { freeLoopbackPort, originPort } from './connect-account-ports.js';
 import {
   AccountError,
   CONNECT_RELAY,
-  DEVICE_ENDPOINT,
   DEVICE_GRANT,
   REQUEST_TIMEOUT_MS,
   TOKEN_ENDPOINT,
@@ -24,7 +23,6 @@ import { createConnectAccountStorage } from './connect-account-storage.js';
 import {
   connectedHostsSchema,
   hostIdSchema,
-  hostListSchema,
   relaySchema,
   revokedHostSchema,
   type AccountRecord,
@@ -40,14 +38,6 @@ import {
 
 const WATCH_MS = 60_000;
 const TUNNEL_TIMEOUT_MS = 30_000;
-const MAX_TIMER_SECONDS = 2_147_483_647 / 1000;
-const authorizationSeconds = z
-  .union([z.number(), z.string().trim().min(1).transform(Number)])
-  .pipe(z.number().positive().max(MAX_TIMER_SECONDS));
-const authorizationTimingSchema = z.object({
-  interval: authorizationSeconds.default(5),
-  expires_in: authorizationSeconds,
-});
 const terminalDeviceErrors = new Set(['access_denied', 'expired_token', 'invalid_grant']);
 
 export function createConnectAccount(options: ConnectAccountOptions): ConnectAccount {
@@ -64,26 +54,30 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const sleep = (ms: number, signal: AbortSignal) =>
     options.sleep?.(ms) ?? delay(ms, undefined, { signal });
   const record = options.record ?? (() => {});
-  const { requestError, post, relayCall, clientId } = createConnectAccountRequests(
-    relay,
-    fetcher,
-    record,
-  );
+  const { requestError, post, relayCall, clientId, authorizeDevice, ownsHost } =
+    createConnectAccountRequests(relay, fetcher, record);
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
+  let signingIn: AccountStatus | undefined;
+  const visibleStatus = () => signingIn ?? status;
   const setStatus = (next: AccountStatus): void => {
+    const previous = visibleStatus();
     const changed =
-      next.state !== status.state ||
-      next.email !== status.email ||
-      next.hostId !== status.hostId ||
-      next.userCode !== status.userCode ||
-      next.verificationUri !== status.verificationUri ||
-      next.expiresAt !== status.expiresAt ||
-      next.issue !== status.issue ||
-      next.protectedUntil !== status.protectedUntil ||
-      JSON.stringify(next.wait) !== JSON.stringify(status.wait) ||
-      JSON.stringify(next.pool) !== JSON.stringify(status.pool);
-    status = next;
+      next.state !== previous.state ||
+      next.email !== previous.email ||
+      next.hostId !== previous.hostId ||
+      next.userCode !== previous.userCode ||
+      next.verificationUri !== previous.verificationUri ||
+      next.expiresAt !== previous.expiresAt ||
+      next.issue !== previous.issue ||
+      next.protectedUntil !== previous.protectedUntil ||
+      JSON.stringify(next.wait) !== JSON.stringify(previous.wait) ||
+      JSON.stringify(next.pool) !== JSON.stringify(previous.pool);
+    if (next.state === 'signing-in') signingIn = next;
+    else {
+      signingIn = undefined;
+      status = next;
+    }
     if (changed) options.onAccountChanged?.();
   };
   let attempt = 0;
@@ -252,6 +246,17 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
     record('account-error', `issue=${issue}`);
   };
 
+  const restoreIncumbent = (stored = false): boolean => {
+    if (
+      sessionBlocked() ||
+      !canResumeSession ||
+      !(stored || status.state === 'signed-in' || status.recovery === 'automatic')
+    )
+      return false;
+    setStatus(status);
+    return true;
+  };
+
   const retireSession = async (current: StoredAccount | undefined): Promise<void> => {
     canResumeSession = false;
     cached = undefined;
@@ -361,9 +366,8 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
     });
   };
 
-  const sync = (): Promise<void> => {
-    const signal = attemptAbort.signal;
-    return serial(async () => {
+  const sync = (signal = attemptAbort.signal): Promise<void> =>
+    serial(async () => {
       if (signal.aborted || sessionBlocked() || !canResumeSession) return;
       let current: AccountRecord | undefined;
       try {
@@ -421,7 +425,6 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         if (!signal.aborted) await revoke(error, current);
       }
     });
-  };
 
   const poll = async (
     signal: AbortSignal,
@@ -433,7 +436,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
     let wait = interval;
     const expired = (deadline?: AbortSignal): boolean => {
       if (!deadline?.aborted && Date.now() < expires) return false;
-      setStatus({ state: 'error', issue: 'sign-in-expired' });
+      if (!restoreIncumbent()) setStatus({ state: 'error', issue: 'sign-in-expired' });
       record('sign-in-expired');
       return true;
     };
@@ -463,6 +466,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
           tokenSignal,
         );
       } catch {
+        if (signal.aborted || expired(tokenSignal)) return;
         wait *= 2;
         continue;
       }
@@ -484,7 +488,8 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       const refreshToken = reply.body['refresh_token'];
       if (typeof error === 'string' || !reply.ok || typeof refreshToken !== 'string') {
         const expired = error === 'expired_token';
-        setStatus({ state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' });
+        if (!restoreIncumbent())
+          setStatus({ state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' });
         record(
           expired ? 'sign-in-expired' : 'sign-in-failed',
           `error=${typeof error === 'string' ? error : reply.status}`,
@@ -492,13 +497,11 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
         return;
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;
+      let completionSignal = signal;
       try {
         const saved = await serial(async () => {
           if (signal.aborted) return false;
-          const previous = await readStored();
-          if (signal.aborted) return false;
-          await retireSession(previous);
-          if (signal.aborted) return false;
+          let previous: StoredAccount | undefined;
           const current: AccountRecord = {
             kind: 'session',
             relay,
@@ -506,41 +509,54 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
             refreshToken,
             ...(typeof email === 'string' ? { email } : {}),
           };
-          if (previous?.relay === relay && previous.clientId === id && previous.hostId) {
-            const access = reply.body['access_token'];
-            if (typeof access !== 'string') throw new AccountError('session-expired');
-            const listed = await relayCall(
-              'list-hosts',
-              'GET',
-              '/v1/hosts',
-              access,
-              undefined,
-              undefined,
-              signal,
-            );
-            const hosts = hostListSchema.safeParse(listed.body);
-            if (listed.status !== 200 || !hosts.success)
-              throw requestError('relay', 'list-hosts', {
-                reason: 'invalid-response',
-                status: listed.status,
-              });
-            if (hosts.data.hosts.some((host) => host.id === previous.hostId))
+          try {
+            previous = await readStored();
+            if (signal.aborted) return false;
+            if (
+              previous?.relay === relay &&
+              previous.clientId === id &&
+              previous.hostId &&
+              (await ownsHost(previous.hostId, reply.body['access_token'], signal))
+            )
               current.hostId = previous.hostId;
+            if (signal.aborted) return false;
+            await save(current, signal);
+          } catch (error) {
+            if (signal.aborted) return false;
+            if (!restoreIncumbent(previous?.kind === 'session')) throw error;
+            record(
+              'sign-in-failed',
+              `error=${error instanceof AccountError ? error.issue : 'relay-unavailable'}`,
+            );
+            return false;
           }
-          if (signal.aborted) return false;
-          await save(current);
-          if (signal.aborted) return false;
-          signOutRequested = false;
-          canResumeSession = true;
-          return true;
+          cached = undefined;
+          status = {
+            state: 'error',
+            recovery: 'automatic',
+            ...(current.email ? { email: current.email } : {}),
+            ...(current.hostId ? { hostId: current.hostId } : {}),
+          };
+          if (!signal.aborted) {
+            signOutRequested = false;
+            canResumeSession = true;
+            completionSignal = advanceAttempt();
+          }
+          try {
+            await connect.disable();
+          } catch (error) {
+            if (!completionSignal.aborted) fail(error, current);
+            return false;
+          }
+          return !completionSignal.aborted;
         });
-        if (!saved || signal.aborted) return;
+        if (!saved || completionSignal.aborted) return;
       } catch (saveError) {
-        if (!signal.aborted) fail(saveError);
+        if (!completionSignal.aborted) fail(saveError);
         return;
       }
       record('signed-in');
-      await sync();
+      await sync(completionSignal);
       return;
     }
   };
@@ -548,7 +564,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
   const startWatch = () => {
     if (shutdown.signal.aborted || watch !== undefined) return;
     watch = setInterval(() => {
-      if (sessionBlocked()) return;
+      if (sessionBlocked() || signingIn !== undefined) return;
       const tunnel = connect.status().state;
       if (
         (status.state === 'signed-in' && (tunnel === 'error' || tunnel === 'off')) ||
@@ -711,7 +727,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       },
       call: activityCall,
     },
-    status: () => ({ ...status }),
+    status: () => ({ ...visibleStatus() }),
     connectedHosts: (signal) =>
       serial(async (): Promise<ConnectedHostsResult> => {
         if (sessionBlocked()) return { ok: false, code: 'signed-out' };
@@ -891,45 +907,22 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       if (shutdown.signal.aborted) return { ok: false, code: 'relay-unavailable' };
       const signal = advanceAttempt();
       const refuse = (): AccountResult => {
-        if (!signal.aborted && status.state === 'signing-in')
-          fail(new AccountError('relay-unavailable'));
+        if (!signal.aborted) {
+          if (restoreIncumbent()) record('sign-in-failed', 'error=relay-unavailable');
+          else if (signingIn !== undefined) fail(new AccountError('relay-unavailable'));
+        }
         return { ok: false, code: 'relay-unavailable' };
       };
       let id: ConnectClientId;
-      let reply: Awaited<ReturnType<typeof post>>;
+      let authorization: Awaited<ReturnType<typeof authorizeDevice>>;
       try {
         id = await clientId(signal);
-        const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
-        requestSignal.throwIfAborted();
-        reply = await post(
-          'device-authorization',
-          DEVICE_ENDPOINT,
-          { client_id: id },
-          requestSignal,
-        );
-        requestSignal.throwIfAborted();
+        authorization = await authorizeDevice(id, signal);
       } catch {
         return refuse();
       }
       if (signal.aborted) return { ok: false, code: 'relay-unavailable' };
-      const timing = authorizationTimingSchema.safeParse(reply.body);
-      const deviceCode = reply.body['device_code'];
-      const userCode = reply.body['user_code'];
-      const uri = reply.body['verification_uri_complete'] ?? reply.body['verification_uri'];
-      if (
-        !reply.ok ||
-        !timing.success ||
-        typeof deviceCode !== 'string' ||
-        typeof userCode !== 'string' ||
-        typeof uri !== 'string'
-      ) {
-        requestError('identity', 'device-authorization', {
-          reason: 'invalid-response',
-          status: reply.status,
-        });
-        return refuse();
-      }
-      const { interval, expires_in: lifetime } = timing.data;
+      const { deviceCode, userCode, uri, interval, lifetime } = authorization;
       const expires = Date.now() + lifetime * 1000;
       setStatus({
         state: 'signing-in',
@@ -940,7 +933,7 @@ export function createConnectAccount(options: ConnectAccountOptions): ConnectAcc
       record('sign-in-started');
       startWatch();
       void poll(signal, id, deviceCode, interval, expires);
-      return { ok: true, status: { ...status } };
+      return { ok: true, status: { ...visibleStatus() } };
     },
     signOut: () => {
       signOutRequested = true;

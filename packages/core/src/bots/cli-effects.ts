@@ -362,6 +362,7 @@ export const CLI_EFFECTS = {
   'messaging-defaults': { effects: read, brokerRead: true },
   'messaging-defaults-set': { effects: write, brokerRead: false },
   'messaging-grants': { effects: read, brokerRead: true },
+  'messaging-group-interactions': { effects: write, brokerRead: false },
   'messaging-group-policy': { effects: management, brokerRead: false },
   'messaging-post': { effects: external, brokerRead: false },
   'messaging-post-limit': { effects: write, brokerRead: false },

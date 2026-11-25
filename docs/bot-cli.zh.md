@@ -299,7 +299,7 @@ deepseekbot genui-view-save dm-<bot-id> --message-id <report-message-id> --genui
 deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./request.json
 ```
 
-`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、`genui_preview_id`、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
+`document-preview.json` 包含 `genui_json`（完整文档序列化后的 JSON 字符串）、可选 `width`（240–1600，整数或 `"728"`、`"728px"` 这样的数字字符串）和 `theme`（`light` 或 `dark`）。预览使用已安装的 Chrome、Edge 或 Chromium 和一次性 Profile，不自动下载浏览器。结果包含文档／策略标识、`genui_preview_id`、精确打包渲染器的 `runtimeSha256`、有界诊断和 DSH 图片附件，不发布 Channel 消息。预览在浏览器自带的第一个页面中渲染，等两帧完成绘制后再截图。预览期限为 15 秒，只允许一个并发任务，图片上限为 1 MiB；浏览器收尾可能延长返回时间。生成脚本在独立监督的 QuickJS Worker 和有限 DOM 适配层中运行，不在浏览器镜像文档中执行。解释器／WASM 限额不代表浏览器／进程总内存上限，也不保证物理内存立即回收。运行时资源缺失、损坏或不受支持时明确拒绝，不退回浏览器原生脚本执行。
 
 直接 CLI 路径保留预览 owner 的错误码：`genui-preview-timeout`、`genui-preview-busy`、`genui-preview-unavailable`、`genui-preview-too-large`，以及按阶段区分的 `genui-preview-{assets,browser,document,renderer,capture}-failed`。已识别的 Browser owner 启动失败保留为 `genui-preview-browser-<kind>`（例如 `genui-preview-browser-startup-timeout`），不包含进程 stderr 或 Profile 路径。`genui_diagram` 的拒绝同样保留其 `genui-diagram-*` 错误码。渲染器拒绝使用 `genui-preview-renderer-{startup,execution,memory,resource,unsupported,invalid-content}`。`genui-preview-image-unavailable` 表示渲染成功，但图片附件保存失败。这些分类不包含生成内容、私有服务细节或原始传输错误；再次诊断前保留首次失败。
 
@@ -319,7 +319,7 @@ deepseekbot genui-submit dm-<bot-id> --message-id human-<uuid> --genui-file ./re
 
 `request.json` 格式为 `{ "body": "比较我的选择", "genuiReply": { "messageId": "<report-message-id>", "snapshotId": "<exact-snapshot-id>", "selectedIds": ["alpha"], "intent": "continue" } }`。`refresh` 表示请求关联的新快照。提交形成可见的普通 Human 消息，携带经过验证的快照上下文，走普通路由和准入。相同逻辑请求以同一 `human-<uuid>` 和不变的输入重试；修改内容复用标识会被拒绝。刷新发布必须使用新 `snapshotId`，并以 `predecessorMessageId` 指向旧报告，不改写旧消息。输入须在 `--genui-file` 与 `--genui-stdin` 中二选一，最大 32 KiB。三个命令均要求在线认证 Host，并重新检查访问权限。
 
-`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选整数 `width` 为 240–1600，默认 728。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。这个工具用于检查或排查图；发布时把源码写成 `<genui-diagram>` 嵌入，并附可读说明或等价数据。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
+`genui_diagram` 只做离线创作，不发布：必填 `source` 是最多 8 KiB UTF-8 的 Mermaid，可选 `width` 为 240–1600，默认 728，可写整数或 `"728"` 这样的数字字符串。固定 Pele 1.13.0 Worker 只注册 flowchart、sequenceDiagram 和 xychart-beta，禁用链接／图片。返回 `svg`、字节数、尺寸、图种、编译器版本及源文／SVG SHA-256。这个工具用于检查或排查图；发布时把源码写成 `<genui-diagram>` 嵌入，并附可读说明或等价数据。XY 中文类别加引号，例如 `x-axis ["一月", "二月"]`。不使用 CDN，也不在消息里嵌入图表库。SVG 的 48 KiB 上限和最终 HTML 的 192 KiB 上限独立检查。只允许一个并发编译，3 秒期限，取消／结束时回收 Worker；V8 heap 限制不是整个进程内存保证。
 
 默认样式提供 `.genui-surface`、`.genui-well`、`.genui-selection`、`.genui-grid`、`.genui-table`、`.genui-legend`，以及八色 `--chart-*` 和对应 Pele 变量。同一类别保持同色，并配数值、文字、形状等非颜色提示；用色块和留白分组，不画装饰性卡片边框。必要连接线／坐标线和键盘焦点保留。默认 CSS 可覆盖，不是 sanitizer，也不改写任意作者 HTML。参见 [ADR-0302](decisions/genui.md#adr-0302)。
 
@@ -532,6 +532,7 @@ deepseekbot messaging-reachable <bot-id> --binding <binding-id> [--cursor <curso
 deepseekbot messaging-post <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin [--request-id <id>]
 deepseekbot messaging-post-status <bot-id> --binding <binding-id> --conversation <group-id> --body-stdin --request-id <id>
 deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-10000|none>
+deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
@@ -548,6 +549,8 @@ deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
+
+`groupInteractions`（缺省为开启）决定 Bot 的提问或执行审批发到哪里：如果 Bot 在该会话中最近一条消息来自同一账号的 IM 群，开启时卡片作为该群里的回复发出，任何持有已批准管理配对且具备相应权限的人都能在群里回答或审批；关闭时仍发到选定的管理 DM。`messaging-group-interactions` 可为单个 Binding 覆盖平台默认值，因此同一平台的两个应用可以不同；`--inherit` 恢复跟随平台默认值，`messaging-grants` 会显示每个 Binding 的生效值以及是否继承。在群里回答或审批后，下一张卡片不会改发到 DM。群卡片不提供保存精确规则。之后保存平台默认值时省略该字段会保留原值（[#5244](https://github.com/BotHarness/DeepSeekBot/issues/5244)）。
 
 对于已核验的微信私聊连接器，update JSON 支持独立的 `dmMirror` 与 `dmForward` 布尔值，两者默认均为 `false`。先读取 `channel-bridges`，再携带当前 Grant／route revision 提交设置。同一 Binding 与会话的入口共享偏好；离线时仍可关闭，关闭停止未提交操作，不清除历史、不撤销正常回复权限。转发需要同一账户中已有的主动发送目标。例如，在其他字段不变的 update payload 中加入 `"dmMirror":true,"dmForward":false`，即可只开启本地镜像。
 

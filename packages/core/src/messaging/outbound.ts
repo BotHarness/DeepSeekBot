@@ -646,6 +646,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
       };
     },
     setPostLimit: outboundBinding.setPostLimit,
+    setGroupInteractions: outboundBinding.setGroupInteractions,
     reachable: outboundBinding.reachable,
     postConversation: delivery.postConversation,
     postRequest: delivery.postRequest,

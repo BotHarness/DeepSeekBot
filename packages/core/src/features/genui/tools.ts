@@ -14,6 +14,21 @@ import {
   type GenuiPreviewDiagnostic,
 } from '../../runtime/genui-preview.js';
 
+const WIDTH_TEXT = /^\s*(\d{1,4})\s*(?:px)?\s*$/iu;
+
+function widthArgument(value: number | string | undefined): number | undefined {
+  if (typeof value !== 'string') return value;
+  const digits = WIDTH_TEXT.exec(value)?.[1];
+  return digits === undefined ? Number.NaN : Number(digits);
+}
+
+function widthParameter(description: string) {
+  return {
+    oneOf: [{ type: 'integer' }, { type: 'string' }],
+    description,
+  } as const;
+}
+
 export function createGenuiDiagramTool(
   options: {
     onDiagnostic?: ((event: GenuiPreviewDiagnostic) => void) | undefined;
@@ -30,11 +45,9 @@ export function createGenuiDiagramTool(
         description:
           'Mermaid source up to 8 KiB UTF-8. Diagram links/images are disabled. Quote CJK XY category labels, for example x-axis ["一月", "二月"]. Unsupported families or syntax fail explicitly.',
       },
-      width: {
-        type: 'integer',
-        description:
-          'Layout width as a JSON integer such as 728 (not a string), 240–1600 CSS pixels; default 728. SVG scales, but layout is fixed before publication.',
-      },
+      width: widthParameter(
+        'Layout width in CSS pixels, 240–1600, such as 728; default 728. SVG scales, but layout is fixed before publication.',
+      ),
     },
     output: {
       schema: { type: 'string' },
@@ -42,7 +55,7 @@ export function createGenuiDiagramTool(
     },
     execute: async (args, execution) =>
       JSON.stringify(
-        await compileGenuiDiagram(args.source, args.width, {
+        await compileGenuiDiagram(args.source, widthArgument(args.width), {
           signal: execution.signal,
           onDiagnostic: options.onDiagnostic,
         }),
@@ -67,11 +80,9 @@ export function createGenuiPreviewTool(options: {
         description:
           'Complete document JSON (256 KiB max), for example {"version":2,"snapshotId":"weekly-1","observedAt":"2026-11-24T09:00:00+09:00","title":"Weekly report","html":"<h1>…</h1>"}. html is at most 192 KiB after diagrams compile and may contain inline CSS, scripts, SVG and <genui-diagram> Mermaid; no remote assets. Optional predecessorMessageId; optional stateContract {"version":1,"fields":{"key":{"type":"string|number|boolean|choice","initial":…}}} with at most 16 fields (string maxLength<=500; number min/max; choice options<=20).',
       },
-      width: {
-        type: 'integer',
-        description:
-          'Preview width as a JSON integer such as 728 (not a string), 240–1600 CSS pixels; default 728. A tool argument beside genui_json, not a document key.',
-      },
+      width: widthParameter(
+        'Preview width in CSS pixels, 240–1600, such as 728; default 728. A tool argument beside genui_json, not a document key.',
+      ),
       theme: {
         type: 'string',
         enum: ['light', 'dark'],
@@ -98,8 +109,9 @@ export function createGenuiPreviewTool(options: {
       const document = await expandGenuiContent(JSON.parse(args.genui_json), {
         signal: execution.signal,
       });
+      const width = widthArgument(args.width);
       const result = await previewGenuiDocument(document, {
-        ...(args.width === undefined ? {} : { width: args.width }),
+        ...(width === undefined ? {} : { width }),
         theme: args.theme === 'light' ? 'light' : 'dark',
         signal: execution.signal,
         ...(options.browserPath === undefined ? {} : { browserPath: options.browserPath }),
