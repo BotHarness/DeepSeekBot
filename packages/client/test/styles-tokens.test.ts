@@ -183,6 +183,7 @@ describe('client styles', () => {
     expect(source).toMatch(
       /\.bh-unread-count \{[^}]*border-radius: 9999px;\s*corner-shape: round;/,
     );
+    expect(source).toMatch(/\.bh-unread-count \{[^}]*min-width: 16px;\s*height: 16px;/);
   });
 
   it('keeps context-menu positioning out of feature CSS', () => {

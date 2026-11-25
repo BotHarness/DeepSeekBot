@@ -43,8 +43,8 @@ export const CHANNEL_ROSTER_CSS = [
   `.bh-unread-count {
   display: inline-flex;
   flex: none;
-  min-width: 18px;
-  height: 18px;
+  min-width: 16px;
+  height: 16px;
   align-items: center;
   justify-content: center;
   padding: 0 ${space.x2};
@@ -74,8 +74,7 @@ export const CHANNEL_ROSTER_CSS = [
   `.bh-row-glyph {
   flex: none;
   display: block;
-  width: 16px;
-  height: 16px;
+  overflow: visible;
   color: var(--tobs-ink-primary);
 }
 `,

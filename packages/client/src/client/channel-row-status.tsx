@@ -100,9 +100,11 @@ function glyph(status: Exclude<ChannelRowStatus, 'none'>): ReactElement {
 
 export function ChannelRowStatusGlyph({
   status,
+  size = 16,
   t,
 }: {
   status: ChannelRowStatus;
+  size?: number;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (status === 'none') return null;
@@ -110,9 +112,9 @@ export function ChannelRowStatusGlyph({
     <svg
       className="bh-row-glyph"
       data-status={status}
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
+      viewBox="1 1 14 14"
+      width={size}
+      height={size}
       role="img"
       aria-label={statusLabel(status, t)}
     >
