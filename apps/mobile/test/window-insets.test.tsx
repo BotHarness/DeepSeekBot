@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
-import { act, type Context, type ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const safeArea = vi.hoisted(() => ({
-  Insets: undefined as unknown as Context<{ bottom: number }>,
-}));
+const safeArea = await vi.hoisted(async () => {
+  const { createContext } = await import('react');
+  return { Insets: createContext({ bottom: 34 }) };
+});
 vi.mock('react-native-safe-area-context', async () => {
-  const react = await import('react');
-  safeArea.Insets = react.createContext({ bottom: 34 });
+  const { useContext } = await import('react');
   return {
     SafeAreaProvider: ({ children }: { children: ReactNode }) => children,
-    useSafeAreaInsets: () => react.useContext(safeArea.Insets),
+    useSafeAreaInsets: () => useContext(safeArea.Insets),
   };
 });
 

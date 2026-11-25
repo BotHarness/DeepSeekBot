@@ -221,6 +221,7 @@ export function SessionDrawerPanel({
       {page ? null : (
         <KeyboardFormFooter bottomInset={windowInsets.bottom}>
           <View
+            testID="session-drawer-footer"
             style={{
               flexDirection: 'row',
               alignItems: 'center',
