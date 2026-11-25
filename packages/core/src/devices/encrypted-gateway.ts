@@ -31,6 +31,7 @@ import {
   type ComputerUnlockOwner,
 } from '../../../computer/src/unlock-contract.js';
 import { dispatchComputerUnlock } from './computer-unlock-channel.js';
+import { encryptedGatewayPathAllowed } from './encrypted-gateway-path.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -42,42 +43,6 @@ function record(value: unknown): Record<string, unknown> {
     throw new Error('channel-message-invalid');
   return value as Record<string, unknown>;
 }
-function pathAllowed(path: string): boolean {
-  if (
-    !path.startsWith('/botharness-device/') ||
-    path.includes('\\') ||
-    path.includes('#') ||
-    /%2f|%5c|%2e|\/\.{1,2}(?:\/|\?|$)/iu.test(path)
-  )
-    return false;
-  let name: string;
-  try {
-    name = new URL(`http://device${decodeURIComponent(path.split('?')[0]!)}`).pathname.replace(
-      /\/{2,}/gu,
-      '/',
-    );
-  } catch {
-    return false;
-  }
-  return (
-    (name.startsWith('/botharness-device/api/') &&
-      !/\/(?:webrtc|web|browser|computer|voice)(?:\/|$)/u.test(name)) ||
-    [
-      '/botharness-device/activity',
-      '/botharness-device/activity/prepare',
-      '/botharness-device/activity/register',
-      '/botharness-device/activity/stop',
-      '/botharness-device/activity/status',
-    ].includes(name) ||
-    name === '/botharness-device/push' ||
-    name.startsWith('/botharness-device/push/') ||
-    name === '/botharness-device/team/device-password' ||
-    name === '/botharness-device/feed-read' ||
-    name === '/botharness-device/unpair' ||
-    name === '/botharness-device/devices/remove'
-  );
-}
-
 type CloseTrigger =
   | 'socket-close'
   | 'socket-error'
@@ -610,7 +575,7 @@ export function createEncryptedGateway(options: {
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
       if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
       if (path === `/botharness-device${DIRECT_PATH}`) return direct(id, input);
-      if (!pathAllowed(path)) throw new Error('channel-request-invalid');
+      if (!encryptedGatewayPathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');
       if (bytes.length > BODY_LIMIT) throw new Error('channel-body-too-large');
