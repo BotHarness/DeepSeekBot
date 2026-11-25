@@ -210,6 +210,7 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  workspaceSessions?: import('../features/sessions/workspace-sessions.js').WorkspaceSessionReader;
   team?: TeamService;
   readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
   autoContinueDelaysMs?: readonly number[];
