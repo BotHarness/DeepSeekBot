@@ -13,12 +13,14 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionStore } from '../../sessions/source.js';
 import { hostSessionQueries } from './dsh-host-session-query.js';
 import type { DshHostSessionInput } from './dsh-host-session-input.js';
-import type { NativeSessions } from './host-sessions.js';
+import type { DshSessionListRow, NativeSessions } from './host-sessions.js';
+import { cacheSessionRows, type SessionListChanges } from './session-list-changes.js';
 
 export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
   input?: DshHostSessionInput,
+  changes?: Pick<SessionListChanges, 'version'>,
 ): NativeSessions {
   const failed = new Set<string>();
   ctx.on('api-session/error', (sessionId) => {
@@ -36,6 +38,75 @@ export function dshHostSessions(
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
     return service;
   }
+  const rows = changes === undefined ? readRows : cacheSessionRows(readRows, changes);
+
+  async function list(): Promise<readonly DshSessionListRow[]> {
+    const read = await rows();
+    const archived = new Set<string>(ctx.get('workspaceRegistry')?.archivedSessionIds);
+    const held = new Map<string, 'approval' | 'question'>();
+    for (const entry of input?.attention() ?? [])
+      if (held.get(entry.sessionId) !== 'approval') held.set(entry.sessionId, entry.input);
+    if (archived.size === 0 && held.size === 0 && failed.size === 0) return read;
+    return read.map((row) => {
+      const pending =
+        row.pendingInput === 'approval'
+          ? 'approval'
+          : (held.get(row.sessionId) ?? row.pendingInput);
+      const failing = !row.running && failed.has(row.sessionId);
+      if (!archived.has(row.sessionId) && pending === row.pendingInput && !failing) return row;
+      return {
+        ...row,
+        ...(archived.has(row.sessionId) ? { archived: true as const } : {}),
+        ...(pending === undefined ? {} : { waiting: true as const, pendingInput: pending }),
+        ...(failing ? { failed: true as const } : {}),
+      };
+    });
+  }
+
+  async function readRows(): Promise<readonly DshSessionListRow[]> {
+    const service = controller();
+    const signal = new AbortController().signal;
+    const { items } = await service.list({}, signal);
+    const roots = items.filter((row) => row.origin !== 'subagent');
+    const waiting = new Map<string, 'approval' | 'question'>(
+      (
+        await Promise.all(
+          roots
+            .filter((row) => row.running)
+            .map((row) =>
+              service.state({ sessionId: row.sessionId }, signal).then(
+                (state) =>
+                  state.pendingInput.length === 0
+                    ? undefined
+                    : ([
+                        row.sessionId,
+                        state.pendingInput.includes('approval') ? 'approval' : 'question',
+                      ] as const),
+                () => undefined,
+              ),
+            ),
+        )
+      ).filter((entry) => entry !== undefined),
+    );
+    return roots.map((row) => {
+      const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
+      const metadata = row.projections?.values;
+      const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
+      return {
+        sessionId,
+        ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+        ...(waiting.has(sessionId)
+          ? { waiting: true as const, pendingInput: waiting.get(sessionId)! }
+          : {}),
+        ...(cwd === undefined ? {} : { cwd }),
+        ...(parentSessionId === undefined ? {} : { parentSessionId }),
+        ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
+        lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
+        running,
+        updatedAt,
+      };
+    });
+  }
 
   return {
     ...hostSessionQueries(() => {
@@ -50,55 +121,7 @@ export function dshHostSessions(
           answerApproval: input.answerApproval,
           answerQuestion: input.answerQuestion,
         }),
-    async list() {
-      const service = controller();
-      const signal = new AbortController().signal;
-      const { items } = await service.list({}, signal);
-      const archived = new Set(ctx.get('workspaceRegistry')?.archivedSessionIds);
-      const roots = items.filter((row) => row.origin !== 'subagent');
-      const waiting = new Map<string, 'approval' | 'question'>(
-        (
-          await Promise.all(
-            roots
-              .filter((row) => row.running)
-              .map((row) =>
-                service.state({ sessionId: row.sessionId }, signal).then(
-                  (state) =>
-                    state.pendingInput.length === 0
-                      ? undefined
-                      : ([
-                          row.sessionId,
-                          state.pendingInput.includes('approval') ? 'approval' : 'question',
-                        ] as const),
-                  () => undefined,
-                ),
-              ),
-          )
-        ).filter((entry) => entry !== undefined),
-      );
-      for (const entry of input?.attention() ?? [])
-        if (waiting.get(entry.sessionId) !== 'approval') waiting.set(entry.sessionId, entry.input);
-      return roots.map((row) => {
-        const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
-        const metadata = row.projections?.values;
-        const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
-        return {
-          sessionId,
-          ...(archived.has(sessionId) ? { archived: true as const } : {}),
-          ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-          ...(waiting.has(sessionId)
-            ? { waiting: true as const, pendingInput: waiting.get(sessionId)! }
-            : {}),
-          ...(!running && failed.has(sessionId) ? { failed: true as const } : {}),
-          ...(cwd === undefined ? {} : { cwd }),
-          ...(parentSessionId === undefined ? {} : { parentSessionId }),
-          ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
-          lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
-          running,
-          updatedAt,
-        };
-      });
-    },
+    list,
     async isRoot(id) {
       const sessionId = SessionId(id);
       const header =

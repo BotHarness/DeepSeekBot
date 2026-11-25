@@ -30,6 +30,7 @@ const styles = stylex.create({
 
 export interface CheckboxProps {
   readonly checked: boolean;
+  readonly indeterminate?: boolean;
   readonly onChange: (next: boolean) => void;
   readonly label: ReactNode;
   readonly disabled?: boolean;
@@ -39,6 +40,7 @@ export interface CheckboxProps {
 
 export function Checkbox({
   checked,
+  indeterminate = false,
   onChange,
   label,
   disabled = false,
@@ -50,6 +52,9 @@ export function Checkbox({
       <input
         type="checkbox"
         checked={checked}
+        ref={(node) => {
+          if (node !== null) node.indeterminate = indeterminate;
+        }}
         disabled={disabled}
         onChange={(event) => onChange(event.currentTarget.checked)}
         {...stylex.props(styles.input)}

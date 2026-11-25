@@ -84,3 +84,54 @@ it('creates a native Session in a folder or a registered DSH Workspace', async (
     [{ cwd: '/work/app', sessionId: 'blank' }],
   ]);
 });
+
+it('serves live needs-you state over the cached Session rows', async () => {
+  const list = vi.fn(async () => ({
+    items: [
+      { sessionId: 'native', running: true, updatedAt: 2 },
+      { sessionId: 'broke', running: false, updatedAt: 1 },
+    ],
+  }));
+  const state = vi.fn(async () => ({
+    cursor: 1,
+    active: true,
+    running: true,
+    queue: [],
+    pendingInput: [],
+  }));
+  const handlers = new Map<string, (...args: unknown[]) => void>();
+  const ctx = {
+    get: (name: string) => (name === 'sessionController' ? { list, state } : undefined),
+    on: (name: string, handler: (...args: unknown[]) => void) => handlers.set(name, handler),
+  };
+  let held: { sessionId: string; input: 'approval' | 'question' }[] = [];
+  const input = { attention: () => held } as never;
+  const sessions = dshHostSessions(ctx as never as Context, {} as DshSessionStore, input, {
+    version: 0,
+  });
+  const pick = async () =>
+    (await sessions.list()).map(({ sessionId, waiting, pendingInput, failed }) => ({
+      sessionId,
+      waiting,
+      pendingInput,
+      failed,
+    }));
+  expect(await pick()).toEqual([
+    { sessionId: 'native', waiting: undefined, pendingInput: undefined, failed: undefined },
+    { sessionId: 'broke', waiting: undefined, pendingInput: undefined, failed: undefined },
+  ]);
+  held = [{ sessionId: 'native', input: 'question' }];
+  handlers.get('api-session/error')?.('broke', 'Model provider refused the request');
+  expect(await pick()).toEqual([
+    { sessionId: 'native', waiting: true, pendingInput: 'question', failed: undefined },
+    { sessionId: 'broke', waiting: undefined, pendingInput: undefined, failed: true },
+  ]);
+  held = [];
+  expect((await pick())[0]).toEqual({
+    sessionId: 'native',
+    waiting: undefined,
+    pendingInput: undefined,
+    failed: undefined,
+  });
+  expect(list).toHaveBeenCalledTimes(1);
+});

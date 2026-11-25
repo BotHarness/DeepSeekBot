@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, Pressable, SectionList, View } from 'react-native';
+import { Keyboard, Platform, Pressable, SectionList, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useHideChromeOnScroll } from '../../ui/shell/tab-chrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,8 @@ import { sessionDrawerSections, type SessionDrawerGroup } from './session-drawer
 import { SessionOptionsMenu } from './session-options-menu';
 import { HeaderCircleButton } from '../../ui/chat/header-chrome';
 import { useFloatingTabInset } from '../../ui/shell/floating-tab-inset';
+import { NavigationAction } from '../../ui/shell/navigation-action';
+import { useWindowInsets } from '../../ui/shell/window-insets';
 import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 
 export type SessionDrawerPanelProps = {
@@ -51,9 +53,11 @@ export function SessionDrawerPanel({
 }: SessionDrawerPanelProps) {
   const page = variant === 'page';
   const tabInset = useFloatingTabInset();
-  const t = useStrings().hostSessions;
+  const strings = useStrings();
+  const t = strings.hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const windowInsets = useWindowInsets();
   const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
   const hideChrome = useHideChromeOnScroll(page && !searching);
@@ -66,7 +70,7 @@ export function SessionDrawerPanel({
   const searchBlock = searching ? (
     <SearchField
       testID="session-drawer-search-field"
-      floating
+      capsule
       autoFocus
       inset={0}
       value={query.draft}
@@ -79,16 +83,15 @@ export function SessionDrawerPanel({
       }}
       onClose={closeSearch}
       trailing={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.searchCancel}
-          testID="session-drawer-search-cancel"
-          onPress={closeSearch}
-          hitSlop={space.x2}
-          style={{ minHeight: theme.touch, justifyContent: 'center' }}
-        >
-          <Text tone="accent">{t.searchCancel}</Text>
-        </Pressable>
+        Platform.OS === 'android' ? null : (
+          <NavigationAction
+            close
+            size={theme.touch}
+            label={strings.closeSearch}
+            testID="session-drawer-search-close"
+            onPress={closeSearch}
+          />
+        )
       }
     />
   ) : (
@@ -111,7 +114,10 @@ export function SessionDrawerPanel({
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+      <ActivitySearchIcon
+        color={theme.color.subtle}
+        size={theme.type.body.size * theme.fontScale}
+      />
       <Text tone={query.search ? 'fg' : 'subtle'} numberOfLines={1} style={{ flex: 1 }}>
         {query.search || t.search}
       </Text>
@@ -168,6 +174,8 @@ export function SessionDrawerPanel({
         }}
         sections={sections}
         keyExtractor={(row) => `${row.hostId}:${row.sessionId}`}
+        onEndReached={query.loadMore}
+        onEndReachedThreshold={0.5}
         refreshing={query.online && query.pullRefreshing}
         onRefresh={query.online ? () => query.refresh('pull') : undefined}
         renderSectionHeader={({ section }) => (
@@ -216,15 +224,16 @@ export function SessionDrawerPanel({
         )}
       />
       {page ? null : (
-        <KeyboardFormFooter>
+        <KeyboardFormFooter bottomInset={windowInsets.bottom}>
           <View
+            testID="session-drawer-footer"
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x3,
               paddingHorizontal: space.x4,
               paddingTop: space.x2,
-              paddingBottom: Math.max(insets.bottom, space.x4),
+              paddingBottom: Math.max(windowInsets.bottom, space.x4),
             }}
           >
             <View style={{ flex: 1 }}>{searchBlock}</View>

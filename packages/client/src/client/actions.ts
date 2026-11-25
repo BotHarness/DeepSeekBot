@@ -870,6 +870,7 @@ export function createActions(
     importBotZip: botsActions.actions.importBotZip,
     importableSessions: botsActions.actions.importableSessions,
     createBotFromSessions: botsActions.actions.createBotFromSessions,
+    addBotFromSessions: botsActions.actions.addBotFromSessions,
     botZipFiles: botsActions.actions.botZipFiles,
     exportBotZip: botsActions.actions.exportBotZip,
     previewBotImport: botsActions.actions.previewBotImport,

@@ -177,6 +177,22 @@ export function latestSessionIds(
     .map((row) => row.sessionId);
 }
 
+export interface SessionBotDraft {
+  name: string;
+  sessionIds: string[];
+}
+
+export function folderDrafts(
+  rows: readonly ImportableSession[],
+  recent: number,
+): SessionBotDraft[] {
+  const picked = new Set(latestSessionIds(rows, recent));
+  return sessionWorkspaces(rows.filter((row) => picked.has(row.sessionId))).map((group) => ({
+    name: group.name,
+    sessionIds: group.sessionIds,
+  }));
+}
+
 export async function createBotFromSessions(
   host: HostCall,
   input: SessionBotInput,
