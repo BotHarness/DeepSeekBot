@@ -143,5 +143,5 @@ it('pairs a Discord DM for management and decides an approval by text', async ()
   const prompt = f.replies.mock.calls.find((call) => String(call[2]).includes('「允许」'))!;
   expect(prompt[3]).toMatchObject({ standalone: true });
   await vi.waitFor(() => expect(f.replies.mock.calls.length).toBeGreaterThan(1));
-  expect(f.replies.mock.calls.at(-1)![3]).not.toHaveProperty('standalone');
+  expect(f.replies.mock.calls.at(-1)![3]).toMatchObject({ standalone: true });
 });
