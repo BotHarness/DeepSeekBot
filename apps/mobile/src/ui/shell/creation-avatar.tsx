@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { avatarSvg } from '../../../../../packages/core/src/bots/avatar-appearance';
+import { avatarBackdrop } from '../avatar-backdrop';
 import { creationAvatarRecipe, randomAvatarSeed } from '@botharness/host-client/bot-avatar-choice';
 import { isTiltiesAvatar, randomTiltiesAvatar } from '@botharness/host-client/tilties-avatars';
 import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
@@ -34,7 +35,7 @@ export function CreationAvatarPreview({
     () =>
       (imported && !avatar) || avatar?.kind === 'photo'
         ? undefined
-        : avatarSvg(creationAvatarRecipe(avatar)),
+        : avatarSvg(creationAvatarRecipe(avatar), { squareBackdrop: true }),
     [avatar, imported],
   );
   return (
@@ -49,7 +50,7 @@ export function CreationAvatarPreview({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: theme.layer.raised.fill,
+        backgroundColor: (svg && avatarBackdrop(svg)) ?? theme.layer.raised.fill,
       }}
     >
       {avatar?.kind === 'photo' ? (
@@ -63,7 +64,7 @@ export function CreationAvatarPreview({
         <CachedImage
           source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
           cachePolicy="memory"
-          contentFit="contain"
+          contentFit="cover"
           style={{ width: size, height: size }}
         />
       ) : (

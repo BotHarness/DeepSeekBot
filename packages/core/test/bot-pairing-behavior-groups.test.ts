@@ -1,8 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
-import { changeSenderAccess, externalUserRoles } from '../src/messaging/sender-access.js';
-import { externalPermissionGroups } from '../src/messaging/permission-groups.js';
-import { behaviorPermissions } from '../src/messaging/behavior-permissions.js';
-import { readSenderPermissions } from '../src/messaging/sender-access.js';
+import {
+  changeSenderAccess,
+  externalUserRoles,
+  externalPermissionGroups,
+  behaviorPermissions,
+  readSenderPermissions,
+} from '../src/messaging/permissions/index.js';
 import { owners, cores, event, fixture } from './support/bot-pairing.js';
 
 afterEach(async () => {

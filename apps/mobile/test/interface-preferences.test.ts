@@ -134,6 +134,26 @@ describe('phone interface preferences', () => {
     });
   });
 
+  it('keeps Sessions opt-in and its tab position while the switch is off', async () => {
+    let saved: unknown = { language: 'zh', tabOrder: ['sessions', 'chats'] };
+    const storage = {
+      read: async () => saved,
+      write: (value: unknown) => {
+        saved = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    expect(preferences.getSnapshot().sessionsTab).toBe(false);
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().sessionsTab).toBe(false);
+    expect(preferences.getSnapshot().tabOrder[0]).toBe('sessions');
+    preferences.setSessionsTab(true);
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({ sessionsTab: true, language: 'zh' });
+    expect(restarted.getSnapshot().tabOrder[0]).toBe('sessions');
+  });
+
   it('respects explicit language until follow system is selected again', async () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
@@ -152,6 +172,7 @@ describe('phone interface preferences', () => {
       appearance: 'system',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
+      sessionsTab: false,
       tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
@@ -221,6 +242,7 @@ describe('phone interface preferences', () => {
       appearance: 'dark',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
+      sessionsTab: false,
       tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,

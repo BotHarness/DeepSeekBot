@@ -1055,24 +1055,24 @@ deepseekbot approval-reviewer-model-set bot
 
 两个命令都返回 `{follows, model}`：`follows` 为 `bot`（跟随每个 Bot 自己的模型，`model` 为 `null`）、`model`（所有审批都用指定模型）或 `invalid`（设置文件读不出来）。指定模型时还会返回 `available`，为 `false` 时附带 `unavailableReason`。不在模型目录里、或服务商没有可用密钥的模型仍会保存，但之后每次审批都会改发普通的人类审批卡片，并在 `logs.db` 里写入 `fallback=model-unavailable` 和原因；审批员绝不会自己换用别的模型。`logs.db` 里每条 `approval-review` 记录都写明这次用的 `model` 和 `reviewSession`。Bot 在自己的 Shell 里运行 `approval-reviewer-model-set` 时，这次调用需要人类决定，或在独立管理范围中显式保存的授权规则；模型审批员不能代答。拒绝时带错误码：`usage`（没有 `<provider>/<model>`，或对 `bot` 加了 `--effort`）和 `invalid-input`。
 
-### Bot 模式
+### 配装（Loadout）
 
-Bot 的会话运行在某个 DSH 模式（Agent Preset）里。没有单独设定模式的 Bot 都用 Profile 级默认模式；默认是 Tobs，Human 也可以改成任何已安装的模式，比如标准模式、PTC 模式或插件提供的模式。Bot 也可以设定自己的模式。DSH 在会话开始时就固定了模式，所以改动从每个 Bot 的下一个新 Orchestrator 或 Assignment 会话开始生效。
+Bot 的会话运行在某个配装里：一套 system prompt 加工具集，DSH 里叫模式或 Agent Preset。原来的 `bot-modes` 和 `bot-mode-*` 命令名仍然可用，作为别名。JSON 字段（`modes`、`mode`）、错误码（`mode-not-allowed` 等）和 `bot-modes.json` 保持原名。没有单独设定配装的 Bot 都用 Profile 级默认模式；默认是 Tobs，Human 也可以改成任何已安装的模式，比如标准模式、PTC 模式或插件提供的模式。Bot 也可以设定自己的模式。DSH 在会话开始时就固定了模式，所以改动从每个 Bot 的下一个新 Orchestrator 或 Assignment 会话开始生效。
 
 ```bash
-deepseekbot bot-modes [<bot-id>]
-deepseekbot bot-mode-default-set <mode>|@product
-deepseekbot bot-mode-set <bot-id> <mode>|@global
-deepseekbot bot-mode-template-save [--id <template-id>] <name> <mode>...
-deepseekbot bot-mode-template-delete <template-id>
-deepseekbot bot-mode-template-set <bot-id> <template-id>|@all
+deepseekbot loadouts [<bot-id>]
+deepseekbot loadout-default-set <loadout>|@product
+deepseekbot loadout-set <bot-id> <loadout>|@global
+deepseekbot loadout-template-save [--id <template-id>] <name> <loadout>...
+deepseekbot loadout-template-delete <template-id>
+deepseekbot loadout-template-set <bot-id> <template-id>|@all
 ```
 
 每个命令都返回 `{modes, productDefault, globalDefault, effectiveDefault, templates}`；带 Bot 时还返回 `bot: {slug, mode, effective, template, allowed}`。`modes` 是 DSH 的模式列表（`id`、`name`、`description`、`order`，加载失败时带 `broken`）。`productDefault` 是 Tobs（`deepseekbot`），`globalDefault` 是 Human 选的默认或 `null`，Bot 的 `mode` 是它自己的选择，跟随默认时为 `null`。`@product` 把默认改回 Tobs，`@global` 让 Bot 重新跟随默认。只有 Tobs 模式下提问卡 45 秒没人回答时 Bot 会继续处理其他消息；其他模式下待回答的提问卡会卡住 Bot。拒绝时带错误码：`usage`、`invalid-input`、`not-found`（未知 Bot 或模板 id）、`mode-not-found`（未安装）、`mode-broken`、`modes-unavailable`（没有 DSH 模式服务）和 `settings-unreadable`（`bot-modes.json` 读不了，需要修好或删掉；在此期间模板不生效，选了自己模式的 Bot 继续用它，跟随默认的 Bot 用产品默认模式；除了清除 Bot 自己的模式，其他修改都会被拒绝）。 团队模式下，成员的 Bot 和 Owner 的 Bot 规则相同；只有 `danger-full-access` 的 Assignment 预设仍然只给 Owner 用。
 
-模式模板（`{id, name, modes}`）限定一个 Bot 能用哪些模式。没用模板的 Bot（`template: null`、`allowed: null`）可以用任何已安装的模式；`@all` 让 Bot 回到这种状态。用了模板后，`bot-mode-set` 选模板外的模式会以 `mode-not-allowed` 拒绝；`bot-mode-template-set` 和会把某个 Bot 自己的模式排除在外的模板修改也一样，需要先改 Bot 的模式。仍有 Bot 在用的模板，`bot-mode-template-delete` 会以 `template-in-use` 拒绝。模板也约束跟随默认的 Bot：默认模式不在模板里时，Bot 用模板里第一个已安装的模式，`bot.effective` 会显示它。模板里的模式都没安装时，Bot 仍用模板的第一个模式，新会话会因 DSH 的 `agent-preset/not-found` 启动失败，而不是跑在模板之外；修改模板，或用 `@all` 去掉模板即可。`@all` 只去掉模板；Bot 自己的模式已卸载时，还要运行 `bot-mode-set <bot-id> @global` 或选一个已安装的模式，新会话才能启动。要把有自己模式的 Bot 换到不含该模式的模板，先运行 `bot-mode-set <bot-id> @global`，再 `bot-mode-template-set`，然后选一个允许的模式。模板里有已卸载的模式时，要先把它去掉才能再次保存。会话开始后，`bot-sessions` 会以 `agentPreset` 返回它的模式，会话面板也会显示。
+模式模板（`{id, name, modes}`）限定一个 Bot 能用哪些模式。没用模板的 Bot（`template: null`、`allowed: null`）可以用任何已安装的模式；`@all` 让 Bot 回到这种状态。用了模板后，`loadout-set` 选模板外的模式会以 `mode-not-allowed` 拒绝；`loadout-template-set` 和会把某个 Bot 自己的模式排除在外的模板修改也一样，需要先改 Bot 的模式。仍有 Bot 在用的模板，`loadout-template-delete` 会以 `template-in-use` 拒绝。模板也约束跟随默认的 Bot：默认模式不在模板里时，Bot 用模板里第一个已安装的模式，`bot.effective` 会显示它。模板里的模式都没安装时，Bot 仍用模板的第一个模式，新会话会因 DSH 的 `agent-preset/not-found` 启动失败，而不是跑在模板之外；修改模板，或用 `@all` 去掉模板即可。`@all` 只去掉模板；Bot 自己的模式已卸载时，还要运行 `loadout-set <bot-id> @global` 或选一个已安装的模式，新会话才能启动。要把有自己模式的 Bot 换到不含该模式的模板，先运行 `loadout-set <bot-id> @global`，再 `loadout-template-set`，然后选一个允许的模式。模板里有已卸载的模式时，要先把它去掉才能再次保存。会话开始后，`bot-sessions` 会以 `agentPreset` 返回它的模式，会话面板也会显示。
 
-Orchestrator 可以让 Assignment 用另一个模式：`list_assignment_models` 返回 `assignmentModes: {default, allowed}`，`create_assignment` 接受可选的 `mode`，取值来自 `allowed`（Bot 的模板，或全部已安装模式）。不传 `mode` 时 Assignment 用创建会话那一刻 Bot 的模式。这个选择随 Assignment 保存，会话开始后由 DSH 固定；复用带 key 的 Assignment 时保留原来的模式。也可以通过 `bot-tool <bot-id> create_assignment --args-stdin` 传入 `{"title":"…","description":"…","grant_id":"<grant-id>","mode":"ptc"}`。当一个 Bot 可以用不止一个模式时，`create_assignment` 的 `mode` 参数会列出允许的模式 id 和每个模式的说明（在准备 Orchestrator 会话时读取），Orchestrator 不必先调用 `list_assignment_models` 就能选择。之后从 Bot 模板里移除的模式仍会被拒绝。
+Orchestrator 可以让 Assignment 用另一个配装：`list_assignment_models` 返回 `assignmentLoadouts: {default, allowed}`，`create_assignment` 接受可选的 `loadout`，取值来自 `allowed`（Bot 的模板，或全部已安装配装）。旧的 `mode` 参数仍然可用。不传 `loadout` 时 Assignment 用创建会话那一刻 Bot 的配装。这个选择随 Assignment 保存，会话开始后由 DSH 固定；复用带 key 的 Assignment 时保留原来的配装。也可以通过 `bot-tool <bot-id> create_assignment --args-stdin` 传入 `{"title":"…","description":"…","grant_id":"<grant-id>","loadout":"ptc"}`。当一个 Bot 可以用不止一个配装时，`create_assignment` 的 `loadout` 参数会列出允许的配装 id 和每个配装的说明（在准备 Orchestrator 会话时读取），Orchestrator 不必先调用 `list_assignment_models` 就能选择。之后从 Bot 模板里移除的配装仍会被拒绝。
 
 除了 Tobs，产品还为 Assignment 提供三个场景模式。每个都是只保留该类工作所需插件的 Tobs，所以每一步的工具定义占用更少的输入 token：`tobs-research`（Tobs 调研：上网搜索和抓取、读写文件，没有终端）、`tobs-code`（Tobs 编程：终端、文件、后台任务、技能和上网查文档，没有计划模式和 workflow）和 `tobs-script`（Tobs 脚本：只有终端和文件，不能上网）。它们和 Tobs 一起由 `node scripts/sync-bot-preset.mjs` 从 DSH 标准模式生成。
 

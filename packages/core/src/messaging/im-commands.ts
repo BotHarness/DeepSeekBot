@@ -1,3 +1,4 @@
+import { platformPeople } from './permissions/index.js';
 import type { ModelCatalogEntry } from '../models/catalog.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../models/presets.js';
 import type { ManualCompactionResult } from '../runtime/idle-compaction.js';
@@ -71,7 +72,7 @@ export function imCommandAuthority(input: {
   if (!imCommandRequiresAuthority(input.command)) return 'allowed';
   if (input.platform === 'weixin') return 'allowed';
   if (input.managementPairing) return 'allowed';
-  if (!input.pairingAvailable || input.platform !== 'feishu') return 'web-only';
+  if (!input.pairingAvailable || !platformPeople(input.platform)?.management) return 'web-only';
   return 'pairing-required';
 }
 

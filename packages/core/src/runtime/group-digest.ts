@@ -2,7 +2,7 @@ import type { createOrchestratorScheduling } from './orchestrator-scheduling.js'
 import type { createMessagingEvents } from '../features/messaging/events.js';
 import type { createAssignmentEvents } from '../features/assignments/events.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { trustedSenderReference } from '../messaging/sender-access.js';
+import { trustedSenderReference } from '../messaging/permissions/index.js';
 import { hasPendingScheduleFiring } from '../features/schedules/events.js';
 import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';

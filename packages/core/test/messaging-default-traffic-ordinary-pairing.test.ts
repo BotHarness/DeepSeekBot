@@ -106,7 +106,7 @@ it('Slack ordinary DM pairing only executes a fresh reviewed request and queries
   expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([]);
 });
 
-it('Slack ordinary pairing refuses untrusted routes and does not enable native management or group pairing', async () => {
+it('Slack pairing refuses untrusted routes and group pairing, and /pair in a DM asks for management', async () => {
   const fx = await fixture('slack');
   await ordinaryRole(fx);
   for (const bad of [
@@ -124,7 +124,9 @@ it('Slack ordinary pairing refuses untrusted routes and does not enable native m
   }
   await fx.receive(slackDm('slack-control', { text: '/pair' }));
   expect(fx.runs).toHaveLength(0);
-  expect(fx.core.externalMessaging.pairing.list('ada')).toEqual([]);
+  expect(fx.core.externalMessaging.pairing.list('ada')).toMatchObject([
+    { status: 'pending', actorId: 'UQAUSER1', capabilities: [] },
+  ]);
   const group = slackDm('slack-group', {
     conversation: { kind: 'group', id: 'CQA1' },
     mentionedAccount: true,
@@ -132,13 +134,6 @@ it('Slack ordinary pairing refuses untrusted routes and does not enable native m
   });
   expect(() =>
     fx.core.externalMessaging.pairing.request(fx.identity.id, group, 'conversation'),
-  ).toThrow('untrusted-pairing');
-  expect(() =>
-    fx.core.externalMessaging.pairing.request(
-      fx.identity.id,
-      slackDm('slack-management', { text: '/pair' }),
-      'management',
-    ),
   ).toThrow('untrusted-pairing');
 });
 

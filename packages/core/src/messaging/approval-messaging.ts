@@ -8,7 +8,9 @@ import type {
   ToolApprovalActor,
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
-import type { BotPairing, PairingRequest } from './pairing.js';
+import { pairedRoute, type BotPairing, type PairingRequest } from './pairing.js';
+import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
+import { approvalSurface } from './interactions/surface.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
@@ -19,6 +21,7 @@ import {
   MessagingProviderError,
   type MessagingProvider,
   type MessagingReceipt,
+  type MessagingReplyRoute,
   type MessagingApprovalAction,
   type MessagingApprovalRuleAction,
   type MessagingApprovalAck,
@@ -47,6 +50,7 @@ export interface ApprovalDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
   reason?: string;
   status: MessagingApprovalCard['status'];
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
@@ -185,7 +189,8 @@ export function createApprovalMessaging(options: {
     )
       throw new MessagingError('approval-route-unavailable');
     const provider = options.provider(identity.providerId);
-    if (!provider.approvalCard) throw new MessagingError('capability-unavailable');
+    if (!approvalSurface({ identity, paired, provider }))
+      throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
   const canonical = (value: ApprovalDelivery): ToolApprovalNotice | undefined => {
@@ -218,21 +223,8 @@ export function createApprovalMessaging(options: {
       (value.savedRuleId
         ? owner?.rule(value.botSlug, value.savedRuleId)?.scopeKey
         : owner?.ruleScope(value.botSlug, value.requestMessageId ?? '')?.scopeKey);
-    const labels: Record<MessagingApprovalCard['status'], string> = {
-      'web-required':
-        'Native session authorization; review in Web / 此请求授予原生会话权限，请在 Web 审核',
-      pending: 'Awaiting an authorized decision / 等待授权用户处理',
-      'allowed-once': 'Decision accepted; execution not yet confirmed / 已批准一次，执行结果待确认',
-      rejected: 'Rejected; approval does not permit execution / 已拒绝，不允许执行',
-      expired:
-        'Expired or owner unavailable; use a new request / 已过期或执行者不可用，请使用新请求',
-      executed: 'Native execution result recorded / 已记录原生执行结果',
-      'execution-failed': 'Native execution failed / 原生执行失败',
-      'execution-unknown': 'Execution not confirmed; inspect Web / 执行结果未确认，请查看 Web',
-      test: 'Management route test; no operation or approval / 管理通知测试，不包含操作或授权',
-    };
     const fullDetail = [
-      labels[value.status],
+      approvalStatusLabels[value.status],
       ...(value.savedRuleId
         ? [
             savedRuleStatus(value) === 'active'
@@ -273,6 +265,9 @@ export function createApprovalMessaging(options: {
       title: notice ? 'Tool approval / 工具审批' : 'Management notification / 管理通知',
       detail,
       status: value.status,
+      ...approvalCardActions(
+        value.destination ? undefined : () => resolve(value.route).paired.capabilities,
+      ),
       ...(value.status === 'pending' && value.ruleConfirmation
         ? { ruleConfirmation: { id: value.ruleConfirmation.id, kind: value.ruleConfirmation.kind } }
         : value.status === 'pending' &&
@@ -408,7 +403,7 @@ export function createApprovalMessaging(options: {
       const context = cleanup ?? resolve(value.route);
       write({ ...value, update: 'sending' });
       await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: value.receipt!,
@@ -423,6 +418,7 @@ export function createApprovalMessaging(options: {
             : render(value),
           signal,
           update: true,
+          ...(value.replyTo ? { replyTo: value.replyTo } : {}),
           beforeSend: () =>
             (cleanup ? cleanupContext(value) !== undefined : safe(value)) &&
             read(id)?.status === currentStatus &&
@@ -496,21 +492,12 @@ export function createApprovalMessaging(options: {
       const context = resolve(value.route);
       if (!safe(value) || !requestLive(value))
         throw new MessagingProviderError('request-expired', 'not-started');
-      const messageId = context.paired.messageIds?.[0];
-      const target =
-        value.destination?.reply ??
-        (messageId
-          ? {
-              messageId,
-              conversationId: context.paired.conversationId,
-              actorId: context.paired.actorId,
-            }
-          : undefined);
+      const target = value.destination?.reply ?? pairedRoute(context.paired);
       if (!target) throw new MessagingProviderError('source-unavailable', 'not-started');
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;
       const result = await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: target,
@@ -522,7 +509,12 @@ export function createApprovalMessaging(options: {
       if (!result.receipt) throw new MessagingProviderError('provider-result-unknown', 'unknown');
       const latest = read(id);
       if (!latest) return value;
-      write({ ...latest, delivery: 'sent', receipt: result.receipt });
+      write({
+        ...latest,
+        delivery: 'sent',
+        receipt: result.receipt,
+        ...(result.replyTo ? { replyTo: result.replyTo } : {}),
+      });
     } catch (error) {
       const latest = read(id)!;
       const definite =

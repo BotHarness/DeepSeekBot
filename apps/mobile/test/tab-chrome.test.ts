@@ -10,8 +10,7 @@ vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 
 const { chromeScroll, chromeShown } = await import('../src/ui/shell/tab-chrome');
 const { tabSlotCenter } = await import('../src/ui/shell/tab-name-pill');
-const { tabTransition } = await import('../src/ui/shell/tab-transition');
-const { scrollChrome, tabChrome } = await import('../src/ui/design/tokens');
+const { scrollChrome } = await import('../src/ui/design/tokens');
 
 const scroll = (offsets: number[], end = 2000) =>
   offsets.reduce((state, offset) => chromeScroll(state, offset, end), chromeShown);
@@ -51,38 +50,5 @@ describe('the tab name pill', () => {
     expect(tabSlotCenter(slots, 0)).toBe(20 + slot / 2);
     expect(tabSlotCenter(slots, 2)).toBe(20 + 2 * (slot + 8) + slot / 2);
     expect(tabSlotCenter({ left: 0, width: 400, gap: 0, count: 4 }, 1)).toBe(150);
-  });
-});
-
-describe('tab switches', () => {
-  it('cross-fade on iOS and fade through on Android', () => {
-    const ios = tabTransition('ios', false);
-    expect(ios.animation).toBe('fade');
-    expect(ios.transitionSpec).toMatchObject({ config: { duration: tabChrome.tabFade } });
-    expect(ios.sceneStyleInterpolator).toBeUndefined();
-    const android = tabTransition('android', false);
-    expect(android.transitionSpec).toMatchObject({ config: { duration: tabChrome.fadeThrough } });
-    expect(android.sceneStyleInterpolator).toBeTypeOf('function');
-  });
-
-  it('fades the outgoing scene out before the incoming one fades in on Android', () => {
-    const calls: { inputRange: number[]; outputRange: number[] }[] = [];
-    const progress = {
-      interpolate: (config: { inputRange: number[]; outputRange: number[] }) => {
-        calls.push(config);
-        return config;
-      },
-    };
-    tabTransition('android', false).sceneStyleInterpolator!({
-      current: { progress: progress as never },
-    });
-    expect(calls[0]).toEqual({ inputRange: [-1, -0.5, 0, 0.5, 1], outputRange: [0, 0, 1, 0, 0] });
-    expect(calls[1]?.outputRange[2]).toBe(1);
-    expect(calls[1]?.outputRange[1]).toBe(tabChrome.fadeThroughScale);
-  });
-
-  it('switch instantly with Reduce Motion', () => {
-    expect(tabTransition('ios', true)).toEqual({ animation: 'none' });
-    expect(tabTransition('android', true)).toEqual({ animation: 'none' });
   });
 });

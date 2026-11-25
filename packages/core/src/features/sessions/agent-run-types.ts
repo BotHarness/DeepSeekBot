@@ -5,14 +5,15 @@ import { type TurnTargetSegment } from '../../runtime/turn-targets.js';
 import type { TobCliTurn } from '../../tob/cli-request.js';
 import type { TeamService } from '../../team/service.js';
 import type { externalMemberWake } from '../../messaging/defaults.js';
-import type { SenderPermissions } from '../../messaging/sender-access.js';
-import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../../messaging/directory.js';
 import type {
+  SenderPermissions,
   ThreadReceptionInput,
   ThreadReceptionPolicy,
   ThreadReceptionView,
-} from '../../messaging/thread-policy.js';
-import type { GroupReceptionInput, GroupReceptionPolicy } from '../../messaging/group-policy.js';
+  GroupReceptionInput,
+  GroupReceptionPolicy,
+} from '../../messaging/permissions/index.js';
+import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../../messaging/directory.js';
 import type { saveAttachmentFile } from '../../attachments/file-operations.js';
 import type { OutboxIntent, OutboundMessaging } from '../../messaging/outbound.js';
 import type {

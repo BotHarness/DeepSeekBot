@@ -1,6 +1,10 @@
 import { asSlug, invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
-import { senderAccessInput } from '../../messaging/sender-access.js';
+import {
+  senderAccessInput,
+  threadReceptionInput,
+  groupReceptionInput,
+} from '../../messaging/permissions/index.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -12,8 +16,6 @@ import {
   type MessagingDefaults,
 } from '../../messaging/defaults.js';
 import type { MessagingIdentity } from '../../messaging/identity.js';
-import { threadReceptionInput } from '../../messaging/thread-policy.js';
-import { groupReceptionInput } from '../../messaging/group-policy.js';
 import type { ExternalSource } from '../../messaging/inbound.js';
 import type { SourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type {

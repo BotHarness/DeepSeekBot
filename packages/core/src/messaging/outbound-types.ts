@@ -2,26 +2,26 @@ import type { ReceptionRecovery } from './receiver-recovery.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import type { FailureAlerts, FailureAlertSnapshot } from './failure-alerts.js';
 import type { ApprovalMessaging, ApprovalMessagingSnapshot } from './approval-messaging.js';
-import type { ExternalPermissionGroup } from './permission-groups.js';
-import type { BehaviorPermission } from './behavior-permissions.js';
-import type { QuestionDelivery, QuestionMessaging } from './question-messaging.js';
-import type { MessagingDirectoryQuery, MessagingDirectoryPage } from './directory.js';
-import type { BotPairing, PairingRequest, PairingReviewInput } from './pairing.js';
 import type {
+  ExternalPermissionGroup,
+  BehaviorPermission,
   SenderPermissions,
   SenderAccessInput,
   SenderPolicy,
   ExternalUserRole,
-} from './sender-access.js';
+  ThreadReceptionView,
+  GroupReceptionPolicy,
+} from './permissions/index.js';
+import type { QuestionDelivery, QuestionMessaging } from './question-messaging.js';
+import type { MessagingDirectoryQuery, MessagingDirectoryPage } from './directory.js';
+import type { BotPairing, PairingRequest, PairingReviewInput } from './pairing.js';
 import type {
   MessagingIdentity,
   MessagingIdentityView,
   MessagingIdentityInput,
 } from './identity.js';
-import type { ThreadReceptionView } from './thread-policy.js';
 import type { ReceptionInterval } from './reception-history.js';
 import type { MessagingDefaults, MessagingDefaultsInput } from './defaults.js';
-import type { GroupReceptionPolicy } from './group-policy.js';
 import type {
   BlockedConversation,
   HeldConversation,

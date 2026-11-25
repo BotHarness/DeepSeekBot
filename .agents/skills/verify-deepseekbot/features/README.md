@@ -92,6 +92,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
 | Steer a Subscription Engine Orchestrator from a Group or DM | yes (Codex or Claude subscription) | `verify-app` isolated Host, authenticated Team members and `session-transcript` | [engine-orchestrator-steering.md](engine-orchestrator-steering.md) |
 
+| Container Computer start, real frame and stop (candidate; Engine prerequisite) | no | `scripts/e2e-computer-lifecycle.mjs` | [computer-lifecycle.md](computer-lifecycle.md) |
+
 ## Coverage and maintenance
 
 | IM DM commands, current authority and canonical reply outcomes | no for commands; yes for ordinary follow-up | none (isolated Host, CLI and authorized native IM path) | [im-dm-commands.md](im-dm-commands.md) |
