@@ -43,7 +43,12 @@ import {
   sessionPage,
   sessionPageLimit,
 } from './session-list-page.js';
-import { fillSessionTitles, mayKnowSession, readVisibleSessionRows } from './session-list-rows.js';
+import {
+  fillSessionTitles,
+  mayKnowSession,
+  readVisibleSessionRows,
+  sessionAccessKey,
+} from './session-list-rows.js';
 import type { SessionListChangeSet } from './session-list-changes.js';
 
 export interface DshSessionListRow {
@@ -310,18 +315,30 @@ export function createHostSessionsMethods(
         return invalidInput('epoch must be a string');
       const service = deps.nativeSessions;
       if (service?.listChanges === undefined) return unavailable;
-      const changes = service.listChanges({
-        ...(sinceSeq === undefined ? {} : { sinceSeq: sinceSeq as number }),
-        ...(epoch === undefined ? {} : { epoch }),
-      });
-      if (changes.reset === true) return { ok: true, value: changes };
       const scope = { human, deps, globalRegistry, owner: nativeAllowed() };
+      const access = sessionAccessKey(scope);
+      const suffix = access === undefined ? '' : `.${access}`;
+      const journalEpoch =
+        epoch === undefined || !epoch.endsWith(suffix)
+          ? undefined
+          : epoch.slice(0, epoch.length - suffix.length);
+      const listed = service.listChanges({
+        ...(sinceSeq === undefined ? {} : { sinceSeq: sinceSeq as number }),
+        ...(journalEpoch === undefined ? {} : { epoch: journalEpoch }),
+      });
+      const changes = {
+        ...listed,
+        cursor: { epoch: `${listed.cursor.epoch}${suffix}`, seq: listed.cursor.seq },
+      };
+      if (changes.reset === true) return { ok: true, value: changes };
       const read = await readVisibleSessionRows(scope, {
         source: 'all',
         includeArchived: true,
         withSources: true,
       });
       if (read === undefined) return unavailable;
+      if (sessionAccessKey(scope) !== access)
+        return { ok: true, value: { reset: true, cursor: changes.cursor } };
       const visible = new Map(read.sessions.map((row) => [row.sessionId, row]));
       const sessions: HostSessionRow[] = [];
       const removed: string[] = [];
