@@ -125,6 +125,59 @@ it('reads fallback titles once per Session version across Session list calls', a
   );
 });
 
+it('pages the Session list by cursor and reads fallback titles only for the page it returns', async () => {
+  const list = vi.fn(async () =>
+    Array.from({ length: 120 }, (_, index) => ({
+      sessionId: `s-${String(index).padStart(3, '0')}`,
+      running: false,
+      lastPromptAt: index % 7 === 0 ? null : 1_000 - index,
+      updatedAt: 5_000 - index,
+    })),
+  );
+  const readSessionTitles = vi.fn(
+    async (ids: readonly string[]) => new Map(ids.map((id) => [id, `T ${id}`])),
+  );
+  const owner = fixture({
+    nativeSessions: { list, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
+    readSessionTitles,
+  }).bridge(OWNER_HUMAN_CONTEXT);
+
+  const all = await owner.sessionList({ queryVersion: 1 });
+  const expected = all.ok ? all.value.sessions.map((row) => row.sessionId) : [];
+  expect(expected).toHaveLength(120);
+  readSessionTitles.mockClear();
+
+  const seen: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 3; page += 1) {
+    const result = await owner.sessionList({
+      queryVersion: 1,
+      limit: 50,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    if (!result.ok) throw new Error('list failed');
+    seen.push(...result.value.sessions.map((row) => row.sessionId));
+    expect(result.value.sessions.every((row) => row.title === `T ${row.sessionId}`)).toBe(true);
+    cursor = result.value.nextCursor;
+    if (page < 2) expect(cursor).toBeDefined();
+  }
+  expect(cursor).toBeUndefined();
+  expect(seen).toEqual(expected);
+  expect(readSessionTitles.mock.calls.flat(2).length).toBeLessThanOrEqual(120);
+
+  for (const payload of [
+    { limit: 0 },
+    { limit: 201 },
+    { limit: 1.5 },
+    { cursor: 'nope' },
+    { cursor: '[1,2]' },
+  ])
+    expect(await owner.sessionList({ queryVersion: 1, ...payload })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+});
+
 it('combines title and Human-message matches inside the authorized source and sorts the result', async () => {
   const searchHumanMessages = vi.fn(
     async (_search: string, rows: readonly { sessionId: string }[]) =>

@@ -89,7 +89,7 @@ export function ModelSheet({
   let body;
   if (model.status === 'loading') body = <SheetLoading />;
   else if (model.status === 'failed')
-    body = <SheetFailed message={t.modelFailed} onRetry={onRetry} />;
+    body = <SheetFailed message={t.modelFailed} on="sheet" onRetry={onRetry} />;
   else {
     const value = model.value;
     const current = currentModel(value).route;

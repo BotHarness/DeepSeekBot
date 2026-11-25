@@ -3,6 +3,8 @@ import type {
   HostSessionApprovalDecision,
   HostSessionCreateRequest,
   HostSessionPendingInput,
+  HostSessionListChanges,
+  HostSessionListCursor,
   HostSessionListOptions,
   HostSessionListResult,
   HostSessionRow,
@@ -10,6 +12,7 @@ import type {
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
 import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
+import { MethodRefused } from './client-errors';
 
 function modelOf(value: Record<string, unknown> | undefined) {
   return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
@@ -17,27 +20,8 @@ function modelOf(value: Record<string, unknown> | undefined) {
     : {};
 }
 
-export async function listHostSessions(host: HostCall): Promise<HostSessionRow[]> {
-  return (await readHostSessionList(host)).sessions;
-}
-
-export async function readHostSessionList(
-  host: HostCall,
-  options?: HostSessionListOptions,
-): Promise<HostSessionListResult> {
-  const { includeArchived, ...query } = options ?? {};
-  const answer = answerRecord(
-    await host.call(
-      'sessionList',
-      options === undefined
-        ? {}
-        : { ...query, queryVersion: 1, ...(includeArchived ? { includeArchived } : {}) },
-    ),
-    'sessionList',
-  );
-  if (!Array.isArray(answer['sessions']))
-    throw new HostAnswerInvalid('invalid sessionList response');
-  const sessions = answer['sessions'].flatMap((value): HostSessionRow[] => {
+function sessionRows(values: unknown[]): HostSessionRow[] {
+  return values.flatMap((value): HostSessionRow[] => {
     const row = record(value);
     const source = record(row?.['source']);
     if (
@@ -82,16 +66,10 @@ export async function readHostSessionList(
       },
     ];
   });
-  const archived = answer['includeArchived'] === true ? { includeArchived: true as const } : {};
-  if (options?.includeArchived === true && answer['includeArchived'] !== true)
-    throw new HostAnswerInvalid('Host does not support including archived Sessions');
-  if (answer['queryVersion'] !== 1) {
-    if (options?.search || (options?.source && options.source !== 'all'))
-      throw new HostAnswerInvalid('Host does not support Session queries');
-    return { sessions };
-  }
-  if (!Array.isArray(answer['sources'])) throw new HostAnswerInvalid('invalid sessionList sources');
-  const sources = answer['sources'].flatMap((value): HostSessionSourceOption[] => {
+}
+
+function sessionSources(values: unknown[]): HostSessionSourceOption[] {
+  return values.flatMap((value): HostSessionSourceOption[] => {
     const option = record(value);
     if (option?.['kind'] === 'native') return [{ kind: 'native' }];
     if (
@@ -102,7 +80,87 @@ export async function readHostSessionList(
       return [{ kind: 'bot', botSlug: option['botSlug'], displayName: option['displayName'] }];
     return [];
   });
-  return { sessions, queryVersion: 1, sources, ...archived };
+}
+
+export async function readHostSessionListChanges(
+  host: HostCall,
+  cursor: HostSessionListCursor | undefined,
+): Promise<HostSessionListChanges> {
+  const answer = answerRecord(
+    await host.call(
+      'sessionListChanges',
+      cursor === undefined ? {} : { sinceSeq: cursor.seq, epoch: cursor.epoch },
+    ),
+    'sessionListChanges',
+  );
+  const next = record(answer['cursor']);
+  if (typeof next?.['epoch'] !== 'string' || !Number.isSafeInteger(next['seq']))
+    throw new HostAnswerInvalid('invalid sessionListChanges cursor');
+  const nextCursor = { epoch: next['epoch'], seq: next['seq'] as number };
+  if (answer['reset'] === true) return { reset: true, cursor: nextCursor };
+  if (
+    !Array.isArray(answer['sessions']) ||
+    !Array.isArray(answer['removed']) ||
+    !Array.isArray(answer['sources'])
+  )
+    throw new HostAnswerInvalid('invalid sessionListChanges response');
+  return {
+    sessions: sessionRows(answer['sessions']),
+    removed: answer['removed'].filter((id): id is string => typeof id === 'string'),
+    sources: sessionSources(answer['sources']),
+    cursor: nextCursor,
+  };
+}
+
+export async function listHostSessions(host: HostCall): Promise<HostSessionRow[]> {
+  return (await readHostSessionList(host)).sessions;
+}
+
+export async function readHostSessionList(
+  host: HostCall,
+  options?: HostSessionListOptions,
+): Promise<HostSessionListResult> {
+  const { includeArchived, limit, cursor, ...query } = options ?? {};
+  const args = (paged: boolean) =>
+    options === undefined
+      ? {}
+      : {
+          ...query,
+          ...(paged && limit !== undefined ? { limit } : {}),
+          ...(paged && cursor !== undefined ? { cursor } : {}),
+          queryVersion: 1,
+          ...(includeArchived ? { includeArchived } : {}),
+        };
+  const paged = limit !== undefined || cursor !== undefined;
+  const answer = answerRecord(
+    await host.call('sessionList', args(paged)).catch((error: unknown) => {
+      if (paged && error instanceof MethodRefused && error.code === 'gateway/arguments-invalid')
+        return host.call('sessionList', args(false));
+      throw error;
+    }),
+    'sessionList',
+  );
+  if (!Array.isArray(answer['sessions']))
+    throw new HostAnswerInvalid('invalid sessionList response');
+  const sessions = sessionRows(answer['sessions']);
+  const archived = answer['includeArchived'] === true ? { includeArchived: true as const } : {};
+  if (options?.includeArchived === true && answer['includeArchived'] !== true)
+    throw new HostAnswerInvalid('Host does not support including archived Sessions');
+  if (answer['queryVersion'] !== 1) {
+    if (options?.search || (options?.source && options.source !== 'all'))
+      throw new HostAnswerInvalid('Host does not support Session queries');
+    return { sessions };
+  }
+  if (!Array.isArray(answer['sources'])) throw new HostAnswerInvalid('invalid sessionList sources');
+  const sources = sessionSources(answer['sources']);
+  const nextCursor = answer['nextCursor'];
+  return {
+    sessions,
+    queryVersion: 1,
+    sources,
+    ...archived,
+    ...(typeof nextCursor === 'string' && nextCursor !== '' ? { nextCursor } : {}),
+  };
 }
 
 export async function createHostSession(

@@ -1,8 +1,11 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
 import type { SessionToolDetail } from './bridge.js';
+import { Icon } from './ds/icon.js';
+import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import { font, status } from './ds/tobs.stylex.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -28,6 +31,8 @@ const styles = stylex.create({
     fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
+  headText: { flexGrow: 1, minWidth: 0 },
+  wrapOn: { color: color.fg, backgroundColor: color.hover },
   code: {
     margin: 0,
     paddingBlock: space.x3,
@@ -38,7 +43,9 @@ const styles = stylex.create({
     whiteSpace: 'pre',
     color: color.fg,
   },
+  codeWrap: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
   codeLine: { display: 'block', minWidth: 'max-content' },
+  codeLineWrap: { minWidth: 0 },
   lineAdd: { backgroundColor: status.successTint },
   lineRemove: { backgroundColor: status.dangerTint },
   gutter: {
@@ -99,18 +106,72 @@ function ExternalLink({ href, children }: { href: string; children: ReactNode })
   );
 }
 
-function CodeBlock({
-  lines,
+function WrapToggle({
+  wrap,
+  onToggle,
+  t,
 }: {
-  lines: { text: string; gutter?: number | string; kind?: 'add' | 'remove' }[];
+  wrap: boolean;
+  onToggle: () => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const label = t('sessions.detail.tool.wrap');
+  return (
+    <Tooltip label={label} side="top" portal delayMs={400}>
+      <IconButton
+        size="inline"
+        tone="subtle"
+        data-tool-detail-wrap=""
+        aria-label={label}
+        aria-pressed={wrap}
+        xstyle={wrap ? styles.wrapOn : undefined}
+        onClick={onToggle}
+      >
+        <Icon name="wrap-text" size={14} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+interface WrapControl {
+  wrap: boolean;
+  onToggle: () => void;
+  t: BotHarnessTranslate;
+}
+
+function CardHead({
+  wrap,
+  meta,
+  children,
+}: {
+  wrap?: WrapControl | undefined;
+  meta?: ReactNode;
+  children?: ReactNode;
 }): ReactElement {
   return (
-    <pre {...stylex.props(styles.code)}>
+    <div {...stylex.props(styles.cardHead)}>
+      <span {...stylex.props(styles.headText)}>{children}</span>
+      {meta}
+      {wrap === undefined ? null : <WrapToggle {...wrap} />}
+    </div>
+  );
+}
+
+function CodeBlock({
+  lines,
+  wrap,
+}: {
+  lines: { text: string; gutter?: number | string; kind?: 'add' | 'remove' }[];
+  wrap: boolean;
+}): ReactElement {
+  return (
+    <pre data-wrap={wrap} {...stylex.props(styles.code, wrap && styles.codeWrap)}>
       {lines.map((line, index) => (
         <span
           key={index}
           {...stylex.props(
             styles.codeLine,
+            wrap && styles.codeLineWrap,
             line.kind === 'add' && styles.lineAdd,
             line.kind === 'remove' && styles.lineRemove,
           )}
@@ -136,14 +197,17 @@ export function ToolDetailView({
   detail: SessionToolDetail;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const [wrap, setWrap] = useState(false);
+  const control: WrapControl = { wrap, onToggle: () => setWrap((value) => !value), t };
   switch (detail.card) {
     case 'terminal':
       return (
         <div data-tool-detail="terminal" {...stylex.props(styles.card)}>
-          {detail.command === undefined ? null : (
-            <div {...stylex.props(styles.cardHead)}>$ {detail.command}</div>
-          )}
+          <CardHead wrap={control}>
+            {detail.command === undefined ? null : `$ ${detail.command}`}
+          </CardHead>
           <CodeBlock
+            wrap={wrap}
             lines={textLines(
               detail.output === '' ? t('sessions.detail.tool.empty') : detail.output,
             )}
@@ -160,8 +224,9 @@ export function ToolDetailView({
         <div data-tool-detail="diff">
           {detail.files.map((file, index) => (
             <div key={`${file.path}-${index}`} {...stylex.props(styles.card)}>
-              <div {...stylex.props(styles.cardHead)}>{file.path}</div>
+              <CardHead wrap={control}>{file.path}</CardHead>
               <CodeBlock
+                wrap={wrap}
                 lines={diffLines(file.oldText, file.newText).map((line) => ({
                   text: line.text,
                   gutter: line.kind === 'add' ? '+' : line.kind === 'remove' ? '−' : '',
@@ -177,13 +242,18 @@ export function ToolDetailView({
       const to = detail.lines.at(-1)?.number ?? from;
       return (
         <div data-tool-detail="read" {...stylex.props(styles.card)}>
-          <div {...stylex.props(styles.cardHead)}>
+          <CardHead
+            wrap={control}
+            meta={
+              <span {...stylex.props(styles.meta)}>
+                {t('sessions.detail.tool.lines', { from, to, total: detail.totalLines })}
+              </span>
+            }
+          >
             {detail.path}
-            <span {...stylex.props(styles.meta)}>
-              {t('sessions.detail.tool.lines', { from, to, total: detail.totalLines })}
-            </span>
-          </div>
+          </CardHead>
           <CodeBlock
+            wrap={wrap}
             lines={detail.lines.map((line) => ({ text: line.text, gutter: line.number }))}
           />
         </div>
@@ -192,13 +262,18 @@ export function ToolDetailView({
     case 'search':
       return (
         <div data-tool-detail="search" {...stylex.props(styles.card)}>
-          <div {...stylex.props(styles.cardHead)}>
+          <CardHead
+            wrap={control}
+            meta={
+              detail.truncated ? (
+                <span {...stylex.props(styles.meta)}>{t('sessions.detail.tool.truncated')}</span>
+              ) : null
+            }
+          >
             {t('sessions.detail.tool.matches', { count: detail.total })}
-            {detail.truncated ? (
-              <span {...stylex.props(styles.meta)}>{t('sessions.detail.tool.truncated')}</span>
-            ) : null}
-          </div>
+          </CardHead>
           <CodeBlock
+            wrap={wrap}
             lines={[
               ...detail.files.flatMap((file) => [
                 { text: file.path },
@@ -212,15 +287,23 @@ export function ToolDetailView({
     case 'web':
       return (
         <div data-tool-detail="web" {...stylex.props(styles.card)}>
-          {detail.url === undefined ? null : (
-            <div {...stylex.props(styles.cardHead)}>
-              <ExternalLink href={detail.url}>{detail.url}</ExternalLink>
-              {detail.statusCode === undefined ? null : (
-                <span {...stylex.props(styles.meta)}>
-                  {t('sessions.detail.tool.status', { code: detail.statusCode })}
-                </span>
+          {detail.url === undefined && detail.output === '' ? null : (
+            <CardHead
+              wrap={detail.output === '' ? undefined : control}
+              meta={
+                detail.statusCode === undefined ? null : (
+                  <span {...stylex.props(styles.meta)}>
+                    {t('sessions.detail.tool.status', { code: detail.statusCode })}
+                  </span>
+                )
+              }
+            >
+              {detail.url === undefined ? (
+                t('sessions.detail.tool.output')
+              ) : (
+                <ExternalLink href={detail.url}>{detail.url}</ExternalLink>
               )}
-            </div>
+            </CardHead>
           )}
           {detail.sources.length === 0 ? null : (
             <div {...stylex.props(styles.links)}>
@@ -231,7 +314,7 @@ export function ToolDetailView({
               ))}
             </div>
           )}
-          {detail.output === '' ? null : <CodeBlock lines={textLines(detail.output)} />}
+          {detail.output === '' ? null : <CodeBlock wrap={wrap} lines={textLines(detail.output)} />}
         </div>
       );
     case 'text':
@@ -239,13 +322,14 @@ export function ToolDetailView({
         <div data-tool-detail="text">
           {detail.input === undefined ? null : (
             <div {...stylex.props(styles.card)}>
-              <div {...stylex.props(styles.cardHead)}>{t('sessions.detail.tool.input')}</div>
-              <CodeBlock lines={textLines(detail.input)} />
+              <CardHead wrap={control}>{t('sessions.detail.tool.input')}</CardHead>
+              <CodeBlock wrap={wrap} lines={textLines(detail.input)} />
             </div>
           )}
           <div {...stylex.props(styles.card)}>
-            <div {...stylex.props(styles.cardHead)}>{t('sessions.detail.tool.output')}</div>
+            <CardHead wrap={control}>{t('sessions.detail.tool.output')}</CardHead>
             <CodeBlock
+              wrap={wrap}
               lines={textLines(
                 detail.output === '' ? t('sessions.detail.tool.empty') : detail.output,
               )}

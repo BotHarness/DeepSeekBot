@@ -49,6 +49,9 @@ import {
   conversationNotice,
 } from './conversation-header';
 import { renderConversation } from './conversation-layout';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import { useChatBottom } from '../primitives/chat-keyboard';
+import { useOverlaySettle } from '../primitives/composer-drop';
 
 export type { ChatPlace } from './chat-place';
 
@@ -371,8 +374,12 @@ function ChatConversation({
     timelineRows,
     profile,
   });
+  const islandFloor = useTimelineIslandFloor();
+  const overlaySettle = useOverlaySettle(useChatBottom().island, history.hiddenNow);
   const screenTree = renderConversation({
     focused,
+    islandFloor,
+    overlaySettle,
     presentation,
     t,
     theme,

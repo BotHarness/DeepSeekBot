@@ -5,7 +5,7 @@ import {
 } from '@botharness/host-protocol/session-model';
 import { answerRecord, HostAnswerInvalid, record, some, type HostCall } from './host-answer';
 
-interface OwnedSessionRow {
+interface OwnedSessionRow extends Record<string, unknown> {
   role: 'orchestrator' | 'assignment';
   sessionId: string;
   createdAt: string;
@@ -27,7 +27,10 @@ function ownedSessionRow(value: unknown): OwnedSessionRow | undefined {
     !Number.isFinite(Date.parse(createdAt))
   )
     return undefined;
+  const rest: Record<string, unknown> = { ...row };
+  delete rest['displayTitle'];
   return {
+    ...rest,
     role,
     sessionId,
     createdAt,
@@ -49,13 +52,13 @@ export async function ownedSessions(host: HostCall, slug: string, includeTitles?
 export async function sessionModel(
   host: HostCall,
   slug: string | null,
-  sessionId: string,
+  sessionId: string | undefined,
   choice?: SessionModelChoice | null,
 ): Promise<SessionModelState> {
   const result = answerRecord(
     await host.call('sessionModel', {
       slug,
-      sessionId,
+      ...(sessionId === undefined ? {} : { sessionId }),
       ...(choice === undefined ? {} : { choice }),
     }),
     'sessionModel',

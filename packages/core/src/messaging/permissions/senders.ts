@@ -43,6 +43,7 @@ export interface ExternalUserRole {
 export interface SenderPolicy {
   restricted: boolean;
   revision: number;
+  defaultRoleId?: string;
 }
 export const senderAccessInput = z.discriminatedUnion('kind', [
   ...behaviorPermissionInputs,
@@ -75,6 +76,13 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
       expectedRevision: z.number().int().positive(),
       roleId: z.string().uuid(),
       expectedRoleRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('default-role'),
+      roleId: z.string().uuid().nullable(),
+      expectedRevision: z.number().int().nonnegative(),
     })
     .strict(),
   z
@@ -286,11 +294,25 @@ export function readSenderPermissions(
 }
 export function readSenderPolicy(db: DatabaseSync, botSlug: string): SenderPolicy {
   const row = db
-    .prepare('SELECT restricted, revision FROM messaging_sender_policies WHERE bot_slug = ?')
-    .get(botSlug) as { restricted: number; revision: number } | undefined;
-  return row
-    ? { restricted: row.restricted === 1, revision: row.revision }
-    : { restricted: false, revision: 0 };
+    .prepare(
+      'SELECT restricted, revision, default_role_id FROM messaging_sender_policies WHERE bot_slug = ?',
+    )
+    .get(botSlug) as
+    | { restricted: number; revision: number; default_role_id: string | null }
+    | undefined;
+  if (!row) return { restricted: false, revision: 0 };
+  const defaultRoleId =
+    row.default_role_id &&
+    db
+      .prepare('SELECT 1 FROM messaging_external_roles WHERE bot_slug = ? AND id = ?')
+      .get(botSlug, row.default_role_id)
+      ? row.default_role_id
+      : undefined;
+  return {
+    restricted: row.restricted === 1,
+    revision: row.revision,
+    ...(defaultRoleId ? { defaultRoleId } : {}),
+  };
 }
 export function externalUserRoles(db: DatabaseSync, botSlug: string): ExternalUserRole[] {
   return (
@@ -405,6 +427,14 @@ export function changeSenderAccess(
   }
   const policy = readSenderPolicy(db, botSlug);
   if (policy.revision !== input.expectedRevision) throw new MessagingError('sender-policy-stale');
+  if (input.kind === 'default-role') {
+    if (input.roleId && !externalUserRoles(db, botSlug).some((role) => role.id === input.roleId))
+      throw new MessagingError('role-stale');
+    db.prepare(
+      'INSERT INTO messaging_sender_policies (bot_slug, restricted, revision, default_role_id) VALUES (?, ?, ?, ?) ON CONFLICT(bot_slug) DO UPDATE SET revision = excluded.revision, default_role_id = excluded.default_role_id',
+    ).run(botSlug, policy.restricted ? 1 : 0, policy.revision + 1, input.roleId);
+    return;
+  }
   db.prepare(
     'INSERT INTO messaging_sender_policies (bot_slug, restricted, revision) VALUES (?, ?, ?) ON CONFLICT(bot_slug) DO UPDATE SET restricted = excluded.restricted, revision = excluded.revision',
   ).run(botSlug, input.restricted ? 1 : 0, policy.revision + 1);

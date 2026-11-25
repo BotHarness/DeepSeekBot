@@ -1,1 +1,4 @@
-{ "platforms": ["apple"], "apple": { "modules": ["SessionDrawerModule"] } }
+{
+  "platforms": ["apple"],
+  "apple": { "modules": ["SessionDrawerModule", "SessionDrawerEdgeModule"] }
+}

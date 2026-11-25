@@ -107,8 +107,7 @@ import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { type HumanContext, type HumanId } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext, type HumanId } from '../humans/context.js';
 import {
   createVoiceBridgeMethods,
   type VoiceBridgeMethods,

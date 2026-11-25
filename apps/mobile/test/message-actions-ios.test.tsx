@@ -13,7 +13,9 @@ vi.mock('react-native-svg', () => ({
   SvgXml: () => createElement('svg'),
 }));
 vi.mock('react-native', () => ({
-  Platform: { OS: 'ios' },
+  Platform: { OS: 'ios', Version: '26.0' },
+  PlatformColor: (name: string) => name,
+  View: ({ children }: { children?: ReactNode }) => createElement('div', null, children),
   useWindowDimensions: () => ({ height: 874 }),
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -46,8 +48,15 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     frame: modifier,
     imageScale: modifier,
     padding: modifier,
-    presentationBackground: modifier,
+    buttonBorderShape: modifier,
+    listRowBackground: modifier,
+    listRowInsets: modifier,
+    listRowSeparator: modifier,
+    listSectionMargins: modifier,
+    listStyle: modifier,
+    presentationDetents: modifier,
     presentationDragIndicator: modifier,
+    scrollContentBackground: modifier,
     onGeometryChange: modifier,
     shapes: { circle: modifier, roundedRectangle: modifier, rectangle: modifier },
   };
@@ -77,6 +86,14 @@ vi.mock('@expo/ui/swift-ui', () => {
     HStack: View,
     Host: View,
     Image: () => null,
+    Label: ({ title }: { title: string }) => <span>{title}</span>,
+    List: View,
+    Section: ({ header, children }: { header?: ReactNode; children?: ReactNode }) => (
+      <div>
+        {header}
+        {children}
+      </div>
+    ),
     RNHostView: View,
     ScrollView: View,
     Spacer: () => null,

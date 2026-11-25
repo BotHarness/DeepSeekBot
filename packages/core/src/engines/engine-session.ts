@@ -83,11 +83,22 @@ export function engineEffort(id: string): EngineEffort {
   return { id, name: engineEffortName(id) };
 }
 
-export type EngineEvent =
+export type EngineSubagentStep =
   | { kind: 'reasoning'; text: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool-call'; callId: string; name: string; arguments: string }
-  | { kind: 'tool-result'; callId: string; text: string; isError: boolean }
+  | { kind: 'tool-result'; callId: string; text: string; isError: boolean };
+
+export type EngineEvent =
+  | EngineSubagentStep
+  | { kind: 'subagent-start'; subagentId: string; title: string; prompt?: string }
+  | { kind: 'subagent-step'; subagentId: string; step: EngineSubagentStep }
+  | {
+      kind: 'subagent-end';
+      subagentId: string;
+      end: EngineTurnEnd;
+      result?: string;
+    }
   | {
       kind: 'approval';
       approvalId: string;
@@ -104,6 +115,11 @@ export type EngineEvent =
       resetsAt?: string;
       retryMessage?: string;
     };
+
+export type EngineGatewayCaller = 'main' | 'subagent' | 'unknown';
+
+export const SUBAGENT_GATEWAY_REFUSAL =
+  'refused: subagent-not-bot. Only the main agent acts as the Bot. Return your findings to it instead.';
 
 export type EngineTurnEnd =
   | { status: 'completed' }
@@ -138,6 +154,11 @@ export interface EngineSession {
   readonly reasoningEffort?: string | undefined;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
+  gatewayCaller?(
+    name: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<EngineGatewayCaller>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
   steer?(input: string): Promise<boolean>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;

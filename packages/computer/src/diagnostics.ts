@@ -2,7 +2,7 @@ import type { LogOwnerScope } from '../../core/src/logs/log-db.js';
 
 export interface ComputerDiagnosticEvent {
   readonly at: string;
-  readonly kind: 'lifecycle' | 'container' | 'viewer' | 'computer-action';
+  readonly kind: 'lifecycle' | 'container' | 'viewer' | 'computer-action' | 'computer-unlock';
   readonly detail: string;
 }
 

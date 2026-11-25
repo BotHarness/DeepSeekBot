@@ -31,6 +31,7 @@ vi.mock('react-native-gesture-handler', () => ({
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: ReactNode }) => children,
   SafeAreaView: ({ children }: { children: ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/native-interface-preferences', () => ({
   useNativeInterfacePreferences: () => ({ loaded: true }),
