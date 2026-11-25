@@ -174,6 +174,8 @@ export function SessionDrawerPanel({
         }}
         sections={sections}
         keyExtractor={(row) => `${row.hostId}:${row.sessionId}`}
+        onEndReached={query.loadMore}
+        onEndReachedThreshold={0.5}
         refreshing={query.online && query.pullRefreshing}
         onRefresh={query.online ? () => query.refresh('pull') : undefined}
         renderSectionHeader={({ section }) => (
