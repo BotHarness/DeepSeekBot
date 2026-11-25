@@ -63,7 +63,7 @@ it('asks which tools were used, shows found sessions and starts the import for l
 
     await act(() => card('grok').click());
     expect(track).toHaveBeenLastCalledWith('grok', false);
-    expect(document.body.textContent).toContain('网页版对话的导出导入还在做');
+    expect(document.body.textContent).toContain('从这些工具导入还在做');
 
     await act(() => card('claude-code').click());
     expect(track).toHaveBeenLastCalledWith('claude-code', true);

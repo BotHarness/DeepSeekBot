@@ -39,6 +39,8 @@ const LOCAL: Partial<Record<ImportSource, Exclude<ImportProduct, 'deepseek'>>> =
   codex: 'codex',
 };
 
+const WEB: readonly ImportSource[] = ['claude', 'chatgpt', 'grok'];
+
 const styles = stylex.create({
   grid: {
     display: 'grid',
@@ -88,7 +90,15 @@ const styles = stylex.create({
     borderRadius: radius.lg,
     backgroundColor: color.surface,
   },
-  resultCopy: { margin: 0, color: color.fg, flexGrow: 1, minWidth: 0 },
+  resultCopy: {
+    margin: 0,
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: dimension.introToolCardMinWidth,
+  },
   note: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
 });
 
@@ -176,7 +186,13 @@ export function ImportStep({
                   </span>
                 ) : (
                   <span {...stylex.props(styles.meta)}>
-                    {t(product === undefined ? 'intro.import.export' : 'intro.import.local')}
+                    {t(
+                      product !== undefined
+                        ? 'intro.import.local'
+                        : WEB.includes(id)
+                          ? 'intro.import.export'
+                          : 'intro.import.later',
+                    )}
                   </span>
                 )}
               </span>
