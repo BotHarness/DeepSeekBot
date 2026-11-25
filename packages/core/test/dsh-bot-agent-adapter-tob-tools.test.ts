@@ -14,77 +14,56 @@ import {
 } from './support/dsh-bot-agent-adapter.js';
 
 describe('DSH Bot Agent adapter', () => {
-  it.each([true, false])(
-    'installs trusted CLI guidance only for Host-resolved Tob identity (%s)',
-    async (tobCli) => {
-      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
-      const adapter = createDshBotAgentAdapter({
-        agents: host,
-        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-        orchestratorCwd: () => '/memory/ada',
-        ensureWorkspace: () => undefined,
-      });
-      try {
-        await adapter.runOrchestrator({ ...reportRun, tobCli });
-        const scope = host.scopes.get(reportRun.sessionId)!;
-        const rolePrompt = scope.sections.find(
-          (section) => section.name === 'botharness:orchestrator-role',
-        )?.text;
-        const prompt = scope.sections.find(
-          (section) => section.name === 'botharness:tob-cli',
-        )?.text;
-        if (tobCli) {
-          expect(rolePrompt).toContain('scoped deepseekbot CLI');
-          expect(rolePrompt).not.toContain('Create a new PersonaBot with bot_create');
-          expect(scope.tools.map((tool) => tool.name)).not.toContain('bot_create');
-          expect(
-            scope.guards.some((guard) =>
-              guard({ name: 'bot_create' })?.includes('scoped deepseekbot CLI'),
-            ),
-          ).toBe(true);
-          expect(prompt).toContain('deepseekbot capabilities');
-          expect(prompt).toContain('deepseekbot settings botharness-client');
-          expect(prompt).toContain('--patch-stdin --expected-revision');
-          expect(prompt).toContain('What can you do?');
-          expect(prompt).toContain('read-only discovery');
-          expect(prompt).toContain('THIS installed version');
-          expect(prompt).toContain('does not need to know commands');
-          expect(prompt).not.toContain('only assignmentConcurrencyLimit');
-          expect(prompt).toContain('private steward and secretary');
-          expect(prompt).toContain('never replace a required Human decision with your own');
-        } else {
-          expect(prompt).toBeUndefined();
-          expect(rolePrompt).toContain('Create a new PersonaBot with bot_create');
-          expect(scope.tools.map((tool) => tool.name)).toContain('bot_create');
-          expect(
-            scope.guards.some((guard) =>
-              guard({ name: 'bot_create' })?.includes('scoped deepseekbot CLI'),
-            ),
-          ).toBe(false);
-        }
-        for (const [name] of TOB_GROUP_TOOL_CASES) {
-          expect(scope.tools.some((tool) => tool.name === name)).toBe(!tobCli);
-          expect(
-            scope.guards.some((guard) => guard({ name })?.includes('scoped deepseekbot CLI')),
-          ).toBe(tobCli);
-        }
-        expect(scope.tools.map((tool) => tool.name)).toContain('bot_send_message');
-        expect(scope.tools.map((tool) => tool.name)).not.toContain('channel_send');
-        expect(scope.tools.map((tool) => tool.name)).toContain('channel_read');
-        expect(
-          rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
-        ).toBe(tobCli);
-        expect(rolePrompt?.includes('You may create a Group with group_create')).toBe(!tobCli);
-        expect(rolePrompt?.includes('Tob Delegation:')).toBe(tobCli);
-        expect(scope.tools.map((tool) => tool.name)).toContain('list_bot_contacts');
-        expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_read');
-        expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_set');
-        expect(scope.tools.map((tool) => tool.name)).toContain('create_assignment');
-      } finally {
-        await adapter.close();
-      }
-    },
-  );
+  it('updates guidance and tool visibility on the same Session as Steward authority changes', async () => {
+    const expected = [false, true, false];
+    let turns = 0;
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async (_session, tools) => {
+          const steward = expected[turns++];
+          const scope = host.scopes.get(reportRun.sessionId)!;
+          const role = scope.sections.find(
+            (section) => section.name === 'botharness:orchestrator-role',
+          )?.text;
+          expect(role?.includes('deepseekbot capabilities')).toBe(steward);
+          expect(role?.includes('Create a new PersonaBot with bot_create')).toBe(!steward);
+          expect(scope.sections.some((section) => section.name === 'botharness:tob-cli')).toBe(
+            false,
+          );
+          const names = tools.map((tool) => tool.name);
+          for (const name of TOB_CLI_TOOL_NAMES) {
+            expect(names.includes(name)).toBe(!steward);
+            expect(
+              scope.guards.some((guard) => guard({ name })?.includes('scoped deepseekbot CLI')),
+            ).toBe(steward);
+          }
+          expect(names).toContain('bot_send_message');
+          expect(names).toContain('channel_read');
+          expect(names).toContain('list_bot_contacts');
+          expect(names).toContain('create_assignment');
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      for (const [index, tobCli] of expected.entries())
+        await adapter.runOrchestrator({
+          ...reportRun,
+          resume: index > 0,
+          stewardActive: () => tobCli,
+        });
+      expect(turns).toBe(expected.length);
+      expect(host.createOptions).toHaveLength(1);
+    } finally {
+      await adapter.close();
+    }
+  });
 
   it('rejects a retained ordinary Bot creation callback during a Tob run', async () => {
     let invokeLegacy: (() => Promise<unknown>) | undefined;
@@ -107,7 +86,7 @@ describe('DSH Bot Agent adapter', () => {
             await invokeLegacy();
           } else {
             await expect(invokeLegacy!()).rejects.toThrow(
-              'Tob must use the scoped deepseekbot CLI',
+              'The Steward must use the scoped deepseekbot CLI',
             );
           }
         },
@@ -121,8 +100,8 @@ describe('DSH Bot Agent adapter', () => {
     });
     const run = { ...reportRun, channels: { ...reportRun.channels, createBot } };
     try {
-      await adapter.runOrchestrator({ ...run, tobCli: false });
-      await adapter.runOrchestrator({ ...run, resume: true, tobCli: true });
+      await adapter.runOrchestrator({ ...run, stewardActive: () => false });
+      await adapter.runOrchestrator({ ...run, resume: true, stewardActive: () => true });
       expect(createBot).toHaveBeenCalledOnce();
     } finally {
       await adapter.close();
@@ -147,7 +126,7 @@ describe('DSH Bot Agent adapter', () => {
               await expect(invokeLegacy()).rejects.toThrow('ordinary Group method reached');
             } else
               await expect(invokeLegacy()).rejects.toThrow(
-                'Tob must use the scoped deepseekbot CLI',
+                'The Steward must use the scoped deepseekbot CLI',
               );
           },
         },
@@ -160,8 +139,8 @@ describe('DSH Bot Agent adapter', () => {
       });
       const run = { ...reportRun, channels: { ...reportRun.channels, [method]: action } };
       try {
-        await adapter.runOrchestrator({ ...run, tobCli: false });
-        await adapter.runOrchestrator({ ...run, resume: true, tobCli: true });
+        await adapter.runOrchestrator({ ...run, stewardActive: () => false });
+        await adapter.runOrchestrator({ ...run, resume: true, stewardActive: () => true });
         expect(action).toHaveBeenCalledOnce();
       } finally {
         await adapter.close();
@@ -172,14 +151,31 @@ describe('DSH Bot Agent adapter', () => {
   it.each(TOB_CLI_TOOL_NAMES)(
     'uses the pinned ToolRuntime guard for local-only %s without global restriction lookup',
     async (toolName) => {
-      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      let started!: () => void;
+      let release!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const working = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const host = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async () => {
+            started();
+            await working;
+          },
+        },
+      );
       const adapter = createDshBotAgentAdapter({
         agents: host,
         defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
         orchestratorCwd: () => '/memory/ada',
         ensureWorkspace: () => undefined,
       });
-      await adapter.runOrchestrator({ ...reportRun, tobCli: true });
+      const running = adapter.runOrchestrator({ ...reportRun, stewardActive: () => true });
+      await ready;
       const fence = host.scopes
         .get(reportRun.sessionId)!
         .guards.find((guard) => guard({ name: toolName })?.includes('scoped deepseekbot CLI'))!;
@@ -242,6 +238,8 @@ describe('DSH Bot Agent adapter', () => {
         await ordinaryScope.dispose();
         await runtime.dispose();
         await providers.dispose();
+        release();
+        await running;
         await adapter.close();
       }
     },
@@ -289,7 +287,7 @@ describe('model-free Tob preparation cancellation', () => {
         .runOrchestrator({
           ...reportRun,
           resume: operation === 'resume',
-          tobCli: true,
+          stewardActive: () => true,
           tobCliTurn: {
             command: { argv: ['approval-templates'], stdin: '' },
             signal: controller.signal,

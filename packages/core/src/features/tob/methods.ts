@@ -31,6 +31,8 @@ function directToolsUnavailable(): BridgeResult<never> {
 }
 
 export interface TobAdapterMethods {
+  steward(payload: unknown): Promise<BridgeResult<{ botSlug: string }>>;
+  stewardTransfer(payload: unknown): Promise<BridgeResult<{ botSlug: string }>>;
   tobHome(
     payload: unknown,
   ): Promise<
@@ -56,6 +58,35 @@ export function createTobAdapterMethods(
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {
+    async steward() {
+      if (!deps.tob) return unavailable();
+      try {
+        return { ok: true, value: await deps.tob.steward() };
+      } catch (error) {
+        if (!(error instanceof TobError)) throw error;
+        return { ok: false, error: { code: error.code, message: error.message } };
+      }
+    },
+    async stewardTransfer(payload) {
+      if (!isHostOwner() || human.caller === 'bot')
+        return {
+          ok: false,
+          error: {
+            code: 'permission-required',
+            message: 'The Human Host Owner must transfer the Steward role.',
+          },
+        };
+      const slug = asSlug(payload);
+      if (!slug || asObject(payload)['confirm'] !== true)
+        return invalidInput('Steward transfer requires a Bot slug and explicit confirmation.');
+      if (!deps.tob) return unavailable();
+      try {
+        return { ok: true, value: await deps.tob.transferSteward(human, slug) };
+      } catch (error) {
+        if (!(error instanceof TobError)) throw error;
+        return { ok: false, error: { code: error.code, message: error.message } };
+      }
+    },
     async tobCli(payload) {
       if (!isHostOwner())
         return {

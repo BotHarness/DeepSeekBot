@@ -161,7 +161,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one Assignment Session and return its id at once. Work for the same goal belongs in the Assignment already doing it (search list_assignments). Model fields come from list_assignment_models; omit them for the default.',
+      'Start one Assignment Session and return its id at once. Work for the same goal belongs in the Assignment already doing it (search list_assignments). Model fields come from list_assignment_models; omit them for the default. An Assignment has no deepseekbot management CLI: if you have it, run its commands, such as doctor for a problem the Human reports, in your own Shell instead.',
     parameters: {
       title: {
         type: 'string',

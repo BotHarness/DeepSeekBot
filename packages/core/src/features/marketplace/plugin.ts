@@ -75,7 +75,7 @@ export function createInstallReviews(
   }: {
     dshHome: string;
     registry: Pick<PersonaBotRegistry, 'get'>;
-    tob: Pick<TobService, 'slug'>;
+    tob: Pick<TobService, 'stewardRole'>;
     defaultRoute: () => ApprovalReviewerRoute;
     modelCatalog: Pick<ModelCatalog, 'validate'>;
     reviewing: Set<string>;
@@ -85,7 +85,7 @@ export function createInstallReviews(
   return createMarketplaceInstallReviews({
     uploads: marketplaceUploads,
     reviewer: async (prompt, botName) => {
-      const tobSlug = tob.slug();
+      const tobSlug = tob.stewardRole()?.botSlug;
       let route: ApprovalReviewerRoute | undefined =
         tobSlug === undefined ? undefined : registry.get(tobSlug)?.modelPlan?.orchestrator;
       if (route === undefined) {

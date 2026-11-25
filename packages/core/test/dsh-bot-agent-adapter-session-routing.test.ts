@@ -258,7 +258,15 @@ describe('DSH Bot Agent adapter', () => {
   it.each([false, true])(
     'keeps tool and prompt registration order as IM connectivity changes (Tob CLI %s)',
     async (tobCli) => {
-      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      let admittedTools: string[] = [];
+      const host = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async (_session, tools) => {
+            admittedTools = tools.map((tool) => tool.name);
+          },
+        },
+      );
       const adapter = createDshBotAgentAdapter({
         agents: host,
         defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
@@ -268,7 +276,7 @@ describe('DSH Bot Agent adapter', () => {
       let connected = false;
       const run: OrchestratorAgentRun = {
         ...reportRun,
-        tobCli,
+        stewardActive: () => tobCli,
         externalMessaging: {
           connected: () => connected,
         } as NonNullable<OrchestratorAgentRun['externalMessaging']>,
@@ -278,7 +286,6 @@ describe('DSH Bot Agent adapter', () => {
       );
       const baseSections = [
         ['botharness:orchestrator-role', 10_350],
-        ...(tobCli ? [['botharness:tob-cli', 10_351]] : []),
         ['botharness:reply-delivery', 10_450],
         ['botharness:genui-authoring', 10_451],
       ];
@@ -299,9 +306,7 @@ describe('DSH Bot Agent adapter', () => {
       ];
       const expectRegistration = () => {
         const scope = host.scopes.get(run.sessionId)!;
-        expect(scope.tools.map((tool) => tool.name)).toEqual(
-          connected ? [...baseTools, ...bridgeToolNames] : baseTools,
-        );
+        expect(admittedTools).toEqual(connected ? [...baseTools, ...bridgeToolNames] : baseTools);
         expect(scope.sections.map(({ name, order }) => [name, order])).toEqual(
           connected ? [...baseSections, ['botharness:external-im', 10_351]] : baseSections,
         );

@@ -150,7 +150,7 @@ describe('DSH Bot Agent adapter', () => {
                 requireContent,
                 ...(role === 'model-free-tob'
                   ? {
-                      tobCli: true,
+                      stewardActive: () => true,
                       tobCliTurn: {
                         command: { argv: ['approval-templates'], stdin: '' },
                         signal: new AbortController().signal,

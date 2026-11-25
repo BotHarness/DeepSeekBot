@@ -236,6 +236,7 @@ export function createOutboundDmMirror(context: {
       message.memberDeparture ||
       message.turnStop ||
       message.modelSwitch ||
+      message.stewardTransfer ||
       message.voiceCallRecord ||
       message.toolAutoApprovalOverride
     )

@@ -495,23 +495,28 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       });
     },
     async toolCalls(key) {
-      const { sessions } = await call('sessions', { slug: slugs[key] });
+      const { sessions } = await call('sessions', { slug: slugs[key] ?? key });
       const calls = [];
+      let incomplete = false;
       const ordered = [...sessions].sort(
         (a, b) =>
           String(a.createdAt).localeCompare(String(b.createdAt)) ||
           a.sessionId.localeCompare(b.sessionId),
       );
       for (const { sessionId } of ordered) {
-        const events = (await sessionSnapshot(instance, sessionId)).records.map(
-          (record) => record.event,
-        );
-        for (const event of events) {
+        const snapshot = await sessionSnapshot(instance, sessionId).catch(() => undefined);
+        if (snapshot === undefined) {
+          incomplete = true;
+          continue;
+        }
+        const events = snapshot.records.map((record) => record.event);
+        for (const [order, event] of events.entries()) {
           if (event.type !== 'tool/call') continue;
-          const result = events.find(
+          const resultOrder = events.findIndex(
             (entry) =>
               entry.type === 'tool/result' && entry.data.message.toolCallId === event.data.callId,
-          )?.data.message;
+          );
+          const result = resultOrder === -1 ? undefined : events[resultOrder].data.message;
           let args;
           try {
             args = JSON.parse(event.data.arguments);
@@ -519,6 +524,10 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
             args = event.data.arguments;
           }
           calls.push({
+            callId: event.data.callId,
+            sessionId,
+            order,
+            resultOrder,
             name: event.data.name,
             arguments: args,
             hasResult: result !== undefined,
@@ -527,7 +536,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           });
         }
       }
-      return calls;
+      return Object.assign(calls, { incomplete });
     },
     memoryDir: (key) => join(instance.home, 'botharness', 'bots', slugs[key], 'memory'),
     async tob() {

@@ -49,6 +49,14 @@ export function botToolRun(
 }
 
 export const tobRpcMethods = {
+  steward() {
+    return unwrapAsync(this.methods.steward({}));
+  },
+
+  stewardTransfer(slug: string, confirm: boolean) {
+    return unwrapAsync(this.methods.stewardTransfer({ slug, confirm }));
+  },
+
   tobHome() {
     return tobHome(this.methods);
   },

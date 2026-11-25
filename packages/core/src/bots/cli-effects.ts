@@ -542,6 +542,8 @@ export const CLI_EFFECTS = {
   'telemetry-set': { effects: write, brokerRead: false },
   'telemetry-status': { effects: read, brokerRead: true },
   'tob-home': { effects: read, brokerRead: false },
+  steward: { effects: read, brokerRead: true },
+  'steward-transfer': { effects: management, brokerRead: false },
   'todo-add': { effects: write, brokerRead: false },
   'todo-remove': { effects: write, brokerRead: false },
   'todo-tool': { effects: opaque, brokerRead: false },

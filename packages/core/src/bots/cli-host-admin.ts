@@ -60,11 +60,17 @@ export const HOST_ADMIN_COMMANDS = [
     command: 'acknowledge',
     description: 'record that this Profile has seen a one-time notice',
   },
+  { command: 'steward', description: 'read the current Steward Bot id' },
+  {
+    command: 'steward-transfer',
+    description:
+      '<bot> --confirm moves scoped CLI management and delegation to an active Bot owned by the Host Owner',
+  },
   { command: 'pause', description: 'archive a Bot through the Host owner' },
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
   {
     command: 'tob-home',
-    description: 'prepare/reuse protected Tob, its Memory/Workspace/DM and Home status',
+    description: 'prepare or read built-in Tob, its Memory, Workspace, DM and Home status',
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   {
@@ -226,6 +232,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   pause: 1,
   resume: 1,
   'tob-home': 0,
+  steward: 0,
+  'steward-transfer': 1,
   onboarding: 0,
   acknowledgements: 0,
   acknowledge: 1,
@@ -364,6 +372,10 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('marketplace-author-avatar needs exactly one of --file or --clear.');
   if (values.replaces !== undefined && command !== 'marketplace-upload')
     usage('--replaces only applies to marketplace-upload.');
+  if (command === 'steward-transfer' && values.confirm !== true)
+    usage(
+      'Transferring grants the Bot scoped Host management and delegation in your DM. Pass --confirm.',
+    );
   if (command === 'marketplace-delete' && values.confirm !== true)
     usage(
       'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
@@ -535,6 +547,10 @@ export async function runHostAdminCommand(
         key: rest[0]!.trim(),
         ...(values.version === undefined ? {} : { value: values.version }),
       });
+    case 'steward':
+      return rpc('steward', {});
+    case 'steward-transfer':
+      return rpc('stewardTransfer', { slug: target, confirm: true });
     case 'tob-home':
       return rpc('tobHome', {});
     case 'marketplace-list': {

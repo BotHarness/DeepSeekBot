@@ -742,5 +742,9 @@
   {
     "id": "binding-group-interactions",
     "sha256": "f588f5903452481413b4ab2a4a84739ae597860a7161b94ba6b21dd9447592db"
+  },
+  {
+    "id": "steward-role",
+    "sha256": "d618c9f4c42f7c1109261c0b1d5ca5d7b9ba64d2c5c5a0ffeafd66863850966c"
   }
 ]

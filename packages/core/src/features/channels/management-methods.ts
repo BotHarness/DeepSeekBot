@@ -100,14 +100,6 @@ export function createChannelsManagementAdapterMethods(
             message: 'Channel management is unavailable',
           },
         };
-      if (members.some((slug) => deps.tob?.isTob(slug)))
-        return {
-          ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
-        };
       const channel = deps.channels.createGroup(human, {
         name,
         members: [...members],
@@ -273,14 +265,6 @@ export function createChannelsManagementAdapterMethods(
             message: 'Channel management is unavailable',
           },
         };
-      if (deps.tob?.isTob(botSlug))
-        return {
-          ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
-        };
       const bot = globalRegistry.get(botSlug);
       const channel = deps.channels.get(channelId);
       if (bot === undefined || bot.paused === true) return unknownBot(botSlug);
@@ -388,14 +372,6 @@ export function createChannelsManagementAdapterMethods(
       const request = channel?.joinRequests?.find((item) => item.id === requestId);
       if (channel?.type !== 'group' || request === undefined)
         return invalidInput('Pending Group join request not found');
-      if (accept && deps.tob?.isTob(request.requesterBotSlug))
-        return {
-          ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
-        };
       if (request.status !== 'pending')
         return request.status === (accept ? 'accepted' : 'declined')
           ? { ok: true, value: { channel: channelView(channel) } }

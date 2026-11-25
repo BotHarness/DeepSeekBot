@@ -860,7 +860,8 @@ try {
       true,
     );
     assert.equal(conflict.error.code, 'operation-key-conflict');
-    const protectedResult = await humanCli(
+    assert.deepEqual(await snapshot(fixture.channelId), before);
+    const stewardInvite = await humanCli(
       'group-invite',
       inviteArguments(
         {
@@ -868,23 +869,24 @@ try {
           botSlug: home.botSlug,
           expectedChannel: before.channelFingerprint,
         },
-        'protected-invite-' + Date.now(),
+        'steward-invite-' + Date.now(),
       ),
-      undefined,
-      true,
     );
-    assert.equal(protectedResult.error.code, 'protected-bot');
-    assert.deepEqual(await snapshot(fixture.channelId), before);
+    const afterSteward = await snapshot(fixture.channelId);
+    assert.ok(
+      afterSteward.channel.members.includes(home.botSlug),
+      'the Steward did not join through an ordinary invitation',
+    );
     writeFileSync(
       resolve(out, 'direct-refusals.json'),
       JSON.stringify(
-        { conflict: conflict.error.code, protected: protectedResult.error.code },
+        { conflict: conflict.error.code, stewardInvite, members: afterSteward.channel.members },
         null,
         2,
       ),
     );
     steps.push(
-      'independent Human CLI exact replay, changed-key-payload conflict and protected Tob invitation refusal',
+      'independent Human CLI exact replay, changed-key-payload conflict and an ordinary Steward invitation with membership readback',
     );
   }
   if (phase === 'restart-read') {

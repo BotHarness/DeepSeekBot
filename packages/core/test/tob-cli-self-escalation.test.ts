@@ -23,7 +23,7 @@ const deps = {
           : undefined,
   },
   human: humanContext('owner'),
-  isTob: (slug: string) => slug === 'tob',
+  isSteward: (slug: string) => slug === 'tob',
 };
 
 async function broker() {
@@ -114,6 +114,16 @@ describe('Tob grant, approval policy and Browser commands', () => {
       ['memory-save', 'tob'],
     ])
       expect(() => authorizeTobHostCli(argv, deps)).not.toThrow();
+  });
+
+  it('refuses Steward transfer before the broker opens an approval card', async () => {
+    const { invoke, run, approve } = await broker();
+    expect(await invoke(['steward-transfer', 'ada', '--confirm'])).toMatchObject({
+      ok: false,
+      error: { code: 'cli-command-refused' },
+    });
+    expect(approve).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('keeps Browser pairing codes and Daily Browser consent with the Human', () => {

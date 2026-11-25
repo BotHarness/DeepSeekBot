@@ -1,3 +1,4 @@
+import { initializeSteward } from '../../tob/steward-role.js';
 import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
@@ -279,6 +280,7 @@ export function createRegistry(
     validateMemoryPath: (slug, humanId, path) => deps.spaces.assertMemoryPath(humanId, slug, path),
     creationTopics: ['workspace-grants'],
     onCreated: (bot, connection) => {
+      initializeSteward(connection, bot.slug);
       const humanId = bot.ownerHumanId ?? deps.team.ownerContext().humanId;
       if (!deps.team.isOwner(humanContext(humanId)))
         deps.grants.initializeAccount(bot.slug, 'spaces/' + humanId, connection);
@@ -660,9 +662,7 @@ export function createHostAgentAdapter(
     onOrchestratorFileSetup: tobFeature.createOrchestratorFileSetup(ctx, deps),
     onAssignmentShellSetup: tobFeature.createAssignmentShellSetup(ctx, deps),
     assignmentReportFooter: (sessionId) =>
-      deps.core.tob.isTob(deps.core.ownership.resolve(sessionId)?.botSlug ?? '')
-        ? deps.tobOperations.tobMemoryLeases.reportFooter(sessionId)
-        : undefined,
+      deps.tobOperations.tobMemoryLeases.reportFooter(sessionId),
     authorizeBorrow: (agent, role) => {
       const denial = borrowedAgentDenial(deps.core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);

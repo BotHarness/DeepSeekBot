@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { isTob, TobError } from '../tob/service.js';
+import { TobError } from '../tob/service.js';
+import { isSteward } from '../tob/steward-role.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -346,7 +347,7 @@ export function createPersonaBotDeletions(options: {
     };
   };
   const preview = (slug: string): PersonaBotDeletionPreview => {
-    if (isTob(port, slug)) throw new TobError('protected-bot');
+    if (isSteward(port, slug)) throw new TobError('protected-bot');
     return snapshot(slug);
   };
   const run = (state: PersonaBotDeletion): Promise<PersonaBotDeletion> => {
@@ -405,6 +406,7 @@ export function createPersonaBotDeletions(options: {
   return {
     preview,
     memberPreview(humanId, slug) {
+      if (isSteward(port, slug)) throw new TobError('protected-bot');
       const allowed = port.read((db) =>
         db
           .prepare(`SELECT 1 FROM persona_bots b, team_settings s

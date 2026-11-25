@@ -107,7 +107,7 @@ export function installTobCliShell(
     const definition = defineTool({
       name: 'deepseekbot_cli',
       description:
-        'Run one typed deepseekbot command through the scoped Tob broker. Requires the owning live Human DM turn; writes retain their actual approval and execution fences.',
+        'Run one typed deepseekbot command through the scoped Steward broker. Requires the owning live Human DM turn; writes retain their actual approval and execution fences. Run capabilities first and follow each operation description.',
       parameters: {
         argv: { type: 'array', items: { type: 'string' }, required: true },
         stdin: { type: 'string' },
