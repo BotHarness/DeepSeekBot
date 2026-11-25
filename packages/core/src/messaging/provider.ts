@@ -171,7 +171,7 @@ export interface MessagingApprovalCard {
 export interface MessagingApprovalAction {
   kind?: undefined;
   version: 1;
-  channel: 'feishu';
+  channel: MessagingInboundEvent['channel'];
   botId: string;
   fingerprint: string;
   actorId: string;
@@ -332,6 +332,7 @@ export interface MessagingProvider {
     text: string;
     signal: AbortSignal;
     beforeSend?: () => boolean;
+    standalone?: true;
   }): Promise<{ accepted: true; receipt?: MessagingReceipt }>;
   history?(input: {
     accountRef: string;

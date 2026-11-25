@@ -10,6 +10,7 @@ import {
   InterfaceSaveNotice,
   LanguageSetting,
   SessionNavigationSettings,
+  SessionsTabSetting,
 } from './interface-settings';
 import { useStrings } from './strings';
 
@@ -128,6 +129,7 @@ export function SettingsView({
         />
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
+        <SessionsTabSetting on={SHEET_GROUP} />
         {messageDisplay}
         {sendJump}
         <SettingsRow

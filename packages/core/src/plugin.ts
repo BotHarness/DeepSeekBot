@@ -1,3 +1,4 @@
+import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
 import * as profileStorage from './features/profile-storage/plugin.js';
@@ -65,6 +66,7 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
 
@@ -310,36 +312,41 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     routingDefaults,
   );
+  let hostNativeSessions: NativeSessions | undefined;
+  const externalSessions = createExternalSessionReader();
   const core = createCore(
-    createHostCoreOptions(ctx, {
-      dshHome,
-      routeRests,
-      engineHost,
-      groupFallback,
-      agentAdapter,
-      modelCatalog,
-      diagnosticEvents,
-      updateLifecycle,
-      telemetry,
-      get core() {
-        return core;
-      },
-      get botNetwork() {
-        return botNetwork;
-      },
-      get userQuestions() {
-        return userQuestions;
-      },
-      get toolApproval() {
-        return toolApproval;
-      },
-      get privateInputs() {
-        return privateInputs;
-      },
-      get imCommandServices() {
-        return imCommandServices;
-      },
-    }),
+    Object.assign(
+      createHostCoreOptions(ctx, {
+        dshHome,
+        routeRests,
+        engineHost,
+        groupFallback,
+        agentAdapter,
+        modelCatalog,
+        diagnosticEvents,
+        updateLifecycle,
+        telemetry,
+        get core() {
+          return core;
+        },
+        get botNetwork() {
+          return botNetwork;
+        },
+        get userQuestions() {
+          return userQuestions;
+        },
+        get toolApproval() {
+          return toolApproval;
+        },
+        get privateInputs() {
+          return privateInputs;
+        },
+        get imCommandServices() {
+          return imCommandServices;
+        },
+      }),
+      { nativeSessions: () => hostNativeSessions, externalSessions },
+    ),
   );
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
@@ -587,7 +594,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(ctx, dshSessions, nativeSessionInput),
+    externalSessions,
+    nativeSessions: (hostNativeSessions = dshHostSessions(ctx, dshSessions, nativeSessionInput)),
     takeovers,
     folders,
     mountedToolApproval,

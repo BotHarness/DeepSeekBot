@@ -6,6 +6,7 @@ import {
   externalPermissionGroups,
   behaviorPermissions,
   externalUserRoles,
+  platformPeople,
   readSenderPolicy,
 } from './permissions/index.js';
 import type { QuestionMessaging } from './question-messaging.js';
@@ -551,7 +552,7 @@ export function createOutboundSnapshot(context: {
         questions: questions.snapshot(botSlug),
         failureAlerts: failureAlerts.snapshot(botSlug),
         pairingReceivers: identities
-          .filter((i) => ['feishu', 'slack'].includes(i.platform) && !i.revokedAt)
+          .filter((i) => !!platformPeople(i.platform) && !i.revokedAt)
           .map((i) => ({ name: i.name, status: i.reception ?? 'unavailable' })),
         grants,
         heldConversations: database.read((db) =>

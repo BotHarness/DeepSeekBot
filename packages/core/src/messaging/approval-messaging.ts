@@ -8,8 +8,9 @@ import type {
   ToolApprovalActor,
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
-import type { BotPairing, PairingRequest } from './pairing.js';
+import { pairedRoute, type BotPairing, type PairingRequest } from './pairing.js';
 import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
+import { approvalSurface } from './interactions/surface.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
 import { boundedMessagingDelivery } from './bounded-delivery.js';
@@ -20,6 +21,7 @@ import {
   MessagingProviderError,
   type MessagingProvider,
   type MessagingReceipt,
+  type MessagingReplyRoute,
   type MessagingApprovalAction,
   type MessagingApprovalRuleAction,
   type MessagingApprovalAck,
@@ -48,6 +50,7 @@ export interface ApprovalDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
   reason?: string;
   status: MessagingApprovalCard['status'];
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
@@ -186,7 +189,8 @@ export function createApprovalMessaging(options: {
     )
       throw new MessagingError('approval-route-unavailable');
     const provider = options.provider(identity.providerId);
-    if (!provider.approvalCard) throw new MessagingError('capability-unavailable');
+    if (!approvalSurface({ identity, paired, provider }))
+      throw new MessagingError('capability-unavailable');
     return { identity, paired, provider };
   };
   const canonical = (value: ApprovalDelivery): ToolApprovalNotice | undefined => {
@@ -399,7 +403,7 @@ export function createApprovalMessaging(options: {
       const context = cleanup ?? resolve(value.route);
       write({ ...value, update: 'sending' });
       await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: value.receipt!,
@@ -414,6 +418,7 @@ export function createApprovalMessaging(options: {
             : render(value),
           signal,
           update: true,
+          ...(value.replyTo ? { replyTo: value.replyTo } : {}),
           beforeSend: () =>
             (cleanup ? cleanupContext(value) !== undefined : safe(value)) &&
             read(id)?.status === currentStatus &&
@@ -487,21 +492,12 @@ export function createApprovalMessaging(options: {
       const context = resolve(value.route);
       if (!safe(value) || !requestLive(value))
         throw new MessagingProviderError('request-expired', 'not-started');
-      const messageId = context.paired.messageIds?.[0];
-      const target =
-        value.destination?.reply ??
-        (messageId
-          ? {
-              messageId,
-              conversationId: context.paired.conversationId,
-              actorId: context.paired.actorId,
-            }
-          : undefined);
+      const target = value.destination?.reply ?? pairedRoute(context.paired);
       if (!target) throw new MessagingProviderError('source-unavailable', 'not-started');
       write({ ...value, delivery: 'sending', attempts: value.attempts + 1 });
       started = true;
       const result = await bounded((signal) =>
-        context.provider.approvalCard!({
+        approvalSurface(context)!({
           accountRef: context.identity.accountRef,
           fingerprint: context.identity.fingerprint,
           route: target,
@@ -513,7 +509,12 @@ export function createApprovalMessaging(options: {
       if (!result.receipt) throw new MessagingProviderError('provider-result-unknown', 'unknown');
       const latest = read(id);
       if (!latest) return value;
-      write({ ...latest, delivery: 'sent', receipt: result.receipt });
+      write({
+        ...latest,
+        delivery: 'sent',
+        receipt: result.receipt,
+        ...(result.replyTo ? { replyTo: result.replyTo } : {}),
+      });
     } catch (error) {
       const latest = read(id)!;
       const definite =

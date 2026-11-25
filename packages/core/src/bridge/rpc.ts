@@ -28,6 +28,7 @@ import {
   channelHistoryRpc,
   channelSendRpc,
 } from '../features/channels/rpc.js';
+import { sessionBotRpc } from '../features/sessions/session-bot-rpc.js';
 import { channelFilesRpcMethods } from '../features/channel-files/rpc.js';
 import { appearanceRpcMethods, botModeRpc } from '../features/appearance/rpc.js';
 import {
@@ -187,6 +188,7 @@ const rpcMethods = {
   ...personaBotLifecycleRpc,
   ...zipImportRpc,
   ...personaBotManagementRpc,
+  ...sessionBotRpc,
   ...dataResetRpc,
   ...personaBotDeletionRpc,
   ...computerServiceRpc,
@@ -422,6 +424,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botImportPreview',
   'botImportLookup',
   'createFromGit',
+  'createFromSessions',
+  'externalSessions',
   'update',
   'dataResetPreview',
   'dataResetConfirm',

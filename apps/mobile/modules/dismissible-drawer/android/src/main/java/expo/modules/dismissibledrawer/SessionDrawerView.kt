@@ -1,12 +1,9 @@
 package expo.modules.dismissibledrawer
 
 import android.graphics.Color
-import android.os.Build
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,9 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -53,18 +48,23 @@ data class SessionDrawerProps(
 @OptimizedRecord
 data class SessionDrawerChange(@Field val open: Boolean = false) : Record
 
+@OptimizedRecord
+data class SessionDrawerProgress(@Field val progress: Float = 0f) : Record
+
 /**
- * Compose Material 3 `ModalNavigationDrawer` for the phone's Session drawer, laid over the React
- * Native Sessions stack with two slots: `panel` (the drawer contents) and an empty `content`. The
- * drawer is nearly full width and its scrim closes it. JavaScript slides the Sessions stack
- * beneath it and holds Back while the drawer is open. JavaScript owns
- * `open`; [onOpenChange] reports each value the drawer settles at after a drag, a scrim tap or
- * Back, so JavaScript never keeps `open` while the drawer is closed.
+ * Compose Material 3 `ModalNavigationDrawer` for the phone's Session drawer (#5255), wrapped
+ * around the React Native Sessions stack: `content` holds the stack and `panel` the drawer
+ * contents. The drawer owns the open and close gesture and motion. A horizontal drag anywhere on
+ * the stack opens it while [SessionDrawerProps.gesturesEnabled]; the panel slides in over the
+ * stack, which stays still under the M3 scrim, and a scrim tap or a drag back closes it.
+ * JavaScript owns `open` and holds Back while the drawer is open; [onOpenChange] reports each
+ * value the drawer settles at and [onProgress] streams its open fraction for the tab bar fade.
  */
 @Composable
 fun FunctionalComposableScope.SessionDrawerContent(
   props: SessionDrawerProps,
   onOpenChange: (Boolean) -> Unit,
+  onProgress: (Float) -> Unit,
 ) {
   val drawerState = rememberDrawerState(if (props.open) DrawerValue.Open else DrawerValue.Closed)
   val reported = remember { mutableStateOf(props.open) }
@@ -114,7 +114,15 @@ fun FunctionalComposableScope.SessionDrawerContent(
   ) {
     val panelWidth = sessionDrawerWidthDp(maxWidth.value).dp
     val panelPx = with(LocalDensity.current) { panelWidth.toPx() }
-    val progress = { openProgress(drawerState.currentOffset, panelPx) }
+    LaunchedEffect(drawerState, panelPx) {
+      var last = -1f
+      snapshotFlow { openProgress(drawerState.currentOffset, panelPx) }.collect { progress ->
+        if (progressChanged(last, progress)) {
+          last = progress
+          onProgress(progress)
+        }
+      }
+    }
     ModalNavigationDrawer(
       drawerState = drawerState,
       modifier = claim,
@@ -129,26 +137,13 @@ fun FunctionalComposableScope.SessionDrawerContent(
           drawerContainerColor = props.containerColor.composeOrNull ?: DrawerDefaults.modalContainerColor,
           windowInsets = WindowInsets(0, 0, 0, 0),
         ) {
-          Box(Modifier.fillMaxSize().graphicsLayer { alpha = progress() }) {
+          Box(Modifier.fillMaxSize()) {
             Children(UIComposableScope(boxScope = this), filter = { isSlotWithName(it, "panel") })
           }
         }
       },
     ) {
-      val blur =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-          Modifier.blur((SESSION_BLUR_DP * progress()).dp)
-        } else {
-          Modifier
-        }
-      Box(
-        Modifier.fillMaxSize()
-          .graphicsLayer {
-            translationX = progress() * panelPx
-            alpha = sessionContentAlpha(progress())
-          }
-          .then(blur)
-      ) {
+      Box(Modifier.fillMaxSize()) {
         Children(UIComposableScope(boxScope = this), filter = { isSlotWithName(it, "content") })
       }
     }

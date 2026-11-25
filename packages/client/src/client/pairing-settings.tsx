@@ -207,7 +207,11 @@ export function PairingSettings({
                 }).catch(() => undefined)
               }
             />
-            <MessagingHelp title={t('pairing.restricted')} text={t('pairing.policyLimit')} t={t} />
+            <MessagingHelp
+              title={t('pairing.restricted')}
+              text={t('pairing.restrictedHelp')}
+              t={t}
+            />
           </>
         ) : null}
         <span className="bh-pairing-toolbar-gap" />
