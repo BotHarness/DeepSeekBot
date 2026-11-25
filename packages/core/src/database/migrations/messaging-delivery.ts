@@ -658,3 +658,12 @@ export const BINDING_GROUP_INTERACTIONS_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const SENDER_DEFAULT_ROLE_MIGRATION: SchemaMigration = {
+  id: 'sender-default-role',
+  module: 'messaging',
+  description: 'Let a Bot name the Role a pairing approval uses when no Role is given',
+  migrate(database) {
+    database.exec('ALTER TABLE messaging_sender_policies ADD COLUMN default_role_id TEXT;');
+  },
+};

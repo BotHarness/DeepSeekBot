@@ -115,6 +115,7 @@ export interface PairingReviewer {
   actorId: string;
   approvalRoute?: true;
 }
+const attempted = (key: string) => !key.startsWith('route:') && !key.startsWith('private:');
 export const pairingDefaults = Object.freeze({
   expiryMs: 10 * 60 * 1000,
   maxAttempts: 5,
@@ -448,8 +449,8 @@ export function createBotPairing(
         if (!outcome && previous) return false;
         if (
           !previous &&
-          !key.startsWith('route:') &&
-          notifications.filter((item) => !item.key.startsWith('route:')).length >=
+          attempted(key) &&
+          notifications.filter((item) => attempted(item.key)).length >=
             pairingDefaults.maxAttempts + 1
         )
           return false;

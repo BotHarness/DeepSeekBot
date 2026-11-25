@@ -60,6 +60,18 @@ export interface HostSessionListResult {
   nextCursor?: string;
 }
 
+export type HostSessionListCursor = { epoch: string; seq: number };
+
+export type HostSessionListChanges =
+  | { reset: true; cursor: HostSessionListCursor }
+  | {
+      reset?: never;
+      sessions: HostSessionRow[];
+      removed: string[];
+      sources: HostSessionSourceOption[];
+      cursor: HostSessionListCursor;
+    };
+
 export interface HostSessionRow {
   sessionId: string;
   source: HostSessionSource;

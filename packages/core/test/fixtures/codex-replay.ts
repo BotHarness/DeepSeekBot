@@ -109,6 +109,7 @@ export function codexReplay(
       if (item['type'] === 'mcpToolCall' && item['server'] === 'deepseekbot') {
         const id = String(item['id']);
         if (message['method'] === 'item/started') {
+          if (item['unannounced'] !== true) for (const listener of listeners) listener(message);
           const called = await callGateway(options, String(item['tool']), item['arguments']);
           replay.gatewayCalls.push({ tool: String(item['tool']), ...called });
           const result = called.result as {
@@ -119,6 +120,8 @@ export function codexReplay(
             text: result.content?.[0]?.text ?? JSON.stringify(called.result),
             isError: called.status !== 200 || result.isError === true,
           });
+          await Promise.resolve();
+          continue;
         } else {
           const outcome = gatewayResults.get(id);
           if (outcome !== undefined) {
