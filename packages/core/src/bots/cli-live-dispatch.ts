@@ -271,8 +271,12 @@ export async function runLiveCli(
     return runMessaging(operation, (await connectLiveHost(values, io, signal)).rpc);
   }
   if (isInboxCommand(command))
-    return runInboxCommand(command, rest, values, () =>
-      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    return runInboxCommand(
+      command,
+      rest,
+      values,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+      io.readStdin,
     );
   if (isScheduleCommand(command)) {
     const prepared = prepareScheduleCommand(command, rest, values);

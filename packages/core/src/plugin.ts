@@ -8,6 +8,7 @@ import * as approvalsFeature from './features/approvals/plugin.js';
 import * as memoryFeature from './features/memory/plugin.js';
 import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
+import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import type { TeamError } from './team/error.js';
@@ -573,7 +574,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
-    nativeSessions: dshHostSessions(ctx, dshSessions),
+    nativeSessions: dshHostSessions(
+      ctx,
+      dshSessions,
+      dshHostSessionInput(
+        ctx,
+        (id) => core.ownership.resolve(id) === undefined,
+        (id) => sessionLive.observe(id, { type: 'native-input' }),
+      ),
+    ),
     takeovers,
     folders,
     mountedToolApproval,

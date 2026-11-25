@@ -1,5 +1,9 @@
 import { sessionModelChoice } from '@botharness/host-protocol/session-model';
-import { isHostSessionFilter, isHostSessionSort } from '@botharness/host-protocol/host-sessions';
+import {
+  isHostSessionApprovalDecision,
+  isHostSessionFilter,
+  isHostSessionSort,
+} from '@botharness/host-protocol/host-sessions';
 import {
   readHumanAttention,
   dismissHumanAttention,
@@ -90,19 +94,32 @@ export const INBOX_COMMANDS = [
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   {
     command: 'session-list',
-    description: 'list accessible root Sessions on the Host (--search, --sort, --source)',
+    description: 'list accessible root Sessions (--search, --sort, --source, --include-archived)',
   },
   {
     command: 'session-create',
     description:
       'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message; --session retries a blank one',
   },
+  {
+    command: 'session-answer-approval',
+    description:
+      'answer a native Session approval once or reject it (--session, --request, --decision)',
+  },
+  {
+    command: 'session-answer-question',
+    description:
+      'answer a native Session question with JSON from stdin (--session, --request, --answer-stdin)',
+  },
+  {
+    command: 'session-archive',
+    description: 'archive an idle native Session (--session, --confirm)',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
     command: 'session-stop',
-    description:
-      "stop one of a Bot's running Sessions (its Orchestrator or one Assignment); its other Sessions keep running",
+    description: "stop a native Session (--session), or one of a Bot's running Sessions",
   },
   {
     command: 'session-send',
@@ -178,6 +195,8 @@ export interface InboxValues {
   cwd?: string;
   model?: string;
   message?: string;
+  decision?: string;
+  'answer-stdin'?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -236,11 +255,20 @@ export async function runInboxCommand(
   rest: string[],
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
+  readStdin?: () => Promise<string>,
 ): Promise<unknown> {
   const command = inboxCommandName(name);
   if (command === 'inbox-watch' && values.notifications)
     usage('Use activity --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
+  if (call.method === 'sessionAnswerQuestion') {
+    try {
+      const answer: unknown = JSON.parse(await (readStdin?.() ?? Promise.resolve('')));
+      call.args['answer'] = answer;
+    } catch {
+      usage('Question answers must be valid JSON on stdin.');
+    }
+  }
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > 60)
@@ -306,6 +334,15 @@ export async function runInboxCommand(
     call.method === 'humanAttention'
       ? ({ ...(await readHumanAttention(reader, call.args)) } as Record<string, unknown>)
       : await rpc<Record<string, unknown>>(call.method, call.args);
+  if (
+    call.method === 'sessionList' &&
+    call.args['includeArchived'] === true &&
+    result['includeArchived'] !== true
+  )
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to include archived Sessions.',
+    );
   if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
@@ -575,10 +612,36 @@ function prepare(
           ...(search === undefined ? {} : { search }),
           ...(sort === undefined ? {} : { sort }),
           ...(source === undefined ? {} : { source }),
+          ...(values['include-archived'] === true ? { includeArchived: true } : {}),
           ...(search === undefined && sort === undefined && source === undefined
             ? {}
             : { queryVersion: 1 }),
         },
+      };
+    }
+    case 'session-answer-approval':
+    case 'session-answer-question': {
+      positionals(command, rest, 0, '');
+      const sessionId = required(values.session, 'session', command);
+      const requestId = required(values.request, 'request', command);
+      if (command === 'session-answer-approval') {
+        if (!isHostSessionApprovalDecision(values.decision))
+          usage('--decision must be allowed-once or rejected.');
+        return {
+          method: 'sessionAnswerApproval',
+          args: { sessionId, requestId, decision: values.decision },
+        };
+      }
+      if (values['answer-stdin'] !== true)
+        usage('session-answer-question requires --answer-stdin.');
+      return { method: 'sessionAnswerQuestion', args: { sessionId, requestId } };
+    }
+    case 'session-archive': {
+      positionals(command, rest, 0, '');
+      confirmed(command, values);
+      return {
+        method: 'sessionNativeArchive',
+        args: { sessionId: required(values.session, 'session', command) },
       };
     }
     case 'session-create': {
@@ -686,6 +749,15 @@ function prepare(
       return { method: 'sessionOwner', args: { sessionId } };
     }
     case 'session-stop': {
+      if (values.session !== undefined) {
+        positionals(command, rest, 0, '');
+        if (values.activity !== undefined || values.channel !== undefined)
+          usage('Native session-stop uses --session without --activity or --channel.');
+        return {
+          method: 'sessionNativeStop',
+          args: { sessionId: required(values.session, 'session', command) },
+        };
+      }
       const activityId =
         values.activity === undefined ? undefined : required(values.activity, 'activity', command);
       const [botSlug, sessionId] = positionals(
