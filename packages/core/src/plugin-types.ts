@@ -58,7 +58,7 @@ import type { BotStateTracker } from './state/bot-state.js';
 import type { UsageProjection } from './usage/usage.js';
 import type { MessagePerfTracker } from './usage/message-perf.js';
 import type { PromptSettings } from './prompts/prompt-settings.js';
-import type { MeetingFarEnd, Meetings } from './meetings/meetings.js';
+import type { Meetings } from './meetings/meetings.js';
 import type { MeetingStore } from './meetings/store.js';
 
 export interface BotHarnessCore {
@@ -128,7 +128,6 @@ export interface BotHarnessCore {
   voiceCallsRef: { current?: VoiceCalls | undefined };
   meetings: Meetings;
   meetingStore: MeetingStore;
-  meetingFarEnds: { list: MeetingFarEnd[] };
   cloudWork?: CloudWork;
   connectors?: import('./connectors/service.js').ConnectorService;
   toolRules: ToolApprovalRuleStore;

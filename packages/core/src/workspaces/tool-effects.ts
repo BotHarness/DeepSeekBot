@@ -104,7 +104,6 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   list_bot_subagent_models: read,
   list_subagent_models: read,
   list_workspace_grants: read,
-  meeting_join: { ...send, approval: 'existing' },
   meeting_leave: write,
   meeting_status: read,
   meeting_transcript: read,

@@ -787,16 +787,16 @@ A Takeover Handoff is how a Bot asks the Human to operate its Computer or Bot Br
 
 ### Meetings on a live Host
 
-A Bot attends a meeting as a call ([ADR-0369](adr/0369-a-bot-attends-a-meeting-as-a-call-through-a-host-browser.md)). These commands run the `meeting_join`, `meeting_leave`, `meeting_status` and `meeting_transcript` Bot tools through the Host, like `bot-tool`:
+A Bot listens to a meeting through its Owner's window ([Calls §14](decisions/calls.md#meeting-attendance)): in the Bot's DM the Owner chooses _Bring to a meeting_ and shares the meeting tab or the system sound, and the window sends it with their microphone to the Host as a `meeting` call (`open` with `meeting: true`). The Bot needs an ASR Provider but no TTS, and the meeting counts as its one call (`call-active`, `calls-full`). Nothing joins the meeting and the Bot never speaks in it. What the Bot hears arrives in its Bot Inbox as `meeting-speech`, never in a Channel; when listening stops the Bot writes the recap to its DM. These commands run the `meeting_leave`, `meeting_status` and `meeting_transcript` Bot tools through the Host, like `bot-tool`:
 
 ```bash
-deepseekbot meeting-join <id> <meeting-url> [--listen-only] [--cause-event <source-event>]
+deepseekbot call-simulate <id> --file /abs/meeting.wav --as-meeting
 deepseekbot meeting-leave <id>
 deepseekbot meeting-status <id>
 deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
 ```
 
-Only the Bot's Owner can send it to a meeting for now: pass `--cause-event` with the source event of the Owner's DM message that carried the link, or the join is refused with `needs-owner`. The Bot needs an ASR Provider (`asr-not-configured`) and a free call slot (`call-active`, `calls-full`). Other errors: `invalid-url`, `unsupported-platform`, `already-in-meeting`, `not-in-meeting`, `join-failed`. What the Bot hears arrives in its Bot Inbox as `meeting-speech`, never in a Channel; when the meeting ends the Bot writes the recap to the Channel the link came from. Platform page drivers (Zoom first) ship separately; until one is installed, every link returns `unsupported-platform`.
+`call-simulate --as-meeting` plays a WAV (or an audio-only `--script`) as meeting sound without a window, waits until every heard sentence is transcribed, hangs up and prints the usual report; the transcript is then readable with `meeting-transcript`. `meeting-leave` stops listening and ends the call (`not-in-meeting` when there is none). Listening also stops after 4 hours.
 
 ### Browser and Computer: observation, packages, transfer and logs
 

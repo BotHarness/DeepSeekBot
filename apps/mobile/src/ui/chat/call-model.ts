@@ -34,6 +34,8 @@ function noticeText(t: Strings, notice: CallNotice): string {
       return t.call.noMicrophone;
     case 'microphone-missing':
       return t.call.microphoneMissing;
+    case 'meeting-sound-missing':
+      return t.call.ended['media-failed'];
     case 'refused':
       return t.call.ended.refused;
     case 'missing.asr':

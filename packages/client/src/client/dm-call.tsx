@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
+import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
@@ -12,9 +13,21 @@ import {
 } from './desktop-call.js';
 import { askCallNotifications } from './call-presence.js';
 import { IconButton } from './ds/icon-button.js';
+import { color, radius } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useVoiceRipple } from './voice-ripple.js';
+
+const styles = stylex.create({
+  stop: {
+    borderRadius: radius.round,
+    backgroundColor: {
+      default: color.danger,
+      ':hover': `color-mix(in srgb, ${color.danger} 88%, black)`,
+    },
+    color: { default: color.onDanger, ':hover': color.onDanger },
+  },
+});
 
 export function DmCallControl({
   slug,
@@ -34,7 +47,7 @@ export function DmCallControl({
   const wrap = variant === 'island' ? 'bh-channel-island-wrap bh-call-control' : 'bh-call-control';
   const anchor = useRef<HTMLSpanElement>(null);
   const [place, setPlace] = useState<{ top: number; right: number }>();
-  const dial = () => {
+  const dial = (meeting = false) => {
     const rect = anchor.current?.getBoundingClientRect();
     if (rect !== undefined)
       setPlace({ top: rect.bottom + 8, right: Math.max(8, window.innerWidth - rect.right) });
@@ -48,6 +61,7 @@ export function DmCallControl({
             body: t('call.backgroundBody'),
             open: onReturn,
           },
+      meeting ? { meeting: true } : undefined,
     );
   };
   const snapshot = useSyncExternalStore(call.subscribe, call.snapshot, call.snapshot);
@@ -57,6 +71,54 @@ export function DmCallControl({
     !mine && (snapshot.state.status === 'opening' || snapshot.state.status === 'live');
   const speaking = view !== undefined && snapshot.state.status === 'live' && !view.muted;
   const rippleMount = useVoiceRipple<HTMLSpanElement>(speaking, call.level);
+
+  if (view !== undefined && snapshot.meeting === true) {
+    const time = formatCallDuration(view.durationMs);
+    return (
+      <span ref={anchor} className={wrap} data-variant={variant}>
+        <div
+          className="bh-call-island"
+          role="group"
+          aria-label={t('call.meeting.label', { name })}
+          data-tone={view.tone}
+        >
+          <span className="bh-call-dot" aria-hidden="true" />
+          <span className="bh-call-status" role="status" aria-live="polite">
+            {snapshot.state.status === 'live' ? t('call.meeting.status') : t(view.status)}
+          </span>
+          <span className="bh-call-duration" aria-label={t('call.duration', { time })}>
+            {time}
+          </span>
+          <span
+            ref={rippleMount}
+            className="bh-call-mic bh-voice-ripple"
+            data-ripple={speaking ? 'on' : undefined}
+          >
+            <IconButton
+              aria-label={
+                view.muted
+                  ? t('call.meeting.unmuteMe', { name })
+                  : t('call.meeting.muteMe', { name })
+              }
+              aria-pressed={view.muted}
+              data-muted={view.muted}
+              disabled={snapshot.state.status !== 'live'}
+              onClick={() => void call.mute(!view.muted)}
+            >
+              <ChannelSidebarIcon name={view.muted ? 'mic-off' : 'mic'} />
+            </IconButton>
+          </span>
+          <IconButton
+            xstyle={styles.stop}
+            aria-label={t('call.meeting.stop')}
+            onClick={() => void call.hangup()}
+          >
+            <ChannelSidebarIcon name="square" />
+          </IconButton>
+        </div>
+      </span>
+    );
+  }
 
   if (view !== undefined) {
     const time = formatCallDuration(view.durationMs);
@@ -142,9 +204,19 @@ export function DmCallControl({
           aria-label={t('call.start', { name })}
           aria-busy={mine && snapshot.checking}
           disabled={elsewhere || (mine && snapshot.checking)}
-          onClick={dial}
+          onClick={() => dial()}
         >
           <ChannelSidebarIcon name="phone" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip label={t('call.meeting.start', { name })} side="bottom" portal delayMs={500}>
+        <IconButton
+          aria-label={t('call.meeting.start', { name })}
+          aria-busy={mine && snapshot.checking && snapshot.meeting === true}
+          disabled={elsewhere || (mine && snapshot.checking)}
+          onClick={() => dial(true)}
+        >
+          <ChannelSidebarIcon name="audio-lines" />
         </IconButton>
       </Tooltip>
       {elsewhere ? (
@@ -167,7 +239,7 @@ export function DmCallControl({
               ))}
               <span className="bh-call-notice-actions">
                 {missing ? null : (
-                  <button type="button" onClick={dial}>
+                  <button type="button" onClick={() => dial(snapshot.meeting === true)}>
                     {t('call.again')}
                   </button>
                 )}

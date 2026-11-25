@@ -16,6 +16,8 @@ import { VoiceProviders } from '../../voice/providers.js';
 import { createVoiceMessages } from '../../voice/messages.js';
 import { createVoiceCalls, type VoiceCalls } from '../../voice/calls.js';
 import { MEETING_CHANNEL_PREFIX } from '../../voice/calls-types.js';
+import { dmChannelId } from '../../channels/channel.js';
+import { botOwner } from '../../team/bot-access.js';
 import { callVisualMessage } from '../../voice/call-text.js';
 import { voiceCallFramesAt, voiceCallRecordBody } from '../../channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from '../../voice/call-contract.js';
@@ -97,6 +99,22 @@ export function mountCalls(
     },
     providers: core.voiceProviders,
     media,
+    meetings: {
+      begin: ({ slug, callId, media: kind }) => {
+        const bot = core.registry.get(slug);
+        return core.meetings.begin({
+          slug,
+          callId,
+          platform: kind === 'synthetic' ? 'synthetic' : 'owner-window',
+          originChannelId: dmChannelId(slug),
+          dispatcher: {
+            kind: 'owner',
+            ...(bot === undefined ? {} : { id: botOwner(bot) }),
+          },
+        }).id;
+      },
+      callEnded: (meetingId, reason) => core.meetings.callEnded(meetingId, reason),
+    },
     async send({ channelId, messageId, body, callId, speech, visual }) {
       if (channelId.startsWith(MEETING_CHANNEL_PREFIX)) {
         core.meetings.hear(channelId.slice(MEETING_CHANNEL_PREFIX.length), body);
@@ -200,7 +218,7 @@ export function mountCalls(
     () => async () => {
       core.voiceSpeech.speak = undefined;
       core.voiceZoom.zoom = undefined;
-      await core.meetings.dispose();
+      core.meetings.dispose();
       core.voiceCallsRef.current = undefined;
       setDrafts(() => undefined);
       setCalls(undefined);

@@ -215,7 +215,6 @@ Usage:
   tobs bot-activity-history <id> [--before <YYYY-MM-DD>] [--weeks <1-104>]
   tobs group-activity <channel>
   tobs bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
-  tobs meeting-join <id> <meeting-url> [--listen-only] [--cause-event <source-event>]
   tobs meeting-leave <id>
   tobs meeting-status <id>
   tobs meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]

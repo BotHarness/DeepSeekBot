@@ -71,6 +71,7 @@ export interface DesktopCallPlace {
 export interface DesktopCallSnapshot {
   readonly slug: string | undefined;
   readonly place?: DesktopCallPlace | undefined;
+  readonly meeting?: boolean | undefined;
   readonly checking: boolean;
   readonly block: DesktopCallBlock | undefined;
   readonly state: CallClientState;
@@ -90,7 +91,11 @@ export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
 export interface DesktopCall {
   subscribe(listener: () => void): () => void;
   snapshot(): DesktopCallSnapshot;
-  start(slug: string, place?: DesktopCallPlace): Promise<void>;
+  start(
+    slug: string,
+    place?: DesktopCallPlace,
+    options?: { readonly meeting?: boolean },
+  ): Promise<void>;
   mute(muted: boolean): Promise<void>;
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
@@ -135,13 +140,15 @@ function desktopCapture(camera: CallCamera): DesktopCapture {
 export function createDesktopCall(
   options: {
     post?: CallPost;
-    media?: () => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
+    media?: (input: {
+      readonly meeting: boolean;
+    }) => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
   } = {},
 ): DesktopCall {
   const post = options.post ?? createCallPost(windowClientId());
-  const media = options.media ?? (() => createBrowserCallMedia());
+  const media = options.media ?? ((input) => createBrowserCallMedia(undefined, input));
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
   const listeners = new Set<() => void>();
@@ -180,14 +187,16 @@ export function createDesktopCall(
       return () => listeners.delete(listener);
     },
     snapshot: () => current,
-    async start(slug, place) {
+    async start(slug, place, startOptions) {
       if (current.checking || active()) return;
+      const meeting = startOptions?.meeting === true;
       session?.dispose();
       session = undefined;
       sessionMedia = undefined;
       set({
         slug,
         place,
+        meeting,
         checking: true,
         block: undefined,
         state: { status: 'idle' },
@@ -195,7 +204,7 @@ export function createDesktopCall(
       });
       let verdict: CallReadinessVerdict;
       try {
-        verdict = callReadinessVerdict(await readCallReadiness(post, slug));
+        verdict = callReadinessVerdict(await readCallReadiness(post, slug), { meeting });
       } catch {
         verdict = callReadinessVerdict({ code: 'unreachable', error: '' });
       }
@@ -206,7 +215,7 @@ export function createDesktopCall(
         });
         return;
       }
-      const ownedMedia = media();
+      const ownedMedia = media({ meeting });
       const owned: CallSession<DesktopCapture, CallCaptureErrorCode> = createCallSession<
         DesktopCapture,
         CallCaptureErrorCode
@@ -229,7 +238,7 @@ export function createDesktopCall(
       session = owned;
       sessionMedia = ownedMedia;
       set({ checking: false });
-      await owned.client.open(slug);
+      await owned.client.open(slug, meeting ? { meeting: true } : undefined);
     },
     async mute(muted) {
       await session?.client.mute(muted);
@@ -333,6 +342,7 @@ export type DesktopCallNoticeKey =
   | 'call.connectOnly'
   | 'call.microphoneDenied'
   | 'call.microphoneMissing'
+  | 'call.meetingSoundMissing'
   | 'call.ended.connectionLost'
   | 'call.ended.connectTimeout'
   | 'call.ended.mediaFailed'
@@ -355,6 +365,7 @@ const NOTICE: Record<CallNotice, DesktopCallNoticeKey> = {
   'connect-only': 'call.connectOnly',
   'microphone-denied': 'call.microphoneDenied',
   'microphone-missing': 'call.microphoneMissing',
+  'meeting-sound-missing': 'call.meetingSoundMissing',
   'ended.connection-lost': 'call.ended.connectionLost',
   'ended.connect-timeout': 'call.ended.connectTimeout',
   'ended.media-failed': 'call.ended.mediaFailed',

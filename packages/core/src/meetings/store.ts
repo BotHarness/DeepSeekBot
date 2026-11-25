@@ -3,20 +3,18 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
-export type MeetingPlatform = 'zoom' | 'synthetic';
-export type MeetingState = 'waiting' | 'in-meeting' | 'left' | 'failed';
+export type MeetingPlatform = 'owner-window' | 'synthetic';
+export type MeetingState = 'in-meeting' | 'left' | 'failed';
 export type MeetingEndReason =
-  | 'meeting-ended'
-  | 'alone'
+  | 'owner-stopped'
   | 'time-limit'
   | 'asked-to-leave'
-  | 'not-admitted'
   | 'join-failed'
   | 'audio-lost'
   | 'host-stopped';
 
 export interface MeetingDispatcher {
-  readonly kind: 'owner' | 'member' | 'external' | 'bot';
+  readonly kind: 'owner';
   readonly id?: string | undefined;
   readonly name?: string | undefined;
 }
@@ -25,13 +23,11 @@ export interface MeetingAttendance {
   readonly id: string;
   readonly botSlug: string;
   readonly platform: MeetingPlatform;
-  readonly url: string;
+  readonly callId: string;
   readonly state: MeetingState;
-  readonly listenOnly: boolean;
   readonly originChannelId?: string | undefined;
   readonly dispatcher: MeetingDispatcher;
   readonly startedAt: string;
-  readonly joinedAt?: string | undefined;
   readonly endedAt?: string | undefined;
   readonly endReason?: MeetingEndReason | undefined;
 }
@@ -39,7 +35,7 @@ export interface MeetingAttendance {
 export interface MeetingLine {
   readonly seq: number;
   readonly at: string;
-  readonly author: 'meeting' | 'bot';
+  readonly author: 'meeting';
   readonly speaker?: string | undefined;
   readonly body: string;
 }
@@ -47,13 +43,12 @@ export interface MeetingLine {
 export interface MeetingSpeechFacts {
   readonly id: string;
   readonly platform: MeetingPlatform;
-  readonly listenOnly: boolean;
   readonly originChannelId?: string | undefined;
   readonly lines: readonly MeetingLine[];
   readonly ended?: MeetingEndReason | undefined;
 }
 
-export const MEETING_LIVE_STATES: readonly MeetingState[] = ['waiting', 'in-meeting'];
+export const MEETING_LIVE_STATES: readonly MeetingState[] = ['in-meeting'];
 const TOPICS = ['meetings', 'source-event', 'bot-inbox'] as const;
 const PENDING_LINES = 200;
 
@@ -61,13 +56,11 @@ interface AttendanceRow {
   attendance_id: string;
   bot_slug: string;
   platform: MeetingPlatform;
-  url: string;
+  call_id: string;
   state: MeetingState;
-  listen_only: number;
   origin_channel_id: string | null;
   dispatcher_json: string;
   started_at: string;
-  joined_at: string | null;
   ended_at: string | null;
   end_reason: MeetingEndReason | null;
 }
@@ -77,13 +70,11 @@ function attendance(row: AttendanceRow): MeetingAttendance {
     id: row.attendance_id,
     botSlug: row.bot_slug,
     platform: row.platform,
-    url: row.url,
+    callId: row.call_id,
     state: row.state,
-    listenOnly: row.listen_only === 1,
     ...(row.origin_channel_id === null ? {} : { originChannelId: row.origin_channel_id }),
     dispatcher: JSON.parse(row.dispatcher_json) as MeetingDispatcher,
     startedAt: row.started_at,
-    ...(row.joined_at === null ? {} : { joinedAt: row.joined_at }),
     ...(row.ended_at === null ? {} : { endedAt: row.ended_at }),
     ...(row.end_reason === null ? {} : { endReason: row.end_reason }),
   };
@@ -93,18 +84,19 @@ export interface MeetingStore {
   create(input: {
     botSlug: string;
     platform: MeetingPlatform;
-    url: string;
-    listenOnly: boolean;
+    callId: string;
     originChannelId?: string | undefined;
     dispatcher: MeetingDispatcher;
   }): MeetingAttendance;
   get(id: string): MeetingAttendance | undefined;
   live(botSlug: string): MeetingAttendance | undefined;
   list(botSlug: string, limit?: number): MeetingAttendance[];
-  joined(id: string): MeetingAttendance | undefined;
   hear(id: string, line: { speaker?: string | undefined; body: string }): HeardLine | undefined;
-  said(id: string, body: string): MeetingLine | undefined;
-  end(id: string, state: 'left' | 'failed', reason: MeetingEndReason): HeardLine | undefined;
+  end(
+    id: string,
+    state: 'left' | 'failed',
+    reason: MeetingEndReason,
+  ): { readonly admitted: boolean } | undefined;
   lines(id: string, after?: number): MeetingLine[];
   failInterrupted(): string[];
 }
@@ -177,7 +169,6 @@ export function createMeetingStore(options: {
     const facts: MeetingSpeechFacts = {
       id: current.attendance_id,
       platform: current.platform,
-      listenOnly: current.listen_only === 1,
       ...(current.origin_channel_id === null ? {} : { originChannelId: current.origin_channel_id }),
       lines,
       ...(ended === undefined ? {} : { ended }),
@@ -213,14 +204,13 @@ export function createMeetingStore(options: {
       database.transaction((db) => {
         db.prepare(`
           INSERT INTO meeting_attendances
-            (attendance_id, bot_slug, platform, url, state, listen_only, origin_channel_id, dispatcher_json, started_at)
-          VALUES (?, ?, ?, ?, 'waiting', ?, ?, ?, ?)
+            (attendance_id, bot_slug, platform, call_id, state, origin_channel_id, dispatcher_json, started_at)
+          VALUES (?, ?, ?, ?, 'in-meeting', ?, ?, ?)
         `).run(
           id,
           input.botSlug,
           input.platform,
-          input.url,
-          input.listenOnly ? 1 : 0,
+          input.callId,
           input.originChannelId ?? null,
           JSON.stringify(input.dispatcher),
           startedAt,
@@ -238,7 +228,7 @@ export function createMeetingStore(options: {
       return database.read((db) => {
         const found = db
           .prepare(
-            "SELECT * FROM meeting_attendances WHERE bot_slug = ? AND state IN ('waiting', 'in-meeting') ORDER BY started_at DESC LIMIT 1",
+            "SELECT * FROM meeting_attendances WHERE bot_slug = ? AND state = 'in-meeting' ORDER BY started_at DESC LIMIT 1",
           )
           .get(botSlug) as AttendanceRow | undefined;
         return found === undefined ? undefined : attendance(found);
@@ -255,15 +245,6 @@ export function createMeetingStore(options: {
         ).map(attendance),
       );
     },
-    joined(id) {
-      return database.transaction((db) => {
-        db.prepare(
-          "UPDATE meeting_attendances SET state = 'in-meeting', joined_at = ? WHERE attendance_id = ? AND state = 'waiting'",
-        ).run(now().toISOString(), id);
-        const found = row(db, id);
-        return found === undefined ? undefined : attendance(found);
-      }, TOPICS);
-    },
     hear(id, input) {
       const body = input.body.trim();
       if (body === '') return undefined;
@@ -274,13 +255,6 @@ export function createMeetingStore(options: {
         return admit(db, current, line, undefined);
       }, TOPICS);
     },
-    said(id, body) {
-      return database.transaction((db) => {
-        const current = row(db, id);
-        if (current === undefined || current.state !== 'in-meeting') return undefined;
-        return appendLine(db, id, 'bot', undefined, body);
-      }, TOPICS);
-    },
     end(id, state, reason) {
       return database.transaction((db) => {
         const current = row(db, id);
@@ -288,7 +262,10 @@ export function createMeetingStore(options: {
         db.prepare(
           'UPDATE meeting_attendances SET state = ?, ended_at = ?, end_reason = ? WHERE attendance_id = ?',
         ).run(state, now().toISOString(), reason, id);
-        return current.state === 'in-meeting' ? admit(db, current, undefined, reason) : undefined;
+        const heard = db
+          .prepare('SELECT 1 FROM meeting_lines WHERE attendance_id = ? LIMIT 1')
+          .get(id);
+        return heard === undefined ? { admitted: false } : admit(db, current, undefined, reason);
       }, TOPICS);
     },
     lines(id, after = 0) {
@@ -317,12 +294,10 @@ export function createMeetingStore(options: {
     failInterrupted() {
       return database.transaction((db) => {
         const live = db
-          .prepare(
-            "SELECT attendance_id FROM meeting_attendances WHERE state IN ('waiting', 'in-meeting')",
-          )
+          .prepare("SELECT attendance_id FROM meeting_attendances WHERE state = 'in-meeting'")
           .all() as Array<{ attendance_id: string }>;
         db.prepare(
-          "UPDATE meeting_attendances SET state = 'failed', ended_at = ?, end_reason = 'host-stopped' WHERE state IN ('waiting', 'in-meeting')",
+          "UPDATE meeting_attendances SET state = 'failed', ended_at = ?, end_reason = 'host-stopped' WHERE state = 'in-meeting'",
         ).run(now().toISOString());
         return live.map((item) => item.attendance_id);
       }, TOPICS);

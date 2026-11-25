@@ -102,6 +102,10 @@ export interface VoiceCallsDeps {
     cool?(id: string): void;
   };
   media(): VoiceCallMedia | undefined;
+  meetings?: {
+    begin(input: { slug: string; callId: string; media: 'webrtc' | 'synthetic' }): string;
+    callEnded(meetingId: string, reason: VoiceCallEndReason): void;
+  };
   send(input: {
     slug: string;
     channelId: string;
@@ -177,9 +181,9 @@ export interface Call {
   readonly channelId: string;
   readonly caller: string;
   readonly client: string | undefined;
-  readonly media: 'webrtc' | 'synthetic' | 'meeting';
+  readonly media: 'webrtc' | 'synthetic';
+  readonly meetingId?: string | undefined;
   readonly startedAt: number;
-  onEnded?: ((reason: VoiceCallEndReason) => void) | undefined;
   readonly abort: AbortController;
   visual: CallVisualSource | 'off';
   visualSession: number;
@@ -257,24 +261,8 @@ export interface VoiceCalls {
     picture?: boolean | undefined;
   }): Promise<VoiceCallText | undefined>;
   revoke(deviceId: string): Promise<void>;
-  attend(input: VoiceCallMeetingInput): Promise<VoiceCallMeetingLeg>;
   dispose(): Promise<void>;
 }
-
-export interface VoiceCallMeetingInput {
-  readonly slug: string;
-  readonly meetingId: string;
-  readonly onEnded: (reason: VoiceCallEndReason) => void;
-}
-
-export interface VoiceCallMeetingLeg {
-  readonly callId: string;
-  hear(samples: Int16Array): void;
-  touch(): void;
-  end(reason: VoiceCallEndReason): Promise<void>;
-}
-
-export const MEETING_CHANNEL_PREFIX = 'meeting:';
 
 export const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
 
@@ -303,3 +291,5 @@ export interface Reply {
   archived: Spoken[];
   settleArchive?: (archive: Promise<{ clip?: AudioClip; interrupted: boolean }>) => void;
 }
+
+export const MEETING_CHANNEL_PREFIX = 'meeting:';

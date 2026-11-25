@@ -39,10 +39,8 @@ import * as messaging from './features/messaging/plugin.js';
 import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import { createMeetingStore } from './meetings/store.js';
-import { createMeetings, type MeetingFarEnd } from './meetings/meetings.js';
-import { createBrowserFarEnd } from './meetings/browser-far-end.js';
-import { findMeetingChrome } from './meetings/meeting-browser.js';
-import { zoomDriver } from './meetings/zoom-driver.js';
+import { createMeetings } from './meetings/meetings.js';
+import { VOICE_CALL_HOST_OWNER } from './voice/call-contract.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -363,28 +361,18 @@ function initializeCore(
     options,
   );
   startup.enter('meetings', 'initialize');
-  const meetingFarEnds: { list: MeetingFarEnd[] } = {
-    list: [createBrowserFarEnd(zoomDriver, { chrome: () => findMeetingChrome() })],
-  };
   const meetingStore = createMeetingStore({
     database: attachOperationalModule(operationalDatabase, 'meetings'),
   });
   if (operationalDatabase.mode === 'ready') meetingStore.failInterrupted();
   const meetings = createMeetings({
     store: meetingStore,
-    calls: () => voiceCallsRef.current,
-    farEnds: () => meetingFarEnds.list,
-    bot: (slug) => {
-      const bot = registry.get(slug);
-      if (bot === undefined) return undefined;
-      const asr = voiceProviders.effective(bot)?.asr;
-      return {
-        displayName: bot.displayName,
-        ...(bot.paused === true ? { paused: true } : {}),
-        ...(asr === undefined ? {} : { asr }),
-      };
+    async stopCall(callId) {
+      await voiceCallsRef.current?.handle(
+        { deviceId: VOICE_CALL_HOST_OWNER },
+        { kind: 'hangup', callId },
+      );
     },
-    hasAsr: (id) => voiceProviders.has(id, 'asr'),
     admitted: (slug) => runtime?.admitMeetingSpeech?.(slug),
     ...(options.voiceLog === undefined
       ? {}
@@ -464,7 +452,6 @@ function initializeCore(
     voiceCallsRef,
     meetings,
     meetingStore,
-    meetingFarEnds,
     prompts,
     deletions,
     profileRecovery,

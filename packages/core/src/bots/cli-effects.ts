@@ -348,7 +348,6 @@ export const CLI_EFFECTS = {
   'marketplace-upload': { effects: external, brokerRead: false },
   'marketplace-upload-plan': { effects: read, brokerRead: true },
   members: { effects: management, brokerRead: false },
-  'meeting-join': { effects: external, brokerRead: false },
   'meeting-leave': { effects: write, brokerRead: false },
   'meeting-status': { effects: read, brokerRead: true },
   'meeting-transcript': { effects: read, brokerRead: true },

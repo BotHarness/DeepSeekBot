@@ -64,24 +64,34 @@ function hostMedia(): VoiceCallMedia {
   };
 }
 
-function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean } = {}) {
+function host(
+  options: { asr?: boolean; tts?: boolean; busy?: () => boolean; localOff?: boolean } = {},
+) {
   const records: { state: string; source?: string }[] = [];
+  const meetings: string[] = [];
   const calls: VoiceCalls = createVoiceCalls({
     bot: (slug) =>
       slug === 'mira'
         ? {
             slug,
             ...(options.asr === false ? {} : { asr: { providerId: 'asr-000000000001' } }),
-            voice: { providerId: 'tts-000000000001' },
+            ...(options.tts === false ? {} : { voice: { providerId: 'tts-000000000001' } }),
           }
         : undefined,
     providers: {
-      has: (id, kind) => id.startsWith(kind),
+      has: (id, kind) => id.startsWith(kind) && (kind !== 'tts' || options.tts !== false),
       ...(options.localOff ? { localServiceOff: async () => true } : {}),
       transcribe: async () => ({ text: 'hi', latencyMs: 1 }),
       synthesize: async () => ({ audio: new Uint8Array(4), mime: 'audio/wav' }),
     },
     media: hostMedia,
+    meetings: {
+      begin: ({ slug, callId }) => {
+        meetings.push(`begin ${slug} ${callId.slice(0, 5)}`);
+        return 'meet-1';
+      },
+      callEnded: (id, reason) => meetings.push(`ended ${id} ${reason}`),
+    },
     send: async () => undefined,
     record: async ({ record }) => {
       records.push(record);
@@ -93,7 +103,7 @@ function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean
   const route = createVoiceCallHttp(() => calls);
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) =>
     route(new Request(new URL(String(input), 'http://host/'), init))) as typeof fetch;
-  return { calls, fetcher, records };
+  return { calls, fetcher, records, meetings };
 }
 
 function windowMedia(refuse?: Error) {
@@ -185,13 +195,17 @@ function desktopWindow(
   refuse?: Error,
 ) {
   const media = windowMedia(refuse);
+  const modes: boolean[] = [];
   const call = createDesktopCall({
     post: createCallPost(client, fetcher),
-    media: () => media.media,
+    media: ({ meeting }) => {
+      modes.push(meeting);
+      return media.media;
+    },
     capture: (source, handlers) => camera.make(source, handlers),
   });
   cleanup.push(() => call.hangup());
-  return { call, media, camera };
+  return { call, media, camera, modes };
 }
 
 function translate() {
@@ -346,6 +360,54 @@ describe('desktop call', () => {
       element.querySelector<HTMLButtonElement>('button[aria-label="Hang up"]')!.click(),
     );
     expect(element.querySelector('button[aria-label="Call Mira"]')).not.toBeNull();
+  });
+
+  it('brings a Bot without TTS to a meeting from the chat header and stops listening', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher, meetings, records } = host({ tts: false });
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    await act(async () =>
+      root.render(<DmCallControl slug="mira" name="Mira" t={translate()} call={mac.call} />),
+    );
+    await act(async () =>
+      element.querySelector<HTMLButtonElement>('button[aria-label="Call Mira"]')!.click(),
+    );
+    expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.missing.tts']);
+    mac.call.dismiss();
+
+    const bring = element.querySelector<HTMLButtonElement>(
+      'button[aria-label="Bring Mira to a meeting"]',
+    )!;
+    await act(async () => bring.click());
+    await act(async () => {
+      for (let index = 0; index < 20 && mac.call.snapshot().state.status !== 'live'; index += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(mac.modes).toEqual([true]);
+    const bar = element.querySelector(
+      '[role="group"][aria-label="Mira is listening to the meeting"]',
+    )!;
+    expect(bar).not.toBeNull();
+    expect(bar.querySelector('[role="status"]')?.textContent).toBe('Listening to the meeting');
+    expect(bar.querySelector('button[aria-label="Turn camera on"]')).toBeNull();
+    await act(async () =>
+      bar
+        .querySelector<HTMLButtonElement>('button[aria-label="Keep my microphone from Mira"]')!
+        .click(),
+    );
+    expect(mac.media.muted).toEqual([true]);
+    expect(
+      element.querySelector('button[aria-label="Let Mira hear my microphone too"]'),
+    ).not.toBeNull();
+    await act(async () =>
+      element.querySelector<HTMLButtonElement>('button[aria-label="Stop listening"]')!.click(),
+    );
+    expect(meetings).toEqual(['begin mira call-', 'ended meet-1 hangup']);
+    expect(records).toEqual([]);
+    expect(element.querySelector('button[aria-label="Bring Mira to a meeting"]')).not.toBeNull();
   });
 
   it('offers hang-up from another Bot chat while a call runs', async () => {

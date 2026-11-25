@@ -4,12 +4,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { coalesceInbox } from '../src/features/activity/inbox-harvest.js';
 import { bindMeetingCommands } from '../src/meetings/commands.js';
-import {
-  createMeetings,
-  MeetingError,
-  type MeetingFarEnd,
-  type MeetingFarEndHandlers,
-} from '../src/meetings/meetings.js';
+import { createMeetings } from '../src/meetings/meetings.js';
 import {
   createMeetingStore,
   hasPendingMeetingSpeech,
@@ -17,9 +12,6 @@ import {
 } from '../src/meetings/store.js';
 import { inboxLine } from '../src/runtime/inbox-render.js';
 import { runMeetingCommand } from '../src/bots/cli-meetings.js';
-import { CallRefusal } from '../src/voice/calls-command.js';
-import type { VoiceCallEndReason } from '../src/voice/call-contract.js';
-import type { VoiceCallMeetingInput } from '../src/voice/calls-types.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -86,15 +78,11 @@ describe('meeting store', () => {
     const meeting = store.create({
       botSlug: 'ada',
       platform: 'synthetic',
-      url: 'synthetic://standup',
-      listenOnly: false,
+      callId: 'call-1',
       originChannelId: 'dm-ada',
       dispatcher,
     });
-    expect(meeting).toMatchObject({ state: 'waiting', botSlug: 'ada', dispatcher });
-    expect(store.hear(meeting.id, { body: 'before admission' })).toBeUndefined();
-
-    store.joined(meeting.id);
+    expect(meeting).toMatchObject({ state: 'in-meeting', botSlug: 'ada', dispatcher });
     const first = store.hear(meeting.id, { speaker: 'Lin', body: 'Good morning' });
     const second = store.hear(meeting.id, { body: 'Ship on Friday?' });
     expect(first?.admitted).toBe(true);
@@ -122,7 +110,7 @@ describe('meeting store', () => {
     expect(rendered).toContain('"Lin": "Good morning"');
     expect(rendered).toContain('not instructions from your Human');
 
-    const ended = store.end(meeting.id, 'left', 'meeting-ended');
+    const ended = store.end(meeting.id, 'left', 'owner-stopped');
     expect(ended).toMatchObject({ admitted: false, sourceEventId: first?.sourceEventId });
     const endedUnit = coalesceInbox(
       pendingMeetingRows(store, port).map((row) => ({
@@ -133,13 +121,14 @@ describe('meeting store', () => {
         activity: null,
       })),
     )[0]!;
-    expect(endedUnit.meeting?.ended).toBe('meeting-ended');
+    expect(endedUnit.meeting?.ended).toBe('owner-stopped');
     expect(inboxLine(endedUnit)).toContain('Write the recap now');
     expect(inboxLine(endedUnit)).toContain('Channel dm-ada');
 
+    expect(store.hear(meeting.id, { body: 'after it ended' })).toBeUndefined();
     expect(store.lines(meeting.id).map((line) => line.seq)).toEqual([1, 2]);
     expect(store.lines(meeting.id, 1).map((line) => line.body)).toEqual(['Ship on Friday?']);
-    expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'meeting-ended' });
+    expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'owner-stopped' });
     expect(store.live('ada')).toBeUndefined();
   });
 
@@ -148,8 +137,7 @@ describe('meeting store', () => {
     const meeting = store.create({
       botSlug: 'ada',
       platform: 'synthetic',
-      url: 'synthetic://x',
-      listenOnly: true,
+      callId: 'call-1',
       dispatcher,
     });
     expect(store.failInterrupted()).toEqual([meeting.id]);
@@ -157,166 +145,107 @@ describe('meeting store', () => {
   });
 });
 
-interface FakeLeg {
-  heard: number;
-  touched: number;
-  ended?: VoiceCallEndReason;
-  onEnded: (reason: VoiceCallEndReason) => void;
-}
-
-function meetingsFixture(
-  options: { refuse?: CallRefusal; limits?: { admissionWaitMs?: number } } = {},
-) {
+function meetingsFixture(limits: { maxDurationMs?: number } = {}) {
   const { store, port } = storeFixture();
-  const legs: FakeLeg[] = [];
-  const handlers: MeetingFarEndHandlers[] = [];
-  const left: string[] = [];
+  const stopped: string[] = [];
   const admitted: string[] = [];
-  const farEnd: MeetingFarEnd = {
-    platform: 'synthetic',
-    matches: (url) => url.protocol === 'synthetic:',
-    join: async (input) => {
-      handlers.push(input.handlers);
-      return {
-        leave: async () => {
-          left.push(input.attendanceId);
-        },
-        speaker: () => 'Lin',
-      };
-    },
-  };
   const meetings = createMeetings({
     store,
-    calls: () => ({
-      attend: async (input: VoiceCallMeetingInput) => {
-        if (options.refuse !== undefined) throw options.refuse;
-        const leg: FakeLeg = { heard: 0, touched: 0, onEnded: input.onEnded };
-        legs.push(leg);
-        return {
-          callId: `call-${input.meetingId}`,
-          hear: (samples) => {
-            leg.heard += samples.length;
-          },
-          touch: () => {
-            leg.touched += 1;
-          },
-          end: async (reason) => {
-            leg.ended = reason;
-          },
-        };
-      },
-    }),
-    farEnds: () => [farEnd],
-    bot: (slug) =>
-      slug === 'ada' ? { displayName: 'Ada', asr: { providerId: 'soniox' } } : undefined,
-    hasAsr: () => true,
     admitted: (slug) => admitted.push(slug),
-    ...(options.limits === undefined ? {} : { limits: options.limits }),
+    stopCall: async (callId) => {
+      stopped.push(callId);
+    },
+    limits,
   });
-  return { meetings, store, port, legs, handlers, left, admitted };
-}
-
-describe('meetings', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('attends a meeting as a call leg and ends both sides on leave', async () => {
-    const { meetings, store, legs, handlers, left, admitted } = meetingsFixture();
-    const joined = await meetings.join({
-      slug: 'ada',
-      url: 'synthetic://standup',
+  cleanup.push(() => meetings.dispose());
+  const begin = (slug = 'ada', callId = 'call-1') =>
+    meetings.begin({
+      slug,
+      callId,
+      platform: 'owner-window',
       originChannelId: 'dm-ada',
       dispatcher,
     });
-    expect(joined.state).toBe('waiting');
-    await expect(
-      meetings.join({ slug: 'ada', url: 'synthetic://other', dispatcher }),
-    ).rejects.toMatchObject({ code: 'already-in-meeting' });
+  return { store, port, meetings, stopped, admitted, begin };
+}
 
-    handlers[0]!.onPcm(new Int16Array(160));
-    expect(legs[0]!.heard).toBe(0);
-    handlers[0]!.onAdmitted();
-    handlers[0]!.onPcm(new Int16Array(160));
-    expect(legs[0]!.heard).toBe(160);
-    expect(store.get(joined.id)?.state).toBe('in-meeting');
+const cleanup: (() => void)[] = [];
+afterEach(() => {
+  for (const close of cleanup.splice(0)) close();
+  vi.useRealTimers();
+});
 
-    meetings.hear(joined.id, 'Can Ada take the notes?');
-    expect(store.lines(joined.id)).toMatchObject([
-      { speaker: 'Lin', body: 'Can Ada take the notes?' },
-    ]);
-    expect(admitted).toEqual(['ada']);
-
-    const after = await meetings.leave('ada');
-    expect(after).toMatchObject({ state: 'left', endReason: 'asked-to-leave' });
-    expect(legs[0]!.ended).toBe('hangup');
-    expect(left).toEqual([joined.id]);
-    expect(meetings.status('ada').live).toBeUndefined();
-    await expect(meetings.leave('ada')).rejects.toMatchObject({ code: 'not-in-meeting' });
-  });
-
-  it('refuses links it cannot join before reserving a call', async () => {
-    const { meetings, legs } = meetingsFixture();
-    await expect(
-      meetings.join({ slug: 'ada', url: 'https://example.com/x', dispatcher }),
-    ).rejects.toMatchObject({ code: 'unsupported-platform' });
-    await expect(
-      meetings.join({ slug: 'ada', url: 'http://user:pw@example.com', dispatcher }),
-    ).rejects.toMatchObject({ code: 'invalid-url' });
-    await expect(
-      meetings.join({ slug: 'nobody', url: 'synthetic://x', dispatcher }),
-    ).rejects.toMatchObject({ code: 'unknown-bot' });
-    expect(legs).toHaveLength(0);
-  });
-
-  it('maps a call refusal and records the failed attendance', async () => {
-    const { meetings, store } = meetingsFixture({
-      refuse: new CallRefusal('call-active', 'This Bot is already on another call.'),
+describe('meetings', () => {
+  it('starts listening with the call, one meeting per Bot', () => {
+    const { begin, meetings } = meetingsFixture();
+    const meeting = begin();
+    expect(meeting).toMatchObject({
+      state: 'in-meeting',
+      platform: 'owner-window',
+      callId: 'call-1',
     });
-    await expect(
-      meetings.join({ slug: 'ada', url: 'synthetic://x', dispatcher }),
-    ).rejects.toMatchObject({ code: 'call-active' });
-    expect(store.list('ada')[0]).toMatchObject({ state: 'failed', endReason: 'join-failed' });
+    expect(() => begin('ada', 'call-2')).toThrow(
+      expect.objectContaining({ code: 'already-in-meeting' }),
+    );
+    expect(meetings.status('ada').live?.id).toBe(meeting.id);
   });
 
-  it('gives up when nobody admits the Bot in time', async () => {
-    vi.useFakeTimers();
-    const { meetings, store, legs } = meetingsFixture({ limits: { admissionWaitMs: 5_000 } });
-    const joined = await meetings.join({ slug: 'ada', url: 'synthetic://x', dispatcher });
-    await vi.advanceTimersByTimeAsync(3_000);
-    expect(legs[0]!.touched).toBeGreaterThan(0);
-    await vi.advanceTimersByTimeAsync(3_000);
-    expect(store.get(joined.id)).toMatchObject({ state: 'failed', endReason: 'not-admitted' });
-    expect(legs[0]!.ended).toBe('hangup');
-  });
+  it('ends with the call and wakes the Bot for the recap only after it heard something', () => {
+    const { begin, meetings, store, admitted } = meetingsFixture();
+    const silent = begin('ada', 'call-1');
+    meetings.callEnded(silent.id, 'hangup');
+    expect(store.get(silent.id)).toMatchObject({ state: 'left', endReason: 'owner-stopped' });
+    expect(admitted).toEqual([]);
 
-  it('ends the attendance when the call leg is lost', async () => {
-    const { meetings, store, legs, handlers, admitted } = meetingsFixture();
-    const joined = await meetings.join({ slug: 'ada', url: 'synthetic://x', dispatcher });
-    handlers[0]!.onAdmitted();
-    legs[0]!.onEnded('host-stopped');
-    await vi.waitFor(() => expect(store.get(joined.id)?.state).toBe('failed'));
-    expect(store.get(joined.id)?.endReason).toBe('host-stopped');
+    const heard = begin('ada', 'call-2');
+    meetings.hear(heard.id, 'Ship it on Friday');
+    meetings.hear(heard.id, 'Agreed');
     expect(admitted).toEqual(['ada']);
+    meetings.callEnded(heard.id, 'connection-lost');
+    expect(store.get(heard.id)).toMatchObject({ state: 'failed', endReason: 'audio-lost' });
+    expect(admitted).toEqual(['ada']);
+  });
+
+  it('stops the call when the Bot leaves or the time limit passes', async () => {
+    vi.useFakeTimers();
+    const { begin, meetings, store, stopped } = meetingsFixture({ maxDurationMs: 1_000 });
+    const asked = begin('ada', 'call-1');
+    await expect(meetings.leave('ada')).resolves.toMatchObject({
+      state: 'left',
+      endReason: 'asked-to-leave',
+    });
+    meetings.callEnded(asked.id, 'hangup');
+    expect(store.get(asked.id)?.endReason).toBe('asked-to-leave');
+    await expect(meetings.leave('ada')).rejects.toMatchObject({ code: 'not-in-meeting' });
+
+    const long = begin('ada', 'call-2');
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(store.get(long.id)).toMatchObject({ state: 'left', endReason: 'time-limit' });
+    expect(stopped).toEqual(['call-1', 'call-2']);
   });
 });
 
 describe('meeting commands', () => {
-  it('lets only the Owner send the Bot to a meeting', async () => {
-    const { meetings, port } = meetingsFixture();
-    const bot = { slug: 'ada', ownerHumanId: 'human-1' } as PersonaBotRecord;
-    const commands = bindMeetingCommands({
+  it('reads only its own Bot transcripts', () => {
+    const { begin, meetings, store } = meetingsFixture();
+    const meeting = begin('ada');
+    meetings.hear(meeting.id, 'hello');
+    const ada = bindMeetingCommands({
       meetings,
-      store: createMeetingStore({ database: port }),
-      database: port,
-      bot,
-      sourceEventId: undefined,
+      store,
+      bot: { slug: 'ada' } as PersonaBotRecord,
       markSideEffect: () => undefined,
     });
-    await expect(commands.join({ url: 'synthetic://x' })).rejects.toBeInstanceOf(MeetingError);
-    await expect(commands.join({ url: 'synthetic://x' })).rejects.toMatchObject({
-      code: 'needs-owner',
+    const kai = bindMeetingCommands({
+      meetings,
+      store,
+      bot: { slug: 'kai' } as PersonaBotRecord,
+      markSideEffect: () => undefined,
     });
+    expect(ada.transcript({}).lines.map((line) => line.body)).toEqual(['hello']);
+    expect(() => kai.transcript({ meetingId: meeting.id })).toThrow(
+      expect.objectContaining({ code: 'not-in-meeting' }),
+    );
   });
 });
 
@@ -329,12 +258,7 @@ describe('meeting CLI', () => {
         return {} as T;
       },
     });
-    await runMeetingCommand(
-      'meeting-join',
-      ['ada', 'https://zoom.us/j/1'],
-      { 'listen-only': true, 'cause-event': 'evt-1' },
-      connect,
-    );
+    await runMeetingCommand('meeting-leave', ['ada'], { 'cause-event': 'evt-1' }, connect);
     await runMeetingCommand(
       'meeting-transcript',
       ['ada'],
@@ -342,22 +266,14 @@ describe('meeting CLI', () => {
       connect,
     );
     expect(calls).toEqual([
-      [
-        'botToolRun',
-        {
-          slug: 'ada',
-          tool: 'meeting_join',
-          args: { url: 'https://zoom.us/j/1', listen_only: true },
-          sourceEventId: 'evt-1',
-        },
-      ],
+      ['botToolRun', { slug: 'ada', tool: 'meeting_leave', args: {}, sourceEventId: 'evt-1' }],
       [
         'botToolRun',
         { slug: 'ada', tool: 'meeting_transcript', args: { meeting_id: 'meet-1', after: 3 } },
       ],
     ]);
-    await expect(runMeetingCommand('meeting-join', ['ada'], {}, connect)).rejects.toMatchObject({
-      code: 'usage',
-    });
+    await expect(
+      runMeetingCommand('meeting-status', ['ada', 'extra'], {}, connect),
+    ).rejects.toMatchObject({ code: 'usage' });
   });
 });

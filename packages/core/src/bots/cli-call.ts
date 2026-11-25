@@ -33,6 +33,7 @@ export interface CallValues {
   out?: string;
   'share-ends-at'?: string;
   'share-pause'?: string;
+  'as-meeting'?: boolean;
 }
 
 export const CALL_COMMANDS = [
@@ -58,7 +59,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in, or type a "text" into the DM during the call) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio (--as-meeting: play it as meeting sound the Bot only listens to, like Bring to a meeting, and report what it heard): plays --file <abs.wav> (or a --script <abs.json> timeline, where a step can wait for the Bot to start speaking to test barge-in, or type a "text" into the DM during the call) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--share-ends-at <ms> ends the share as the system would, leaving the call voice only; --share-pause <from>-<to> pauses it as a phone app in the background does), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -222,7 +223,12 @@ async function simulate(
   if (audioMs + replyWaitMs * (relative ? 2 : 1) > SIMULATION_BUDGET_MS)
     usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
   const visual = await loadVisual(values);
-  const opened = result(await post({ kind: 'open', slug, media: 'synthetic' }));
+  const meeting = values['as-meeting'] === true;
+  if (meeting && (visual !== undefined || steps.some((step) => step.text !== undefined)))
+    usage('--as-meeting plays audio only: no --video, --screen or typed text.');
+  const opened = result(
+    await post({ kind: 'open', slug, media: 'synthetic', ...(meeting ? { meeting: true } : {}) }),
+  );
   const call = opened.call as VoiceCallView;
   const callId = call.callId;
   const frames = [...(visual?.keyframes ?? [])];
@@ -395,7 +401,7 @@ async function simulate(
       count('speech-start') <= count('transcribing', 'noise-discarded') &&
       count('transcribing') <=
         count('sent', 'asr-failed', 'send-failed', 'nothing-heard') + filtered() &&
-      count('reply-done') >= count('sent', 'text');
+      (meeting || count('reply-done') >= count('sent', 'text'));
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
       await shareDue();

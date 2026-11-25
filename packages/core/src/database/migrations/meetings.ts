@@ -20,13 +20,11 @@ export const MEETING_ATTENDANCE_MIGRATION: SchemaMigration = {
         attendance_id TEXT PRIMARY KEY,
         bot_slug TEXT NOT NULL,
         platform TEXT NOT NULL,
-        url TEXT NOT NULL,
-        state TEXT NOT NULL CHECK (state IN ('waiting', 'in-meeting', 'left', 'failed')),
-        listen_only INTEGER NOT NULL DEFAULT 0 CHECK (listen_only IN (0, 1)),
+        call_id TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('in-meeting', 'left', 'failed')),
         origin_channel_id TEXT,
         dispatcher_json TEXT NOT NULL CHECK (json_valid(dispatcher_json)),
         started_at TEXT NOT NULL,
-        joined_at TEXT,
         ended_at TEXT,
         end_reason TEXT
       );
@@ -35,7 +33,7 @@ export const MEETING_ATTENDANCE_MIGRATION: SchemaMigration = {
         attendance_id TEXT NOT NULL REFERENCES meeting_attendances(attendance_id),
         seq INTEGER NOT NULL,
         at TEXT NOT NULL,
-        author TEXT NOT NULL CHECK (author IN ('meeting', 'bot')),
+        author TEXT NOT NULL CHECK (author = 'meeting'),
         speaker TEXT,
         body TEXT NOT NULL,
         PRIMARY KEY (attendance_id, seq)

@@ -419,9 +419,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
         : {
             meetings: bindMeetingCommands({
               ...ports.meetings,
-              database: ports.database,
               bot,
-              sourceEventId: turn.sourceEventId,
               markSideEffect: () => turn.markSideEffect(),
             }),
           }),

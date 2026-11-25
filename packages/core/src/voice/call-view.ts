@@ -45,6 +45,7 @@ export type CallNotice =
   | 'connect-only'
   | 'microphone-denied'
   | 'microphone-missing'
+  | 'meeting-sound-missing'
   | `ended.${Exclude<VoiceCallEndReason, 'hangup'>}`
   | 'refused';
 
@@ -62,6 +63,7 @@ export const CALL_NOTICES = [
   'connect-only',
   'microphone-denied',
   'microphone-missing',
+  'meeting-sound-missing',
   'ended.connection-lost',
   'ended.connect-timeout',
   'ended.media-failed',
@@ -211,7 +213,12 @@ export interface CallReadinessVerdict {
 
 const SETUP: ReadonlySet<VoiceCallMissing> = new Set(['bot', 'asr', 'tts']);
 
-export function callReadinessVerdict(readiness: CallReadinessAnswer): CallReadinessVerdict {
+export function callReadinessVerdict(
+  answer: CallReadinessAnswer,
+  options: { readonly meeting?: boolean } = {},
+): CallReadinessVerdict {
+  const readiness =
+    options.meeting === true && !('code' in answer) ? meetingReadiness(answer) : answer;
   if ('code' in readiness)
     return {
       dial: false,
@@ -231,6 +238,13 @@ export function callReadinessVerdict(readiness: CallReadinessAnswer): CallReadin
   return { dial: true, offered: true, blocked: undefined, notices: [] };
 }
 
+function meetingReadiness(
+  readiness: Exclude<CallReadinessAnswer, { code: unknown }>,
+): Exclude<CallReadinessAnswer, { code: unknown }> {
+  const missing = readiness.missing.filter((item) => item !== 'tts');
+  return { ...readiness, missing, ready: missing.length === 0 };
+}
+
 export interface CallEndView {
   readonly refused: boolean;
   readonly notice: CallNotice | undefined;
@@ -245,6 +259,8 @@ export function callEndView(state: CallClientState): CallEndView | undefined {
     return { refused, retry, notice: 'microphone-denied' };
   if (state.mediaCode === 'microphone-missing')
     return { refused, retry, notice: 'microphone-missing' };
+  if (state.mediaCode === 'meeting-sound-missing')
+    return { refused, retry, notice: 'meeting-sound-missing' };
   if (state.reason === 'refused') return { refused, retry, notice: callRefusalNotice(state.code) };
   if (state.reason === 'hangup') return { refused, retry, notice: undefined };
   return { refused, retry, notice: `ended.${state.reason}` };

@@ -87,6 +87,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     muted: call.muted,
     busy: call.busy,
     media: call.media,
+    ...(call.meetingId === undefined ? {} : { meetingId: call.meetingId }),
     visual: call.visual,
     startedAt: call.startedAt,
     durationMs: (call.endedAt ?? now()) - call.startedAt,
@@ -164,9 +165,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
     call.warmed = undefined;
     push(call, { type: 'ended', reason });
-    call.onEnded?.(reason);
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     recordEnd(call, reason);
+    if (call.meetingId !== undefined) deps.meetings?.callEnded(call.meetingId, reason);
     const perf = call.perf.view();
     if (perf === undefined && call.connected && call.peer?.stats !== undefined)
       log('call-media-summary', { call: call.id, samples: 0 });
@@ -373,7 +374,6 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
 
   return {
     handle: commands.handle,
-    attend: commands.attend,
     draft: onDraft,
     speak,
     zoom,

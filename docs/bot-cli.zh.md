@@ -735,16 +735,16 @@ deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--
 
 ### 在运行中的 Host 上参会
 
-Bot 参会就是一通通话（[ADR-0369](adr/0369-a-bot-attends-a-meeting-as-a-call-through-a-host-browser.md)）。这些命令经 Host 运行 `meeting_join`、`meeting_leave`、`meeting_status`、`meeting_transcript` 四个 Bot 工具，和 `bot-tool` 一样：
+Bot 通过主人的窗口听会（[通话 §14](decisions/calls.md#meeting-attendance)）：主人在 Bot 的私信里选「带去开会」，共享会议所在的标签页或系统声音，窗口把这些声音连同主人的麦克风作为一通 `meeting` 通话发给 Host（`open` 带 `meeting: true`）。Bot 需要绑定 ASR Provider，但不需要 TTS；参会占用它唯一的通话位（`call-active`、`calls-full`）。没有任何参会者加入会议，Bot 也不会在会上发声。Bot 听到的内容以 `meeting-speech` 进入它的 Bot Inbox，不会写进任何 Channel；停止听会后 Bot 把纪要发到私信。这些命令经 Host 运行 `meeting_leave`、`meeting_status`、`meeting_transcript` 三个 Bot 工具，和 `bot-tool` 一样：
 
 ```bash
-deepseekbot meeting-join <id> <meeting-url> [--listen-only] [--cause-event <source-event>]
+deepseekbot call-simulate <id> --file /abs/meeting.wav --as-meeting
 deepseekbot meeting-leave <id>
 deepseekbot meeting-status <id>
 deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
 ```
 
-目前只有 Bot 的 Owner 能让它参会：用 `--cause-event` 传入 Owner 发链接那条私信的 source event，否则返回 `needs-owner`。Bot 需要绑定 ASR Provider（`asr-not-configured`），并且有空闲通话位（`call-active`、`calls-full`）。其他错误：`invalid-url`、`unsupported-platform`、`already-in-meeting`、`not-in-meeting`、`join-failed`。Bot 听到的内容以 `meeting-speech` 进入它的 Bot Inbox，不会写进任何 Channel；会议结束后 Bot 把纪要发回链接来源的 Channel。各平台的页面驱动（先做 Zoom）单独发布，安装前所有链接都返回 `unsupported-platform`。
+`call-simulate --as-meeting` 不用窗口，把 WAV（或只含音频的 `--script`）当作会议声音播放，等每句话都转写完后挂断并输出通常的报告，之后可用 `meeting-transcript` 读取转写。`meeting-leave` 停止听会并结束通话（没有在听时返回 `not-in-meeting`）。听会满 4 小时也会自动停止。
 
 ### Local Computer 视频
 

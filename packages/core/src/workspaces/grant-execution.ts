@@ -428,7 +428,6 @@ const BOT_TOOL_NAMES = new Set([
   'bot_schedule_create',
   'bot_schedule_update',
   'bot_schedule_delete',
-  'meeting_join',
   'meeting_leave',
   'meeting_status',
   'meeting_transcript',

@@ -5,6 +5,7 @@ import {
   type CallMediaState,
 } from '../../../core/src/voice/call-client.js';
 
+import { MeetingSoundMissing, openMeetingSound, type MeetingSound } from './meeting-sound.js';
 import { openMicrophone } from './mic-device.js';
 import { levelDbfs, meterFraction } from './voice-level.js';
 
@@ -21,6 +22,12 @@ const MICROPHONE_MESSAGE = {
 export class CallMicrophoneError extends CallMediaFailure {
   constructor(override readonly code: 'microphone-denied' | 'microphone-missing') {
     super(code, MICROPHONE_MESSAGE[code]);
+  }
+}
+
+export class CallMeetingSoundError extends CallMediaFailure {
+  constructor() {
+    super('meeting-sound-missing', 'No meeting sound was shared.');
   }
 }
 
@@ -80,12 +87,14 @@ function meterMicrophone(stream: MediaStream): MicMeter | undefined {
 
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
+  options: { readonly meeting?: boolean } = {},
 ): BrowserCallMedia {
   const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
   let peer: RTCPeerConnection | undefined;
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
   let meter: MicMeter | undefined;
+  let sound: MeetingSound | undefined;
   let generation = 0;
   let muted = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
@@ -102,6 +111,8 @@ export function createBrowserCallMedia(
     }
     meter?.close();
     meter = undefined;
+    sound?.release();
+    sound = undefined;
     for (const track of stream?.getTracks() ?? []) track.stop();
     stream = undefined;
     if (speaker !== undefined) {
@@ -117,9 +128,16 @@ export function createBrowserCallMedia(
       if (media?.getUserMedia === undefined) throw new CallMicrophoneError('microphone-missing');
       const owned = generation;
       let acquired: MediaStream;
+      let opened: MeetingSound | undefined;
       try {
-        acquired = (await openMicrophone(media)).stream;
+        if (options.meeting === true) {
+          opened = await openMeetingSound(media, () => {
+            if (owned === generation) emit('closed', 'meeting-sound-ended');
+          });
+          acquired = opened.stream;
+        } else acquired = (await openMicrophone(media)).stream;
       } catch (error) {
+        if (error instanceof MeetingSoundMissing) throw new CallMeetingSoundError();
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new CallMicrophoneError(
           name === 'NotAllowedError' || name === 'SecurityError'
@@ -128,13 +146,16 @@ export function createBrowserCallMedia(
         );
       }
       if (owned !== generation) {
+        opened?.release();
         for (const late of acquired.getTracks()) late.stop();
         throw new Error('call-stopped');
       }
       stream = acquired;
+      sound = opened;
       const track = stream.getAudioTracks()[0];
       if (track === undefined) throw new CallMicrophoneError('microphone-missing');
-      track.enabled = !muted;
+      if (sound === undefined) track.enabled = !muted;
+      else sound.mute(muted);
       meter = meterMicrophone(stream);
       const current = new RTCPeerConnection({ iceServers: [] });
       peer = current;
@@ -166,7 +187,8 @@ export function createBrowserCallMedia(
     },
     mute(next) {
       muted = next;
-      for (const track of stream?.getAudioTracks() ?? []) track.enabled = !next;
+      if (sound !== undefined) sound.mute(next);
+      else for (const track of stream?.getAudioTracks() ?? []) track.enabled = !next;
     },
     stop() {
       release();

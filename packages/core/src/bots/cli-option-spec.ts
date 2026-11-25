@@ -44,6 +44,7 @@ export const CALL_OPTIONS = {
   screen: { type: 'string' },
   'share-ends-at': { type: 'string' },
   'share-pause': { type: 'string' },
+  'as-meeting': { type: 'boolean' },
 } as const;
 
 export const CHANNEL_OPTIONS = {
@@ -270,7 +271,6 @@ export const STORAGE_OPTIONS = {
 } as const;
 
 export const MEETING_OPTIONS = {
-  'listen-only': { type: 'boolean' },
   meeting: { type: 'string' },
 } as const;
 

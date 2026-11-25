@@ -129,7 +129,7 @@ export function createCallCommands(wiring: {
   reportDropped: (call: Call, source: CallVisualSource, dropped: number) => void;
   harvest: (call: Call) => void;
   zoom: (input: { slug?: string; messageId: string; cell: number }) => VoiceCallZoom;
-}): Pick<VoiceCalls, 'handle' | 'attend'> {
+}): Pick<VoiceCalls, 'handle'> {
   const {
     deps,
     live,
@@ -215,10 +215,10 @@ export function createCallCommands(wiring: {
   const prepareCall = async (
     caller: VoiceCaller,
     slug: string,
-    kind: 'webrtc' | 'synthetic' | 'meeting',
+    kind: 'webrtc' | 'synthetic',
     signal: AbortSignal,
     startedAt: number,
-    meetingId?: string,
+    meeting = false,
   ): Promise<Call> => {
     signal.throwIfAborted();
     const bot = deps.bot(slug);
@@ -229,10 +229,9 @@ export function createCallCommands(wiring: {
         'asr-not-configured',
         'Bind a speech recognition (ASR) Provider to this Bot before calling it.',
       );
-    if (
-      kind !== 'meeting' &&
-      (bot.voice === undefined || !deps.providers.has(bot.voice.providerId, 'tts'))
-    )
+    if (meeting && deps.meetings === undefined)
+      throw new CallRefusal('not-ready', 'Meetings are not available on this Host.');
+    if (!meeting && (bot.voice === undefined || !deps.providers.has(bot.voice.providerId, 'tts')))
       throw new CallRefusal(
         'tts-not-configured',
         'Bind a TTS Provider to this Bot before calling it.',
@@ -269,10 +268,20 @@ export function createCallCommands(wiring: {
     }
     signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
+    const id = `call-${randomBytes(8).toString('hex')}`;
+    let meetingId: string | undefined;
+    if (meeting)
+      try {
+        meetingId = deps.meetings!.begin({ slug, callId: id, media: kind });
+      } catch {
+        throw new CallRefusal('call-active', 'This Bot is already in a meeting.');
+      }
     const call: Call = {
-      id: `call-${randomBytes(8).toString('hex')}`,
+      id,
       slug,
-      channelId: kind === 'meeting' ? `${MEETING_CHANNEL_PREFIX}${meetingId}` : dmChannelId(slug),
+      channelId:
+        meetingId === undefined ? dmChannelId(slug) : `${MEETING_CHANNEL_PREFIX}${meetingId}`,
+      ...(meetingId === undefined ? {} : { meetingId }),
       caller: caller.deviceId,
       client: caller.client,
       media: kind,
@@ -336,7 +345,7 @@ export function createCallCommands(wiring: {
       log('call-connected', { call: call.id, ms: now() - call.startedAt });
       void samplePerf(call, now());
     };
-    if (kind === 'synthetic' || kind === 'meeting') {
+    if (kind === 'synthetic') {
       call.peer = syntheticPeer();
       connected();
     } else {
@@ -391,6 +400,7 @@ export function createCallCommands(wiring: {
     slug: string,
     kind: 'webrtc' | 'synthetic',
     signal: AbortSignal | undefined,
+    meeting = false,
   ): Promise<Call> => {
     const cancellation = new AbortController();
     const cancel = () => cancellation.abort();
@@ -411,7 +421,7 @@ export function createCallCommands(wiring: {
     });
     try {
       return await Promise.race([
-        prepareCall(caller, slug, kind, cancellation.signal, startedAt),
+        prepareCall(caller, slug, kind, cancellation.signal, startedAt, meeting),
         cancelled,
       ]);
     } finally {
@@ -445,7 +455,13 @@ export function createCallCommands(wiring: {
         const media = command['media'] ?? 'webrtc';
         if (media !== 'webrtc' && media !== 'synthetic')
           throw new CallRefusal('invalid-input', 'media must be webrtc or synthetic.');
-        return { ok: true, call: view(await open(caller, slugOf(command['slug']), media, signal)) };
+        const meeting = command['meeting'] ?? false;
+        if (typeof meeting !== 'boolean')
+          throw new CallRefusal('invalid-input', 'meeting must be true or false.');
+        return {
+          ok: true,
+          call: view(await open(caller, slugOf(command['slug']), media, signal, meeting)),
+        };
       }
       case 'signal': {
         const call = own(caller, command['callId']);
@@ -688,29 +704,6 @@ export function createCallCommands(wiring: {
   };
 
   return {
-    async attend(input) {
-      const call = await prepareCall(
-        { deviceId: `${MEETING_CHANNEL_PREFIX}${input.meetingId}` },
-        input.slug,
-        'meeting',
-        new AbortController().signal,
-        now(),
-        input.meetingId,
-      );
-      call.onEnded = input.onEnded;
-      return {
-        callId: call.id,
-        hear(samples) {
-          if (call.phase === 'ended') return;
-          call.lastHeartbeat = now();
-          hear(call, samples);
-        },
-        touch() {
-          call.lastHeartbeat = now();
-        },
-        end: (reason) => end(call, reason),
-      };
-    },
     async handle(caller, command, signal) {
       try {
         return await run(caller, command, signal);
