@@ -75,6 +75,7 @@ export function createHostBridgeDependencies(
     modelReadiness: ReturnType<typeof models.createCatalog>['modelReadiness'];
     sessionLive: SessionLiveStreams;
     nativeSessions: NativeSessions;
+    externalSessions: import('../features/sessions/external-sessions.js').ExternalSessionReader;
     takeovers: ReturnType<typeof createCoreTakeoverHandoffs>;
     folders: ReturnType<typeof workspacesFeature.mountFolders>;
     mountedToolApproval: ReturnType<typeof approvalsFeature.mount>['toolApproval'];
@@ -319,6 +320,7 @@ export function createHostBridgeDependencies(
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
     nativeSessions: deps.nativeSessions,
+    externalSessions: deps.externalSessions,
     async registerWorkspace(path) {
       const registry = ctx.get('workspaceRegistry') as unknown as
         | { create: NonNullable<BridgeMethodsDeps['registerWorkspace']> }

@@ -9,10 +9,12 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ExternalPermissionGroup,
   PermissionChoices,
-} from '../../../core/src/messaging/permission-groups.js';
+  SenderAccessInput,
+  BehaviorPermission,
+  BehaviorChoices,
+} from '../../../core/src/messaging/permissions/client.js';
 import type { PairingRequest } from '../../../core/src/messaging/pairing.js';
 import type { PairingCapability } from '../../../core/src/messaging/pairing.js';
-import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
@@ -28,10 +30,6 @@ import {
   BehaviorCompatibility,
   configuredBehaviorConflicts,
 } from './behavior-permission-settings.js';
-import type {
-  BehaviorPermission,
-  BehaviorChoices,
-} from '../../../core/src/messaging/behavior-policy.js';
 
 const capabilities = ['approve', 'reject', 'review-pairing', 'save-rules'] as const;
 const capabilityLabel = {

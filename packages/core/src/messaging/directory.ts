@@ -6,9 +6,13 @@ import type { ExternalSource } from './inbound.js';
 import { readMessagingIdentity } from './identity.js';
 import type { PairingRequest } from './pairing.js';
 import { MessagingError } from './provider.js';
-import { externalUserRoles, readSenderPolicy, trustedSenderReference } from './sender-access.js';
-import { effectivePairingPermissions } from './permission-groups.js';
-import { chatSenderNamespace } from './chat-sender.js';
+import {
+  externalUserRoles,
+  readSenderPolicy,
+  trustedSenderReference,
+  effectivePairingPermissions,
+  chatSenderNamespace,
+} from './permissions/index.js';
 
 const querySchema = z
   .object({

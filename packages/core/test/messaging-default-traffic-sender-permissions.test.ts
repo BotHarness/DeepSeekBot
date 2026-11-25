@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createDshImProvider } from '../src/messaging/dsh-im.js';
-import { readSourceSenderPermissions } from '../src/messaging/sender-access.js';
+import { readSourceSenderPermissions } from '../src/messaging/permissions/index.js';
 import {
   fingerprint,
   dm,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { resolveBehaviorPermissions } from '../messaging/behavior-policy.js';
+import { resolveBehaviorPermissions } from '../messaging/permissions/index.js';
 import { rolePolicySchema } from './bot-contract.js';
 import type { TeamRoles } from './roles.js';
 import type { HumanContext } from '../humans/context.js';

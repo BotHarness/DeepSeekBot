@@ -274,6 +274,7 @@ export function createHostSessionsMethods(
           ...(row.title === undefined ? {} : { title: row.title }),
           ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
           ...(row.archived === true ? { archived: true as const } : {}),
+          ...(cwd === undefined || !owner ? {} : { cwd }),
           ...(row.waiting === true ? { waiting: true as const } : {}),
           ...(row.model === undefined ? {} : { model: row.model }),
           running: row.running,

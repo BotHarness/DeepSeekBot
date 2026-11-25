@@ -8,7 +8,6 @@ type NativeProps = ViewProps & {
   pill: boolean;
   pillFade: number;
   pillHold: number;
-  fade: number;
   onSelect(event: NativeSyntheticEvent<{ tab: string; id: string }>): void;
 };
 
@@ -27,7 +26,6 @@ export function NativeTabMenus({ tabs, pill, onSelect }: NativeTabMenusProps) {
       pill={pill}
       pillFade={tabChrome.pillFade}
       pillHold={tabChrome.pillHold}
-      fade={tabChrome.tabFade}
       onSelect={({ nativeEvent }) => onSelect(nativeEvent.tab, nativeEvent.id)}
     />
   );

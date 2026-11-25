@@ -1,5 +1,9 @@
 import type { DshImOutboundService, DshImTarget } from '../../features/messaging/dsh-im-types.js';
-import type { MessagingAttachment, MessagingSetupVariant } from '../provider.js';
+import type {
+  MessagingAttachment,
+  MessagingInboundEvent,
+  MessagingSetupVariant,
+} from '../provider.js';
 
 export const messagingPlatformIds = ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const;
 export type MessagingPlatformId = (typeof messagingPlatformIds)[number];
@@ -57,6 +61,16 @@ export interface DshImInboundPolicy {
   };
 }
 
+export type PeopleNamespace = 'lark-app-open-id' | 'slack-workspace-user-id' | 'discord-user-id';
+
+export interface PlatformPeople {
+  namespace: PeopleNamespace;
+  sender(event: Omit<MessagingInboundEvent, 'text'>): boolean;
+  groups?: true;
+  roles?: true;
+  management?: true;
+}
+
 export interface DshImPlatformProfile<Id extends MessagingPlatformId = MessagingPlatformId> {
   id: Id;
   setup?: MessagingSetupVariant & { platform: Id };
@@ -72,6 +86,7 @@ export interface DshImPlatformProfile<Id extends MessagingPlatformId = Messaging
     mentionMarkup?: true;
     interactions?: true;
   };
+  people?: PlatformPeople;
   sendRequires?: readonly string[];
   checkedSendFallback?(host: DshImOutboundService, has: Capabilities): boolean;
   files: {
