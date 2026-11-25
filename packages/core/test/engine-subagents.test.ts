@@ -495,4 +495,95 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
     expect(main.items.some((item) => item.kind === 'reply' && item.text === '3 TODOs')).toBe(false);
     await engines.close();
   });
+
+  it('reads a Codex 0.169 subAgentActivity spawn, which carries no prompt', async () => {
+    const at = CODEX.findIndex(
+      (line) => line.dir === 'in' && line.msg['method'] === 'turn/completed',
+    );
+    const notify = (method: string, params: Record<string, unknown>) => ({
+      dir: 'in' as const,
+      msg: { method, params },
+    });
+    const activity = (kind: string, id: string) => ({
+      type: 'subAgentActivity',
+      id,
+      kind,
+      agentThreadId: CHILD_THREAD,
+      agentPath: '/root/codex_names',
+      model: kind === 'started' ? 'gpt-6.2-sol' : null,
+      reasoningEffort: kind === 'started' ? 'low' : null,
+    });
+    const wait = {
+      type: 'collabAgentToolCall',
+      id: 'call-wait',
+      tool: 'wait',
+      senderThreadId: MAIN_THREAD,
+      receiverThreadIds: [],
+      prompt: null,
+      agentsStates: {},
+    };
+    const answer = {
+      type: 'agentMessage',
+      id: 'msg-child-final',
+      text: 'Found 3 matching filenames.',
+      phase: 'final_answer',
+    };
+    const lines = [
+      notify('item/started', { threadId: MAIN_THREAD, item: activity('started', 'call-spawn') }),
+      notify('item/completed', { threadId: MAIN_THREAD, item: activity('started', 'call-spawn') }),
+      notify('thread/status/changed', { threadId: CHILD_THREAD, status: { type: 'active' } }),
+      notify('turn/started', {
+        threadId: CHILD_THREAD,
+        turn: { id: 'child-turn', rootTurnId: 'main-turn', status: 'inProgress' },
+      }),
+      notify('item/started', { threadId: MAIN_THREAD, item: { ...wait, status: 'inProgress' } }),
+      notify('item/completed', { threadId: CHILD_THREAD, item: answer }),
+      notify('item/started', {
+        threadId: MAIN_THREAD,
+        item: activity('completed', 'subagent-completed-child-turn'),
+      }),
+      notify('turn/completed', {
+        threadId: CHILD_THREAD,
+        turn: { id: 'child-turn', status: 'completed', items: [answer] },
+      }),
+      notify('item/completed', {
+        threadId: MAIN_THREAD,
+        item: activity('completed', 'subagent-completed-child-turn'),
+      }),
+      notify('item/completed', { threadId: MAIN_THREAD, item: { ...wait, status: 'completed' } }),
+    ];
+    const recording = [...CODEX.slice(0, at), ...lines, ...CODEX.slice(at)];
+    const dsh = memoryDsh();
+    const replays: CodexReplay[] = [];
+    const engines = host(dsh, {
+      openCodex: (options) => {
+        const replay = codexReplay(recording, options);
+        replays.push(replay);
+        return replay.transport;
+      },
+    });
+    engines.use('ada', 'orchestrator', 'codex');
+    await engines.runTurn(request());
+
+    expect(replays[0]!.mismatches).toEqual([]);
+    const [child, extra] = children(dsh);
+    expect(extra).toBeUndefined();
+    expect(child!.events.find((event) => event.type === 'session/title')?.data).toMatchObject({
+      title: 'codex names',
+    });
+    expect(foldSubagentDescriptor(child!.events)).toMatchObject({ label: 'codex names' });
+    const transcript = summarizeSessionTranscript({
+      sessionId: child!.header.id,
+      events: child!.events,
+    });
+    expect(transcript.items.map((item) => item.kind)).toEqual(['input', 'reply', 'turn-end']);
+    const main = summarizeSessionTranscript({
+      sessionId: 'orchestrator-ada',
+      events: dsh.stored.get('orchestrator-ada')!.events,
+    });
+    const tools = main.items.filter((item) => item.kind === 'tool').map((item) => item.tool);
+    expect(tools).toContain('spawn_agent');
+    expect(tools).toContain('wait_agent');
+    await engines.close();
+  });
 });

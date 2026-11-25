@@ -1,6 +1,14 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 
+import {
+  codexCollabToolName,
+  codexSubagentActivity,
+  codexSubagentEnd,
+  codexSubagentTitle,
+  gatewayCallKey,
+  threadIds,
+} from './codex-subagent-wire.js';
 import { engineLaunch } from './engine-launch.js';
 import { quotaEmail, quotaTime, quotaWindow, type ProviderQuota } from './engine-quota.js';
 
@@ -576,13 +584,14 @@ export class CodexEngineSession implements EngineSession {
         const item = record(params['item']);
         this.#trackGatewayCall(item, 'main');
         if (item['type'] === 'collabAgentToolCall') this.#collabStarted(item);
-        else this.#emitStep(this.#itemStarted(item));
+        else if (item['type'] !== 'subAgentActivity') this.#emitStep(this.#itemStarted(item));
         return;
       }
       case 'item/completed': {
         const item = record(params['item']);
         this.#untrackGatewayCall(item);
         if (item['type'] === 'collabAgentToolCall') this.#collabCompleted(item);
+        else if (item['type'] === 'subAgentActivity') this.#subagentActivity(item);
         else this.#emitStep(this.#itemCompleted(item));
         return;
       }
@@ -734,6 +743,16 @@ export class CodexEngineSession implements EngineSession {
       default:
         return;
     }
+  }
+
+  #subagentActivity(item: Json): void {
+    const activity = codexSubagentActivity(item);
+    if (activity === undefined) return;
+    const child = this.#children.get(activity.thread) ?? {};
+    child.title = activity.title;
+    child.running = true;
+    this.#children.set(activity.thread, child);
+    for (const event of activity.events) this.#emit(event);
   }
 
   #collabStarted(item: Json): void {
@@ -938,55 +957,3 @@ export class CodexEngineSession implements EngineSession {
 }
 
 const GATEWAY_CALLER_WAIT_MS = 1000;
-
-const COLLAB_TOOL_NAMES: Record<string, string> = {
-  spawnAgent: 'spawn_agent',
-  sendInput: 'send_input',
-  resumeAgent: 'resume_agent',
-  wait: 'wait_agent',
-  closeAgent: 'close_agent',
-};
-
-export function codexCollabToolName(tool: string): string {
-  return COLLAB_TOOL_NAMES[tool] ?? (tool || 'agent');
-}
-
-function threadIds(value: unknown): string[] {
-  return (Array.isArray(value) ? value : []).filter(
-    (entry): entry is string => typeof entry === 'string' && entry !== '',
-  );
-}
-
-export function codexSubagentTitle(prompt: string): string {
-  const line = prompt.trim().split('\n')[0]?.trim() ?? '';
-  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
-}
-
-export function codexSubagentEnd(status: string, message: string): EngineTurnEnd | undefined {
-  switch (status) {
-    case 'completed':
-      return { status: 'completed' };
-    case 'errored':
-      return { status: 'failed', message: message || 'Codex Subagent failed' };
-    case 'shutdown':
-    case 'interrupted':
-    case 'notFound':
-      return { status: 'interrupted' };
-    default:
-      return undefined;
-  }
-}
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (typeof value === 'object' && value !== null)
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson((value as Json)[key])}`)
-      .join(',')}}`;
-  return JSON.stringify(value) ?? 'null';
-}
-
-function gatewayCallKey(name: string, args: Record<string, unknown>): string {
-  return `${name}\u0000${stableJson(args)}`;
-}
