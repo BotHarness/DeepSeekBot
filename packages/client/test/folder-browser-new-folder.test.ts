@@ -30,7 +30,7 @@ const REPORTS = { id: 'ws-reports', path: '/home/ada/Reports', title: 'Reports' 
 
 type Answer =
   | { ok: true; value: unknown }
-  | { ok: false; error: { code: string; message: string } };
+  | { ok: false; error: { code: string; message: string; details: Record<string, unknown> } };
 
 let root: Root | undefined;
 let container: HTMLElement | undefined;
@@ -117,7 +117,9 @@ describe('FolderBrowser New folder', () => {
     ['folder-create/denied', 'grant.newFolder.denied'],
     ['permission-required', 'grant.newFolder.permission'],
   ] as const)('shows the Host refusal %s inline', async (code, key) => {
-    const { actions } = host({ create: { ok: false, error: { code, message: 'Host text' } } });
+    const { actions } = host({
+      create: { ok: false, error: { code, message: 'Host text', details: {} } },
+    });
     const onChoose = await render(actions);
     await act(async () => buttonNamed(t('grant.newFolder')).click());
     await typeInto(fieldNamed(t('grant.newFolderName')), 'Reports');

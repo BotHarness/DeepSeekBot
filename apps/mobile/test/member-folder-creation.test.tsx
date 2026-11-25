@@ -45,7 +45,7 @@ it('lets the Owner create folders without reading Team permissions', async () =>
   const { call, client } = host([]);
   await render(client);
   expect(seen).toBeTypeOf('function');
-  await (seen as NonNullable<typeof seen>)('/Users/qa', 'New');
+  await (seen as Exclude<typeof seen, 'unset' | undefined>)('/Users/qa', 'New');
   expect(call.mock.calls).toEqual([['folderCreate', { parent: '/Users/qa', name: 'New' }]]);
 });
 
