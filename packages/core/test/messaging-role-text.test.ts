@@ -212,3 +212,22 @@ it('a redelivered command or review reply is answered once', async () => {
   ).toHaveLength(1);
   expect(fx.runs).toHaveLength(0);
 });
+
+it('a Role with approve lets a chat member decide group approvals, and losing it takes that away', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack', ['review-pairing'], ['approve']);
+  await approverRole(fx);
+  await pairApplicant(fx);
+  const person = pendingFor(fx, applicant);
+  const shared = (capability: 'approve' | 'reject') => () =>
+    fx.core.externalMessaging.pairing.assert('ada', person.bindingId, applicant, capability);
+  expect(shared('approve')).toThrow(expect.objectContaining({ code: 'pairing-unauthorized' }));
+  await fx.receive(command('grant', reviewer, '/role @target Approver'));
+  expect(shared('approve')()).toMatchObject({ id: person.id, purpose: 'conversation' });
+  expect(shared('reject')).toThrow(expect.objectContaining({ code: 'pairing-unauthorized' }));
+  expect(() =>
+    fx.core.externalMessaging.pairing.assert('ada', person.bindingId, other, 'approve'),
+  ).toThrow(expect.objectContaining({ code: 'pairing-unauthorized' }));
+  await fx.receive(command('revoke', reviewer, '/role @target Colleague'));
+  expect(shared('approve')).toThrow(expect.objectContaining({ code: 'pairing-unauthorized' }));
+});
