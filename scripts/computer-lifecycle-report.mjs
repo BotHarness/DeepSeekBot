@@ -27,6 +27,7 @@ export const behavior = 'desktop.computer.container-start-frame-stop';
 export const phases = ['off', 'authorized', 'running', 'stopped'];
 export const visualEvidence = [
   'frame.jpg',
+  'running-fullscreen.png',
   ...phases.flatMap((p) => [`${p}.png`, `${p}.aria.json`]),
 ];
 export const requiredEvidence = [
@@ -95,7 +96,7 @@ export function computerProblems(run, read) {
     problems.push('Docker instance or persistent volume correlation failed');
   if (
     read('fixture').containerId !== container.id ||
-    read('fixture').marker !== `AX Container Computer 1977 — ${ownership.container}`
+    read('fixture').marker !== `AX Container Computer 1977: ${ownership.container}`
   )
     problems.push('Test picture does not belong to this container');
   const frame = read('frame');

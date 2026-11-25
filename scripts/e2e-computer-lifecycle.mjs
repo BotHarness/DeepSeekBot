@@ -405,7 +405,7 @@ try {
     '-c',
     'command -v xmessage',
   ]);
-  const marker = `AX Container Computer 1977 — ${ownership.container}`;
+  const marker = `AX Container Computer 1977: ${ownership.container}`;
   docker([
     'exec',
     '-d',
@@ -456,7 +456,19 @@ try {
   save('frame-attempts.json', frameAttempts);
   save('frame.json', frame);
   save('frame.jpg', readFileSync(resolve(directory, 'frame.jpg')));
+  await page.mouse.move(2, 2);
+  await new Promise((done) => setTimeout(done, 1000));
   await observe('running');
+  await page.click(`${panel} [role="button"][aria-label="Open fullscreen"]`);
+  run.actions.push({ click: 'Open fullscreen', at: new Date().toISOString() });
+  const leave = 'button[aria-label="Leave fullscreen"]';
+  await page.waitForSelector(leave, { visible: true, timeout: 15_000 });
+  await page.mouse.move(2, 2);
+  await new Promise((done) => setTimeout(done, 2500));
+  save('running-fullscreen.png', Buffer.from(await page.screenshot({ waitForFonts: false })));
+  await page.click(leave);
+  run.actions.push({ click: 'Leave fullscreen', at: new Date().toISOString() });
+  await page.waitForSelector(leave, { hidden: true, timeout: 15_000 });
   stage = 'stop-from-panel';
   assertOwned(authority());
   if (inspect().id !== container.id) throw new Error('Computer identity changed before stop');

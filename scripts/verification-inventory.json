@@ -1745,7 +1745,7 @@
       "behaviors": ["desktop.computer.container-start-frame-stop"],
       "task": 1977,
       "reason": "Candidate isolated Container-only Web/CLI lifecycle journey; requires existing healthy Docker Engine/image and fresh task-owned Profile/container/volume. Runtime qualification is blocked until genuine frame evidence exists. No Local Computer, input, import/export or phone WebRTC.",
-      "sha256": "7d526a5a53e32288c7d5260e670680b8f3945bbef217021eb3eecaaeae10158e"
+      "sha256": "055fdef34d203a96247cb2ff84e2f8c5d3351507dca01acdcab4c82d94ff3268"
     },
     {
       "path": "scripts/e2e-computer-settings.mjs",

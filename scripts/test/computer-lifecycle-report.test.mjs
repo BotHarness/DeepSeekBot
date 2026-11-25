@@ -53,7 +53,7 @@ function fixture() {
       mounts: [{ name: volume, destination: '/config' }],
     },
     'container-stopped': { id: 'container-id', running: false },
-    fixture: { marker: `AX Container Computer 1977 — ${container}`, containerId: 'container-id' },
+    fixture: { marker: `AX Container Computer 1977: ${container}`, containerId: 'container-id' },
     'stopped-refusal': { exitCode: 1, value: { error: { code: 'not-running' } } },
     'cleanup-computer': { ok: true },
     lifecycle: {
