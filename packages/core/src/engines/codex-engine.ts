@@ -9,10 +9,12 @@ import {
   type EngineApprovalDecision,
   type EngineChoice,
   type EngineEvent,
+  type EngineGatewayCaller,
   type EngineModel,
   type EngineSendOptions,
   type EngineSession,
   type EngineStartOptions,
+  type EngineSubagentStep,
   type EngineTurnEnd,
   type EngineWorkspaceMode,
   EngineRefusal,
@@ -286,6 +288,12 @@ export class CodexEngineSession implements EngineSession {
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
   readonly #patches = new Map<string, string[]>();
+  readonly #children = new Map<string, { title?: string; failure?: string }>();
+  readonly #gatewayCalls = new Map<string, { key: string; caller: EngineGatewayCaller }>();
+  readonly #gatewayWaiters = new Set<{
+    key: string;
+    settle(caller: EngineGatewayCaller): void;
+  }>();
   #initialized: Promise<void> | undefined;
   #threadId: string | undefined;
   #turn: ActiveTurn | undefined;
@@ -297,7 +305,10 @@ export class CodexEngineSession implements EngineSession {
   constructor(
     transport: CodexTransport,
     options: Pick<EngineStartOptions, 'cwd' | 'instructions' | 'contextSeed'> &
-      EngineChoice & { requestTimeoutMs?: number; workspaceMode?: EngineWorkspaceMode },
+      EngineChoice & {
+        requestTimeoutMs?: number;
+        workspaceMode?: EngineWorkspaceMode;
+      },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
@@ -552,13 +563,26 @@ export class CodexEngineSession implements EngineSession {
       this.#serverRequest(id, method, params);
       return;
     }
+    const thread = text(params['threadId']);
+    if (thread !== '' && this.#threadId !== undefined && thread !== this.#threadId) {
+      this.#childNotification(thread, method, params);
+      return;
+    }
     switch (method) {
-      case 'item/started':
-        this.#itemStarted(record(params['item']));
+      case 'item/started': {
+        const item = record(params['item']);
+        this.#trackGatewayCall(item, 'main');
+        if (item['type'] === 'collabAgentToolCall') this.#collabStarted(item);
+        else this.#emitStep(this.#itemStarted(item));
         return;
-      case 'item/completed':
-        this.#itemCompleted(record(params['item']));
+      }
+      case 'item/completed': {
+        const item = record(params['item']);
+        this.#untrackGatewayCall(item);
+        if (item['type'] === 'collabAgentToolCall') this.#collabCompleted(item);
+        else this.#emitStep(this.#itemCompleted(item));
         return;
+      }
       case 'account/rateLimits/updated':
         this.#emit(codexRateLimit(record(params['rateLimits'])));
         return;
@@ -597,6 +621,166 @@ export class CodexEngineSession implements EngineSession {
       default:
         return;
     }
+  }
+
+  gatewayCaller(
+    name: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+    waitMs = GATEWAY_CALLER_WAIT_MS,
+  ): Promise<EngineGatewayCaller> {
+    const key = gatewayCallKey(name, args);
+    const callers = new Set(
+      [...this.#gatewayCalls.values()]
+        .filter((call) => call.key === key)
+        .map((call) => call.caller),
+    );
+    if (callers.has('subagent')) return Promise.resolve('subagent');
+    if (callers.has('main')) return Promise.resolve('main');
+    return new Promise((resolve) => {
+      const waiter = {
+        key,
+        settle: (caller: EngineGatewayCaller) => {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', abort);
+          this.#gatewayWaiters.delete(waiter);
+          resolve(caller);
+        },
+      };
+      const abort = () => waiter.settle('unknown');
+      const timer = setTimeout(abort, waitMs);
+      signal.addEventListener('abort', abort, { once: true });
+      this.#gatewayWaiters.add(waiter);
+    });
+  }
+
+  #trackGatewayCall(item: Json, caller: EngineGatewayCaller): void {
+    if (item['type'] !== 'mcpToolCall' || text(item['server']) !== CODEX_GATEWAY_SERVER) return;
+    const key = gatewayCallKey(text(item['tool']), record(item['arguments']));
+    this.#gatewayCalls.set(text(item['id']), { key, caller });
+    for (const waiter of [...this.#gatewayWaiters]) if (waiter.key === key) waiter.settle(caller);
+  }
+
+  #untrackGatewayCall(item: Json): void {
+    if (item['type'] === 'mcpToolCall') this.#gatewayCalls.delete(text(item['id']));
+  }
+
+  #emitStep(step: EngineSubagentStep | undefined, thread?: string): void {
+    if (step === undefined) return;
+    if (thread === undefined) this.#emit(step);
+    else this.#emit({ kind: 'subagent-step', subagentId: thread, step });
+  }
+
+  #childNotification(thread: string, method: string, params: Json): void {
+    const child = this.#children.get(thread) ?? {};
+    this.#children.set(thread, child);
+    switch (method) {
+      case 'turn/started':
+        delete child.failure;
+        this.#emit({
+          kind: 'subagent-start',
+          subagentId: thread,
+          title: child.title ?? '',
+        });
+        return;
+      case 'item/started': {
+        const item = record(params['item']);
+        this.#trackGatewayCall(item, 'subagent');
+        this.#emitStep(this.#itemStarted(item), thread);
+        return;
+      }
+      case 'item/completed': {
+        const item = record(params['item']);
+        this.#untrackGatewayCall(item);
+        this.#emitStep(this.#itemCompleted(item), thread);
+        return;
+      }
+      case 'error': {
+        if (params['willRetry'] === true) return;
+        child.failure = text(record(params['error'])['message']) || 'Codex Subagent failed';
+        return;
+      }
+      case 'turn/completed': {
+        const turn = record(params['turn']);
+        const status = turn['status'];
+        this.#emit({
+          kind: 'subagent-end',
+          subagentId: thread,
+          end:
+            status === 'completed'
+              ? { status: 'completed' }
+              : status === 'interrupted'
+                ? { status: 'interrupted' }
+                : {
+                    status: 'failed',
+                    message:
+                      text(record(turn['error'])['message']) ||
+                      child.failure ||
+                      'Codex Subagent failed',
+                  },
+        });
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  #collabStarted(item: Json): void {
+    const prompt = text(item['prompt']);
+    this.#emit({
+      kind: 'tool-call',
+      callId: text(item['id']),
+      name: codexCollabToolName(text(item['tool'])),
+      arguments: JSON.stringify({
+        ...(prompt === '' ? {} : { prompt }),
+        receiverThreadIds: threadIds(item['receiverThreadIds']),
+      }),
+    });
+  }
+
+  #collabCompleted(item: Json): void {
+    const tool = text(item['tool']);
+    const prompt = text(item['prompt']);
+    const receivers = threadIds(item['receiverThreadIds']);
+    const states = record(item['agentsStates']);
+    if (tool === 'spawnAgent' && item['status'] === 'completed')
+      for (const thread of receivers) {
+        const child = this.#children.get(thread) ?? {};
+        child.title = codexSubagentTitle(prompt);
+        this.#children.set(thread, child);
+        this.#emit({
+          kind: 'subagent-start',
+          subagentId: thread,
+          title: child.title,
+          ...(prompt === '' ? {} : { prompt }),
+        });
+      }
+    for (const [thread, raw] of Object.entries(states)) {
+      const state = record(raw);
+      const end = codexSubagentEnd(text(state['status']), text(state['message']));
+      if (end === undefined) continue;
+      const message = text(state['message']);
+      this.#emit({
+        kind: 'subagent-end',
+        subagentId: thread,
+        end,
+        ...(message === '' || end.status !== 'completed' ? {} : { result: message }),
+      });
+    }
+    const summary = Object.entries(states)
+      .map(([thread, raw]) => {
+        const state = record(raw);
+        const message = text(state['message']);
+        return `${thread}: ${text(state['status']) || 'unknown'}${message === '' ? '' : ` - ${message}`}`;
+      })
+      .join('\n');
+    this.#emit({
+      kind: 'tool-result',
+      callId: text(item['id']),
+      text: summary || text(item['status']),
+      isError: item['status'] === 'failed',
+    });
   }
 
   #serverRequest(id: number | string, method: string, params: Json): void {
@@ -643,89 +827,81 @@ export class CodexEngineSession implements EngineSession {
     });
   }
 
-  #itemStarted(item: Json): void {
+  #itemStarted(item: Json): EngineSubagentStep | undefined {
     const callId = text(item['id']);
     switch (item['type']) {
       case 'commandExecution':
-        this.#emit({
+        return {
           kind: 'tool-call',
           callId,
           name: 'shell',
           arguments: JSON.stringify({ command: text(item['command']) }),
-        });
-        return;
+        };
       case 'fileChange': {
         const files = (Array.isArray(item['changes']) ? item['changes'] : []).map((change) =>
           text(record(change)['path']),
         );
         this.#patches.set(callId, files);
-        this.#emit({
+        return {
           kind: 'tool-call',
           callId,
           name: 'apply_patch',
           arguments: JSON.stringify({ files }),
-        });
-        return;
+        };
       }
       case 'mcpToolCall': {
         const server = text(item['server']);
         const tool = text(item['tool']);
-        this.#emit({
+        return {
           kind: 'tool-call',
           callId,
           name: server === CODEX_GATEWAY_SERVER ? tool : `mcp__${server}__${tool}`,
           arguments: JSON.stringify(item['arguments'] ?? {}),
-        });
-        return;
+        };
       }
       case 'webSearch':
-        this.#emit({
+        return {
           kind: 'tool-call',
           callId,
           name: 'web_search',
           arguments: JSON.stringify({ query: text(item['query']) }),
-        });
-        return;
+        };
       default:
-        return;
+        return undefined;
     }
   }
 
-  #itemCompleted(item: Json): void {
+  #itemCompleted(item: Json): EngineSubagentStep | undefined {
     const callId = text(item['id']);
     switch (item['type']) {
       case 'agentMessage': {
         const value = text(item['text']);
-        if (value) this.#emit({ kind: 'text', text: value });
-        return;
+        return value ? { kind: 'text', text: value } : undefined;
       }
       case 'reasoning': {
         const parts = [item['summary'], item['content']].flatMap((part) =>
           Array.isArray(part) ? part.filter((entry) => typeof entry === 'string') : [],
         );
-        if (parts.length) this.#emit({ kind: 'reasoning', text: parts.join('\n\n') });
-        return;
+        return parts.length ? { kind: 'reasoning', text: parts.join('\n\n') } : undefined;
       }
       case 'commandExecution': {
         const exitCode = item['exitCode'];
-        this.#emit({
+        return {
           kind: 'tool-result',
           callId,
           text: text(item['aggregatedOutput']) || `exit ${String(exitCode ?? '?')}`,
           isError:
             item['status'] !== 'completed' || (typeof exitCode === 'number' && exitCode !== 0),
-        });
-        return;
+        };
       }
       case 'fileChange':
         this.#patches.delete(callId);
-        this.#emit({
+        return {
           kind: 'tool-result',
           callId,
           text: text(item['status']),
           isError: item['status'] !== 'completed',
-        });
-        return;
+        };
       case 'mcpToolCall': {
         const error = record(item['error']);
         const content = record(item['result'])['content'];
@@ -733,19 +909,71 @@ export class CodexEngineSession implements EngineSession {
           .map((block) => text(record(block)['text']))
           .filter(Boolean)
           .join('\n');
-        this.#emit({
+        return {
           kind: 'tool-result',
           callId,
           text: text(error['message']) || output,
           isError: item['status'] !== 'completed',
-        });
-        return;
+        };
       }
       case 'webSearch':
-        this.#emit({ kind: 'tool-result', callId, text: 'done', isError: false });
-        return;
+        return { kind: 'tool-result', callId, text: 'done', isError: false };
       default:
-        return;
+        return undefined;
     }
   }
+}
+
+const GATEWAY_CALLER_WAIT_MS = 1000;
+
+const COLLAB_TOOL_NAMES: Record<string, string> = {
+  spawnAgent: 'spawn_agent',
+  sendInput: 'send_input',
+  resumeAgent: 'resume_agent',
+  wait: 'wait_agent',
+  closeAgent: 'close_agent',
+};
+
+export function codexCollabToolName(tool: string): string {
+  return COLLAB_TOOL_NAMES[tool] ?? (tool || 'agent');
+}
+
+function threadIds(value: unknown): string[] {
+  return (Array.isArray(value) ? value : []).filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  );
+}
+
+export function codexSubagentTitle(prompt: string): string {
+  const line = prompt.trim().split('\n')[0]?.trim() ?? '';
+  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+}
+
+export function codexSubagentEnd(status: string, message: string): EngineTurnEnd | undefined {
+  switch (status) {
+    case 'completed':
+      return { status: 'completed' };
+    case 'errored':
+      return { status: 'failed', message: message || 'Codex Subagent failed' };
+    case 'shutdown':
+    case 'interrupted':
+    case 'notFound':
+      return { status: 'interrupted' };
+    default:
+      return undefined;
+  }
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (typeof value === 'object' && value !== null)
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson((value as Json)[key])}`)
+      .join(',')}}`;
+  return JSON.stringify(value) ?? 'null';
+}
+
+function gatewayCallKey(name: string, args: Record<string, unknown>): string {
+  return `${name}\u0000${stableJson(args)}`;
 }

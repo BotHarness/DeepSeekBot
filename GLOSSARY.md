@@ -196,7 +196,7 @@ The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in
 _Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
 
 **Subagent**:
-A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.
+A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session. A Subscription Engine's own sub-agent is shown the same way, as a read-only child Session that cannot act as the Bot.
 _Avoid_: sub-bot, worker, helper
 
 **Session**:

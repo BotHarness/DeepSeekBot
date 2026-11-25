@@ -195,7 +195,7 @@ Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 
 _避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
 
 **Subagent**：
-由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
+由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。Subscription Engine 自带的 sub-agent 也这样显示：一个只读的 child Session，不能以 Bot 身份行动。
 _避免使用_：sub-bot、worker、helper
 
 **Session**：

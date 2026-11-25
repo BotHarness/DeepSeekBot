@@ -55,6 +55,8 @@ export interface EngineHostOptions {
   }): void;
   accountUses?(id: string): readonly string[];
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
+  claimSubagent?(sessionId: string, parentSessionId: string): void;
+  warn?(message: string, error: unknown): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
   idleMs?: number;
   releaseGraceMs?: number;
