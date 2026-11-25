@@ -206,3 +206,25 @@ it('lists local Claude Code and Codex sessions and reads them only inside Worksp
     code: 'session-not-found',
   });
 });
+
+it('reads the newest part of an oversized session file and keeps its folder', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'external-big-'));
+  const roots = defaultExternalSessionRoots({}, root);
+  const day = join(roots.codex!, '2026', '11', '03');
+  mkdirSync(day, { recursive: true });
+  const id = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c';
+  const say = (text: string) => ({
+    type: 'response_item',
+    payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+  });
+  const filler = lines(say(`old ${'x'.repeat(1000)}`)).repeat(17_000);
+  writeFileSync(
+    join(day, `rollout-2026-11-03T08-00-00-${id}.jsonl`),
+    lines({ type: 'session_meta', payload: { id, cwd: '/work/big' } }) +
+      filler +
+      lines(say('newest request')),
+  );
+  const read = await createExternalSessionReader(roots).read(`codex:${id}`);
+  expect(read?.cwd).toBe('/work/big');
+  expect(read?.entries.at(-1)?.text).toBe('newest request');
+});

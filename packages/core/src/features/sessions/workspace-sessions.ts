@@ -151,8 +151,8 @@ export function createWorkspaceSessionReader(
     async list(roots) {
       if (roots().length === 0) return [];
       const rows = await native().list();
-      const current = roots();
       const imported = external === undefined ? [] : await external.list().catch(() => []);
+      const current = roots();
       const native_ = rows
         .filter(
           (row) =>

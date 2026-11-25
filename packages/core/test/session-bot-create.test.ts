@@ -7,6 +7,7 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js
 import {
   createSessionBotMethods,
   seedMessageId,
+  tooBroadToAdd,
 } from '../src/features/sessions/session-bot-methods.js';
 import type { WorkspaceGrant } from '../src/workspaces/grants.js';
 
@@ -32,6 +33,7 @@ function setup(
   extra: Partial<
     Pick<BridgeMethodsDeps, 'externalSessions' | 'registerWorkspace' | 'telemetry'>
   > = {},
+  nativeList: () => Promise<typeof sessions> = async () => sessions,
 ) {
   const grants: WorkspaceGrant[] = [];
   const registered: { id: string; path: string; title: string }[] = [];
@@ -72,7 +74,7 @@ function setup(
     value: { message: { id: payload.messageId } },
   }));
   const deps = {
-    nativeSessions: { list: async () => sessions, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
+    nativeSessions: { list: nativeList, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
     ownership: { resolve: (id: string) => (id === 'owned' ? {} : undefined) },
     creations: { create, lookup: vi.fn(() => undefined) },
     grants: store,
@@ -264,4 +266,72 @@ it('lists sessions from other products only for the Host Owner', async () => {
   expect(
     await setup(OWNER_HUMAN_CONTEXT, false, { externalSessions }).methods.externalSessions(),
   ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+});
+
+it('refuses to add the disk root, the home folder or agent config as a Workspace', async () => {
+  expect(tooBroadToAdd('/', '/home/me')).toBe(true);
+  expect(tooBroadToAdd('/home/me/', '/home/me')).toBe(true);
+  expect(tooBroadToAdd('/home/me/.claude/projects', '/home/me')).toBe(true);
+  expect(tooBroadToAdd('/home/me/.ssh', '/home/me')).toBe(true);
+  expect(tooBroadToAdd('/home/me/code/app', '/home/me')).toBe(false);
+  const registerWorkspace = vi.fn(async (path: string) => ({ id: 'ws-new', path, title: 'new' }));
+  const externalSessions = {
+    list: async () => [
+      { sessionId: 'codex:root', source: 'codex' as const, cwd: '/', lastActivityAt: 1 },
+    ],
+    read: vi.fn(),
+  };
+  const { methods } = setup(OWNER_HUMAN_CONTEXT, true, { externalSessions, registerWorkspace });
+  expect(
+    await methods.createFromSessions({
+      displayName: 'Importer',
+      sessionIds: ['codex:root'],
+      operationKey: 'sessions:import-root',
+      addWorkspaces: true,
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'workspace-too-broad' } });
+  expect(registerWorkspace).not.toHaveBeenCalled();
+});
+
+it('imports other products when DeepSeek Sessions cannot be listed, and refuses a moved Workspace', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'cx-app-'));
+  const externalSessions = {
+    list: async () => [
+      { sessionId: 'codex:s1', source: 'codex' as const, cwd: folder, lastActivityAt: 1 },
+    ],
+    read: vi.fn(),
+  };
+  const offline = async () => {
+    throw new Error('offline');
+  };
+  const moved = setup(
+    OWNER_HUMAN_CONTEXT,
+    true,
+    {
+      externalSessions,
+      registerWorkspace: async () => ({ id: 'ws-new', path: '/elsewhere', title: 'new' }),
+    },
+    offline,
+  );
+  const request = {
+    displayName: 'Importer',
+    sessionIds: ['codex:s1'],
+    operationKey: 'sessions:import-offline',
+    addWorkspaces: true,
+  };
+  expect(await moved.methods.createFromSessions(request)).toMatchObject({
+    ok: false,
+    error: { code: 'workspace-preview-changed' },
+  });
+  expect(moved.create).not.toHaveBeenCalled();
+  const ok = setup(
+    OWNER_HUMAN_CONTEXT,
+    true,
+    {
+      externalSessions,
+      registerWorkspace: async (path: string) => ({ id: 'ws-new', path, title: 'new' }),
+    },
+    offline,
+  );
+  expect(await ok.methods.createFromSessions(request)).toMatchObject({ ok: true });
 });

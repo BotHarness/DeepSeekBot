@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
 import {
   asObject,
@@ -23,6 +25,14 @@ import {
   sessionSeedMessage,
 } from './workspace-sessions.js';
 import { isExternalSessionId, type ExternalSessionSummary } from './external-sessions.js';
+
+export function tooBroadToAdd(path: string, home = homedir()): boolean {
+  const target = resolve(path);
+  if (dirname(target) === target || target === resolve(home)) return true;
+  return ['.claude', '.codex', '.ssh', '.deepseek'].some((name) =>
+    pathWithin(join(home, name), target),
+  );
+}
 
 function isFolder(path: string): boolean {
   try {
@@ -108,7 +118,9 @@ export function createSessionBotMethods(
           'Creating from Sessions is unavailable on this Host.',
         );
 
-      const rows = await nativeSessions.list().catch(() => undefined);
+      const rows = sessionIds.every(isExternalSessionId)
+        ? []
+        : await nativeSessions.list().catch(() => undefined);
       if (rows === undefined) return failure('unavailable', 'Host Sessions are unavailable');
       const byId = new Map(rows.map((row) => [row.sessionId, row]));
       const seeds: { sessionId: string; title?: string; cwd: string }[] = [];
@@ -151,6 +163,11 @@ export function createSessionBotMethods(
           .filter((workspace) => pathWithin(workspace.path, seed.cwd))
           .sort((a, b) => b.path.length - a.path.length)[0];
         if (match !== undefined) workspaces.set(match.id, match);
+        else if (addFolders && tooBroadToAdd(seed.cwd))
+          return failure(
+            'workspace-too-broad',
+            `${seed.cwd} is too broad to add as a Workspace; add a project folder in DSH first.`,
+          );
         else if (addFolders && deps.registerWorkspace !== undefined && isFolder(seed.cwd))
           missing.add(seed.cwd);
         else return failure('workspace-unavailable', `No DSH Workspace contains ${seed.cwd}`);
@@ -170,30 +187,40 @@ export function createSessionBotMethods(
           `These Sessions would grant ${resolved.join(', ')}; review the Workspaces and try again.`,
         );
 
+      const soul = persona.value?.trim();
+      const input = {
+        displayName: displayName.trim(),
+        ...(soul ? { persona: soul } : {}),
+        ...(description.value === undefined ? {} : { description: description.value }),
+        ...(roles.value === undefined ? {} : { roles: roles.value }),
+      };
+      const scope = { kind: 'sessions-v1', sessionIds };
+      let fresh: boolean;
       try {
-        for (const path of outermost) {
-          const added = await deps.registerWorkspace!(path);
-          workspaces.set(added.id, added);
-        }
-      } catch {
-        return failure(
-          'workspace-register-failed',
-          'The Host could not add a session folder as a Workspace.',
-        );
+        fresh = creations.lookup(operationKey, input, scope) === undefined;
+      } catch (error) {
+        if (error instanceof BotCreationError) return failure(error.code, error.message);
+        throw error;
+      }
+
+      for (const path of outermost) {
+        const added = await deps.registerWorkspace!(path).catch(() => undefined);
+        if (added === undefined)
+          return failure(
+            'workspace-register-failed',
+            'The Host could not add a session folder as a Workspace.',
+          );
+        if (added.path !== path)
+          return failure(
+            'workspace-preview-changed',
+            `${path} was added as ${added.path}; review the Workspaces and try again.`,
+          );
+        workspaces.set(added.id, added);
       }
 
       let created;
-      let fresh = false;
       try {
-        const soul = persona.value?.trim();
-        const input = {
-          displayName: displayName.trim(),
-          ...(soul ? { persona: soul } : {}),
-          ...(description.value === undefined ? {} : { description: description.value }),
-          ...(roles.value === undefined ? {} : { roles: roles.value }),
-        };
-        fresh = creations.lookup(operationKey, input) === undefined;
-        created = creations.create(input, operationKey, { kind: 'sessions-v1', sessionIds });
+        created = creations.create(input, operationKey, scope);
       } catch (error) {
         if (error instanceof BotCreationError) return failure(error.code, error.message);
         throw error;

@@ -340,6 +340,18 @@ async function head(path: string, bytes: number): Promise<string> {
   }
 }
 
+async function tail(path: string, start: number, size: number): Promise<string> {
+  const handle = await open(path, 'r');
+  try {
+    const buffer = Buffer.alloc(size - start);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+    const text = buffer.subarray(0, bytesRead).toString('utf8');
+    return text.slice(text.indexOf('\n') + 1);
+  } finally {
+    await handle.close();
+  }
+}
+
 function fileId(source: ExternalSessionSource, path: string): string | undefined {
   const name = basename(path, '.jsonl');
   if (source === 'claude-code') return ID.test(name) ? name : undefined;
@@ -457,7 +469,7 @@ export function createExternalSessionReader(
         const info = await stat(file.path);
         text =
           info.size > READ_BYTES
-            ? await head(file.path, READ_BYTES)
+            ? `${await head(file.path, HEAD_BYTES)}\n${await tail(file.path, Math.max(info.size - READ_BYTES, HEAD_BYTES), info.size)}`
             : await readFile(file.path, 'utf8');
       } catch {
         return undefined;
