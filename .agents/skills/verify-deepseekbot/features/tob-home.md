@@ -1,4 +1,4 @@
-# Tob DM and the Steward role
+# Tob DM and App management grants
 
 ## Sources
 
@@ -11,7 +11,7 @@
 ## Terms
 
 - Tob
-- Steward Bot
+- App management grant
 - Tob Delegation
 - DM
 
@@ -19,11 +19,11 @@
 
 - Home was removed in #3089. Desktop has no Tob Mode or Tob rail switch (ADR-0268, ADR-0269): the Tob DM is a normal Channel list row. Home's stable shortcut command ID and default binding (primary+Alt+Shift+H; Linux Desktop uses O) now open the Tob DM in Messages without changing the Simple Side column (`Open Tob` / `打开托布`). Custom bindings keep working. Saved rail order and hidden-control entries for `bh:home` or `bh:tob-mode` are dropped on read.
 - Layout v9 drops Home from saved Simple and Advanced documents and keeps every other placement. The pre-upgrade document is kept once in `botharness.bot-mode-layout.before-tob-mode-v9` (a saved Simple Home view becomes the Channel list in the Side column; see `simple-side-column` in [the workspace feature](bot-mode-dock.md) for the `botharness.bot-mode-layout-mode.before-side-column-v10` backup). Invalid and future documents are not overwritten.
-- The Profile provisions one built-in Tob with canonical Memory, Workspace and Human DM. Tob initially holds the Steward role. Re-entry keeps the existing history.
+- The Profile provisions one built-in Tob with canonical Memory, Workspace and Human DM. Tob starts with both App management grants ("Manage the App" and "Manage other Bots") and can be archived or deleted like any Bot. Re-entry keeps the existing history.
 - The default model is set in Bot settings › Models (the `home-model-set` CLI command remains). While the onboarding journey is active, the Tob DM shows a Configure a model action that opens that setting and returns without sending.
 - The Tob DM sends through the shared Messages composer and the existing Human DM path. The last onboarding step finishes once the layout tips are done and the Human is in the loaded Tob DM, in Simple and Advanced.
 - Tob uses native Shell to discover and invoke the DSB CLI. Scoped management covers default and per-Bot models, presets (create/read/update/apply), four native runtime fields, telemetry, Git availability/install and release operations through existing owners and review; the former dedicated management tools are absent.
-- CLI management is authorized only for the current Steward’s root Orchestrator and its accepted Owner DM. Shell authority expires when that execution finishes; other Bots, delegation, revoked sources and direct runners cannot borrow it.
+- CLI management is authorized only for the root Orchestrator of a Bot that holds "Manage the App" and its accepted Owner DM. Shell authority expires when that execution finishes or the grant is turned off; other Bots, delegation, revoked sources and direct runners cannot borrow it.
 - Old nested layouts and custom/disabled shortcuts remain preserved.
 
 ## How to get to it (user POV)
@@ -81,7 +81,7 @@ The `journey` phase seeds three uniquely named ordinary Bots through the Human C
 
 Next, a natural Tob DM request invites the second Bot. Review the Group fingerprint, target identity and automatic acceptance policy. Require the invitation to be immediately `accepted` with `respondedBy: profile-policy` and canonical membership, then capture both names in the Members section. This default path does not require another invitee decision or model turn. A subsequent natural invitation of the third Bot is denied in the UI; require `approval-denied` and unchanged invitations and membership. Native Tob traces must use the CLI, without `group_create` or `group_invite_bot`.
 
-The script also exposes `create`, `invite`, `deny`, `direct` and `restart-read`. Each phase emits `channel-fixture.json`; pass the latest absolute file as `BH_E2E_CHANNEL_FIXTURE` to continue. `direct` can seed its own preconditions or reuse a fixture, checks exact creation/invitation replay, changed payload with the same key (`operation-key-conflict`) verifies those refusals leave no canonical mutation, then invites Tob as an ordinary member and reads back its membership (the Steward may be in Groups; its capability is active only in its Human DM turns). It does not count as a natural user journey. After actually restarting the same isolated Profile, `restart-read` requires a completed invitation fixture, checks persisted Group identity, membership and the acceptance source recorded in the fixture, replays the exact operations without duplication and opens the Members UI. Run Web and actual macOS separately and retain each result. Source-only or unrun phases remain explicitly unverified.
+The script also exposes `create`, `invite`, `deny`, `direct` and `restart-read`. Each phase emits `channel-fixture.json`; pass the latest absolute file as `BH_E2E_CHANNEL_FIXTURE` to continue. `direct` can seed its own preconditions or reuse a fixture, checks exact creation/invitation replay, changed payload with the same key (`operation-key-conflict`) verifies those refusals leave no canonical mutation, then invites Tob as an ordinary member and reads back its membership (a grant holder may be in Groups; its CLI is active only in its Human DM turns). It does not count as a natural user journey. After actually restarting the same isolated Profile, `restart-read` requires a completed invitation fixture, checks persisted Group identity, membership and the acceptance source recorded in the fixture, replays the exact operations without duplication and opens the Members UI. Run Web and actual macOS separately and retain each result. Source-only or unrun phases remain explicitly unverified.
 
 Creation with selected initial Bots follows the existing Human UI's direct-membership semantics. Later invitation follows the reviewed Profile policy, whose default remains automatic acceptance. Set `BH_E2E_GROUP_AUTO_ACCEPT=0` only for the explicit opt-out regression branch: require a real successful invitee `group_invite_respond` call, `respondedBy: bot`, accepted status and canonical membership. A model that declines, stalls or claims acceptance without the owner transition fails that secondary test; do not replace its decision with a direct mutation. Fixtures record `autoAccept`; older fixtures without it represent the previous opt-out test and remain valid for restart readback. Keep settings and fixture cleanup confined to the isolated Profile.
 
@@ -95,7 +95,7 @@ Before successful removal, deny a removal approval and require `approval-denied`
 
 Bounded phases are `seed`, `rename`, `wake`, `deny`, `stale`, `remove`, `avatar`, `direct` and `restart-read`. The independent `avatar` phase seeds a small synthetic PNG through Human CLI, then naturally requests clearing it via Tob, reviews the operation and verifies canonical absence plus the Group settings UI. This proves Tob's clear path only, not its file-upload path. `direct` checks Human CLI rename and stale removal refusal without a model. After externally restarting the same isolated Host/Profile, run `restart-read` with the latest fixture; require the saved name, member set and custom attention policy, and reopen their real UI. Repeat the main journey, avatar and restart on actual macOS Desktop, keeping its evidence separate, and restore the Human's main Desktop after the exclusive verification window.
 
-No extra invitation confirmation is introduced: automatic invitation acceptance remains the existing default. This journey covers Group name/avatar clearing, member attention and removal; it does not claim the rest of #2090 or unrun authority/refusal branches. Source tests must independently cover current Human membership, the Steward as an ordinary member, archived member cleanup, Bot reincarnation, owner removal side effects and foreign or expired execution authority.
+No extra invitation confirmation is introduced: automatic invitation acceptance remains the existing default. This journey covers Group name/avatar clearing, member attention and removal; it does not claim the rest of #2090 or unrun authority/refusal branches. Source tests must independently cover current Human membership, a grant holder as an ordinary member, archived member cleanup, Bot reincarnation, owner removal side effects and foreign or expired execution authority.
 
 ## Group invitation cancellation and join decisions acceptance (#2090)
 
@@ -162,11 +162,11 @@ In an isolated Profile, ask Tob to prepare a `settings-set botharness-client` wr
 
 ## Model-free typed CLI parity (#4212)
 
-Use the authenticated Owner `tob-cli start --args-stdin` with private JSON `{argv,stdin}`; read its request ID with `tob-cli status` and cancel with `tob-cli cancel`. This creates a genuine Human DM and accepted Admission, prepares the actual owned Tob root Agent and executes the typed `deepseekbot_cli` through native Tools.execute without a model. A historical source or temporary direct Session cannot substitute. For a local nondestructive fixture, request an approval-template selection, inspect the real pending card in the current Steward's Human DM (read `deepseekbot steward` first; after a transfer this is not Tob's DM) with its exact argv and stdin size/hash, decide with existing Human `tool-approval-decide`, and read both the result and selected template. Match source/build hashes; no model request should appear. Repeat denial, cancellation, stale revision and authority-revoke fences. A template readback alone is not broker approval proof. Capture actual Client light/dark pending/settled states separately; Web evidence does not qualify native mobile.
+Use the authenticated Owner `tob-cli start --args-stdin` with private JSON `{argv,stdin}`; read its request ID with `tob-cli status` and cancel with `tob-cli cancel`. This creates a genuine Human DM and accepted Admission, prepares the actual owned Tob root Agent and executes the typed `deepseekbot_cli` through native Tools.execute without a model. A historical source or temporary direct Session cannot substitute. For a local nondestructive fixture, request an approval-template selection, inspect the real pending card in Tob's Human DM (Tob must hold "Manage the App"; check with `deepseekbot bot-grants`) with its exact argv and stdin size/hash, decide with existing Human `tool-approval-decide`, and read both the result and selected template. Match source/build hashes; no model request should appear. Repeat denial, cancellation, stale revision and authority-revoke fences. A template readback alone is not broker approval proof. Capture actual Client light/dark pending/settled states separately; Web evidence does not qualify native mobile.
 
 
-## Transfer through the Host CLI
+## Grant changes through the Host CLI
 
-Use an isolated Host and a second active Bot owned by the Owner. Record the output of `deepseekbot steward`, then transfer with `deepseekbot steward-transfer <bot-id> --confirm`. Read the role back and inspect both Human DMs with `channel-messages` for the committed system markers. Existing Groups, Memory and Sessions should keep their ids. Restart the Host, run `deepseekbot steward` at once and check that it returns the committed holder before you transfer again.
+Use an isolated Host and a second active Bot owned by the Owner. Record `deepseekbot bot-grants`, then run `deepseekbot bot-grant <bot-id> manage-app on --confirm`. Read the grants back and inspect that Bot's Human DM with `channel-messages` for the committed system marker; send it a message and check that its next turn sees one `[Host timeline]` line while its system prompt and tool list stay unchanged. Existing Groups, Memory and Sessions keep their ids. Restart the Host and check that `bot-grants` returns the committed holders, then turn the grant off again.
 
-The Team suite scenario C8 verifies the same Owner command, a Team member’s id-only read and denied transfer, and the current Steward’s model-free broker refusal before any approval. Run `node scripts/e2e-team-security.mjs --name steward-5193 --launch --scenario C8` through the heavy-job wrapper and retain the report.
+The Team suite scenario C8 verifies the same Owner command, a Team member's Tob-id-only read and denied change, and the broker's model-free refusal of `bot-grant` before any approval. Run `node scripts/e2e-team-security.mjs --name grant-5193 --launch --scenario C8` through the heavy-job wrapper and retain the report.
