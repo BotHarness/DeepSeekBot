@@ -6,7 +6,7 @@ import {
   type PinnedBinding,
 } from '../src/features/pinned-tab/pinned-binding';
 import { pinnedHostId, resolvePinnedTarget } from '../src/features/pinned-tab/pinned-target';
-import { stewardSlug } from '../src/features/pinned-tab/steward';
+import { tobSlug } from '../src/features/pinned-tab/tob';
 import { defaultTabOrder, parseTabOrder, tabRoute, tabSlotOf } from '../src/ui/shell/tab-slots';
 
 const bot = (slug: string, extra: Partial<RosterBot> = {}): RosterBot => ({
@@ -131,7 +131,7 @@ describe('Pinned tab target', () => {
     expect(pinnedHostId(computerEnvironmentKey('gone'), hosts, ['h3'], 'h1')).toBeUndefined();
   });
 
-  it('defaults to the Steward DM', () => {
+  it("defaults to Tob's DM", () => {
     const target = resolvePinnedTarget({ hostId: 'h1', roster: roster() }, undefined);
     expect(target?.conversation.key).toBe('bot:tob');
     expect(target?.fallback).toBe(false);
@@ -158,7 +158,7 @@ describe('Pinned tab target', () => {
     ).toBe('channel:launch');
   });
 
-  it('falls back to the Steward DM when the bound conversation is gone', () => {
+  it("falls back to Tob's DM when the bound conversation is gone", () => {
     const target = resolvePinnedTarget(
       { hostId: 'h1', roster: roster() },
       { kind: 'channel', id: 'deleted' },
@@ -167,16 +167,22 @@ describe('Pinned tab target', () => {
     expect(target?.fallback).toBe(true);
   });
 
-  it('waits for the roster and finds nothing without a Steward', () => {
+  it('waits for the roster and opens the most recent conversation without Tob', () => {
     expect(resolvePinnedTarget({ hostId: 'h1', roster: undefined }, undefined)).toBeUndefined();
     expect(
-      resolvePinnedTarget({ hostId: 'h1', roster: roster({ bots: [bot('ada')] }) }, undefined),
+      resolvePinnedTarget(
+        { hostId: 'h1', roster: roster({ bots: [bot('ada')], channels: [] }) },
+        undefined,
+      )?.conversation.key,
+    ).toBe('bot:ada');
+    expect(
+      resolvePinnedTarget({ hostId: 'h1', roster: roster({ bots: [], channels: [] }) }, undefined),
     ).toBeUndefined();
   });
 
-  it('resolves the Steward through one function', () => {
-    expect(stewardSlug(undefined)).toBeUndefined();
-    expect(stewardSlug(roster())).toBe('tob');
-    expect(stewardSlug({ bots: [bot('ada')] })).toBeNull();
+  it('resolves Tob through one function', () => {
+    expect(tobSlug(undefined)).toBeUndefined();
+    expect(tobSlug(roster())).toBe('tob');
+    expect(tobSlug({ bots: [bot('ada')] })).toBeNull();
   });
 });

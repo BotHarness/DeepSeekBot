@@ -82,6 +82,8 @@ export const CLI_EFFECTS = {
   'bot-appearance-set': { effects: write, brokerRead: false },
   'bot-access': { effects: management, brokerRead: true },
   'bot-attention': { effects: read, brokerRead: true },
+  'bot-grant': { effects: management, brokerRead: false },
+  'bot-grants': { effects: read, brokerRead: true },
   'bot-avatar-set': { effects: write, brokerRead: false },
   'bot-banner-set': { effects: write, brokerRead: false },
   'bot-compact': { effects: write, brokerRead: false },

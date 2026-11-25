@@ -195,14 +195,12 @@ export function createChannelManagement(options: {
   database: OperationalDatabaseModulePort;
   channels: ChannelStore;
   registry: Pick<PersonaBotRegistry, 'get'>;
-  isProtectedBot: (slug: string) => boolean;
   autoAcceptGroupInvitations?: () => boolean;
   onInvitation?: (dmChannelId: string, invitationId: string) => void;
   onJoinDecision?: (dmChannelId: string, requestId: string) => void;
 }): ChannelManagementService {
   const { database, channels, registry } = options;
   const identity = (slug: string): TargetIdentity => {
-    if (options.isProtectedBot(slug)) throw new ChannelManagementError('protected-bot');
     const bot = registry.get(slug);
     if (!bot) throw new ChannelManagementError('unknown-bot');
     if (bot.paused) throw new ChannelManagementError('archived-bot');
@@ -217,11 +215,6 @@ export function createChannelManagement(options: {
     const record = channels.get(id);
     if (!record || record.deletedAt) throw new ChannelManagementError('unknown-channel');
     if (record.type !== 'group') throw new ChannelManagementError('not-group-channel');
-    if (
-      (record.ownerBotSlug !== undefined && options.isProtectedBot(record.ownerBotSlug)) ||
-      record.members.some(options.isProtectedBot)
-    )
-      throw new ChannelManagementError('protected-bot');
     return record;
   };
   const snapshot = (id: string): ChannelManagementSnapshot => {
@@ -267,7 +260,6 @@ export function createChannelManagement(options: {
   const member = (channel: ChannelRecord, slug: string, allowMissing = false): void => {
     if (typeof slug !== 'string' || !isValidSlug(slug))
       throw new ChannelManagementError('invalid-input');
-    if (options.isProtectedBot(slug)) throw new ChannelManagementError('protected-bot');
     if (!channel.members.includes(slug)) throw new ChannelManagementError('not-group-member');
     if (!allowMissing && !registry.get(slug)) throw new ChannelManagementError('unknown-bot');
   };
@@ -275,14 +267,7 @@ export function createChannelManagement(options: {
     if (humanSnapshot(human, before.channel.id).channelFingerprint !== before.channelFingerprint)
       throw new ChannelManagementError('stale-channel');
   };
-  const decisionTarget = (
-    slug: string,
-    createdAt: string,
-    allowPaused = false,
-    allowProtected = false,
-  ) => {
-    if (!allowProtected && options.isProtectedBot(slug))
-      throw new ChannelManagementError('protected-bot');
+  const decisionTarget = (slug: string, createdAt: string, allowPaused = false) => {
     const record = registry.get(slug);
     if (!record) throw new ChannelManagementError('unknown-bot');
     if (record.createdAt !== createdAt) throw new ChannelManagementError('stale-profile');
@@ -484,8 +469,6 @@ export function createChannelManagement(options: {
       const before = edit(human, input, ['requestId', 'accept']);
       const request = before.channel.joinRequests?.find((item) => item.id === input.requestId);
       if (!request) throw new ChannelManagementError('unknown-join-request');
-      if (input.accept && options.isProtectedBot(request.requesterBotSlug))
-        throw new ChannelManagementError('protected-bot');
       if (request.status !== 'pending') {
         if (
           input.expectedChannel === undefined &&
@@ -496,15 +479,10 @@ export function createChannelManagement(options: {
       }
       if (before.channel.members.includes(request.requesterBotSlug))
         throw new ChannelManagementError('join-request-not-pending');
-      const requester = decisionTarget(
-        request.requesterBotSlug,
-        request.requesterBotCreatedAt,
-        false,
-        !input.accept,
-      );
+      const requester = decisionTarget(request.requesterBotSlug, request.requesterBotCreatedAt);
       const dm = channels.getOrCreateDm(human, requester.slug, requester.displayName);
       if (!dm) throw new ChannelManagementError('channel-operation-unavailable');
-      decisionTarget(request.requesterBotSlug, request.requesterBotCreatedAt, false, !input.accept);
+      decisionTarget(request.requesterBotSlug, request.requesterBotCreatedAt);
       current(human, before);
       const decided = channels.decideGroupJoin({
         channelId: input.channelId,

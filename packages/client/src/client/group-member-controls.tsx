@@ -134,9 +134,6 @@ function AddGroupMembersDialog({
   t: BotHarnessTranslate;
   onClose: () => void;
 }): ReactElement {
-  const showTobGuidance = useClientStore((state) =>
-    state.bots.some((bot) => bot.tob !== undefined),
-  );
   const [selected, setSelected] = useState<PickedGroupMember[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -193,7 +190,6 @@ function AddGroupMembersDialog({
             disabled={busy}
             t={t}
           />
-          {showTobGuidance ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
         </>
       )}
     </FormDialog>

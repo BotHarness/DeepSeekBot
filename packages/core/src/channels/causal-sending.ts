@@ -10,7 +10,8 @@ import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { BotHopLimitReached } from './hop-limit.js';
 import { SendReviewRequired, type GroupSendReview } from './send-review.js';
-import { TobError, type TobService } from '../tob/service.js';
+import { isOwnerHumanDmSource } from '../tob/management-grants.js';
+import { TobError } from '../tob/service.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
@@ -50,7 +51,6 @@ interface CausalSendingPorts {
   readonly requireMembership: (botSlug: string, channelId: string) => ChannelRecord;
   readonly stoppedTurns: ReadonlySet<string>;
   readonly team: TeamService | undefined;
-  readonly tob: TobService | undefined;
   readonly turnSources: ReadonlyMap<string, { eventIds: ReadonlySet<string> }>;
   readonly warn: ((message: string) => void) | undefined;
 }
@@ -542,7 +542,11 @@ export function createCausalSending(ports: CausalSendingPorts) {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     ports.admitBotDmMessage(channel.id, result.message.id);
-    if (result.status === 'appended' && ports.tob?.isTob(botSlug)) ports.onTobDelegation();
+    if (
+      result.status === 'appended' &&
+      isOwnerHumanDmSource(ports.database, botSlug, input.sourceEventId)
+    )
+      ports.onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 

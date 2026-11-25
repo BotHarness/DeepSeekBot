@@ -245,11 +245,14 @@ it('refuses out-of-capability calls', async () => {
       ).toEqual({ text: 'refused: channel-out-of-scope', isError: true });
       expect(
         await call('tool_call', { name: 'bot_create', arguments: { display_name: 'Eve' } }),
-      ).toEqual({ text: 'refused: Human approval was rejected', isError: true });
+      ).toEqual({
+        text: 'refused: bot_create is not available to this engine Session',
+        isError: true,
+      });
     },
     { asked, gate },
   );
-  expect(asked).toEqual(['bot_create']);
+  expect(asked).toEqual([]);
 });
 
 function todoTool(): EngineBotTool {
