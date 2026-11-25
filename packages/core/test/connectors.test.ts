@@ -66,6 +66,7 @@ function fakeClient(overrides: Partial<ComposioClient> = {}) {
         items: [
           { service: 'gmail', name: 'Gmail', summary: 'Mail', categories: [] },
           { service: 'hubspot', name: 'HubSpot', summary: 'CRM', categories: ['crm'] },
+          { service: 'capsule_crm', name: 'Capsule CRM', summary: 'CRM', categories: ['crm'] },
         ],
         next: 'c2',
         total: 2007,
@@ -415,7 +416,13 @@ describe('connector app search', () => {
       await service.setKey('ak_test_key_1234');
       const found = await service.searchApps('帮我看 email');
       expect(found.source).toBe('composio');
-      expect(found.apps.map((app) => app.service)).toEqual(['gmail', 'outlook', 'hubspot']);
+      expect(found.apps.map((app) => app.service)).toEqual([
+        'gmail',
+        'outlook',
+        'hubspot',
+        'capsule_crm',
+      ]);
+      expect(found.offline).toBeUndefined();
       expect(found).toMatchObject({ next: 'c2', total: 2007 });
       expect(calls.filter((call) => call[0] === 'toolkits').at(-1)).toEqual([
         'toolkits',
@@ -427,9 +434,16 @@ describe('connector app search', () => {
       expect(chinese.source).toBe('featured');
       expect(chinese.apps.map((app) => app.service)).toEqual(['gmail', 'outlook']);
       const next = await service.searchApps('email', 'c2');
-      expect(next.apps.map((app) => app.service)).toEqual(['gmail', 'hubspot']);
-      const { account } = await service.connect({ service: 'hubspot' });
-      expect(account.label).toBe('HubSpot');
+      expect(next.apps.map((app) => app.service)).toEqual(['hubspot', 'capsule_crm']);
+      const empty = await service.searchApps('email', '');
+      expect(empty.apps.map((app) => app.service).slice(0, 2)).toEqual(['gmail', 'outlook']);
+      expect(calls.filter((call) => call[0] === 'toolkits').at(-1)?.[3]).toBeUndefined();
+      expect(service.appName('capsule_crm')).toBe('Capsule CRM');
+      const { account } = await service.connect({ service: 'capsule_crm' });
+      expect(account.label).toBe('Capsule CRM');
+      expect((await service.view()).accounts).toMatchObject([
+        { service: 'capsule_crm', name: 'Capsule CRM' },
+      ]);
       expect(JSON.stringify(found)).not.toContain('ak_test_key_1234');
     } finally {
       owner.close();
@@ -446,9 +460,29 @@ describe('connector app search', () => {
     try {
       await service.setKey('ak_test_key_1234');
       const found = await service.searchApps('calendar');
-      expect(found.source).toBe('featured');
+      expect(found).toMatchObject({ source: 'featured', offline: true });
       expect(found.apps.map((app) => app.service)).toContain('googlecalendar');
       await expect(service.searchApps('calendar', 'c2')).rejects.toThrow('unavailable');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('falls back to the featured apps when Composio cannot be reached', async () => {
+    const { client } = fakeClient({
+      toolkits: async () => {
+        throw new TypeError('fetch failed');
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('');
+      expect(found).toMatchObject({ source: 'featured', offline: true });
+      expect(found.apps.length).toBeGreaterThan(0);
+      await expect(service.searchApps('', 'c2')).rejects.toThrow('fetch failed');
+      const chinese = await service.searchApps('邮件');
+      expect(chinese.offline).toBeUndefined();
     } finally {
       owner.close();
     }

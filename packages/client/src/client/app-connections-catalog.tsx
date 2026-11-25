@@ -115,7 +115,7 @@ export function AppCatalog({
     search(text.trim()).then(
       (result) => {
         if (ticket !== latest.current) return;
-        setFailed(false);
+        setFailed(result.offline === true);
         setFound({ query: text, apps: result.apps, next: result.next });
       },
       () => {
@@ -154,7 +154,9 @@ export function AppCatalog({
             next: result.next,
           });
         },
-        () => setFailed(true),
+        () => {
+          if (ticket === latest.current) setFailed(true);
+        },
       )
       .finally(() => setMore(false));
   };

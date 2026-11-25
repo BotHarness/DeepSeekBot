@@ -41,6 +41,7 @@ export interface ConnectorAppSearch {
   next?: string;
   total?: number;
   source: 'composio' | 'featured';
+  offline?: true;
 }
 
 export interface BotConnector {

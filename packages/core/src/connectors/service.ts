@@ -57,6 +57,7 @@ export interface ConnectorAppSearch {
   next?: string;
   total?: number;
   source: 'composio' | 'featured';
+  offline?: true;
 }
 
 export interface BotConnector {
@@ -202,17 +203,18 @@ export class ConnectorService {
     return catalogEntry(service)?.name ?? this.#names.get(service) ?? service;
   }
 
-  async searchApps(query: string, cursor?: string): Promise<ConnectorAppSearch> {
+  async searchApps(query: string, after?: string): Promise<ConnectorAppSearch> {
     const text = query.trim().slice(0, 80);
-    const featured: ConnectorApp[] =
-      cursor === undefined
-        ? CONNECTOR_CATALOG.filter((entry) => matchesCatalog(entry, text)).map((entry) => ({
-            service: entry.service,
-            name: entry.name,
-            summary: entry.summary,
-            featured: true,
-          }))
-        : [];
+    const cursor = after === '' ? undefined : after;
+    const matches: ConnectorApp[] = CONNECTOR_CATALOG.filter((entry) =>
+      matchesCatalog(entry, text),
+    ).map((entry) => ({
+      service: entry.service,
+      name: entry.name,
+      summary: entry.summary,
+      featured: true,
+    }));
+    const featured = cursor === undefined ? matches : [];
     const latin = text
       .replace(/[^\x20-\x7e]+/g, ' ')
       .replace(/\s+/g, ' ')
@@ -225,10 +227,14 @@ export class ConnectorService {
     try {
       page = await this.#upstream(() => this.#client.toolkits(config.apiKey, latin, cursor));
     } catch (error) {
-      if (error instanceof ConnectorError && cursor === undefined) return local;
-      throw error;
+      if (cursor !== undefined) throw error;
+      if (!(error instanceof ConnectorError))
+        this.#log('composio-unreachable', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      return { ...local, offline: true };
     }
-    const seen = new Set(featured.map((app) => app.service));
+    const seen = new Set(matches.map((app) => app.service));
     const remote: ConnectorApp[] = [];
     for (const item of page.items) {
       if (!SLUG.test(item.service) || seen.has(item.service)) continue;
