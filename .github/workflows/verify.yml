@@ -36,7 +36,7 @@ env:
 jobs:
   plan:
     name: plan tests and run small selections
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
@@ -93,7 +93,7 @@ jobs:
 
   static:
     name: lint, format, typecheck, build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -487,7 +487,7 @@ jobs:
     name: e2e smoke (isolated DSH Host)
     needs: plan
     if: needs.plan.outputs.tests != 'none'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 14
     steps:
       - uses: actions/checkout@v7
