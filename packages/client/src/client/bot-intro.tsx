@@ -44,6 +44,8 @@ import {
 import { noSubscribe, ThemeStep } from './bot-intro-theme-step.js';
 import { Voices, WelcomeStep } from './bot-intro-welcome-step.js';
 import { styles as stepStyles } from './bot-intro-step-styles.js';
+import { ImportStep, NO_IMPORT, type ImportChoice } from './bot-intro-import-step.js';
+import { requestCreation } from './create-request.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
@@ -329,9 +331,12 @@ export function BotIntro({
   const [phoneDevice, setPhoneDevice] = useState<string>();
   const [phoneRead, setPhoneRead] = useState(false);
   const startPicks = useState<StartPicks>(NO_PICKS);
+  const importChoice = useState<ImportChoice>(NO_IMPORT);
+  const [importableSessions] = useState(() => () => actions.importableSessions());
   const close = (outcome?: IntroOutcome): Promise<void> => {
     if (navigationBusy) return Promise.resolve();
     startPicks[1](NO_PICKS);
+    importChoice[1](NO_IMPORT);
     modelDraft[1](EMPTY_MODEL_DRAFT);
     setPhoneOpen(false);
     setPhoneDevice(undefined);
@@ -546,6 +551,25 @@ export function BotIntro({
               controller.introEvent('onboarding:community_link_click', {
                 target,
               })
+            }
+          />
+        ) : null}
+        {step === 'import' ? (
+          <ImportStep
+            sessions={member ? undefined : importableSessions}
+            t={t}
+            choice={importChoice}
+            track={(source, detected) =>
+              controller.introEvent('onboarding:import_source_select', { source, detected })
+            }
+            start={(product) =>
+              void close({ starter: 'import', ...(product === undefined ? {} : { product }) }).then(
+                () =>
+                  requestCreation({
+                    kind: 'bot-sessions',
+                    ...(product === undefined ? {} : { product }),
+                  }),
+              )
             }
           />
         ) : null}

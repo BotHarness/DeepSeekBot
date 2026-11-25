@@ -10,14 +10,13 @@ const INBOX_FILTER_PARAMETERS = {
   source_kind: {
     type: 'array',
     items: { type: 'string' },
-    description:
-      'Admission reasons or Source Event kinds, such as human-dm, group-mention, bot-dm, schedule, assignment-report.',
+    description: 'Source kinds, e.g. human-dm, group-mention, schedule, assignment-report.',
   },
   channel_id: { type: 'string', description: 'Only items in this Channel.' },
-  assignment_id: { type: 'string', description: 'Only items about this Assignment Session id.' },
+  assignment_id: { type: 'string', description: 'Only items about this Assignment.' },
   author: {
     type: 'string',
-    description: 'Author kind (human, bot, bridged), Bot slug, or external sender id or name.',
+    description: 'human, bot, bridged, a Bot slug, or an external sender.',
   },
   since: { type: 'string', description: 'Inclusive ISO timestamp lower bound.' },
   until: { type: 'string', description: 'Inclusive ISO timestamp upper bound.' },
@@ -50,16 +49,15 @@ export function registerInboxTools(
     defineTool({
       name: 'inbox_history',
       description:
-        'List or search this PersonaBot’s own Bot Inbox across Sessions, including handled history and Self-Records. Read-only: never observes, handles, ignores or wakes work. Search is a literal FTS5 trigram phrase of at least 3 Unicode characters, ranked by relevance. Return at most 50 bounded snippets; read full Channel content with channel_read. Reuse the same filters with nextCursor. Search cursors last 10 minutes or until Host restart, and up to 64 searches are retained; narrow queries with more than 10000 matches.',
+        'Search or list your whole Bot Inbox history across Sessions, handled items included. Read-only; returns snippets, read full messages with channel_read.',
       parameters: {
         query: {
           type: 'string',
-          description: 'Literal text to find; 3–300 characters, Chinese or English.',
+          description: 'Literal text, at least 3 characters.',
         },
         kind: {
           type: 'string',
-          description:
-            'Admission reason or Source Event kind, such as memory-commit, bot-action, schedule, dm, mention, assignment-report.',
+          description: 'Source kind, e.g. memory-commit, schedule, dm, mention.',
         },
         channel_id: { type: 'string', description: 'Filter to this Channel.' },
         cause_source_event_id: {
@@ -103,7 +101,7 @@ export function registerInboxTools(
     defineTool({
       name: 'inbox_list',
       description:
-        'Review open Bot Inbox items: ones a turn has seen and you have not resolved. Items in the same Channel conversation or Assignment are grouped with a count and up to 20 ids, newest conversation first. Read-only. Filters narrow by source kind, Channel, Assignment, author and time; reuse the same filters with nextCursor.',
+        'List open Bot Inbox items you have seen but not resolved, grouped by conversation or Assignment, newest first. Read-only.',
       parameters: {
         ...INBOX_FILTER_PARAMETERS,
         include_snoozed: {
@@ -139,26 +137,24 @@ export function registerInboxTools(
     defineTool({
       name: 'inbox_resolve',
       description:
-        'Resolve Bot Inbox items you have seen, with outcome done or ignored and an optional short note kept in the Inbox diary. Pass ids (open items, or items of this turn), or pass filter fields to resolve every matching open item: the first filter call returns outcome confirm with the count, a sample and a token, and only a repeat of the same call with confirm set to that token resolves them. A changed match returns a new count and token instead.',
+        'Resolve seen Bot Inbox items as done or ignored. Pass ids, or filter fields: a filter call first returns a count and a token, and repeating it with confirm set to that token resolves them.',
       parameters: {
         ids: {
           type: 'array',
           items: { type: 'string' },
-          description:
-            'Source Event ids from [Open Inbox] or inbox_list, or the Message ID shown in a turn header, to resolve; 1–200. Do not combine with filter fields.',
+          description: 'Source Event or Message IDs, 1–200; not with filters.',
         },
         ...INBOX_FILTER_PARAMETERS,
         outcome: {
           type: 'string',
           enum: ['done', 'ignored'],
           required: true,
-          description:
-            'done when answered, finished or needing nothing more; ignored for spam, misdelivery or irrelevant content.',
+          description: 'ignored only for spam, misdelivery or irrelevant content.',
         },
         note: { type: 'string', description: 'Why, in at most 500 characters.' },
         confirm: {
           type: 'string',
-          description: 'Token from the previous filter call, to resolve that exact set.',
+          description: 'Token from the previous filter call.',
         },
       },
       output: {
@@ -188,27 +184,26 @@ export function registerInboxTools(
     defineTool({
       name: 'inbox_snooze',
       description:
-        'Defer only unfinished Bot Inbox responsibilities until a time, with a note for resumption. Resolve already-read FYI items as done instead of snoozing them; they need no future work. At that time they return and wake you; a new event in the same Channel conversation or Assignment brings them back early. Snoozing again never moves the return earlier. Pass ids, or filter fields with the same count-then-confirm flow as inbox_resolve.',
+        'Defer unfinished Bot Inbox items until a time; they return and wake you, or earlier on a new event in the same conversation. Resolve FYI items as done instead. Ids or filters as in inbox_resolve.',
       parameters: {
         ids: {
           type: 'array',
           items: { type: 'string' },
-          description:
-            'Source Event ids from [Open Inbox] or inbox_list, or the Message ID shown in a turn header, to snooze; 1–200. Do not combine with filter fields.',
+          description: 'Source Event or Message IDs, 1–200; not with filters.',
         },
         ...INBOX_FILTER_PARAMETERS,
         until_time: {
           type: 'string',
           required: true,
-          description: 'ISO timestamp in the future, within 30 days, when the items return.',
+          description: 'Future ISO time, within 30 days.',
         },
         note: {
           type: 'string',
-          description: 'What to do when they return, at most 500 characters.',
+          description: 'What to do when they return.',
         },
         confirm: {
           type: 'string',
-          description: 'Token from the previous filter call, to snooze that exact set.',
+          description: 'Token from the previous filter call.',
         },
       },
       output: {
@@ -236,7 +231,7 @@ export function registerInboxTools(
     defineTool({
       name: 'inbox_ignore',
       description:
-        'Explicitly dismiss one Channel message already shown to or read by this PersonaBot, by message id. Use only for spam, misdelivery, truly irrelevant content, or an explicit request to dismiss. Resolve FYI context with inbox_resolve outcome done instead. The message remains in Channel history.',
+        'Dismiss one seen Channel message, only for spam, misdelivery, irrelevant content or when asked. Resolve FYI with inbox_resolve done instead.',
       parameters: {
         message_id: {
           type: 'string',

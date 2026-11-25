@@ -51,7 +51,7 @@ export function createListAssignmentModelsTool({
   return defineTool({
     name: 'list_assignment_models',
     description:
-      'Read the Human-approved model and effort choices for new Assignments, the default, and any Human notes. For a Subscription Engine choice in sub, pass its engine, model and accountId as engine, model and account_id in create_assignment, omitting any unset values. For a Routing Group pass its group id; an Assignment on a Routing Group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that Routing Group. A choice with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other API model the Human allows for Assignments. assignmentLoadouts lists the Loadouts (system prompt and tool set) a new Assignment may run with.',
+      'Read the allowed models, efforts, Routing Groups and Loadouts for new Assignments, with the default and Human notes. Pass a Subscription Engine choice as engine, model and account_id. Avoid a choice with restingUntil.',
     parameters: {},
     output: {
       schema: { type: 'string' },

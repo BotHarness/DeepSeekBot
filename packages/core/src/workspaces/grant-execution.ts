@@ -375,6 +375,7 @@ const BOT_TOOL_NAMES = new Set([
   'list_subagent_models',
   'request_workspace_grant',
   'list_workspace_grants',
+  'workspace_sessions',
   'list_assignments',
   'archive_assignment',
   'unarchive_assignment',

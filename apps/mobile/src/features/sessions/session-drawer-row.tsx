@@ -12,7 +12,7 @@ import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
 import { useHostLook } from '../../host/native-host-look';
 import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
-import { cornerBadge, edge, radius, space } from '../../ui/design/tokens';
+import { cornerBadge, radius, space } from '../../ui/design/tokens';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { folderColorIndex, folderMonogram, type SessionQueryRow } from './session-query-model';
@@ -130,10 +130,6 @@ export function SessionDrawerRow({
               position: 'absolute',
               right: -space.x1,
               bottom: -space.x1,
-              borderRadius: radius.round,
-              borderWidth: edge.focus,
-              borderColor: theme.color.base,
-              backgroundColor: theme.color.base,
             }}
           >
             <BotPortrait

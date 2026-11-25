@@ -11,11 +11,12 @@ export const discordProfile: DshImPlatformProfile<'discord'> = {
     namespace: 'discord-user-id',
     sender: (event) =>
       /^[0-9]{5,30}$/.test(event.actor.id) &&
-      event.conversation.kind === 'dm' &&
       /^[0-9]{5,30}$/.test(event.conversation.id) &&
       event.reply.actorId === event.actor.id &&
       event.reply.conversationId === event.conversation.id &&
       event.reply.messageId === event.messageId,
+    groups: true,
+    roles: true,
     management: true,
   },
   features: { interactions: true, reachableConversations: true, mentionMarkup: true },

@@ -178,7 +178,8 @@ export interface ValidatedCreate {
     | { kind: 'blank' }
     | { kind: 'git'; gitUrl: string }
     | { kind: 'zip'; path: string }
-    | { kind: 'dir'; path: string };
+    | { kind: 'dir'; path: string }
+    | { kind: 'sessions'; sessionIds: string[]; addWorkspaces?: true };
 }
 
 export async function validatedCreate(
@@ -188,10 +189,16 @@ export async function validatedCreate(
   const zip = trimmed(values['from-zip']);
   const dir = trimmed(values['from-dir']);
   const git = trimmed(values['from-git']);
+  const sessions = trimmed(values['from-sessions']);
+  if (values['from-sessions'] !== undefined && sessions === undefined)
+    throw usageError('--from-sessions needs a comma-separated list of Session IDs.');
   const selected =
-    (zip === undefined ? 0 : 1) + (dir === undefined ? 0 : 1) + (git === undefined ? 0 : 1);
+    (zip === undefined ? 0 : 1) +
+    (dir === undefined ? 0 : 1) +
+    (git === undefined ? 0 : 1) +
+    (sessions === undefined ? 0 : 1);
   if (selected > 1) {
-    throw usageError('Pass exactly one of --from-zip, --from-dir, or --from-git.');
+    throw usageError('Pass exactly one of --from-zip, --from-dir, --from-git, or --from-sessions.');
   }
   const name = trimmed(values.name);
   const persona = trimmed(values.persona);
@@ -208,7 +215,7 @@ export async function validatedCreate(
   const avatarFile = trimmed(values['avatar-file']);
   if (
     (coreMemory !== undefined || coreMemoryStdin || avatarFile !== undefined) &&
-    (zip !== undefined || dir !== undefined || git !== undefined)
+    (zip !== undefined || dir !== undefined || git !== undefined || sessions !== undefined)
   )
     throw usageError('--core-memory and --avatar-file apply to blank bots only.');
   const description = trimmed(values.description);
@@ -219,7 +226,7 @@ export async function validatedCreate(
   const presetId = trimmed(values.preset);
   const memoryLocation = trimmed(values['memory-location']);
   if (memoryLocation !== undefined) {
-    if (zip !== undefined || dir !== undefined || git !== undefined) {
+    if (zip !== undefined || dir !== undefined || git !== undefined || sessions !== undefined) {
       throw usageError('--memory-location applies to blank bots only.');
     }
     if (!isAbsolute(memoryLocation)) {
@@ -246,6 +253,33 @@ export async function validatedCreate(
       description,
       presetId,
       source: { kind: 'git', gitUrl: expanded },
+    };
+  }
+  if (sessions !== undefined) {
+    if (name === undefined) throw usageError('--name is required with --from-sessions.');
+    const sessionIds = [
+      ...new Set(
+        sessions
+          .split(',')
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0),
+      ),
+    ];
+    if (sessionIds.length === 0 || sessionIds.length > 50)
+      throw usageError('--from-sessions takes 1 to 50 comma-separated Session IDs.');
+    const piped = personaStdin ? (await readStdin()).trim() : '';
+    const chosenPersona = personaStdin ? (piped.length > 0 ? piped : undefined) : persona;
+    return {
+      displayName: name,
+      persona: chosenPersona,
+      roles,
+      description,
+      presetId,
+      source: {
+        kind: 'sessions',
+        sessionIds,
+        ...(values['add-workspaces'] === true ? { addWorkspaces: true as const } : {}),
+      },
     };
   }
   if (zip !== undefined) {
@@ -332,6 +366,8 @@ export async function runCreate(
   io: BotCreateCliIo,
   readStdin: () => Promise<string>,
 ): Promise<BotCreateResult> {
+  if (values['from-sessions'] !== undefined)
+    throw usageError('--from-sessions reads Sessions from a running Host; pass --host.');
   const validated = await validatedCreate(values, readStdin);
   const dshHome = resolveHome(values, io);
   const steps: BotCreateStep[] = [{ name: 'validate', status: 'ok' }];
