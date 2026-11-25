@@ -259,7 +259,9 @@ export function createQuestionMessaging(options: {
       const latest = read(id);
       if (latest) {
         trace('update', latest, startedAt);
-        if (again.delete(id) || render(latest).status !== card.status) void update(id);
+        const queued = again.delete(id);
+        if (render(latest).status !== card.status || (queued && latest.submission === 'refused'))
+          void update(id);
       }
     }
   };

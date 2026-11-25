@@ -655,6 +655,10 @@ it('asks by text when cards are unavailable and takes a quoted letter', async ()
   expect(await answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
   await vi.waitFor(() => expect(f.replies.mock.calls.at(-1)![2]).toContain('Answered / 已回答'));
   expect(f.replies.mock.calls.at(-1)![1]).toEqual(asked[1]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(
+    f.replies.mock.calls.filter((call) => String(call[2]).includes('Answered / 已回答')),
+  ).toHaveLength(1);
 });
 
 it('a quoted free-text question does not take an unknown #reference as its answer', async () => {
