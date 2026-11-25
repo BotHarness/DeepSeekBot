@@ -194,7 +194,17 @@ Why: a live A/B ran Claude Code 2.1.332 and codex-cli 0.172.0 on `deepseek-v4.1-
 
 Enforced by: `engine-persona.test.ts`, `engine-claude.test.ts` (no `disallowedTools` or tool-search variable in the Claude options), `engine-tools.test.ts`.
 
-## 17. A PersonaBot Session can run on a Subscription Engine
+## 17. An engine's own sub-agents show as read-only Subagents and cannot act as the Bot
+
+<a id="adr-0369"></a>
+
+A Subscription Engine's own sub-agents (a Claude Code `Agent` call, a Codex `spawn_agent` thread) are projected as DSH Subagent Sessions under the engine Session that started them, never as Assignments. The Host writes each one into a child DSH Session with `parentSession` and `origin: 'subagent'`, claims it in Session Ownership with `provenance: 'subagent'`, and records each run of the sub-agent as one turn: its prompt, reasoning, tool calls and results, its answer, and how it ended. The existing Subagent rows, `sessionSubagents`, the Assignment timeline and Bot activity read it like a DSH Subagent; the Human can open it but not steer, continue or archive it, because the engine owns it and it ends with the engine turn. Claude Code is asked to forward sub-agent text (`forwardSubagentText`); no other engine setting changes. Codex 0.169 announces a spawned agent only as a `subAgentActivity` item and never sends its task in clear, so its Subagent is titled from the last segment of `agentPath` and the Orchestrator records a `spawn_agent` call built from that item. A Claude sub-agent that runs in the background, whether asked for with `run_in_background` or acknowledged as `async_launched`, is recorded until its `task_notification` or the end of the parent turn, whichever comes first; its later messages are dropped. A sub-agent cannot use the Bot gateway: the Host refuses its calls with `subagent-not-bot`, through a `PreToolUse` hook and `canUseTool` on Claude Code (`agent_id` / `agentID`) and by matching the gateway call to the Codex child thread's `item/started`. Each Codex `item/started` vouches for one gateway call, and a child item wins over an identical main item. A Codex call with no matching item waits at most one second; it then fails closed while any child thread is running and runs as the engine's own only when none is. Codex gives every thread the same MCP server and token, so the item is the only caller identity it reports; a child call that reaches the gateway before its own item, while an identical main item is still unclaimed, would still run as the engine's own. This narrows ADR-0368: nothing refuses an engine's sub-agents themselves, but their Bot gateway calls are refused.
+
+Why: an Assignment promises its own Workspace Grant, steering, continuation, `report_to_orchestrator` and archive, and an engine sub-agent has none of these; showing it as an Assignment would offer buttons that do nothing. Dropping its messages hid what the Bot was doing, and on Codex its thread's items and `turn/completed` reached the main turn. Sub-agents share the engine's gateway token, so without the refusal a sub-agent could send a message, create a Schedule or Assignment, or end an Assignment early with a terminal report; ADR-0368's instructions alone do not stop that.
+
+Enforced by: `engine-subagents.test.ts`.
+
+## 18. A PersonaBot Session can run on a Subscription Engine
 
 <a id="adr-0353"></a>
 _Formerly ADR-0353, with its amendments for the seam (#4485), engine file access (#4655) and Codex device sign-in (#4559)._
@@ -213,7 +223,7 @@ Why: Humans asked to run their Bots on the Claude or ChatGPT subscription they a
 
 Enforced by: `engine-session.test.ts`, `engine-claude.test.ts`, `engine-accounts.test.ts`, `engine-runner.test.ts`, `engine-recovery.test.ts`, `engine-approval.test.ts`, `engine-write-authority.test.ts`, `engine-quota.test.ts`, `dsh-bot-agent-adapter-engine-lifecycle.test.ts`, `apps/docs/test/bot-cli-engine-scope.test.ts`.
 
-## 18. Orchestrator turns carry a bounded work context
+## 19. Orchestrator turns carry a bounded work context
 
 <a id="adr-0354"></a>
 _Formerly ADR-0354, which amends section 2 (formerly ADR-0045)._
@@ -224,7 +234,7 @@ Why: once the coordination prompt made the Orchestrator delegate all real work (
 
 Enforced by: `dsh-bot-agent-adapter.test.ts` (work context block), `orchestrator-coordination-prompt.test.ts`.
 
-## 19. Model Fallback is Host-owned and moves a Session at a step boundary
+## 20. Model Fallback is Host-owned and moves a Session at a step boundary
 
 <a id="adr-0355"></a>
 _Formerly ADR-0355 (#4410). The ADR was still marked Proposed, but the Host ships it._

@@ -111,6 +111,16 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
       on search_rows.channel_id = messages.channel_id and search_rows.id = messages.id
     where messages.purged = 0
       and coalesce(json_extract(messages.entry, '$.message.body'), '') <> '';`,
+  `create table sessions (
+    id text primary key,
+    record text not null
+  ) without rowid;
+  create table session_list_state (
+    singleton integer primary key check (singleton = 1),
+    epoch text,
+    seq integer,
+    sources text not null
+  );`,
 ];
 
 const reader = (connection: SqlConnection): SqlReader => ({

@@ -23,7 +23,7 @@ import type { InboundMessagingOptions } from './inbound.js';
 
 export const pairingPendingNotice = (reference: string) =>
   [
-    `Pairing request ${reference} is waiting for review and expires in 10 minutes. Your message will not run. A pairing reviewer can reply to this message with "approve [role]" or "reject". / 配对申请 ${reference} 等待审核，10 分钟后过期，该消息不会执行。有配对审核权限的人可回复本消息「同意 [角色]」或「拒绝」。`,
+    `Pairing request ${reference} is waiting for review and expires in 10 minutes. Your message will not run. A pairing reviewer can reply to this message with "approve", "approve <role>" or "reject". / 配对申请 ${reference} 等待审核，10 分钟后过期，该消息不会执行。有配对审核权限的人可回复本消息「同意」「同意 <角色>」或「拒绝」。`,
     `#${reference}`,
   ].join('\n\n');
 

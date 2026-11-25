@@ -5,7 +5,7 @@ import {
 } from '@botharness/host-protocol/session-model';
 import { answerRecord, HostAnswerInvalid, record, some, type HostCall } from './host-answer';
 
-interface OwnedSessionRow {
+interface OwnedSessionRow extends Record<string, unknown> {
   role: 'orchestrator' | 'assignment';
   sessionId: string;
   createdAt: string;
@@ -27,7 +27,10 @@ function ownedSessionRow(value: unknown): OwnedSessionRow | undefined {
     !Number.isFinite(Date.parse(createdAt))
   )
     return undefined;
+  const rest: Record<string, unknown> = { ...row };
+  delete rest['displayTitle'];
   return {
+    ...rest,
     role,
     sessionId,
     createdAt,

@@ -14,4 +14,5 @@ export const dimension = stylex.defineConsts({
   scheduleHistoryMaxHeight: '200px',
   questionCardWidth: '380px',
   introToolCardMinWidth: '180px',
+  catalogCardMinWidth: '240px',
 });

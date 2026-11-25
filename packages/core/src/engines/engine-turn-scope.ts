@@ -1,6 +1,7 @@
 import type { EngineSteering } from './assignment-steering.js';
 import { engineGatewayResult } from './engine-gateway.js';
 import type { EngineToolContext, EngineTurnRequest } from './engine-host-types.js';
+import { type EngineSession, SUBAGENT_GATEWAY_REFUSAL } from './engine-session.js';
 
 export interface TurnScope {
   channelId: string | undefined;
@@ -17,9 +18,12 @@ export async function executeEngineTurnTool(
   name: string,
   args: Record<string, unknown>,
   signal: AbortSignal,
+  engine?: Pick<EngineSession, 'gatewayCaller'>,
 ) {
   if (turn?.context === undefined || turn.signal.aborted)
     return { text: 'refused: session-not-running', isError: true };
+  if ((await engine?.gatewayCaller?.(name, args, signal)) === 'subagent')
+    return { text: SUBAGENT_GATEWAY_REFUSAL, isError: true };
 
   const execution = turn.execute(name, args, AbortSignal.any([signal, turn.signal]), turn.context);
   const replying =

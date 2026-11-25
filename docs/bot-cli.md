@@ -562,6 +562,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"default-role","roleId":"<role-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
@@ -690,7 +691,8 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived]
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>] [--include-archived] [--limit <1-200>] [--cursor <cursor>]
+deepseekbot session-list-changes [--since <seq> [--epoch <epoch>]]
 deepseekbot session-import-list
 deepseekbot session-create (--cwd <path> | --workspace <workspace-id>) [--model <Model-Choice-JSON>] [--session <blank-session-id>] --message <text>
 deepseekbot session-answer-approval --session <session-id> --request <request-id> --decision allowed-once|rejected
@@ -703,7 +705,7 @@ deepseekbot session-send <native-session-id> [--] <text>
 deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
 ```
 
-These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. With `--limit`, the list returns one page and a `nextCursor`; pass it as `--cursor` to read the next page. `session-list-changes` without `--since` returns the current change cursor (`reset: true`). With `--since` and `--epoch` from an earlier cursor, it returns the rows that changed, the IDs of removed Sessions and a new cursor, or `reset: true` when the Host restarted or the change log no longer covers that cursor; then read the full list again. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
 
 The Host Owner can read native approval and question cards in `pendingInput` from `session-transcript` and `session-live`. Pass the card's `requestId` to the matching answer command. For a question, send a JSON object such as `{"answers":[{"id":"format","selected":["Compact"]}]}` on stdin, with one answer per question. A free-text answer uses `"selected":[]` and a `custom` string. Omit `custom` with an empty selection to skip an individual question. An already settled request returns `session-input-not-pending`.
 
@@ -1450,6 +1452,25 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 ```
 
 Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>` for an OpenAI-compatible service. Add and key replacement report whether the key was stored, how many models are listed and whether a test reply succeeded on the new route. The JSON shows at most the last four characters of a key. Removal is refused when the provider is inherited or referenced by a default model, Routing Group, Model Preset or Bot. Enter keys on the Host or over Tailscale.
+
+### App connections (Composio)
+
+The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key needs write access to Session management, Session tool execution, Connected accounts and Auth configs; a read-only key can list accounts but cannot create sign-in links. When one Bot has both a Read and a Read and write account for the same app, the app is treated as Read for that Bot. The key stays in the Host credential store and is never shown to a Bot.
+
+```bash
+deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-connect gmail --label "Work Gmail"
+deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+deepseekbot bot-connectors <bot-id>
+deepseekbot connector-grant <bot-id> <account-id> --access none
+deepseekbot connector-remove <account-id> --confirm
+deepseekbot connector-key-clear --confirm
+```
+
+`connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 

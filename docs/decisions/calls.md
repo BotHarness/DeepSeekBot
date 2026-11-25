@@ -1,6 +1,6 @@
 # Voice and call decisions
 
-How a Bot speaks and hears, and how a Human calls a Bot from a phone or a desktop window, with the camera or screen shared as pictures. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); Channels and the DM are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0280, 0281, 0283, 0284, 0285, 0286, 0287, 0288, 0289, 0290, 0291, 0299, 0303, 0304, 0305, 0307, 0308, 0310, 0315, 0317, 0362, 0363 and 0369, and each section lists the ADRs it absorbed. The CLI verbs named below are `tobs` commands; older text calls the same binary `deepseekbot`.
+How a Bot speaks and hears, and how a Human calls a Bot from a phone or a desktop window, with the camera or screen shared as pictures. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); Channels and the DM are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0280, 0281, 0283, 0284, 0285, 0286, 0287, 0288, 0289, 0290, 0291, 0299, 0303, 0304, 0305, 0307, 0308, 0310, 0315, 0317, 0362 and 0363 and the meeting-attendance record of #5374, and each section lists the ADRs it absorbed. The CLI verbs named below are `tobs` commands; older text calls the same binary `deepseekbot`.
 
 Two rules run through every section:
 
@@ -169,8 +169,8 @@ Enforced by: `adr-0363-voice-http-request-templates.property.test.ts`, `voice-re
 
 ## 14. A Bot attends a meeting as a call, through a browser on the Host (proposed)
 
-<a id="adr-0369"></a>
-_Formerly ADR-0369 (#5374). Still proposed: nothing has shipped, and the first slice is Zoom._
+<a id="meeting-attendance"></a>
+_Formerly the numbered record `docs/adr/0369-a-bot-attends-a-meeting-as-a-call-through-a-host-browser.md` (#5374). Its number collided with the engine sub-agent decision in [Sessions §17](sessions.md#adr-0369), which keeps `adr-0369`, so this section uses a descriptive anchor. Still proposed: nothing has shipped, and the first slice is Zoom._
 
 - **A meeting is a call.** A Meeting Attendance is a call whose far end is a meeting instead of the Human's phone or window. Meeting audio runs through the same pipeline (Host VAD, the Bot's ASR, streaming where the binding supports it, the same Orchestrator input, "busy" speech heard on the next turn). Speaking, when it ships, reuses streamed replies and barge-in (§5). All speakers arrive as one audio input.
 - **The far end is a dedicated browser on the Host.** Each attendance starts its own Chrome instance with its own profile and joins the platform's web client as a guest whose display name says whose Bot it is. Remote audio is taken from the page's media tracks over CDP, never from system audio devices, so attendances cannot hear one another. It runs on a desktop Host or in the Container target on a VPS. No paid service is involved, and no meeting audio leaves the Host except to the Bot's own ASR provider.
