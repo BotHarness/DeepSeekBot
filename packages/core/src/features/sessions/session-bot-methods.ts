@@ -183,7 +183,7 @@ export function createSessionBotMethods(
         else if (addFolders && tooBroadToAdd(seed.cwd))
           return failure(
             'workspace-too-broad',
-            `${seed.cwd} is too broad to add as a Workspace; add a project folder in DSH first.`,
+            `${seed.cwd} is too broad to add as a Workspace; add a narrower folder as a Workspace in DSH first.`,
           );
         else if (addFolders && deps.registerWorkspace !== undefined && isFolder(seed.cwd))
           missing.add(seed.cwd);
