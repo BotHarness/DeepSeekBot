@@ -6,7 +6,7 @@ export type AppSetupDescriptor = MessagingSetup & { providerId: string };
 export interface AppSetupAttempt {
   version: 1;
   attemptId: string;
-  platform: 'feishu' | 'weixin';
+  platform: MessagingSetup['platform'];
   state:
     | 'credentials'
     | 'creating'

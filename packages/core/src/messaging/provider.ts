@@ -229,12 +229,14 @@ export interface MessagingApprovalAck {
   status: 'queued' | 'refused';
 }
 
-export interface MessagingSetup {
+export type MessagingSetupVariant =
+  | { platform: 'feishu'; kind: 'credentials' }
+  | { platform: 'weixin'; kind: 'qr' };
+
+export type MessagingSetup = MessagingSetupVariant & {
   version: 1;
-  platform: 'feishu' | 'weixin';
   endpoint: 'dsh-im/app-setup';
-  kind: 'credentials' | 'qr';
-}
+};
 
 export interface MessagingQuestionCard {
   requestId: string;
