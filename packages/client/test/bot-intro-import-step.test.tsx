@@ -58,17 +58,16 @@ it('asks which tools were used, shows found sessions and starts the import for l
     const logo = (id: string) =>
       card(id).querySelector('[data-model-brand]')?.getAttribute('data-model-brand');
     expect(
-      ['claude-code', 'codex', 'claude', 'chatgpt', 'grok', 'cursor', 'other'].map(logo),
-    ).toEqual(['claudecode', 'codex', 'claude', 'openai', 'grok', 'cursor', undefined]);
+      [...document.body.querySelectorAll('[data-import-source]')].map((node) =>
+        node.getAttribute('data-import-source'),
+      ),
+    ).toEqual(['claude-code', 'codex']);
+    expect(['claude-code', 'codex'].map(logo)).toEqual(['claudecode', 'codex']);
     expect(document.body.querySelector('[data-intro-import-start]')).toBeNull();
 
     await act(() => card('codex').click());
     expect(track).toHaveBeenLastCalledWith('codex', false);
     expect(document.body.textContent).toContain('这台电脑上没找到 Codex 的会话。');
-
-    await act(() => card('grok').click());
-    expect(track).toHaveBeenLastCalledWith('grok', false);
-    expect(document.body.textContent).toContain('从这些工具导入还在做');
 
     await act(() => card('claude-code').click());
     expect(track).toHaveBeenLastCalledWith('claude-code', true);
@@ -80,7 +79,7 @@ it('asks which tools were used, shows found sessions and starts the import for l
     expect(start).toHaveBeenCalledWith('claude-code', 2);
 
     await act(() => card('claude-code').click());
-    expect(track).toHaveBeenCalledTimes(3);
+    expect(track).toHaveBeenCalledTimes(2);
   } finally {
     await act(() => root.unmount());
     node.remove();

@@ -21,15 +21,8 @@ export const zh = {
   'intro.import.label': '用过的 AI 工具',
   'intro.import.source.claude-code': 'Claude Code',
   'intro.import.source.codex': 'Codex',
-  'intro.import.source.claude': 'Claude',
-  'intro.import.source.chatgpt': 'ChatGPT',
-  'intro.import.source.grok': 'Grok',
-  'intro.import.source.cursor': 'Cursor',
-  'intro.import.source.other': '其他',
   'intro.import.found': '找到 {count} 个会话',
   'intro.import.local': '读取这台电脑上的会话',
-  'intro.import.export': '网页版对话',
-  'intro.import.later': '稍后支持导入',
   'intro.import.ready':
     '在 {products} 里找到 {count} 个会话。用它们创建的 Bot 会先读完，再来自我介绍。',
   'intro.import.join': '、',
@@ -37,7 +30,6 @@ export const zh = {
   'intro.import.retry': '重试',
   'intro.import.start': '选择会话',
   'intro.import.none': '这台电脑上没找到 {products} 的会话。',
-  'intro.import.exportLater': '从这些工具导入还在做，我们先记下你用过它们。',
   'intro.step.start': '开始',
   'intro.welcome.greeting': '你好，我是托布',
   'intro.welcome.body':
@@ -479,15 +471,8 @@ export const en = {
   'intro.import.label': 'AI tools you have used',
   'intro.import.source.claude-code': 'Claude Code',
   'intro.import.source.codex': 'Codex',
-  'intro.import.source.claude': 'Claude',
-  'intro.import.source.chatgpt': 'ChatGPT',
-  'intro.import.source.grok': 'Grok',
-  'intro.import.source.cursor': 'Cursor',
-  'intro.import.source.other': 'Other',
   'intro.import.found': '{count} on this computer',
   'intro.import.local': 'Reads sessions on this computer',
-  'intro.import.export': 'Web chats',
-  'intro.import.later': 'Import coming later',
   'intro.import.ready':
     'Sessions found in {products}: {count}. A Bot created from them reads them first, then introduces itself.',
   'intro.import.join': ', ',
@@ -495,8 +480,6 @@ export const en = {
   'intro.import.retry': 'Try again',
   'intro.import.start': 'Choose sessions',
   'intro.import.none': 'No {products} sessions found on this computer.',
-  'intro.import.exportLater':
-    'Importing from these tools is coming. We have noted that you use them.',
   'intro.step.start': 'Start',
   'intro.welcome.greeting': 'Hi, I’m Tob',
   'intro.welcome.body':
