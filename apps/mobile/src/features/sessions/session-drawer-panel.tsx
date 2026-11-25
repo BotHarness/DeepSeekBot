@@ -20,6 +20,7 @@ import { sessionDrawerSections, type SessionDrawerGroup } from './session-drawer
 import { SessionOptionsMenu } from './session-options-menu';
 import { HeaderCircleButton } from '../../ui/chat/header-chrome';
 import { useFloatingTabInset } from '../../ui/shell/floating-tab-inset';
+import { useWindowInsets } from '../../ui/shell/window-insets';
 import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 
 export type SessionDrawerPanelProps = {
@@ -54,6 +55,7 @@ export function SessionDrawerPanel({
   const t = useStrings().hostSessions;
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const windowInsets = useWindowInsets();
   const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
   const hideChrome = useHideChromeOnScroll(page && !searching);
@@ -216,7 +218,7 @@ export function SessionDrawerPanel({
         )}
       />
       {page ? null : (
-        <KeyboardFormFooter>
+        <KeyboardFormFooter bottomInset={windowInsets.bottom}>
           <View
             style={{
               flexDirection: 'row',
@@ -224,7 +226,7 @@ export function SessionDrawerPanel({
               gap: space.x3,
               paddingHorizontal: space.x4,
               paddingTop: space.x2,
-              paddingBottom: Math.max(insets.bottom, space.x4),
+              paddingBottom: Math.max(windowInsets.bottom, space.x4),
             }}
           >
             <View style={{ flex: 1 }}>{searchBlock}</View>
