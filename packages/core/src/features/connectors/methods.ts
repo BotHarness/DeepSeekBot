@@ -49,7 +49,7 @@ const forbidden: BridgeResult<never> = {
   ok: false,
   error: {
     code: 'permission-required',
-    message: 'Only the Host Owner manages Connectors',
+    message: 'Only the Host Owner manages App connections',
     details: { permission: 'connectors.manage' },
   },
 };
@@ -58,7 +58,7 @@ const missing: BridgeResult<never> = {
   ok: false,
   error: {
     code: 'storage-unavailable',
-    message: 'Connector storage is unavailable',
+    message: 'App connection storage is unavailable',
   },
 };
 

@@ -1444,9 +1444,9 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>` for an OpenAI-compatible service. Add and key replacement report whether the key was stored, how many models are listed and whether a test reply succeeded on the new route. The JSON shows at most the last four characters of a key. Removal is refused when the provider is inherited or referenced by a default model, Routing Group, Model Preset or Bot. Enter keys on the Host or over Tailscale.
 
-### Connectors (Composio)
+### App connections (Composio)
 
-The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. Connectors run through the Owner's own Composio project: add its API key first. The key stays in the Host credential store and is never shown to a Bot.
+The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Notion, Slack and GitHub once on the Host, then lets each Bot use the accounts it needs. App connections run through the Owner's own Composio project: add its API key first. The key stays in the Host credential store and is never shown to a Bot.
 
 ```bash
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key

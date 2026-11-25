@@ -72,8 +72,8 @@ export function connectorCatalogFor(
       : requestable.length > 0
         ? 'Call connector_request with the account_id the user needs; the Owner approves it on a card.'
         : configured
-          ? 'Tell the user which connector would help and ask the Owner to connect it in Settings › Connectors; then call connector_request.'
-          : 'Connectors are not set up on this Host yet; ask the Owner to add a Composio API key in Settings › Connectors.',
+          ? 'Tell the user which app connection would help and ask the Owner to connect it in Settings › App connections; then call connector_request.'
+          : 'App connections are not set up on this Host yet; ask the Owner to add a Composio API key in Settings › App connections.',
   };
 }
 
@@ -133,7 +133,7 @@ export function mountConnectors(
           defineTool({
             name: 'connector_catalog',
             description:
-              'List the apps (Connectors such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to narrow the list. It returns what to do next.',
+              'List the apps (App connections such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to narrow the list. It returns what to do next.',
             parameters: {
               query: {
                 type: 'string',

@@ -15,11 +15,11 @@ export const CONNECTOR_COMMANDS = [
   {
     command: 'connectors',
     description:
-      'list Connector accounts on this Host, their Bot grants and the services you can connect',
+      'list App connection accounts on this Host, their Bot grants and the services you can connect',
   },
   {
     command: 'connector-key-set',
-    description: 'save and check the Composio API key Connectors use (--key-stdin)',
+    description: 'save and check the Composio API key App connections use (--key-stdin)',
   },
   {
     command: 'connector-key-clear',
@@ -32,21 +32,21 @@ export const CONNECTOR_COMMANDS = [
   },
   {
     command: 'connector-refresh',
-    description: 'check every Connector account with Composio and update its status',
+    description: 'check every App connection account with Composio and update its status',
   },
   {
     command: 'connector-grant',
     description:
-      'let a Bot use a Connector account (--access read|write) or take it away (--access none)',
+      'let a Bot use an App connection account (--access read|write) or take it away (--access none)',
   },
   {
     command: 'connector-remove',
     description:
-      'disconnect a Connector account at Composio and remove it from every Bot (--confirm)',
+      'disconnect an App connection account at Composio and remove it from every Bot (--confirm)',
   },
   {
     command: 'bot-connectors',
-    description: 'list the Connector accounts a Bot may use and its access to each',
+    description: 'list the App connection accounts a Bot may use and its access to each',
   },
 ] as const;
 
@@ -89,7 +89,7 @@ export async function runConnectorCommand(
     positionals(command, rest, 0, '');
     if (values.confirm !== true)
       usage(
-        'connector-key-clear needs --confirm; every Connector stops working until a key is added again.',
+        'connector-key-clear needs --confirm; every App connection stops working until a key is added again.',
       );
     return (await connect())('connectorKeyClear', {});
   }

@@ -45,8 +45,8 @@ export const zh = {
 } as const;
 
 export const en = {
-  'botSettings.section.connectors': 'Connectors',
-  'entry.appConnectors': 'Connectors',
+  'botSettings.section.connectors': 'App connections',
+  'entry.appConnectors': 'App connections',
   'connectors.key.section': 'Composio',
   'connectors.key.title': 'API key',
   'connectors.key.saved': 'Saved',
@@ -88,7 +88,8 @@ export const en = {
   'connectors.bot.none': 'No access',
   'connectors.bot.read': 'Read',
   'connectors.bot.write': 'Read and write',
-  'connectors.bot.empty': 'Connect apps in Settings › Connectors, then give them to Bots here.',
+  'connectors.bot.empty':
+    'Connect apps in Settings › App connections, then give them to Bots here.',
   'connectors.bot.ownerOnly': 'Only the Host Owner can give apps to Bots.',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

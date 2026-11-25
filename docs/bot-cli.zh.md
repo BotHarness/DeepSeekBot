@@ -1377,9 +1377,9 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
 
-### Connectors（Composio）
+### 应用连接（Composio）
 
-Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。Connectors 通过 Owner 自己的 Composio 项目运行，先添加它的 API key。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
+Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。应用连接通过 Owner 自己的 Composio 项目运行，先添加它的 API key。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
 
 ```bash
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key

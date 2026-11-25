@@ -841,6 +841,14 @@
       "gap": null
     },
     {
+      "id": "desktop.settings.app-connections",
+      "label": "Owner adds a Composio key, connects apps and gives each Bot Read or Read and write; Bots reach them only through guarded tools",
+      "source": "packages/core/src/connectors/service.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/app-connections.md",
+      "task": 5332,
+      "gap": "Isolated Host covers the settings page, CLI and key rejection. A live Composio sign-in and Bot turn need the Owner's key."
+    },
+    {
       "id": "desktop.browser.open-observe-stop",
       "label": "Default local Browser: one fixture tab, observation, stop and Access-off refusal",
       "source": "packages/browser/src/client/index.tsx",

@@ -732,6 +732,10 @@ _Avoid_: sync, mirror, Bridge (for this record)
 The UI name (应用) for one authenticated Provider account, such as a Lark app, a Slack app, a Discord bot or a paired WeChat Bot. An App is bound to at most one PersonaBot; a PersonaBot may bind several Apps, including several of one platform. Bot Settings → IM apps lists every App and the PersonaBot that uses it.
 _Avoid_: IM account (in UI copy), connector, integration
 
+**App connection**:
+The UI name (应用连接) for one account in an outside data app, such as Gmail, Google Calendar, Drive, Notion or GitHub, that the Host Owner connects once on the Host through the Owner's own Composio project. The Owner gives each PersonaBot No access, Read or Read and write on each App connection; a Bot reaches it only through Host-guarded `mcp__composio__` tools and never sees the Composio key. It is unrelated to an IM App and to External connectors.
+_Avoid_: connector (bare, in UI copy), integration, App (for this record), plugin
+
 **Default traffic**:
 The messages an enabled external identity Binding admits without any per-conversation consent: direct messages to the App and group messages the qualified Provider reports as mentioning it. Where the App can be reached is decided on the platform; ordinary group text, followed threads and Channel syncs stay explicit.
 _Avoid_: all messages, authorized traffic, open intake
