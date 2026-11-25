@@ -21,8 +21,9 @@ public final class ComputerUnlockModule: Module {
         let labels = try? JSONDecoder().decode(UnlockPromptCopy.self, from: Data(copy.utf8))
       else { return ["code": "invalid"] }
       do {
+        let presenter = await MainActor.run { self.appContext?.utilities?.currentViewController() }
         return try await Self.unlock.prepare(host: host, device: device, operation: operation,
-          offer: offer, saved: saved, copy: labels, presenter: self.appContext?.utilities?.currentViewController())
+          offer: offer, saved: saved, copy: labels, presenter: presenter)
       } catch {
         return ["code": (error as? UnlockFailure)?.rawValue ?? "invalid"]
       }
