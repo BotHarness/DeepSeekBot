@@ -15,6 +15,7 @@ import { segmentCorners } from '../design/segment-corners';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
 import { useStrings, t } from '../strings';
+import { useSheetGroupFill } from '../primitives/sheet-group-fill';
 import { SystemListSheet, type SystemListSection } from '../primitives/system-list-sheet';
 
 export type ActivitySection = 'all' | InboxSection | InboxSetAside;
@@ -186,6 +187,7 @@ export function ActivityFilterContent({
 }: Omit<Props, 'visible'>) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const group = useSheetGroupFill(SHEET_GROUP);
   const rowsOf = ({ key, label, choices }: ActivityChoiceGroup): Row[] => [
     { kind: 'heading', key, label },
     ...choices.map((choice, index) => ({
@@ -243,7 +245,7 @@ export function ActivityFilterContent({
                   paddingHorizontal: space.x5,
                   paddingVertical: space.x3,
                   borderRadius: androidSettings.listRadius,
-                  backgroundColor: theme.layer[SHEET_GROUP].fill,
+                  backgroundColor: group.fill,
                 }}
               >
                 <Text style={{ flex: 1 }}>{t.activityUnreadOnly}</Text>
@@ -273,9 +275,7 @@ export function ActivityFilterContent({
                 ...segmentCorners(first, last),
                 marginTop: first ? 0 : androidSettings.segmentGap,
                 overflow: 'hidden',
-                backgroundColor: pressed
-                  ? theme.layer[SHEET_GROUP].pressed
-                  : theme.layer[SHEET_GROUP].fill,
+                backgroundColor: pressed ? group.pressed : group.fill,
               })}
             >
               <RadioMark selected={choice.selected} />

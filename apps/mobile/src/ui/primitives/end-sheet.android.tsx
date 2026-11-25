@@ -7,6 +7,7 @@ import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { materialDrawer } from '../design/tokens';
 import type { EndSheetProps } from './end-sheet';
+import { SystemSheet } from './system-sheet';
 
 const NativeEndSheet = requireNativeView<
   ViewProps & {
@@ -76,7 +77,7 @@ export function EndSheet({
           backgroundColor: container,
         }}
       >
-        {panel}
+        <SystemSheet value>{panel}</SystemSheet>
       </View>
     </NativeEndSheet>
   );
