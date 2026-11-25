@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
@@ -274,6 +274,13 @@ it('refuses to add the disk root, the home folder or agent config as a Workspace
   expect(tooBroadToAdd('/home/me/.claude/projects', '/home/me')).toBe(true);
   expect(tooBroadToAdd('/home/me/.ssh', '/home/me')).toBe(true);
   expect(tooBroadToAdd('/home/me/code/app', '/home/me')).toBe(false);
+  const home = mkdtempSync(join(tmpdir(), 'home-'));
+  const link = join(mkdtempSync(join(tmpdir(), 'links-')), 'home-link');
+  symlinkSync(home, link);
+  expect(tooBroadToAdd(link, home)).toBe(true);
+  const rootLink = `${link}-root`;
+  symlinkSync('/', rootLink);
+  expect(tooBroadToAdd(rootLink, home)).toBe(true);
   const registerWorkspace = vi.fn(async (path: string) => ({ id: 'ws-new', path, title: 'new' }));
   const externalSessions = {
     list: async () => [

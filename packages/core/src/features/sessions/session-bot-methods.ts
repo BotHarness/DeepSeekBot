@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { statSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
@@ -27,10 +27,25 @@ import {
 import { isExternalSessionId, type ExternalSessionSummary } from './external-sessions.js';
 
 export function tooBroadToAdd(path: string, home = homedir()): boolean {
-  const target = resolve(path);
-  if (dirname(target) === target || target === resolve(home)) return true;
-  return ['.claude', '.codex', '.ssh', '.deepseek'].some((name) =>
-    pathWithin(join(home, name), target),
+  const real = (value: string): string => {
+    try {
+      return realpathSync(value);
+    } catch {
+      return resolve(value);
+    }
+  };
+  const targets = [resolve(path), real(path)];
+  const homes = [resolve(home), real(home)];
+  return targets.some(
+    (target) =>
+      dirname(target) === target ||
+      homes.some(
+        (root) =>
+          target === root ||
+          ['.claude', '.codex', '.ssh', '.deepseek'].some((name) =>
+            pathWithin(join(root, name), target),
+          ),
+      ),
   );
 }
 
