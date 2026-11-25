@@ -608,6 +608,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'connectorConnect',
   'connectorReconnect',
   'connectorRefresh',
+  'connectorSearch',
+  'connectorLogos',
   'connectorGrantSet',
   'connectorAccountRemove',
   'botConnectors',

@@ -4,7 +4,11 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createConnectorStore } from '../src/connectors/store.js';
 import { ConnectorError, ConnectorService, connectorAccess } from '../src/connectors/service.js';
-import { createComposioClient, type ComposioClient } from '../src/connectors/composio.js';
+import {
+  ComposioError,
+  createComposioClient,
+  type ComposioClient,
+} from '../src/connectors/composio.js';
 import { connectorToolDenial, readOnlyTool } from '../src/connectors/policy.js';
 import { connectorAccessMap, connectorCatalogFor } from '../src/connectors/mount.js';
 import { runConnectorCommand } from '../src/bots/cli-connectors.js';
@@ -55,6 +59,22 @@ function fakeClient(overrides: Partial<ComposioClient> = {}) {
     },
     removeAccount: async (apiKey, accountId) => {
       calls.push(['removeAccount', apiKey, accountId]);
+    },
+    logo: async (service) => {
+      calls.push(['logo', service]);
+      return service === 'capsule_crm' ? 'data:image/png;base64,AA==' : undefined;
+    },
+    toolkits: async (apiKey, query, cursor) => {
+      calls.push(['toolkits', apiKey, query, cursor]);
+      return {
+        items: [
+          { service: 'gmail', name: 'Gmail', summary: 'Mail', categories: [] },
+          { service: 'hubspot', name: 'HubSpot', summary: 'CRM', categories: ['crm'] },
+          { service: 'capsule_crm', name: 'Capsule CRM', summary: 'CRM', categories: ['crm'] },
+        ],
+        next: 'c2',
+        total: 2007,
+      };
     },
     session: async (apiKey, userId, pinned) => {
       calls.push(['session', apiKey, userId, pinned]);
@@ -389,6 +409,171 @@ describe('connector catalog for a Bot', () => {
   });
 });
 
+describe('connector app search', () => {
+  it('puts featured apps first, adds Composio results and keeps Chinese words local', async () => {
+    const { client, calls } = fakeClient();
+    const { owner, service } = setup(client);
+    try {
+      const offline = await service.searchApps('email');
+      expect(offline.source).toBe('featured');
+      expect(offline.apps.map((app) => app.service)).toEqual(['gmail', 'outlook']);
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('帮我看 email');
+      expect(found.source).toBe('composio');
+      expect(found.apps.map((app) => app.service)).toEqual([
+        'gmail',
+        'outlook',
+        'hubspot',
+        'capsule_crm',
+      ]);
+      expect(found.offline).toBeUndefined();
+      expect(found).toMatchObject({ next: 'c2', total: 2007 });
+      expect(calls.filter((call) => call[0] === 'toolkits').at(-1)).toEqual([
+        'toolkits',
+        'ak_test_key_1234',
+        'email',
+        undefined,
+      ]);
+      const chinese = await service.searchApps('邮件');
+      expect(chinese.source).toBe('featured');
+      expect(chinese.apps.map((app) => app.service)).toEqual(['gmail', 'outlook']);
+      const next = await service.searchApps('email', 'c2');
+      expect(next.apps.map((app) => app.service)).toEqual(['hubspot', 'capsule_crm']);
+      const empty = await service.searchApps('email', '');
+      expect(empty.apps.map((app) => app.service).slice(0, 2)).toEqual(['gmail', 'outlook']);
+      expect(calls.filter((call) => call[0] === 'toolkits').at(-1)?.[3]).toBeUndefined();
+      expect(service.appName('capsule_crm')).toBe('Capsule CRM');
+      const { account } = await service.connect({ service: 'capsule_crm' });
+      expect(account.label).toBe('Capsule CRM');
+      expect((await service.view()).accounts).toMatchObject([
+        { service: 'capsule_crm', name: 'Capsule CRM' },
+      ]);
+      expect(JSON.stringify(found)).not.toContain('ak_test_key_1234');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('falls back to the featured apps when Composio fails', async () => {
+    const { client } = fakeClient({
+      toolkits: async () => {
+        throw new ComposioError(503, 'down');
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('calendar');
+      expect(found).toMatchObject({ source: 'featured', offline: true });
+      expect(found.apps.map((app) => app.service)).toContain('googlecalendar');
+      await expect(service.searchApps('calendar', 'c2')).rejects.toThrow('unavailable');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('falls back to the featured apps when Composio cannot be reached', async () => {
+    const { client } = fakeClient({
+      toolkits: async () => {
+        throw new TypeError('fetch failed');
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      await service.setKey('ak_test_key_1234');
+      const found = await service.searchApps('');
+      expect(found).toMatchObject({ source: 'featured', offline: true });
+      expect(found.apps.length).toBeGreaterThan(0);
+      await expect(service.searchApps('', 'c2')).rejects.toThrow('fetch failed');
+      const chinese = await service.searchApps('邮件');
+      expect(chinese.offline).toBeUndefined();
+    } finally {
+      owner.close();
+    }
+  });
+});
+
+describe('connector app logos', () => {
+  it('fetches each logo once and skips invalid services', async () => {
+    const { client, calls } = fakeClient();
+    const { owner, service } = setup(client);
+    try {
+      expect(await service.logos(['capsule_crm', 'nologo', 'Bad Slug', 'capsule_crm'])).toEqual({
+        capsule_crm: 'data:image/png;base64,AA==',
+      });
+      expect(await service.logos(['capsule_crm', 'nologo'])).toEqual({
+        capsule_crm: 'data:image/png;base64,AA==',
+      });
+      expect(calls.filter((call) => call[0] === 'logo')).toEqual([
+        ['logo', 'capsule_crm'],
+        ['logo', 'nologo'],
+      ]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('retries a logo after a network failure', async () => {
+    let attempts = 0;
+    const { client } = fakeClient({
+      logo: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new TypeError('fetch failed');
+        return 'data:image/png;base64,AA==';
+      },
+    });
+    const { owner, service } = setup(client);
+    try {
+      expect(await service.logos(['zoho'])).toEqual({});
+      expect(await service.logos(['zoho'])).toEqual({ zoho: 'data:image/png;base64,AA==' });
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('accepts images and rejects active SVG content', async () => {
+    const bodies: Record<string, { type: string; body: string }> = {
+      plain: { type: 'image/svg+xml', body: '<svg viewBox="0 0 1 1"><path fill="url(#g)"/></svg>' },
+      script: { type: 'image/svg+xml', body: '<svg><script>alert(1)</script></svg>' },
+      handler: { type: 'image/svg+xml', body: '<svg onload="x()"></svg>' },
+      remote: { type: 'image/svg+xml', body: '<svg><a href="https://x.dev">a</a></svg>' },
+      png: { type: 'image/png', body: 'PNG' },
+      html: { type: 'text/html', body: '<html></html>' },
+      doctype: {
+        type: 'image/svg+xml',
+        body: '<?xml version="1.0"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">\n<!-- logo -->\n<svg><path/></svg>',
+      },
+      entity: {
+        type: 'image/svg+xml',
+        body: '<!DOCTYPE svg [<!ENTITY a "b">]><svg>&a;</svg>',
+      },
+      fallback: {
+        type: 'image/svg+xml',
+        body: '<svg><pattern id="composio-fallback-grid"/></svg>',
+      },
+    };
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      const name = url.split('/').pop()!;
+      const entry = bodies[name];
+      if (entry === undefined) return new Response('', { status: 404 });
+      return new Response(entry.body, { status: 200, headers: { 'content-type': entry.type } });
+    }) as unknown as typeof fetch;
+    const client = createComposioClient({ fetch: fetchImpl });
+    expect(await client.logo('plain')).toBe(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg viewBox="0 0 1 1"><path fill="url(#g)"/></svg>')}`,
+    );
+    expect(await client.logo('png')).toBe('data:image/png;base64,UE5H');
+    expect(await client.logo('doctype')).toBe(
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg><path/></svg>')}`,
+    );
+    for (const name of ['script', 'handler', 'remote', 'html', 'entity', 'fallback', 'missing'])
+      expect(await client.logo(name)).toBeUndefined();
+    expect(urls[0]).toBe('https://logos.composio.dev/api/plain');
+  });
+});
+
 describe('Composio client', () => {
   it('sends the key header, pins accounts in the session and rejects an untrusted MCP URL', async () => {
     const requests: Array<{ url: string; init: RequestInit }> = [];
@@ -484,6 +669,10 @@ describe('deepseekbot connector commands', () => {
       ['connectorAccountRemove', { accountId: 'acc' }],
     ]);
     expect(await run('bot-connectors', ['ada'])).toEqual([['botConnectors', { slug: 'ada' }]]);
+    expect(await run('connector-search', ['crm'], { cursor: 'c2' })).toEqual([
+      ['connectorSearch', { query: 'crm', cursor: 'c2' }],
+    ]);
+    expect(await run('connector-search', [])).toEqual([['connectorSearch', { query: '' }]]);
   });
 
   it('refuses a key on the command line, a missing access and an unconfirmed removal', async () => {

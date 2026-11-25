@@ -9,6 +9,7 @@ export interface ConnectorValues {
   label?: string;
   access?: string;
   confirm?: boolean;
+  cursor?: string;
 }
 
 export const CONNECTOR_COMMANDS = [
@@ -38,6 +39,11 @@ export const CONNECTOR_COMMANDS = [
   {
     command: 'connector-refresh',
     description: 'check every App connection account with Composio and update its status',
+  },
+  {
+    command: 'connector-search',
+    description:
+      'search every app Composio can connect, featured apps first; Chinese words match the featured apps only (--cursor for the next page)',
   },
   {
     command: 'connector-grant',
@@ -108,6 +114,14 @@ export async function runConnectorCommand(
   if (command === 'connector-reconnect') {
     const [accountId] = positionals(command, rest, 1, 'exactly one account id');
     return (await connect())('connectorReconnect', { accountId });
+  }
+  if (command === 'connector-search') {
+    if (rest.length > 1) usage('connector-search takes at most one query; quote several words.');
+    const query = (rest[0] ?? '').trim();
+    return (await connect())('connectorSearch', {
+      query,
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+    });
   }
   if (command === 'connector-grant') {
     const [slug, accountId] = positionals(command, rest, 2, 'a bot id and an account id');

@@ -1398,7 +1398,7 @@
       "description": "App connections through the Owner's Composio key and per-Bot read or write access.",
       "scope": "Local Host",
       "surfaces": [
-        "setting:packages/client/src/client/app-connections-catalog.tsx:{name(service)}",
+        "setting:packages/client/src/client/app-connections-catalog.tsx:{picked.name}",
         "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
         "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}"
       ],
@@ -1409,6 +1409,7 @@
         "connector-connect",
         "connector-reconnect",
         "connector-refresh",
+        "connector-search",
         "connector-remove",
         "connector-grant",
         "bot-connectors"

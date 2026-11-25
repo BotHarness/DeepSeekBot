@@ -235,6 +235,7 @@ export const CLI_EFFECTS = {
   'connector-key-set': { effects: externalSecretManagement, brokerRead: false },
   'connector-reconnect': { effects: externalManagement, brokerRead: false },
   'connector-refresh': { effects: externalWrite, brokerRead: false },
+  'connector-search': { effects: externalRead, brokerRead: false },
   'connector-remove': { effects: externalIrreversibleManagement, brokerRead: false },
   connectors: { effects: read, brokerRead: true },
   create: { effects: external, brokerRead: false },

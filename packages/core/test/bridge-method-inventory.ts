@@ -342,6 +342,8 @@ export const bridgeMethodInventory = [
   'connectorConnect',
   'connectorReconnect',
   'connectorRefresh',
+  'connectorSearch',
+  'connectorLogos',
   'connectorGrantSet',
   'connectorAccountRemove',
   'botConnectors',
