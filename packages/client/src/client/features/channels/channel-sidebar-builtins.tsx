@@ -53,6 +53,7 @@ import { DisbandGroupDialog, GroupManagementSettings } from '../../group-managem
 import { MembersEntry, MembersHeaderAction } from '../../group-member-controls.js';
 import { setSessionTarget, useSessionTarget } from '../../session-target.js';
 import { PrivateAccountsSection } from '../../private-accounts-section.js';
+import { BotConnectorsSection } from '../../bot-connectors-section.js';
 import { BotSchedulesEntry, BotSchedulesHeaderAction } from '../../schedules-entry.js';
 import {
   SessionsEntry,
@@ -742,6 +743,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: ExternalConnectorsEntry,
       attention: ExternalConnectorsAttention,
+    },
+    {
+      id: 'app-connectors',
+      surface: 'settings',
+      icon: 'cable',
+      label: t('entry.appConnectors'),
+      order: 28.5,
+      scope: 'personabot',
+      component: BotConnectorsSection,
     },
     {
       id: 'private-accounts',

@@ -284,7 +284,8 @@ window.__ModuleLoader__.load({
 			base: "var(--tobs-layer-canvas)",
 			modal: "var(--tobs-layer-sheet)",
 			well: "var(--tobs-layer-well)",
-			accentTint: "var(--tobs-accent-tint)"
+			accentTint: "var(--tobs-accent-tint)",
+			logoTile: "var(--tobs-layer-logo)"
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
@@ -910,6 +911,20 @@ window.__ModuleLoader__.load({
 					height: "14",
 					rx: "2"
 				}]
+			],
+			cable: [
+				["path", { d: "M17 19a1 1 0 0 1-1-1v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a1 1 0 0 1-1 1z" }],
+				["path", { d: "M17 21v-2" }],
+				["path", { d: "M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10" }],
+				["path", { d: "M21 21v-2" }],
+				["path", { d: "M3 5V3" }],
+				["path", { d: "M4 10a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2a2 2 0 0 1-2 2z" }],
+				["path", { d: "M7 5V3" }]
+			],
+			"message-square-share": [
+				["path", { d: "M12 3H4a2 2 0 0 0-2 2v16.286a.71.71 0 0 0 1.212.502l2.202-2.202A2 2 0 0 1 6.828 19H20a2 2 0 0 0 2-2v-4" }],
+				["path", { d: "M16 3h6v6" }],
+				["path", { d: "m16 9 6-6" }]
 			],
 			plug: [
 				["path", { d: "M12 22v-5" }],

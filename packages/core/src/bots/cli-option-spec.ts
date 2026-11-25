@@ -239,6 +239,13 @@ export const PROMPT_PRESET_OPTIONS = {
   confirm: { type: 'boolean' },
 } as const;
 
+export const CONNECTOR_OPTIONS = {
+  'key-stdin': { type: 'boolean' },
+  label: { type: 'string' },
+  access: { type: 'string' },
+  confirm: { type: 'boolean' },
+} as const;
+
 export const SCHEDULE_OPTIONS = {
   confirm: { type: 'boolean' },
 } as const;
@@ -373,6 +380,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
+  ...CONNECTOR_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
   ...CALL_OPTIONS,
