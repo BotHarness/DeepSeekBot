@@ -16,35 +16,15 @@ import { ModelBrandIcon, type ModelBrand } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
 import { styles as stepStyles } from './bot-intro-step-styles.js';
 
-export const IMPORT_SOURCES = [
-  'claude-code',
-  'codex',
-  'claude',
-  'chatgpt',
-  'grok',
-  'cursor',
-  'other',
-] as const;
+export const IMPORT_SOURCES = ['claude-code', 'codex'] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
-const LOGOS: Readonly<Record<ImportSource, ModelBrand | undefined>> = {
+const LOGOS: Readonly<Record<ImportSource, ModelBrand>> = {
   'claude-code': 'claudecode',
   codex: 'codex',
-  claude: 'claude',
-  chatgpt: 'openai',
-  grok: 'grok',
-  cursor: 'cursor',
-  other: undefined,
 };
 
 const LOGO_SIZE = Number.parseFloat(iconSize.iconLarge);
-
-const LOCAL: Partial<Record<ImportSource, Exclude<ImportProduct, 'deepseek'>>> = {
-  'claude-code': 'claude-code',
-  codex: 'codex',
-};
-
-const WEB: readonly ImportSource[] = ['claude', 'chatgpt', 'grok'];
 
 const styles = stylex.create({
   grid: {
@@ -159,14 +139,10 @@ export function ImportStep({
     };
   }, [sessions, attempt]);
   const counts = productCounts(rows ?? []);
-  const local = chosen.flatMap((id) => {
-    const product = LOCAL[id];
-    return product === undefined ? [] : [product];
-  });
+  const local: readonly Exclude<ImportProduct, 'deepseek'>[] = chosen;
   const found = local.filter((product) => counts[product] > 0);
   const missing = local.filter((product) => counts[product] === 0);
   const total = found.reduce((sum, product) => sum + counts[product], 0);
-  const exportsOnly = chosen.some((id) => LOCAL[id] === undefined);
   const name = (id: ImportSource): string => t(`intro.import.source.${id}` as BotHarnessKey);
   return (
     <div ref={load} {...stylex.props(stepStyles.section)} data-intro-import="">
@@ -177,8 +153,7 @@ export function ImportStep({
       <div {...stylex.props(styles.grid)} role="group" aria-label={t('intro.import.label')}>
         {IMPORT_SOURCES.map((id) => {
           const on = chosen.includes(id);
-          const product = LOCAL[id];
-          const count = product === undefined || rows === undefined ? undefined : counts[product];
+          const count = rows === undefined ? undefined : counts[id];
           return (
             <button
               key={id}
@@ -194,11 +169,7 @@ export function ImportStep({
               {...stylex.props(styles.card, on && styles.chosen)}
             >
               <span {...stylex.props(styles.icon)}>
-                {LOGOS[id] === undefined ? (
-                  <Icon name="puzzle" />
-                ) : (
-                  <ModelBrandIcon brand={LOGOS[id]} size={LOGO_SIZE} />
-                )}
+                <ModelBrandIcon brand={LOGOS[id]} size={LOGO_SIZE} />
                 {on ? (
                   <span {...stylex.props(styles.check)}>
                     <Icon name="check" size={LOGO_SIZE / 2} />
@@ -212,15 +183,7 @@ export function ImportStep({
                     {t('intro.import.found', { count })}
                   </span>
                 ) : (
-                  <span {...stylex.props(styles.meta)}>
-                    {t(
-                      product !== undefined
-                        ? 'intro.import.local'
-                        : WEB.includes(id)
-                          ? 'intro.import.export'
-                          : 'intro.import.later',
-                    )}
-                  </span>
+                  <span {...stylex.props(styles.meta)}>{t('intro.import.local')}</span>
                 )}
               </span>
             </button>
@@ -258,7 +221,6 @@ export function ImportStep({
           })}
         </p>
       ) : null}
-      {exportsOnly ? <p {...stylex.props(styles.note)}>{t('intro.import.exportLater')}</p> : null}
     </div>
   );
 }
