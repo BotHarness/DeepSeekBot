@@ -25,6 +25,7 @@ it('offers explicit Bot deletion alongside pin and section placement but never f
   const options = {
     pinned: false,
     hostMuted: false,
+    canDisband: true,
     sections: [{ id: 's1', name: 'Work', channelIds: [] }],
     onAction: vi.fn(),
     onMove: vi.fn(),
@@ -55,6 +56,7 @@ it('never offers to disband a DM with another person', () => {
   const menu = conversationMenu(person, {
     pinned: false,
     hostMuted: false,
+    canDisband: true,
     sections: [],
     onAction: vi.fn(),
     onMove: vi.fn(),
@@ -62,4 +64,31 @@ it('never offers to disband a DM with another person', () => {
   });
   expect(menu.some((action) => action.key === 'delete')).toBe(false);
   expect(menu.map((action) => action.label)).toContain(t.rowActions.pin);
+});
+
+it('offers Disband for a group only to a viewer who can disband it', () => {
+  const group: Conversation = {
+    kind: 'channel',
+    key: 'channel:g1',
+    unread: 0,
+    needsYou: 0,
+    muted: false,
+    channel: { id: 'g1', name: 'Launch', memberCount: 3, members: [] },
+  };
+  const onDelete = vi.fn();
+  const options = {
+    pinned: false,
+    hostMuted: false,
+    sections: [],
+    onAction: vi.fn(),
+    onMove: vi.fn(),
+    onDelete,
+  };
+  const owner = conversationMenu(group, { ...options, canDisband: true });
+  owner.find((action) => action.key === 'delete')?.run();
+  expect(onDelete).toHaveBeenCalledWith({ kind: 'group', id: 'g1', name: 'Launch' });
+  const member = conversationMenu(group, { ...options, canDisband: false });
+  expect(member.some((action) => action.key === 'delete')).toBe(false);
+  expect(member.map((action) => action.label)).not.toContain(t.deletion.disband);
+  expect(member.map((action) => action.label)).toContain(t.rowActions.pin);
 });
