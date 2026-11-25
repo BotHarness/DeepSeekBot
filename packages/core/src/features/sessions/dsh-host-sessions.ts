@@ -17,6 +17,8 @@ import type { DshSessionListRow, NativeSessions } from './host-sessions.js';
 import type { SessionListChanges } from './session-list-changes.js';
 import { incrementalSessionRows } from './session-row-cache.js';
 
+const createdOf = (createdAt: number | undefined) => (createdAt === undefined ? {} : { createdAt });
+
 export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
@@ -61,6 +63,7 @@ export function dshHostSessions(
       lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
       running,
       updatedAt: previous.updatedAt,
+      ...(previous.createdAt === undefined ? {} : { createdAt: previous.createdAt }),
     };
   }
 
@@ -74,7 +77,16 @@ export function dshHostSessions(
   async function readRows(): Promise<readonly DshSessionListRow[]> {
     const service = controller();
     const signal = new AbortController().signal;
-    const { items } = await service.list({}, signal);
+    const [{ items }, records] = await Promise.all([
+      service.list({}, signal),
+      ctx
+        .get('sessionQuery')
+        ?.listSessions()
+        .catch(() => undefined),
+    ]);
+    const created = new Map<string, number>(
+      (records ?? []).map(({ header }) => [header.id, header.createdAt]),
+    );
     const roots = items.filter((row) => row.origin !== 'subagent');
     subagents = new Set(
       items.filter((row) => row.origin === 'subagent').map((row) => row.sessionId),
@@ -107,6 +119,7 @@ export function dshHostSessions(
         lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
         running,
         updatedAt,
+        ...createdOf(created.get(sessionId)),
       };
     });
   }
