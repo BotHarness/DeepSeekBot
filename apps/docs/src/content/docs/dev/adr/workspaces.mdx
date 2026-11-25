@@ -35,11 +35,24 @@ Enforced by: [Workspace Grant identity and revocation](https://github.com/BotHar
 
 In the safe mode, the Orchestrator keeps implicit read/write access to its Memory Repository and uses its current Grants for project paths. An Assignment uses its original Workspace Grant only. An active read-only Grant does not authorize writes by either role. A Human-confirmed Workspace request commits persistent read/write authority together with its Channel resolution and Admission under the [Workspace request approval decision](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/approvals.md#adr-0238).
 
-The native file tool guard checks canonical containment and the current Grant on each call. Scope changes apply at the next checked dispatch and cannot undo an effect already in flight. Team mode adds member and shared roots and audience containment under [the Team decision](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/team-mode.md#adr-0336). Opaque Shell and plugin execution follow the [Session permission mode](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/sessions.md#adr-0205), including explicit Full Access. The path checks are a capability boundary with the Host filesystem's same-user race limits.
+The native file tool guard checks canonical containment and the current Grant on each call. Scope changes apply at the next checked dispatch and cannot undo an effect already in flight. Team mode adds member and shared roots and audience containment under [the Team decision](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/team-mode.md#adr-0336). Opaque Shell and plugin execution follow the [Session permission mode](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/sessions.md#adr-0205), including explicit Full Access, except that an Assignment's Shell also follows its Grant's write switch ([below](#adr-0356)). The path checks are a capability boundary with the Host filesystem's same-user race limits.
 
 Why: A saved directory list needs to agree with actual file calls, including after a Human changes or revokes authority. Using the original Grant prevents an unrelated regrant from changing the scope of existing work.
 
 Enforced by: [native file-tool guard](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/grant-native-tools.test.ts), [Assignment access](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/assignment-access.test.ts), [atomic request approval](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/grant-request-approval.test.ts).
+
+## An Assignment's Shell follows its Grant's write switch
+
+<a id="adr-0356"></a>
+_Formerly ADR-0356 (#4580), which amends the [Workspace request approval decision](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/approvals.md#adr-0238)._
+
+One write switch, **Allow Bot to write in this folder**, governs every Bot write path in a granted Workspace. A `workspace-write` Assignment runs in DSH's `read-only` sandbox while its Grant does not allow writes, and returns to `workspace-write` at its next admission after the Human turns the switch on. Its permission snapshot is unchanged, a Shell write it still needs goes through DSH's own escalation approval, and `danger-full-access` stays independent. A native write inside a Workspace the Session may read but not write is refused as read-only, not as outside the workspace, and the refusal names the request flow: the Orchestrator calls `request_workspace_grant`, and an Assignment reports the need to its Orchestrator. Revoking a Grant reports `GRANT_UNAVAILABLE` to a running Assignment before any mode mismatch.
+
+Tob creates the Grant for its own files folder with writes allowed, like member Bots' account Grants. That is a new Grant's initial state only: a Grant created read-only before this change stays read-only until the Human turns writes on.
+
+Why: an Assignment on a read-only Grant could not save a file with the native `write` tool but could write the same file with `bash`, and every Tob Assignment hit this split because Tob's own Grant started read-only. The refusal text also hid the real reason.
+
+Enforced by: [grant admission for running Assignments](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/grant-execution-session-admission.test.ts), [native file-tool guard](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/grant-native-tools.test.ts).
 
 ## Open actions resolve real files on the serving Host
 
@@ -76,3 +89,22 @@ The Orchestrator discovers Memory Skills from its working directory. The BotHarn
 Why: Directory ownership keeps Skills under the same permissions and portability rules as the rest of the Bot's project files. Agent scope makes the Bot's Skills available to its own Assignments while honoring the current project's conventions.
 
 Enforced by: [Bot Skills and catalog](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-skills.test.ts), [Bot profile and Marketplace listings](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/bot-skills-card.test.ts), [Grant-scoped Skill discovery](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/workspace-skills.test.ts), [Assignment Skill visibility and precedence](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/memory-skill-provider.test.ts), [catalog refresh](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/skill-catalog-refresh.test.ts), [Bot Zip portability](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-zip.test.ts), [Profile Backup round trip](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/profile-backup.test.ts).
+
+## Artifact review is a headless protocol with pluggable renderers (proposed)
+
+<a id="adr-0360"></a>
+_Formerly ADR-0360. Still proposed: phase 1 is specified in [#4883](https://github.com/BotHarness/DeepSeekBot/issues/4883) and phase 2 in [#4885](https://github.com/BotHarness/DeepSeekBot/issues/4885); neither has shipped._
+
+Bots increasingly answer with files, and most of the Human's work on them is review. Today the Desktop and Web Client preview only images and audio inline, and the phone hands every other file to the share sheet. The planned design has three layers, joined at the **Anchor**:
+
+- **Spec.** Types only. An Artifact is always an existing Attachment or Memory/Workspace file, with no new file identity. A Review Snapshot is the exact bytes under review, identified by content hash, media type and size. An Anchor is a selector inside a snapshot, modelled on the W3C Web Annotation Data Model (text quote and position, code line range, PDF page and rect, table cell range, HTML selector, or the whole file). A Review Thread holds an Anchor, an `open`/`resolved` status and messages. A Verdict (`pass`, `reject` with a reason, `waive`) binds to one snapshot. Review events carry stable ids so a consumer can acknowledge exactly what it read.
+- **Core.** A headless engine behind a storage adapter: review rows in the Operational Database, snapshot bytes with the existing file owner. A newer snapshot re-anchors open threads by fuzzy quote match; a thread that no longer matches stays on its old snapshot as `orphaned` and is never moved silently. A Human comment or verdict reaches the owning PersonaBot as a Source Event through the existing Bot Inbox, with a matching Bot tool and `deepseekbot artifact …` CLI command.
+- **Renderers.** One replaceable component per media type, registered with `match(mediaType, name)`. A renderer converts between Anchors and what it draws and never touches review state. HTML renders through the isolated [GenUI surface](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/genui.md#adr-0301), with no second sandbox; Anchors and highlights come from its trusted mirror, never from guest script. On mobile, PDF and Office reuse the web renderers in a WebView.
+
+Delivery: phase 1 is preview only (renderer registry, a **View** action on file cards, the Memory reader as first consumer, a mobile viewer screen) and stores no review state. Phase 2 adds collaborative editing, Review Snapshots, comments and verdicts after its own research and decision. The spec, core and React renderers are published under a permissive license only after two consumers use them.
+
+This partially reopens the [no attachment version archive decision](#adr-0100): review stores a snapshot only when a review starts, owned by the review and deleted with its threads, under the existing [purge](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/persistence.md#adr-0146) and [backup](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/persistence.md#adr-0042) rules. Viewing grants the Bot no file access ([ADR-0105](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/im-providers.md#adr-0105)), and renderers are not a document parser for the Agent.
+
+Why: none of the surveyed options separates review state from presentation in a way both our Web Client and React Native can share. Ryugi's runtime is proprietary and its older releases AGPL; plannotator's artifact server is a second authority beside the Host; MCP Apps and A2UI cover display, not review. Anchoring to a live file would let any external save silently invalidate every comment.
+
+Enforced by: nothing yet; the phase 1 tracer bullets add tests at the Host read path, the host-client artifact module and the renderer contract.

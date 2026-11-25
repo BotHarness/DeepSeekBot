@@ -96,14 +96,15 @@ Enforced by: [purge tests](../../packages/core/test/content-purge.test.ts) and [
 <a id="adr-0027"></a>
 <a id="adr-0040"></a>
 <a id="adr-0093"></a>
+<a id="adr-0361"></a>
 
-_Formerly ADR-0027 and ADR-0093. ADR-0019, ADR-0020 and ADR-0040 are retired._
+_Formerly ADR-0027, ADR-0093 and ADR-0361 (#4860)._ ADR-0019, ADR-0020 and ADR-0040 are retired._
 
 Applying a Model Preset copies its choices into an independent PersonaBot Model Plan. Profile Backup carries plans without credentials. Sharing a [Memory repository](memory.md#adr-0002) or [Bot Zip](bots.md#adr-0135) leaves model choice with the recipient. SoulSnapshot, the hosted Soul registry and the per-Bot PersonaBot Export are retired. Whole-Profile recovery uses the package described above.
 
-New Orchestrator turns and Assignment requests resolve their choices under the current plan and the Host's execution checks. An existing Assignment keeps its retained route until an authorized switch. A plan may fix only the Orchestrator and inherit the Profile's Assignment policy. Open Assignment mode admits additional catalog routes subject to role and credential checks. Presets and plans can reference a [Routing Group](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md) by ID, so edits to that group's membership can take effect at request boundaries without changing the applied preset snapshot.
+New Orchestrator turns and Assignment requests resolve their choices under the current plan and the Host's execution checks. An existing Assignment keeps its retained route until an authorized switch. A plan may fix only the Orchestrator and inherit the Profile's Assignment policy. Open Assignment mode admits additional catalog routes subject to role and credential checks. Presets and plans can reference a [Routing Group](sessions.md#adr-0355) by ID, so edits to that group's membership can take effect at request boundaries without changing the applied preset snapshot.
 
-A Model Preset may choose a local Subscription Engine, account, model and effort independently for the Orchestrator and for Assignments. The ordered `sub` list can include API models, Subscription Engine account models and Routing Groups. The Host migrates the legacy Assignment Engine into that list as its default, preserves its former choices as alternatives, and retains the legacy projection for Clients. A sub write preserves each included choice. Applying the preset validates the subscription choices and copies the effective list into the Bot plan. A new Assignment retains its selected target and checks the Bot owner's current account grant and quota before starting.
+A Model Preset may choose a local Subscription Engine, account, model and effort independently for the Orchestrator and for Assignments. The ordered `sub` list can include API models, Subscription Engine account models and Routing Groups. The Host migrates the legacy Assignment Engine into that list as its default, preserves its former choices as alternatives, and retains the legacy projection for Clients. The preset stores `sub: { choices, default }`; an engine choice names its engine, account and model with a saved effort and optional note, the default names exactly one choice, and an empty list with a null default follows the Orchestrator choice. A sub write replaces the list and default at one checked revision and preserves each included choice; only an explicit omission removes one. The Orchestrator reads its effective choices from `list_assignment_models`, and creating an Assignment validates the selection and current grants before claiming a Session; a resting API model or engine account refuses creation. Rolling back after the migration uses a pre-upgrade operational backup ([schema migration runbook](../agents/schema-migrations.md)). Applying the preset validates the subscription choices and copies the effective list into the Bot plan. A new Assignment retains its selected target and checks the Bot owner's current account grant and quota before starting.
 
 The pinned Default preset is the shared plan for new Bots and Bots that inherit. Its permanent ID is `default`. A Human can rename it through the normal preset API. The Host refuses deletion. When its Assignment choice is unset, it follows the Orchestrator choice, including a Routing Group or Subscription Engine. Applying a preset explicitly still creates an independent snapshot.
 
@@ -111,7 +112,7 @@ On upgrade, the Host reads the effective DSH default selection once and moves th
 
 Why: each Host has its own available providers, budget and credentials. Copying the template protects existing Bots from unrelated preset edits while preserving the Human's ability to manage a deliberately shared Routing Group.
 
-Enforced by: [preset persistence tests](../../packages/core/test/model-preset-database.test.ts), [Routing Group preset tests](../../packages/core/test/model-preset-groups.test.ts), [open Assignment tests](../../packages/core/test/open-assignment-models.test.ts), and [backup round trips](../../packages/core/test/profile-backup.test.ts).
+Enforced by: [preset persistence tests](../../packages/core/test/model-preset-database.test.ts), [Routing Group preset tests](../../packages/core/test/model-preset-groups.test.ts), [open Assignment tests](../../packages/core/test/open-assignment-models.test.ts), [sub choice list tests](../../packages/core/test/preset-sub-assignments.test.ts), and [backup round trips](../../packages/core/test/profile-backup.test.ts).
 
 ## 8. The Usage Projection retains observed model usage
 

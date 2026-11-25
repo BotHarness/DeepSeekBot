@@ -1,6 +1,6 @@
 # Voice and call decisions
 
-How a Bot speaks and hears, and how a Human calls a Bot from a phone or a desktop window, with the camera or screen shared as pictures. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); Channels and the DM are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0280, 0281, 0283, 0284, 0285, 0286, 0287, 0288, 0289, 0290, 0291, 0299, 0303, 0304, 0305, 0307, 0308, 0310, 0315 and 0317, and each section lists the ADRs it absorbed. The CLI verbs named below are `tobs` commands; older text calls the same binary `deepseekbot`.
+How a Bot speaks and hears, and how a Human calls a Bot from a phone or a desktop window, with the camera or screen shared as pictures. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); Channels and the DM are in [Messaging decisions](messaging.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0280, 0281, 0283, 0284, 0285, 0286, 0287, 0288, 0289, 0290, 0291, 0299, 0303, 0304, 0305, 0307, 0308, 0310, 0315, 0317, 0362 and 0363, and each section lists the ADRs it absorbed. The CLI verbs named below are `tobs` commands; older text calls the same binary `deepseekbot`.
 
 Two rules run through every section:
 
@@ -18,7 +18,7 @@ Why: later slices added providers and streaming on the same interface, so the bo
 
 Enforced by: `voice-providers.test.ts`, `voice-defaults.test.ts`, `voice-soniox-close.test.ts`.
 
-HTTP request and result shapes use the common declarative engine in [ADR-0363](../adr/0363-voice-http-request-templates.md). The Host Owner can supply a template for a `custom` Provider; old `custom` records keep the OpenAI-compatible request. Streaming protocols and catalog/account operations remain vendor adapters.
+HTTP request and result shapes use the common declarative engine in [section 13](#adr-0363). The Host Owner can supply a template for a `custom` Provider; old `custom` records keep the OpenAI-compatible request. Streaming protocols and catalog/account operations remain vendor adapters.
 
 ## 2. A Bot speaks by marking a message `voice: true`
 
@@ -138,3 +138,31 @@ _Formerly ADR-0304, ADR-0288 (frame records; its "Don't save frames" switch and 
 Why: picking frames by score and listing records on the next sentence lost frames for good when the Human walked and talked with the camera, and gave the Bot no time range to look things up by.
 
 Enforced by: `call-harvest.property.test.ts` (any sequence of keyframes, speech, sentences, dropped sentences and stops writes, sends, keeps or counts every keyframe exactly once, in batches of at most nine, in arrival order, and a sentence ends with the newest nine), `call-harvest.test.ts`, `call-text.test.ts`, `channel-call-read.test.ts`, `channel-call-picture-window.test.ts`, `cli-call-timeline.test.ts`.
+
+## 12. Speech catalog discovery is Host-owned
+
+<a id="adr-0362"></a>
+_Formerly ADR-0362._
+
+While a Human adds a Voice Provider, `VoiceProviders` offers one paged catalog of speech models, account voices and public voices (`voice/catalog.ts`, `voice/provider-catalog.ts`). Adapters own capability filtering, authentication, URLs, cursors and response translation. The Host sends the draft key in an authorization header to the adapter's known endpoint only; results and draft keys are transient, and a catalog response is read up to 1 MiB. Saving uses the existing credential store and records the chosen model and voice IDs. Adding a shared public voice to the external account is a separate operation with explicit confirmation, and the saved ID comes from that result. Web and the local CLI use the same Host owner, and the LLM model picker and speech picker share components and brand assets. Providers without a listing endpoint keep curated defaults and manual IDs.
+
+Why: querying providers from each Client would spread provider authentication and error handling across Clients and run into provider CORS. The LLM model catalog has no separate voice selection and no account side effect. Discovering at custom endpoints would mean sending draft credentials to arbitrary places.
+
+Enforced by: `cli-voice.test.ts`, `packages/client/test/voice-catalog-bridge.test.ts`, `packages/host-client/test/voice-providers.test.ts`.
+
+## 13. HTTP speech requests use declarative templates
+
+<a id="adr-0363"></a>
+_Formerly ADR-0363 (#4729, #5012)._
+
+OpenAI-compatible, Fish Audio, ElevenLabs and MiMo HTTP synthesis, and OpenAI-compatible and MiMo HTTP transcription, run through one template request builder and result extraction (`voice/request-template.ts`, `template-request.ts`, `template-response.ts`, `template-download.ts`). Presets supply built-in templates (`builtin-templates.ts`); a `custom` provider may store a versioned template in its non-secret record, and a `custom` record without one keeps the OpenAI-compatible request.
+
+- **Shape.** A template declares an HTTP(S) URL, POST or GET, authentication placement (bearer, named header with prefix, named query parameter or none), fixed non-secret headers, body and result extraction. JSON bodies are built as objects, multipart as FormData with audio Blobs, SSML as an escaped element tree. There is no expression language, no interpolation into serialized JSON, no XML fragment and no JavaScript. URL placeholders are encoded and cannot change the authority. A template is at most 64 KB and 16 nesting levels, and audio references share a 16 MiB rendering budget checked before encoding.
+- **Secrets.** The key comes from the credential store at execution. Validation rejects credential fields, literal authentication headers and the provider's own configured key, but cannot recognise an arbitrary literal as a secret, so the Owner must keep keys out of body, URL and header constants.
+- **Results.** TTS reads raw audio, a JSON path to base64 or hex, or a JSON path to one HTTP(S) audio URL. That download sends no credential headers, shares the original deadline, refuses redirects, is bounded to 10 MiB (`MAX_TTS_AUDIO_BYTES`) and uses a dispatcher that rejects loopback, link-local and private addresses at connection time. ASR reads a JSON path to text and keeps its 256 KiB response and 4,000-character limits. Upstream error bodies and parse errors are never echoed; validation returns field paths without making a request.
+- **Authority.** Only the Host Owner can create, read or change a template, through the guarded Bridge (`voiceTemplateValidate` and the provider methods) or the CLI. Provider lists show members only `hasTemplate`, never the template. The Web form hides **Custom request** and **Edit request** from members.
+- **Boundary.** Realtime and WebSocket protocols, signed authentication, asynchronous jobs, catalog discovery (§12) and voice imports stay vendor adapters. A template performs one request and at most one audio download, with no polling or retries.
+
+Why: treating every service as OpenAI-compatible failed for MiMo, and a vendor branch per HTTP variation would repeat transport and safety code. A declarative template lets a synchronous provider be added with a template and a fixture checked against its official documentation. Older Hosts ignore the template field, so a rollback needs custom-template providers removed or reconfigured first.
+
+Enforced by: `adr-0363-voice-http-request-templates.property.test.ts`, `voice-request-templates.test.ts`, `voice-template-download.test.ts`, `voice-template-drafts.test.ts`, `packages/host-client/test/voice-templates.test.ts`, `packages/client/test/voice-template-form.test.tsx`.
