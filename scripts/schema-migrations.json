@@ -746,5 +746,9 @@
   {
     "id": "sender-default-role",
     "sha256": "2c8c51128525b7ef3b3b1d2951e686df84031e0174f28dab373f691556661e5b"
+  },
+  {
+    "id": "bot-management-grants",
+    "sha256": "b89e467f1512bbdd339837033937fc990271ca2e9e3adfe596885d679984614b"
   }
 ]

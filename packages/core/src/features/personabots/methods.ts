@@ -301,13 +301,17 @@ export interface PersonaBotsBridgeMethods extends RosterBridgeMethods, Onboardin
     }>
   >;
   update(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  deletionPreview(payload: unknown): BridgeResult<{ preview: PersonaBotDeletionPreview }>;
-  deletionConfirm(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
+  deletionPreview(
+    payload: unknown,
+  ): BridgeResult<{ preview: PersonaBotDeletionPreview; warning?: 'last-app-manager' }>;
+  deletionConfirm(
+    payload: unknown,
+  ): Promise<BridgeResult<{ deletion: PersonaBotDeletion; warning?: 'last-app-manager' }>>;
   deletionRetry(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
   deletionMemoryFolder(payload: unknown): BridgeResult<{
     target: { path: string; relativePath: string; kind: 'directory' };
   }>;
-  pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; warning?: 'last-app-manager' }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
 
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -328,19 +332,21 @@ export function createPersonaBotsBridgeMethods(
   const setPaused = (
     payload: unknown,
     paused: boolean,
-  ): BridgeResult<{ bot: PersonaBotDetail }> => {
+  ): BridgeResult<{ bot: PersonaBotDetail; warning?: 'last-app-manager' }> => {
     const slug = asSlug(payload);
     if (slug === undefined) return invalidInput('slug is required');
-    if (paused && deps.tob?.isTob(slug))
-      return {
-        ok: false,
-        error: { code: 'protected-bot', message: 'Tob cannot be archived' },
-      };
+    const lastAppManager = paused && deps.tob?.isLastAppManager(slug);
     const result = deps.registry.setPaused(slug, paused);
     if (!result.ok) return unknownBot(slug);
     if (paused) deps.channels.cancelInvitationsForBot(slug);
     else deps.runtime?.resumePendingDigests?.(slug);
-    return { ok: true, value: detailOf(result.record) };
+    return {
+      ok: true,
+      value: {
+        ...detailOf(result.record),
+        ...(lastAppManager ? { warning: 'last-app-manager' } : {}),
+      },
+    };
   };
   const onboardingMethods = createOnboardingBridgeMethods(human, deps, isHostOwner, modelRouting);
   const rosterMethods = createRosterBridgeMethods(human, deps);
@@ -352,12 +358,13 @@ export function createPersonaBotsBridgeMethods(
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
-        return { ok: true, value: { preview: deps.deletions.preview(slug) } };
+        return {
+          ok: true,
+          value: {
+            preview: deps.deletions.preview(slug),
+            ...(deps.tob?.isLastAppManager(slug) ? { warning: 'last-app-manager' } : {}),
+          },
+        };
       } catch (error) {
         return invalidInput(
           error instanceof Error ? error.message : 'Deletion preview unavailable',
@@ -375,15 +382,17 @@ export function createPersonaBotsBridgeMethods(
         return invalidInput('Explicit deletion scope is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
+        const lastAppManager = deps.tob?.isLastAppManager(slug);
         const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
         deps.computerAccess?.changed(slug);
         deps.browserAccess?.changed(slug);
-        return { ok: true, value: { deletion: await result } };
+        return {
+          ok: true,
+          value: {
+            deletion: await result,
+            ...(lastAppManager ? { warning: 'last-app-manager' } : {}),
+          },
+        };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : 'Deletion unavailable');
       }

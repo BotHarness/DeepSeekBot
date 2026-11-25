@@ -1,5 +1,5 @@
 ---
-Status: Proposed
+Status: Superseded by ADR-0366
 Date: 2026-11-25
 ---
 

@@ -1,3 +1,4 @@
+import { parseManagementGrantChange } from '@botharness/host-protocol/bot-management';
 import { parseAuthor } from '../../bridge-channel-author.js';
 import { parseApprovalCard } from '../approvals/bridge.js';
 
@@ -263,6 +264,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
+  let managementGrantChange: ChannelMessage['managementGrantChange'];
   let modelSwitch: ChannelMessage['modelSwitch'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
@@ -342,6 +344,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['managementGrantChange'] !== undefined) {
+    const change = parseManagementGrantChange(record['managementGrantChange']);
+    if (author.kind !== 'system' || change === undefined) return undefined;
+    managementGrantChange = change;
   } else if (record['modelSwitch'] !== undefined) {
     if (author.kind !== 'system' || !isChannelModelSwitch(record['modelSwitch'])) return undefined;
     modelSwitch = record['modelSwitch'];
@@ -879,6 +885,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(managementGrantChange === undefined ? {} : { managementGrantChange }),
     ...(modelSwitch === undefined ? {} : { modelSwitch }),
     ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),

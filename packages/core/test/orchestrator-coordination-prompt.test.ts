@@ -50,7 +50,7 @@ describe('Orchestrator coordination prompt', () => {
     expect(coordination).toContain(
       'to a person or Bot colleague instead when a rule below says so',
     );
-    expect(orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role).toContain('Tob Delegation:');
+    expect(orchestratorPromptSections(DEFAULT_PROMPT_TEXT).role).not.toContain('Tob Delegation:');
   });
 });
 

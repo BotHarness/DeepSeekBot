@@ -103,7 +103,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             },
           }
         : {}),
-      ...(ports.tob?.isTob(bot.slug) ? { tobCli: true } : {}),
+      ...(ports.tob?.hasManagementGrant(bot.slug) ? { tobCli: true } : {}),
       ...(ports.workspaceSessions === undefined || ports.grants === undefined
         ? {}
         : {

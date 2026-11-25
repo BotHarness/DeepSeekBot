@@ -85,12 +85,11 @@ describe('Tob canonical identity and settings', () => {
       expect(f.core.tob.isTob('spoof')).toBe(false);
       expect(f.core.registry.get('existing')?.displayName).toBe('DeepSeek Bot');
       expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
-      expect(() => f.core.deletions.preview(home.botSlug)).toThrow('protected-bot');
-      expect(() => f.core.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
-      expect(bridge.pause({ slug: home.botSlug })).toMatchObject({
-        ok: false,
-        error: { code: 'protected-bot' },
+      expect(bridge.deletionPreview({ slug: home.botSlug })).toMatchObject({
+        ok: true,
+        value: { warning: 'last-app-manager' },
       });
+      expect(f.core.tob.managementGrants(home.botSlug)).toEqual(['manage-app', 'manage-bots']);
       const dir = f.core.registry.memoryDirFor(home.botSlug);
       expect(dir).toBeTruthy();
       await f.close();
@@ -160,8 +159,8 @@ describe('Tob canonical identity and settings', () => {
           value: { bot: { displayName: 'Tob', tob: { defaultName: false, defaultAvatar: false } } },
         });
         expect(next.registry.get(home.botSlug)?.avatar).toBe(png);
-        expect(() => next.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
-        expect(() => next.deletions.preview(home.botSlug)).toThrow('protected-bot');
+        expect(next.deletions.preview(home.botSlug).slug).toBe(home.botSlug);
+        expect(next.registry.setPaused(home.botSlug, true)).toMatchObject({ ok: true });
       } finally {
         await next.runtime.close();
         next.operationalDatabase.close();
@@ -583,16 +582,13 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
-  it('keeps ordinary Group tools working but prevents inviting or approving protected Tob', async () => {
+  it('keeps ordinary Group tools working and permits inviting or approving Tob', async () => {
     let checked = false;
     let tobSlug!: string;
     const f = fixture(async (run) => {
       if (run.bot.slug !== 'owner') return;
       const group = run.channels.createGroup('Ordinary Group');
       expect(group.members).toContain('owner');
-      expect(() =>
-        run.channels.inviteGroup({ channelId: group.id, targetBotSlug: tobSlug }),
-      ).toThrow('protected-bot');
       const invitation = run.channels.inviteGroup({ channelId: group.id, targetBotSlug: 'peer' });
       expect(invitation.targetBotSlug).toBe('peer');
       const request = f.core.channels.requestGroupJoin({
@@ -600,10 +596,10 @@ describe('Tob canonical identity and settings', () => {
         requesterBotSlug: tobSlug,
         requesterBotCreatedAt: f.core.registry.get(tobSlug)!.createdAt,
       });
-      expect(() =>
+      expect(
         run.channels.decideGroupJoin!({ channelId: group.id, requestId: request.id, accept: true }),
-      ).toThrow('protected-bot');
-      expect(f.core.channels.get(group.id)?.members).not.toContain(tobSlug);
+      ).toMatchObject({ request: { status: 'accepted' } });
+      expect(f.core.channels.get(group.id)?.members).toContain(tobSlug);
       const peerRequest = f.core.channels.requestGroupJoin({
         channelId: group.id,
         requesterBotSlug: 'another-peer',

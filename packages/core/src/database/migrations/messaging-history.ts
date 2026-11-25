@@ -350,3 +350,29 @@ export const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export function installManagementGrantNoticeTriggers(
+  database: Parameters<SchemaMigration['migrate']>[0],
+) {
+  const grantNoticeOf = (payload: string) =>
+    `CASE WHEN json_valid(${payload}) THEN
+      coalesce(json_type(${payload}, '$.managementGrantChange') = 'object', 0)
+      OR (${noticeOf(payload)}) ELSE 0 END`;
+  database.exec(`
+    DROP TRIGGER channel_placements_notice_insert;
+    DROP TRIGGER channel_placements_notice_update;
+    CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+      BEGIN
+        UPDATE channel_placements SET notice = coalesce((
+          SELECT ${grantNoticeOf('payload_json')} FROM source_events
+           WHERE source_event_id = NEW.source_event_id
+        ), 0)
+         WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+      END;
+    CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+      BEGIN
+        UPDATE channel_placements SET notice = ${grantNoticeOf('NEW.payload_json')}
+         WHERE source_event_id = NEW.source_event_id;
+      END;
+  `);
+}

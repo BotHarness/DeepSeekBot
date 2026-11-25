@@ -295,7 +295,7 @@ describe('reviewed Group edits', () => {
     const f = group();
     expect(() =>
       f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'tob' }),
-    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
+    ).toThrowError(expect.objectContaining({ code: 'not-group-member' }));
     expect(() =>
       f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'other' }),
     ).toThrowError(expect.objectContaining({ code: 'not-group-member' }));

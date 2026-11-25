@@ -1642,13 +1642,13 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
+Host Owner 可运行 `deepseekbot bot-grant <bot> manage-app|manage-bots on|off`，为自己的任意数量的 Bot 分别开关两项授权。内置托布默认两项都开启。CLI broker 只在 Bot 自己已准入的 Human 私聊轮次中运行，重验实时授权，并遵守审批模板和已保存规则。删除、归档、编辑其他 Bot 的记忆、恢复 Profile 备份和凭据命令每次都需要 Human 决定。Broker 拒绝配对与日常浏览器授权。授权变更写入 Host 时间线，不改变正在运行的模型工具列表。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、Memory 修改、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
+`deepseekbot tob-home` 幂等准备内置 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-在具备权限的 Tob Shell 执行中：
+授权持有者通过原生 bash 或 pwsh 在自己的 Human 私聊中调用受限 CLI。Host 在执行时检查实时授权。需要审批时，类型化操作展示准确的目标与旧值。其他受支持的命令展示参数、工作目录以及 stdin 的大小和哈希。
 
-Tob 的受信任系统说明随插件打包，只注入受保护的 Tob Orchestrator；升级不会覆盖用户修改过的人格或记忆。用户只需问“你能做什么？”，Tob 会先发现当前安装版本的 CLI 能力，再用用户的语言解释可完成的事情，并提出一个具体的下一步。能力询问只读，不提交变更或审批；后续明确的修改请求仍走现有权限与审批校验。
+在具备权限的 Shell 执行中，授权持有者可以运行下列命令。授权提示只在新 Session 或压缩时刷新。
 
 npm Bundle 自带 core CLI 模块和产品 CLI 入口。Tob 使用 Host 注入当前 Shell 的受管执行入口，不依赖全局安装的 `deepseekbot`、源码目录或手动复制的 skill。发布校验会拒绝缺少 CLI 入口的包；运行时缺失入口则报告安装问题，不回退到其他管理通道。
 
@@ -1659,11 +1659,11 @@ deepseekbot settings botharness-client
 printf '%s' '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin --expected-revision 12 --previous-value '{"assignmentConcurrencyLimit":8}'
 ```
 
-`capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验真实 Tob root Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
+`capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验授权持有者的根 Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
 
 Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。类型化操作不支持的参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
 
-已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。Tob 的删除／归档仍返回 `protected-bot`。
+已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。删除或归档最后一个仍具备 App 管理授权的 Bot 会返回 `last-app-manager`。
 
 [UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](decisions/tob.md#adr-0224)，完整命令范围见 [ADR-0314](decisions/tob.md#adr-0314)。
 

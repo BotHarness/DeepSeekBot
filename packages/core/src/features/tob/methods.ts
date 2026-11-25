@@ -1,3 +1,4 @@
+import { managementCapability } from '../../authorization/bot-management.js';
 import {
   asObject,
   asSlug,
@@ -38,6 +39,11 @@ export interface TobAdapterMethods {
       (TobHome & { attention?: { unreadCount: number; hasAction: boolean } }) | { available: false }
     >
   >;
+  botGrant(payload: unknown): Promise<
+    BridgeResult<{
+      grants: ReturnType<import('../../tob/service.js').TobService['managementGrants']>;
+    }>
+  >;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   botTools(payload: unknown): BridgeResult<{ sessionId: 'direct'; tools: DirectBotToolSpec[] }>;
   botToolRun(payload: unknown): Promise<
@@ -56,6 +62,31 @@ export function createTobAdapterMethods(
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {
+    async botGrant(payload) {
+      if (human.caller === 'bot' || !isHostOwner())
+        return {
+          ok: false,
+          error: { code: 'permission-required', message: 'Host Owner authentication is required.' },
+        };
+      const slug = asSlug(payload);
+      const args = asObject(payload);
+      const capability = managementCapability.safeParse(args['capability']);
+      const enabled = args['enabled'];
+      if (slug === undefined || !capability.success || typeof enabled !== 'boolean')
+        return invalidInput('Expected a Bot, management capability and enabled state.');
+      if (!deps.tob) return unavailable();
+      try {
+        return {
+          ok: true,
+          value: {
+            grants: await deps.tob.setManagementGrant(human, slug, capability.data, enabled),
+          },
+        };
+      } catch (error) {
+        const code = error instanceof TobError ? error.code : 'operation-failed';
+        return { ok: false, error: { code, message: code } };
+      }
+    },
     async tobCli(payload) {
       if (!isHostOwner())
         return {

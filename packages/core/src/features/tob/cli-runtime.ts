@@ -88,13 +88,13 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       return structuredClone(request.status);
     }
     if (!ports.tob) throw new TobError('tob-authority-required');
-    await ports.tob.ensure(human);
+    const tob = ports.tob;
+    if (!tob.slug(human)) await tob.ensure(human);
     if (ports.closed()) throw new TobError('runtime-closed');
-    const bot = ports.registry
-      .list()
-      .find(
-        (candidate) => ports.tob?.isTob(candidate.slug) && botOwner(candidate) === human.humanId,
-      );
+    const builtIn = tob.slug(human);
+    const holder = (slug: string) => tob.hasManagementGrant(slug);
+    const candidates = ports.registry.list(human.humanId).filter((bot) => holder(bot.slug));
+    const bot = candidates.find((candidate) => candidate.slug === builtIn) ?? candidates[0];
     if (!bot || bot.paused || !ports.memberBotEnabled(bot))
       throw new TobError('tob-authority-required');
     if (
@@ -204,7 +204,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       !ports.ownership.contentAvailable(sessionId) ||
       owner?.rootRole !== 'orchestrator' ||
       owner.parentSessionId !== undefined ||
-      !ports.tob?.isTob(owner.botSlug)
+      !ports.tob?.hasManagementGrant(owner.botSlug)
     )
       throw new TobError('tob-authority-required');
     const turn = ports.turnSources.get(owner.botSlug);
@@ -220,7 +220,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         currentOwner?.botSlug !== owner.botSlug ||
         currentOwner.rootRole !== 'orchestrator' ||
         currentOwner.parentSessionId !== undefined ||
-        !ports.tob?.isTob(owner.botSlug)
+        !ports.tob?.hasManagementGrant(owner.botSlug)
       )
         throw new TobError('tob-authority-required');
 

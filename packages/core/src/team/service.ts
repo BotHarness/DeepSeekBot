@@ -1,3 +1,4 @@
+import { updateManagementGrantsForNewOwner } from '../authorization/bot-management.js';
 import * as memberAuth from './member-auth.js';
 import type { MemberAuthHost } from './member-auth.js';
 import * as memberLifecycle from './member-lifecycle.js';
@@ -941,7 +942,6 @@ export class TeamService {
   memberDeviceRevoke(human: HumanContext, humanId: string, grantId: string): Promise<null> {
     return memberAuth.memberDeviceRevoke.call(this.#memberOperations, human, humanId, grantId);
   }
-
   async transferOwner(human: HumanContext, humanId: string, password: string): Promise<null> {
     this.owner(human);
     const previous = this.credential(human.humanId);
@@ -973,7 +973,7 @@ export class TeamService {
             roleAccessEnded = true;
           db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
         }
-        db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(human.humanId, humanId);
+        updateManagementGrantsForNewOwner(db, human.humanId, humanId);
         return roleAccessEnded;
       },
       ['team'],
@@ -985,6 +985,7 @@ export class TeamService {
     } else this.invalidate();
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
+    await this.ensureTob?.(humanContext(humanId));
     this.log('owner-transferred', { initiator: 'owner', humanId });
     return null;
   }

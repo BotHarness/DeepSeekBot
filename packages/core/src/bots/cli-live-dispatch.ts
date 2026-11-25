@@ -380,6 +380,18 @@ export async function runLiveCli(
     return runTakeoverCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'bot-grant') {
+    const [slug, capability, state] = rest;
+    if (
+      !slug ||
+      (capability !== 'manage-app' && capability !== 'manage-bots') ||
+      (state !== 'on' && state !== 'off') ||
+      rest.length !== 3
+    )
+      throw new CliLiveError('usage', 'Use bot-grant <bot> manage-app|manage-bots on|off.');
+    const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
+    return host.rpc('botGrant', { slug, capability, enabled: state === 'on' });
+  }
   if (command === 'tob-cli')
     return runTobCli(rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),

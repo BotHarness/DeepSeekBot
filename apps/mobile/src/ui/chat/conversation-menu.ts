@@ -71,7 +71,7 @@ export function conversationMenu(
           name: conversation.channel.name,
         }),
     });
-  } else if (!conversation.bot.tob)
+  } else
     actions.push({
       key: 'delete',
       glyph: 'delete',

@@ -316,7 +316,6 @@ function initializeCore(
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
     channels,
     registry,
-    isProtectedBot: (slug) => tob.isTob(slug),
     autoAcceptGroupInvitations: () =>
       (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
     onInvitation: (dmId, invitationId) => runtime?.admitGroupInvitation(dmId, invitationId),

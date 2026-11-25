@@ -53,7 +53,7 @@ _避免使用_：会议机器人、会议 Session、录音
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。 它默认担任 Steward（主管）角色；ADR-0365（提议中）让该角色可以转移。
+为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。 ADR-0366 让它成为默认开启 App 管理授权的普通 Bot；上述保护会随实现一起移除。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
@@ -65,8 +65,12 @@ Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **Steward**：
-主管。让一个 Bot 通过 Human 的 CLI 管理所在 Environment、把请求委派给同事（Tob Delegation）并使用后续主管能力的角色。每个 Environment 始终正好有一个主管，默认由 Tob 担任。ADR-0365（提议中，#5191）让 Owner 可以转移它：整套能力一起转移，新主管保留自己的 Soul、Memory 与 prompt，原主管变回普通 Bot。主管身份不等于管理员权限。
-_避免使用_：Admin、管理员、Chief、Orchestrator（那是 Bot 的运行时，不是这个角色）
+已停用（ADR-0366）。ADR-0365 的单例主管角色已由 **App 管理授权** 取代。
+_避免使用_：主管角色、主管转移
+
+**App management grant**：
+App 管理授权。让 Bot 在自己的 Human DM 回合中通过 Human 的 scoped CLI 管理 App 的授权（[ADR-0366](docs/adr/0366-managing-the-app-is-a-grant.md)）。分两个开关：「管理 App」（设置、模型、诊断、创建 Bot 等）和「管理其他 Bot」（其他 Bot 的资料与 Memory）。Owner 可以给自己的任意 Bot 打开，可以多个，也可以一个都没有；内置 Tob 默认两个都开。写操作跟随该 Bot 的审批模板。它不等于管理员权限。
+_避免使用_：主管、Steward、Admin、管理员
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -1298,7 +1302,7 @@ Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 
 **Pinned tab**：
-固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定主管的 DM，跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。
+固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定内置 Tob 的 DM（没有时用最近的对话），跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。
 _避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：

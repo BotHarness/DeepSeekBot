@@ -1,3 +1,4 @@
+import { isOwnHumanDmSource } from './human-dm-source.js';
 import type { SessionTurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   assertQuoteTargets as assertChannelQuoteTargets,
@@ -542,7 +543,11 @@ export function createCausalSending(ports: CausalSendingPorts) {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     ports.admitBotDmMessage(channel.id, result.message.id);
-    if (result.status === 'appended' && ports.tob?.isTob(botSlug)) ports.onTobDelegation();
+    if (
+      result.status === 'appended' &&
+      isOwnHumanDmSource(ports.database, botSlug, input.sourceEventId)
+    )
+      ports.onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 

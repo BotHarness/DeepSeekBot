@@ -44,13 +44,12 @@ describe('canonical Channel management receipts', () => {
     expect(f.core.channels.list()).toHaveLength(1);
   });
 
-  it('refuses invalid, archived, removed and protected initial members before reserving a key', () => {
+  it('refuses invalid, archived and removed initial members before reserving a key', () => {
     const f = fixture();
     f.core.registry.setPaused('ada', true);
     for (const [members, code] of [
       [['missing'], 'unknown-bot'],
       [['ada'], 'archived-bot'],
-      [['tob'], 'protected-bot'],
       [['bob', 'bob'], 'invalid-input'],
     ] as const)
       expect(() =>
@@ -260,22 +259,21 @@ describe('canonical Channel management receipts', () => {
     expect(f.core.channels.get(f.created.channel.id)?.invitations).toBeUndefined();
   });
 
-  it('blocks protected Tob as invitation target, initial member, or malformed existing Group owner', () => {
+  it('accepts Tob as an invitation target and Group owner', () => {
     const f = inviteFixture();
-    expect(() =>
-      f.owner.invite(OWNER_HUMAN_CONTEXT, { ...f.invite, botSlug: 'tob' }, 'invite-protected-001'),
-    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
-    const malformed = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
-      name: 'Invalid owner',
+    f.core.registry.create({ slug: 'tob', displayName: 'Tob' });
+    const invited = f.owner.invite(
+      OWNER_HUMAN_CONTEXT,
+      { ...f.invite, botSlug: 'tob' },
+      'invite-tob-001',
+    );
+    expect(invited.channel.invitations?.[0]?.targetBotSlug).toBe('tob');
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Tob group',
       members: ['tob'],
       ownerBotSlug: 'tob',
     });
-    expect(() => f.owner.snapshot(malformed.id)).toThrowError(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(() =>
-      f.owner.invite(OWNER_HUMAN_CONTEXT, { channelId: malformed.id, botSlug: 'bob' }),
-    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
+    expect(f.owner.snapshot(group.id).channel.ownerBotSlug).toBe('tob');
   });
 
   it('migrates generation 97 receipts without changing their Bot identity', () => {

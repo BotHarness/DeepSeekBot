@@ -30,6 +30,7 @@ const destructiveSecretManagement = {
 } satisfies ToolEffects;
 
 export const CLI_EFFECTS = {
+  'bot-grant': { effects: management, brokerRead: false },
   'tob-cli': { effects: management, brokerRead: false },
   access: { effects: read, brokerRead: true },
   'access-set': { effects: management, brokerRead: false },

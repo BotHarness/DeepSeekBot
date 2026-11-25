@@ -322,6 +322,7 @@ export interface ChannelMessage {
     routingGroup?: true;
     botSlug?: string;
   };
+  managementGrantChange?: import('@botharness/host-protocol/bot-management').ManagementGrantChange;
   modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;

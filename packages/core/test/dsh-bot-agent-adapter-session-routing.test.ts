@@ -3,7 +3,6 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import {
-  TOB_CLI_TOOL_NAMES,
   ORCHESTRATOR_TOOL_ORDER,
   ASSIGNMENT,
   groupTools,
@@ -273,12 +272,9 @@ describe('DSH Bot Agent adapter', () => {
           connected: () => connected,
         } as NonNullable<OrchestratorAgentRun['externalMessaging']>,
       };
-      const baseTools = ORCHESTRATOR_TOOL_ORDER.filter(
-        (name) => !tobCli || !TOB_CLI_TOOL_NAMES.includes(name),
-      );
+      const baseTools = ORCHESTRATOR_TOOL_ORDER;
       const baseSections = [
         ['botharness:orchestrator-role', 10_350],
-        ...(tobCli ? [['botharness:tob-cli', 10_351]] : []),
         ['botharness:reply-delivery', 10_450],
         ['botharness:genui-authoring', 10_451],
       ];

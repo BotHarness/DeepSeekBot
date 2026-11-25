@@ -21,9 +21,18 @@ const REFUSED_COMMANDS = new Set([
   'audit',
   'private',
   'tob-cli',
+  'bot-grant',
+  'device-pair',
+  'device-account-pair',
+  'device-offer',
+  'device-approve-key',
   'browser-profile-pair',
   'browser-borrow-pair',
   'browser-daily-grant',
+  'bot-tool',
+  'browser-tool',
+  'computer-tool',
+  'marketplace-upload',
 ]);
 const TOB_SCHEDULE_GUARDS: Readonly<Record<string, { option: string; message: string }>> = {
   'schedule-create': {
@@ -51,7 +60,7 @@ const MAX_MESSAGE_CHARS = 4000;
 export const TOB_HOST_CLI_CAPABILITY: TobCliCapability = {
   command: 'cli',
   description:
-    'Every other deepseekbot command runs on this Host as the Human would run it. Reads run at once; every other command shows the Human an approval card with the exact command first.',
+    'Run a deepseekbot command within your management grants. Read the current state first. Writes follow your Approval Template, with fresh Human confirmation for destructive Bot actions, other Bots’ Memory edits, Profile Backup restores and credential operations.',
   write: true,
 };
 
@@ -131,7 +140,13 @@ export function authorizeTobBotTargets(
 
 function widensAuthority(argv: readonly string[]): boolean {
   const effects = cliEffects(argv);
-  return effects === undefined || effects.authority === 'management';
+  return (
+    effects === undefined ||
+    effects.authority === 'management' ||
+    ['approval-retry', 'activity-allow-once', 'activity-dismiss', 'activity-dismiss-all'].includes(
+      canonicalCliCommandName(argv[0] ?? ''),
+    )
+  );
 }
 
 export function authorizeTobHostCli(
@@ -140,7 +155,7 @@ export function authorizeTobHostCli(
     registry: Pick<PersonaBotRegistry, 'getHistorical'>;
     channels: Pick<ChannelStore, 'get'>;
     human: HumanContext;
-    isTob?: (slug: string) => boolean;
+    hasManagementGrant?: (slug: string) => boolean;
   },
 ): void {
   if (argv[0] === 'members') {
@@ -155,25 +170,84 @@ export function authorizeTobHostCli(
   const values = argv
     .slice(1)
     .map((token) => (token.includes('=') ? token.slice(token.indexOf('=') + 1) : token).trim());
-  const isTob = deps.isTob;
-  const namesTob = (value: string): boolean => {
-    if (isTob === undefined) return false;
-    if (isTob(value)) return true;
+  const hasManagementGrant = deps.hasManagementGrant;
+  const namesGrantHolder = (value: string): boolean => {
+    if (hasManagementGrant === undefined) return false;
+    if (hasManagementGrant(value)) return true;
     const channel = deps.channels.get(value);
-    return channel?.type === 'dm' && channel.members.length === 1 && isTob(channel.members[0]!);
+    return (
+      channel?.type === 'dm' &&
+      channel.members.length === 1 &&
+      hasManagementGrant(channel.members[0]!)
+    );
   };
-  if (values.some(namesTob) && widensAuthority(argv))
+  const command = canonicalCliCommandName(argv[0] ?? '');
+  const indirectAuthority = [
+    'approval-template-global-set',
+    'session-answer-approval',
+    'approval-template',
+    'tool-approval-rule-revoke',
+    'activity-allow-once',
+    'activity-dismiss',
+    'activity-dismiss-all',
+    'bot-tool',
+    'browser-tool',
+    'computer-tool',
+  ].includes(command);
+  if (
+    command === 'bot-grant' ||
+    (widensAuthority(argv) &&
+      (values.some(namesGrantHolder) ||
+        indirectAuthority ||
+        (['tool-approval-decide', 'approval-retry'].includes(command) &&
+          values.some((value) => deps.channels.get(value)?.type === 'group'))))
+  )
     throw new TobCliCommandError(
       'self-escalation-refused',
-      'Tob cannot change its own grants, access, approval policy or pending approvals. Ask the Human to make this change in Bot settings or run the command themselves.',
+      'A Bot with a management grant cannot change grants, access, approval policy or pending approvals for any management grant holder. Ask the Human to make this change in Bot settings or run the command themselves.',
     );
   for (const value of values) authorizeTobBotTargets({ slug: value }, deps);
+}
+
+export function hostCliManagementCapability(argv: unknown): 'manage-app' | 'manage-bots' {
+  if (!Array.isArray(argv) || !argv.every((arg): arg is string => typeof arg === 'string'))
+    throw new TobError('invalid-request');
+  let command: string | undefined;
+  let action: string | undefined;
+  try {
+    [command, action] = parseBotCliArgs(argv).positionals;
+  } catch {
+    throw new TobError('invalid-request');
+  }
+  const canonical = canonicalCliCommandName(command ?? '');
+  if (REFUSED_COMMANDS.has(canonical)) throw new TobError('cli-command-refused');
+  if (canonical === 'bots') return action === 'create' ? 'manage-app' : 'manage-bots';
+  if (
+    /^(?:bot-(?!import|zip)|memory-|assignment-memory-|grant(?:s$|-)|approval-|tool-approval-|activity-|browser-access-set$|computer-access-set$|access(?:-set)?$)/.test(
+      canonical,
+    ) ||
+    ['list', 'show', 'update', 'pause', 'resume', 'session-answer-approval'].includes(canonical)
+  )
+    return 'manage-bots';
+  if (
+    /^(?:settings(?:-set)?$|models?$|model-|home-model-|release(?:-|$)|diagnostic-|bug-report$|profile-backup-|share-draft-|voice-|call-|group-|channel(?:s$|-|$)|bot-import-|bot-zip-|marketplace-|schedule-|connect-|connection-|private-route$|im-|engine(?:-|$)|git-|create(?:-status)?$)/.test(
+      canonical,
+    ) ||
+    ['doctor', 'search', 'help', 'capabilities', 'online', 'local'].includes(canonical)
+  )
+    return 'manage-app';
+  throw new TobError('cli-command-refused');
 }
 
 export function classifyTobHostCli(argv: readonly string[]): { command: string; write: boolean } {
   const command = argv[0];
   if (command === undefined || command.startsWith('-')) throw new TobError('invalid-request');
-  if (REFUSED_COMMANDS.has(command) || REFUSED_OPTIONS.some((name) => hasOption(argv, name)))
+  if (
+    REFUSED_COMMANDS.has(canonicalCliCommandName(command)) ||
+    REFUSED_OPTIONS.some((name) => hasOption(argv, name))
+  )
+    throw new TobError('cli-command-refused');
+  if (canonicalCliCommandName(command) === 'engine' && argv[1] === 'tool')
     throw new TobError('cli-command-refused');
   const scheduleGuard = TOB_SCHEDULE_GUARDS[canonicalCliCommandName(command)];
   if (scheduleGuard !== undefined && !hasOption(argv, scheduleGuard.option))

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { managementGrantCases } from './team-security-management-grants.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -934,6 +935,7 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C7', 'Voice provider management and templates require the Host Owner', (check) =>
       runVoiceProviderGate(s, { as: fx.users.bob }, check),
     );
+    await managementGrantCases(define, s, fx);
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

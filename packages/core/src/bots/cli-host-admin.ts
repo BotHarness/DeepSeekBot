@@ -64,7 +64,7 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
   {
     command: 'tob-home',
-    description: 'prepare/reuse protected Tob, its Memory/Workspace/DM and Home status',
+    description: 'prepare/reuse built-in Tob, its Memory/Workspace/DM and Home status',
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   {

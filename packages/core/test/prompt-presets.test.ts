@@ -54,20 +54,15 @@ describe('Prompt Preset parts', () => {
     expect(parsePromptPartEdits([])).toBeUndefined();
   });
 
-  it.each([false, true])(
-    'appends Skill installation guidance to the Orchestrator (Tob: %s)',
-    (tob) => {
-      const text = defaultPromptText('skill-installation');
-      expect(PROMPT_PARTS.at(-1)).toMatchObject({ id: 'skill-installation', kind: 'system' });
-      expect(
-        orchestratorPromptSections(DEFAULT_PROMPT_TEXT, tob).role.endsWith(`\n\n${text}`),
-      ).toBe(true);
-      expect(text).toMatchInlineSnapshot(
-        `"Install a Skill by writing .agents/skills/<name>/SKILL.md. Decide from the Human's request where it belongs: a Bot's own capability goes in its Memory Repository, which only its Orchestrator may write freely; a project convention goes in the matching Workspace, through its existing write authorization and approval. Start SKILL.md with YAML frontmatter: required name (kebab-case, equal to the folder name) and description; optional whenToUse (text), user-invocable and disable-model-invocation (booleans). Follow the frontmatter with the instructions body. Use ordinary file tools and commit Memory Skill writes with Git; its history is the record, with no separate install tool or activity entry."`,
-      );
-      expect(text.length).toBeLessThanOrEqual(800);
-    },
-  );
+  it('appends Skill installation guidance to the Orchestrator', () => {
+    const text = defaultPromptText('skill-installation');
+    expect(PROMPT_PARTS.at(-1)).toMatchObject({ id: 'skill-installation', kind: 'system' });
+    expect(orchestratorPromptSections(DEFAULT_PROMPT_TEXT).role.endsWith(`\n\n${text}`)).toBe(true);
+    expect(text).toMatchInlineSnapshot(
+      `"Install a Skill by writing .agents/skills/<name>/SKILL.md. Decide from the Human's request where it belongs: a Bot's own capability goes in its Memory Repository, which only its Orchestrator may write freely; a project convention goes in the matching Workspace, through its existing write authorization and approval. Start SKILL.md with YAML frontmatter: required name (kebab-case, equal to the folder name) and description; optional whenToUse (text), user-invocable and disable-model-invocation (booleans). Follow the frontmatter with the instructions body. Use ordinary file tools and commit Memory Skill writes with Git; its history is the record, with no separate install tool or activity entry."`,
+    );
+    expect(text.length).toBeLessThanOrEqual(800);
+  });
 
   it('drops an edit set to null and records the default it was based on', () => {
     const edited = applyPromptPartEdits({}, { triage: 'Close what is done.' });

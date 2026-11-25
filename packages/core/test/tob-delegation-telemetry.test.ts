@@ -21,7 +21,7 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
   };
 }
 
-it('counts a Tob send to a colleague as Tob Delegation and ignores other Bot DMs', async () => {
+it('counts delegations from any Bot’s Human DM', async () => {
   const capture = vi.fn();
   let tobSlug = '';
   const core = createCore({
@@ -59,6 +59,7 @@ it('counts a Tob send to a colleague as Tob Delegation and ignores other Bot DMs
       core.channels.list().filter((channel) => channel.type === 'dm' && !channel.botSlug),
     ).toHaveLength(2);
     expect(capture.mock.calls.filter(([event]) => event === 'tob:delegation_send')).toEqual([
+      ['tob:delegation_send', { surface: 'bot_tool' }],
       ['tob:delegation_send', { surface: 'bot_tool' }],
     ]);
   } finally {

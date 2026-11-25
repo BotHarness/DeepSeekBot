@@ -4,6 +4,15 @@ import type { TobCliCommand, TobCliStatus } from '../../tob/cli-request.js';
 import type { DirectBotToolSpec } from '../../runtime/bot-runtime.js';
 import type { TobAdapterMethods } from './methods.js';
 
+export function botGrant(
+  methods: TobAdapterMethods,
+  slug: string,
+  capability: string,
+  enabled: boolean,
+) {
+  return unwrapAsync(methods.botGrant({ slug, capability, enabled }));
+}
+
 export function tobHome(methods: TobAdapterMethods) {
   return unwrapAsync(methods.tobHome({}));
 }
@@ -49,6 +58,10 @@ export function botToolRun(
 }
 
 export const tobRpcMethods = {
+  botGrant(slug: string, capability: string, enabled: boolean) {
+    return botGrant(this.methods, slug, capability, enabled);
+  },
+
   tobHome() {
     return tobHome(this.methods);
   },

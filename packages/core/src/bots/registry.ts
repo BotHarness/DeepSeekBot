@@ -1,5 +1,5 @@
 import { cleanPresetSub, planSubProjection, type PresetSub } from '../models/preset-sub.js';
-import { isTob, TobError } from '../tob/service.js';
+import { isTob } from '../tob/service.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
@@ -693,7 +693,6 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       );
     },
     setPaused(slug, paused) {
-      if (paused && isTob(port, slug)) throw new TobError('protected-bot');
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const archiving = paused && record.paused !== true;

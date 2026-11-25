@@ -1,3 +1,5 @@
+import { cliEffects } from '../bots/cli-effects.js';
+import { canonicalCliCommandName } from '../bots/cli-command-names.js';
 import { randomUUID } from 'node:crypto';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -21,16 +23,34 @@ export async function approveTobCliOperation(options: {
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
   const generic = 'via' in operation && operation.via === 'cli';
+  const argv =
+    generic &&
+    typeof operation.patch === 'object' &&
+    operation.patch !== null &&
+    'argv' in operation.patch &&
+    Array.isArray(operation.patch.argv)
+      ? operation.patch.argv.filter((arg): arg is string => typeof arg === 'string')
+      : [command];
+  const canonical = canonicalCliCommandName(command);
   const requireExplicitApproval =
-    generic ||
     [
-      'release-install',
-      'release-restart',
       'bot-delete-confirm',
       'bot-delete-retry',
+      'pause',
+      'profile-backup-restore',
       'memory-save',
       'memory-restore-commit',
-    ].includes(command);
+      'profile-backup-activate',
+      'group-delete',
+      'session-archive',
+      'session-archive-set',
+      'channel-purge-confirm',
+      'data-reset-confirm',
+    ].includes(canonical) ||
+    (canonical === 'bots' && argv.includes('delete')) ||
+    (canonical === 'engine' && ['login', 'account-remove'].includes(argv[1] ?? '')) ||
+    cliEffects(argv)?.secrets === true ||
+    /credential|password|pair|engine-(?:login|account-remove)/.test(canonical);
   const scope =
     !generic &&
     'target' in operation &&
@@ -65,12 +85,19 @@ export async function approveTobCliOperation(options: {
     }),
     signal,
   };
-  const untrack = channelApproval?.track(call, 'operation', false, undefined, undefined, {
-    requireExplicitApproval,
-    ...(options.approvalChannelId === undefined
-      ? {}
-      : { origin: { kind: 'turn', channelId: options.approvalChannelId } }),
-  });
+  const untrack = channelApproval?.track(
+    call,
+    requireExplicitApproval ? 'each-use' : 'operation',
+    !requireExplicitApproval,
+    undefined,
+    undefined,
+    {
+      requireExplicitApproval,
+      ...(options.approvalChannelId === undefined
+        ? {}
+        : { origin: { kind: 'turn', channelId: options.approvalChannelId } }),
+    },
+  );
   if (!untrack || !approval || !channelApproval) {
     untrack?.();
     throw new TobError('approval-unavailable');

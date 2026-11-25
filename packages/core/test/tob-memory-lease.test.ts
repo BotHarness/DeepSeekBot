@@ -105,7 +105,7 @@ function fixture() {
       ],
       diff: (_slug: string, sha: string) => ({ sha, diff: '+line\n' }),
     }),
-    isTob: (slug: string) => slug === 'tob',
+    mayManageBots: (slug: string) => slug === 'tob',
     now: () => new Date(AT),
   };
   const leases = createTobMemoryLeases(deps);

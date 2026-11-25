@@ -13,6 +13,9 @@ export function createBotDetails(human: HumanContext, deps: BridgeMethodsDeps) {
     bot: {
       ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
       ...runnerOf(record.slug),
+      ...(human.caller !== 'bot' && botOwner(record) === human.humanId && deps.tob
+        ? { managementGrants: deps.tob.managementGrants(record.slug) }
+        : {}),
       ownerHumanId: botOwner(record),
       owner: botOwner(record) === human.humanId,
       ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
