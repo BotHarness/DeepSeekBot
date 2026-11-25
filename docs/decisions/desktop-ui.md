@@ -46,7 +46,9 @@ Enforced by: [package boundaries](../../scripts/check-package-boundaries.mjs), [
 
 Why: Tobs needs to set its own hierarchy, alignment and colours while living inside the native shell. Central roles keep the same controls consistent across Panels, and one overlay seam preserves keyboard order across both owners.
 
-Enforced by: [resolver and generated outputs](../../scripts/generate-tokens.mjs), [migration guard](../../scripts/check-design-tokens.mjs), [UI rules](../../scripts/check-ui-rules.mjs), [dialog and shell layering](../../packages/client/test/tobs-dialog.test.tsx).
+Request cards use one content inset and one row gap from these tokens ([UI design § Request cards](../agents/ui-design.md#request-cards)).
+
+Enforced by: [resolver and generated outputs](../../scripts/generate-tokens.mjs), [migration guard](../../scripts/check-design-tokens.mjs), [UI rules](../../scripts/check-ui-rules.mjs), [request card order](../../packages/client/test/tool-approval-card-keys.test.ts), [dialog and shell layering](../../packages/client/test/tobs-dialog.test.tsx).
 
 ## Tobs overlays use Base UI and share the DSH layer stack
 
