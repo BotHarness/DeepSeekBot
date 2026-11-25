@@ -118,7 +118,7 @@ export function connectorToolDenial(
   const raw = name.slice(CONNECTOR_TOOL_PREFIX.length);
   const services = Object.keys(access);
   if (services.length === 0)
-    return 'No connector is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
+    return 'No App connection is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
   if (DISCOVERY.has(raw)) return undefined;
   const names =
     raw === MULTI_EXECUTE ? slugs(args) : raw.startsWith('COMPOSIO_') ? undefined : [raw];
@@ -129,7 +129,7 @@ export function connectorToolDenial(
   for (const slug of names) {
     const service = serviceFor(slug, services);
     if (service === undefined)
-      return `${slug} belongs to a connector this Bot was not granted; ask the Owner to grant it in the Bot settings.`;
+      return `${slug} belongs to an App connection this Bot was not granted; ask the Owner to grant it in the Bot settings.`;
     if (access[service] === 'read' && !readOnlyTool(slug, service))
       return `${slug} would change ${service}, which is read-only for this Bot; ask the Owner for write access before trying again.`;
   }

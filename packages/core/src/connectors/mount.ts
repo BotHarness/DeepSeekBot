@@ -120,7 +120,7 @@ export function mountConnectors(
     if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return undefined;
     const botSlug =
       agent === undefined ? undefined : core.ownership.resolve(agent.session.id)?.botSlug;
-    if (botSlug === undefined) return 'Connector tools run only inside a Bot conversation.';
+    if (botSlug === undefined) return 'App connection tools run only inside a Bot conversation.';
     return connectorToolDenial(name, args, connectorAccessMap(service, botSlug));
   });
   ctx.effect(

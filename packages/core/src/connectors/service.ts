@@ -255,7 +255,7 @@ export class ConnectorService {
   grant(botSlug: string, accountId: string, access: ConnectorAccess | undefined): boolean {
     const changed = this.#store.setGrant(botSlug, accountId, access);
     if (!changed && access !== undefined)
-      throw new ConnectorError('not-found', 'The connector account does not exist.');
+      throw new ConnectorError('not-found', 'The App connection does not exist.');
     if (changed) {
       this.#log(access === undefined ? 'grant-removed' : 'grant-set', {
         access: access ?? 'none',

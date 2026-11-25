@@ -257,7 +257,9 @@ describe('connector tool policy', () => {
       'not available',
     );
     expect(connectorToolDenial(tool('GMAIL_SEND_EMAIL'), {}, access)).toContain('read-only');
-    expect(connectorToolDenial(tool('COMPOSIO_SEARCH_TOOLS'), {}, {})).toContain('No connector');
+    expect(connectorToolDenial(tool('COMPOSIO_SEARCH_TOOLS'), {}, {})).toContain(
+      'No App connection',
+    );
   });
 });
 
