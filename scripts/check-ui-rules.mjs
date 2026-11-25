@@ -12,6 +12,7 @@ import { mobileFixedButtonHeight } from './ui-rule-mobile-button-height.mjs';
 import { mobileWrappingCapsule } from './ui-rule-mobile-capsule.mjs';
 import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
 import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
+import { mobileSheetSurface } from './ui-rule-mobile-sheet.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -121,6 +122,14 @@ export const RULES = {
   unscaledLabelIcon: {
     help: 'size a glyph that sits beside a text label from the label role times theme.fontScale (or a SwiftUI textStyle font), so icon and label grow together; keep the icon and reflow the row instead of hiding it',
     section: 'docs/agents/ui-design.md § Large text, apps/mobile/DESIGN.md § Code rules 2',
+  },
+  sheetSurface: {
+    help: 'paint the sheet with theme.overlay.fill, put grouped rows and cards on SHEET_GROUP, and give controls on the sheet itself on="sheet"; page tokens (color.base, color.surface, layer.canvas) and colour literals invert the sheet',
+    section: 'apps/mobile/DESIGN.md § Bottom sheets',
+  },
+  sheetHeader: {
+    help: 'use SheetHeader for a sheet title row: close or back on the left, one action or nothing on the right',
+    section: 'apps/mobile/DESIGN.md § Bottom sheets',
   },
   wrappingCapsule: {
     help: 'shape a capsule that grows with its text through capsuleRadius(theme.fontScale) or a SwiftUI button through capsuleBorderShape(theme.fontScale), so it becomes a rounded rectangle when its label wraps at accessibility text sizes; give a fixed circle or pill a fixed height',
@@ -281,6 +290,9 @@ export function scan(fix = false) {
             ? mobileWrappingCapsule(file, ast)
             : []),
           ...(MOBILE_UI.test(file) ? mobileLabelIcon(file, ast) : []),
+          ...(MOBILE_UI.test(file) && /Sheet|pageSheet|formSheet/u.test(source)
+            ? mobileSheetSurface(file, ast)
+            : []),
           ...(/jetpack-compose/u.test(source) ? mobileFixedButtonHeight(file, ast) : []),
         ];
       let styles = desktopStyles(source, file, ast, walk);

@@ -55,6 +55,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('@botharness/host-client/inbox', () => ({ INBOX_SECTIONS: ['unread', 'replies'] }));
 vi.mock('../src/ui/chat/sheet', () => ({
+  SHEET_GROUP: 'raised',
   Sheet: () => {
     throw new Error('iOS presents Activity options as a page sheet');
   },

@@ -6,7 +6,7 @@ import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetFramed, SheetHeader } from '../primitives/sheet-header';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SheetFrame } from './sheet-frame';
@@ -54,31 +54,26 @@ export function Sheet({
       </Page>
     ) : null;
   return (
-    <SheetFrame
-      visible={visible}
-      label={label}
-      onClose={onClose}
-      onDismissed={onDismissed}
-      avoidKeyboard={avoidKeyboard}
-      animationType={animationType}
-      fill={fill}
-    >
-      {title === undefined ? null : (
-        <View
-          style={{
-            paddingHorizontal: space.x5,
-            paddingBottom: space.x4,
-          }}
-        >
-          <DrawerHeader
+    <SheetFramed value>
+      <SheetFrame
+        visible={visible}
+        label={label}
+        onClose={onClose}
+        onDismissed={onDismissed}
+        avoidKeyboard={avoidKeyboard}
+        animationType={animationType}
+        fill={fill}
+      >
+        {title === undefined ? null : (
+          <SheetHeader
             title={title}
             {...(subtitle === undefined ? {} : { subtitle })}
             onClose={onClose}
           />
-        </View>
-      )}
-      {children}
-    </SheetFrame>
+        )}
+        {children}
+      </SheetFrame>
+    </SheetFramed>
   );
 }
 
@@ -112,7 +107,7 @@ export function SheetCallout({ children, tone }: { children: string; tone: 'warn
         paddingHorizontal: space.x4,
         paddingVertical: space.x3,
         borderRadius: radius.md,
-        backgroundColor: tone === 'warning' ? theme.color.warningSoft : theme.layer.canvas.danger,
+        backgroundColor: tone === 'warning' ? theme.color.warningSoft : theme.layer.sheet.danger,
       }}
     >
       <Text variant="meta" tone={tone === 'warning' ? 'fg' : 'danger'}>

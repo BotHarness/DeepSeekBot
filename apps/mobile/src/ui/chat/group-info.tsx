@@ -201,11 +201,11 @@ function RenameSheet({
           />
         </View>
         <SheetActions>
-          <Button label={t.cancel} on="canvas" onPress={onClose} />
+          <Button label={t.cancel} on="sheet" onPress={onClose} />
           <Button
             label={t.groupRenameSave}
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy}
             disabled={(!allowEmpty && next === '') || next === name}
             onPress={() => void save()}

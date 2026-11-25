@@ -5,7 +5,7 @@ import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { edge, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { SheetHeader } from '../primitives/sheet-header';
+import { SheetFramed, SheetHeader } from '../primitives/sheet-header';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
@@ -34,71 +34,73 @@ export function MessageAttachmentPicker({
   }, []);
   const [busy, setBusy] = useState<string>();
   return (
-    <SheetFrame
-      visible
-      label={t.attachmentDownloads}
-      onClose={onClose}
-      avoidKeyboard={false}
-      animationType="slide"
-    >
-      <SheetHeader title={t.attachmentDownloads} onClose={onClose} />
-      <ScrollView
-        ref={mount}
-        testID="message-attachment-list"
-        accessibilityLabel={t.attachmentDownloads}
-        style={{ flexShrink: 1 }}
-        contentContainerStyle={{ paddingHorizontal: space.x5 }}
+    <SheetFramed value>
+      <SheetFrame
+        visible
+        label={t.attachmentDownloads}
+        onClose={onClose}
+        avoidKeyboard={false}
+        animationType="slide"
       >
-        {attachments.map((attachment, index) => (
-          <Pressable
-            key={attachment.key}
-            accessibilityRole="button"
-            accessibilityLabel={t.shareFile(attachment.name)}
-            accessibilityState={{ disabled: busy !== undefined, busy: busy === attachment.key }}
-            disabled={busy !== undefined}
-            android_ripple={{ color: theme.layer.raised.pressed }}
-            onPress={() => {
-              if (pending.current) return;
-              pending.current = true;
-              setBusy(attachment.key);
-              const close = () => {
-                if (live.current) onClose();
-              };
-              void Promise.resolve()
-                .then(() => (live.current ? onShare(attachment) : undefined))
-                .then(close, close);
-            }}
-            style={({ pressed }) => ({
-              minHeight: theme.touch,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: space.x4,
-              paddingVertical: space.x4,
-              borderBottomWidth: edge.hairline,
-              borderColor: theme.color.border,
-              backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
-            })}
-          >
-            {busy === attachment.key ? (
-              <LoadingIndicator size="control" />
-            ) : (
-              <FileTypeIcon attachment={attachment} />
-            )}
-            <View style={{ flex: 1, minWidth: 0, gap: space.x2 }}>
-              <Text strong>{attachment.name}</Text>
-              <Text variant="meta" tone="muted">
-                {[
-                  `${index + 1} / ${attachments.length}`,
-                  fileTypeLabel(attachment) || t.fileKind,
-                  attachment.size === undefined ? undefined : fileSize(attachment.size),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </SheetFrame>
+        <SheetHeader title={t.attachmentDownloads} onClose={onClose} />
+        <ScrollView
+          ref={mount}
+          testID="message-attachment-list"
+          accessibilityLabel={t.attachmentDownloads}
+          style={{ flexShrink: 1 }}
+          contentContainerStyle={{ paddingHorizontal: space.x5 }}
+        >
+          {attachments.map((attachment, index) => (
+            <Pressable
+              key={attachment.key}
+              accessibilityRole="button"
+              accessibilityLabel={t.shareFile(attachment.name)}
+              accessibilityState={{ disabled: busy !== undefined, busy: busy === attachment.key }}
+              disabled={busy !== undefined}
+              android_ripple={{ color: theme.layer.raised.pressed }}
+              onPress={() => {
+                if (pending.current) return;
+                pending.current = true;
+                setBusy(attachment.key);
+                const close = () => {
+                  if (live.current) onClose();
+                };
+                void Promise.resolve()
+                  .then(() => (live.current ? onShare(attachment) : undefined))
+                  .then(close, close);
+              }}
+              style={({ pressed }) => ({
+                minHeight: theme.touch,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x4,
+                paddingVertical: space.x4,
+                borderBottomWidth: edge.hairline,
+                borderColor: theme.color.border,
+                backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+              })}
+            >
+              {busy === attachment.key ? (
+                <LoadingIndicator size="control" />
+              ) : (
+                <FileTypeIcon attachment={attachment} />
+              )}
+              <View style={{ flex: 1, minWidth: 0, gap: space.x2 }}>
+                <Text strong>{attachment.name}</Text>
+                <Text variant="meta" tone="muted">
+                  {[
+                    `${index + 1} / ${attachments.length}`,
+                    fileTypeLabel(attachment) || t.fileKind,
+                    attachment.size === undefined ? undefined : fileSize(attachment.size),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </SheetFrame>
+    </SheetFramed>
   );
 }

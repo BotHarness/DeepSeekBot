@@ -7,11 +7,12 @@ import {
   type InboxSection,
   type InboxSetAside,
 } from '@botharness/host-client/inbox';
-import { Sheet } from '../chat/sheet';
+import { SHEET_GROUP, Sheet } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { androidSettings, edge, radius, space } from '../design/tokens';
 import { CheckmarkRow } from '../primitives/checkmark-row';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetGrabber } from '../primitives/sheet-grabber';
+import { SheetHeader } from '../primitives/sheet-header';
 import { RadioMark } from '../primitives/radio-mark';
 import { segmentCorners } from '../design/segment-corners';
 import { Text } from '../primitives/text';
@@ -175,36 +176,17 @@ export function ActivityFilterContent({
   const content = (
     <>
       {ios ? (
-        <View
-          style={{
-            alignSelf: 'center',
-            width: space.x6 + space.x3,
-            height: space.x2,
-            borderRadius: radius.round,
-            backgroundColor: theme.layer.canvas.selected,
-            marginTop: space.x3,
-            marginBottom: space.x3,
-          }}
-        />
-      ) : null}
-      {!ios ? (
-        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-          <DrawerHeader title={t.activityOptions} onClose={onClose} />
+        <View style={{ alignItems: 'center', paddingTop: space.x3 }}>
+          <SheetGrabber />
         </View>
       ) : null}
+      <SheetHeader title={t.activityOptions} onClose={onClose} />
       <FlatList
         nestedScrollEnabled
-        ListHeaderComponent={
-          ios ? (
-            <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-              <DrawerHeader title={t.activityOptions} onClose={onClose} />
-            </View>
-          ) : undefined
-        }
         data={rows}
         keyExtractor={(row) => row.key}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: space.x6 }}
+        contentContainerStyle={{ paddingBottom: space.x6 + (ios ? insets.bottom : 0) }}
         renderItem={({ item }) => {
           if (item.kind === 'heading')
             return (
@@ -233,14 +215,14 @@ export function ActivityFilterContent({
                   paddingHorizontal: space.x5,
                   paddingVertical: space.x3,
                   borderRadius: ios ? radius.md : androidSettings.listRadius,
-                  backgroundColor: theme.layer.raised.fill,
+                  backgroundColor: theme.layer[SHEET_GROUP].fill,
                 }}
               >
                 <Text style={{ flex: 1 }}>{t.activityUnreadOnly}</Text>
                 <Toggle
                   label={t.activityUnreadOnly}
                   value={filter.unreadOnly === true}
-                  on="raised"
+                  on={SHEET_GROUP}
                   onChange={(unreadOnly) => onFilter({ ...filter, unreadOnly })}
                 />
               </View>
@@ -256,8 +238,8 @@ export function ActivityFilterContent({
                   borderBottomLeftRadius: last ? radius.md : 0,
                   borderBottomRightRadius: last ? radius.md : 0,
                   borderBottomWidth: last ? 0 : edge.hairline,
-                  borderBottomColor: theme.layer.raised.divider,
-                  backgroundColor: theme.layer.raised.fill,
+                  borderBottomColor: theme.layer[SHEET_GROUP].divider,
+                  backgroundColor: theme.layer[SHEET_GROUP].fill,
                   overflow: 'hidden',
                 }}
               >
@@ -285,7 +267,9 @@ export function ActivityFilterContent({
                 ...segmentCorners(first, last),
                 marginTop: first ? 0 : androidSettings.segmentGap,
                 overflow: 'hidden',
-                backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                backgroundColor: pressed
+                  ? theme.layer[SHEET_GROUP].pressed
+                  : theme.layer[SHEET_GROUP].fill,
               })}
             >
               <RadioMark selected={choice.selected} />
@@ -315,8 +299,7 @@ export function ActivityFilterContent({
       style={{
         flex: 1,
         flexShrink: 1,
-        paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
-        backgroundColor: ios ? theme.layer.sheet.fill : theme.overlay.fill,
+        backgroundColor: theme.overlay.fill,
       }}
     >
       {content}

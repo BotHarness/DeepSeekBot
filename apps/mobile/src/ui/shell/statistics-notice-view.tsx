@@ -36,7 +36,7 @@ export function StatisticsNoticeView({
       <ScrollView nestedScrollEnabled contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
         <Text>{t.statisticsNoticeSummary}</Text>
         <Button
-          on="canvas"
+          on="sheet"
           label={expanded ? t.statisticsHideDetails : t.statisticsDetails}
           onPress={() => setExpanded(!expanded)}
         />
@@ -46,18 +46,18 @@ export function StatisticsNoticeView({
           </Text>
         ) : null}
         <Button
-          on="canvas"
+          on="sheet"
           label={t.statisticsPrivacy}
           onPress={() => open(t.statisticsPrivacyUrl)}
         />
         <Button
-          on="canvas"
+          on="sheet"
           label={t.statisticsSource}
           onPress={() => open('https://github.com/BotHarness/DeepSeekBot/tree/main/apps/mobile')}
         />
         {linkError ? <Text tone="danger">{t.statisticsLinkError}</Text> : null}
-        <Button on="canvas" label={t.statisticsOpenSettings} onPress={onSettings} />
-        <Button on="canvas" label={t.statisticsGotIt} tone="primary" onPress={onClose} />
+        <Button on="sheet" label={t.statisticsOpenSettings} onPress={onSettings} />
+        <Button on="sheet" label={t.statisticsGotIt} tone="primary" onPress={onClose} />
       </ScrollView>
     </Sheet>
   );
