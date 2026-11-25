@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 
+import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { refuseSubagentGateway } from '../src/engines/claude-engine.js';
@@ -193,6 +195,12 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
       delegationDepth: 1,
     });
     expect(claim).toHaveBeenCalledWith(child!.header.id, 'orchestrator-ada');
+    expect(foldSubagentDescriptor(child!.events)).toEqual({
+      version: 3,
+      mode: 'one-shot',
+      provider: 'claude',
+      label: 'Check the forecast',
+    });
     const transcript = summarizeSessionTranscript({
       sessionId: child!.header.id,
       events: child!.events,
@@ -364,6 +372,10 @@ describe('engine sub-agents become read-only DSH Subagent Sessions', () => {
     expect(child?.header).toMatchObject({
       parentSession: 'orchestrator-ada',
       origin: 'subagent',
+    });
+    expect(foldSubagentDescriptor(child!.events)).toMatchObject({
+      mode: 'one-shot',
+      provider: 'codex',
     });
     const transcript = summarizeSessionTranscript({
       sessionId: child!.header.id,

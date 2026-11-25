@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { foldSubagentDescriptor, SUBAGENT_DESCRIPTOR_VERSION } from '@deepseek-ai/dsh-subagent';
+
 import { type OpenedEngineDshSession, openEngineDshSession } from './engine-dsh-session.js';
 import type { EngineHostOptions } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
@@ -123,6 +125,13 @@ export class EngineSubagentLogs {
           prompt === undefined || prompt.trim() === '' ? name : prompt,
           name,
         );
+        if (foldSubagentDescriptor(dsh.session.snapshotEvents()) === undefined)
+          dsh.session.append('subagent/descriptor', {
+            version: SUBAGENT_DESCRIPTOR_VERSION,
+            mode: 'one-shot',
+            provider: this.#host.engine,
+            label: name,
+          });
         return { dsh, log, hasText: false };
       } catch (error) {
         await dsh.close().catch(() => undefined);

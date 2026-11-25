@@ -26,7 +26,7 @@ import {
 
 export const CLAUDE_GATEWAY_SERVER = 'deepseekbot';
 const GATEWAY_PREFIX = `mcp__${CLAUDE_GATEWAY_SERVER}__`;
-const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'];
+const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'Agent'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'];
 const SUBAGENT_TOOLS = new Set(['Agent', 'Task']);
 
