@@ -253,5 +253,17 @@ it('the approval route receives the full review and can approve from its own con
   );
   await fx.receive(directMessage('slack', 'route-approve', reviewer, '同意 Colleague'));
   expect(pendingFor(fx, applicant)).toMatchObject({ status: 'approved', roleId: colleague.id });
+  expect(fx.replies.slice(-2)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        route: expect.objectContaining({ conversationId: 'CQA1' }),
+        text: expect.stringContaining('send your question again'),
+      }),
+      expect.objectContaining({
+        route: expect.objectContaining({ conversationId: 'DQAREV' }),
+        text: expect.stringContaining(`Approved pairing request ${request.reference}`),
+      }),
+    ]),
+  );
   expect(fx.runs).toHaveLength(0);
 });

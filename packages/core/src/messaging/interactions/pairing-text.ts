@@ -17,6 +17,7 @@ import {
 import { isMessagingPlatform } from '../platforms/index.js';
 import { MessagingError, type MessagingInboundEvent, type MessagingProvider } from '../provider.js';
 import { answerText } from './text-answers.js';
+import { ALLOW_WORDS, REJECT_WORDS } from './text-approvals.js';
 
 export interface PairingReply {
   decision: 'approve' | 'reject';
@@ -24,8 +25,9 @@ export interface PairingReply {
   reference?: string;
 }
 
-const ALLOW = ['同意', '批准', '允许', 'approve', 'allow'];
-const REJECT = ['不同意', '不允许', '拒绝', 'reject', 'deny'];
+const byLength = (words: readonly string[]) => [...words].sort((a, b) => b.length - a.length);
+const ALLOW = byLength(ALLOW_WORDS);
+const REJECT = byLength(REJECT_WORDS);
 const cjk = /^\p{Script=Han}/u;
 
 function leading(body: string, words: string[]) {
@@ -306,13 +308,13 @@ export function createPairingText(options: {
       );
       options.reviewed(binding.botSlug);
       log('review', parsed.decision);
+      if (accepted.status === 'approved')
+        void options.notifyApplicant(accepted).catch(() => log('applicant-notice', 'unconfirmed'));
       await reply(
         parsed.decision === 'reject'
           ? NOTICE.rejected(target.reference)
           : NOTICE.approved(target.reference, role!.name),
       );
-      if (accepted.status === 'approved')
-        void options.notifyApplicant(accepted).catch(() => log('applicant-notice', 'unconfirmed'));
     } catch (error) {
       log('review', error instanceof MessagingError ? error.code : 'failed');
       await reply(
@@ -354,6 +356,7 @@ export function createPairingText(options: {
         route: event.reply,
         text,
         signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+        ...(event.conversation.kind === 'dm' ? { standalone: true as const } : {}),
         beforeSend: () => {
           try {
             const current = database.read((db) => readMessagingIdentity(db, binding.id));
