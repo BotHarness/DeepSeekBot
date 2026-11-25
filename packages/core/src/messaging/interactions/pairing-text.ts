@@ -18,7 +18,12 @@ import {
 import { isMessagingPlatform } from '../platforms/index.js';
 import { MessagingError, type MessagingInboundEvent, type MessagingProvider } from '../provider.js';
 import { answerText } from './text-answers.js';
-import { controlBinding, controlReply, privateRoute } from './control-replies.js';
+import {
+  controlBinding,
+  controlDeliveries,
+  controlReply,
+  privateRoute,
+} from './control-replies.js';
 import { ALLOW_WORDS, REJECT_WORDS } from './text-approvals.js';
 
 export interface PairingReply {
@@ -149,6 +154,7 @@ export function createPairingText(options: {
   warn?(message: string): void;
 }) {
   const { database, pairing } = options;
+  const firstDelivery = controlDeliveries();
   const log = (phase: string, outcome: string) =>
     options.warn?.(
       JSON.stringify({ event: 'pairing-text', initiator: 'messaging', phase, outcome }),
@@ -302,6 +308,7 @@ export function createPairingText(options: {
     let explicit = !!target;
     if (ambiguous) {
       if (!assignable(binding.botSlug, binding.id, event.actor.id).reviewer) return false;
+      if (!firstDelivery(event)) return true;
       setImmediate(() => {
         if (!signal.aborted) void send(providerId, binding, event, NOTICE.ambiguous, signal);
       });
@@ -337,6 +344,7 @@ export function createPairingText(options: {
     const scope = assignable(binding.botSlug, binding.id, event.actor.id);
     if (!explicit && !scope.reviewer) return false;
     explicit = true;
+    if (!firstDelivery(event)) return true;
     const reply = (text: string) =>
       setImmediate(() => {
         if (!signal.aborted) void send(providerId, binding, event, text, signal);

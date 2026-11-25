@@ -75,3 +75,18 @@ export async function controlReply(input: {
     },
   });
 }
+
+export function controlDeliveries(ttlMs = 10 * 60 * 1000, limit = 2000) {
+  const seen = new Map<string, number>();
+  return (event: MessagingInboundEvent) => {
+    const now = Date.now();
+    for (const [key, at] of seen) {
+      if (now - at <= ttlMs && seen.size < limit) break;
+      seen.delete(key);
+    }
+    const key = [event.channel, event.botId, event.conversation.id, event.messageId].join('\u0000');
+    if (seen.has(key)) return false;
+    seen.set(key, now);
+    return true;
+  };
+}

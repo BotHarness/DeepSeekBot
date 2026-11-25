@@ -189,3 +189,26 @@ it('reads Lark style mention keys that share a prefix with the Bot mention', asy
   expect(pendingFor(fx, applicant).roleId).toBe(approver.id);
   expect(fx.runs).toHaveLength(0);
 });
+
+it('a redelivered command or review reply is answered once', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack', ['review-pairing']);
+  await approverRole(fx);
+  await fx.receive(channelMessage('slack', 'blocked', applicant, 'question'));
+  const review = channelMessage('slack', 'approve', reviewer, '同意 Colleague', anchor, false);
+  await fx.receive(review);
+  await fx.receive({ ...review, eventId: `${review.eventId}-again` });
+  await fx.settle();
+  expect(
+    fx.replies.filter((reply) => reply.text.includes('Approved pairing request')),
+  ).toHaveLength(1);
+  expect(fx.replies.some((reply) => reply.text.includes('no longer waiting'))).toBe(false);
+  const denied = command('denied', reviewer, '/role @target Approver');
+  await fx.receive(denied);
+  await fx.receive({ ...denied, eventId: `${denied.eventId}-again` });
+  await fx.settle();
+  expect(
+    fx.replies.filter((reply) => reply.text.includes('You cannot assign the Role')),
+  ).toHaveLength(1);
+  expect(fx.runs).toHaveLength(0);
+});

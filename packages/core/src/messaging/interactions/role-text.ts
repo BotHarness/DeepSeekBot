@@ -10,7 +10,12 @@ import {
 } from '../permissions/index.js';
 import { isMessagingPlatform } from '../platforms/index.js';
 import { MessagingError, type MessagingInboundEvent, type MessagingProvider } from '../provider.js';
-import { controlBinding, controlReply, privateRoute } from './control-replies.js';
+import {
+  controlBinding,
+  controlDeliveries,
+  controlReply,
+  privateRoute,
+} from './control-replies.js';
 
 export interface RoleCommand {
   role?: string;
@@ -69,6 +74,7 @@ export function createRoleText(options: {
   warn?(message: string): void;
 }) {
   const { database, pairing } = options;
+  const firstDelivery = controlDeliveries();
   const log = (phase: string, outcome: string) =>
     options.warn?.(JSON.stringify({ event: 'role-text', initiator: 'messaging', phase, outcome }));
 
@@ -117,6 +123,7 @@ export function createRoleText(options: {
     if (!command) return false;
     const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
+    if (!firstDelivery(event)) return true;
     const dm = event.conversation.kind === 'dm';
     const reply = (message: string) =>
       setImmediate(() => {
