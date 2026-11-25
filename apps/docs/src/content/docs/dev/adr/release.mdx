@@ -79,7 +79,7 @@ Model Preset operations validate route shape before writes. Offline preset opera
 
 Why: Local validation catches simple mistakes before a Bot or preset is changed. The actual provider and Host credential owner are needed to assess whether a configured model will answer.
 
-Enforced by: [model plan, invalid provider refusal and preset application](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-create-model-cli.test.ts).
+Enforced by: [model plan, invalid provider refusal and preset application](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-create-cli.test.ts).
 
 ## The live CLI invokes the authenticated Host owner
 
@@ -89,7 +89,7 @@ Live commands use DSH's authenticated HTTP unary carrier, with a matching method
 
 Why: The running Host holds the exclusive Profile writer lease. Reusing its authenticated interface preserves permissions and keeps command behavior consistent with the Client.
 
-Enforced by: [live adapter import boundary](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-package-boundaries.mjs), [unary carrier and online commands](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-management-cli.test.ts), [exclusive offline lease](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-offline-operations-cli.test.ts).
+Enforced by: [live adapter import boundary](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-package-boundaries.mjs), [unary carrier and online commands](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-management-cli.test.ts), [exclusive offline lease](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-create-cli.test.ts).
 
 ## One umbrella Bundle composes the product
 
@@ -119,7 +119,7 @@ An explicit `--host` or `DEEPSEEKBOT_HOST` selects online management through exi
 
 Why: Choosing the target directly protects scripts from accidentally applying a change to a different Host or local Profile. Owner receipts let callers recover from a lost response without silently repeating an uncertain effect.
 
-Enforced by: [management, receipts and lost responses](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-management-cli.test.ts), [CLI import](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-create-model-cli.test.ts).
+Enforced by: [management, receipts and lost responses](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-management-cli.test.ts), [CLI import](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-create-cli.test.ts).
 
 ## A Product Release Version identifies immutable artifacts
 
