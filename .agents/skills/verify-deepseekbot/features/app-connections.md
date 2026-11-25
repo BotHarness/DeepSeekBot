@@ -17,7 +17,7 @@
 
 ## Sub-features
 
-- Bot Settings › App connections (应用连接), Owner only: one Composio API key row (Add key / Replace; Remove inside the dialog) and a Connected apps list with status, Disconnect, Open sign-in, Connect an app and Check status.
+- Bot Settings › App connections (应用连接), Owner only: one Composio API key row (Add key / Replace; Remove inside the dialog) and a Connected accounts list with status, Disconnect, Open sign-in, Connect an app and Check status.
 - Saving a key checks it with Composio first; a rejected key is refused with `invalid-input` and nothing is stored.
 - Each Bot's App connections entry: one select per account (No access / Read / Read and write).
 - Bot tools `connector_catalog` (read) and `connector_request` (always a Human approval card). The `mcp__composio__*` guard refuses ungranted services, writes under a Read grant, remote workbench/bash tools and calls after revocation.
