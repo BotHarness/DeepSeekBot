@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { posix, win32 } from 'node:path';
 import type {
   HostSessionFilter,
@@ -76,6 +77,17 @@ export function mayKnowSession(
   if (record === undefined || record.parentSessionId !== undefined) return false;
   const bot = deps.registry.getHistorical(record.botSlug);
   return bot !== undefined && deps.team?.bots.privateSessions(human)?.has(bot.slug) !== true;
+}
+
+export function sessionAccessKey({ human, deps, owner }: SessionRowScope): string | undefined {
+  if (owner) return undefined;
+  const hidden = deps.team?.bots.privateSessions(human);
+  const slugs = deps.registry
+    .listHistorical()
+    .map((bot) => bot.slug)
+    .filter((slug) => hidden?.has(slug) !== true)
+    .sort();
+  return createHash('sha256').update(JSON.stringify(slugs)).digest('base64url').slice(0, 22);
 }
 
 export async function readVisibleSessionRows(
