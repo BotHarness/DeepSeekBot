@@ -1,8 +1,8 @@
 import type { ComponentType, ReactNode } from 'react';
-import { View } from 'react-native';
+import { View, type DimensionValue } from 'react-native';
 
 import type { LayerName } from '../design/layers';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
@@ -31,6 +31,7 @@ export function Sheet({
   avoidKeyboard = false,
   animationType = 'fade',
   fill = false,
+  resizable = false,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -43,6 +44,7 @@ export function Sheet({
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
   fill?: boolean;
+  resizable?: boolean;
 }) {
   if (Page !== undefined)
     return visible ? (
@@ -63,6 +65,7 @@ export function Sheet({
         avoidKeyboard={avoidKeyboard}
         animationType={animationType}
         fill={fill}
+        resizable={resizable}
       >
         {title === undefined ? null : (
           <SheetHeader
@@ -143,6 +146,57 @@ export function SheetFooter({ children }: { children: string }) {
     >
       {children}
     </Text>
+  );
+}
+
+export function SheetSkeleton({ rows = 4 }: { rows?: number }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const group = theme.layer[SHEET_GROUP];
+  const bar = (width: DimensionValue) => ({
+    width,
+    height: theme.type.body.line * 0.7,
+    borderRadius: radius.sm,
+    backgroundColor: group.inset,
+  });
+  return (
+    <View
+      testID="sheet-skeleton"
+      accessibilityRole="progressbar"
+      accessibilityLabel={t.contextLoading}
+      style={{ paddingHorizontal: space.x5, paddingTop: space.x3 }}
+    >
+      <View
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{ borderRadius: radius.md, overflow: 'hidden', backgroundColor: group.fill }}
+      >
+        {Array.from({ length: rows }, (_, row) => (
+          <View
+            key={row}
+            style={{
+              minHeight: theme.touch + space.x3,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x4,
+              paddingHorizontal: space.x4,
+              borderBottomWidth: row === rows - 1 ? 0 : edge.hairline,
+              borderBottomColor: group.divider,
+            }}
+          >
+            <View
+              style={{
+                width: theme.type.title.line,
+                height: theme.type.title.line,
+                borderRadius: radius.round,
+                backgroundColor: group.inset,
+              }}
+            />
+            <View style={bar(row % 2 === 0 ? '55%' : '40%')} />
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 

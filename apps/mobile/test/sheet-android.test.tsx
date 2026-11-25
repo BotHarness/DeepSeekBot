@@ -117,6 +117,22 @@ it('uses the body sheet surface for the native handle and container too', async 
   expect(view.querySelector('dialog')?.getAttribute('data-ink')).toBe('ink');
 });
 
+it('opens a resizable sheet partially expanded and every other sheet fully expanded', async () => {
+  const fixed = await mount(
+    <Sheet visible label="Name" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(fixed.querySelector('dialog')?.getAttribute('data-skip-partial')).toBe('true');
+  act(() => root?.unmount());
+  const resizable = await mount(
+    <Sheet visible resizable label="Model" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(resizable.querySelector('dialog')?.getAttribute('data-skip-partial')).toBe('false');
+});
+
 it('calls the caller close for every native dismissal', async () => {
   const onClose = vi.fn();
   const view = await mount(
