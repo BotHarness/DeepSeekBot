@@ -260,7 +260,7 @@ export const zh = {
   'bot.create.source.git': '使用 GitHub 仓库中的 Bot 配置和记忆。',
   'bot.create.source.zip': '从已导出的 zip 文件恢复 Bot。',
   'roster.menu.createBot.sessions': '从 Session 创建',
-  'bot.create.source.sessions': '选几个 DeepSeek Session，让新 Bot 接手它们所在的项目。',
+  'bot.create.source.sessions': '选几个 DeepSeek Session，让新 Bot 接手它们所在的工作区。',
   'bot.create.sessions.title': '从 Session 创建 Bot',
   'bot.create.sessions.description':
     '新 Bot 会获得这些 Session 所在工作区的权限，并在第一条消息里被要求读完它们来完成初始化。',
@@ -695,7 +695,8 @@ export const en = {
   'bot.create.source.git': 'Use a Bot configuration and memory from GitHub.',
   'bot.create.source.zip': 'Restore a Bot from an exported zip file.',
   'roster.menu.createBot.sessions': 'Create from Sessions',
-  'bot.create.source.sessions': 'Pick DeepSeek Sessions and let a new Bot take over their project.',
+  'bot.create.source.sessions':
+    'Pick DeepSeek Sessions and let a new Bot take over their Workspaces.',
   'bot.create.sessions.title': 'Create Bot from Sessions',
   'bot.create.sessions.description':
     'The new Bot gets access to these Sessions’ workspaces, and its first message asks it to read them to set itself up.',

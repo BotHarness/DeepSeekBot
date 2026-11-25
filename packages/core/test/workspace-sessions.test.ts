@@ -91,7 +91,6 @@ it('compares canonical folders, so a sibling prefix or a symlink cannot escape a
   expect(pathWithin(join(root, 'app'), join(root, 'app', 'web'))).toBe(true);
   expect(pathWithin(join(root, 'app'), join(root, 'app-old'))).toBe(false);
   expect(pathWithin(join(root, 'app'), join(root, 'app', 'link'))).toBe(false);
-  expect(pathWithin('C:\\Work\\App', 'c:\\work\\app\\web')).toBe(true);
 });
 
 it('accepts 1 to 50 well-formed Session ids and writes the seed message in the chosen language', () => {

@@ -1,5 +1,5 @@
-import { realpathSync } from 'node:fs';
 import { posix, win32 } from 'node:path';
+import { canonicalPath, within } from '../../workspaces/space-paths.js';
 import {
   sessionDisplayTitle,
   summarizeSessionTranscript,
@@ -48,29 +48,22 @@ export function sessionSeedIds(value: unknown): string[] | undefined {
   return [...ids].sort();
 }
 
-function pathsOf(path: string) {
-  return win32.isAbsolute(path) && !posix.isAbsolute(path) ? win32 : posix;
-}
-
-function canonical(path: string): string {
+function canonical(path: string): string | undefined {
   try {
-    return realpathSync(path);
+    return canonicalPath(path);
   } catch {
-    return pathsOf(path).resolve(path);
+    return undefined;
   }
 }
 
 export function pathWithin(root: string, path: string): boolean {
-  const paths = pathsOf(root);
   const base = canonical(root);
   const target = canonical(path);
-  const fold = paths === win32 ? (value: string) => value.toLowerCase() : (value: string) => value;
-  const relative = paths.relative(fold(base), fold(target));
-  return relative === '' || (!relative.startsWith('..') && !paths.isAbsolute(relative));
+  return base !== undefined && target !== undefined && within(base, target);
 }
 
 export function folderName(cwd: string): string {
-  const paths = pathsOf(cwd);
+  const paths = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
   return paths.basename(cwd) || paths.parse(cwd).root;
 }
 
