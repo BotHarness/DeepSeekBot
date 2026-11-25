@@ -198,7 +198,11 @@ async function fixture() {
   const text = (
     text: string,
     parentId?: string,
-    from: { actorId?: string; conversation?: MessagingInboundEvent['conversation'] } = {},
+    from: {
+      actorId?: string;
+      conversation?: MessagingInboundEvent['conversation'];
+      mentions?: MessagingInboundEvent['mentions'];
+    } = {},
   ) => {
     const messageId = crypto.randomUUID();
     const conversation = from.conversation ?? event.conversation;
@@ -211,6 +215,7 @@ async function fixture() {
         text,
         actor: { ...event.actor, id: actorId },
         conversation,
+        ...(from.mentions ? { mentions: from.mentions, mentionedAccount: true } : {}),
         reply: {
           messageId,
           conversationId: conversation.id,
@@ -483,6 +488,27 @@ it('a question asked while the turn handles a bridged Lark group message goes to
   expect(idle.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_stale' });
 });
 
+it('a quoted group answer drops only the leading @Bot and keeps other people it mentions', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  const asked = await f.start([{ id: 'who', question: 'Who reviews?' }]);
+  await f.text('@_user_1 ask @_user_2', 'om_' + asked.delivery.id, {
+    conversation: { kind: 'group', id: 'oc_team' },
+    mentions: [
+      { id: 'ou_bot', key: '@_user_1', name: 'QA Bot' },
+      { id: 'ou_bob', key: '@_user_2', name: 'Bob' },
+    ],
+  });
+  expect(await asked.answer).toEqual({
+    answers: [{ id: 'who', selected: [], custom: 'ask @Bob' }],
+  });
+});
+
 it('a question whose group card the provider refuses is sent to the DM instead and answered there', async () => {
   const f = await fixture();
   placeGroupSource(f.core, {
@@ -534,7 +560,10 @@ it('a question raised from a Lark group conversation is answered in that group b
   await f.text('A', card, { actorId: 'ou_bob', conversation: group });
   await f.text('B', undefined, { conversation: group });
   expect(f.owner.pending('ada', asked.delivery.id)).toBeDefined();
-  await f.text('B', card, { conversation: group });
+  await f.text('@_user_1 B', card, {
+    conversation: group,
+    mentions: [{ id: 'ou_bot', key: '@_user_1', name: 'QA Bot' }],
+  });
   expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
   const actor = f.core.channels
     .readMessages(dmChannelId('ada'))

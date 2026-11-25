@@ -11,6 +11,7 @@ import {
   type InteractionDestination,
   withoutFailedGroup,
 } from './authority.js';
+import { withMentionNames } from './mention-text.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
   explainQuestionReply,
@@ -522,7 +523,7 @@ export function createQuestionMessaging(options: {
     },
     async text(providerId, event, signal) {
       if (closed) return false;
-      const body = event.text.trim();
+      const body = answerText(event);
       const command = /^\/answer(?:\s|$)/.test(body);
       const explicit = /^(?:\/answer\s+|#)([A-Fa-f0-9]{12})(?:\s+([\s\S]*))?$/.exec(body);
       const candidates = database.read((db) =>
@@ -596,4 +597,12 @@ export function createQuestionMessaging(options: {
     },
   };
   return service;
+}
+
+function answerText(event: MessagingInboundEvent): string {
+  const body = event.text.trim();
+  const lead = event.mentionedAccount
+    ? event.mentions.find((mention) => mention.key.length > 0 && body.startsWith(mention.key))
+    : undefined;
+  return withMentionNames(lead ? body.slice(lead.key.length) : body, event.mentions).trim();
 }
