@@ -155,7 +155,7 @@ it('opens and closes iOS Activity options 20 times through a React Native page s
   }
 });
 
-it('keeps UIKit navigation bars out of native modules, which iOS 18 asserts on inside sheets', () => {
+it('keeps SwiftUI inspectors out of native modules, whose navigation bar iOS 18 asserts on as a sheet', () => {
   const modules = join(import.meta.dirname, '..', 'modules');
   const swift = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {
@@ -164,7 +164,7 @@ it('keeps UIKit navigation bars out of native modules, which iOS 18 asserts on i
       return name.endsWith('.swift') ? [path] : [];
     });
   const offenders = swift(modules).filter((path) =>
-    /\b(NavigationStack|NavigationView|NavigationSplitView)\b/.test(readFileSync(path, 'utf8')),
+    /\.inspector\s*\(/.test(readFileSync(path, 'utf8')),
   );
   expect(offenders).toEqual([]);
 });
