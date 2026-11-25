@@ -40,7 +40,7 @@ const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column' },
   tabs: { flexShrink: 0, marginBlockStart: space.x4, marginInline: space.x4 },
   panel: { flexGrow: 1, flexBasis: 0, minHeight: 0 },
-  apps: { overflowY: 'auto', padding: space.x4 },
+  apps: { overflowY: 'auto' },
 });
 
 export const MARKET_PANEL = 'bot-market';
@@ -276,7 +276,11 @@ function MarketPanelView({
         role="tabpanel"
         hidden={section !== 'apps'}
       >
-        {section === 'apps' ? <MarketAppConnections actions={actions} t={t} /> : null}
+        {section === 'apps' ? (
+          <div className="bh-market-panel">
+            <MarketAppConnections actions={actions} t={t} />
+          </div>
+        ) : null}
       </div>
       <div
         className={joinClass('bh-market-page', stylex.props(styles.panel).className)}

@@ -1,3 +1,4 @@
+import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -14,7 +15,12 @@ import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { ConnectorsView } from './features/connectors/bridge.js';
+import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+
+const styles = stylex.create({
+  stack: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+});
 
 type Entry = ConnectorsView['catalog'][number];
 
@@ -75,7 +81,7 @@ export function AppCatalog({
   const [query, setQuery] = useState('');
   const shown = view.catalog.filter((entry) => matchesApp(entry, query, t));
   return (
-    <FieldStack>
+    <div {...stylex.props(styles.stack)}>
       <SearchField label={t('connectors.catalog.search')} value={query} onChange={setQuery} />
       {shown.length === 0 ? (
         <Note inset>{t('connectors.catalog.empty')}</Note>
@@ -95,7 +101,8 @@ export function AppCatalog({
                     ? t('connectors.catalog.connected', { count })
                     : t('connectors.catalog.available')
                 }
-                leading={<BrandLogo src={connectorLogo(entry.service)} size={36} />}
+                leading={<BrandLogo src={connectorLogo(entry.service)} size={40} />}
+                actionLabel={t('connectors.catalog.connect')}
                 disabled={disabled === true}
                 data={{ 'data-connector-service': entry.service }}
                 onClick={() => onPick(entry.service)}
@@ -104,7 +111,7 @@ export function AppCatalog({
           })}
         </CatalogGrid>
       )}
-    </FieldStack>
+    </div>
   );
 }
 
@@ -213,7 +220,7 @@ export function MarketAppConnections({
 
   return (
     <div ref={mount} data-market-app-connections="">
-      <FieldStack>
+      <div {...stylex.props(styles.stack)}>
         <Note inset>{t('connectors.market.about')}</Note>
         {actions.connectors === undefined ? (
           <Note inset>{t('connectors.bot.ownerOnly')}</Note>
@@ -227,7 +234,7 @@ export function MarketAppConnections({
           <AppCatalog view={view} t={t} onPick={setService} />
         )}
         {notice === undefined ? null : <Note>{notice}</Note>}
-      </FieldStack>
+      </div>
       {view === undefined || service === undefined ? null : (
         <ConnectAppDialog
           actions={actions}

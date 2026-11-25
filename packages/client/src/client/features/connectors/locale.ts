@@ -75,6 +75,7 @@ export const zh = {
   'connectors.catalog.empty': '没有匹配的应用。',
   'connectors.catalog.connected': '已连接 {count} 个账号',
   'connectors.catalog.available': '可连接',
+  'connectors.catalog.connect': '连接',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -161,5 +162,6 @@ export const en = {
   'connectors.catalog.empty': 'No apps match.',
   'connectors.catalog.connected': 'Connected: {count}',
   'connectors.catalog.available': 'Available',
+  'connectors.catalog.connect': 'Connect',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

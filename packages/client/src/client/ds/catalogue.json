@@ -4,7 +4,7 @@
   "brand-logo.tsx#BrandLogo": "hand-sized third-party app logos and their light tiles.",
   "button.tsx#Button": "styled native buttons and DSH buttons in feature code.",
   "callout.tsx#Callout": "one-off informational and warning blocks.",
-  "catalog-grid.tsx#CatalogCard": "one-off clickable catalog tiles with logo, name, summary and state.",
+  "catalog-grid.tsx#CatalogCard": "one-off catalog tiles with logo, name, summary, state and a primary action.",
   "catalog-grid.tsx#CatalogGrid": "hand-built multi-column grids of browsable catalog items.",
   "chat-chrome.tsx#ComposerControl": "hand-styled action controls beside the message composer.",
   "chat-chrome.tsx#ComposerTextarea": "raw multiline inputs in the message composer.",

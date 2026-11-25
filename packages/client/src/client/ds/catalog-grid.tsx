@@ -3,52 +3,112 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { Button } from './button.js';
 import { dimension } from './dimensions.stylex.js';
-import { color, space, text } from './tokens.stylex.js';
+import { accent } from './tobs.stylex.js';
+import { border, color, radius, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   grid: {
     display: 'grid',
-    gridTemplateColumns: `repeat(auto-fill, minmax(${dimension.catalogCardMinWidth}, 1fr))`,
-    gap: space.x4,
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${dimension.catalogCardMinWidth}), 1fr))`,
+    alignContent: 'start',
+    gap: space.x3,
     margin: 0,
     padding: 0,
     listStyle: 'none',
   },
-  item: { display: 'flex', minWidth: 0 },
   card: {
-    width: '100%',
-    height: 'auto',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    gap: space.x4,
-    paddingBlock: space.x4,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+    borderRadius: radius.lg,
+    backgroundColor: color.surface,
+    overflow: 'hidden',
+  },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    flexGrow: 1,
+    gap: space.x2,
+    minWidth: 0,
+  },
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+    paddingBlockStart: space.x4,
+    paddingBlockEnd: 0,
     paddingInline: space.x4,
-    whiteSpace: 'normal',
+  },
+  open: {
+    margin: 0,
+    borderWidth: 0,
+    borderRadius: radius.lg,
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
     textAlign: 'start',
+    cursor: { default: 'pointer', ':disabled': 'default' },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
+    outlineOffset: `calc(-1 * ${border.focus})`,
   },
   copy: {
     display: 'flex',
     flexDirection: 'column',
-    gap: space.x1,
-    minWidth: 0,
     flexGrow: 1,
-  },
-  title: { fontWeight: text.strong },
-  summary: {
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.regular,
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
+    minWidth: 0,
     overflow: 'hidden',
   },
-  meta: {
-    color: color.muted,
+  title: {
+    overflow: 'hidden',
+    color: color.fg,
+    fontSize: text.titleSize,
+    fontWeight: text.strong,
+    lineHeight: text.bodyLine,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  titleHover: {
+    textDecoration: { default: 'none', ':is(button:hover:enabled *)': 'underline' },
+  },
+  subtitle: {
+    overflow: 'hidden',
+    color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
-    fontWeight: text.regular,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  summary: {
+    display: '-webkit-box',
+    marginBlock: 0,
+    marginInline: space.x4,
+    overflow: 'hidden',
+    color: color.muted,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    overflowWrap: 'anywhere',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+  },
+  foot: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+    minWidth: 0,
+    paddingBlockStart: space.x2,
+    paddingBlockEnd: space.x4,
+    paddingInline: space.x4,
+  },
+  meta: {
+    overflow: 'hidden',
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 });
 
@@ -70,40 +130,63 @@ export function CatalogGrid({
 
 export function CatalogCard({
   title,
+  subtitle,
   summary,
   meta,
   leading,
-  trailing,
+  actionLabel,
   disabled,
   onClick,
   data,
 }: {
   title: string;
+  subtitle?: string | undefined;
   summary?: string | undefined;
   meta?: ReactNode;
   leading?: ReactNode;
-  trailing?: ReactNode;
+  actionLabel?: string | undefined;
   disabled?: boolean;
   onClick: () => void;
   data?: Readonly<Record<`data-${string}`, string>>;
 }): ReactElement {
-  return (
-    <li {...stylex.props(styles.item)}>
-      <Button
-        {...data}
-        variant="outline"
-        disabled={disabled}
-        onClick={onClick}
-        xstyle={styles.card}
-      >
-        {leading}
-        <span {...stylex.props(styles.copy)}>
-          <span {...stylex.props(styles.title)}>{title}</span>
-          {summary === undefined ? null : <span {...stylex.props(styles.summary)}>{summary}</span>}
-          {meta === undefined ? null : <span {...stylex.props(styles.meta)}>{meta}</span>}
+  const head = (
+    <>
+      {leading}
+      <span {...stylex.props(styles.copy)}>
+        <span {...stylex.props(styles.title, actionLabel === undefined && styles.titleHover)}>
+          {title}
         </span>
-        {trailing}
-      </Button>
+        {subtitle === undefined ? null : <span {...stylex.props(styles.subtitle)}>{subtitle}</span>}
+      </span>
+    </>
+  );
+  return (
+    <li {...data} {...stylex.props(styles.card)}>
+      <div {...stylex.props(styles.body)}>
+        {actionLabel === undefined ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            {...stylex.props(styles.head, styles.open)}
+          >
+            {head}
+          </button>
+        ) : (
+          <div {...stylex.props(styles.head)}>{head}</div>
+        )}
+        {summary === undefined ? null : <p {...stylex.props(styles.summary)}>{summary}</p>}
+      </div>
+      {meta === undefined && actionLabel === undefined ? null : (
+        <div {...stylex.props(styles.foot)}>
+          <span {...stylex.props(styles.meta)}>{meta}</span>
+          {actionLabel === undefined ? null : (
+            <Button size="sm" variant="primary" disabled={disabled} onClick={onClick}>
+              {actionLabel}
+            </Button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
