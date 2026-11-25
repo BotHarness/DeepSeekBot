@@ -21,6 +21,7 @@ import {
   MessagingProviderError,
   type MessagingProvider,
   type MessagingReceipt,
+  type MessagingReplyRoute,
   type MessagingApprovalAction,
   type MessagingApprovalRuleAction,
   type MessagingApprovalAck,
@@ -49,6 +50,7 @@ export interface ApprovalDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
   reason?: string;
   status: MessagingApprovalCard['status'];
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
@@ -416,6 +418,7 @@ export function createApprovalMessaging(options: {
             : render(value),
           signal,
           update: true,
+          ...(value.replyTo ? { replyTo: value.replyTo } : {}),
           beforeSend: () =>
             (cleanup ? cleanupContext(value) !== undefined : safe(value)) &&
             read(id)?.status === currentStatus &&
@@ -515,7 +518,12 @@ export function createApprovalMessaging(options: {
       if (!result.receipt) throw new MessagingProviderError('provider-result-unknown', 'unknown');
       const latest = read(id);
       if (!latest) return value;
-      write({ ...latest, delivery: 'sent', receipt: result.receipt });
+      write({
+        ...latest,
+        delivery: 'sent',
+        receipt: result.receipt,
+        ...(result.replyTo ? { replyTo: result.replyTo } : {}),
+      });
     } catch (error) {
       const latest = read(id)!;
       const definite =

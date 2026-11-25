@@ -38,7 +38,9 @@ describe('approvals without cards', () => {
     await f.text('允许', id);
     expect(await call.answer).toBe('allowed-once');
     await vi.waitFor(() => expect(sent(f)).toHaveLength(2));
-    expect(f.replies.mock.calls.at(-1)![1]).toMatchObject({ messageId: id });
+    const asked = f.replies.mock.calls.find((call) => call[2].includes('回复本消息'))!;
+    expect(f.replies.mock.calls.at(-1)![1]).toEqual(asked[1]);
+    expect(f.replies.mock.calls.at(-1)![1].messageId).not.toBe(id);
   });
 
   it('takes a bare reject when it is the only pending approval in the DM', async () => {

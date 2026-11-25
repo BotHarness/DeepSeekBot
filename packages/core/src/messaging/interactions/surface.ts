@@ -10,6 +10,18 @@ import { renderQuestionText } from './text-answers.js';
 
 type ApprovalSend = NonNullable<MessagingProvider['approvalCard']>;
 type QuestionSend = NonNullable<MessagingProvider['questionCard']>;
+type Sent = {
+  sent?: true;
+  updated?: true;
+  receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
+};
+type ApprovalSurface = (
+  input: Parameters<ApprovalSend>[0] & { replyTo?: MessagingReplyRoute },
+) => Promise<Sent>;
+type QuestionSurface = (
+  input: Parameters<QuestionSend>[0] & { notice?: true; replyTo?: MessagingReplyRoute },
+) => Promise<Sent>;
 interface SurfaceContext {
   provider: MessagingProvider;
   identity: { platform: string };
@@ -30,21 +42,24 @@ const replyRoute = (
 
 async function sendText(
   context: SurfaceContext,
-  input: Parameters<ApprovalSend>[0] | Parameters<QuestionSend>[0],
+  input: Parameters<ApprovalSurface>[0] | Parameters<QuestionSurface>[0],
   text: string,
-): Promise<{ sent?: true; updated?: true; receipt?: MessagingReceipt }> {
+): Promise<Sent> {
   if (!input.beforeSend()) throw new MessagingProviderError('request-expired', 'not-started');
+  const route =
+    (input.update ? input.replyTo : undefined) ??
+    replyRoute(input.route, context.paired?.actorId ?? '');
   const result = await context.provider.reply!({
     accountRef: input.accountRef,
     fingerprint: input.fingerprint,
-    route: replyRoute(input.route, context.paired?.actorId ?? ''),
+    route,
     text,
     signal: input.signal,
     beforeSend: input.beforeSend,
   });
   if (input.update) return { updated: true };
   if (!result.receipt) throw new MessagingProviderError('provider-result-unknown', 'unknown');
-  return { sent: true, receipt: result.receipt };
+  return { sent: true, receipt: result.receipt, replyTo: route };
 }
 
 const cardOrText =
@@ -70,18 +85,18 @@ const cardOrText =
 
 const settled = (detail: string, reference: string) => `${detail.split('\n')[0]}\n#${reference}`;
 
-export function approvalSurface(context: SurfaceContext): ApprovalSend | undefined {
+export function approvalSurface(context: SurfaceContext): ApprovalSurface | undefined {
   const card = context.provider.approvalCard;
   const text = approvalText(context);
   if (card && cards(context))
-    return cardOrText<Parameters<ApprovalSend>[0], Awaited<ReturnType<ApprovalSend>>>(
-      (input) => card.call(context.provider, input),
+    return cardOrText<Parameters<ApprovalSurface>[0], Sent>(
+      ({ replyTo: _replyTo, ...input }) => card.call(context.provider, input),
       text,
     );
   return text;
 }
 
-function approvalText(context: SurfaceContext): ApprovalSend | undefined {
+function approvalText(context: SurfaceContext): ApprovalSurface | undefined {
   if (!context.provider.reply) return undefined;
   return async (input) => {
     if (input.card.kind === 'pairing')
@@ -106,16 +121,12 @@ const QUESTION_STATUS = {
   'web-required': 'Answer not confirmed; check in Web / 回答结果未确认，请在 Web 核对',
 } as const;
 
-type QuestionSurface = (
-  input: Parameters<QuestionSend>[0] & { notice?: true },
-) => ReturnType<QuestionSend>;
-
 export function questionSurface(context: SurfaceContext): QuestionSurface | undefined {
   const card = context.provider.questionCard;
   const text = questionText(context);
   if (card && cards(context))
-    return cardOrText<Parameters<QuestionSurface>[0], Awaited<ReturnType<QuestionSend>>>(
-      ({ notice: _notice, ...input }) => card.call(context.provider, input),
+    return cardOrText<Parameters<QuestionSurface>[0], Sent>(
+      ({ notice: _notice, replyTo: _replyTo, ...input }) => card.call(context.provider, input),
       text,
     );
   return text;

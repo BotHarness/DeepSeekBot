@@ -28,6 +28,7 @@ import {
   type MessagingQuestionAction,
   type MessagingQuestionCard,
   type MessagingReceipt,
+  type MessagingReplyRoute,
 } from './provider.js';
 
 export interface QuestionDelivery {
@@ -43,6 +44,7 @@ export interface QuestionDelivery {
   delivery: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown-outcome';
   attempts: number;
   receipt?: MessagingReceipt;
+  replyTo?: MessagingReplyRoute;
   destination?: InteractionDestination;
   submission: 'none' | 'submitting' | 'accepted' | 'refused' | 'unknown-outcome';
   update: 'none' | 'sending' | 'updated' | 'failed' | 'unknown-outcome';
@@ -233,6 +235,7 @@ export function createQuestionMessaging(options: {
           card,
           signal,
           update: true,
+          ...(value.replyTo ? { replyTo: value.replyTo } : {}),
           ...(value.submission === 'refused' ? { notice: true } : {}),
           beforeSend: () => safe(value) && render(read(id)!).status === card.status,
         }),
@@ -307,7 +310,13 @@ export function createQuestionMessaging(options: {
       )
         throw new MessagingProviderError('provider-result-unknown', 'unknown');
       const latest = read(id);
-      if (latest) write({ ...latest, delivery: 'sent', receipt: result.receipt });
+      if (latest)
+        write({
+          ...latest,
+          delivery: 'sent',
+          receipt: result.receipt,
+          ...(result.replyTo ? { replyTo: result.replyTo } : {}),
+        });
     } catch (error) {
       const latest = read(id);
       if (latest) {
