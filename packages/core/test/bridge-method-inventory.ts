@@ -337,6 +337,7 @@ export const bridgeMethodInventory = [
   'connectorKeySet',
   'connectorKeyClear',
   'connectorConnect',
+  'connectorReconnect',
   'connectorRefresh',
   'connectorGrantSet',
   'connectorAccountRemove',

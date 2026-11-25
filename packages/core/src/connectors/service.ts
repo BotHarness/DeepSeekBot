@@ -31,7 +31,7 @@ export class ConnectorError extends Error {
 
 export interface ConnectorAccountView extends ConnectorAccountRecord {
   name: string;
-  grants: Array<{ botSlug: string; access: ConnectorAccess }>;
+  grants: Array<{ botSlug: string; botName?: string; access: ConnectorAccess }>;
 }
 
 export interface ConnectorsView {
@@ -173,7 +173,10 @@ export class ConnectorService {
         name: catalogEntry(account.service)?.name ?? account.service,
         grants: grants
           .filter((grant) => grant.accountId === account.accountId)
-          .map((grant) => ({ botSlug: grant.botSlug, access: grant.access })),
+          .map((grant): { botSlug: string; botName?: string; access: ConnectorAccess } => ({
+            botSlug: grant.botSlug,
+            access: grant.access,
+          })),
       })),
       catalog: CONNECTOR_CATALOG,
     };
@@ -230,6 +233,24 @@ export class ConnectorService {
       externalId: link.accountId,
     });
     this.#log('account-linking', { service });
+    this.#changed();
+    return { account, url: link.url };
+  }
+
+  async reconnect(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }> {
+    const current = this.#store.account(accountId);
+    if (current === undefined)
+      throw new ConnectorError('not-found', 'The App connection does not exist.');
+    const config = await this.#requireConfig();
+    await this.#upstream(() => this.#client.removeAccount(config.apiKey, current.externalId));
+    const link = await this.#upstream(() =>
+      this.#client.link(config.apiKey, config.userId, current.service, current.label),
+    );
+    const account = this.#store.updateAccount(accountId, {
+      status: 'pending',
+      externalId: link.accountId,
+    })!;
+    this.#log('account-relinking', { service: current.service });
     this.#changed();
     return { account, url: link.url };
   }

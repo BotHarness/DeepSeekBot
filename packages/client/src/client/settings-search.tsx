@@ -130,7 +130,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'connectors.key.section',
     'connectors.key.title',
     'connectors.accounts.section',
-    'connectors.connect.service',
+    'connectors.accounts.botsTitle',
   ],
   voice: [
     'voice.default.title',

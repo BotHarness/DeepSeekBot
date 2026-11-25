@@ -135,6 +135,15 @@ describe('connector accounts and grants', () => {
       });
       service.grant('ada', account.accountId, 'write');
       expect(connectorAccessMap(service, 'ada')).toEqual({ gmail: 'write' });
+      const relinked = await service.reconnect(account.accountId);
+      expect(relinked.url).toBe('https://connect.composio.dev/link/abc');
+      expect(relinked.account).toMatchObject({ accountId: account.accountId, status: 'pending' });
+      expect(calls.slice(-2).map(([name]) => name)).toEqual(['removeAccount', 'link']);
+      expect(service.forBot('ada')).toMatchObject([
+        { accountId: account.accountId, access: 'write' },
+      ]);
+      await expect(service.reconnect('missing')).rejects.toMatchObject({ code: 'not-found' });
+      await service.refresh();
       expect(service.grant('ada', account.accountId, undefined)).toBe(true);
       expect(service.forBot('ada')).toEqual([]);
       expect(() => service.grant('ada', 'missing', 'read')).toThrow(ConnectorError);

@@ -1395,10 +1395,11 @@
     },
     {
       "id": "app-connectors",
-      "description": "Host Connector accounts through the Owner's Composio key and per-Bot read or write access.",
+      "description": "App connections through the Owner's Composio key and per-Bot read or write access.",
       "scope": "Local Host",
       "surfaces": [
-        "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.connect.service')}",
+        "setting:packages/client/src/client/connectors-settings.tsx:{catalogName(connect.service)}",
+        "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
         "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}"
       ],
       "commands": [
@@ -1406,6 +1407,7 @@
         "connector-key-set",
         "connector-key-clear",
         "connector-connect",
+        "connector-reconnect",
         "connector-refresh",
         "connector-remove",
         "connector-grant",

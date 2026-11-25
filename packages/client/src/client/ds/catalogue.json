@@ -1,6 +1,7 @@
 {
   "action-button.tsx#ActionButton": "hand-styled action buttons in cards and callouts.",
   "action-button.tsx#ActionGroup": "ad hoc spacing and wrapping for related actions.",
+  "brand-logo.tsx#BrandLogo": "hand-sized third-party app logos and their light tiles.",
   "button.tsx#Button": "styled native buttons and DSH buttons in feature code.",
   "callout.tsx#Callout": "one-off informational and warning blocks.",
   "chat-chrome.tsx#ComposerControl": "hand-styled action controls beside the message composer.",

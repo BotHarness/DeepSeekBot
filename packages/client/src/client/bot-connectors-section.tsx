@@ -2,8 +2,10 @@ import { useState, type ReactElement } from 'react';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { connectorStatusLabel } from './connectors-settings.js';
+import { BrandLogo } from './ds/brand-logo.js';
 import { Select } from './ds/select.js';
 import type { ConnectorAccess, ConnectorsView } from './features/connectors/bridge.js';
+import { connectorLogo } from './ds/brand-logos.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -98,7 +100,7 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
           {load.view.accounts.map((account) => (
             <SidebarCardRow
               key={account.accountId}
-              icon="plug"
+              leading={<BrandLogo src={connectorLogo(account.service)} size={28} />}
               title={
                 account.label === account.name ? account.name : `${account.name} · ${account.label}`
               }

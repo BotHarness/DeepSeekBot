@@ -1452,6 +1452,7 @@ The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Noti
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key
 deepseekbot connector-connect gmail --label "Work Gmail"
 deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
 deepseekbot connectors
 deepseekbot connector-grant <bot-id> <account-id> --access read
 deepseekbot bot-connectors <bot-id>
@@ -1460,7 +1461,7 @@ deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm
 ```
 
-`connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
+`connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 

@@ -1385,6 +1385,7 @@ Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion�
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key
 deepseekbot connector-connect gmail --label "Work Gmail"
 deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
 deepseekbot connectors
 deepseekbot connector-grant <bot-id> <account-id> --access read
 deepseekbot bot-connectors <bot-id>
@@ -1393,7 +1394,7 @@ deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm
 ```
 
-`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
+`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

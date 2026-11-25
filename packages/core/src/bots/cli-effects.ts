@@ -230,6 +230,7 @@ export const CLI_EFFECTS = {
   'connector-grant': { effects: management, brokerRead: false },
   'connector-key-clear': { effects: destructiveSecretManagement, brokerRead: false },
   'connector-key-set': { effects: externalSecretManagement, brokerRead: false },
+  'connector-reconnect': { effects: externalManagement, brokerRead: false },
   'connector-refresh': { effects: externalWrite, brokerRead: false },
   'connector-remove': { effects: externalIrreversibleManagement, brokerRead: false },
   connectors: { effects: read, brokerRead: true },

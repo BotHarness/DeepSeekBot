@@ -1303,7 +1303,8 @@ window.__ModuleLoader__.load({
 			base: "var(--tobs-layer-canvas)",
 			modal: "var(--tobs-layer-sheet)",
 			well: "var(--tobs-layer-well)",
-			accentTint: "var(--tobs-accent-tint)"
+			accentTint: "var(--tobs-accent-tint)",
+			logoTile: "#ffffff"
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx

@@ -18,7 +18,7 @@ export interface ConnectorsView {
   accounts: Array<
     ConnectorAccountRecord & {
       name: string;
-      grants: Array<{ botSlug: string; access: ConnectorAccess }>;
+      grants: Array<{ botSlug: string; botName?: string; access: ConnectorAccess }>;
     }
   >;
   catalog: ReadonlyArray<{ service: string; name: string; summary: string }>;
@@ -43,6 +43,7 @@ export interface ConnectorActions {
     service: string,
     label?: string,
   ): Promise<{ account: ConnectorAccountRecord; url: string }>;
+  connectorReconnect?(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }>;
   connectorRefresh?(): Promise<ConnectorsView>;
   connectorGrantSet?(
     slug: string,
@@ -60,6 +61,7 @@ export function createConnectorActions(invoke: InvokeAction) {
     connectorKeyClear: () => invoke('connectorKeyClear', {}),
     connectorConnect: (service, label) =>
       invoke('connectorConnect', label === undefined ? { service } : { service, label }),
+    connectorReconnect: (accountId) => invoke('connectorReconnect', { accountId }),
     connectorRefresh: () => invoke('connectorRefresh', {}),
     connectorGrantSet: (slug, accountId, access) =>
       invoke('connectorGrantSet', { slug, accountId, access }),

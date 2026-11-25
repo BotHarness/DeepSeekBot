@@ -23,6 +23,10 @@ export const connectorsRpc = {
     return unwrapAsync(this.methods.connectorConnect({ service, label }));
   },
 
+  connectorReconnect(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }> {
+    return unwrapAsync(this.methods.connectorReconnect({ accountId }));
+  },
+
   connectorRefresh(): Promise<ConnectorsView> {
     return unwrapAsync(this.methods.connectorRefresh({}));
   },

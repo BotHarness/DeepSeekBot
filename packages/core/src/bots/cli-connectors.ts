@@ -31,6 +31,11 @@ export const CONNECTOR_COMMANDS = [
       'start connecting an account for a service such as gmail and print the sign-in link (--label)',
   },
   {
+    command: 'connector-reconnect',
+    description:
+      'sign an expired or failed App connection in again and print the new sign-in link; its Bot grants stay',
+  },
+  {
     command: 'connector-refresh',
     description: 'check every App connection account with Composio and update its status',
   },
@@ -99,6 +104,10 @@ export async function runConnectorCommand(
       service,
       ...(values.label === undefined ? {} : { label: values.label }),
     });
+  }
+  if (command === 'connector-reconnect') {
+    const [accountId] = positionals(command, rest, 1, 'exactly one account id');
+    return (await connect())('connectorReconnect', { accountId });
   }
   if (command === 'connector-grant') {
     const [slug, accountId] = positionals(command, rest, 2, 'a bot id and an account id');

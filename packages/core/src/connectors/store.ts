@@ -57,7 +57,7 @@ export interface ConnectorStore {
   }): ConnectorAccountRecord;
   updateAccount(
     accountId: string,
-    change: { status: ConnectorAccountStatus; identity?: string },
+    change: { status: ConnectorAccountStatus; identity?: string; externalId?: string },
   ): ConnectorAccountRecord | undefined;
   removeAccount(accountId: string): boolean;
   grants(botSlug?: string): ConnectorGrantRecord[];
@@ -141,16 +141,21 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
       const current = read(accountId);
       if (current === undefined) return undefined;
       const identity = change.identity ?? current.identity;
-      if (current.status === change.status && current.identity === identity)
+      const externalId = change.externalId ?? current.external_id;
+      if (
+        current.status === change.status &&
+        current.identity === identity &&
+        current.external_id === externalId
+      )
         return account(current);
       database.transaction(
         (connection) =>
           connection
             .prepare(
-              `UPDATE connector_accounts SET status = ?, identity = ?, revision = revision + 1,
-               updated_at = ? WHERE account_id = ?`,
+              `UPDATE connector_accounts SET status = ?, identity = ?, external_id = ?,
+               revision = revision + 1, updated_at = ? WHERE account_id = ?`,
             )
-            .run(change.status, identity, new Date().toISOString(), accountId),
+            .run(change.status, identity, externalId, new Date().toISOString(), accountId),
         MODULE,
       );
       return account(read(accountId)!);

@@ -9,7 +9,7 @@ import type { ConnectorAccountRecord } from '../../connectors/store.js';
 
 export interface ConnectorsBridgeDeps {
   connectors?: ConnectorService;
-  registry: { get(slug: string): unknown };
+  registry: { get(slug: string): { displayName: string } | undefined };
 }
 
 export interface ConnectorsBridgeMethods {
@@ -17,6 +17,9 @@ export interface ConnectorsBridgeMethods {
   connectorKeySet(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorKeyClear(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorConnect(
+    payload: unknown,
+  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
+  connectorReconnect(
     payload: unknown,
   ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
   connectorRefresh(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
@@ -77,14 +80,24 @@ export function createConnectorsBridgeMethods(
       return failure(error);
     }
   };
+  const named = (view: ConnectorsView): ConnectorsView => ({
+    ...view,
+    accounts: view.accounts.map((account) => ({
+      ...account,
+      grants: account.grants.map((grant) => {
+        const name = deps.registry.get(grant.botSlug)?.displayName;
+        return name === undefined ? grant : { ...grant, botName: name };
+      }),
+    })),
+  });
   return {
-    connectors: () => guarded((service) => service.view()),
+    connectors: () => guarded(async (service) => named(await service.view())),
     connectorKeySet(payload) {
       const apiKey = asObject(payload)['apiKey'];
       if (typeof apiKey !== 'string') return Promise.resolve(invalidInput('apiKey is required'));
-      return guarded((service) => service.setKey(apiKey));
+      return guarded(async (service) => named(await service.setKey(apiKey)));
     },
-    connectorKeyClear: () => guarded((service) => service.clearKey()),
+    connectorKeyClear: () => guarded(async (service) => named(await service.clearKey())),
     connectorConnect(payload) {
       const source = asObject(payload);
       const service = source['service'];
@@ -98,7 +111,13 @@ export function createConnectorsBridgeMethods(
         }),
       );
     },
-    connectorRefresh: () => guarded((service) => service.refresh()),
+    connectorReconnect(payload) {
+      const accountId = asObject(payload)['accountId'];
+      if (typeof accountId !== 'string')
+        return Promise.resolve(invalidInput('accountId is required'));
+      return guarded((service) => service.reconnect(accountId));
+    },
+    connectorRefresh: () => guarded(async (service) => named(await service.refresh())),
     connectorGrantSet(payload) {
       if (!isHostOwner()) return forbidden;
       if (deps.connectors === undefined) return missing;

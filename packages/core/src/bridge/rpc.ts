@@ -601,6 +601,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'connectorKeySet',
   'connectorKeyClear',
   'connectorConnect',
+  'connectorReconnect',
   'connectorRefresh',
   'connectorGrantSet',
   'connectorAccountRemove',
