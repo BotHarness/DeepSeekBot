@@ -11,7 +11,7 @@ import { useStrings } from '../strings';
 import { Text } from './text';
 import { HeaderCircleButton } from '../chat/header-chrome';
 
-function HeaderButton({
+export function HeaderButton({
   label,
   onPress,
   testID,
