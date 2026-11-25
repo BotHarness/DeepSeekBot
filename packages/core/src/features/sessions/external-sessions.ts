@@ -343,8 +343,8 @@ async function head(path: string, bytes: number): Promise<string> {
 async function tail(path: string, start: number, size: number): Promise<string> {
   const handle = await open(path, 'r');
   try {
-    const buffer = Buffer.alloc(size - start);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+    const buffer = Buffer.alloc(size - start + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, start - 1);
     const text = buffer.subarray(0, bytesRead).toString('utf8');
     return text.slice(text.indexOf('\n') + 1);
   } finally {

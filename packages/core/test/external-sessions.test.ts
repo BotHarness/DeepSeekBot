@@ -228,3 +228,27 @@ it('reads the newest part of an oversized session file and keeps its folder', as
   expect(read?.cwd).toBe('/work/big');
   expect(read?.entries.at(-1)?.text).toBe('newest request');
 });
+
+it('keeps a complete record that starts exactly where the newest part begins', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'external-edge-'));
+  const roots = defaultExternalSessionRoots({}, root);
+  const day = join(roots.codex!, '2026', '11', '04');
+  mkdirSync(day, { recursive: true });
+  const id = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d';
+  const say = (text: string) =>
+    lines({
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+    });
+  const before =
+    lines({ type: 'session_meta', payload: { id, cwd: '/work/edge' } }) +
+    say(`old ${'x'.repeat(1000)}`).repeat(1000);
+  const boundary = say('boundary request');
+  const size = (text: string) => Buffer.byteLength(text);
+  const pad = 16 * 1024 * 1024 - size(boundary) - size(say('newest '));
+  const newest = say(`newest ${'y'.repeat(pad)}`);
+  expect(size(boundary + newest)).toBe(16 * 1024 * 1024);
+  writeFileSync(join(day, `rollout-2026-11-04T08-00-00-${id}.jsonl`), before + boundary + newest);
+  const read = await createExternalSessionReader(roots).read(`codex:${id}`);
+  expect(read?.entries.map((entry) => entry.text)).toContain('boundary request');
+});

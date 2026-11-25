@@ -104,11 +104,11 @@ it('offers a retry when this computer could not be read', async () => {
     expect(document.body.textContent).not.toContain('这台电脑上没找到');
     fail = false;
     await act(() =>
-      document.body.querySelector<HTMLButtonElement>('[data-intro-import-retry]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('[data-intro-import-failed] button')!.click(),
     );
     await act(async () => {});
     expect(sessions).toHaveBeenCalledTimes(2);
-    expect(document.body.querySelector('[data-intro-import-retry]')).toBeNull();
+    expect(document.body.querySelector('[data-intro-import-failed]')).toBeNull();
     expect(document.body.querySelector('[data-intro-import-start]')).not.toBeNull();
   } finally {
     await act(() => root.unmount());

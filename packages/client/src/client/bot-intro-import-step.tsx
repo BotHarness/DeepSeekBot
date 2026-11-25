@@ -8,6 +8,7 @@ import {
 import { Icon } from './ds/icon.js';
 import { dimension } from './ds/dimensions.stylex.js';
 import { Button } from './ds/button.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -221,15 +222,10 @@ export function ImportStep({
         </div>
       ) : null}
       {failed && local.length > 0 ? (
-        <div {...stylex.props(styles.result)} role="status">
-          <p {...stylex.props(styles.resultCopy)}>{t('intro.import.failed')}</p>
-          <Button
-            variant="outline"
-            data-intro-import-retry=""
-            onClick={() => setAttempt(attempt + 1)}
-          >
-            {t('intro.import.retry')}
-          </Button>
+        <div role="status" data-intro-import-failed="">
+          <ReadFailure retryLabel={t('intro.import.retry')} onRetry={() => setAttempt(attempt + 1)}>
+            {t('intro.import.failed')}
+          </ReadFailure>
         </div>
       ) : null}
       {!failed && rows !== undefined && missing.length > 0 ? (
