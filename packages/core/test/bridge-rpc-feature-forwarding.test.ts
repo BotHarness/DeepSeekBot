@@ -121,7 +121,7 @@ describe('bridge typert service', () => {
     expect(channels.list()).toEqual(before);
   });
 
-  it('refuses admitting protected Tob through legacy group creation, invitation or join acceptance', () => {
+  it('allows Bot management holders in Group creation, invitations and join decisions', () => {
     const { service, channels } = setup(
       undefined,
       {
@@ -149,28 +149,16 @@ describe('bridge typert service', () => {
     );
     const bot = service.create('Ada').bot;
     const group = service.channelCreate('Group', []).channel;
-    expect(() => service.channelCreate('Protected', ['ada'])).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(() => service.channelGroupInvite(group.id, 'ada')).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
+    expect(service.channelCreate('With Ada', ['ada']).channel.members).toContain('ada');
+    service.channelGroupInvite(group.id, 'ada');
+    const joining = service.channelCreate('Join request', []).channel;
     const request = channels.requestGroupJoin({
-      channelId: group.id,
+      channelId: joining.id,
       requesterBotSlug: 'ada',
       requesterBotCreatedAt: bot.createdAt,
     });
-    expect(() => service.channelGroupJoinDecide(group.id, request.id, true)).toThrow(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(channels.get(group.id)?.members).toEqual([]);
-    expect(
-      channels.get(group.id)?.joinRequests?.find((entry) => entry.id === request.id)?.status,
-    ).toBe('pending');
-    service.channelGroupJoinDecide(group.id, request.id, false);
-    expect(
-      channels.get(group.id)?.joinRequests?.find((entry) => entry.id === request.id)?.status,
-    ).toBe('declined');
+    service.channelGroupJoinDecide(joining.id, request.id, true);
+    expect(channels.get(joining.id)?.members).toContain('ada');
   });
 
   it('forwards optional reviewed fingerprints for Group name, avatar, wake and member edits', () => {

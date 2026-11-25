@@ -1,3 +1,4 @@
+import { isOwnHumanDmSource } from './human-dm-source.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { OriginalAttachmentAccess } from '../attachments/original-access.js';
 import type { AttachmentStore } from '../attachments/store.js';
@@ -166,9 +167,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
     };
     const initial = ports.database.read((db) =>
       db
-        .prepare(
-          'SELECT source_kind, human_id, channel_id, message_id FROM source_events WHERE source_event_id = ?',
-        )
+        .prepare('SELECT channel_id, message_id FROM source_events WHERE source_event_id = ?')
         .get(sourceEventId ?? null),
     );
     if (initial?.channel_id && initial.message_id && !sessionId.startsWith('direct-')) {
@@ -202,16 +201,9 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
       authorize(database);
     };
     const requireOrdinaryGroupActor = () => {
-      const source =
-        typeof initial?.channel_id === 'string'
-          ? ports.channels.get(initial.channel_id)
-          : undefined;
       if (
-        source?.type === 'dm' &&
-        source.botSlug === botSlug &&
-        initial?.source_kind === 'human-message' &&
-        (initial.human_id ?? 'local-human') === actorHuman.humanId &&
-        ports.tob?.hasManagementGrant(botSlug)
+        ports.tob?.hasManagementGrant(botSlug) &&
+        isOwnHumanDmSource(ports.database, botSlug, sourceEventId)
       )
         throw new TobError('tob-cli-required');
     };

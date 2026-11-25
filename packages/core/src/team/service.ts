@@ -1,3 +1,4 @@
+import { updateManagementGrantsForNewOwner } from '../authorization/bot-management.js';
 import * as memberAuth from './member-auth.js';
 import type { MemberAuthHost } from './member-auth.js';
 import * as memberLifecycle from './member-lifecycle.js';
@@ -941,7 +942,6 @@ export class TeamService {
   memberDeviceRevoke(human: HumanContext, humanId: string, grantId: string): Promise<null> {
     return memberAuth.memberDeviceRevoke.call(this.#memberOperations, human, humanId, grantId);
   }
-
   async transferOwner(human: HumanContext, humanId: string, password: string): Promise<null> {
     this.owner(human);
     const previous = this.credential(human.humanId);
@@ -973,20 +973,7 @@ export class TeamService {
             roleAccessEnded = true;
           db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
         }
-        db.prepare(
-          'DELETE FROM bot_management_grants WHERE bot_slug IN (SELECT slug FROM persona_bots WHERE owner_human_id = ? UNION SELECT bot_slug FROM tob_identity WHERE human_id = ?)',
-        ).run(human.humanId, human.humanId);
-        db.prepare(`
-          DELETE FROM tob_identity WHERE human_id = ? AND EXISTS
-            (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = tob_identity.bot_slug)
-        `).run(humanId);
-        db.prepare(`
-          INSERT OR IGNORE INTO bot_management_grants (bot_slug, capability)
-          SELECT t.bot_slug, capability FROM tob_identity t
-          JOIN persona_bots b ON b.slug = t.bot_slug AND b.owner_human_id = t.human_id
-          CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots')
-          WHERE t.human_id = ?
-        `).run(humanId);
+        updateManagementGrantsForNewOwner(db, human.humanId, humanId);
         return roleAccessEnded;
       },
       ['team'],
