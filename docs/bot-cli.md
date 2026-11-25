@@ -3,7 +3,7 @@
 Installing `@botharness/tobs` provides the `tobs` command; the compatibility package `deepseekbot` provides `deepseekbot`. This guide retains `deepseekbot` examples: with the new package, substitute `tobs` and keep the same arguments.
 See the [installation guide](https://tobs.app/en/docs/installation/) for the current install command.
 
-Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp.
+Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) when committed Bot messages visible to the local Human or an Assignment report record activity. It survives later Channel messages and restart; missing means no recorded activity, not a creation or Channel-visit timestamp. Deleted Bots are left out of `list`; the Web keeps their history.
 
 `deepseekbot create` makes a new PersonaBot without clicking: blank, from a bot bundle (a directory or a zip with the same shape as the [bot-zip export](docs/bot-zip.md)), or from GitHub. It is built for external coding agents driving a DSH install, so its output is machine-first.
 
