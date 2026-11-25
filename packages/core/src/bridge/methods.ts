@@ -686,12 +686,8 @@ function buildBridgeMethods(
   const promptsAdapterMethods = createPromptsAdapterMethods(deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
-  const {
-    sessionTranscript: nativeSessionTranscript,
-    sessionModel: nativeSessionModel,
-    sessionSend: nativeSessionSend,
-    ...hostSessionMethods
-  } = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
+  const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
+  const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
   const humansAdapterMethods = createHumansAdapterMethods(deps);
   const releaseAdapterMethods = createReleaseAdapterMethods(deps);
   const diagnosticsAdapterMethods = createDiagnosticsAdapterMethods(deps);
@@ -785,7 +781,7 @@ function buildBridgeMethods(
     botStop: sessionsMethods.botStop,
     sessionMessageSend: (payload) =>
       asObject(payload)['botSlug'] === null
-        ? nativeSessionSend(payload)
+        ? sessionSend(payload)
         : sessionsAdapterMethods.sessionMessageSend(payload),
     sessionStop: sessionsMethods.sessionStop,
     ...modelSettings,
@@ -921,11 +917,11 @@ function buildBridgeMethods(
     ...hostSessionMethods,
     sessionTranscript: (payload) =>
       asObject(payload)['slug'] === null
-        ? nativeSessionTranscript(payload)
+        ? sessionTranscript(payload)
         : sessionsMethods.sessionTranscript(payload),
     sessionModel: (payload) =>
       asObject(payload)['slug'] === null
-        ? nativeSessionModel(payload)
+        ? sessionModel(payload)
         : sessionsMethods.sessionModel(payload),
     sessionToolDetail: sessionsMethods.sessionToolDetail,
     sessionSubagents: assignmentsMethods.sessionSubagents,
