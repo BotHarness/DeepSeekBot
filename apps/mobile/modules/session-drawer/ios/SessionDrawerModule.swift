@@ -18,13 +18,15 @@ public final class SessionDrawerModule: Module {
       Prop("spring") { (view: SessionDrawerView, spring: SessionDrawerSpring) in view.spring = spring }
       Prop("shadowRadius") { (view: SessionDrawerView, radius: Double) in view.shadowRadius = CGFloat(radius) }
       Prop("shadowOpacity") { (view: SessionDrawerView, opacity: Double) in view.shadowOpacity = Float(opacity) }
+      Prop("dimColor") { (view: SessionDrawerView, color: UIColor) in view.dimColor = color }
     }
   }
 }
 
 /// Modal Session drawer over its React Native children, which arrive in order: the page content,
 /// the scrim and the panel. React Native lays them out; this view moves only the panel's
-/// transform, the scrim's alpha and the tab bar's alpha, so the content never moves.
+/// transform, the alpha of its own dimming view inside the scrim and the tab bar's alpha, so the
+/// content never moves.
 final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   let onOpenChange = EventDispatcher()
   let onDragStart = EventDispatcher()
@@ -33,7 +35,21 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   var spring = SessionDrawerSpring()
   var shadowRadius: CGFloat = 16
   var shadowOpacity: Float = 0.12
+  var dimColor: UIColor = UIColor.black.withAlphaComponent(0.2) {
+    didSet { dim.backgroundColor = dimColor }
+  }
 
+  /// The dimming is a plain UIView inside the React Native scrim, never the scrim's own alpha:
+  /// Fabric's `invalidateLayer` resets a component view's `layer.opacity` to its `opacity` prop on
+  /// every appearance change or background update, which left the closed page dimmed.
+  private lazy var dim: UIView = {
+    let view = UIView()
+    view.isUserInteractionEnabled = false
+    view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    view.backgroundColor = dimColor
+    view.alpha = 0
+    return view
+  }()
   private var progress: CGFloat = 0
   private var start: CGFloat = 0
   private var target = false
@@ -71,7 +87,8 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
 
   override func willRemoveSubview(_ subview: UIView) {
     super.willRemoveSubview(subview)
-    // Fabric recycles component views; never hand one back moved, faded or shadowed.
+    // Fabric recycles component views; never hand one back moved, dimmed or shadowed.
+    if dim.superview === subview { dim.removeFromSuperview() }
     subview.transform = .identity
     subview.alpha = 1
     subview.layer.shadowOpacity = 0
@@ -102,7 +119,12 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   private func apply(_ value: CGFloat) {
     if value > 0 { shadow(true) }
     panel?.transform = CGAffineTransform(translationX: (value - 1) * width * leading, y: 0)
-    scrim?.alpha = value
+    if let scrim, dim.superview !== scrim {
+      dim.removeFromSuperview()
+      dim.frame = scrim.bounds
+      scrim.insertSubview(dim, at: 0)
+    }
+    dim.alpha = value
     let alpha = 1 - value
     if tabAlpha != alpha {
       tabAlpha = alpha

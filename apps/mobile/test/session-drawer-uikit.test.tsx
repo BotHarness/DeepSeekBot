@@ -11,6 +11,7 @@ const native = vi.hoisted(() => ({
         animated: boolean;
         enabled: boolean;
         spring: { mass: number; stiffness: number; damping: number };
+        dimColor: string;
         onOpenChange(event: { nativeEvent: { open: boolean } }): void;
         onDragStart(): void;
       },
@@ -49,6 +50,7 @@ import {
   sessionDrawer,
 } from '../src/features/sessions/session-drawer-state';
 import { spring } from '../src/ui/design/motion';
+import { overlaySidebar } from '../src/ui/design/tokens';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
@@ -87,6 +89,13 @@ it('hands the UIKit drawer the page, the scrim and the panel as its three childr
       damping: spring.release.damping,
     },
   });
+});
+
+it('gives the dim colour to the native view, never to the scrim React Native restyles', async () => {
+  const view = await render();
+  expect(native.props?.dimColor).toBe(overlaySidebar.dim.light);
+  const scrim = view.querySelector<HTMLElement>('[data-testid="session-drawer-scrim"]')!;
+  expect(scrim.style.backgroundColor).toBe('');
 });
 
 it('lets a right swipe open the drawer only on a Drawer-style Session root', async () => {

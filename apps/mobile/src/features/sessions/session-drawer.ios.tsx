@@ -24,6 +24,7 @@ type NativeDrawerProps = ViewProps & {
   spring: { mass: number; stiffness: number; damping: number };
   shadowRadius: number;
   shadowOpacity: number;
+  dimColor: string;
   onOpenChange(event: { nativeEvent: { open: boolean } }): void;
   onDragStart(): void;
 };
@@ -65,6 +66,7 @@ function UIKitSessionDrawer({
       spring={release}
       shadowRadius={overlaySidebar.shadow.radius}
       shadowOpacity={overlaySidebar.shadow.opacity[theme.scheme]}
+      dimColor={overlaySidebar.dim[theme.scheme]}
       onOpenChange={({ nativeEvent }) => sessionDrawer.nativeChange(nativeEvent.open)}
       onDragStart={() => sessionDrawer.reveal()}
     >
@@ -84,7 +86,7 @@ function UIKitSessionDrawer({
         accessibilityElementsHidden={!state.open}
         pointerEvents={state.open ? 'auto' : 'none'}
         onPress={() => closeSessionDrawer()}
-        style={[StyleSheet.absoluteFill, { backgroundColor: overlaySidebar.dim[theme.scheme] }]}
+        style={StyleSheet.absoluteFill}
       />
       <View
         collapsable={false}
