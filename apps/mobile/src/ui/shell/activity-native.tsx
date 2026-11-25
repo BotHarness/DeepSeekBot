@@ -1,11 +1,9 @@
-import { View } from 'react-native';
 import {
   NATIVE_SESSION_ATTENTION_KIND,
   type HumanAttentionItem,
   type NativeSessionAttention,
 } from '@botharness/host-protocol/wire';
-import { useDesignTheme } from '../design/theme';
-import { SystemSymbol } from '../primitives/system-symbol';
+import { SessionFolderAvatar } from '../../features/sessions/session-folder-avatar';
 import type { useStrings } from '../strings';
 
 type Strings = ReturnType<typeof useStrings>;
@@ -27,26 +25,21 @@ export function nativeSessionPreview(
   return summary === '' ? need : `${need} · ${summary}`;
 }
 
-export function NativeSessionMark({ size, corner }: { size: number; corner: number }) {
-  const theme = useDesignTheme();
+export function NativeSessionMark({
+  native,
+  size,
+  corner,
+}: {
+  native: NativeSessionAttention;
+  size: number;
+  corner: number;
+}) {
   return (
-    <View
+    <SessionFolderAvatar
       testID="activity-native-session-mark"
-      accessible={false}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: corner,
-        backgroundColor: theme.color.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <SystemSymbol
-        name={{ ios: 'terminal', android: 'terminal' }}
-        size={Math.round(size / 2)}
-        color={theme.color.muted}
-      />
-    </View>
+      folderName={native.folderName}
+      size={size}
+      corner={corner}
+    />
   );
 }

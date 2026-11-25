@@ -1,21 +1,17 @@
 import { Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { modelBrand } from '@botharness/host-client/shared/model-brand';
-import {
-  HOST_COLOR_IDS,
-  hostColorInk,
-  hostTileFill,
-} from '@botharness/host-client/ui/design/host-look';
 import { BotPortrait } from '../../ui/bot-avatar';
 import { ModelBrandIcon } from '../../ui/chat/model-brand-icon';
 import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
 import { useHostLook } from '../../host/native-host-look';
 import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
-import { cornerBadge, radius, space } from '../../ui/design/tokens';
+import { radius, space } from '../../ui/design/tokens';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
-import { folderColorIndex, folderMonogram, type SessionQueryRow } from './session-query-model';
+import { SessionFolderAvatar } from './session-folder-avatar';
+import type { SessionQueryRow } from './session-query-model';
 
 export type SessionRowStatus = 'working' | 'needs-you' | 'done';
 
@@ -57,7 +53,6 @@ export function SessionDrawerRow({
   const minutes = Math.max(0, Math.floor((now - (row.lastPromptAt ?? row.updatedAt)) / 60_000));
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
-  const colorId = HOST_COLOR_IDS[folderColorIndex(row.folderName, HOST_COLOR_IDS.length)];
   const badge = theme.touch;
   const avatar = Math.round(badge / 2);
   const statusLine = (
@@ -106,27 +101,12 @@ export function SessionDrawerRow({
       })}
     >
       <View accessible={false} style={{ width: badge, height: badge }}>
-        <View
+        <SessionFolderAvatar
           testID={`session-monogram-${row.sessionId}`}
-          style={{
-            width: badge,
-            height: badge,
-            borderRadius: radius.md,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: hostTileFill(theme.scheme, theme.color, colorId, theme.color.base),
-          }}
-        >
-          <Text
-            strong
-            variant="meta"
-            numberOfLines={1}
-            maxFontSizeMultiplier={cornerBadge.maxTextScale}
-            style={{ color: hostColorInk(theme.scheme, theme.color, colorId) }}
-          >
-            {folderMonogram(row.folderName)}
-          </Text>
-        </View>
+          folderName={row.folderName}
+          size={badge}
+          corner={radius.md}
+        />
         {row.source.kind === 'bot' ? (
           <View
             testID={`session-bot-${row.sessionId}`}

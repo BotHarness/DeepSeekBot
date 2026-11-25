@@ -61,7 +61,12 @@ const native = {
   botSlug: '',
   summary: 'bash',
   requestId: 'event-1',
-  nativeSession: { sessionId: 'native-1', input: 'approval', sessionTitle: 'Ship it' },
+  nativeSession: {
+    sessionId: 'native-1',
+    input: 'approval',
+    sessionTitle: 'Ship it',
+    folderName: 'landing-site',
+  },
 };
 
 async function settle() {
@@ -124,7 +129,9 @@ it('shows a native Session request in Activity, filters it by source and opens i
     expect(row()).not.toBeNull();
     expect(row()!.textContent).toContain('Ship it');
     expect(row()!.textContent).toContain(t.nativeSessionInput.approval);
-    expect(row()!.querySelector('[data-symbol="terminal"]')).not.toBeNull();
+    expect(row()!.querySelector('[data-testid="activity-native-session-mark"]')?.textContent).toBe(
+      'LS',
+    );
     expect(row()!.getAttribute('aria-label')).toContain(t.kind['native-session-input']);
     expect(
       view.querySelector(`[data-testid='inbox-swipe-${JSON.stringify(['a', native.id])}']`)
