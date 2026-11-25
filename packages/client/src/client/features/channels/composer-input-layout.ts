@@ -1,3 +1,4 @@
+import { composerModelReservePx } from '../../ds/composer-reserve.js';
 import type { KeyboardEvent } from 'react';
 import type { ComposerSendKey } from '../../composer-send-key.js';
 
@@ -20,13 +21,18 @@ export interface ComposerTextareaFit {
   height: number;
 }
 
-function compactComposerScrollHeight(element: HTMLElement, currentHeight: number): number {
-  const composer = element.closest<HTMLElement>('.bh-composer');
-  if (!composer?.classList.contains('bh-composer-with-footer')) return currentHeight;
+export function compactComposerWidth(composer: HTMLElement): number {
   const style = getComputedStyle(composer);
   const left = Number.parseFloat(style.getPropertyValue('--bh-composer-compact-padding-left'));
   const right = Number.parseFloat(style.getPropertyValue('--bh-composer-compact-padding-right'));
-  const compactWidth = composer.clientWidth - left - right;
+  const model = composer.hasAttribute('data-model-reserve') ? composerModelReservePx(style) : 0;
+  return composer.clientWidth - left - right - model;
+}
+
+function compactComposerScrollHeight(element: HTMLElement, currentHeight: number): number {
+  const composer = element.closest<HTMLElement>('.bh-composer');
+  if (!composer?.classList.contains('bh-composer-with-footer')) return currentHeight;
+  const compactWidth = compactComposerWidth(composer);
   if (!Number.isFinite(compactWidth) || compactWidth <= 0) return currentHeight;
 
   const mirror = element.cloneNode(true) as HTMLElement;

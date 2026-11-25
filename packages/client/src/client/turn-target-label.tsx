@@ -55,8 +55,58 @@ export function TurnTargetLabel({
   );
 }
 
-const ENGINE_RETRIES = 3;
-const ENGINE_RETRY_MS = 5_000;
+const CATALOG_RETRIES = 3;
+const CATALOG_RETRY_MS = 5_000;
+const cachedModelCatalogs = new WeakMap<BridgeActions, ReturnType<BridgeActions['modelCatalog']>>();
+
+function readCachedModelCatalog(actions: BridgeActions) {
+  const cached = cachedModelCatalogs.get(actions);
+  if (cached !== undefined) return cached;
+  const request = actions.modelCatalog().catch((error: unknown) => {
+    cachedModelCatalogs.delete(actions);
+    throw error;
+  });
+  cachedModelCatalogs.set(actions, request);
+  return request;
+}
+
+export function useTurnTargetModels(
+  actions: BridgeActions,
+  needed: boolean,
+  freshness: 'fresh' | 'cached' = 'fresh',
+) {
+  const [catalog, setCatalog] = useState<{
+    host: BridgeActions;
+    models: ModelCatalogEntryView[];
+    groups: ModelCatalogGroupView[];
+  }>();
+  const current = catalog?.host === actions ? catalog : undefined;
+  const [attempt, setAttempt] = useState(0);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    if (!needed || current !== undefined || actions.modelCatalog === undefined) return;
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const request =
+      freshness === 'cached' ? readCachedModelCatalog(actions) : actions.modelCatalog();
+    void request.then(
+      ({ models, groups }) => {
+        if (active) setCatalog({ host: actions, models, groups: groups ?? [] });
+      },
+      () => {
+        if (active && attempt < CATALOG_RETRIES)
+          retry = setTimeout(
+            () => setAttempt((value) => value + 1),
+            CATALOG_RETRY_MS * 2 ** attempt,
+          );
+      },
+    );
+    return () => {
+      active = false;
+      if (retry !== undefined) clearTimeout(retry);
+    };
+  }, [actions, needed, current, attempt, freshness]);
+  return { models: current?.models, groups: current?.groups, mount };
+}
 
 export function useTurnTargetEngines<T extends Element>(actions: BridgeActions, needed: boolean) {
   const [catalog, setCatalog] = useState<{
@@ -74,10 +124,10 @@ export function useTurnTargetEngines<T extends Element>(actions: BridgeActions, 
         if (active) setCatalog({ host: actions, engines });
       },
       () => {
-        if (active && attempt < ENGINE_RETRIES)
+        if (active && attempt < CATALOG_RETRIES)
           retry = setTimeout(
             () => setAttempt((value) => value + 1),
-            ENGINE_RETRY_MS * 2 ** attempt,
+            CATALOG_RETRY_MS * 2 ** attempt,
           );
       },
     );
@@ -95,11 +145,6 @@ export function useTurnTargetCatalog(
   items: readonly SessionTranscriptItem[] | undefined,
   picker = false,
 ) {
-  const [catalog, setCatalog] = useState<{
-    host: BridgeActions;
-    models: ModelCatalogEntryView[];
-    groups: ModelCatalogGroupView[];
-  }>();
   const needsEngines = useMemo(() => {
     const hasEngineModel = (target: TurnTarget) =>
       target.kind === 'engine' && target.model !== undefined;
@@ -113,48 +158,27 @@ export function useTurnTargetCatalog(
     );
   }, [current, items, picker]);
   const engine = useTurnTargetEngines<HTMLDivElement>(actions, needsEngines);
-  const needsCatalog =
-    catalog?.host !== actions &&
-    (picker ||
+  const modelCatalog = useTurnTargetModels(
+    actions,
+    picker ||
       current?.kind === 'dsh' ||
       items?.some(
         (item) =>
           item.kind === 'model-switch' && (item.from.kind === 'dsh' || item.to.kind === 'dsh'),
-      ));
-  const [catalogAttempt, setCatalogAttempt] = useState(0);
-  const catalogMount = useMountedResource<HTMLDivElement>(() => {
-    if (!needsCatalog) return;
-    let active = true;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    void actions.modelCatalog().then(
-      ({ models, groups }) => {
-        if (active) setCatalog({ host: actions, models, groups: groups ?? [] });
-      },
-      () => {
-        if (active && catalogAttempt < ENGINE_RETRIES)
-          retry = setTimeout(
-            () => setCatalogAttempt((value) => value + 1),
-            ENGINE_RETRY_MS * 2 ** catalogAttempt,
-          );
-      },
-    );
-    return () => {
-      active = false;
-      if (retry !== undefined) clearTimeout(retry);
-    };
-  }, [actions, needsCatalog, catalogAttempt]);
+      ) === true,
+  );
   return {
-    groups: catalog?.host === actions ? catalog.groups : undefined,
+    groups: modelCatalog.groups,
     catalog: {
-      models: catalog?.host === actions ? catalog.models : undefined,
+      models: modelCatalog.models,
       engines: engine.engines,
     },
     mount: useCallback(
       (node: HTMLDivElement | null) => {
-        catalogMount(node);
+        modelCatalog.mount(node);
         engine.mount(node);
       },
-      [catalogMount, engine.mount],
+      [modelCatalog.mount, engine.mount],
     ),
   };
 }

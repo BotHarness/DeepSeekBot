@@ -259,6 +259,7 @@ export const bridgeMethodInventory = [
   'channelMediaTarget',
   'workspaceFileTarget',
   'folderBrowse',
+  'folderCreate',
   'grants',
   'grantCreate',
   'grantRevoke',

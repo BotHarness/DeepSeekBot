@@ -35,6 +35,7 @@ import { KeyboardChatFrame } from '../../ui/primitives/keyboard-frame';
 import { SettingsGroupItem, SettingsRow } from '../../ui/primitives/settings-row';
 import { Text } from '../../ui/primitives/text';
 import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
+import { promptPlaceholder } from '../../ui/chat/session-header-title';
 import { useStrings } from '../../ui/strings';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
@@ -203,7 +204,13 @@ function NewSessionForm({
       setDraft('');
       router.replace({
         pathname: '/session/[id]',
-        params: { id: created.sessionId, hostId, source: 'native', title: text.slice(0, 80) },
+        params: {
+          id: created.sessionId,
+          hostId,
+          source: 'native',
+          title: promptPlaceholder(text),
+          fresh: '1',
+        },
       });
     } catch (cause) {
       if (!active.current) return;

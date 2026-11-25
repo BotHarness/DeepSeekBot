@@ -1,3 +1,4 @@
+import { messagingPlatformIds } from '../messaging/platforms/types.js';
 export { MESSAGING_OPTIONS } from './cli-option-spec.js';
 import { randomUUID } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -165,7 +166,7 @@ export function messagingReadMode(
   return mode === 'saved' ? 'saved' : 'status';
 }
 
-const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin', 'qq'];
+const PLATFORMS: readonly string[] = messagingPlatformIds;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const STDIN_COMMANDS = new Set<MessagingCommand>([
   'messaging-defaults-set',

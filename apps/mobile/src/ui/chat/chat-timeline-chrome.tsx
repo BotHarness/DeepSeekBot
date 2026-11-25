@@ -42,20 +42,7 @@ export function useChatTimelineChrome() {
   return { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight, listSafeArea };
 }
 
-export function useChatInitialScroll(openLatest: boolean, count: number) {
-  const openAtLatest =
-    Platform.OS === 'ios' && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST !== '0' && openLatest;
-  const [openedAtLatest, setOpenedAtLatest] = useState(false);
-  if (!openedAtLatest && openAtLatest && count > 0) setOpenedAtLatest(true);
-  return {
-    key: openedAtLatest || (openAtLatest && count > 0) ? 'rows' : 'list',
-    ...(Platform.OS === 'android'
-      ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-      : openAtLatest
-        ? { initialScrollIndex: Math.max(0, count - 1), initialNumToRender: 4 }
-        : {}),
-  };
-}
+export { useChatInitialScroll } from './chat-initial-scroll';
 
 export function chatTimelineListLayout({
   headerOverlap,

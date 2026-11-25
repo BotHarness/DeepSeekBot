@@ -8,6 +8,15 @@ export function alwaysNote(request: Pick<ApprovalRequest, 'toolName' | 'allowAlw
   return t.alwaysToolScope(request.toolName);
 }
 
+export function alwaysShortNote(
+  request: Pick<ApprovalRequest, 'toolName' | 'allowAlways'>,
+): string | undefined {
+  if (!request.allowAlways) return undefined;
+  if (request.toolName === 'secret_cli' || request.toolName === 'secret_mcp_connect')
+    return alwaysNote(request);
+  return t.alwaysToolScopeShort(request.toolName);
+}
+
 const HIGH_RISK = new Set([
   'secret_cli',
   'secret_mcp_connect',

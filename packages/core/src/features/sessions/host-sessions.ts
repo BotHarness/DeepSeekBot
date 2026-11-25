@@ -31,6 +31,11 @@ import {
 } from '../../runtime/session-transcript.js';
 import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
+import {
+  createSessionTitleCache,
+  type SessionTitleCache,
+  type SessionTitleReader,
+} from './session-title-cache.js';
 
 export interface DshSessionListRow {
   sessionId: string;
@@ -61,6 +66,7 @@ export interface NativeSessions {
     seq: number;
     running: boolean;
     title?: string;
+    cwd?: string;
   }>;
   model?(
     sessionId: string,
@@ -70,6 +76,14 @@ export interface NativeSessions {
   create?(
     target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
   ): Promise<{ sessionId: string }>;
+}
+
+function titleSourceKind(data: unknown): unknown {
+  if (typeof data !== 'object' || data === null) return undefined;
+  const source = (data as { source?: unknown }).source;
+  return typeof source === 'object' && source !== null
+    ? (source as { kind?: unknown }).kind
+    : undefined;
 }
 
 export function normalizeSessionSearch(text: string): string {
@@ -107,6 +121,16 @@ function isNativeTranscriptEvent(event: DshSessionEvent): boolean {
   const data = asObject(event.data);
   const source = asObject(data['source'] ?? asObject(data['message'])['source']);
   return source['kind'] !== 'agent-instructions' && source['kind'] !== 'time-context';
+}
+
+const titleCaches = new WeakMap<SessionTitleReader, SessionTitleCache>();
+
+function sessionTitleCache(read: SessionTitleReader): SessionTitleCache {
+  const existing = titleCaches.get(read);
+  if (existing !== undefined) return existing;
+  const cache = createSessionTitleCache(read);
+  titleCaches.set(read, cache);
+  return cache;
 }
 
 export function createHostSessionsMethods(
@@ -224,9 +248,11 @@ export function createHostSessionsMethods(
           },
         });
       }
-      const titles = await deps.readSessionTitles?.(
-        sessions.filter((row) => row.title === undefined).map((row) => row.sessionId),
-      );
+      const untitled = sessions.filter((row) => row.title === undefined);
+      const titles =
+        deps.readSessionTitles === undefined || untitled.length === 0
+          ? undefined
+          : await sessionTitleCache(deps.readSessionTitles)(untitled);
       for (const row of sessions) {
         const title = titles?.get(row.sessionId);
         if (title !== undefined) row.title = title;
@@ -290,6 +316,11 @@ export function createHostSessionsMethods(
         async (service, id) => {
           const snapshot = await service.read(id);
           const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
+          const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
+          const fallbackTitle =
+            recorded === undefined
+              ? snapshot.title === undefined
+              : titleSourceKind(recorded.data) === 'fallback';
           return {
             ok: true,
             value: {
@@ -300,6 +331,8 @@ export function createHostSessionsMethods(
               sessionId: id,
               role: 'native',
               ...(title === undefined ? {} : { displayTitle: title }),
+              ...(fallbackTitle ? { titleFallback: true } : {}),
+              ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
               running: snapshot.running,
               seq: snapshot.seq,
             },

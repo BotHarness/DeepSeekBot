@@ -204,9 +204,11 @@ describe('Tool approval card in the DM', () => {
     expect(view.textContent).not.toContain('/home/qa/.dsh/botharness/bots/');
     for (const label of [t.allowOnce, t.alwaysAllow, t.reject, t.details])
       expect(button(view, label).disabled).toBe(false);
-    expect(view.textContent).toContain(t.alwaysToolScope('bash'));
+    expect(view.textContent).toContain(t.alwaysToolScopeShort('bash'));
+    expect(view.textContent).not.toContain(t.alwaysToolScope('bash'));
     await press(button(view, t.details));
     expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
+    expect(view.textContent).toContain(t.alwaysToolScope('bash'));
   });
 
   it.each([
@@ -455,6 +457,8 @@ describe('Tool approval card in the DM', () => {
       expect(button(view, t.alwaysAllow).disabled).toBe(true);
       expect(button(view, t.allowOnce).disabled).toBe(false);
       expect(button(view, t.reject).disabled).toBe(false);
+      expect(view.textContent).not.toContain(t.alwaysUnavailable);
+      await press(button(view, t.details));
       expect(view.textContent).toContain(t.alwaysUnavailable);
       act(() => root?.unmount());
       container?.remove();

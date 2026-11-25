@@ -45,7 +45,13 @@ export function sessionModelLabel({
   catalog?: SessionModelCatalog | undefined;
   width: number;
   strings: typeof en.sessionModel;
-}): { brand: ModelBrand | undefined; name?: string; effort?: string; accessible: string } {
+}): {
+  brand: ModelBrand | undefined;
+  name?: string;
+  effort?: string;
+  accessible: string;
+  pending: boolean;
+} {
   const choice = state?.override ?? state?.default ?? null;
   const active = state?.active;
   const running = active !== undefined;
@@ -104,5 +110,6 @@ export function sessionModelLabel({
     accessible: strings.accessible(
       [strings.choice, shown, effort].filter((part) => part !== undefined),
     ),
+    pending,
   };
 }

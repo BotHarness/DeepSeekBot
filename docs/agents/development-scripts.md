@@ -27,7 +27,7 @@ or treat a preparation reply as the final task outcome.
 
 The `verify` workflow runs lint, format, workspace typecheck (including mobile) and repository build on every pull request. `scripts/ci-plan.mjs` selects tests, the docs site build, and mobile verification independently:
 
-- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards.
+- **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The planner splits the suite into four shards balanced by recorded duration. In CI (`CI` set), the default Vitest project uses 4 workers on each 4-vCPU runner. Vitest's default ran about 2 test files at a time there because many tests wait on git and the file system. Local runs keep Vitest's default.
 - **Affected**: every other pull request uses Vitest related-test selection on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
 - **None**: a pull request whose changed paths cannot reach any test, such as screenshots, change fragments and prose.
 
@@ -41,13 +41,15 @@ The same job compares each gallery case pixel by pixel with its baseline screens
 
 The optional `mobile-native-ios` job runs only when a manual `verify.yml` dispatch sets `ios_hardware_send_tests=true`; its default is false, including pull requests, main, schedules and release verification. It uses the standard `xcode-27` runner with read-only repository access and no account, signing or release credentials. CNG enables only the local HardwareSend test specification. The independent Pods test-host scheme first proves ordinary command delivery, then exercises the two composition/focus regressions without building the Tobs app. The aggregate requires this job only when selected. Artifacts retain only synthetic test logs/results and scheme/simulator metadata for seven days; they do not include DerivedData, Pods, app profiles or real user data. See [HardwareSend](../../apps/mobile/modules/hardware-send/README.md#ios-composition-regression-target) for the test boundary and remaining device checks.
 
-For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency graph for the exact test files once. Zero files finish successfully; fewer than 60 run on that same planning runner. The planner installs the frozen dependencies once for both Babel and Vitest. Selections of 60 or more files run in three deterministic, disjoint shards on separate runners. Shards execute exact Vitest test specifications, reject missing files, and fail on incomplete runs or test errors. The docs-site test stays in its separate job. The threshold limits duplicated checkout/install overhead on small PRs; file-count balancing does not promise equal execution time.
+For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency graph for the exact test files once. Zero files finish successfully; fewer than 60 run on that same planning runner. The planner installs the frozen dependencies once for both Babel and Vitest. Selections of 60 or more files run in four deterministic, disjoint shards on separate runners. Full runs use the same shard runner over every test file. Both modes balance shards by the per-file durations in `scripts/ci-test-durations.json`; files not listed there count as 0.2 s. Shards execute exact Vitest test specifications, reject missing files, and fail on incomplete runs or test errors. The docs-site test is its own Vitest project (`docs-site`) and runs only in its separate job. The threshold limits duplicated checkout/install overhead on small PRs.
+
+Refresh the durations when shard times drift apart: download the `test (shard N)` logs of a recent full run and run `node scripts/ci-test-durations.mjs "<run id and date>" <log>...`.
 
 The required aggregate check keeps its existing name. Planned skips are accepted; selected jobs must succeed, including the planning job and any dispatched affected shards. Failures and cancellations block the check. Every job uses the frozen workspace lockfile and pinned toolchain when installing dependencies.
 
 The docs site build test (`apps/docs/test/changelog-public-surfaces.test.ts`) runs in its own job: on full runs, when a changed path is a docs site input below, when it is imported by `apps/docs/astro.config.ts`, `scripts/sync-docs.mjs` or `scripts/sync-slides.mjs`, or when the test names it.
 
-A removed or renamed code file, or a path that no rule classifies, falls back to a full run. `pnpm lint` runs `node scripts/ci-plan.mjs --check`, which fails when a tracked file matches no rule, a rule matches no tracked file, a test file is outside the Vitest include, the workflow's aggregate job does not depend on every job or loses the required check name, the workflow filters paths, or this table is stale. Regenerate the table with `node scripts/ci-plan.mjs --write`.
+A path that no rule classifies falls back to a full run. A removed or renamed code file selects every code file that still names its old path, through a relative import, a root-relative path string, a workspace package's `./*` subpath export or the docs `@/` alias; typecheck and build still compile every importer. If a JSON or YAML file still names the old path, the run falls back to full. `pnpm lint` runs `node scripts/ci-plan.mjs --check`, which fails when a tracked file matches no rule, a rule matches no tracked file, a test file is outside the Vitest include, the workflow's aggregate job does not depend on every job or loses the required check name, the workflow filters paths, or this table is stale. Regenerate the table with `node scripts/ci-plan.mjs --write`.
 
 Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exact commands for your branch, committed and uncommitted changes included.
 
@@ -75,6 +77,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `.github/workflows/npm-release.yml`                                                                                                                       | Full suite          | Yes       | Release verification and package gates                                                             |
 | `scripts/published-product-provider.json`                                                                                                                 | Full suite          | Yes       | Published Provider reuse qualification                                                             |
 | `scripts/ci-plan.mjs`                                                                                                                                     | Full suite          | Yes       | This test plan and the Human merge guardrail paths                                                 |
+| `scripts/ci-plan-index.mjs`                                                                                                                               | Full suite          | Yes       | Path and import tracing behind the test plan                                                       |
 | `scripts/ci-affected.mjs`                                                                                                                                 | Full suite          | Yes       | Affected test selection and execution                                                              |
 | `packages/core/src/{database/owner,database/schema*,attachments/legacy-migration}.ts`                                                                     | Related tests       | Yes       | Host SQLite and attachment migrations                                                              |
 | `packages/host-client/src/local-store.ts`                                                                                                                 | Related tests       |           | Installed-client SQLite migrations                                                                 |
@@ -96,6 +99,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `packages/*/src/**`                                                                                                                                       | Related tests       |           | Package source                                                                                     |
 | `packages/core/test/fixtures/profile-backup/**`                                                                                                           | Full suite          | Yes       | Historical backup archives are loaded dynamically by restore and CLI tests                         |
 | `packages/core/test/fixtures/memory-images/**`                                                                                                            | Full suite          | Yes       | Binary image fixtures are loaded dynamically by Host, CLI and mobile tests                         |
+| `packages/core/test/fixtures/release-upgrade/**`                                                                                                          | Full suite          | Yes       | Historical SQLite upgrade databases are discovered at test time                                    |
 | `packages/*/test/**`                                                                                                                                      | Related tests       |           | Package tests and helpers                                                                          |
 | `packages/*/lib/**`                                                                                                                                       | Related tests       |           | Committed client bundles read by stylesheet tests                                                  |
 | `packages/*/extension/**`                                                                                                                                 | Related tests       |           | Browser extension sources                                                                          |
@@ -175,6 +179,23 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 
 <!-- END generated by scripts/ci-plan.mjs -->
 
+### Tracing CI time
+
+`node scripts/ci-trace.mjs` prints a Markdown report of where verify time goes. It reads the last 10 successful verify runs on `main` with `gh` and shows:
+
+- the median and maximum wall time;
+- which job finished last;
+- each job's median, maximum, queue wait and slack before the run ended;
+- the slowest steps of the four longest jobs.
+
+`--logs` also reads the newest run's test shard logs and adds each shard's file count, summed test time, Vitest duration, the window between the first and last file result, parallelism (test time over Vitest duration), Vitest phase shares (tests, import, transform, environment), slowest files and the files that finished last. Options:
+
+- `--runs N` changes how many runs it reads;
+- `--branch` and `--event` pick other runs;
+- `--run <id>`, repeatable, names runs directly.
+
+Use it before and after a CI change, and put both reports in the PR. A job with large slack is not the bottleneck. When the shards are long, the parallelism and phase shares show whether the time goes to tests, module imports or an unbalanced split.
+
 ## Real-model scenarios
 
 Unit tests script the Orchestrator, so they cannot catch a model that stops calling a tool the way a flow needs. `scripts/e2e-llm-scenarios.mjs` runs multi-Bot scenarios against a real model on an isolated Host and asserts on canonical Channel state (mentions, deliveries, replies), never on wording. `node scripts/e2e-llm-scenarios.mjs --list` prints each scenario and the paths it guards.
@@ -226,6 +247,8 @@ B5 requires both native tool completions and both outside-Grant fixture writes, 
 
 C7 uses `deepseekbot` and a loopback speech fixture to check Owner-only management of TTS and ASR providers. It also checks that the member list exposes template presence without provider endpoints, headers, or keys.
 
+B6 uses `deepseekbot folder-create` to check the Owner, a member without `workspaces.createFolder`, and a member with that permission. It confirms the created child can be selected as a Workspace and that refused parents, including a symlink to an unshared folder, receive no child.
+
 The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Run the suite on the exact PR head for every Team mode authority change, including offboarding, device access and model allowlists. Publish the report and transcripts through `pnpm evidence:publish` and link them from the PR. A failing scenario blocks merge unless the PR names the known gap and links its tracking issue.
 
 ## Call keyframe evaluation (VC8)
@@ -270,7 +293,7 @@ key also includes the caller workflow, keeping normal verification separate from
 
 The npm release workflow checks tag ancestry and looks for a successful `verify.yml` push run on
 that exact SHA. It waits for an existing run, then calls the same reusable verification workflow if
-no success is available. Tag-push context selects the full three-shard test plan, including the
+no success is available. Tag-push context selects the full four-shard test plan, including the
 normal static, docs, mobile and Host smoke gates. Failed or cancelled verification blocks packing;
 a skipped fallback permits packing only when exact-SHA reuse succeeded.
 

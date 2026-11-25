@@ -67,10 +67,22 @@ afterEach(() => {
   native.scrolls.length = 0;
 });
 
-function openKeyboardUnder(fieldBottom: number, revealPast: number) {
+function openKeyboardUnder(
+  fieldBottom: number,
+  revealPast: number,
+  revealEnd = 0,
+  revealBands: { start: number; end: number }[] = [],
+) {
   let focus: ((node: ViewInstance, focused: boolean) => void) | undefined;
   function Form() {
-    focus = useNativeFormScroll(undefined, true, BOTTOM_OFFSET, revealPast).focus;
+    focus = useNativeFormScroll(
+      undefined,
+      true,
+      BOTTOM_OFFSET,
+      revealPast,
+      revealEnd,
+      revealBands,
+    ).focus;
     return null;
   }
   root = createRoot(document.createElement('div'));
@@ -91,7 +103,9 @@ function openKeyboardUnder(fieldBottom: number, revealPast: number) {
     }
     const keyboardTop =
       native.viewport.pageY + native.viewport.height - (KEYBOARD * frame) / 10 - BOTTOM_OFFSET;
-    kept.push(fieldBottom - native.offset.get() <= keyboardTop + 0.001);
+    const end = revealEnd > 0 ? native.viewport.pageY + revealEnd : 0;
+    const keep = end > fieldBottom ? end - BOTTOM_OFFSET : fieldBottom;
+    kept.push(keep - native.offset.get() <= keyboardTop + 0.001);
   }
   return { settled: native.offset.get(), kept };
 }
@@ -111,4 +125,27 @@ it('keeps the exact keyboard reveal when it already passes the heading', () => {
 it('does not scroll when the keyboard leaves the focused field visible', () => {
   openKeyboardUnder(300, HEADING_END);
   expect(native.scrolls).toEqual([]);
+});
+
+it('reveals a field above the form end only as far as the form end, not one clearance below the field', () => {
+  const { settled, kept } = openKeyboardUnder(460, 80, 400);
+  expect(settled).toBe(80);
+  expect(kept.every(Boolean)).toBe(true);
+});
+
+it('reveals the form end when the first field is focused', () => {
+  const { settled, kept } = openKeyboardUnder(400, 0, 400);
+  expect(settled).toBe(50);
+  expect(kept.every(Boolean)).toBe(true);
+});
+
+it('settles a reveal that would stop inside a control below the heading at that control’s end', () => {
+  const { settled, kept } = openKeyboardUnder(600, HEADING_END, 0, [{ start: 240, end: 300 }]);
+  expect(settled).toBe(300);
+  expect(kept.every(Boolean)).toBe(true);
+});
+
+it('keeps an exact reveal that stops in the gap between controls', () => {
+  const { settled } = openKeyboardUnder(600, HEADING_END, 0, [{ start: 260, end: 300 }]);
+  expect(settled).toBe(250);
 });

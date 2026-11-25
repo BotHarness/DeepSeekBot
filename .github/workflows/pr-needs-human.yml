@@ -25,6 +25,7 @@ jobs:
           sparse-checkout: |
             .node-version
             scripts/check-needs-human.mjs
+            scripts/ci-plan-index.mjs
             scripts/ci-plan.mjs
             scripts/dev-package-manager.mjs
           sparse-checkout-cone-mode: false

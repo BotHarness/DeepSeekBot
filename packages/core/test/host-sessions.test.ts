@@ -99,6 +99,32 @@ it('returns root Sessions in last Human prompt order and scopes every native ope
   expect(send).toHaveBeenCalledTimes(1);
 });
 
+it('reads fallback titles once per Session version across Session list calls', async () => {
+  const list = vi.fn(async () =>
+    Array.from({ length: 300 }, (_, index) => ({
+      sessionId: `direct-${index}`,
+      running: false,
+      lastPromptAt: index,
+      updatedAt: index,
+    })),
+  );
+  const readSessionTitles = vi.fn(async (ids: readonly string[]) => new Map([[ids[0]!, 'First']]));
+  const f = fixture({
+    nativeSessions: { list, read: vi.fn(), isRoot: vi.fn(), send: vi.fn() },
+    readSessionTitles,
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+
+  expect(await owner.sessionList({ queryVersion: 1 })).toMatchObject({ ok: true });
+  const calls = readSessionTitles.mock.calls.length;
+  expect(calls).toBeGreaterThan(0);
+  const again = await owner.sessionList({ queryVersion: 1 });
+  expect(readSessionTitles).toHaveBeenCalledTimes(calls);
+  expect(again.ok && again.value.sessions.filter((row) => row.title === 'First')).toHaveLength(
+    calls,
+  );
+});
+
 it('combines title and Human-message matches inside the authorized source and sorts the result', async () => {
   const searchHumanMessages = vi.fn(
     async (_search: string, rows: readonly { sessionId: string }[]) =>
@@ -319,4 +345,70 @@ it('refuses a model choice before creating when the Host cannot set models', asy
     }),
   ).toMatchObject({ ok: false, error: { code: 'unavailable' } });
   expect(create).not.toHaveBeenCalled();
+});
+
+it('returns the native Session folder with its transcript', async () => {
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({
+        events: [],
+        seq: 0,
+        running: false,
+        cwd: '/Users/me/code/app-worktree',
+      }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'prompt-1' }),
+    },
+  });
+  expect(
+    await f.bridge(OWNER_HUMAN_CONTEXT).sessionTranscript({ slug: null, sessionId: 'native' }),
+  ).toMatchObject({ ok: true, value: { cwd: '/Users/me/code/app-worktree' } });
+});
+
+it('marks a native Session title as a fallback until a generated title replaces it', async () => {
+  const userMessage = {
+    type: 'user/message',
+    time: 1,
+    seq: 1,
+    data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Plan the launch' }] },
+  };
+  const fallback = {
+    type: 'session/title',
+    time: 2,
+    seq: 2,
+    data: { title: 'Plan the launch', source: { kind: 'fallback' } },
+  };
+  const generated = {
+    type: 'session/title',
+    time: 3,
+    seq: 3,
+    data: { title: 'Launch plan', source: { kind: 'dsh-session-title-llm' } },
+  };
+  let events: unknown[] = [userMessage];
+  const read = vi.fn(async () => ({ events, seq: events.length, running: true }));
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: read as never,
+      isRoot: async () => true,
+      send: async () => ({ requestId: 'prompt-1' }),
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const target = { slug: null, sessionId: 'native' };
+
+  expect(await owner.sessionTranscript(target)).toMatchObject({
+    ok: true,
+    value: { titleFallback: true },
+  });
+  events = [userMessage, fallback];
+  expect(await owner.sessionTranscript(target)).toMatchObject({
+    ok: true,
+    value: { displayTitle: 'Plan the launch', titleFallback: true },
+  });
+  events = [userMessage, fallback, generated];
+  const settled = await owner.sessionTranscript(target);
+  expect(settled).toMatchObject({ ok: true, value: { displayTitle: 'Launch plan' } });
+  expect(settled.ok && 'titleFallback' in settled.value).toBe(false);
 });

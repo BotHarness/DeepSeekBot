@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runFolderCreateGate } from './team-security-folder-create-gate.mjs';
 import { runHostSessionGate } from './team-security-host-sessions-gate.mjs';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
@@ -61,6 +62,7 @@ const BOB_MEMORY = 'BOB_MEMORY_SENTINEL_5501';
 const BOB_ACCOUNT = 'BOB_ACCOUNT_SENTINEL_5502';
 const SHARED_FINANCE = 'SHARED_FINANCE_SENTINEL_5503';
 const OWNER_BOT_MEMORY = 'OWNER_BOT_SENTINEL_5504';
+const HOST_DATA = 'B1_HOST_DATA_SENTINEL';
 const HOST_PROFILE = 'B2_HOST_PROFILE_SENTINEL';
 const PRIVATE_CHANNEL = 'PRIVATE_CHANNEL_SENTINEL_5505';
 const HUMAN_DM = 'HUMAN_DM_SENTINEL_5506';
@@ -667,12 +669,14 @@ export async function main(argv = process.argv.slice(2)) {
       'File tools cannot reach other members, the Host data directory or other Bots',
       async (check) => {
         symlinkSync(fx.bobSpace, join(fx.memory.alice, 'shortcut'));
+        const hostFixture = join(s.home, `b1-host-${tag}.txt`);
+        writeFileSync(hostFixture, HOST_DATA, { flag: 'wx' });
         const targets = [
           join(fx.memory.bob, 'bob-notes.md'),
           join(fx.bobSpace, 'bob-account.md'),
           join(fx.sharedFinance, 'ledger.md'),
           join(s.botMemory(fx.vaultSlug), 'vault.md'),
-          join(s.home, '.credentials.yaml'),
+          hostFixture,
           `${fx.memory.alice}/../../../${fx.humans.bob.humanId}/bob-account.md`,
           join(fx.memory.alice, 'shortcut', 'bob-account.md'),
         ];
@@ -684,11 +688,8 @@ export async function main(argv = process.argv.slice(2)) {
         ].join('\n');
         const answer = s.ask('file-tools', fx.users.alice, fx.bots.alice, body);
         check('got a reply', answer.replies.length > 0, answer.sent?.error?.code);
-        check(
-          'no foreign content in the reply',
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES).length === 0,
-          leakedValues(answer.replies, FORBIDDEN_FILE_VALUES),
-        );
+        const leaks = leakedValues(answer.replies, [...FORBIDDEN_FILE_VALUES, HOST_DATA]);
+        check('no foreign content in the reply', leaks.length === 0, leaks);
         check(
           'no file written into another member folder',
           !existsSync(join(fx.bobSpace, `owned-${tag}.txt`)),
@@ -813,6 +814,10 @@ export async function main(argv = process.argv.slice(2)) {
         check('no grant on another member folder', !text.includes(fx.humans.bob.humanId), after);
         check('no grant on an unpermitted shared folder', !text.includes(`finance-${tag}`), after);
       },
+    );
+
+    await define('B6', 'Member folder creation requires permission and a granted parent', (check) =>
+      runFolderCreateGate(s, fx, tag, check),
     );
 
     await define(

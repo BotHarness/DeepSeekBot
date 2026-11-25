@@ -22,6 +22,8 @@ that all identity, channel and recovery gates have shipped or authorize a live t
 
 Public install instructions use the published stable identity in `scripts/install-release.json`, not the development package version or npm's moving `latest` tag. After publishing and verifying registry bytes and qualification evidence, update that identity, run `pnpm install:sync` and `pnpm install:check`, and review the resulting README/guide changes. The check runs in lint and rejects drift. Never advance this file during prerelease preparation or before publication.
 
+After verifying each new npm release, refresh its [SQLite upgrade fixture](../../packages/core/test/fixtures/release-upgrade/README.md). Keep the latest released fixture and one older release to cover a skipped-version upgrade.
+
 Keep the version and package name in that identity rather than copying a current version into ordinary documentation. Link readers to `https://tobs.app/docs/installation/` or `https://tobs.app/en/docs/installation/`; the installation guides and website copy buttons generate exact commands from the shared identity. Release notes, compatibility records and historical qualification evidence retain their original version numbers.
 
 Before publication, the `prepare` job of `npm-release.yml` runs `scripts/e2e-fresh-profile-install.mjs` on the exact prepared tarballs: for every supported DSH release it installs the product into a brand-new Profile with no pre-approved builds, then boots the Host, creates a Bot and DM, and restarts. A dependency that needs build approval fails the release, because users would otherwise have to approve it on the Plugins page before DeepSeekBot installs.
