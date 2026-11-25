@@ -483,6 +483,31 @@ it('a question asked while the turn handles a bridged Lark group message goes to
   expect(idle.delivery.destination).toMatchObject({ kind: 'group', conversationId: 'oc_stale' });
 });
 
+it('a question whose group card the provider refuses is sent to the DM instead and answered there', async () => {
+  const f = await fixture();
+  placeGroupSource(f.core, {
+    channelId: dmChannelId('ada'),
+    fingerprint,
+    conversationId: 'oc_team',
+    messageId: 'om_team_ask',
+  });
+  f.cards.mockImplementationOnce(async () => {
+    throw Object.assign(new Error('stale-route'), { code: 'stale-route' });
+  });
+  const asked = await f.start();
+  const id = asked.delivery.id;
+  const delivered = () =>
+    f.core.externalMessaging.questions.snapshot('ada').find((value) => value.id === id);
+  await vi.waitFor(() => expect(delivered()?.delivery).toBe('sent'));
+  expect(delivered()?.destination).toBeUndefined();
+  expect(f.cards.mock.calls.map((call) => call[1].conversationId)).toEqual([
+    'oc_team',
+    'oc_private',
+  ]);
+  await f.text('B', 'om_' + id);
+  expect(await asked.answer).toEqual({ answers: [{ id: 'choice', selected: ['qa'] }] });
+});
+
 it('a question raised from a Lark group conversation is answered in that group by paired people only, and the Binding or its platform default can send it back to the DM', async () => {
   const f = await fixture();
   const group = { kind: 'group' as const, id: 'oc_team' };

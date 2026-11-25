@@ -8,7 +8,12 @@ import {
   type MessagingPlatformId,
 } from './platforms/index.js';
 import { z } from 'zod';
-import { MessagingError, type MessagingProvider, type MessagingReplyRoute } from './provider.js';
+import {
+  MessagingError,
+  MessagingProviderError,
+  type MessagingProvider,
+  type MessagingReplyRoute,
+} from './provider.js';
 
 export interface InteractionGrant {
   botSlug: string;
@@ -179,4 +184,32 @@ export function createInteractionAuthority(options: {
       }
     },
   };
+}
+
+const GROUP_SEND_FAILURES = new Set([
+  'stale-route',
+  'source-not-found',
+  'source-unavailable',
+  'capability-unavailable',
+  'card-provider-rejected',
+  'reply-permission-denied',
+  'reply-window-expired',
+  'reply-limit-exceeded',
+  'send-permission-denied',
+  'target-rejected',
+]);
+
+export function withoutFailedGroup<T extends { destination?: InteractionDestination }>(
+  value: T,
+  error: unknown,
+): T {
+  if (
+    !value.destination ||
+    !(error instanceof MessagingProviderError) ||
+    error.disposition !== 'not-started' ||
+    !GROUP_SEND_FAILURES.has(error.code)
+  )
+    return value;
+  const { destination: _destination, ...rest } = value;
+  return rest as T;
 }

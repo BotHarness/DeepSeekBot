@@ -365,6 +365,36 @@ it('an approval raised while the turn handles a bridged Lark group message goes 
   expect(await pending.answer).toBe('allowed-once');
 });
 
+it('an approval whose group card the provider refuses is retried in the DM and decided there', async () => {
+  const f = await fixture(false, true);
+  const bridged = placeGroupSource(f.core, {
+    channelId: 'dm-ada',
+    fingerprint,
+    conversationId: 'oc_bridged',
+    messageId: 'om_bridged_ask',
+    placed: false,
+  });
+  vi.spyOn(f.core.runtime, 'turnSourceEventIds').mockReturnValue([bridged]);
+  f.cards.mockImplementationOnce(async () => {
+    throw Object.assign(new Error('stale-route'), { code: 'stale-route' });
+  });
+  const pending = await f.start();
+  await vi.waitFor(() => expect(f.cards).toHaveBeenCalledTimes(2), { timeout: 5000 });
+  expect(f.cards.mock.calls.map((call) => call[1].conversationId)).toEqual([
+    'oc_bridged',
+    'oc_private',
+  ]);
+  const delivered = f.core.externalMessaging.approvals
+    .snapshot('ada')
+    .deliveries.find((value) => value.id === pending.delivery.id);
+  expect(delivered?.destination).toBeUndefined();
+  expect(await f.action(pending.delivery.id, { conversationId: 'oc_bridged' })).not.toMatchObject({
+    status: 'queued',
+  });
+  expect(await f.action(pending.delivery.id)).toMatchObject({ status: 'queued' });
+  expect(await pending.answer).toBe('allowed-once');
+});
+
 it('an approval raised from a Lark group is decided in that group by a paired person, never by an unpaired member or from another chat', async () => {
   const f = await fixture(false, true);
   placeGroupSource(f.core, {

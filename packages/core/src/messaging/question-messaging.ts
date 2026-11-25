@@ -9,6 +9,7 @@ import {
   createInteractionAuthority,
   type InteractionContext,
   type InteractionDestination,
+  withoutFailedGroup,
 } from './authority.js';
 import { isMessagingPlatform, messagingPlatform } from './platforms/index.js';
 import {
@@ -261,6 +262,7 @@ export function createQuestionMessaging(options: {
     const startedAt = performance.now();
     busy.add(id);
     let started = false;
+    let fallback = false;
     write({ ...value, attempts: value.attempts + 1 });
     try {
       const { identity, paired, provider } = context(value);
@@ -297,9 +299,11 @@ export function createQuestionMessaging(options: {
       if (latest) write({ ...latest, delivery: 'sent', receipt: result.receipt });
     } catch (error) {
       const latest = read(id);
-      if (latest)
+      if (latest) {
+        const remaining = withoutFailedGroup(latest, error);
+        fallback = remaining !== latest;
         write({
-          ...latest,
+          ...remaining,
           delivery:
             !started ||
             (error instanceof MessagingProviderError && error.disposition === 'not-started')
@@ -310,6 +314,7 @@ export function createQuestionMessaging(options: {
               ? error.code
               : 'provider-result-unknown',
         });
+      }
     } finally {
       busy.delete(id);
       const latest = read(id);
@@ -318,6 +323,7 @@ export function createQuestionMessaging(options: {
         if (latest.receipt && state(latest) !== 'pending') void update(id);
       }
     }
+    if (fallback) await send(id).catch(() => options.warn?.('question-notification-send-failed'));
   };
   const notify = (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => {
     if (closed) return;
