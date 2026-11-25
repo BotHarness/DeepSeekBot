@@ -117,9 +117,13 @@ export function PairingTable<Row extends { id: string }>({
                 {select ? (
                   <td>
                     <Checkbox
-                      label={t('pairing.selectEntry', {
-                        name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
-                      })}
+                      label={
+                        <span className="bh-sr-only">
+                          {t('pairing.selectEntry', {
+                            name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
+                          })}
+                        </span>
+                      }
                       checked={row.getIsSelected()}
                       disabled={disabled}
                       onChange={() => select(row.original)}
