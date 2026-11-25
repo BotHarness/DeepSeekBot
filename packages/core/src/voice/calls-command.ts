@@ -182,12 +182,7 @@ export function createCallCommands(wiring: {
     else if (availability === 'unavailable') missing.push('media-unavailable');
     const active = live(slug);
     const mine = openCalls().find((call) => sameCaller(call, caller));
-    if (
-      active === undefined &&
-      mine === undefined &&
-      openCalls().length >= VOICE_CALL_LIMITS.maxCalls
-    )
-      missing.push('calls-full');
+    if (active === undefined && mine === undefined && full()) missing.push('calls-full');
     return {
       slug,
       ready: missing.length === 0,
@@ -202,6 +197,8 @@ export function createCallCommands(wiring: {
       callElsewhere: active !== undefined && !sameCaller(active, caller),
     };
   };
+
+  const full = () => openCalls().length >= VOICE_CALL_LIMITS.maxCalls;
 
   const own = (caller: VoiceCaller, value: unknown, admin = false): Call => {
     if (typeof value !== 'string' || !CALL_ID.test(value))
@@ -256,11 +253,8 @@ export function createCallCommands(wiring: {
     if (active !== undefined && !sameCaller(active, caller))
       throw new CallRefusal('call-active', 'This Bot is already on a call.');
     const mine = openCalls().find((call) => sameCaller(call, caller));
-    if (mine === undefined && openCalls().length >= VOICE_CALL_LIMITS.maxCalls)
-      throw new CallRefusal(
-        'calls-full',
-        `This Host already has ${VOICE_CALL_LIMITS.maxCalls} calls. End one first.`,
-      );
+    if (mine === undefined && full())
+      throw new CallRefusal('calls-full', 'This Host is at its call limit. End a call first.');
     if (mine !== undefined) await end(mine, 'replaced');
     signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
@@ -399,13 +393,9 @@ export function createCallCommands(wiring: {
         reject(
           cancellation.signal.reason instanceof Error
             ? cancellation.signal.reason
-            : new Error('Voice call cancelled', {
-                cause: cancellation.signal.reason,
-              }),
+            : new Error('Voice call cancelled', { cause: cancellation.signal.reason }),
         );
-      cancellation.signal.addEventListener('abort', rejectCancelled, {
-        once: true,
-      });
+      cancellation.signal.addEventListener('abort', rejectCancelled, { once: true });
       if (cancellation.signal.aborted) rejectCancelled();
     });
     try {
@@ -429,10 +419,7 @@ export function createCallCommands(wiring: {
     const command = record(raw) as Partial<VoiceCallCommand> & Record<string, unknown>;
     switch (command.kind) {
       case 'readiness':
-        return {
-          ok: true,
-          readiness: await readiness(caller, slugOf(command['slug'])),
-        };
+        return { ok: true, readiness: await readiness(caller, slugOf(command['slug'])) };
       case 'status':
         return {
           ok: true,
@@ -447,10 +434,7 @@ export function createCallCommands(wiring: {
         const media = command['media'] ?? 'webrtc';
         if (media !== 'webrtc' && media !== 'synthetic')
           throw new CallRefusal('invalid-input', 'media must be webrtc or synthetic.');
-        return {
-          ok: true,
-          call: view(await open(caller, slugOf(command['slug']), media, signal)),
-        };
+        return { ok: true, call: view(await open(caller, slugOf(command['slug']), media, signal)) };
       }
       case 'signal': {
         const call = own(caller, command['callId']);
@@ -543,10 +527,7 @@ export function createCallCommands(wiring: {
         const before = call.seq;
         call.lastHeartbeat = now();
         hear(call, callPcm(pcm));
-        return {
-          ok: true,
-          call: view(call, (after as number | undefined) ?? before),
-        };
+        return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'visual': {
         const call = own(caller, command['callId']);
@@ -649,10 +630,7 @@ export function createCallCommands(wiring: {
           reportDropped(call, source, dropped);
           harvest(call);
         }
-        return {
-          ok: true,
-          call: view(call, (after as number | undefined) ?? before),
-        };
+        return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'hangup': {
         const call = own(caller, command['callId'], true);

@@ -202,10 +202,7 @@ export function createDesktopCall(
       if (!verdict.dial) {
         set({
           checking: false,
-          block: {
-            kind: verdict.blocked ?? 'refused',
-            notices: verdict.notices,
-          },
+          block: { kind: verdict.blocked ?? 'refused', notices: verdict.notices },
         });
         return;
       }
@@ -219,10 +216,7 @@ export function createDesktopCall(
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
           desktopCapture(
-            makeCapture(source, {
-              onKeyframe: events.keyframe,
-              onEnded: events.ended,
-            }),
+            makeCapture(source, { onKeyframe: events.keyframe, onEnded: events.ended }),
           ),
         onChange: (state) => {
           if (session !== owned) return;
@@ -253,11 +247,7 @@ export function createDesktopCall(
     },
     async hangup(options) {
       await session?.hangup(options);
-      set({
-        block: undefined,
-        state: { status: 'idle' },
-        visual: DESKTOP_CALL_VISUAL_OFF,
-      });
+      set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
     },
     dismiss() {
       if (active()) return;

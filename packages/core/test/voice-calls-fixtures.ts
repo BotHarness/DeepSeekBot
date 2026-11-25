@@ -48,10 +48,7 @@ export function fakeMedia(
       state.onPcm = onPcm;
       state.onStatus = onStatus;
       return {
-        offer: {
-          type: 'offer',
-          sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n',
-        },
+        offer: { type: 'offer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n' },
         async answer(answer) {
           state.answers.push(answer.sdp);
           queueMicrotask(() => onStatus('connected'));
@@ -207,11 +204,7 @@ export async function connected(h: ReturnType<typeof harness>) {
   const call = opened.call!;
   expect(call.phase).toBe('connecting');
   expect(call.offer?.sdp).toContain('m=audio');
-  await h.ok({
-    kind: 'signal',
-    callId: call.callId,
-    answer: { type: 'answer', sdp: 'v=0\r\n' },
-  });
+  await h.ok({ kind: 'signal', callId: call.callId, answer: { type: 'answer', sdp: 'v=0\r\n' } });
   await settled();
   return call.callId;
 }

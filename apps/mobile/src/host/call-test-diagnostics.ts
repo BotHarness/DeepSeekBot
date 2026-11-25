@@ -121,13 +121,7 @@ export function createCallTestDiagnostics(options: {
     if (action === undefined) return options.post(body);
     const id = ++request;
     const at = time();
-    note({
-      kind: 'control',
-      stage: 'dispatch',
-      request: id,
-      action,
-      callId: callId(body.callId),
-    });
+    note({ kind: 'control', stage: 'dispatch', request: id, action, callId: callId(body.callId) });
     try {
       const result = await options.post(body);
       note({

@@ -204,12 +204,7 @@ export const en = {
       headers: 'Extra headers (JSON)',
       headersHint: 'Headers without secrets only, such as {"Accept": "audio/mpeg"}.',
       body: 'Body',
-      bodyKinds: {
-        json: 'JSON',
-        ssml: 'SSML',
-        multipart: 'Multipart',
-        none: 'None',
-      },
+      bodyKinds: { json: 'JSON', ssml: 'SSML', multipart: 'Multipart', none: 'None' },
       bodyText: 'Body template (JSON)',
       bodyHint: {
         json: (list: string) => `Placeholders: ${list}`,
@@ -461,12 +456,7 @@ export const zh: typeof en = {
       headers: '额外请求头（JSON）',
       headersHint: '只放不含密钥的请求头，例如 {"Accept": "audio/mpeg"}。',
       body: '请求体',
-      bodyKinds: {
-        json: 'JSON',
-        ssml: 'SSML',
-        multipart: 'Multipart',
-        none: '无',
-      },
+      bodyKinds: { json: 'JSON', ssml: 'SSML', multipart: 'Multipart', none: '无' },
       bodyText: '请求体模板（JSON）',
       bodyHint: {
         json: (list: string) => `占位符：${list}`,

@@ -107,10 +107,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       if (active >= maxPeers) {
         const states = [...activeStates].map((state) => state()).join(' ');
         options.onEvent?.(`call=${callId} phase=call-media-open-refused reason=busy ${states}`);
-        throw new CallMediaError(
-          'busy',
-          `This Host already has ${maxPeers} calls with media running.`,
-        );
+        throw new CallMediaError('busy', 'This Host already runs call media for every call slot.');
       }
       active += 1;
       const launchId = randomUUID();
@@ -139,11 +136,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       >();
       const playbacks = new Map<string, { resolve(): void; reject(error: Error): void }>();
       let ready:
-        | {
-            resolve(): void;
-            reject(error: Error): void;
-            timer: ReturnType<typeof setTimeout>;
-          }
+        | { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
         | undefined;
       let exitResolve: (() => void) | undefined;
       const exit = new Promise<void>((resolve) => {

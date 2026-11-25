@@ -72,13 +72,7 @@ vi.mock('node:child_process', async (original) => {
         if (harness.mode !== 'ready-timeout') helper({ event: 'ready', version: 1 });
         harness.started();
       });
-      return Object.assign(process, {
-        stdin,
-        stdout,
-        stderr,
-        pid: 122,
-        kill: close,
-      });
+      return Object.assign(process, { stdin, stdout, stderr, pid: 122, kill: close });
     },
   };
 });
@@ -137,12 +131,7 @@ it.each([true, false])(
       call: 'forged-call',
       sdp: 'private-sdp',
     });
-    harness.connection({
-      seq: 2,
-      elapsedMs: 20,
-      stage: 'tree-closed',
-      activeProcesses: 0,
-    });
+    harness.connection({ seq: 2, elapsedMs: 20, stage: 'tree-closed', activeProcesses: 0 });
     const rows = h.events.filter((row) => row.includes('phase=call-media-connection'));
     expect(rows).toHaveLength(enabled ? 1 : 0);
     if (enabled) expect(rows[0]).toContain('call=call-qa');

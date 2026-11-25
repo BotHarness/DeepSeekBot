@@ -131,35 +131,10 @@ export type VoiceCallEvent =
       streamed?: boolean;
       segments?: number;
     }
-  | {
-      seq: number;
-      at: number;
-      type: 'text';
-      messageId: string;
-      atMs: number;
-      grid?: number;
-    }
-  | {
-      seq: number;
-      at: number;
-      type: 'asr-failed';
-      code: string;
-      message: string;
-    }
-  | {
-      seq: number;
-      at: number;
-      type: 'send-failed';
-      code: string;
-      message: string;
-    }
-  | {
-      seq: number;
-      at: number;
-      type: 'reply-text';
-      replyId: string;
-      responseMs?: number;
-    }
+  | { seq: number; at: number; type: 'text'; messageId: string; atMs: number; grid?: number }
+  | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
+  | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
+  | { seq: number; at: number; type: 'reply-text'; replyId: string; responseMs?: number }
   | {
       seq: number;
       at: number;
@@ -220,12 +195,7 @@ export type VoiceCallEvent =
       by: 'duration' | 'words';
       replyIds: readonly string[];
     }
-  | {
-      seq: number;
-      at: number;
-      type: 'barge-dismissed';
-      reason: 'ended' | 'filler';
-    }
+  | { seq: number; at: number; type: 'barge-dismissed'; reason: 'ended' | 'filler' }
   | { seq: number; at: number; type: 'busy' }
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }
@@ -279,22 +249,9 @@ export type VoiceCallEvent =
       layout: CallGridLayout;
       waitedMs: number;
     }
-  | {
-      seq: number;
-      at: number;
-      type: 'grid-unchanged';
-      messageId: string;
-      sameAs: string;
-    }
+  | { seq: number; at: number; type: 'grid-unchanged'; messageId: string; sameAs: string }
   | { seq: number; at: number; type: 'grid-failed'; message: string }
-  | {
-      seq: number;
-      at: number;
-      type: 'frame-zoomed';
-      messageId: string;
-      cell: number;
-      ms: number;
-    }
+  | { seq: number; at: number; type: 'frame-zoomed'; messageId: string; cell: number; ms: number }
   | {
       seq: number;
       at: number;
@@ -357,21 +314,13 @@ export interface VoiceCallReadiness {
 export type VoiceCallCommand =
   | { readonly kind: 'readiness'; readonly slug: string }
   | { readonly kind: 'status' }
-  | {
-      readonly kind: 'open';
-      readonly slug: string;
-      readonly media?: 'webrtc' | 'synthetic';
-    }
+  | { readonly kind: 'open'; readonly slug: string; readonly media?: 'webrtc' | 'synthetic' }
   | {
       readonly kind: 'signal';
       readonly callId: string;
       readonly answer: VoiceCallDescription;
     }
-  | {
-      readonly kind: 'heartbeat';
-      readonly callId: string;
-      readonly after?: number;
-    }
+  | { readonly kind: 'heartbeat'; readonly callId: string; readonly after?: number }
   | { readonly kind: 'mute'; readonly callId: string; readonly muted: boolean }
   | {
       readonly kind: 'inject';
@@ -397,11 +346,7 @@ export type VoiceCallCommand =
       readonly after?: number;
     }
   | { readonly kind: 'hangup'; readonly callId: string }
-  | {
-      readonly kind: 'zoom';
-      readonly messageId: string;
-      readonly cell: number;
-    };
+  | { readonly kind: 'zoom'; readonly messageId: string; readonly cell: number };
 
 export type VoiceCallRefusal =
   | 'invalid-input'
@@ -436,11 +381,7 @@ export type VoiceCallResult =
       readonly readiness?: VoiceCallReadiness;
       readonly zoom?: VoiceCallZoomView;
     }
-  | {
-      readonly ok: false;
-      readonly code: VoiceCallRefusal;
-      readonly error: string;
-    };
+  | { readonly ok: false; readonly code: VoiceCallRefusal; readonly error: string };
 
 export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
   ok: false,
@@ -449,11 +390,7 @@ export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
 };
 
 export type VoiceCallZoom =
-  | {
-      readonly released: true;
-      readonly messageId: string;
-      readonly cell: number;
-    }
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
   | {
       readonly released: false;
       readonly messageId: string;
@@ -466,11 +403,7 @@ export type VoiceCallZoom =
     };
 
 export type VoiceCallZoomView =
-  | {
-      readonly released: true;
-      readonly messageId: string;
-      readonly cell: number;
-    }
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
   | {
       readonly released: false;
       readonly messageId: string;

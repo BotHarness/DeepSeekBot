@@ -162,11 +162,7 @@ export function createCallPlayback({
       call.interrupted.push(reply);
       if (call.interrupted.length > 8) call.interrupted.shift();
     }
-    push(call, {
-      type: 'reply-stopped',
-      replyId: reply.id,
-      reason: 'interrupted',
-    });
+    push(call, { type: 'reply-stopped', replyId: reply.id, reason: 'interrupted' });
   };
 
   const confirm = (call: Call, by: 'duration' | 'words') => {
@@ -177,11 +173,7 @@ export function createCallPlayback({
     const stopped = [...call.replies];
     for (const reply of stopped) interrupt(call, reply);
     setGain(call, 1);
-    push(call, {
-      type: 'barge-in',
-      by,
-      replyIds: stopped.map((reply) => reply.id),
-    });
+    push(call, { type: 'barge-in', by, replyIds: stopped.map((reply) => reply.id) });
     log('call-barge-in', { call: call.id, by, replies: stopped.length });
     settle(call);
   };
@@ -330,10 +322,7 @@ export function createCallPlayback({
   };
 
   const onDraft = (event: ChannelDraftEvent) => {
-    const channelId =
-      event.type === 'settled' || event.type === 'abandoned'
-        ? event.channelId
-        : event.draft.channelId;
+    const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
     const call = openCalls().find((item) => item.channelId === channelId);
     if (call === undefined || !call.connected) return;
     if (event.type === 'settled') {
@@ -501,15 +490,5 @@ export function createCallPlayback({
     return { fromMs: Math.max(0, toMs - (endMs - startMs)), toMs };
   };
 
-  return {
-    setGain,
-    talking,
-    suspect,
-    confirm,
-    dismiss,
-    prune,
-    onDraft,
-    speak,
-    speechRange,
-  };
+  return { setGain, talking, suspect, confirm, dismiss, prune, onDraft, speak, speechRange };
 }

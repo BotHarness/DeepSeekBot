@@ -75,11 +75,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
 
   const push = (call: Call, event: EventInput) => {
     call.seq += 1;
-    call.events.push({
-      ...event,
-      seq: call.seq,
-      at: now() - call.startedAt,
-    } as VoiceCallEvent);
+    call.events.push({ ...event, seq: call.seq, at: now() - call.startedAt } as VoiceCallEvent);
     if (call.events.length > VOICE_CALL_LIMITS.events) call.events.shift();
   };
 
@@ -168,12 +164,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
     call.warmed = undefined;
     push(call, { type: 'ended', reason });
-    log('call-ended', {
-      call: call.id,
-      bot: call.slug,
-      reason,
-      ms: call.endedAt - call.startedAt,
-    });
+    log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     recordEnd(call, reason);
     const perf = call.perf.view();
     if (perf === undefined && call.connected && call.peer?.stats !== undefined)
@@ -199,16 +190,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (calls.get(call.id) === call) calls.delete(call.id);
     }, 60_000).unref?.();
   };
-  const { iso, recordStart, recordShare, recordEnd } = createCallRecording({
-    deps,
-    log,
-    now,
-  });
-  const { dropStream, recognize, segment, startStream } = createCallTranscript({
-    deps,
-    now,
-    push,
-  });
+  const { iso, recordStart, recordShare, recordEnd } = createCallRecording({ deps, log, now });
+  const { dropStream, recognize, segment, startStream } = createCallTranscript({ deps, now, push });
   const { text, transcribe } = createCallText({
     now,
     get prune() {
