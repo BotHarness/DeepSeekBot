@@ -96,8 +96,9 @@ export function nativeApprovalPort(
   requestId: string,
   request: ApprovalRequest,
   onSettled: (result: DecisionResult) => void,
+  decided = false,
 ) {
-  let status: ApprovalRequest['status'] = 'pending';
+  let status: ApprovalRequest['status'] = decided ? 'decided' : 'pending';
   return {
     load: () => Promise.resolve({ ...request, status }),
     async decide(choice: ApprovalChoice): Promise<DecisionResult> {
@@ -117,8 +118,9 @@ export function nativeQuestionPort(
   sessionId: string,
   input: NativeQuestionInput,
   onSettled: (result: DecisionResult) => void,
+  decided = false,
 ) {
-  let status: QuestionRequest['status'] = 'pending';
+  let status: QuestionRequest['status'] = decided ? 'decided' : 'pending';
   return {
     load: () => Promise.resolve({ ...nativeQuestionRequest(input), status }),
     async answer(answer: QuestionAnswer): Promise<DecisionResult> {

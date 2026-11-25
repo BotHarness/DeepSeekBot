@@ -89,9 +89,12 @@ import {
   nativeSessionPreview,
 } from './activity-native';
 import { activityItemActions } from './activity-item-actions';
+import { NativeApproval, NativeQuestion } from '../../features/sessions/native-session-input-cards';
+import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
 export { type HiddenItems, feedRows } from './activity-feed-rows';
 
 const AVATAR = 32;
+const NO_TRANSCRIPT: readonly SessionTranscriptItem[] = [];
 const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
 const SUMMARY_PREVIEW_LIMIT = 512;
@@ -285,10 +288,12 @@ function Post({
   onOpen,
   onSettled,
   actions,
+  decided = false,
 }: {
   client: HostClient;
   item: HumanAttentionItem;
-  requestRef: RequestRef;
+  requestRef: RequestRef | undefined;
+  decided?: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
@@ -297,13 +302,15 @@ function Post({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const localName = bot?.displayName ?? item.botSlug;
+  const native = nativeSessionOf(item);
+  const localName =
+    native !== undefined ? nativeSessionName(native, t) : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const where =
     item.channelName !== undefined && !item.channelId?.startsWith('dm-')
       ? ` · ${t.inChannel(item.channelName)}`
       : '';
-  const { channelId, messageId, botSlug } = ref;
+  const { channelId, messageId, botSlug } = ref ?? { channelId: '', messageId: '', botSlug: '' };
   const ports = useMemo(() => {
     const stableRef = { channelId, messageId, botSlug };
     const connected = () => {
@@ -330,6 +337,10 @@ function Post({
   const settled = (result: DecisionResult) => {
     onSettled(item, result);
   };
+  const nativeSettled = useCallback(
+    (_requestId: string, result: DecisionResult) => onSettled(item, result),
+    [item, onSettled],
+  );
   return (
     <SwipeRow actions={actions} contextMenu={false} testID={`inbox-swipe-${activityKey(item)}`}>
       <View
@@ -379,7 +390,28 @@ function Post({
             </Text>
           </View>
         </Pressable>
-        {item.kind === 'tool-approval' ? (
+        {native?.request !== undefined ? (
+          native.request.kind === 'approval' ? (
+            <NativeApproval
+              client={client}
+              sessionId={native.sessionId}
+              input={native.request}
+              cwd={undefined}
+              items={NO_TRANSCRIPT}
+              onSettled={nativeSettled}
+              decided={decided}
+            />
+          ) : (
+            <NativeQuestion
+              client={client}
+              sessionId={native.sessionId}
+              input={native.request}
+              asker={name}
+              onSettled={nativeSettled}
+              decided={decided}
+            />
+          )
+        ) : item.kind === 'tool-approval' ? (
           <ApprovalCard port={ports.approval} wide onSettled={settled} />
         ) : (
           <QuestionCard port={ports.question} botName={name} wide onSettled={settled} />
@@ -936,6 +968,7 @@ const ActivityPage = memo(function ActivityPage({
                       onOpen={onOpen}
                       onSettled={settled}
                       actions={actionsFor(row.item, row.section)}
+                      decided={held.some((kept) => activityKey(kept) === row.key)}
                     />
                   )}
                 </Animated.View>
