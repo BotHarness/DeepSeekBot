@@ -57,6 +57,8 @@ export const zh = {
   'pairing.privateRoleApproval':
     '批准一次和拒绝适用于现有私聊执行审批；审核聊天配对适用于配对卡片，并受独立委派范围限制。原生问题与执行审批的群目的地由独立功能提供。行为文字不授予管理能力。',
   'pairing.restricted': 'Lark 聊天与 Slack、Discord 私聊请求必须经过配对',
+  'pairing.restrictedHelp':
+    '开启后，未配对的人发来的消息不会唤醒 Bot，只会生成配对申请等你审核。默认关闭。',
   'pairing.policyLimit':
     '行为权限是模型的 prompt 策略，不隔离邮件、代码或 Shell 资源。群回复对全群可见；聊天资格与管理权限独立。',
   'pairing.conversationAccess': '普通聊天配对申请',
@@ -381,6 +383,8 @@ export const en = {
   'pairing.privateRoleApproval':
     'Allow once and Reject apply to existing private execution approvals. Review chat pairing applies to pairing cards with a separate delegation ceiling. Group destinations for native questions and execution approvals are separate. Behavior text does not grant management capabilities.',
   'pairing.restricted': 'Require pairing for Lark conversations and Slack or Discord DMs',
+  'pairing.restrictedHelp':
+    'When on, a message from someone who is not paired does not wake the Bot; it only creates a pairing request for you to review. Off by default.',
   'pairing.policyLimit':
     'Behavior permissions are prompt policies; they do not isolate email, code or Shell resources. Group replies are visible to the group. Chat eligibility and management powers are independent.',
   'pairing.conversationAccess': 'Conversation pairing request',
