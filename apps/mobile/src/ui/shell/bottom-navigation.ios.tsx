@@ -14,7 +14,7 @@ import { useActivityCount } from '../../host/native-activity-count';
 import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import { useDesignTheme } from '../design/theme';
 import { navigationBar, space } from '../design/tokens';
-import { useTabOrder } from '../interface-preferences';
+import { useSessionsTab, useTabOrder } from '../interface-preferences';
 import { badgeCount } from '../primitives/badge-count';
 import { useStrings } from '../strings';
 import { ActivitySheetRoot } from './activity-sheet-root';
@@ -25,7 +25,7 @@ import { useQuickActionRouting } from './quick-action-routing';
 import { sessionsStack } from './sessions-stack';
 import { TabChromeContext, useChromeHidden } from './tab-chrome';
 import type { TabMenuEntry } from './tab-menu-model';
-import { tabRoute, type TabRoute } from './tab-slots';
+import { tabRoute, visibleTabs, type TabRoute } from './tab-slots';
 import { menuSymbols, pinnedSymbols, tabSymbols } from './tab-symbols';
 import { useTabMenus, type TabMenuRoute } from './use-tab-menus';
 import { WorkspacePager } from './workspace-pager';
@@ -50,7 +50,8 @@ function NativeNavigation() {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const order = useTabOrder();
+  const sessionsTab = useSessionsTab();
+  const order = visibleTabs(useTabOrder(), sessionsTab);
   const pinned = usePinnedTab();
   const pending = useActivityCount().count ?? 0;
   const hidden = useSharedValue(0);
@@ -65,6 +66,7 @@ function NativeNavigation() {
   const focusedNow = useRef(focusedRoute);
   focusedNow.current = focusedRoute;
   const { menus, load: loadMenus } = useTabMenus({
+    sessionsTab,
     focusedRoute,
     go: (name) => {
       if (focusedNow.current !== name) router.navigate(tabHrefs[name]);

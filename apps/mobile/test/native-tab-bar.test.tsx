@@ -110,6 +110,7 @@ vi.mock('../src/ui/shell/activity-sheet-root', () => ({
   ActivitySheetRoot: ({ children }: { children: ReactNode }) => children,
 }));
 import { BottomNavigation } from '../src/ui/shell/bottom-navigation.ios';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -118,6 +119,7 @@ afterEach(() => {
   fixture.icons = undefined;
   fixture.drawerOpen = false;
   fixture.menus = {};
+  interfacePreferences.setSessionsTab(false);
 });
 
 it('renders five icon-only native tabs with the Pinned avatar right of Chats and </> for Sessions', async () => {
@@ -128,6 +130,7 @@ it('renders five icon-only native tabs with the Pinned avatar right of Chats and
     conversation: undefined,
   };
   fixture.icons = { default: {}, selected: {} };
+  interfacePreferences.setSessionsTab(true);
   const host = document.createElement('div');
   const root = createRoot(host);
   try {
@@ -176,6 +179,7 @@ it('shows a pin glyph until the avatar is captured and hides the bar under the S
 });
 
 it('passes each tab menu to the native long-press module and runs the chosen row', async () => {
+  interfacePreferences.setSessionsTab(true);
   const run = vi.fn();
   fixture.menus = {
     '(home)': [
@@ -202,6 +206,19 @@ it('passes each tab menu to the native long-press module and runs the chosen row
     expect(fixture.specs[1]).toMatchObject({ name: t.pinnedTab.title, recent: [], actions: [] });
     fixture.select?.('(home)', 'h:channel:launch');
     expect(run).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+  }
+});
+
+it('leaves Sessions out of the native tabs and their menus while the switch is off', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<BottomNavigation />));
+    const names = [...host.querySelectorAll('li')].map((tab) => tab.getAttribute('data-name'));
+    expect(names).toEqual(['(home)', '(pinned)', '(activity)', '(settings)']);
+    expect(fixture.specs.map((spec) => spec.tab)).toEqual(names);
   } finally {
     act(() => root.unmount());
   }
