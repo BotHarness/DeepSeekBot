@@ -151,15 +151,28 @@ describe('platform people', () => {
     expect(chatSenderIdentity(event('slack', 'U123', { kind: 'group', id: 'C123' }))).toBe(
       undefined,
     );
-    expect(chatSenderIdentity(event('discord', '123', { kind: 'dm', id: '456' }))).toBe(undefined);
+    expect(
+      chatSenderIdentity(event('discord', '123456789', { kind: 'dm', id: '987654321' })),
+    ).toEqual({ providerId: 'dsh-im/discord', namespace: 'discord-user-id' });
+    expect(
+      chatSenderIdentity(event('discord', '123456789', { kind: 'group', id: '987654321' })),
+    ).toBe(undefined);
+    expect(chatSenderIdentity(event('discord', 'bot', { kind: 'dm', id: '987654321' }))).toBe(
+      undefined,
+    );
   });
 
   it('keeps Roles and management pairing to platforms that declare them', () => {
     expect(messagingPlatformIds.filter((id) => platformPeople(id)?.management)).toEqual([
       'feishu',
       'slack',
+      'discord',
     ]);
     expect(messagingPlatformIds.filter((id) => platformPeople(id)?.roles)).toEqual(['feishu']);
-    expect(messagingPlatformIds.filter((id) => platformPeople(id))).toEqual(['feishu', 'slack']);
+    expect(messagingPlatformIds.filter((id) => platformPeople(id))).toEqual([
+      'feishu',
+      'slack',
+      'discord',
+    ]);
   });
 });
