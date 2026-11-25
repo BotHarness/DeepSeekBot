@@ -23,7 +23,11 @@ describe('Host call owner', () => {
           await h.calls.handle({ deviceId: 'other-private-device' }, { kind: 'heartbeat', callId }),
         ).toMatchObject({ ok: false, code: 'call-not-found' });
         expect(
-          await h.calls.handle(h.phone, { kind: 'heartbeat', callId, after: -1 }),
+          await h.calls.handle(h.phone, {
+            kind: 'heartbeat',
+            callId,
+            after: -1,
+          }),
         ).toMatchObject({ ok: false, code: 'invalid-input' });
         expect(capture.snapshot().rows).toHaveLength(0);
         expect((await h.ok({ kind: 'heartbeat', callId })).call?.phase).toBe('listening');
@@ -80,7 +84,10 @@ describe('Host call owner', () => {
       });
       const callId = await connected(h);
       fail = true;
-      const result = await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
+      const result = await h.calls.handle(h.phone, {
+        kind: 'heartbeat',
+        callId,
+      });
       fail = false;
       expect(result).toMatchObject({ ok: false });
       const { rows } = capture.snapshot();
@@ -96,7 +103,10 @@ describe('Host call owner', () => {
       expect(JSON.stringify(rows)).not.toContain('private-owner-failure');
       vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', '');
       fail = true;
-      const withoutDiagnostics = await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
+      const withoutDiagnostics = await h.calls.handle(h.phone, {
+        kind: 'heartbeat',
+        callId,
+      });
       fail = false;
       expect(withoutDiagnostics).toEqual(result);
       expect(capture.snapshot().rows).toHaveLength(2);
@@ -113,7 +123,10 @@ describe('Host call owner', () => {
     const h = harness({ media });
     const callId = await connected(h);
     await h.calls.revoke(h.phone.deviceId!);
-    expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
+    expect(await view(h, callId)).toMatchObject({
+      phase: 'ended',
+      endReason: 'connection-lost',
+    });
     expect(state.closed).toBe(1);
   });
 
@@ -126,11 +139,13 @@ describe('Host call owner', () => {
     expect(h.sent).toHaveLength(1);
     h.advance(9_000);
     await new Promise((resolve) => setTimeout(resolve, 2_200));
-    const ended = (await h.calls.handle(h.phone, { kind: 'status' })) as Extract<
-      VoiceCallResult,
-      { ok: true }
-    >;
-    expect(ended.calls?.[0]).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
+    const ended = (await h.calls.handle(h.phone, {
+      kind: 'status',
+    })) as Extract<VoiceCallResult, { ok: true }>;
+    expect(ended.calls?.[0]).toMatchObject({
+      phase: 'ended',
+      endReason: 'connection-lost',
+    });
     expect(state.closed).toBe(1);
     expect(h.sent).toHaveLength(1);
   });
@@ -163,7 +178,10 @@ describe('Host call owner', () => {
     state.stats = { ...alive, receivedAgeMs: 9_500 };
     h.advance(9_000);
     await new Promise((resolve) => setTimeout(resolve, 2_200));
-    expect(await status()).toMatchObject({ phase: 'ended', endReason: 'connection-lost' });
+    expect(await status()).toMatchObject({
+      phase: 'ended',
+      endReason: 'connection-lost',
+    });
     expect(state.closed).toBe(1);
   });
 
@@ -175,10 +193,9 @@ describe('Host call owner', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_100));
     await h.calls.handle(h.phone, { kind: 'heartbeat', callId });
     await new Promise((resolve) => setTimeout(resolve, 1_100));
-    const status = (await h.calls.handle(h.phone, { kind: 'status' })) as Extract<
-      VoiceCallResult,
-      { ok: true }
-    >;
+    const status = (await h.calls.handle(h.phone, {
+      kind: 'status',
+    })) as Extract<VoiceCallResult, { ok: true }>;
     expect(status.calls?.[0]).toMatchObject({ callId });
     expect(status.calls?.[0]?.phase).not.toBe('ended');
   });
@@ -236,7 +253,10 @@ describe('Host call owner', () => {
     const callId = await connected(h);
     state.onStatus!('failed');
     await settled();
-    expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'media-failed' });
+    expect(await view(h, callId)).toMatchObject({
+      phase: 'ended',
+      endReason: 'media-failed',
+    });
   });
 
   it('explains what is missing before a call can start', async () => {
@@ -263,7 +283,10 @@ describe('Host call owner', () => {
         async transcribe() {
           return { text: '', latencyMs: 1 };
         },
-        synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+        synthesize: async () => ({
+          audio: new Uint8Array(),
+          mime: 'audio/mpeg',
+        }),
       },
     });
     expect((await off.ok({ kind: 'readiness', slug: 'mira' })).readiness).toMatchObject({
@@ -297,7 +320,10 @@ describe('Host call owner', () => {
     const call = (await h.ok({ kind: 'readiness', slug: 'mira' })).readiness!;
     const dictation = await dictations.readiness({ slug: 'mira' });
     expect(call).toMatchObject({ ready: false, missing: ['local-voice-off'] });
-    expect(dictation).toMatchObject({ ready: false, reason: 'local-voice-off' });
+    expect(dictation).toMatchObject({
+      ready: false,
+      reason: 'local-voice-off',
+    });
   });
 
   it('allows one call per Host: another device is refused, the same device replaces it', async () => {
@@ -312,14 +338,57 @@ describe('Host call owner', () => {
     ).toMatchObject({ ok: false, code: 'call-not-found' });
     const second = await h.ok({ kind: 'open', slug: 'mira' });
     expect(second.call!.callId).not.toBe(first);
-    expect(await view(h, first)).toMatchObject({ phase: 'ended', endReason: 'replaced' });
+    expect(await view(h, first)).toMatchObject({
+      phase: 'ended',
+      endReason: 'replaced',
+    });
+  });
+
+  it('allows one call per Bot and three per Host', async () => {
+    const { media } = fakeMedia();
+    const voice = {
+      asr: { providerId: 'asr-000000000001', language: 'zh' },
+      voice: { providerId: 'tts-000000000001' },
+    };
+    const others = ['kai', 'lin', 'noa'].map((slug) => ({ slug, ...voice }));
+    const h = harness({ media, others });
+    const tablet = { deviceId: 'tablet' };
+    const laptop = { deviceId: 'laptop' };
+    const watch = { deviceId: 'watch' };
+    const mira = await connected(h);
+    const kai = (await h.ok({ kind: 'open', slug: 'kai' }, tablet)).call!.callId;
+    expect(await h.calls.handle(laptop, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.ok({ kind: 'readiness', slug: 'kai' }, laptop)).toMatchObject({
+      readiness: { ready: true, callElsewhere: true, activeCallId: null },
+    });
+    await h.ok({ kind: 'open', slug: 'lin' }, laptop);
+    expect(await h.ok({ kind: 'readiness', slug: 'noa' }, watch)).toMatchObject({
+      readiness: { ready: false, missing: ['calls-full'] },
+    });
+    expect(await h.calls.handle(watch, { kind: 'open', slug: 'noa' })).toMatchObject({
+      ok: false,
+      code: 'calls-full',
+    });
+    const moved = await h.ok({ kind: 'open', slug: 'noa' }, tablet);
+    expect(moved.call!.callId).not.toBe(kai);
+    expect((await h.ok({ kind: 'heartbeat', callId: kai }, tablet)).call).toMatchObject({
+      phase: 'ended',
+      endReason: 'replaced',
+    });
+    expect(await view(h, mira)).toMatchObject({ phase: 'listening' });
   });
 
   it('treats each desktop window as its own caller and refuses the second one', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });
     const mac = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' };
-    const other = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-win-0002' };
+    const other = {
+      deviceId: VOICE_CALL_HOST_OWNER,
+      client: 'window-win-0002',
+    };
     const opened = await h.ok({ kind: 'open', slug: 'mira' }, mac);
     const callId = opened.call!.callId;
     expect(await h.calls.handle(other, { kind: 'readiness', slug: 'mira' })).toMatchObject({
@@ -376,7 +445,10 @@ describe('Host call owner', () => {
     }));
     const post = (body: unknown) =>
       route(
-        new Request('http://host/api/voice/call', { method: 'POST', body: JSON.stringify(body) }),
+        new Request('http://host/api/voice/call', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
       );
     await post({ kind: 'status', client: 'window-mac-0001' });
     await post({ kind: 'status', client: 'bad id!' });
@@ -405,6 +477,9 @@ describe('Host call owner', () => {
       code: 'call-not-found',
     });
     expect(await h.calls.handle(owner, { kind: 'hangup', callId })).toMatchObject({ ok: true });
-    expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'hangup' });
+    expect(await view(h, callId)).toMatchObject({
+      phase: 'ended',
+      endReason: 'hangup',
+    });
   });
 });

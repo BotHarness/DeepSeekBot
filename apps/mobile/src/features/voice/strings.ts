@@ -115,9 +115,10 @@ export const en = {
       'media-unavailable': 'The computer can’t start a call right now. Try again soon.',
       'local-voice-off':
         'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
+      'calls-full': 'This computer already has 3 calls. End one first.',
     },
     connectOnly: 'Calls need the same Wi-Fi as the computer, or Tailscale.',
-    busyElsewhere: 'Another device is on a call with this computer.',
+    busyElsewhere: 'This Bot is already on another call.',
     unreachable: 'Can’t reach the computer. Check that it’s on and try again.',
     noMicrophone: `Turn on Microphone for ${productName.en} in Settings to call.`,
     microphoneNeeded: 'Calls need the microphone.',
@@ -203,7 +204,12 @@ export const en = {
       headers: 'Extra headers (JSON)',
       headersHint: 'Headers without secrets only, such as {"Accept": "audio/mpeg"}.',
       body: 'Body',
-      bodyKinds: { json: 'JSON', ssml: 'SSML', multipart: 'Multipart', none: 'None' },
+      bodyKinds: {
+        json: 'JSON',
+        ssml: 'SSML',
+        multipart: 'Multipart',
+        none: 'None',
+      },
       bodyText: 'Body template (JSON)',
       bodyHint: {
         json: (list: string) => `Placeholders: ${list}`,
@@ -367,9 +373,10 @@ export const zh: typeof en = {
       'media-unavailable': '电脑现在无法开始通话，请稍后再试。',
       'local-voice-off':
         '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
+      'calls-full': '这台电脑已经有 3 通通话了，先结束一通再打。',
     },
     connectOnly: '通话需要和电脑在同一 Wi-Fi，或使用 Tailscale。',
-    busyElsewhere: '另一台设备正在和这台电脑通话。',
+    busyElsewhere: '这个 Bot 正在另一通通话里。',
     unreachable: '连不上电脑。请确认电脑开着，再试一次。',
     noMicrophone: `请在设置里允许 ${productName.zh} 使用麦克风后再通话。`,
     microphoneNeeded: '通话需要使用麦克风。',
@@ -454,7 +461,12 @@ export const zh: typeof en = {
       headers: '额外请求头（JSON）',
       headersHint: '只放不含密钥的请求头，例如 {"Accept": "audio/mpeg"}。',
       body: '请求体',
-      bodyKinds: { json: 'JSON', ssml: 'SSML', multipart: 'Multipart', none: '无' },
+      bodyKinds: {
+        json: 'JSON',
+        ssml: 'SSML',
+        multipart: 'Multipart',
+        none: '无',
+      },
       bodyText: '请求体模板（JSON）',
       bodyHint: {
         json: (list: string) => `占位符：${list}`,

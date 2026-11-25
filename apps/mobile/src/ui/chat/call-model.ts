@@ -42,6 +42,8 @@ function noticeText(t: Strings, notice: CallNotice): string {
       return t.call.missing['bot'];
     case 'missing.local-voice-off':
       return t.call.missing['local-voice-off'];
+    case 'missing.calls-full':
+      return t.call.missing['calls-full'];
     case 'missing.media-helper-missing':
       return t.call.missing['media-helper-missing'];
     case 'missing.media-unavailable':
@@ -96,7 +98,12 @@ export function callScreenModel(
     };
   const view = callLiveView(state, options.now === undefined ? {} : { now: options.now });
   if (view === undefined || state.status !== 'live')
-    return { status: t.call.connecting, live: false, muted: false, retry: false };
+    return {
+      status: t.call.connecting,
+      live: false,
+      muted: false,
+      retry: false,
+    };
   const hint =
     options.interrupted === true
       ? t.call.interrupted
@@ -178,7 +185,11 @@ export type CallBubbleModel = {
 
 export function callBubbleModel(
   t: Strings,
-  input: { state: CallClientState; interrupted: boolean; startedAt?: number | undefined },
+  input: {
+    state: CallClientState;
+    interrupted: boolean;
+    startedAt?: number | undefined;
+  },
   now: number,
 ): CallBubbleModel {
   const { state, interrupted } = input;
@@ -197,5 +208,10 @@ export function callBubbleModel(
         : phase;
   const status =
     tone === 'paused' ? t.call.paused : callScreenModel(t, state, { interrupted }).status;
-  return { tone, status, muted, ...(duration === undefined ? {} : { duration }) };
+  return {
+    tone,
+    status,
+    muted,
+    ...(duration === undefined ? {} : { duration }),
+  };
 }

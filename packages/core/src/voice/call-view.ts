@@ -56,6 +56,7 @@ export const CALL_NOTICES = [
   'missing.media-helper-missing',
   'missing.media-unavailable',
   'missing.local-voice-off',
+  'missing.calls-full',
   'elsewhere',
   'unreachable',
   'connect-only',
@@ -145,7 +146,13 @@ export function callLiveView(
     durationMs: connected ? call.durationMs : 0,
     heard: heardText(events, hostNow),
   };
-  if (reconnecting) return { ...base, activity: 'reconnecting', hint: undefined, tone: 'warning' };
+  if (reconnecting)
+    return {
+      ...base,
+      activity: 'reconnecting',
+      hint: undefined,
+      tone: 'warning',
+    };
   if (!connected) return { ...base, activity: 'connecting', hint: undefined, tone: 'live' };
   const activity: CallActivity =
     call.phase === 'user-speaking'
@@ -161,7 +168,12 @@ export function callLiveView(
     return { ...base, activity, hint: 'busy', tone: 'busy' };
   const problem = call.phase === 'listening' ? recentProblem(events, hostNow) : undefined;
   if (problem !== undefined) return { ...base, activity, hint: problem, tone: 'warning' };
-  return { ...base, activity, hint: undefined, tone: activity === 'muted' ? 'muted' : 'live' };
+  return {
+    ...base,
+    activity,
+    hint: undefined,
+    tone: activity === 'muted' ? 'muted' : 'live',
+  };
 }
 
 export function callRefusalNotice(code: string | undefined): CallNotice {
@@ -187,6 +199,8 @@ export function callRefusalNotice(code: string | undefined): CallNotice {
       return 'missing.media-unavailable';
     case 'call-active':
       return 'elsewhere';
+    case 'calls-full':
+      return 'missing.calls-full';
     case 'unreachable':
       return 'unreachable';
     case undefined:
@@ -224,7 +238,12 @@ export function callReadinessVerdict(readiness: CallReadinessAnswer): CallReadin
       notices: readiness.missing.map((missing) => `missing.${missing}` as const),
     };
   if (readiness.callElsewhere)
-    return { dial: false, offered: true, blocked: 'elsewhere', notices: ['elsewhere'] };
+    return {
+      dial: false,
+      offered: true,
+      blocked: 'elsewhere',
+      notices: ['elsewhere'],
+    };
   return { dial: true, offered: true, blocked: undefined, notices: [] };
 }
 

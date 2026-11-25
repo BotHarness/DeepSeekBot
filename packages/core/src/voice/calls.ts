@@ -70,11 +70,16 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   });
   let disposed = false;
 
-  const live = (): Call | undefined => [...calls.values()].find((call) => call.phase !== 'ended');
+  const openCalls = (): Call[] => [...calls.values()].filter((call) => call.phase !== 'ended');
+  const live = (slug: string): Call | undefined => openCalls().find((call) => call.slug === slug);
 
   const push = (call: Call, event: EventInput) => {
     call.seq += 1;
-    call.events.push({ ...event, seq: call.seq, at: now() - call.startedAt } as VoiceCallEvent);
+    call.events.push({
+      ...event,
+      seq: call.seq,
+      at: now() - call.startedAt,
+    } as VoiceCallEvent);
     if (call.events.length > VOICE_CALL_LIMITS.events) call.events.shift();
   };
 
@@ -163,7 +168,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
     call.warmed = undefined;
     push(call, { type: 'ended', reason });
-    log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
+    log('call-ended', {
+      call: call.id,
+      bot: call.slug,
+      reason,
+      ms: call.endedAt - call.startedAt,
+    });
     recordEnd(call, reason);
     const perf = call.perf.view();
     if (perf === undefined && call.connected && call.peer?.stats !== undefined)
@@ -189,8 +199,16 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (calls.get(call.id) === call) calls.delete(call.id);
     }, 60_000).unref?.();
   };
-  const { iso, recordStart, recordShare, recordEnd } = createCallRecording({ deps, log, now });
-  const { dropStream, recognize, segment, startStream } = createCallTranscript({ deps, now, push });
+  const { iso, recordStart, recordShare, recordEnd } = createCallRecording({
+    deps,
+    log,
+    now,
+  });
+  const { dropStream, recognize, segment, startStream } = createCallTranscript({
+    deps,
+    now,
+    push,
+  });
   const { text, transcribe } = createCallText({
     now,
     get prune() {
@@ -217,7 +235,17 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     },
   });
   const { setGain, talking, suspect, confirm, dismiss, prune, onDraft, speak, speechRange } =
-    createCallPlayback({ deps, push, now, barge, settle, log, live, visualBase });
+    createCallPlayback({
+      deps,
+      push,
+      now,
+      barge,
+      settle,
+      log,
+      live,
+      openCalls,
+      visualBase,
+    });
 
   const hear = (call: Call, samples: Int16Array) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
@@ -333,6 +361,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const commands = createCallCommands({
     deps,
     live,
+    openCalls,
     calls,
     end,
     barge,
@@ -373,10 +402,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     },
     async dispose() {
       disposed = true;
-      const open = [...calls.values()];
-      await Promise.all(open.map((call) => end(call, 'host-stopped')));
+      const all = [...calls.values()];
+      await Promise.all(all.map((call) => end(call, 'host-stopped')));
       await Promise.race([
-        Promise.all(open.map((call) => call.recorded)),
+        Promise.all(all.map((call) => call.recorded)),
         new Promise((resolve) => setTimeout(resolve, 2_000).unref?.()),
       ]);
       calls.clear();

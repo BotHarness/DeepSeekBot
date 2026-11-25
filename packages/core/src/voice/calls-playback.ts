@@ -36,6 +36,7 @@ export function createCallPlayback({
   settle,
   log,
   live,
+  openCalls,
   visualBase,
 }: {
   deps: VoiceCallsDeps;
@@ -44,7 +45,8 @@ export function createCallPlayback({
   barge: VoiceCallBargeIn;
   settle: (call: Call) => void;
   log: NonNullable<VoiceCallsDeps['log']>;
-  live: () => Call | undefined;
+  live: (slug: string) => Call | undefined;
+  openCalls: () => readonly Call[];
   visualBase: (call: Call) => number;
 }) {
   const synthesize = (call: Call, text: string, signal: AbortSignal): Promise<AudioClip> => {
@@ -160,7 +162,11 @@ export function createCallPlayback({
       call.interrupted.push(reply);
       if (call.interrupted.length > 8) call.interrupted.shift();
     }
-    push(call, { type: 'reply-stopped', replyId: reply.id, reason: 'interrupted' });
+    push(call, {
+      type: 'reply-stopped',
+      replyId: reply.id,
+      reason: 'interrupted',
+    });
   };
 
   const confirm = (call: Call, by: 'duration' | 'words') => {
@@ -171,7 +177,11 @@ export function createCallPlayback({
     const stopped = [...call.replies];
     for (const reply of stopped) interrupt(call, reply);
     setGain(call, 1);
-    push(call, { type: 'barge-in', by, replyIds: stopped.map((reply) => reply.id) });
+    push(call, {
+      type: 'barge-in',
+      by,
+      replyIds: stopped.map((reply) => reply.id),
+    });
     log('call-barge-in', { call: call.id, by, replies: stopped.length });
     settle(call);
   };
@@ -320,7 +330,11 @@ export function createCallPlayback({
   };
 
   const onDraft = (event: ChannelDraftEvent) => {
-    const call = live();
+    const channelId =
+      event.type === 'settled' || event.type === 'abandoned'
+        ? event.channelId
+        : event.draft.channelId;
+    const call = openCalls().find((item) => item.channelId === channelId);
     if (call === undefined || !call.connected) return;
     if (event.type === 'settled') {
       const draftId = event.draftId;
@@ -390,7 +404,7 @@ export function createCallPlayback({
     body: string;
     signal?: AbortSignal | undefined;
   }): Promise<CallSpeech | undefined> => {
-    const call = live();
+    const call = live(input.slug);
     if (
       call === undefined ||
       !call.connected ||
@@ -487,5 +501,15 @@ export function createCallPlayback({
     return { fromMs: Math.max(0, toMs - (endMs - startMs)), toMs };
   };
 
-  return { setGain, talking, suspect, confirm, dismiss, prune, onDraft, speak, speechRange };
+  return {
+    setGain,
+    talking,
+    suspect,
+    confirm,
+    dismiss,
+    prune,
+    onDraft,
+    speak,
+    speechRange,
+  };
 }

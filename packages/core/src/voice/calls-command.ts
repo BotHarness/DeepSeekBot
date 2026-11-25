@@ -101,7 +101,8 @@ function syntheticPeer(): VoiceCallMediaPeer {
 
 export function createCallCommands(wiring: {
   deps: VoiceCallsDeps;
-  live: () => Call | undefined;
+  live: (slug: string) => Call | undefined;
+  openCalls: () => readonly Call[];
   calls: Map<string, Call>;
   end: (call: Call, reason: VoiceCallEndReason) => Promise<void>;
   barge: VoiceCallBargeIn;
@@ -132,6 +133,7 @@ export function createCallCommands(wiring: {
   const {
     deps,
     live,
+    openCalls,
     calls,
     end,
     barge,
@@ -178,7 +180,14 @@ export function createCallCommands(wiring: {
     if (availability === 'unsupported-platform') missing.push('media-unsupported');
     else if (availability === 'helper-missing') missing.push('media-helper-missing');
     else if (availability === 'unavailable') missing.push('media-unavailable');
-    const active = live();
+    const active = live(slug);
+    const mine = openCalls().find((call) => sameCaller(call, caller));
+    if (
+      active === undefined &&
+      mine === undefined &&
+      openCalls().length >= VOICE_CALL_LIMITS.maxCalls
+    )
+      missing.push('calls-full');
     return {
       slug,
       ready: missing.length === 0,
@@ -228,7 +237,7 @@ export function createCallCommands(wiring: {
         'Bind a TTS Provider to this Bot before calling it.',
       );
     const media = kind === 'webrtc' ? deps.media() : undefined;
-    if (kind === 'webrtc' && (media === undefined || live() !== undefined)) {
+    if (kind === 'webrtc' && (media === undefined || live(slug) !== undefined)) {
       const availability =
         media === undefined ? 'unsupported-platform' : await media.availability(signal);
       signal.throwIfAborted();
@@ -243,12 +252,16 @@ export function createCallCommands(wiring: {
           'Start Local Computer once on this Host to install its media helper, then call again.',
         );
     }
-    const active = live();
-    if (active !== undefined) {
-      if (!sameCaller(active, caller))
-        throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
-      await end(active, 'replaced');
-    }
+    const active = live(slug);
+    if (active !== undefined && !sameCaller(active, caller))
+      throw new CallRefusal('call-active', 'This Bot is already on a call.');
+    const mine = openCalls().find((call) => sameCaller(call, caller));
+    if (mine === undefined && openCalls().length >= VOICE_CALL_LIMITS.maxCalls)
+      throw new CallRefusal(
+        'calls-full',
+        `This Host already has ${VOICE_CALL_LIMITS.maxCalls} calls. End one first.`,
+      );
+    if (mine !== undefined) await end(mine, 'replaced');
     signal.throwIfAborted();
     const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
     const call: Call = {
@@ -386,9 +399,13 @@ export function createCallCommands(wiring: {
         reject(
           cancellation.signal.reason instanceof Error
             ? cancellation.signal.reason
-            : new Error('Voice call cancelled', { cause: cancellation.signal.reason }),
+            : new Error('Voice call cancelled', {
+                cause: cancellation.signal.reason,
+              }),
         );
-      cancellation.signal.addEventListener('abort', rejectCancelled, { once: true });
+      cancellation.signal.addEventListener('abort', rejectCancelled, {
+        once: true,
+      });
       if (cancellation.signal.aborted) rejectCancelled();
     });
     try {
@@ -412,7 +429,10 @@ export function createCallCommands(wiring: {
     const command = record(raw) as Partial<VoiceCallCommand> & Record<string, unknown>;
     switch (command.kind) {
       case 'readiness':
-        return { ok: true, readiness: await readiness(caller, slugOf(command['slug'])) };
+        return {
+          ok: true,
+          readiness: await readiness(caller, slugOf(command['slug'])),
+        };
       case 'status':
         return {
           ok: true,
@@ -427,7 +447,10 @@ export function createCallCommands(wiring: {
         const media = command['media'] ?? 'webrtc';
         if (media !== 'webrtc' && media !== 'synthetic')
           throw new CallRefusal('invalid-input', 'media must be webrtc or synthetic.');
-        return { ok: true, call: view(await open(caller, slugOf(command['slug']), media, signal)) };
+        return {
+          ok: true,
+          call: view(await open(caller, slugOf(command['slug']), media, signal)),
+        };
       }
       case 'signal': {
         const call = own(caller, command['callId']);
@@ -520,7 +543,10 @@ export function createCallCommands(wiring: {
         const before = call.seq;
         call.lastHeartbeat = now();
         hear(call, callPcm(pcm));
-        return { ok: true, call: view(call, (after as number | undefined) ?? before) };
+        return {
+          ok: true,
+          call: view(call, (after as number | undefined) ?? before),
+        };
       }
       case 'visual': {
         const call = own(caller, command['callId']);
@@ -623,7 +649,10 @@ export function createCallCommands(wiring: {
           reportDropped(call, source, dropped);
           harvest(call);
         }
-        return { ok: true, call: view(call, (after as number | undefined) ?? before) };
+        return {
+          ok: true,
+          call: view(call, (after as number | undefined) ?? before),
+        };
       }
       case 'hangup': {
         const call = own(caller, command['callId'], true);

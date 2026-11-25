@@ -202,7 +202,10 @@ export function createDesktopCall(
       if (!verdict.dial) {
         set({
           checking: false,
-          block: { kind: verdict.blocked ?? 'refused', notices: verdict.notices },
+          block: {
+            kind: verdict.blocked ?? 'refused',
+            notices: verdict.notices,
+          },
         });
         return;
       }
@@ -216,7 +219,10 @@ export function createDesktopCall(
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
           desktopCapture(
-            makeCapture(source, { onKeyframe: events.keyframe, onEnded: events.ended }),
+            makeCapture(source, {
+              onKeyframe: events.keyframe,
+              onEnded: events.ended,
+            }),
           ),
         onChange: (state) => {
           if (session !== owned) return;
@@ -247,7 +253,11 @@ export function createDesktopCall(
     },
     async hangup(options) {
       await session?.hangup(options);
-      set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
+      set({
+        block: undefined,
+        state: { status: 'idle' },
+        visual: DESKTOP_CALL_VISUAL_OFF,
+      });
     },
     dismiss() {
       if (active()) return;
@@ -327,6 +337,7 @@ export type DesktopCallNoticeKey =
   | 'call.missing.mediaHelper'
   | 'call.missing.mediaUnavailable'
   | 'call.missing.localVoiceOff'
+  | 'call.missing.callsFull'
   | 'call.elsewhere'
   | 'call.unreachable'
   | 'call.connectOnly'
@@ -348,6 +359,7 @@ const NOTICE: Record<CallNotice, DesktopCallNoticeKey> = {
   'missing.media-helper-missing': 'call.missing.mediaHelper',
   'missing.media-unavailable': 'call.missing.mediaUnavailable',
   'missing.local-voice-off': 'call.missing.localVoiceOff',
+  'missing.calls-full': 'call.missing.callsFull',
   elsewhere: 'call.elsewhere',
   unreachable: 'call.unreachable',
   'connect-only': 'call.connectOnly',

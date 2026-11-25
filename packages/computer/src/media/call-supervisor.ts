@@ -7,7 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { VoiceCallMedia, VoiceCallMediaPeer } from '../../../core/src/voice/calls.js';
-import { VoiceCallMediaError as CallMediaError } from '../../../core/src/voice/call-contract.js';
+import {
+  VOICE_CALL_LIMITS,
+  VoiceCallMediaError as CallMediaError,
+} from '../../../core/src/voice/call-contract.js';
 import type { VoiceCallDescription } from '../../../core/src/voice/call-contract.js';
 import { parseStats } from '../../../core/src/voice/call-perf.js';
 import {
@@ -39,11 +42,13 @@ export interface CallMediaOptions {
   readonly platform?: string | undefined;
   readonly arch?: string | undefined;
   readonly onEvent?: ((detail: string) => void) | undefined;
+  readonly maxPeers?: number | undefined;
 }
 
 export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia {
-  let active = false;
-  let activeState: (() => string) | undefined;
+  const maxPeers = options.maxPeers ?? VOICE_CALL_LIMITS.maxCalls;
+  const activeStates = new Set<() => string>();
+  let active = 0;
   const target = () => {
     const platform = options.platform ?? process.platform;
     const arch = options.arch ?? process.arch;
@@ -99,13 +104,15 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       const { mac, supported, directory, assets } = target();
       if (!supported)
         throw new CallMediaError('unsupported-platform', 'Calls need a Mac or Windows x64 Host.');
-      if (active) {
-        options.onEvent?.(
-          `call=${callId} phase=call-media-open-refused reason=busy ${activeState?.() ?? ''}`,
+      if (active >= maxPeers) {
+        const states = [...activeStates].map((state) => state()).join(' ');
+        options.onEvent?.(`call=${callId} phase=call-media-open-refused reason=busy ${states}`);
+        throw new CallMediaError(
+          'busy',
+          `This Host already has ${maxPeers} calls with media running.`,
         );
-        throw new CallMediaError('busy', 'This Host already has call media running.');
       }
-      active = true;
+      active += 1;
       const launchId = randomUUID();
       const started = Date.now();
       const event = (detail: string) => options.onEvent?.(`call=${callId} ${detail}`);
@@ -132,7 +139,11 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       >();
       const playbacks = new Map<string, { resolve(): void; reject(error: Error): void }>();
       let ready:
-        | { resolve(): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
+        | {
+            resolve(): void;
+            reject(error: Error): void;
+            timer: ReturnType<typeof setTimeout>;
+          }
         | undefined;
       let exitResolve: (() => void) | undefined;
       const exit = new Promise<void>((resolve) => {
@@ -200,13 +211,14 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
       let released = false;
       let cleanupRefused = false;
       let cleanupReason = 'missing-tree-proof';
-      activeState = () =>
+      const activeState = () =>
         `closed=${closed} exited=${exited} treeOwned=${treeOwned} treeStopped=${treeStopped}`;
+      activeStates.add(activeState);
       const release = () => {
         if (released || !closed || (child && !spawnFailed && !(exited && treeStopped))) return;
         released = true;
-        active = false;
-        activeState = undefined;
+        active -= 1;
+        activeStates.delete(activeState);
         if (profile) void rm(profile, { recursive: true, force: true }).catch(() => undefined);
         if (cleanupRefused)
           event(`phase=call-media-cleanup-recovered exited=${exited} treeStopped=${treeStopped}`);

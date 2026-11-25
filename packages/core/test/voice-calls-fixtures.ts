@@ -48,7 +48,10 @@ export function fakeMedia(
       state.onPcm = onPcm;
       state.onStatus = onStatus;
       return {
-        offer: { type: 'offer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n' },
+        offer: {
+          type: 'offer',
+          sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n',
+        },
         async answer(answer) {
           state.answers.push(answer.sdp);
           queueMicrotask(() => onStatus('connected'));
@@ -92,6 +95,7 @@ export function fakeMedia(
 export function harness(
   options: {
     bot?: VoiceCallBot | undefined;
+    others?: readonly VoiceCallBot[];
     providers?: VoiceCallsDeps['providers'];
     media?: VoiceCallMedia | undefined;
     busy?: () => boolean;
@@ -134,7 +138,8 @@ export function harness(
     },
   };
   const calls = createVoiceCalls({
-    bot: (slug) => (slug === bot?.slug ? bot : undefined),
+    bot: (slug) =>
+      slug === bot?.slug ? bot : options.others?.find((other) => other.slug === slug),
     providers,
     media: () => options.media,
     send:
@@ -146,7 +151,7 @@ export function harness(
     record:
       options.record ??
       (async ({ channelId, record }) => {
-        expect(channelId).toBe('dm-mira');
+        expect(channelId).toBe(`dm-${record.botSlug}`);
         records.push(record);
         log.push(`record:${record.state}`);
         return `voice-call-${record.state}-${record.callId}`;
@@ -202,7 +207,11 @@ export async function connected(h: ReturnType<typeof harness>) {
   const call = opened.call!;
   expect(call.phase).toBe('connecting');
   expect(call.offer?.sdp).toContain('m=audio');
-  await h.ok({ kind: 'signal', callId: call.callId, answer: { type: 'answer', sdp: 'v=0\r\n' } });
+  await h.ok({
+    kind: 'signal',
+    callId: call.callId,
+    answer: { type: 'answer', sdp: 'v=0\r\n' },
+  });
   await settled();
   return call.callId;
 }
