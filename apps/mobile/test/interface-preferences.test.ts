@@ -17,7 +17,6 @@ describe('phone interface preferences', () => {
     const restarted = createInterfacePreferences();
     await restarted.restore(storage);
     expect(restarted.getSnapshot().sessionSort).toBe('created');
-    expect(restarted.getSnapshot().sessionsTab).toBe(true);
   });
 
   it('remembers the Session navigation style and landing choices on the phone', async () => {
@@ -54,12 +53,20 @@ describe('phone interface preferences', () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
     const restore = preferences.restore({
-      read: async () => ({ appearance: 'light', sessionSort: 'last-activity', sessionsTab: true }),
+      read: async () => ({
+        appearance: 'light',
+        sessionSort: 'last-activity',
+        tabOrder: ['pinned', 'chats', 'activity', 'sessions', 'settings'],
+      }),
       write,
     });
     preferences.setAppearance('dark');
     await restore;
-    const expected = { appearance: 'dark', sessionSort: 'last-activity', sessionsTab: true };
+    const expected = {
+      appearance: 'dark',
+      sessionSort: 'last-activity',
+      tabOrder: ['pinned', 'chats', 'activity', 'sessions', 'settings'],
+    };
     expect(preferences.getSnapshot()).toMatchObject(expected);
     expect(write).toHaveBeenCalledWith(expect.objectContaining(expected));
   });
@@ -101,8 +108,8 @@ describe('phone interface preferences', () => {
     });
   });
 
-  it('keeps Sessions opt-in on existing installs and restores the switch', async () => {
-    let saved: unknown = { language: 'zh', appearance: 'dark' };
+  it('keeps the tab order on this phone with the Pinned tab right of Chats by default', async () => {
+    let saved: unknown = { language: 'zh', sessionsTab: false };
     const storage = {
       read: async () => saved,
       write: (value: unknown) => {
@@ -110,19 +117,21 @@ describe('phone interface preferences', () => {
       },
     };
     const preferences = createInterfacePreferences();
-    expect(preferences.getSnapshot().sessionsTab).toBe(false);
     await preferences.restore(storage);
-    expect(preferences.getSnapshot().sessionsTab).toBe(false);
-    preferences.setSessionsTab(true);
+    expect(preferences.getSnapshot().tabOrder).toEqual([
+      'chats',
+      'pinned',
+      'activity',
+      'sessions',
+      'settings',
+    ]);
+    preferences.setTabOrder(['settings', 'chats', 'pinned', 'activity', 'sessions']);
     const restarted = createInterfacePreferences();
     await restarted.restore(storage);
     expect(restarted.getSnapshot()).toMatchObject({
-      sessionsTab: true,
+      tabOrder: ['settings', 'chats', 'pinned', 'activity', 'sessions'],
       language: 'zh',
-      appearance: 'dark',
     });
-    restarted.setSessionsTab(false);
-    expect(restarted.getSnapshot().sessionsTab).toBe(false);
   });
 
   it('respects explicit language until follow system is selected again', async () => {
@@ -143,7 +152,7 @@ describe('phone interface preferences', () => {
       appearance: 'system',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
-      sessionsTab: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
       sessionNavigation: 'drawer',
@@ -212,7 +221,7 @@ describe('phone interface preferences', () => {
       appearance: 'dark',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
-      sessionsTab: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
       sessionNavigation: 'drawer',

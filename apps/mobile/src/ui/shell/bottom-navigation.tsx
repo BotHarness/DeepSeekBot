@@ -10,24 +10,28 @@ import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
 import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import { useDesignTheme } from '../design/theme';
-import { materialNavigationBar, navigationBar, space } from '../design/tokens';
+import { floatingToolbar, navigationBar, space } from '../design/tokens';
 import { NavigationDestinations } from './navigation-destinations';
 import {
   sessionDrawerProgress,
   useSessionDrawer,
 } from '../../features/sessions/session-drawer-state';
 import { landInSessionsTab } from '../../features/sessions/session-drawer-navigation';
+import { usePinnedTab, type PinnedTab } from '../../features/pinned-tab/use-pinned-tab';
 import { FloatingTabInset } from './floating-tab-inset';
 import { TabChromeContext, useChromeHidden, useTabChrome } from './tab-chrome';
-import { TabNamePill, tabSlotCenter } from './tab-name-pill';
+import { TabNamePill, tabSlotCenter, type TabSlots } from './tab-name-pill';
 import { tabTransition } from './tab-transition';
-import { navigationLabel } from './navigation-label';
+import { navigationAccessibilityLabel, navigationLabel } from './navigation-label';
+import { openTabMenu } from './tab-menu-sheet';
 import { useTabMenus, type TabMenuRoute } from './use-tab-menus';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
-import { useSessionsTab } from '../interface-preferences';
+import { useTabOrder } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';
+import { sessionsStack } from './sessions-stack';
+import { tabRoute, tabSlotOf, type TabSlot } from './tab-slots';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -43,21 +47,31 @@ export function BottomNavigation() {
 
 function NavigationLayout() {
   const t = useStrings();
-  const sessionsTab = useSessionsTab();
+  const order = useTabOrder();
+  const pinned = usePinnedTab();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const reduced = useSystemReducedMotion();
   const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
   const size = android
-    ? (nativeHeight ?? materialNavigationBar.height + insets.bottom)
+    ? (nativeHeight ?? floatingToolbar.height + floatingToolbar.shadowRoom * 2)
     : navigationBar.height;
-  const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
+  const bottom = android
+    ? insets.bottom + floatingToolbar.offset - floatingToolbar.shadowRoom
+    : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const hidden = useSharedValue(0);
   const chrome = useMemo(() => ({ hidden, islandTop: size + bottom }), [hidden, size, bottom]);
   const quickActions = useQuickActionRouting();
   const profileSetup = useProfileSetupPrompt();
+  const titles: Record<TabSlot, string> = {
+    chats: t.chats,
+    pinned: pinned?.name ?? t.pinnedTab.title,
+    activity: t.activity,
+    sessions: t.hostSessions.title,
+    settings: t.settings,
+  };
   return (
     <FloatingTabInset.Provider value={reserved}>
       <TabChromeContext value={chrome}>
@@ -73,7 +87,7 @@ function NavigationLayout() {
                   size={size}
                   bottom={bottom}
                   onNativeHeight={setNativeHeight}
-                  sessionsTab={sessionsTab}
+                  pinned={pinned}
                 />
               )}
               screenOptions={{
@@ -82,13 +96,9 @@ function NavigationLayout() {
                 ...tabTransition(android ? 'android' : 'ios', reduced),
               }}
             >
-              <Tabs.Screen name="(home)" options={{ title: t.chats }} />
-              <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
-              <Tabs.Screen
-                name="(sessions)"
-                options={sessionsTab ? { title: t.hostSessions.title } : { href: null }}
-              />
-              <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
+              {order.map((slot) => (
+                <Tabs.Screen key={slot} name={tabRoute(slot)} options={{ title: titles[slot] }} />
+              ))}
             </Tabs>
           </View>
         </WorkspacePager>
@@ -97,23 +107,10 @@ function NavigationLayout() {
   );
 }
 
-type NestedStack = {
-  state?: { index?: number; routes: readonly { name: string; params?: object | undefined }[] };
-};
-
-function sessionsStack(route: object) {
-  const state = (route as NestedStack).state;
-  if (state === undefined) return undefined;
-  return {
-    index: state.index ?? state.routes.length - 1,
-    routes: state.routes.map((route) => ({ name: route.name, params: route.params })),
-  };
-}
-
 type NavigationBarLayout = TabBarProps & {
-  sessionsTab: boolean;
   size: number;
   bottom: number;
+  pinned: PinnedTab | undefined;
   onNativeHeight(height: number): void;
 };
 
@@ -123,8 +120,8 @@ function NavigationBar({
   navigateToTab,
   size,
   bottom,
+  pinned,
   onNativeHeight,
-  sessionsTab,
 }: NavigationBarLayout) {
   const t = useStrings();
   const currentKey = state.routes[state.index]?.key;
@@ -134,37 +131,52 @@ function NavigationBar({
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const chrome = useTabChrome();
   const hiddenNow = useChromeHidden(chrome?.hidden);
   const drawerOpen = useSessionDrawer().open;
   const [pill, setPill] = useState<{ index: number; label: string; seq: number }>();
-  const routes = state.routes.filter((route) => sessionsTab || route.name !== '(sessions)');
+  const routes = state.routes.filter((route) => tabSlotOf(route.name) !== undefined);
   const { menus, load: loadMenus } = useTabMenus({
-    sessionsTab,
     focusedRoute: state.routes[state.index]?.name,
     go: (name) => {
       const key = state.routes.find((route) => route.name === name)?.key;
       if (key !== undefined && key !== currentKey) navigateToTab(key);
     },
   });
+  const android = Platform.OS === 'android';
+  const slots: TabSlots = android
+    ? {
+        left: (width - floatingToolbar.item * routes.length) / 2,
+        width: floatingToolbar.item * routes.length,
+        gap: 0,
+        count: routes.length,
+      }
+    : {
+        left: insets.left + space.x5,
+        width: width - insets.left - insets.right - space.x5 * 2,
+        gap: space.x2,
+        count: routes.length,
+      };
   const items: NavigationDestination[] = routes.map((route, index) => {
-    const item = {
-      key: route.key,
-      focused: route.key === currentKey,
-      activity: route.name === '(activity)',
-      settings: route.name === '(settings)',
-      sessions: route.name === '(sessions)',
-      count: route.name === '(activity)' ? pending : 0,
-    };
+    const slot = tabSlotOf(route.name) ?? 'chats';
+    const focused = route.key === currentKey;
+    const count = slot === 'activity' ? pending : slot === 'pinned' ? (pinned?.count ?? 0) : 0;
+    const name = navigationLabel(t, slot, pinned?.name);
+    const flash = () =>
+      setPill((previous) => ({ index, label: name, seq: (previous?.seq ?? 0) + 1 }));
+    const menu = menus[route.name as TabMenuRoute];
     return {
-      ...item,
+      key: route.key,
+      slot,
+      focused,
+      count,
+      name,
+      accessibilityLabel: navigationAccessibilityLabel(t, slot, count, pinned?.countedLabel),
+      conversation: slot === 'pinned' ? pinned?.conversation : undefined,
+      menu,
       onPress: () => {
-        setPill((previous) => ({
-          index,
-          label: navigationLabel(t, item),
-          seq: (previous?.seq ?? 0) + 1,
-        }));
+        flash();
         const event = emitter.emit({
           type: 'tabPress',
           target: route.key,
@@ -172,59 +184,64 @@ function NavigationBar({
         });
         if (event.defaultPrevented) return;
         selectTab(route.key);
-        if (item.sessions) landInSessionsTab(item.focused, sessionsStack(route));
+        if (slot === 'sessions') landInSessionsTab(focused, sessionsStack(route));
       },
-      menu: menus[route.name as TabMenuRoute],
+      onLongPress: () => {
+        if (menu === undefined) flash();
+        else
+          openTabMenu(name, menu, {
+            pageX: tabSlotCenter(slots, index),
+            pageY: height - bottom - size,
+          });
+      },
     };
   });
-  const android = Platform.OS === 'android';
   const band = size + bottom;
-  const slots = android
-    ? { left: 0, width, gap: 0, count: items.length }
-    : {
-        left: insets.left + space.x5,
-        width: width - insets.left - insets.right - space.x5 * 2,
-        gap: space.x2,
-        count: items.length,
-      };
-  const iconTop = android
-    ? insets.bottom + (size - insets.bottom) / 2 + materialNavigationBar.iconSize / 2
-    : bottom + size / 2 + navigationBar.symbolBox / 2;
+  const pillBottom = android
+    ? size - floatingToolbar.shadowRoom + space.x2
+    : bottom + size / 2 + navigationBar.symbolBox / 2 + space.x1;
   const slide = useAnimatedStyle(() => ({
     opacity: 1 - sessionDrawerProgress.value,
     transform: [{ translateY: (chrome?.hidden.value ?? 0) * band }],
   }));
   return (
     <Animated.View
-      onLayout={
-        android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
-      }
       pointerEvents={hiddenNow || drawerOpen ? 'none' : 'box-none'}
       style={[
-        {
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: android ? undefined : band,
-          paddingBottom: android ? undefined : bottom,
-          paddingLeft: android ? undefined : slots.left,
-          paddingRight: android ? undefined : insets.right + space.x5,
-          flexDirection: android ? undefined : 'row',
-          backgroundColor: theme.color.base,
-        },
+        android
+          ? { position: 'absolute', left: 0, right: 0, bottom, alignItems: 'center' }
+          : {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: band,
+              paddingBottom: bottom,
+              paddingLeft: slots.left,
+              paddingRight: insets.right + space.x5,
+              flexDirection: 'row',
+              backgroundColor: theme.color.base,
+            },
         slide,
       ]}
     >
       <View ref={loadMenus} collapsable={false} />
-      <NavigationDestinations items={items} />
+      <View
+        collapsable={false}
+        style={android ? undefined : { flex: 1, flexDirection: 'row' }}
+        onLayout={
+          android ? ({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height) : undefined
+        }
+      >
+        <NavigationDestinations items={items} />
+      </View>
       {pill ? (
         <TabNamePill
           key={pill.seq}
           label={pill.label}
           center={tabSlotCenter(slots, pill.index)}
           screenWidth={width}
-          bottom={iconTop + space.x1}
+          bottom={pillBottom}
         />
       ) : null}
     </Animated.View>

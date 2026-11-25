@@ -164,6 +164,22 @@ describe('Android Conversation screen top app bar at large text', () => {
   });
 });
 
+describe('Android Conversation screen top app bar leading action', () => {
+  it('drops Back for a tab-root conversation and keeps it elsewhere', () => {
+    const markup = (leading?: 'back' | 'none') =>
+      renderToStaticMarkup(
+        <ConversationTopBar
+          title={TITLE}
+          onBack={() => {}}
+          onProfile={() => {}}
+          {...(leading === undefined ? {} : { leading })}
+        />,
+      );
+    expect(markup()).toContain('chat-back');
+    expect(markup('none')).not.toContain('chat-back');
+  });
+});
+
 describe('Android Session header', () => {
   it('opens the Session menu from the name capsule, with the full name on top and no ⋯ button', () => {
     device.fontScale = 1;

@@ -465,3 +465,160 @@ it('marks a native Session title as a fallback until a generated title replaces 
   expect(settled).toMatchObject({ ok: true, value: { displayTitle: 'Launch plan' } });
   expect(settled.ok && 'titleFallback' in settled.value).toBe(false);
 });
+
+it('lets only the Owner stop an unowned root Session', async () => {
+  const stop = vi.fn(async () => {});
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async (id) => id !== 'child',
+      send: async () => ({ requestId: '1' }),
+      stop,
+    },
+  });
+  f.ownership.claim({
+    sessionId: 'bot-owned',
+    botSlug: 'alice-bot',
+    rootRole: 'orchestrator',
+    at: '2026-11-25',
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const member = f.bridge(alice);
+  expect(await member.sessionNativeStop({ sessionId: 'native' })).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
+  for (const sessionId of ['child', 'bot-owned'])
+    expect(await owner.sessionNativeStop({ sessionId })).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' },
+    });
+  expect(stop).not.toHaveBeenCalled();
+  expect(await owner.sessionNativeStop({ sessionId: 'native' })).toEqual({
+    ok: true,
+    value: { sessionId: 'native', accepted: true },
+  });
+  expect(stop).toHaveBeenCalledExactlyOnceWith('native');
+});
+
+it('archives a native root and excludes it from default inventory and search', async () => {
+  let archived = false;
+  const searchHumanMessages = vi.fn(async () => new Set(['native']));
+  const archive = vi.fn(async () => {
+    archived = true;
+  });
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [
+        { sessionId: 'native', archived, running: false, lastPromptAt: 0, updatedAt: 1 },
+      ],
+      read: async () => ({ events: [], seq: 0, running: false }),
+      isRoot: async () => true,
+      send: async () => ({ requestId: '1' }),
+      searchHumanMessages,
+      archive,
+    },
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const member = f.bridge(alice);
+  const target = { sessionId: 'native' };
+  expect(await member.sessionNativeArchive(target)).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
+  expect(archive).not.toHaveBeenCalled();
+  expect(await owner.sessionNativeArchive(target)).toEqual({
+    ok: true,
+    value: { sessionId: 'native', accepted: true },
+  });
+  expect(await owner.sessionList({ search: 'prompt' })).toEqual({
+    ok: true,
+    value: { sessions: [] },
+  });
+  expect(searchHumanMessages).not.toHaveBeenCalled();
+  expect(await owner.sessionList({ includeArchived: true, search: 'prompt' })).toMatchObject({
+    ok: true,
+    value: { sessions: [{ sessionId: 'native', archived: true }], includeArchived: true },
+  });
+  expect(await member.sessionList({ includeArchived: true })).toMatchObject({
+    ok: true,
+    value: { sessions: [] },
+  });
+});
+
+it('exposes live native requests and lets only the Owner answer the addressed request', async () => {
+  const pending = [
+    {
+      kind: 'approval' as const,
+      requestId: 'approval-1',
+      toolName: 'write',
+      reason: 'Test approval',
+    },
+    {
+      kind: 'question' as const,
+      requestId: 'question-1',
+      questions: [{ id: 'style', question: 'Which style?', options: [{ label: 'Compact' }] }],
+    },
+  ];
+  const answerApproval = vi.fn(async () => true);
+  const answerQuestion = vi.fn(async () => true);
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [],
+      read: async () => ({ events: [], seq: 0, running: true }),
+      pendingInput: async () => pending,
+      isRoot: async () => true,
+      send: async () => ({ requestId: '1' }),
+      answerApproval,
+      answerQuestion,
+    },
+    sessionLive: new SessionLiveStreams(),
+  });
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+  const member = f.bridge(alice);
+  const target = { sessionId: 'native', slug: null };
+  const approval = { sessionId: 'native', requestId: 'approval-1', decision: 'allowed-once' };
+  const question = {
+    sessionId: 'native',
+    requestId: 'question-1',
+    answer: { answers: [{ id: 'style', selected: ['Compact'] }] },
+  };
+  for (const result of [
+    await member.sessionTranscript(target),
+    await member.sessionLive(target),
+    await member.sessionAnswerApproval(approval),
+    await member.sessionAnswerQuestion(question),
+  ])
+    expect(result).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+  expect(answerApproval).not.toHaveBeenCalled();
+  expect(answerQuestion).not.toHaveBeenCalled();
+
+  for (const result of [await owner.sessionTranscript(target), await owner.sessionLive(target)])
+    expect(result).toMatchObject({ ok: true, value: { pendingInput: pending } });
+  expect(await owner.sessionAnswerApproval({ ...approval, decision: 'always' })).toMatchObject({
+    ok: false,
+    error: { code: 'invalid-input' },
+  });
+  expect(await owner.sessionAnswerQuestion({ ...question, answer: {} })).toMatchObject({
+    ok: false,
+    error: { code: 'invalid-input' },
+  });
+  expect(await owner.sessionAnswerApproval(approval)).toMatchObject({ ok: true });
+  expect(answerApproval).toHaveBeenCalledExactlyOnceWith('native', 'approval-1', 'allowed-once');
+  expect(await owner.sessionAnswerQuestion(question)).toMatchObject({ ok: true });
+  expect(answerQuestion).toHaveBeenCalledExactlyOnceWith(
+    'native',
+    'question-1',
+    question.answer,
+    expect.any(Function),
+  );
+  const allowed = (answerQuestion.mock.calls[0] as unknown[])[3] as () => boolean;
+  expect(allowed()).toBe(true);
+
+  answerApproval.mockResolvedValueOnce(false);
+  expect(await owner.sessionAnswerApproval(approval)).toMatchObject({
+    ok: false,
+    error: { code: 'session-input-not-pending' },
+  });
+});

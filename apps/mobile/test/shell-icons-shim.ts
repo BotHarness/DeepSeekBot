@@ -3,6 +3,7 @@ export const ActivityFilterIcon = () => null;
 export const ActivitySortIcon = () => null;
 export const CloudIcon = () => null;
 export const ChatsIcon = () => null;
+export const CodeIcon = () => null;
 export const ActivityIcon = () => null;
 export const PinIcon = () => null;
 export const MuteIcon = () => null;

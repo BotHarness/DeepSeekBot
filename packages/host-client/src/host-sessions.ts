@@ -1,11 +1,15 @@
 import type {
+  HostSessionActionReceipt,
+  HostSessionApprovalDecision,
   HostSessionCreateRequest,
+  HostSessionPendingInput,
   HostSessionListOptions,
   HostSessionListResult,
   HostSessionRow,
   HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
-import { answerRecord, record, HostAnswerInvalid, type HostCall } from './host-answer';
+import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
+import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
 
 function modelOf(value: Record<string, unknown> | undefined) {
   return typeof value?.['provider'] === 'string' && typeof value['model'] === 'string'
@@ -21,8 +25,14 @@ export async function readHostSessionList(
   host: HostCall,
   options?: HostSessionListOptions,
 ): Promise<HostSessionListResult> {
+  const { includeArchived, ...query } = options ?? {};
   const answer = answerRecord(
-    await host.call('sessionList', options === undefined ? {} : { ...options, queryVersion: 1 }),
+    await host.call(
+      'sessionList',
+      options === undefined
+        ? {}
+        : { ...query, queryVersion: 1, ...(includeArchived ? { includeArchived } : {}) },
+    ),
     'sessionList',
   );
   if (!Array.isArray(answer['sessions']))
@@ -46,6 +56,7 @@ export async function readHostSessionList(
       ...(typeof row['title'] === 'string' ? { title: row['title'] } : {}),
       ...(typeof row['folderName'] === 'string' ? { folderName: row['folderName'] } : {}),
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
+      ...(row['archived'] === true ? { archived: true as const } : {}),
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
       ...modelOf(record(row['model'])),
     };
@@ -70,6 +81,9 @@ export async function readHostSessionList(
       },
     ];
   });
+  const archived = answer['includeArchived'] === true ? { includeArchived: true as const } : {};
+  if (options?.includeArchived === true && answer['includeArchived'] !== true)
+    throw new HostAnswerInvalid('Host does not support including archived Sessions');
   if (answer['queryVersion'] !== 1) {
     if (options?.search || (options?.source && options.source !== 'all'))
       throw new HostAnswerInvalid('Host does not support Session queries');
@@ -92,6 +106,7 @@ export async function readHostSessionList(
     sessions,
     queryVersion: 1,
     sources,
+    ...archived,
     ...(typeof nextCursor === 'string' && nextCursor !== '' ? { nextCursor } : {}),
   };
 }
@@ -104,4 +119,94 @@ export async function createHostSession(
   if (typeof answer['sessionId'] !== 'string' || typeof answer['requestId'] !== 'string')
     throw new HostAnswerInvalid('invalid sessionCreate response');
   return { sessionId: answer['sessionId'], requestId: answer['requestId'] };
+}
+
+function sessionActionReceipt(value: unknown, method: string): HostSessionActionReceipt {
+  const answer = answerRecord(value, method);
+  if (typeof answer['sessionId'] !== 'string' || answer['accepted'] !== true)
+    throw new HostAnswerInvalid(`invalid ${method} response`);
+  return { sessionId: answer['sessionId'], accepted: true };
+}
+
+export async function answerHostSessionApproval(
+  host: HostCall,
+  request: { sessionId: string; requestId: string; decision: HostSessionApprovalDecision },
+): Promise<HostSessionActionReceipt> {
+  return sessionActionReceipt(
+    await host.call('sessionAnswerApproval', request),
+    'sessionAnswerApproval',
+  );
+}
+
+export async function answerHostSessionQuestion(
+  host: HostCall,
+  request: { sessionId: string; requestId: string; answer: QuestionAnswer },
+): Promise<HostSessionActionReceipt> {
+  return sessionActionReceipt(
+    await host.call('sessionAnswerQuestion', request),
+    'sessionAnswerQuestion',
+  );
+}
+
+export async function stopHostSession(
+  host: HostCall,
+  sessionId: string,
+): Promise<HostSessionActionReceipt> {
+  return sessionActionReceipt(
+    await host.call('sessionNativeStop', { sessionId }),
+    'sessionNativeStop',
+  );
+}
+
+export async function archiveHostSession(
+  host: HostCall,
+  sessionId: string,
+): Promise<HostSessionActionReceipt> {
+  return sessionActionReceipt(
+    await host.call('sessionNativeArchive', { sessionId }),
+    'sessionNativeArchive',
+  );
+}
+
+function questionOption(value: unknown): QuestionOption | undefined {
+  const option = record(value);
+  if (typeof option?.['label'] !== 'string') return undefined;
+  const { label, description } = option;
+  return { label, ...(typeof description === 'string' ? { description } : {}) };
+}
+
+function questionItem(value: unknown): QuestionItem | undefined {
+  const item = record(value);
+  if (typeof item?.['id'] !== 'string' || typeof item['question'] !== 'string') return undefined;
+  const { id, question, detail, header, options, multiSelect } = item;
+  return {
+    id,
+    question,
+    ...(typeof detail === 'string' ? { detail } : {}),
+    ...(typeof header === 'string' ? { header } : {}),
+    ...(typeof multiSelect === 'boolean' ? { multiSelect } : {}),
+    ...(Array.isArray(options) ? { options: some(options, questionOption) } : {}),
+  };
+}
+
+function pendingInput(value: unknown): HostSessionPendingInput | undefined {
+  const item = record(value);
+  if (typeof item?.['requestId'] !== 'string') return undefined;
+  const { requestId, kind, toolName, callId, reason, continued } = item;
+  if (kind === 'approval' && typeof toolName === 'string')
+    return {
+      kind,
+      requestId,
+      toolName,
+      ...(typeof callId === 'string' ? { callId } : {}),
+      ...(typeof reason === 'string' ? { reason } : {}),
+    };
+  if (kind !== 'question' || !Array.isArray(item['questions'])) return undefined;
+  const questions = some(item['questions'], questionItem);
+  if (questions.length === 0 || questions.length !== item['questions'].length) return undefined;
+  return { kind, requestId, questions, ...(continued === true ? { continued } : {}) };
+}
+
+export function hostSessionPendingInput(value: unknown): HostSessionPendingInput[] | undefined {
+  return Array.isArray(value) ? some(value, pendingInput) : undefined;
 }

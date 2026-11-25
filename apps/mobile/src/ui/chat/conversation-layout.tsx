@@ -91,6 +91,7 @@ export function renderConversation({
   windowWidth,
   listSafeArea,
   stackRoot,
+  tabRoot,
   leave,
   pull,
   markdownViewport,
@@ -134,6 +135,7 @@ export function renderConversation({
   windowWidth: number;
   listSafeArea: number;
   stackRoot: boolean;
+  tabRoot: boolean;
   leave: () => void;
   pull: ReturnType<typeof usePullToCompose>;
   markdownViewport: ContextType<typeof MarkdownViewportContext>;
@@ -593,6 +595,7 @@ export function renderConversation({
                   activeBots={headerStatus.bots}
                   connectionLabel={connectionLabel}
                   onBack={leave}
+                  leading={tabRoot ? 'none' : 'back'}
                   onProfile={canOpenProfile ? openProfile : undefined}
                   onCall={canOpenProfile ? placeCall : undefined}
                   onHeight={setMeasuredHeaderHeight}
@@ -678,7 +681,7 @@ export function renderConversation({
             {paging === undefined ? null : (
               <NativePageHeader
                 title={ios && glassHeader ? title : titleItem}
-                onBack={leave}
+                onBack={tabRoot ? undefined : leave}
                 backID="chat-page-back"
                 action={
                   canOpenProfile

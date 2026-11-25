@@ -1,62 +1,64 @@
 import { View } from 'react-native';
-import { BotPortrait } from '../../ui/bot-avatar';
+import { BotAvatar } from '../../ui/bot-avatar';
+import type { Conversation } from '../../ui/chat/conversations';
 import { GroupMark } from '../../ui/chat/group-mark';
 import { useDesignTheme } from '../../ui/design/theme';
 import { edge, radius, space } from '../../ui/design/tokens';
-import { CountBadge } from '../../ui/primitives/count-badge';
-import type { PinnedTarget } from './prototype-model';
+import { PinIcon } from '../../ui/shell/icons';
+import { humanInitial } from '../../ui/shell/human-avatar-initial';
 
 export function PinnedAvatar({
-  target,
+  conversation,
   size,
   selected,
-  ring = true,
-  unread = true,
+  onSettled,
 }: {
-  target: PinnedTarget;
+  conversation: Conversation | undefined;
   size: number;
   selected: boolean;
-  ring?: boolean;
-  unread?: boolean;
+  onSettled?: (() => void) | undefined;
 }) {
   const theme = useDesignTheme();
-  const inner = ring ? size - (edge.focus + space.x1) * 2 : size;
+  const inner = size - (edge.focus + space.x1) * 2;
   return (
     <View
       accessible={false}
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
-      style={{ width: size, height: size }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius.round,
+        borderWidth: edge.focus,
+        borderColor: selected ? theme.color.fg : 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: radius.round,
-          borderWidth: ring ? edge.focus : 0,
-          borderColor: ring && selected ? theme.color.fg : 'transparent',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {target.kind === 'bot' ? (
-          <BotPortrait bot={{ slug: target.slug, displayName: target.name }} size={inner} />
-        ) : (
-          <GroupMark
-            avatar={undefined}
-            initial="#"
-            size={inner}
-            corner={inner / 2}
-            fill={theme.layer.raised.chosen}
-            variant="meta"
-          />
-        )}
-      </View>
-      {unread && target.unread > 0 ? (
-        <View style={{ position: 'absolute', top: -space.x2, right: -space.x3 }}>
-          <CountBadge count={target.unread} tone="unread" compact />
-        </View>
-      ) : null}
+      {conversation === undefined ? (
+        <PinIcon color={selected ? theme.color.fg : theme.color.muted} size={inner} />
+      ) : conversation.kind === 'bot' ? (
+        <BotAvatar
+          bot={conversation.bot}
+          size={inner}
+          corner={inner / 2}
+          ring={false}
+          onSettled={onSettled}
+        />
+      ) : (
+        <GroupMark
+          avatar={conversation.person === true ? undefined : conversation.channel.avatar}
+          initial={
+            conversation.person === true ? (humanInitial(conversation.channel.name) ?? '#') : '#'
+          }
+          size={inner}
+          corner={inner / 2}
+          fill={theme.color.base}
+          variant="meta"
+          strong={false}
+          onSettled={onSettled}
+        />
+      )}
     </View>
   );
 }

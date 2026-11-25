@@ -94,6 +94,7 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
   interface RemoteErrorDetailsMap {
     'all-bot-preview-changed': { preview: AllBotPreview };
     'invalid-input': Record<string, never>;
+    'session-input-not-pending': Record<string, never>;
     'invalid-slug': Record<string, never>;
     duplicate: Record<string, never>;
     'not-found': Record<string, never>;
@@ -506,6 +507,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionProgress',
   'sessionList',
   'sessionCreate',
+  'sessionAnswerApproval',
+  'sessionAnswerQuestion',
+  'sessionNativeStop',
+  'sessionNativeArchive',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',

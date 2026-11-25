@@ -7,13 +7,19 @@ import { posix, win32 } from 'node:path';
 import {
   HOST_SESSION_PAGE_MAX,
   HOST_SESSION_SEARCH_MAX,
+  isHostSessionApprovalDecision,
   isHostSessionFilter,
   isHostSessionSort,
+  type HostSessionActionReceipt,
+  type HostSessionApprovalDecision,
   type HostSessionListResult,
+  type HostSessionPendingInput,
   type HostSessionRow,
   type HostSessionSort,
   type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
+import type { QuestionAnswer } from '@botharness/host-protocol/wire';
+import { z } from 'zod';
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import {
@@ -50,6 +56,7 @@ export interface DshSessionListRow {
   parentSessionId?: string;
   title?: string;
   running: boolean;
+  archived?: boolean;
   waiting?: true;
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
@@ -74,11 +81,26 @@ export interface NativeSessions {
     running: boolean;
     title?: string;
     cwd?: string;
+    pendingInput?: readonly HostSessionPendingInput[];
   }>;
   model?(
     sessionId: string,
     choice: Extract<SessionModelChoice, { kind: 'model' }> | null | undefined,
   ): Promise<SessionModelState>;
+  pendingInput?(sessionId: string): Promise<readonly HostSessionPendingInput[]>;
+  answerApproval?(
+    sessionId: string,
+    requestId: string,
+    decision: HostSessionApprovalDecision,
+  ): Promise<boolean>;
+  answerQuestion?(
+    sessionId: string,
+    requestId: string,
+    answer: QuestionAnswer,
+    allowed?: () => boolean,
+  ): Promise<boolean>;
+  stop?(sessionId: string): Promise<void>;
+  archive?(sessionId: string): Promise<void>;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
   create?(
     target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
@@ -105,6 +127,31 @@ const missing = {
   ok: false,
   error: { code: 'not-found', message: 'Unknown root Session' },
 } satisfies BridgeResult<never>;
+const inputNotPending = {
+  ok: false,
+  error: { code: 'session-input-not-pending', message: 'The Session request is no longer pending' },
+} satisfies BridgeResult<never>;
+
+const questionAnswer = z
+  .object({
+    answers: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          selected: z.array(z.string()),
+          custom: z.string().optional(),
+        }),
+      )
+      .min(1),
+  })
+  .transform(({ answers }): QuestionAnswer => ({
+    answers: answers.map(({ id, selected, custom }) => ({
+      id,
+      selected,
+      ...(custom === undefined ? {} : { custom }),
+    })),
+  }));
+
 const unavailable = {
   ok: false,
   error: { code: 'unavailable', message: 'Host Sessions are unavailable' },
@@ -158,7 +205,9 @@ export function createHostSessionsMethods(
     const service = deps.nativeSessions;
     if (service === undefined) return unavailable;
     try {
-      if (!(await service.isRoot(id)) || deps.ownership.resolve(id) !== undefined) return missing;
+      const root = await service.isRoot(id);
+      if (!nativeAllowed()) return denied;
+      if (!root || deps.ownership.resolve(id) !== undefined) return missing;
       return await run(service, id);
     } catch (cause) {
       return dshFailure(cause);
@@ -180,9 +229,12 @@ export function createHostSessionsMethods(
         sort = 'last-human-turn',
         source = 'all',
         queryVersion,
+        includeArchived = false,
         limit: requestedLimit,
         cursor: requestedCursor,
       } = asObject(payload);
+      if (typeof includeArchived !== 'boolean')
+        return invalidInput('includeArchived must be a boolean');
       const limit = sessionPageLimit(requestedLimit);
       if (limit === 'invalid')
         return invalidInput(`limit must be a whole number from 1 to ${HOST_SESSION_PAGE_MAX}`);
@@ -214,12 +266,14 @@ export function createHostSessionsMethods(
       const seenBots = new Set<string>();
       for (const row of rows) {
         const record = ownership.get(row.sessionId);
+        if (row.archived === true && !includeArchived) continue;
         if (row.parentSessionId !== undefined || record?.parentSessionId !== undefined) continue;
         const cwd = row.cwd ?? record?.cwdReference;
         const base = {
           sessionId: row.sessionId,
           ...(row.title === undefined ? {} : { title: row.title }),
           ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
+          ...(row.archived === true ? { archived: true as const } : {}),
           ...(row.waiting === true ? { waiting: true as const } : {}),
           ...(row.model === undefined ? {} : { model: row.model }),
           running: row.running,
@@ -328,44 +382,57 @@ export function createHostSessionsMethods(
         ok: true,
         value: {
           sessions: page.rows,
+          ...(includeArchived ? { includeArchived: true as const } : {}),
           ...(queryVersion === 1 ? { queryVersion, sources: [...sources.values()] } : {}),
           ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
         },
       };
     },
     sessionTranscript(payload: unknown) {
-      return native<{ sessionId: string; role: 'native' } & SessionTranscript>(
-        payload,
-        async (service, id) => {
-          const snapshot = await service.read(id);
-          const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
-          const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
-          const fallbackTitle =
-            recorded === undefined
-              ? snapshot.title === undefined
-              : titleSourceKind(recorded.data) === 'fallback';
-          return {
-            ok: true,
-            value: {
-              ...summarizeSessionTranscript({
-                sessionId: id,
-                events: snapshot.events.filter(isNativeTranscriptEvent),
-              }),
+      return native<
+        {
+          sessionId: string;
+          role: 'native';
+          pendingInput?: readonly HostSessionPendingInput[];
+        } & SessionTranscript
+      >(payload, async (service, id) => {
+        const snapshot = await service.read(id);
+        const pendingInput = snapshot.pendingInput ?? (await service.pendingInput?.(id));
+        if (!nativeAllowed()) return denied;
+        if (deps.ownership.resolve(id) !== undefined) return missing;
+        const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
+        const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
+        const fallbackTitle =
+          recorded === undefined
+            ? snapshot.title === undefined
+            : titleSourceKind(recorded.data) === 'fallback';
+        return {
+          ok: true,
+          value: {
+            ...summarizeSessionTranscript({
               sessionId: id,
-              role: 'native',
-              ...(title === undefined ? {} : { displayTitle: title }),
-              ...(fallbackTitle ? { titleFallback: true } : {}),
-              ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
-              running: snapshot.running,
-              seq: snapshot.seq,
-            },
-          };
-        },
-      );
+              events: snapshot.events.filter(isNativeTranscriptEvent),
+            }),
+            sessionId: id,
+            role: 'native',
+            ...(title === undefined ? {} : { displayTitle: title }),
+            ...(fallbackTitle ? { titleFallback: true } : {}),
+            ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
+            running: snapshot.running,
+            seq: snapshot.seq,
+            ...(pendingInput === undefined ? {} : { pendingInput }),
+          },
+        };
+      });
     },
-    async sessionLive(
-      payload: unknown,
-    ): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>> {
+    async sessionLive(payload: unknown): Promise<
+      BridgeResult<
+        {
+          sessionId: string;
+          pendingInput?: readonly HostSessionPendingInput[];
+        } & SessionLiveSnapshot
+      >
+    > {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
       const sessionId = asNonBlank(source, 'sessionId');
@@ -373,7 +440,14 @@ export function createHostSessionsMethods(
       if (after !== undefined && (typeof after !== 'number' || !Number.isSafeInteger(after)))
         return invalidInput('after must be an integer');
       if (source['slug'] === null)
-        return native(payload, (_service, id) => snapshot(id, after, true));
+        return native(payload, async (service, id) => {
+          const current = await snapshot(id, after, true);
+          if (!current.ok || service.pendingInput === undefined) return current;
+          const pendingInput = await service.pendingInput(id);
+          if (!nativeAllowed()) return denied;
+          if (deps.ownership.resolve(id) !== undefined) return missing;
+          return { ok: true, value: { ...current.value, pendingInput } };
+        });
       if (slug === undefined) return invalidInput('slug is required');
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
@@ -453,6 +527,46 @@ export function createHostSessionsMethods(
         };
       }
     },
+    sessionAnswerApproval(payload: unknown) {
+      return native<HostSessionActionReceipt>(payload, async (service, id) => {
+        if (service.answerApproval === undefined) return unavailable;
+        const source = asObject(payload);
+        const requestId = asNonBlank(source, 'requestId');
+        const { decision } = source;
+        if (requestId === undefined || !isHostSessionApprovalDecision(decision))
+          return invalidInput('requestId and a once-or-reject decision are required');
+        return (await service.answerApproval(id, requestId, decision))
+          ? { ok: true, value: { sessionId: id, accepted: true } }
+          : inputNotPending;
+      });
+    },
+    sessionAnswerQuestion(payload: unknown) {
+      return native<HostSessionActionReceipt>(payload, async (service, id) => {
+        if (service.answerQuestion === undefined) return unavailable;
+        const source = asObject(payload);
+        const requestId = asNonBlank(source, 'requestId');
+        const parsed = questionAnswer.safeParse(source['answer']);
+        if (requestId === undefined || !parsed.success)
+          return invalidInput('requestId and a structured question answer are required');
+        return (await service.answerQuestion(id, requestId, parsed.data, nativeAllowed))
+          ? { ok: true, value: { sessionId: id, accepted: true } }
+          : inputNotPending;
+      });
+    },
+    sessionNativeStop(payload: unknown) {
+      return native(payload, async (service, id) => {
+        if (service.stop === undefined) return unavailable;
+        await service.stop(id);
+        return { ok: true, value: { sessionId: id, accepted: true as const } };
+      });
+    },
+    sessionNativeArchive(payload: unknown) {
+      return native(payload, async (service, id) => {
+        if (service.archive === undefined) return unavailable;
+        await service.archive(id);
+        return { ok: true, value: { sessionId: id, accepted: true as const } };
+      });
+    },
     sessionSend(payload: unknown) {
       return native(payload, async (service, id) => {
         const { text } = asObject(payload);
@@ -463,3 +577,8 @@ export function createHostSessionsMethods(
     },
   };
 }
+
+export type HostSessionBridgeMethods = Omit<
+  ReturnType<typeof createHostSessionsMethods>,
+  'sessionModel' | 'sessionSend' | 'sessionTranscript'
+>;

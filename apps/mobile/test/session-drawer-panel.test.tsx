@@ -15,6 +15,8 @@ vi.mock('react-native-keyboard-controller', () => ({
 vi.mock('expo-router', () => ({
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('../src/ui/shell/tab-chrome', () => ({ useHideChromeOnScroll: () => undefined }));
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({ BotPortrait: () => null }));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));

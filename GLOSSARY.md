@@ -1287,7 +1287,7 @@ The Composer-shaped tap target above the tab island on Chats that opens Tob Mode
 _Avoid_: Tob input, quick composer, pull to Tob
 
 **Pinned tab**:
-Planned (#5191): the phone tab-island slot bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and opening it as its own tab. It defaults to the Steward's DM and replaces the Tob entry bar and Tob Mode.
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the Steward's DM, follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
 _Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:

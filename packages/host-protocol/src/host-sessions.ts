@@ -1,3 +1,4 @@
+import type { QuestionItem } from './wire';
 import type { SessionModelChoice } from './session-model';
 
 export const HOST_SESSION_SORTS = ['last-human-turn', 'created', 'last-activity'] as const;
@@ -22,6 +23,7 @@ export interface HostSessionListOptions {
   search?: string;
   sort?: HostSessionSort;
   source?: HostSessionFilter;
+  includeArchived?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -53,6 +55,7 @@ export type HostSessionSourceOption =
 export interface HostSessionListResult {
   sessions: HostSessionRow[];
   queryVersion?: 1;
+  includeArchived?: true;
   sources?: HostSessionSourceOption[];
   nextCursor?: string;
 }
@@ -64,8 +67,37 @@ export interface HostSessionRow {
   folderName?: string;
   running: boolean;
   waiting?: true;
+  archived?: true;
   model?: { provider: string; model: string };
   sortedAt?: number;
   lastPromptAt: number | null;
   updatedAt: number;
+}
+
+export type HostSessionApprovalDecision = 'allowed-once' | 'rejected';
+
+export type HostSessionPendingInput =
+  | {
+      kind: 'approval';
+      requestId: string;
+      toolName: string;
+      callId?: string;
+      reason?: string;
+    }
+  | {
+      kind: 'question';
+      requestId: string;
+      questions: QuestionItem[];
+      continued?: true;
+    };
+
+export interface HostSessionActionReceipt {
+  sessionId: string;
+  accepted: true;
+}
+
+export function isHostSessionApprovalDecision(
+  value: unknown,
+): value is HostSessionApprovalDecision {
+  return value === 'allowed-once' || value === 'rejected';
 }
