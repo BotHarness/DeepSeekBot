@@ -146,11 +146,28 @@ export function computerProblems(run, read) {
     )
       problems.push(`${phase}: Host/Client evidence missing or failed`);
   }
-  if (!Array.isArray(read('console')) || read('console').length)
+  const consoleErrors = read('console');
+  const httpErrors = read('http-errors');
+  if (!Array.isArray(consoleErrors) || consoleErrors.some((e) => !knownStopTeardown(e)))
     problems.push('Client console errors or missing observation');
-  if (!Array.isArray(read('http-errors')) || read('http-errors').length)
+  if (!Array.isArray(httpErrors) || httpErrors.some((e) => !knownStopTeardown(e)))
     problems.push('HTTP failures or missing observation');
   return problems;
+}
+
+export const knownIssues = [
+  {
+    issue: 5274,
+    summary: 'After panel Stop, the mounted viewer retries its removed websocket and receives 404.',
+  },
+];
+
+export function knownStopTeardown(entry) {
+  return (
+    entry?.stage === 'stop-from-panel' &&
+    /\/botharness-computer\/viewer\/api\/websockets$/u.test(entry.url ?? '') &&
+    (entry.status === 404 || /status of 404/u.test(entry.message ?? ''))
+  );
 }
 
 export function coverageRow(directory, commit, dirty = false) {

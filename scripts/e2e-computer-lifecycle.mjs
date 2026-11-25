@@ -10,6 +10,8 @@ import {
   redactComputerEvidence,
   digest,
   computerProblems,
+  knownIssues,
+  knownStopTeardown,
   coverageRow,
   markdownRow,
 } from './computer-lifecycle-report.mjs';
@@ -331,6 +333,11 @@ try {
   await selectBot();
   const panel = '[data-subpanel-entry="botharness-computer"]';
   const head = 'button[data-panel-head][aria-controls="bh-subpanel-botharness-computer"]';
+  const column = await page.$('aside[data-subpanel-column]');
+  if (!column || !(await column.isVisible())) {
+    await page.click('[data-dock-header="bh:channel-body"] button[aria-label="Subpanel column"]');
+    run.actions.push({ click: 'Subpanel column', at: new Date().toISOString() });
+  }
   await page.waitForSelector(head, { visible: true, timeout: 20_000 });
   for (const expanded of await page.$$('button[data-panel-head][aria-expanded="true"]'))
     await expanded.click();
@@ -425,8 +432,29 @@ try {
     visible: true,
     timeout: 60000,
   });
-  await new Promise((done) => setTimeout(done, 1500));
-  save('frame.json', command(['computer-frame', '--out', resolve(directory, 'frame.jpg')]));
+  const frameAttempts = [];
+  const frameDeadline = Date.now() + 120_000;
+  let frame;
+  while (!frame) {
+    await new Promise((done) => setTimeout(done, 3000));
+    const read = command(
+      ['computer-frame', '--out', resolve(directory, 'frame.jpg')],
+      undefined,
+      true,
+    );
+    frameAttempts.push({
+      at: new Date().toISOString(),
+      exitCode: read.exitCode,
+      value: read.value,
+    });
+    if (read.exitCode === 0) frame = read.value;
+    else if (read.value?.error?.code !== 'capture-failed' || Date.now() > frameDeadline) {
+      save('frame-attempts.json', frameAttempts);
+      throw new Error(`cli-computer-frame-${read.value?.error?.code ?? 'failed'}`);
+    }
+  }
+  save('frame-attempts.json', frameAttempts);
+  save('frame.json', frame);
   save('frame.jpg', readFileSync(resolve(directory, 'frame.jpg')));
   await observe('running');
   stage = 'stop-from-panel';
@@ -512,6 +540,7 @@ try {
       reason: run.reason,
       botId: run.botId ?? null,
     });
+  run.knownIssues = [...errors, ...httpErrors].some(knownStopTeardown) ? knownIssues : [];
   run.finishedAt = new Date().toISOString();
   writeFileSync(
     resolve(directory, 'run.json'),

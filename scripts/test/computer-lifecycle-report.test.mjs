@@ -6,6 +6,8 @@ import {
   behavior,
   coverageRow,
   digest,
+  knownIssues,
+  knownStopTeardown,
   phases,
   requiredEvidence,
   visualEvidence,
@@ -220,6 +222,33 @@ describe('bounded Container Computer qualification', () => {
     const dir = fixture();
     change(dir, name, update);
     expect(coverageRow(dir, commit).status).toBe('needs-revalidation');
+  });
+  it('accepts only the tracked post-Stop viewer websocket 404', () => {
+    const teardown = {
+      stage: 'stop-from-panel',
+      status: 404,
+      url: '[redacted]/botharness-computer/viewer/api/websockets',
+    };
+    const dir = fixture();
+    change(dir, 'http-errors', (v) => {
+      v.push(teardown);
+    });
+    change(dir, 'console', (v) => {
+      v.push({
+        source: 'console',
+        stage: 'stop-from-panel',
+        url: teardown.url,
+        message: 'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      });
+    });
+    expect(coverageRow(dir, commit).status).toBe('pass');
+    expect(knownIssues.map((k) => k.issue)).toEqual([5274]);
+    for (const entry of [
+      { ...teardown, stage: 'observe-real-frame' },
+      { ...teardown, status: 500 },
+      { ...teardown, url: '[redacted]/botharness-computer/viewer/' },
+    ])
+      expect(knownStopTeardown(entry)).toBe(false);
   });
   it('keeps a first failure or prerequisite blocker distinct from later success', () => {
     for (const status of ['fail', 'blocked']) {
