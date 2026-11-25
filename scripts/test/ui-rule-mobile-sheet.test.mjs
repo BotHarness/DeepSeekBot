@@ -66,7 +66,7 @@ describe('mobile sheet surface', () => {
       `),
     ).toEqual([
       ['sheetSurface', 'backgroundColor: theme.color.base', 3],
-      ['sheetSurface', 'containerColor: theme.layer.canvas.fill', 6],
+      ['sheetSurface', 'ModalBottomSheet containerColor', 6],
       ['sheetSurface', 'presentationBackground: theme.color.surface', 7],
       ['sheetSurface', 'presentationBackground: theme.overlay.fill', 8],
     ]);
@@ -93,6 +93,23 @@ describe('mobile sheet surface', () => {
         }
       `),
     ).toEqual([]);
+  });
+
+  it('keeps the Material container on every ModalBottomSheet', () => {
+    expect(
+      check(`
+        export function Example() {
+          return (
+            <ModalBottomSheet containerColor={theme.overlay.fill} contentColor={theme.color.fg}>
+              <Card containerColor={theme.overlay.fill} />
+            </ModalBottomSheet>
+          );
+        }
+      `),
+    ).toEqual([
+      ['sheetSurface', 'ModalBottomSheet containerColor', 4],
+      ['sheetSurface', 'ModalBottomSheet contentColor', 4],
+    ]);
   });
 
   it('skips the sheet primitives that define the tokens', () => {

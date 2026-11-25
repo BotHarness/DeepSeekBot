@@ -18,6 +18,7 @@ import { Toggle } from './toggle';
 import { segmentCorners } from '../design/segment-corners';
 import { useSettingsFormPlace } from './settings-form-context';
 import { FormRow, FormSection } from './settings-form-row';
+import { useSheetGroupFill } from './sheet-group-fill';
 
 function ControlView({
   control,
@@ -303,7 +304,7 @@ export function SettingsGroupItem({
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
-  const layer = theme.layer[on];
+  const layer = useSheetGroupFill(on);
   const android = Platform.OS === 'android';
   if (android)
     return (

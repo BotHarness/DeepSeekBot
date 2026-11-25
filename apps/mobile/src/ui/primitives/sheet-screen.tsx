@@ -15,7 +15,9 @@ export function sheetScreenOptions(theme: DesignTheme, full = false) {
     presentation: 'formSheet' as const,
     sheetAllowedDetents: full || Platform.OS === 'android' ? [1] : [0.75, 1],
     sheetGrabberVisible: true,
-    ...(Platform.OS === 'ios' ? {} : { contentStyle: { backgroundColor: theme.overlay.fill } }),
+    contentStyle: {
+      backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.overlay.fill,
+    },
     ...(Platform.OS === 'android' ? { sheetCornerRadius: radius.xl } : {}),
   };
 }

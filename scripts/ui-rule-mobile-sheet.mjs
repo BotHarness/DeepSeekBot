@@ -141,6 +141,13 @@ export function mobileSheetSurface(file, ast) {
           report('sheetSurface', attr.node, `on="${layer}"`);
         return;
       }
+      if (!SURFACE_PROPS.has(name) && name !== 'contentColor') return;
+      const opening = attr.parentPath;
+      const owner = opening.get('name');
+      if (owner.isJSXIdentifier({ name: 'ModalBottomSheet' }) && name !== 'backgroundColor') {
+        report('sheetSurface', attr.node, `ModalBottomSheet ${name}`);
+        return;
+      }
       if (!SURFACE_PROPS.has(name)) return;
       const value = attr.get('value');
       const expression = value.isJSXExpressionContainer() ? value.get('expression') : value;

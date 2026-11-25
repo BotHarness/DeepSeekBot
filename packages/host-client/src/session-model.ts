@@ -49,13 +49,13 @@ export async function ownedSessions(host: HostCall, slug: string, includeTitles?
 export async function sessionModel(
   host: HostCall,
   slug: string | null,
-  sessionId: string,
+  sessionId: string | undefined,
   choice?: SessionModelChoice | null,
 ): Promise<SessionModelState> {
   const result = answerRecord(
     await host.call('sessionModel', {
       slug,
-      sessionId,
+      ...(sessionId === undefined ? {} : { sessionId }),
       ...(choice === undefined ? {} : { choice }),
     }),
     'sessionModel',
