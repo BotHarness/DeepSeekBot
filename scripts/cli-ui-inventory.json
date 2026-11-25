@@ -1363,6 +1363,15 @@
       "commands": ["bot-access"]
     },
     {
+      "id": "app-management-grants",
+      "description": "The Human Host Owner turns a Bot's App management grants (manage the App, manage other Bots) on or off.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-management-entry.tsx:{t(`botManagement.${capability}`)}"
+      ],
+      "commands": ["bot-grant", "bot-grants"]
+    },
+    {
       "id": "avatar-crop-preview",
       "description": "The avatar crop zoom is a temporary image-editing value.",
       "scope": "Client draft",

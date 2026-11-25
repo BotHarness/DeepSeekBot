@@ -414,6 +414,21 @@ export const zh = {
   'botSettings.section.connect': 'Connect',
   'botSettings.section.team': '团队',
   'entry.botAccess': '使用范围',
+  'entry.botManagement': '管理权限',
+  'botManagement.manage-app': '管理 App',
+  'botManagement.manage-app.hint': '在你和它的私信里，替你改设置、模型、诊断和创建 Bot。',
+  'botManagement.manage-bots': '管理其他 Bot',
+  'botManagement.manage-bots.hint': '在你和它的私信里，替你改其他 Bot 的资料和 Memory。',
+  'botManagement.manage-app.confirmTitle': '让这个 Bot 管理 App？',
+  'botManagement.manage-app.abilities':
+    '它可以在你和它的私信里查看和修改 App 设置、模型和诊断，也可以创建 Bot。',
+  'botManagement.manage-bots.confirmTitle': '让这个 Bot 管理其他 Bot？',
+  'botManagement.manage-bots.abilities':
+    '它可以在你和它的私信里查看和修改你其他 Bot 的资料和 Memory。',
+  'botManagement.approval': '写操作跟随它的审批模板，删除这类操作总会先问你。',
+  'botManagement.turnOn': '打开',
+  'botManagement.ownerOnly': '只有 App 的 Owner 可以修改管理权限。',
+  'botManagement.noAppManager': '现在没有 Bot 能管理 App。你仍然可以自己在设置里修改。',
   'botAccess.who': '谁可以使用',
   'botAccess.change': '修改',
   'botAccess.private': '仅你自己（私有）',
@@ -875,6 +890,25 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botSettings.section.connect': 'Connect',
   'botSettings.section.team': 'Team',
   'entry.botAccess': 'Access',
+  'entry.botManagement': 'Management',
+  'botManagement.manage-app': 'Manage the App',
+  'botManagement.manage-app.hint':
+    'In your DM with it, it can change settings, models and diagnostics, and create Bots for you.',
+  'botManagement.manage-bots': 'Manage other Bots',
+  'botManagement.manage-bots.hint':
+    'In your DM with it, it can change your other Bots’ profiles and Memory for you.',
+  'botManagement.manage-app.confirmTitle': 'Let this Bot manage the App?',
+  'botManagement.manage-app.abilities':
+    'In your DM with it, it can read and change App settings, models and diagnostics, and create Bots.',
+  'botManagement.manage-bots.confirmTitle': 'Let this Bot manage other Bots?',
+  'botManagement.manage-bots.abilities':
+    'In your DM with it, it can read and change your other Bots’ profiles and Memory.',
+  'botManagement.approval':
+    'Writes follow its Approval Template, and steps like deleting always ask you first.',
+  'botManagement.turnOn': 'Turn on',
+  'botManagement.ownerOnly': 'Only the App Owner can change management access.',
+  'botManagement.noAppManager':
+    'No Bot can manage the App now. You can still change things yourself in Settings.',
   'botAccess.who': 'Who can use it',
   'botAccess.change': 'Change',
   'botAccess.private': 'Only you (private)',
