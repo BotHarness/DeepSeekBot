@@ -6,6 +6,7 @@ import { stopSession } from '@botharness/host-client/bot-control';
 import { archiveHostSession, stopHostSession } from '@botharness/host-client/host-sessions';
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
+import type { DecisionResult } from '@botharness/host-client/requests';
 import {
   sendOrchestratorMessage,
   sendSessionRequest,
@@ -344,8 +345,8 @@ export function SessionDetailBody({
   const [handled, setHandled] = useState<ReadonlySet<string>>(() => new Set());
   const { refresh } = view;
   const settleInput = useCallback(
-    (requestId: string) => {
-      setHandled((current) => new Set(current).add(requestId));
+    (requestId: string, result: DecisionResult) => {
+      if (result === 'accepted') setHandled((current) => new Set(current).add(requestId));
       refresh();
     },
     [refresh],

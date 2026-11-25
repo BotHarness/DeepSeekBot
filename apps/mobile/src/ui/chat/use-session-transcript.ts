@@ -40,6 +40,7 @@ export function useSessionTranscript(
       let latest: SessionLiveSnapshot | undefined;
       let durable: SessionTranscript | undefined;
       let pending: HostSessionPendingInput[] | undefined;
+      let liveObservations = 0;
       let loading = false;
       let again = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -69,11 +70,13 @@ export function useSessionTranscript(
         }
         clearTimeout(timer);
         loading = true;
+        const observed = liveObservations;
         void sessionTranscript(host, slug, id)
           .then((value) => {
             if (abort.signal.aborted) return;
             durable = value;
-            if (value.pendingInput !== undefined) pending = value.pendingInput;
+            if (value.pendingInput !== undefined && observed === liveObservations)
+              pending = value.pendingInput;
             publish();
           }, fail)
           .finally(() => {
@@ -98,7 +101,10 @@ export function useSessionTranscript(
           const asked =
             next.pendingInput !== undefined &&
             pendingInputKey(next.pendingInput) !== pendingInputKey(pending);
-          if (next.pendingInput !== undefined) pending = next.pendingInput;
+          if (next.pendingInput !== undefined) {
+            pending = next.pendingInput;
+            liveObservations += 1;
+          }
           if (durable !== undefined && next.seq > durable.seq) {
             if (previous?.seq !== next.seq) load();
             else if (asked) publish();
