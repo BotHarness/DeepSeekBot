@@ -147,6 +147,10 @@ export const materialDrawer = {
   scrimGutter: 56,
   addressMinScale: 0.6,
 } as const;
+export const overlaySidebar = {
+  dim: { light: 'rgba(0, 0, 0, 0.2)', dark: 'rgba(0, 0, 0, 0.4)' },
+  shadow: { radius: 16, opacity: { light: 0.12, dark: 0.4 } },
+} as const;
 export const loadingIndicator = {
   size: 48,
   control: 20,

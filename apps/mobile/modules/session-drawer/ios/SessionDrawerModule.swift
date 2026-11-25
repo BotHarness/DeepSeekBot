@@ -16,6 +16,8 @@ public final class SessionDrawerModule: Module {
       Prop("animated") { (view: SessionDrawerView, animated: Bool) in view.animated = animated }
       Prop("enabled") { (view: SessionDrawerView, enabled: Bool) in view.enabled = enabled }
       Prop("spring") { (view: SessionDrawerView, spring: SessionDrawerSpring) in view.spring = spring }
+      Prop("shadowRadius") { (view: SessionDrawerView, radius: Double) in view.shadowRadius = CGFloat(radius) }
+      Prop("shadowOpacity") { (view: SessionDrawerView, opacity: Double) in view.shadowOpacity = Float(opacity) }
     }
   }
 }
@@ -29,6 +31,8 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   var enabled = false
   var animated = true
   var spring = SessionDrawerSpring()
+  var shadowRadius: CGFloat = 16
+  var shadowOpacity: Float = 0.12
 
   private var progress: CGFloat = 0
   private var start: CGFloat = 0
@@ -67,10 +71,16 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
 
   override func willRemoveSubview(_ subview: UIView) {
     super.willRemoveSubview(subview)
-    // Fabric recycles component views; never hand one back moved or faded.
+    // Fabric recycles component views; never hand one back moved, faded or shadowed.
     subview.transform = .identity
     subview.alpha = 1
+    subview.layer.shadowOpacity = 0
+    subview.layer.shadowPath = nil
   }
+
+  /// Compact width only: a regular-width window (iPad, a Plus or Max iPhone in landscape) gets a
+  /// real split-view sidebar in #5263, so the swipe stays off there.
+  private var compact: Bool { traitCollection.horizontalSizeClass != .regular }
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
@@ -90,6 +100,7 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
   }
 
   private func apply(_ value: CGFloat) {
+    if value > 0 { shadow(true) }
     panel?.transform = CGAffineTransform(translationX: (value - 1) * width * leading, y: 0)
     scrim?.alpha = value
     let alpha = 1 - value
@@ -97,6 +108,17 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
       tabAlpha = alpha
       tabBar?.alpha = alpha
     }
+  }
+
+  /// The overlay sidebar's trailing-edge shadow. It stays on while the drawer moves or is open and
+  /// goes off once it settles closed, so no shadow bleeds in from the closed panel at the edge.
+  private func shadow(_ on: Bool) {
+    guard let panel else { return }
+    panel.layer.shadowColor = UIColor.black.cgColor
+    panel.layer.shadowOffset = .zero
+    panel.layer.shadowRadius = shadowRadius
+    panel.layer.shadowOpacity = on ? shadowOpacity : 0
+    panel.layer.shadowPath = on ? UIBezierPath(rect: panel.bounds).cgPath : nil
   }
 
   private func current() -> CGFloat {
@@ -140,6 +162,7 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
 
   private func finished(_ open: Bool) {
     target = open
+    shadow(open)
     guard reported != open else { return }
     reported = open
     onOpenChange(["open": open])
@@ -175,7 +198,7 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
     guard abs(velocity.x) > abs(velocity.y) else { return false }
     let forward = velocity.x * leading > 0
     if target || progress > 0 { return !forward }
-    guard enabled, forward, panel != nil else { return false }
+    guard enabled, compact, forward, panel != nil else { return false }
     return !scrollsBack(at: pan.location(in: self))
   }
 

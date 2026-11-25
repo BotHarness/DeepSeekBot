@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type ViewProps } from 'react-native';
 import { spring } from '../../ui/design/motion';
 import { useDesignTheme } from '../../ui/design/theme';
+import { overlaySidebar } from '../../ui/design/tokens';
 import { useStrings } from '../../ui/strings';
 import { useSessionDrawerChrome } from './session-drawer-chrome';
 import { SessionDrawerContent } from './session-drawer-content';
@@ -21,6 +22,8 @@ type NativeDrawerProps = ViewProps & {
   animated: boolean;
   enabled: boolean;
   spring: { mass: number; stiffness: number; damping: number };
+  shadowRadius: number;
+  shadowOpacity: number;
   onOpenChange(event: { nativeEvent: { open: boolean } }): void;
   onDragStart(): void;
 };
@@ -60,6 +63,8 @@ function UIKitSessionDrawer({
       animated={state.animated}
       enabled={place.edge > 0}
       spring={release}
+      shadowRadius={overlaySidebar.shadow.radius}
+      shadowOpacity={overlaySidebar.shadow.opacity[theme.scheme]}
       onOpenChange={({ nativeEvent }) => sessionDrawer.nativeChange(nativeEvent.open)}
       onDragStart={() => sessionDrawer.reveal()}
     >
@@ -79,7 +84,7 @@ function UIKitSessionDrawer({
         accessibilityElementsHidden={!state.open}
         pointerEvents={state.open ? 'auto' : 'none'}
         onPress={() => closeSessionDrawer()}
-        style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: overlaySidebar.dim[theme.scheme] }]}
       />
       <View
         collapsable={false}
