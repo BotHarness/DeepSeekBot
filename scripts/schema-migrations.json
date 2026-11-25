@@ -742,5 +742,9 @@
   {
     "id": "binding-group-interactions",
     "sha256": "f588f5903452481413b4ab2a4a84739ae597860a7161b94ba6b21dd9447592db"
+  },
+  {
+    "id": "connector-accounts",
+    "sha256": "6466c009108fbaad7510d9eecb7f79f66f5dd980969be49762a74448bf3d0865"
   }
 ]

@@ -163,6 +163,7 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
       "root | botharness: roster",
       "root | ctx.on("tools/execute")",
       "tools: guard",
+      "tools: guard",
       "root | botharness: engine Memory tools",
       "root | botharness: engine Memory tool names",
       "root | botharness: approval review logs",
