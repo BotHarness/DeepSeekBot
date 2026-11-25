@@ -1,12 +1,12 @@
 import { useState, type ReactElement } from 'react';
 
+import { MaskedEmail } from './account-quota.js';
 import type { BridgeActions } from './actions.js';
 import { ConnectAppDialog } from './app-connections-catalog.js';
 import { errorMessage } from './bridge.js';
 import { BrandLogo } from './ds/brand-logo.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
-import { MaskedText } from './ds/masked-text.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
@@ -62,11 +62,7 @@ export function ConnectorMeta({
       {identity === undefined ? null : (
         <>
           {' · '}
-          <MaskedText
-            value={identity}
-            showLabel={t('connectors.identity.show')}
-            hideLabel={t('connectors.identity.hide')}
-          />
+          {identity.includes('@') ? <MaskedEmail email={identity} t={t} /> : identity}
         </>
       )}
       {extra === undefined ? null : ` · ${extra}`}
