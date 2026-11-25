@@ -3,8 +3,10 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { stopSession } from '@botharness/host-client/bot-control';
+import { archiveHostSession, stopHostSession } from '@botharness/host-client/host-sessions';
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
+import type { DecisionResult } from '@botharness/host-client/requests';
 import {
   sendOrchestratorMessage,
   sendSessionRequest,
@@ -21,6 +23,7 @@ import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
 import { ChatList, type ChatListHandle } from '../primitives/chat-list';
 import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import { confirmAppDialog } from '../primitives/app-dialog';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
@@ -29,7 +32,12 @@ import {
   useSessionsStackFit,
   useSessionDrawerRoot,
 } from '../../features/sessions/drawer-root';
-import { rememberLastSession } from '../../features/sessions/last-session';
+import { forgetLastSession, rememberLastSession } from '../../features/sessions/last-session';
+import { NativeSessionInputCards } from '../../features/sessions/native-session-input-cards';
+import {
+  nativeSessionControls,
+  shownPendingInput,
+} from '../../features/sessions/native-session-input';
 import { canCreateNativeSession } from '../shell/page-create-actions';
 import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
 import { openNewSession } from '../../features/sessions/session-drawer-navigation';
@@ -321,9 +329,29 @@ export function SessionDetailBody({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const router = useRouter();
+  const inSessions = useInSessionsTab();
+  const drawer = useSessionDrawerRoot();
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { saved } = useHostSession(hostId);
   const view = useSessionTranscript(client, slug, id, online);
   const transcript = view.transcript;
   const role = transcript?.role;
+  const native = nativeSessionControls({
+    native: role === 'native',
+    host: saved,
+    running: view.running,
+  });
+  const [handled, setHandled] = useState<ReadonlySet<string>>(() => new Set());
+  const { refresh } = view;
+  const settleInput = useCallback(
+    (requestId: string, result: DecisionResult) => {
+      if (result === 'accepted') setHandled((current) => new Set(current).add(requestId));
+      refresh();
+    },
+    [refresh],
+  );
+  const pendingInput = native.answer ? shownPendingInput(view.pendingInput, handled) : [];
   const model = useSessionModelControl({
     slug,
     sessionId: id,
@@ -425,10 +453,20 @@ export function SessionDetailBody({
     try {
       switch (command.kind) {
         case 'stop':
-          if (slug === null) return false;
-          await stopSession(client, { botSlug: slug, sessionId: id });
+          if (role === 'native') await stopHostSession(client, id);
+          else if (slug === null) return false;
+          else await stopSession(client, { botSlug: slug, sessionId: id });
           break;
         case 'archive':
+          if (role === 'native') {
+            await archiveHostSession(client, id);
+            if (saved !== null && saved !== undefined) forgetLastSession(saved.hostId, id);
+            if (inSessions && drawer) openNewSession();
+            else if (inSessions) router.dismissTo('/sessions');
+            else if (router.canGoBack()) router.back();
+            else router.replace('/');
+            return true;
+          }
           if (slug === null) return false;
           await setSessionArchived(client, slug, id, command.archived);
           setArchiveRevision((revision) => revision + 1);
@@ -459,6 +497,15 @@ export function SessionDetailBody({
   }
 
   const stop = () => void run({ kind: 'stop' });
+  const canStop = (slug !== null && view.running) || native.stop;
+  const archiveNative = () =>
+    void confirmAppDialog(
+      t.sessionDetail.archiveConfirm,
+      t.sessionDetail.archiveConfirmDetail,
+      t.sessionDetail.archive,
+    ).then((confirmed) => {
+      if (confirmed) void run({ kind: 'archive', archived: true });
+    });
   const canArchive =
     busy === undefined &&
     !view.running &&
@@ -473,8 +520,18 @@ export function SessionDetailBody({
           label: t.sessionDetail.options,
           testID: 'session-options',
           items: [
-            ...(slug !== null && view.running
+            ...(canStop
               ? [{ label: t.sessionStop, testID: 'session-stop', icon: 'stop' as const, run: stop }]
+              : []),
+            ...(native.archive && busy === undefined
+              ? [
+                  {
+                    label: t.sessionDetail.archive,
+                    testID: 'session-archive',
+                    icon: 'archive' as const,
+                    run: archiveNative,
+                  },
+                ]
               : []),
             ...(canArchive
               ? [
@@ -579,6 +636,15 @@ export function SessionDetailBody({
           />
         </View>
       ) : null}
+      <NativeSessionInputCards
+        client={client}
+        sessionId={id}
+        pending={pendingInput}
+        cwd={transcript.cwd}
+        items={view.items}
+        asker={t.sessionDetail.asker}
+        onSettled={settleInput}
+      />
       {chatLatestSpacer(latest, nativeSpacer)}
     </>
   );
@@ -594,7 +660,7 @@ export function SessionDetailBody({
             online={online}
             busy={busy}
             error={error}
-            onStop={slug !== null && view.running ? stop : undefined}
+            onStop={canStop ? stop : undefined}
             onSend={(text) => run({ kind: 'send', text })}
             model={model}
           />
