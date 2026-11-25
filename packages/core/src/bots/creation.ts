@@ -421,6 +421,7 @@ export function privateBotCreations(
       const created = service.create(
         inputFor(input),
         operationKey === undefined ? undefined : key(operationKey),
+        scope,
       );
       return {
         ...created,

@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBotCreation, BotCreationError } from '../src/bots/creation.js';
+import { createBotCreation, BotCreationError, privateBotCreations } from '../src/bots/creation.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -137,6 +137,16 @@ describe('canonical keyed Bot creation', () => {
       expect.objectContaining({ code: 'creation-identity-unavailable' }),
     );
     expect(f.core.registry.listHistorical()).toHaveLength(1);
+  });
+
+  it('binds the creation scope through the bridge creation wrapper', () => {
+    const f = fixture();
+    const bridge = privateBotCreations(f.owner, OWNER_HUMAN_CONTEXT);
+    const kept = bridge.create(input, key, { sessionIds: ['a1'] });
+    expect(bridge.create(input, key, { sessionIds: ['a1'] }).record.slug).toBe(kept.record.slug);
+    expect(() => bridge.create(input, key, { sessionIds: ['b1'] })).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
   });
 
   it('refuses an unknown Memory folder for a reserved identity without modifying it', () => {
