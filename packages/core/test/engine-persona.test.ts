@@ -18,5 +18,6 @@ describe('engine persona instructions', () => {
     const text = engineAssignmentInstructions({ name: 'Ada', cwd: '/work', fullAccess: false });
     expect(text).toContain('sub-agents and background tasks are fine');
     expect(text).not.toContain('create_assignment');
+    expect(text).toContain('your sub-agents never report');
   });
 });
