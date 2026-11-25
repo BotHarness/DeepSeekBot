@@ -359,10 +359,25 @@ it('an approval raised while the turn handles a bridged Lark group message goes 
     kind: 'group',
     conversationId: 'oc_bridged',
   });
+  expect(f.cards.mock.calls.at(-1)?.[2].detail).not.toContain('/tmp/approval-qa');
   expect(await f.action(pending.delivery.id, { conversationId: 'oc_bridged' })).toMatchObject({
     status: 'queued',
   });
   expect(await pending.answer).toBe('allowed-once');
+  f.core.externalMessaging.approvals.result('bh-approval-qa', {
+    type: 'tool/result',
+    seq: 9,
+    data: {
+      message: {
+        toolCallId: 'call-1',
+        content: [{ type: 'text', text: '/tmp/approval-qa/secret' }],
+      },
+    },
+  });
+  await vi.waitFor(() => expect(f.cards.mock.calls.at(-1)?.[2].status).toBe('executed'));
+  expect(f.cards.mock.calls.map((call) => call[2].detail).join('\n')).not.toMatch(
+    /\/tmp\/approval-qa/,
+  );
 });
 
 it('an approval whose group card the provider refuses is retried in the DM and decided there', async () => {

@@ -253,9 +253,11 @@ export function createApprovalMessaging(options: {
                 : 'Confirm saving an exact rule AND allowing this call. Only the same complete tool name/input, this Bot execution role and current Workspace Grant scope match. Native/Workspace/Service authority is not expanded. Creator authority loss permanently disables the rule. / 确认保存精确规则并批准本次调用。仅匹配完整工具名与参数、当前 Bot 执行角色及 Workspace Grant 范围；不扩大原生、工作区或 Service 授权。创建人权限失效会停用规则。',
           ]
         : []),
-      ...(resultText.has(value.id) ? [resultText.get(value.id)!] : []),
-      ...(notice ? [notice.toolName, notice.role, notice.cwd, notice.input] : []),
-      ...(ruleScope
+      ...(!value.destination && resultText.has(value.id) ? [resultText.get(value.id)!] : []),
+      ...(notice
+        ? [notice.toolName, notice.role, ...(value.destination ? [] : [notice.cwd]), notice.input]
+        : []),
+      ...(ruleScope && !value.destination
         ? [
             `Rule scope (execution role, directory, Grant IDs/write revisions) / 规则范围（执行角色、目录、Grant ID／写入版本）:\n${ruleScope}`,
           ]
