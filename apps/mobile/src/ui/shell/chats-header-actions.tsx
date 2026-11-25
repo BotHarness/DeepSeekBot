@@ -1,8 +1,13 @@
-import { Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { Modal, Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
-import type { ChatsCreateButton } from './chats-create';
+import { radius, space } from '../design/tokens';
+import { haptic } from '../haptics';
+import { MenuIcon } from '../primitives/menu-icon';
+import { Text } from '../primitives/text';
+import { useStrings } from '../strings';
+import type { ChatsCreateButton, ChatsCreateEntry } from './chats-create';
 import { HeaderAction } from './header-action';
 import { PlusIcon } from './icons';
 
@@ -12,8 +17,26 @@ export type ChatsHeaderActionsProps = {
 };
 
 export function ChatsHeaderActions({ search, create }: ChatsHeaderActionsProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
-  const unavailable = create !== undefined && (create.disabled || create.expanded);
+  const [open, setOpen] = useState(false);
+  const row = (entry: ChatsCreateEntry) => (
+    <Pressable
+      key={entry.id}
+      testID={`chats-create-${entry.id}`}
+      accessibilityRole="menuitem"
+      accessibilityLabel={entry.label}
+      disabled={create?.disabled}
+      onPress={() => {
+        setOpen(false);
+        entry.run();
+      }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3, padding: space.x3 }}
+    >
+      <MenuIcon icon={entry.glyph} color={theme.color.fg} size={theme.type.title.line} />
+      <Text>{entry.label}</Text>
+    </Pressable>
+  );
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <HeaderAction
@@ -23,25 +46,52 @@ export function ChatsHeaderActions({ search, create }: ChatsHeaderActionsProps) 
         onPress={search.onPress}
       />
       {create === undefined ? null : (
-        <Pressable
-          ref={create.triggerRef}
-          testID="chats-create-button"
-          accessibilityRole="button"
-          accessibilityLabel={create.label}
-          accessibilityState={{ disabled: unavailable, expanded: create.expanded }}
-          disabled={unavailable}
-          onPress={create.onPress}
-          style={({ pressed }) => ({
-            width: theme.touch,
-            height: theme.touch,
-            borderRadius: radius.round,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: create.expanded ? 0 : pressed ? 0.7 : 1,
-          })}
-        >
-          <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
-        </Pressable>
+        <>
+          <Pressable
+            testID="chats-create-button"
+            accessibilityRole="button"
+            accessibilityLabel={create.label}
+            accessibilityState={{ disabled: create.disabled, expanded: open }}
+            disabled={create.disabled}
+            onPress={() => {
+              haptic('menu');
+              setOpen(true);
+            }}
+            style={({ pressed }) => ({
+              width: theme.touch,
+              height: theme.touch,
+              borderRadius: radius.round,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <PlusIcon color={theme.color.fg} size={theme.type.title.size} />
+          </Pressable>
+          {open ? (
+            <Modal visible transparent onRequestClose={() => setOpen(false)}>
+              <View
+                testID="chats-create-menu"
+                style={{ padding: space.x5, backgroundColor: theme.overlay.fill }}
+              >
+                {create.bot ? (
+                  <View accessibilityRole="menu" accessibilityLabel={create.bot.label}>
+                    <Text>{create.bot.label}</Text>
+                    {create.bot.sources.map(row)}
+                  </View>
+                ) : null}
+                {create.actions.map(row)}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t.close}
+                  onPress={() => setOpen(false)}
+                >
+                  <Text>{t.close}</Text>
+                </Pressable>
+              </View>
+            </Modal>
+          ) : null}
+        </>
       )}
     </View>
   );
