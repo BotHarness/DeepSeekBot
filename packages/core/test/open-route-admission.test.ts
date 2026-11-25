@@ -8,11 +8,12 @@ import { expect, it, onTestFinished } from 'vitest';
 import { WebSocket } from 'ws';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { OPEN_ROUTE_PENDING_LIMIT } from '../src/devices/admission-slots.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { stampConnectRoute } from '../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+
+const CONNECT_PENDING_LIMIT = 8;
 
 async function connectHost(admissionDeadlineMs?: number) {
   const owner = trackTestOwner(
@@ -90,7 +91,7 @@ async function connectHost(admissionDeadlineMs?: number) {
 
 it('caps Connect channels that have not admitted a device without limiting other routes', async () => {
   const { open } = await connectHost();
-  const pending = Array.from({ length: OPEN_ROUTE_PENDING_LIMIT }, () => open('connect'));
+  const pending = Array.from({ length: CONNECT_PENDING_LIMIT }, () => open('connect'));
   expect(await Promise.all(pending.map((entry) => entry.opened))).toEqual(pending.map(() => true));
   expect(await open('connect').opened).toBe(false);
   expect(await open('token').opened).toBe(true);
