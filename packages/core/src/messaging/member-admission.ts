@@ -5,8 +5,7 @@ import { messagingDefaults, externalMemberWake } from './defaults.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { ChannelRecord } from '../channels/channel.js';
 import { type BotSourcePolicyStore } from '../runtime/source-policy.js';
-import type { ThreadReceptionPolicy } from './thread-policy.js';
-import { sourceSenderAllowed } from './sender-access.js';
+import { type ThreadReceptionPolicy, sourceAdmission } from './permissions/index.js';
 
 export function admitBridgeMembers(
   db: DatabaseSync,
@@ -23,8 +22,10 @@ export function admitBridgeMembers(
 ): string[] {
   const admitted: string[] = [];
   for (const botSlug of channel.members) {
-    if (!isBotActive(botSlug) || !sourceSenderAllowed(db, botSlug, sourceEventId, true)) continue;
-    const passive = !sourceSenderAllowed(db, botSlug, sourceEventId);
+    if (!isBotActive(botSlug)) continue;
+    const admission = sourceAdmission(db, botSlug, sourceEventId);
+    if (admission === 'refused') continue;
+    const passive = admission === 'context';
     const rule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
     const defaults = messagingDefaults(db, path?.grant.platform);
     const { policy } = externalMemberWake(channel, botSlug, rule, defaults);

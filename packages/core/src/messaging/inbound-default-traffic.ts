@@ -2,11 +2,14 @@ import { effectiveDmControls } from './dm-controls.js';
 import { admissionBound, conversationName, hold, readBlock, removeHeld } from './conversations.js';
 import type { ConversationIngest } from './conversation-ingest.js';
 import type { MessagingIdentity } from './identity.js';
-import { senderAdmissionAllowed } from './sender-access.js';
+import {
+  senderAdmission,
+  threadReceptionPolicy,
+  groupReceptionPolicy,
+  initializeGroupReceptionPolicy,
+} from './permissions/index.js';
 import { readMessagingIdentity } from './identity.js';
 import { recordGrantReception } from './reception-paths.js';
-import { threadReceptionPolicy } from './thread-policy.js';
-import { groupReceptionPolicy, initializeGroupReceptionPolicy } from './group-policy.js';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -192,7 +195,7 @@ export function createInboundDefaultTraffic(wiring: {
       wiring.placeIngests(identity, event);
       return { accepted: true };
     }
-    if (!database.read((db) => senderAdmissionAllowed(db, identity.botSlug, event)))
+    if (database.read((db) => senderAdmission(db, identity.botSlug, event)) !== 'wake')
       return { accepted: true };
     const result = await admitDefault(id, lease, identity, entry, event, signal);
     wiring.placeIngests(identity, event);

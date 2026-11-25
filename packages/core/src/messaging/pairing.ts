@@ -4,13 +4,14 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import { assertMessagingIdentity, readMessagingIdentity } from './identity.js';
 import { MessagingError, type MessagingInboundEvent } from './provider.js';
-import { externalUserRoles } from './sender-access.js';
-import { chatSenderIdentity } from './chat-sender.js';
 import {
+  externalUserRoles,
+  chatSenderIdentity,
+  platformPeople,
   effectivePairingPermissions,
   type PermissionChoices,
   type EffectivePermissions,
-} from './permission-groups.js';
+} from './permissions/index.js';
 
 export const pairingCapabilities = [
   'approve',
@@ -174,7 +175,7 @@ export function createBotPairing(
           binding.platform !== event.channel ||
           binding.providerId !== `dsh-im/${event.channel}` ||
           !chatSenderIdentity(event) ||
-          (purpose === 'management' && event.channel !== 'feishu') ||
+          (purpose === 'management' && !platformPeople(event.channel)?.management) ||
           event.botId !== binding.accountRef ||
           event.fingerprint !== binding.fingerprint ||
           (purpose === 'management' && event.conversation.kind !== 'dm') ||
