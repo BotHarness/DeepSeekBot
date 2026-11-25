@@ -439,8 +439,6 @@ const BOT_TOOL_NAMES = new Set([
   'ask_user_question',
   'ask_secret',
   'secret_mcp_disconnect',
-  'memory_switch_branch',
-  'memory_continue_from_commit',
   'report_to_orchestrator',
 ]);
 
