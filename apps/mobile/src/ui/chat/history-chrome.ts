@@ -1,7 +1,5 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AccessibilityInfo, type NativeScrollEvent } from 'react-native';
-import { useKeyboardState } from 'react-native-keyboard-controller';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { tabChrome } from '../design/tokens';
@@ -64,11 +62,10 @@ export function useHistoryChrome({
   const chrome = useTabChrome();
   const reduced = useSystemReducedMotion();
   const reader = useScreenReader();
-  const keyboard = useKeyboardState((state) => state.isVisible);
   const hidden = useSharedValue(0);
   const state = useRef<ChromeScroll>(chromeShown);
   const [hiddenNow, setHiddenNow] = useState(false);
-  const active = enabled && chrome !== undefined && !reader && !keyboard;
+  const active = enabled && chrome !== undefined && !reader;
   const move = useCallback(
     (next: boolean) => {
       const target = next ? 1 : 0;
@@ -84,12 +81,10 @@ export function useHistoryChrome({
     state.current = chromeShown;
     if (was) move(false);
   }, [move]);
-  useFocusEffect(
-    useCallback(() => {
-      if (!active) show();
-      return show;
-    }, [active, show]),
-  );
+  useLayoutEffect(() => {
+    if (!active) show();
+    return show;
+  }, [active, show]);
   const onScroll = useCallback(
     (event: NativeScrollEvent) => {
       if (!active) return;

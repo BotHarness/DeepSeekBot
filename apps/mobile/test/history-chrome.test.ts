@@ -2,7 +2,6 @@ import { expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
-vi.mock('react-native-keyboard-controller', () => ({ useKeyboardState: () => false }));
 vi.mock('react-native-reanimated', () => ({
   useSharedValue: (value: number) => ({ value }),
   withTiming: (value: number) => value,

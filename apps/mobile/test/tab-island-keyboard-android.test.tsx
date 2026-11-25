@@ -14,6 +14,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: () => undefined }));
 vi.mock('react-native-reanimated', () => ({
+  default: { View: ({ children }: { children?: ReactNode }) => children },
   useDerivedValue: (compute: () => number) => ({ value: compute() }),
   useAnimatedStyle: (compute: () => unknown) => compute(),
 }));
