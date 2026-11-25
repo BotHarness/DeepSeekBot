@@ -3,8 +3,10 @@ import type { MessagingApprovalCard } from '../provider.js';
 
 export type ApprovalReply = 'allowed-once' | 'rejected';
 
-const ALLOW = new Set(['允许', '同意', '批准', 'allow', 'approve']);
-const REJECT = new Set(['拒绝', '不允许', '不同意', 'reject', 'deny']);
+export const ALLOW_WORDS = ['允许', '同意', '批准', 'allow', 'approve'] as const;
+export const REJECT_WORDS = ['拒绝', '不允许', '不同意', 'reject', 'deny'] as const;
+const ALLOW = new Set<string>(ALLOW_WORDS);
+const REJECT = new Set<string>(REJECT_WORDS);
 
 export const approvalReference = (id: string) =>
   createHash('sha256').update(id).digest('hex').slice(0, 12).toUpperCase();

@@ -29,6 +29,7 @@ export function ManagedConversationRow({
   look,
   sourceLabel,
   arrangement,
+  canDisband,
   onDelete,
   onError,
 }: {
@@ -40,6 +41,7 @@ export function ManagedConversationRow({
   look: HostLook;
   sourceLabel?: string;
   arrangement: RosterArrangement | undefined;
+  canDisband: boolean;
   onDelete(target: DeletionTarget): void;
   onError(): void;
 }) {
@@ -71,6 +73,7 @@ export function ManagedConversationRow({
   const actions = client
     ? conversationMenu(row, {
         ...state,
+        canDisband,
         sections: arrangement?.sections ?? [],
         onAction,
         onDelete,
