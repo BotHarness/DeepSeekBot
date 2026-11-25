@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { contrast, mix, renderSite, SITE_OUTPUT, siteColors } from '../generate-tokens.mjs';
+import {
+  contrast,
+  mix,
+  renderSite,
+  renderSlides,
+  SITE_OUTPUT,
+  SLIDES_OUTPUT,
+  siteColors,
+} from '../generate-tokens.mjs';
 
 const docsSurfaces = {
   light: ['#fcfcfc', '#ffffff', '#f4f4f4'],
@@ -14,6 +22,14 @@ describe('shared site colours', () => {
     const css = readFileSync(SITE_OUTPUT, 'utf8');
     expect(css).toBe(renderSite(colors));
     expect(Buffer.byteLength(css)).toBeLessThanOrEqual(2048);
+  });
+
+  it('gives slides the same core values as the site stylesheet', () => {
+    expect(readFileSync(SLIDES_OUTPUT, 'utf8')).toBe(renderSlides(colors));
+    const css = readFileSync(SITE_OUTPUT, 'utf8');
+    for (const [name, value] of Object.entries(colors.light)) {
+      expect(css).toContain(`--tobs-core-${name}: ${value};`);
+    }
   });
 
   it.each(Object.entries(docsSurfaces))(

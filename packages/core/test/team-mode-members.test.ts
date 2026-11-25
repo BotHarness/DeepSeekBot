@@ -428,3 +428,39 @@ describe('M13 creation permission through the real member Gateway', () => {
     expect(f.registry.list(f.human.humanId)).toEqual([]);
   });
 });
+
+it('lets the member Gateway reach the BotHarness grant checks for a native Workspace ID', async () => {
+  const f = await enabledFixture({ workspaceResource: true });
+  await f.team.changePassword(f.human, f.initialPassword, 'member-password-1');
+  const login = await f.team.signIn('bob', 'member-password-1', 'folder-create-gateway');
+  const bot = f.registry.create({
+    slug: 'member-workspace-bot',
+    displayName: 'Workspace Bot',
+    ownerHumanId: f.human.humanId,
+  });
+  expect(bot.ok).toBe(true);
+  const channel = f.channels.getOrCreateDm(f.human, 'member-workspace-bot', 'Workspace Bot');
+  if (!channel) throw new Error('Missing member Bot DM');
+  const invoke = (method: string, args: Record<string, unknown>) =>
+    f.gateway.invoke({ namespace: 'botharness', method, args, peer: login.peer });
+  const workspaceId = 'native-workspace-id';
+  await expect(
+    invoke('grantCreate', { slug: 'member-workspace-bot', workspaceId }),
+  ).rejects.toMatchObject({ code: 'unavailable' });
+  await expect(invoke('grantCreate', { slug: 'foreign-bot', workspaceId })).rejects.toMatchObject({
+    code: 'bot-not-found',
+  });
+  const approval = {
+    slug: 'member-workspace-bot',
+    channelId: channel.id,
+    requestMessageId: 'folder-request',
+    workspaceId,
+    acknowledgeReadWrite: true,
+  };
+  await expect(invoke('grantRequestApprove', approval)).rejects.toMatchObject({
+    code: 'storage-unavailable',
+  });
+  await expect(
+    invoke('grantRequestApprove', { ...approval, channelId: 'foreign-channel' }),
+  ).rejects.toMatchObject({ code: 'remote-access/denied' });
+});

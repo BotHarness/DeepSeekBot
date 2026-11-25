@@ -16,6 +16,7 @@ export const PERMISSION_CATALOG = [
   { id: 'modelSources.manage', group: 'compute' },
   { id: 'im.bind', group: 'bots' },
   { id: 'workspaces.manageShared', group: 'compute' },
+  { id: 'workspaces.createFolder', group: 'compute' },
   { id: 'approvals.opaqueTools', group: 'oversight' },
   { id: 'usage.view', group: 'oversight' },
   { id: 'audit.view', group: 'oversight' },

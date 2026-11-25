@@ -3,6 +3,7 @@ import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { WorkspaceGrant } from '../../workspaces/grants.js';
 import type { WorkspacesBridgeMethods } from './methods.js';
 import type { FolderListing } from '../../workspaces/folder-browse.js';
+import type { CreatedFolderWorkspace } from '../../workspaces/folder-create.js';
 import type { WorkspacesAdapterMethods } from './methods.js';
 
 export function grants(
@@ -102,6 +103,10 @@ export const workspacesRpcMethods = {
 export const workspaceGrantRpc = {
   folderBrowse(path?: string, offset?: number): Promise<FolderListing> {
     return folderBrowse(this.methods, path, offset);
+  },
+
+  folderCreate(parent: string, name: string): Promise<CreatedFolderWorkspace> {
+    return unwrapAsync(this.methods.folderCreate({ parent, name }));
   },
 
   workspaceFileTarget(
