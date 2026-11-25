@@ -56,7 +56,9 @@ export const zh = {
   'pairing.roleCapabilities': '显式管理能力',
   'pairing.privateRoleApproval':
     '批准一次和拒绝适用于现有私聊执行审批；审核聊天配对适用于配对卡片，并受独立委派范围限制。原生问题与执行审批的群目的地由独立功能提供。行为文字不授予管理能力。',
-  'pairing.restricted': 'Lark 聊天与 Slack 私聊请求必须经过配对',
+  'pairing.restricted': 'Lark、Slack、Discord 的私聊和群 @ 请求必须经过配对',
+  'pairing.restrictedHelp':
+    '开启后，未配对的人发来的消息不会唤醒 Bot，只会生成配对申请等你审核。默认关闭。',
   'pairing.policyLimit':
     '行为权限是模型的 prompt 策略，不隔离邮件、代码或 Shell 资源。群回复对全群可见；聊天资格与管理权限独立。',
   'pairing.conversationAccess': '普通聊天配对申请',
@@ -67,7 +69,7 @@ export const zh = {
   'pairing.pendingCount': '{count} 个待处理',
   'pairing.approvedCount': '已配对 {count} 人',
   'pairing.hint':
-    '启用限制后，未配对的 Lark 私聊、群 @ 和 Slack 私聊自动申请普通聊天角色；Lark 管理授权仍用私聊 /pair。Slack 管理控件由独立功能提供。申请 10 分钟后过期，审核后须发送新问题。',
+    '启用限制后，未配对的 Lark、Slack、Discord 私聊和群 @ 自动申请普通聊天角色；管理授权在 Lark、Slack 或 Discord 私聊中发送 /pair。申请 10 分钟后过期，审核后须发送新问题。',
   'pairing.empty':
     '尚无配对申请。接收器就绪后，受限私聊或群 @ 会申请聊天角色；管理配对请在私聊发送 /pair。',
   'pairing.refresh': '刷新申请',
@@ -380,7 +382,9 @@ export const en = {
   'pairing.roleCapabilities': 'Explicit management capabilities',
   'pairing.privateRoleApproval':
     'Allow once and Reject apply to existing private execution approvals. Review chat pairing applies to pairing cards with a separate delegation ceiling. Group destinations for native questions and execution approvals are separate. Behavior text does not grant management capabilities.',
-  'pairing.restricted': 'Require pairing for Lark conversations and Slack DMs',
+  'pairing.restricted': 'Require pairing for Lark, Slack and Discord DMs and group mentions',
+  'pairing.restrictedHelp':
+    'When on, a message from someone who is not paired does not wake the Bot; it only creates a pairing request for you to review. Off by default.',
   'pairing.policyLimit':
     'Behavior permissions are prompt policies; they do not isolate email, code or Shell resources. Group replies are visible to the group. Chat eligibility and management powers are independent.',
   'pairing.conversationAccess': 'Conversation pairing request',
@@ -391,7 +395,7 @@ export const en = {
   'pairing.pendingCount': '{count} pending',
   'pairing.approvedCount': '{count} paired',
   'pairing.hint':
-    'When restricted, unpaired Lark DMs, group mentions and Slack DMs request an ordinary chat role automatically; Lark management requests still use /pair in a DM. Slack management controls are a separate feature. Requests expire after 10 minutes. Send a new question after approval.',
+    'When restricted, unpaired Lark, Slack and Discord DMs and group mentions request an ordinary chat role automatically; management requests use /pair in a Lark, Slack or Discord DM. Requests expire after 10 minutes. Send a new question after approval.',
   'pairing.empty':
     'No pairing requests. With a ready receiver, restricted DMs or group mentions request a chat role; management pairing uses /pair in a DM.',
   'pairing.refresh': 'Refresh requests',

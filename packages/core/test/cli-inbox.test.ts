@@ -129,6 +129,17 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
   });
 
+  it('pages the Session list with --limit and --cursor', async () => {
+    const live = await host(echo);
+    const argv = ['session-list', '--limit', '50', '--cursor', '[10,20,"s-1"]'];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: { limit: 50, cursor: '[10,20,"s-1"]' } },
+    ]);
+    for (const limit of ['0', '201', '2.5'])
+      expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [

@@ -63,6 +63,10 @@ export interface OrchestratorAgentRun {
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
   stewardActive?: () => boolean;
+  workspaceSessions?: {
+    list(): Promise<import('./workspace-sessions.js').WorkspaceSessionSummary[]>;
+    read(sessionId: string): Promise<string>;
+  };
   tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
   triage?: OrchestratorInboxTriage;

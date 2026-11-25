@@ -337,9 +337,19 @@ export const sessionListRpc = {
     source?: string,
     queryVersion?: number,
     includeArchived?: boolean,
+    limit?: number,
+    cursor?: string,
   ) {
     return unwrapAsync(
-      this.methods.sessionList({ search, sort, source, queryVersion, includeArchived }),
+      this.methods.sessionList({
+        search,
+        sort,
+        source,
+        queryVersion,
+        includeArchived,
+        limit,
+        cursor,
+      }),
     );
   },
 

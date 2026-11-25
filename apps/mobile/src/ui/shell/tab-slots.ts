@@ -34,3 +34,7 @@ export function parseTabOrder(stored: unknown): readonly TabSlot[] {
   const next = [...ordered, ...missing];
   return next.every((slot, index) => slot === defaultTabOrder[index]) ? defaultTabOrder : next;
 }
+
+export function visibleTabs(order: readonly TabSlot[], sessionsTab: boolean): readonly TabSlot[] {
+  return sessionsTab ? order : order.filter((slot) => slot !== 'sessions');
+}

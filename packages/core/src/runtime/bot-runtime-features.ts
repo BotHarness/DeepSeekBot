@@ -856,6 +856,7 @@ export function createBotRuntimeFeatures(
     database,
     externalMessaging,
     grants,
+    workspaceSessions: options.workspaceSessions,
     inboxHistory,
     inboxTriage,
     memory,

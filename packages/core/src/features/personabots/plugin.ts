@@ -1,4 +1,5 @@
 import { initializeSteward } from '../../tob/steward-role.js';
+import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { defaultSpaceMemoryPath } from '../../workspaces/space-memory.js';
@@ -467,6 +468,15 @@ export function createRuntime(
     orchestratorCwd,
   } = deps;
   return createBotRuntime({
+    ...(options.nativeSessions === undefined
+      ? {}
+      : {
+          workspaceSessions: createWorkspaceSessionReader(
+            options.nativeSessions,
+            ownership,
+            options.externalSessions,
+          ),
+        }),
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     inheritedModelPlan: () => {

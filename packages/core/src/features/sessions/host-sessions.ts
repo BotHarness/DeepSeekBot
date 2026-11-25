@@ -5,6 +5,7 @@ import {
 } from '@botharness/host-protocol/session-model';
 import { posix, win32 } from 'node:path';
 import {
+  HOST_SESSION_PAGE_MAX,
   HOST_SESSION_SEARCH_MAX,
   isHostSessionApprovalDecision,
   isHostSessionFilter,
@@ -37,6 +38,12 @@ import {
 } from '../../runtime/session-transcript.js';
 import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
+import {
+  compareSessionKeys,
+  decodeSessionCursor,
+  sessionPage,
+  sessionPageLimit,
+} from './session-list-page.js';
 import {
   createSessionTitleCache,
   type SessionTitleCache,
@@ -223,9 +230,16 @@ export function createHostSessionsMethods(
         source = 'all',
         queryVersion,
         includeArchived = false,
+        limit: requestedLimit,
+        cursor: requestedCursor,
       } = asObject(payload);
       if (typeof includeArchived !== 'boolean')
         return invalidInput('includeArchived must be a boolean');
+      const limit = sessionPageLimit(requestedLimit);
+      if (limit === 'invalid')
+        return invalidInput(`limit must be a whole number from 1 to ${HOST_SESSION_PAGE_MAX}`);
+      const after = decodeSessionCursor(requestedCursor);
+      if (after === 'invalid') return invalidInput('Unknown Session list cursor');
       if (!isHostSessionSort(sort)) return invalidInput('Unknown Session sort order');
       if (!isHostSessionFilter(source)) return invalidInput('Unknown Session source filter');
       if (queryVersion !== undefined && queryVersion !== 1)
@@ -260,6 +274,7 @@ export function createHostSessionsMethods(
           ...(row.title === undefined ? {} : { title: row.title }),
           ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
           ...(row.archived === true ? { archived: true as const } : {}),
+          ...(cwd === undefined || !owner ? {} : { cwd }),
           ...(row.waiting === true ? { waiting: true as const } : {}),
           ...(row.model === undefined ? {} : { model: row.model }),
           running: row.running,
@@ -307,15 +322,16 @@ export function createHostSessionsMethods(
           },
         });
       }
-      const untitled = sessions.filter((row) => row.title === undefined);
-      const titles =
-        deps.readSessionTitles === undefined || untitled.length === 0
-          ? undefined
-          : await sessionTitleCache(deps.readSessionTitles)(untitled);
-      for (const row of sessions) {
-        const title = titles?.get(row.sessionId);
-        if (title !== undefined) row.title = title;
-      }
+      const fillTitles = async (rows: readonly HostSessionRow[]) => {
+        const untitled = rows.filter((row) => row.title === undefined);
+        if (deps.readSessionTitles === undefined || untitled.length === 0) return;
+        const titles = await sessionTitleCache(deps.readSessionTitles)(untitled);
+        for (const row of untitled) {
+          const title = titles.get(row.sessionId);
+          if (title !== undefined) row.title = title;
+        }
+      };
+      if (query) await fillTitles(sessions);
       let sortTimes: ReadonlyMap<string, number> | undefined;
       try {
         if (query && sessions.length > 0) {
@@ -354,19 +370,22 @@ export function createHostSessionsMethods(
       }
       const clock = (row: HostSessionRow) =>
         sortTimes === undefined ? (row.lastPromptAt ?? -1) : (sortTimes.get(row.sessionId) ?? -1);
-      sessions.sort(
-        (a, b) =>
-          clock(b) - clock(a) ||
-          b.updatedAt - a.updatedAt ||
-          a.sessionId.localeCompare(b.sessionId),
-      );
-      if (queryVersion === 1) for (const row of sessions) row.sortedAt = clock(row);
+      const key = (row: HostSessionRow) => ({
+        clock: clock(row),
+        updatedAt: row.updatedAt,
+        sessionId: row.sessionId,
+      });
+      sessions.sort((a, b) => compareSessionKeys(key(a), key(b)));
+      const page = sessionPage(sessions, key, after, limit);
+      if (!query) await fillTitles(page.rows);
+      if (queryVersion === 1) for (const row of page.rows) row.sortedAt = clock(row);
       return {
         ok: true,
         value: {
-          sessions,
+          sessions: page.rows,
           ...(includeArchived ? { includeArchived: true as const } : {}),
           ...(queryVersion === 1 ? { queryVersion, sources: [...sources.values()] } : {}),
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
         },
       };
     },

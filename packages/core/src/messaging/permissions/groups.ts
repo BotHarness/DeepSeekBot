@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { PairingCapability, PairingRequest } from '../pairing.js';
 import type { ExternalUserRole } from './senders.js';
 import { platformPeople } from './people.js';
+import { resolveGrants } from '../../authorization/grants.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
@@ -264,7 +265,7 @@ export function effectivePairingPermissions(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    !platformPeople(binding.platform)?.roles
+    !platformPeople(binding.platform)
   )
     return empty;
   const pairings = (
@@ -284,7 +285,9 @@ export function effectivePairingPermissions(
       allow: p.capabilities,
       deny: [],
     }));
-  const person = pairings.find((p) => p.purpose === 'conversation');
+  const person = platformPeople(binding.platform)?.roles
+    ? pairings.find((p) => p.purpose === 'conversation')
+    : undefined;
   let currentBehavior: EffectiveBehaviorPermission[] = [];
   if (person) {
     const row = db
@@ -330,20 +333,13 @@ export function effectivePairingPermissions(
         });
     }
   }
-  const deniedCapabilities = [...new Set(permissionSources.flatMap((source) => source.deny))];
-  const deniedDelegableCapabilities = [
-    ...new Set(permissionSources.flatMap((source) => source.delegateDeny ?? [])),
-  ];
+  const resolved = resolveGrants<PairingCapability, PermissionSource>(permissionSources);
   return {
     ...(currentBehavior.length ? { behaviorPermissions: currentBehavior } : {}),
-    capabilities: [...new Set(permissionSources.flatMap((source) => source.allow))].filter(
-      (cap) => !deniedCapabilities.includes(cap),
-    ),
-    deniedCapabilities,
-    delegableCapabilities: [
-      ...new Set(permissionSources.flatMap((source) => source.delegateAllow ?? [])),
-    ].filter((cap) => !deniedDelegableCapabilities.includes(cap)),
-    deniedDelegableCapabilities,
+    capabilities: resolved.granted,
+    deniedCapabilities: resolved.denied,
+    delegableCapabilities: resolved.delegable,
+    deniedDelegableCapabilities: resolved.deniedDelegable,
     permissionSources,
   };
 }

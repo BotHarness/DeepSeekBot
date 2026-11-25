@@ -28,6 +28,7 @@ import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { bindScheduleCommands } from '../schedules/events.js';
+import type { WorkspaceSessionReader } from './workspace-sessions.js';
 
 interface OrchestratorServicesPorts {
   activityEvents: ReturnType<typeof createActivityEvents>;
@@ -44,6 +45,7 @@ interface OrchestratorServicesPorts {
   database: OperationalDatabaseModulePort;
   externalMessaging: OutboundMessaging | undefined;
   grants: WorkspaceGrantStore | undefined;
+  workspaceSessions: WorkspaceSessionReader | undefined;
   inboxHistory: InboxHistoryQuery;
   inboxTriage: InboxTriage;
   memory: BotRuntimeOptions['memory'];
@@ -53,6 +55,13 @@ interface OrchestratorServicesPorts {
   schedules: BotRuntimeOptions['schedules'];
   sourcePolicy: BotSourcePolicyStore;
   team: TeamService | undefined;
+}
+
+function grantRoots(grants: WorkspaceGrantStore, slug: string): string[] {
+  return grants
+    .list(slug)
+    .filter((grant) => grant.revokedAt === undefined)
+    .map((grant) => grant.workspacePath);
 }
 
 export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
@@ -94,7 +103,15 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
           }
         : {}),
       stewardActive: () => isStewardDmSource(ports.database, bot.slug, turn.sourceEventId),
-
+      ...(ports.workspaceSessions === undefined || ports.grants === undefined
+        ? {}
+        : {
+            workspaceSessions: {
+              list: () => ports.workspaceSessions!.list(() => grantRoots(ports.grants!, bot.slug)),
+              read: (sessionId: string) =>
+                ports.workspaceSessions!.read(() => grantRoots(ports.grants!, bot.slug), sessionId),
+            },
+          }),
       ...(ports.externalMessaging === undefined
         ? {}
         : {

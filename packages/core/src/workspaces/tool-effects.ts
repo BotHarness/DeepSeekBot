@@ -102,6 +102,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   list_bot_subagent_models: read,
   list_subagent_models: read,
   list_workspace_grants: read,
+  workspace_sessions: read,
   memory_continue_from_commit: { ...write, reach: 'memory' },
   memory_switch_branch: { ...write, reach: 'memory' },
   protected_cli: { ...secret, approval: 'native' },

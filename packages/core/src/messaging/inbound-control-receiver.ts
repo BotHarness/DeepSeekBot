@@ -280,7 +280,7 @@ export function createInboundControlReceiver(wiring: {
       return false;
     signal.throwIfAborted();
     const explicit = /^\/pair(?:\s|$)/.test(event.text.trim());
-    if (explicit && event.channel === 'slack') return true;
+    if (explicit && !platformPeople(event.channel)?.management) return true;
     const row = database.read((db) =>
       db
         .prepare(
