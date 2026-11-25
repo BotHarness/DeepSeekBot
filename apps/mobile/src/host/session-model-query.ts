@@ -31,9 +31,9 @@ export function catalogQuery(host: HostCall) {
   };
 }
 
-export function stateQuery(host: HostCall, slug: string | null, sessionId: string) {
+export function stateQuery(host: HostCall, slug: string | null, sessionId: string | undefined) {
   return {
-    queryKey: ['session-model', hostKey(host), slug, sessionId] as const,
+    queryKey: ['session-model', hostKey(host), slug, sessionId ?? null] as const,
     queryFn: (): Promise<SessionModelState> => sessionModel(host, slug, sessionId),
     staleTime: 0,
   };

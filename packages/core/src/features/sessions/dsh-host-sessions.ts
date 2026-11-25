@@ -14,20 +14,55 @@ import type { DshSessionStore } from '../../sessions/source.js';
 import { hostSessionQueries } from './dsh-host-session-query.js';
 import type { DshHostSessionInput } from './dsh-host-session-input.js';
 import type { DshSessionListRow, NativeSessions } from './host-sessions.js';
-import { cacheSessionRows, type SessionListChanges } from './session-list-changes.js';
+import type { SessionListChanges } from './session-list-changes.js';
+import { incrementalSessionRows } from './session-row-cache.js';
 
 export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
   input?: DshHostSessionInput,
-  changes?: Pick<SessionListChanges, 'version'>,
+  changes?: Pick<SessionListChanges, 'since' | 'cursor' | 'touchedAt' | 'changed'>,
 ): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
     return service;
   }
-  const rows = changes === undefined ? readRows : cacheSessionRows(readRows, changes);
+  const rows =
+    changes === undefined
+      ? readRows
+      : incrementalSessionRows(
+          { all: readRows, one: readRow, ignored: (id) => subagents.has(id) },
+          changes,
+        );
+  let subagents = new Set<string>();
+
+  async function readRow(previous: DshSessionListRow): Promise<DshSessionListRow | null> {
+    const service = controller();
+    const sessionId = SessionId(previous.sessionId);
+    const signal = new AbortController().signal;
+    const [projections, state] = await Promise.all([
+      service.projections({ sessionId }, signal).catch(() => undefined),
+      service.state({ sessionId }, signal).catch(() => undefined),
+    ]);
+    if (projections === undefined && state === undefined) return null;
+    const metadata = projections?.values;
+    const model = metadata?.modelSelection?.lastUsed ?? metadata?.modelSelection?.next;
+    const running = state?.running ?? false;
+    return {
+      sessionId: previous.sessionId,
+      ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
+      ...(running && (state?.pendingInput.length ?? 0) > 0 ? { waiting: true as const } : {}),
+      ...(previous.cwd === undefined ? {} : { cwd: previous.cwd }),
+      ...(previous.parentSessionId === undefined
+        ? {}
+        : { parentSessionId: previous.parentSessionId }),
+      ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),
+      lastPromptAt: metadata?.sessionListMetadata?.lastPromptAt ?? null,
+      running,
+      updatedAt: previous.updatedAt,
+    };
+  }
 
   async function list(): Promise<readonly DshSessionListRow[]> {
     const read = await rows();
@@ -41,6 +76,9 @@ export function dshHostSessions(
     const signal = new AbortController().signal;
     const { items } = await service.list({}, signal);
     const roots = items.filter((row) => row.origin !== 'subagent');
+    subagents = new Set(
+      items.filter((row) => row.origin === 'subagent').map((row) => row.sessionId),
+    );
     const waiting = new Set(
       (
         await Promise.all(
@@ -87,6 +125,12 @@ export function dshHostSessions(
           answerQuestion: input.answerQuestion,
         }),
     list,
+    ...(changes === undefined
+      ? {}
+      : {
+          listChanges: (request: { sinceSeq?: number; epoch?: string }) => changes.since(request),
+          markChanged: (sessionId: string) => changes.changed(true, sessionId),
+        }),
     async isRoot(id) {
       const sessionId = SessionId(id);
       const header =
@@ -217,6 +261,7 @@ export function dshHostSessions(
       const workspace = ctx.get('workspaceController');
       if (workspace === undefined) throw new Error('DSH Workspace Controller unavailable');
       await workspace.archiveSession({ sessionId: SessionId(id) });
+      changes?.changed(true, id);
     },
     async send(id, text) {
       const requestId = randomUUID() as SessionRequestId;

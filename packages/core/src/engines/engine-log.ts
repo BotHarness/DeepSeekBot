@@ -50,7 +50,13 @@ export class EngineTurnLog {
   readonly #approvals = new Set<string>();
   #ended = false;
 
-  constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
+  constructor(
+    target: EngineLogTarget,
+    engine: EngineId,
+    account: string,
+    input: string,
+    title?: string,
+  ) {
     this.#target = target;
     this.#source = { provider: engine, model: account };
     const events = target.session.snapshotEvents();
@@ -72,10 +78,10 @@ export class EngineTurnLog {
       !isSessionActivityName(current.data.title) ||
       (current.data.source?.kind === 'fallback' && ENVELOPE_TITLE.test(current.data.title))
     ) {
-      const title = inboundSessionTitle(input);
-      if (isSessionActivityName(title))
+      const named = title ?? inboundSessionTitle(input);
+      if (isSessionActivityName(named))
         session.append('session/title', {
-          title,
+          title: named,
           messageSeqs: [message.seq],
           source: { kind: 'fallback' },
         });
@@ -142,6 +148,9 @@ export class EngineTurnLog {
         return;
       case 'approval':
       case 'rate-limit':
+      case 'subagent-start':
+      case 'subagent-step':
+      case 'subagent-end':
         return;
       default: {
         const unhandled: never = event;

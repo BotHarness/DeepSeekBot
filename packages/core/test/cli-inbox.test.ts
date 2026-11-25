@@ -140,6 +140,24 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
   });
 
+  it('reads the Session change cursor, then the changes since it', async () => {
+    const live = await host(echo);
+    expect((await invoke(['session-list-changes'], live.url)).code).toBe(0);
+    expect(
+      (await invoke(['session-list-changes', '--since', '12', '--epoch', 'e1'], live.url)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionListChanges', args: {} },
+      { method: 'sessionListChanges', args: { sinceSeq: 12, epoch: 'e1' } },
+    ]);
+    for (const argv of [
+      ['session-list-changes', '--since', '-1'],
+      ['session-list-changes', '--since', 'x'],
+      ['session-list-changes', '--epoch', 'e1'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -567,6 +585,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke([...args, '--clear'], live.url)).json).toMatchObject({
       method: 'sessionModel',
       args: { choice: null },
+    });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
     });
   });
 
