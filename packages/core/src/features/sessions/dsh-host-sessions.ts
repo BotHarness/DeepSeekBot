@@ -23,7 +23,10 @@ export function dshHostSessions(
   ctx: Context,
   sessions: DshSessionStore,
   input?: DshHostSessionInput,
-  changes?: Pick<SessionListChanges, 'since' | 'cursor' | 'touchedAt' | 'changed'>,
+  changes?: Pick<
+    SessionListChanges,
+    'since' | 'cursor' | 'touchedAt' | 'firstTouchedAt' | 'changed'
+  >,
 ): NativeSessions {
   function controller() {
     const service = ctx.get('sessionController');
@@ -38,6 +41,7 @@ export function dshHostSessions(
           changes,
         );
   let subagents = new Set<string>();
+  let createdAt: Map<string, number> | undefined;
 
   async function readRow(previous: DshSessionListRow): Promise<DshSessionListRow | null> {
     const service = controller();
@@ -79,14 +83,20 @@ export function dshHostSessions(
     const signal = new AbortController().signal;
     const [{ items }, records] = await Promise.all([
       service.list({}, signal),
-      ctx
-        .get('sessionQuery')
-        ?.listSessions()
-        .catch(() => undefined),
+      createdAt === undefined
+        ? ctx
+            .get('sessionQuery')
+            ?.listSessions()
+            .catch(() => undefined)
+        : undefined,
     ]);
-    const created = new Map<string, number>(
-      (records ?? []).map(({ header }) => [header.id, header.createdAt]),
-    );
+    if (records !== undefined)
+      createdAt = new Map(records.map(({ header }) => [header.id, header.createdAt]));
+    const created = createdAt ?? new Map<string, number>();
+    if (createdAt !== undefined)
+      for (const item of items)
+        if (!created.has(item.sessionId))
+          created.set(item.sessionId, changes?.firstTouchedAt(item.sessionId) ?? item.updatedAt);
     const roots = items.filter((row) => row.origin !== 'subagent');
     subagents = new Set(
       items.filter((row) => row.origin === 'subagent').map((row) => row.sessionId),

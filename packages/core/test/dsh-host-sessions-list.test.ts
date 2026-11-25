@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { expect, it, vi } from 'vitest';
 import { dshHostSessions } from '../src/features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from '../src/features/sessions/session-list-changes.js';
 import type { DshSessionStore } from '../src/sessions/source.js';
 
 it('marks a running Session waiting for the Human and carries its last model', async () => {
@@ -72,4 +73,32 @@ it('creates a native Session in a folder or a registered DSH Workspace', async (
     [{ workspaceId: '77e8496c-4fdc-4d42-8918-142c99f4a48f' }],
     [{ cwd: '/work/app', sessionId: 'blank' }],
   ]);
+});
+
+it('reads Session creation times from the headers once per Host run and dates newer Sessions by their first event', async () => {
+  let items = [{ sessionId: 'old', running: false, updatedAt: 50 }];
+  const listSessions = vi.fn(async () => [{ header: { id: 'old', createdAt: 5 } }]);
+  const controller = { list: async () => ({ items }), state: vi.fn() };
+  const query = { listSessions };
+  const ctx = {
+    get: (name: string) =>
+      name === 'sessionController' ? controller : name === 'sessionQuery' ? query : undefined,
+  };
+  const journal = createSessionListChanges(() => undefined, { epoch: 'run' });
+  const sessions = dshHostSessions(
+    ctx as never as Context,
+    { get: () => undefined } as unknown as DshSessionStore,
+    undefined,
+    journal,
+  );
+  expect((await sessions.list()).map((r) => [r.sessionId, r.createdAt])).toEqual([['old', 5]]);
+
+  items = [...items, { sessionId: 'new', running: false, updatedAt: 90 }];
+  journal.changed(false, 'new', 80);
+  journal.changed(false, 'new', 85);
+  expect((await sessions.list()).map((r) => [r.sessionId, r.createdAt])).toEqual([
+    ['old', 5],
+    ['new', 80],
+  ]);
+  expect(listSessions).toHaveBeenCalledTimes(1);
 });
