@@ -76,25 +76,35 @@ it('commits a marker to both Human DMs and keeps the former Tob deletable across
   expect(reopened.registry.get(home.botSlug)).toBeUndefined();
 });
 
-it('marks the former Steward’s own Human DM when a new Host Owner transfers the role', async () => {
+it('gives the Steward role to the incoming Host Owner’s Tob on an Owner transfer', async () => {
   const { core } = fixture();
   const former = await core.tob.ensure(owner);
+  core.registry.create({ slug: 'ada', displayName: 'Ada' });
+  expect(await core.tob.transferSteward(owner, 'ada')).toEqual({ botSlug: 'ada' });
   await core.team.setOwnerPassword(owner, 'owner-password-1');
   const member = await core.team.createMember(owner, 'next-owner', 'Next');
   const next = humanContext(member.member.humanId);
   await core.team.changePassword(next, member.initialPassword, 'next-password-1', false);
   await core.team.transferOwner(owner, next.humanId, 'owner-password-1');
+  expect(core.tob.isSteward('ada')).toBe(false);
+  expect(() => core.deletions.preview('ada')).not.toThrow();
   const incoming = createBridgeMethodsForHumans(core)(next);
-  expect(await incoming.steward({})).toEqual({ ok: true, value: { botSlug: former.botSlug } });
+  const steward = await incoming.steward({});
   const target = await core.tob.ensure(next);
-  expect(await incoming.stewardTransfer({ slug: target.botSlug, confirm: true })).toEqual({
+  expect(target.botSlug).not.toBe(former.botSlug);
+  expect(steward).toEqual({ ok: true, value: { botSlug: target.botSlug } });
+  expect(core.tob.isSteward(target.botSlug)).toBe(true);
+  expect(() => core.deletions.preview(target.botSlug)).toThrow('protected-bot');
+  const own = createBridgeMethodsForHumans(core)(next);
+  expect(own.create({ displayName: 'Bea' })).toMatchObject({ ok: true });
+  const bea = core.registry.list().find((bot) => bot.displayName === 'Bea')!;
+  expect(await incoming.stewardTransfer({ slug: bea.slug, confirm: true })).toEqual({
     ok: true,
-    value: { botSlug: target.botSlug },
+    value: { botSlug: bea.slug },
   });
-  expect(core.tob.isSteward(former.botSlug)).toBe(false);
-  for (const channelId of [former.channelId, target.channelId])
+  for (const channelId of [target.channelId, dmChannelId(bea.slug)])
     expect(core.channels.readMessages(channelId)).toEqual([
-      expect.objectContaining({ stewardTransfer: { botSlug: target.botSlug, botName: 'Tob' } }),
+      expect.objectContaining({ stewardTransfer: { botSlug: bea.slug, botName: 'Bea' } }),
     ]);
 });
 
