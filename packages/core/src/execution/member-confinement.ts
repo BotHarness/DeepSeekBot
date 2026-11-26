@@ -1,5 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
@@ -15,8 +14,13 @@ import {
   probeConfinement,
   RUNNER_FAILURE_SIGNATURE,
   type ConfinementStatus,
-  type ExecutionPlan,
 } from './linux-confinement.js';
+import {
+  nodeShellReachHost,
+  shellReach,
+  type ShellReach,
+  type ShellReachHost,
+} from './shell-reach.js';
 
 export type ConfinementCore = Pick<
   BotHarnessCore,
@@ -44,9 +48,7 @@ interface Confined {
 export type PlanResult =
   | { kind: 'unconfined' }
   | { kind: 'refused'; reason: string }
-  | { kind: 'plan'; plan: ExecutionPlan; botSlug: string };
-
-const SYSTEM_HIDDEN = ['/home', '/root', '/run', '/mnt', '/media', '/srv'];
+  | { kind: 'plan'; plan: ShellReach; botSlug: string };
 
 function real(path: string): string {
   try {
@@ -69,33 +71,11 @@ function rootOwner(core: ConfinementCore, sessionId: string) {
   return owner;
 }
 
-function outermost(paths: readonly string[]): string[] {
-  const unique = [...new Set(paths)].sort((a, b) => a.length - b.length);
-  return unique.filter((path, index) => !unique.slice(0, index).some((root) => within(root, path)));
-}
-
-function resolverTarget(): string | undefined {
-  try {
-    return lstatSync('/etc/resolv.conf').isSymbolicLink()
-      ? realpathSync('/etc/resolv.conf')
-      : '/etc/resolv.conf';
-  } catch {
-    return undefined;
-  }
-}
-
-export function confinedPath(entries: readonly string[], hidden: readonly string[]): string {
-  return [
-    ...new Set(
-      entries.map((entry) => (hidden.some((root) => within(root, entry)) ? real(entry) : entry)),
-    ),
-  ].join(':');
-}
-
 export function memberExecutionPlan(
   core: ConfinementCore,
   dshHome: string,
   sessionId: string | undefined,
+  host: ShellReachHost = nodeShellReachHost,
 ): PlanResult {
   if (sessionId === undefined)
     return core.team?.enabled() === true
@@ -116,7 +96,7 @@ export function memberExecutionPlan(
     return { kind: 'refused', reason: 'the Session has no authorized folder' };
   const home = join(dirname(memory), 'home');
   mkdirSync(home, { recursive: true, mode: 0o700 });
-  const allowed = [...readable, home];
+  const allowed = [...readable, real(home)];
   const others = [
     ...core.registry.list().flatMap((record) => {
       const dir = core.registry.memoryDirFor(record.slug);
@@ -124,42 +104,15 @@ export function memberExecutionPlan(
     }),
     ...core.grants.availableWorkspaces().map((workspace) => real(workspace.path)),
   ].filter((path) => !allowed.some((root) => within(root, path)));
-  const hidden = outermost(
-    [real(dshHome), real(homedir()), ...SYSTEM_HIDDEN, ...others]
-      .filter((path) => existsSync(path))
-      .filter((path) => !allowed.includes(path)),
-  );
-  const sensitive = [real(dshHome), real(homedir()), ...others];
-  const nodeBin = dirname(process.execPath);
-  const inheritedPath = process.env['PATH'] ?? '';
-  const pathEntries = [...inheritedPath.split(':'), nodeBin].filter((path) => path.startsWith('/'));
-  const pathEnv = confinedPath(pathEntries, hidden);
-  const tools = [...pathEntries, dirname(nodeBin)]
-    .filter((path) => existsSync(path))
-    .map(real)
-    .filter(
-      (path) =>
-        hidden.some((root) => within(root, path)) &&
-        !sensitive.some((secret) => within(path, secret)) &&
-        ![real(dshHome), ...others].some((secret) => within(secret, path)),
-    );
   return {
     kind: 'plan',
     botSlug: root.botSlug,
-    plan: {
-      readable,
-      writable,
-      hidden,
-      tools: [...new Set(tools)],
-      pathEnv: pathEnv === inheritedPath ? undefined : pathEnv,
-      home: real(home),
-      resolvConf: resolverTarget(),
-    },
+    plan: shellReach({ readable, writable, home, protected: [dshHome, ...others] }, host),
   };
 }
 
 export function confineMemberCommand(
-  plan: ExecutionPlan,
+  plan: ShellReach,
   argv: readonly string[],
   policy: Policy,
   status: ConfinementStatus,

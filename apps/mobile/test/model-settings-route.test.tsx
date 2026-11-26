@@ -18,6 +18,11 @@ vi.mock('../src/ui/chat/model-settings-screen', () => ({
     <h1>{picker ?? `${modelScopeKey(scope)} editor`}</h1>
   ),
 }));
+vi.mock('../src/ui/chat/model-slots-screen', () => ({
+  ModelSlotsView: ({ scope }: { scope: Parameters<typeof modelScopeKey>[0] }) => (
+    <h1>{`${modelScopeKey(scope)} slots`}</h1>
+  ),
+}));
 vi.mock('../src/ui/chat/sub-choice-picker', () => ({
   SubChoicePicker: ({ field }: Parameters<typeof SubChoicePicker>[0]) => <h1>{field}</h1>,
 }));

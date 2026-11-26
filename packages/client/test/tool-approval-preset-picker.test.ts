@@ -157,7 +157,7 @@ describe('Auto approval preset picker on the approval card', () => {
     const card = await render(message(), actions);
     expect(actions.approvalTemplates).toHaveBeenCalledWith('ada');
     const button = trigger(card)!;
-    expect(button.textContent).toBe('自动审批 · 把活干完');
+    expect(button.textContent).toBe('把活干完');
     const children = [...card.children];
     expect(children.indexOf(button.closest('[data-approval-preset]')!)).toBeGreaterThan(
       children.indexOf(card.querySelector('.bh-tool-approval-actions')!),
@@ -173,9 +173,9 @@ describe('Auto approval preset picker on the approval card', () => {
   });
 
   it.each([
-    { label: '谨慎', value: 'cautious' },
-    { label: '关闭', value: null },
-    { label: '跟随全局', value: '@global' },
+    { label: '谨慎', value: 'cautious', shown: '谨慎' },
+    { label: '关闭', value: null, shown: '无自动审批' },
+    { label: '跟随全局', value: '@global', shown: '谨慎' },
   ])('switches to $label for the next request and keeps this card pending', async (choice) => {
     const chosen: Array<string | null> = [];
     const actions = presets('get-work-done', chosen);
@@ -188,7 +188,8 @@ describe('Auto approval preset picker on the approval card', () => {
     expect(chosen).toEqual([choice.value]);
     expect(actions.setBotApprovalTemplate).toHaveBeenCalledWith('ada', choice.value);
     expect(decisions).toEqual([]);
-    expect(trigger(card)!.textContent).toBe(`自动审批 · ${choice.label}`);
+    expect(trigger(card)!.textContent).toBe(choice.shown);
+    expect(trigger(card)!.getAttribute('aria-label')).toBe(`自动审批 · ${choice.label}`);
     expect(card.querySelector('[data-approval-preset-next]')?.textContent).toBe('下次生效');
     expect(card.querySelector('.bh-request-pill')?.textContent).toBe('需要你确认');
     const choices = [
@@ -282,15 +283,15 @@ describe('Auto approval preset picker on the approval card', () => {
     const chosen: Array<string | null> = [];
     const shared = presets('get-work-done', chosen);
     const [first, second] = await renderPair(shared);
-    expect(trigger(second!)!.textContent).toBe('自动审批 · 把活干完');
+    expect(trigger(second!)!.textContent).toBe('把活干完');
     await openMenu(first!);
     await act(async () => item('关闭')!.click());
     await act(async () => {
       await Promise.resolve();
     });
     expect(chosen).toEqual([null]);
-    expect(trigger(first!)!.textContent).toBe('自动审批 · 关闭');
-    expect(trigger(second!)!.textContent).toBe('自动审批 · 关闭');
+    expect(trigger(first!)!.textContent).toBe('无自动审批');
+    expect(trigger(second!)!.textContent).toBe('无自动审批');
     expect(second!.querySelector('.bh-request-pill')?.textContent).toBe('需要你确认');
     expect(decisions).toEqual([]);
   });
@@ -312,7 +313,7 @@ describe('Auto approval preset picker on the approval card', () => {
       setBotApprovalTemplate: vi.fn(async () => {}),
     } satisfies Pick<CardActions, 'approvalTemplates' | 'setBotApprovalTemplate'>;
     const card = await render(message(), fixture);
-    expect(trigger(card)!.textContent).toBe('自动审批 · 把活干完');
+    expect(trigger(card)!.textContent).toBe('把活干完');
     deferred = true;
     act(() => {
       announceApprovalTemplateChange(fixture.approvalTemplates, 'ada');
@@ -321,7 +322,7 @@ describe('Auto approval preset picker on the approval card', () => {
     expect(pending).toHaveLength(2);
     await act(async () => pending[1]!(answer('cautious')));
     await act(async () => pending[0]!(answer('get-work-done')));
-    expect(trigger(card)!.textContent).toBe('自动审批 · 谨慎');
+    expect(trigger(card)!.textContent).toBe('谨慎');
   });
 
   it('keeps the refresh of replaced actions when a save from the old actions finishes', async () => {
@@ -352,14 +353,14 @@ describe('Auto approval preset picker on the approval card', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(trigger(replaced)!.textContent).toBe('自动审批 · 谨慎');
+    expect(trigger(replaced)!.textContent).toBe('谨慎');
   });
 
   it('writes the chosen preset even when the card still shows it as current', async () => {
     const chosen: Array<string | null> = [];
     const shared = presets(null, chosen);
     const card = await render(message(), shared);
-    expect(trigger(card)!.textContent).toBe('自动审批 · 关闭');
+    expect(trigger(card)!.textContent).toBe('无自动审批');
     await shared.setBotApprovalTemplate('ada', 'cautious');
     chosen.length = 0;
     await openMenu(card);

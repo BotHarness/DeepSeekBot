@@ -158,6 +158,8 @@ export const INBOX_OPTIONS = {
   workspace: { type: 'string' },
   model: { type: 'string' },
   message: { type: 'string' },
+  symbol: { type: 'string' },
+  monogram: { type: 'boolean' },
 } as const;
 
 export const MESSAGING_OPTIONS = {
@@ -174,6 +176,7 @@ export const MESSAGING_OPTIONS = {
 
 export const MODELS_USAGE_OPTIONS = {
   'include-usage': { type: 'boolean' },
+  'keep-overrides': { type: 'boolean' },
   'migration-dry-run': { type: 'boolean' },
   'assignment-follows-main': { type: 'boolean' },
   template: { type: 'string' },

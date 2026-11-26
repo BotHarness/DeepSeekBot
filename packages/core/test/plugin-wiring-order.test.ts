@@ -223,6 +223,7 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
       "fetch: /api/botharness/profile-backup/recovery",
       "fetch: /api/botharness/profile-backup/inspect",
       "fetch: /api/botharness/profile-backup",
+      "fetch: /api/botharness/workspace-favicon",
       "fetch: /api/botharness/bot-avatar",
       "fetch: /api/botharness/bot-banner",
       "fetch: /api/botharness/attachment",

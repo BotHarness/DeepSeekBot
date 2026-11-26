@@ -257,7 +257,7 @@ describe('bridge methods', () => {
     });
   });
 
-  it('edits a template for future applications and keeps custom Bot snapshots independent across restart', async () => {
+  it('edits a preset that every Bot on it follows live, and keeps a Bot main override across restart', async () => {
     const high = {
       provider: 'deepseek',
       model: 'deepseek-chat',
@@ -339,8 +339,9 @@ describe('bridge methods', () => {
     });
     expect(registry.get('ada')?.modelPlan).toMatchObject({
       revision: 1,
-      sourcePresetName: 'High intelligence',
-      orchestrator: high,
+      sourcePresetId: id,
+      sourcePresetName: 'Economy',
+      orchestrator: low,
     });
     expect(await methods.modelPresetApply({ slug: 'bea', presetId: id })).toMatchObject({
       ok: true,
@@ -353,10 +354,11 @@ describe('bridge methods', () => {
       value: {
         plan: {
           revision: 2,
-          sourcePresetId: '',
-          sourcePresetName: '',
+          sourcePresetId: id,
+          sourcePresetName: 'Economy',
           orchestrator: high,
           assignmentDefault: low,
+          overrides: ['main'],
         },
       },
     });
@@ -376,12 +378,13 @@ describe('bridge methods', () => {
     const reopened = createTestRegistry({ rootDir: root });
     expect(reopened.get('ada')?.modelPlan).toMatchObject({
       revision: 1,
-      orchestrator: high,
+      orchestrator: low,
     });
     expect(reopened.get('bea')?.modelPlan).toMatchObject({
       revision: 2,
-      sourcePresetId: '',
+      sourcePresetId: id,
       orchestrator: high,
+      overrides: ['main'],
     });
     expect(createModelPresetStore({ rootDir: root, database: modelOwner }).get(id)).toMatchObject({
       revision: 2,

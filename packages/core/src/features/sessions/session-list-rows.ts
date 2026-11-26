@@ -115,6 +115,7 @@ export async function readVisibleSessionRows(
   const seenBots = new Set<string>();
   const children = new Set<string>();
   const roots = new Set<string>();
+  const cwdOf = new Map<string, string>();
   for (const row of rows) {
     const record = ownership.get(row.sessionId);
     if (row.parentSessionId !== undefined || record?.parentSessionId !== undefined) {
@@ -124,6 +125,7 @@ export async function readVisibleSessionRows(
     roots.add(row.sessionId);
     if (row.archived === true && !includeArchived) continue;
     const cwd = row.cwd ?? record?.cwdReference;
+    if (cwd !== undefined) cwdOf.set(row.sessionId, cwd);
     const base = {
       sessionId: row.sessionId,
       ...(row.title === undefined ? {} : { title: row.title }),
@@ -198,6 +200,15 @@ export async function readVisibleSessionRows(
       ...(attention === undefined ? {} : { attention }),
       source: identity,
     });
+  }
+  if (deps.workspaceLooks !== undefined) {
+    const looks = await deps.workspaceLooks.folderLooks(
+      sessions.flatMap((row) => cwdOf.get(row.sessionId) ?? []),
+    );
+    for (const row of sessions) {
+      const look = looks.get(cwdOf.get(row.sessionId) ?? '');
+      if (look !== undefined) row.folderLook = look;
+    }
   }
   return { sessions, sources: [...sources.values()], roots, children };
 }
