@@ -5,6 +5,7 @@ import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
 import { type ConversationDraftReference } from '@botharness/host-client/conversation';
+import type { RosterChannel } from '@botharness/host-client/client';
 import {
   useChannelConversation,
   useConversation,
@@ -16,6 +17,19 @@ import {
 import { botBusy } from './bot-tone';
 
 const NO_DRAFTS: ConversationDraftReference[] = [];
+
+function usePendingPerson(
+  channelId: string | undefined,
+  name: string | undefined,
+): RosterChannel | undefined {
+  return useMemo(
+    () =>
+      channelId === undefined || name === undefined
+        ? undefined
+        : { id: channelId, name, memberCount: 2, members: [] },
+    [channelId, name],
+  );
+}
 
 function useDraftSlots<T extends { draftId: string; botSlug: string }>(
   drafts: readonly T[],
@@ -34,10 +48,16 @@ export function useConversationSource({ place, focused }: { place: ChatPlace; fo
   const hiddenActivity = useHiddenDmActivity(saved?.hostId, slug);
   const channelId = dm ? undefined : place.channelId;
   const bot = dm ? host.roster?.bots.find((entry) => entry.slug === slug) : undefined;
-  const person = dm ? undefined : host.roster?.people?.find((entry) => entry.id === channelId);
-  const channel = dm
+  const listedPerson = dm
     ? undefined
-    : (host.roster?.channels.find((entry) => entry.id === channelId) ?? person);
+    : host.roster?.people?.find((entry) => entry.id === channelId);
+  const group = dm ? undefined : host.roster?.channels.find((entry) => entry.id === channelId);
+  const pendingPerson = usePendingPerson(
+    dm || listedPerson !== undefined || group !== undefined ? undefined : channelId,
+    dm ? undefined : place.personName,
+  );
+  const person = listedPerson ?? pendingPerson;
+  const channel = group ?? person;
   const channelDetails = dm
     ? undefined
     : host.roster?.activityChannels?.find((entry) => entry.id === channelId);
@@ -79,7 +99,11 @@ export function useConversationSource({ place, focused }: { place: ChatPlace; fo
     [slug, bot !== undefined],
   );
   const dmConversation = useConversation(client, target);
-  const channelConversation = useChannelConversation(client, channelId);
+  const channelConversation = useChannelConversation(
+    client,
+    channelId,
+    pendingPerson !== undefined,
+  );
   const conversation = dm ? dmConversation : channelConversation;
   const members = useMemo(
     () =>
@@ -113,6 +137,7 @@ export function useConversationSource({ place, focused }: { place: ChatPlace; fo
     channelId,
     bot,
     person,
+    pendingPerson: pendingPerson !== undefined,
     channel,
     channelDetails,
     botDm,

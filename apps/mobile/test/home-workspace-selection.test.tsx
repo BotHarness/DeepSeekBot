@@ -85,6 +85,8 @@ vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 
 vi.mock('react-native', mockReactNative);
 
+vi.mock('../src/ui/shell/message-person-sheet', () => ({ MessagePersonSheet: () => null }));
+
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
