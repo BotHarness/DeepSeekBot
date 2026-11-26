@@ -100,6 +100,7 @@ function render(picker: (props: ApprovalPresetPickerProps) => ReactNode) {
     root!.render(
       createElement(picker, {
         label: 'Auto approval · Off',
+        value: 'No auto approval',
         header: 'Preset',
         note: 'Applies next time',
         options,
@@ -119,6 +120,13 @@ describe('Native Auto approval preset pickers', () => {
     act(() => off().click());
     expect(onSelect).toHaveBeenCalledWith(options[2]);
     expect(off().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('Android shows only the preset name in its trigger', () => {
+    const { view } = render(AndroidPicker);
+    const trigger = view.querySelector<HTMLElement>('[data-testid="approval-preset-trigger"]')!;
+    expect(trigger.textContent).toBe('No auto approval');
+    expect(trigger.getAttribute('aria-label')).toBe('Auto approval · Off');
   });
 
   it('Android sends a pick of the shown preset', () => {

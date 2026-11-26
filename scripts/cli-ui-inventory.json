@@ -553,6 +553,7 @@
         "model-plan-sub-set",
         "model-plan-customize",
         "model-plan-inherit",
+        "model-plan-reset",
         "model-plan-assignments-set",
         "model-presets",
         "model-preset-create",

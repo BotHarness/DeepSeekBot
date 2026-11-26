@@ -1,4 +1,5 @@
 import type { HttpsFallback } from '../memory/clone.js';
+import { isBotModelLink, type BotModelLink } from '../models/bot-model-link.js';
 import { isStandingLimits, type StandingLimits } from '../memory/soul.js';
 import { isPersonaBotModelPlan, type PersonaBotModelPlan } from '../models/presets.js';
 import { createHash } from 'node:crypto';
@@ -31,6 +32,7 @@ export interface PersonaBotRecord {
   model?: string;
   modelPlan?: PersonaBotModelPlan;
   modelPlanRevision?: number;
+  modelLink?: BotModelLink;
   preset?: string;
   memoryDir?: string;
   workspaces: string[];
@@ -274,6 +276,7 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     return false;
   if (record['modelPlan'] !== undefined && !isPersonaBotModelPlan(record['modelPlan']))
     return false;
+  if (record['modelLink'] !== undefined && !isBotModelLink(record['modelLink'])) return false;
   if (record['standingLimits'] !== undefined && !isStandingLimits(record['standingLimits']))
     return false;
   if (

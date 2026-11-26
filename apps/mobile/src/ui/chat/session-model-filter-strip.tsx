@@ -5,6 +5,7 @@ import { edge, radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { SystemSymbol, type SystemSymbolProps } from '../primitives/system-symbol';
+import { rowSymbol } from '../primitives/row-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { ModelPickerFilters } from './model-picker-filters';
 import { SHEET_GROUP, SheetHeading } from './sheet';
@@ -21,15 +22,19 @@ export function ModelFilterGlyph({
   brand,
   sub,
   size,
+  group = false,
   badgeSymbol = SUBSCRIPTION_BADGE_SYMBOL,
 }: {
   brand: ModelBrand | undefined;
   sub: boolean;
   size: number;
+  group?: boolean;
   badgeSymbol?: SystemSymbolProps['name'];
 }) {
   const theme = useDesignTheme();
   const badge = Math.round(size * 0.55);
+  if (group)
+    return <SystemSymbol name={rowSymbol('stacked')} color={theme.color.muted} size={size} />;
   return (
     <View style={{ width: size, height: size }}>
       <ModelBrandIcon brand={brand} size={size} color={theme.color.muted} />
@@ -107,6 +112,7 @@ export function ModelFilterStrip({
             <ModelFilterGlyph
               brand={filter.brand}
               sub={filter.source === 'sub'}
+              group={filter.source === 'group'}
               size={theme.type.title.line}
             />
           </Pressable>

@@ -396,9 +396,10 @@ describe('bridge methods', () => {
       value: {
         plan: {
           revision: 2,
-          sourcePresetId: '',
+          sourcePresetId: preset.id,
           assignmentDefault: pro,
           assignmentModels,
+          overrides: ['sub'],
         },
       },
     });

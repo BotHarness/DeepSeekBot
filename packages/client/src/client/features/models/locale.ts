@@ -27,7 +27,7 @@ export const zh = {
   'modelPreset.usedBy': '{count} 个 Bot 使用',
   'modelPreset.usedByOne': '1 个 Bot 使用',
   'modelPreset.engineAccount': '{engine} 默认账号',
-  'modelPreset.keepCopies': '以下 Bot 会保留已应用的模型设置。',
+  'modelPreset.deleteFollowsDefault': '以下 Bot 会改用默认预设，单独设置的模型保留。',
   'modelPreset.privateUsage': '另有 {count} 个 Bot 会保留设置。',
   'modelPreset.libraryLoadFailed': '读取模型预设失败',
   'modelPreset.libraryChanged': '此预设已更改。重新打开模型配置后再试。',
@@ -162,7 +162,8 @@ export const en = {
   'modelPreset.usedBy': 'Used by {count} Bots',
   'modelPreset.usedByOne': 'Used by 1 Bot',
   'modelPreset.engineAccount': 'Default {engine} account',
-  'modelPreset.keepCopies': 'These Bots will keep their applied model settings.',
+  'modelPreset.deleteFollowsDefault':
+    'These Bots will switch to the Default preset and keep their own model settings.',
   'modelPreset.privateUsage': '{count} other Bots will keep their settings.',
   'modelPreset.libraryLoadFailed': 'Could not load Model Presets',
   'modelPreset.libraryChanged': 'This preset changed. Reopen Model configuration.',

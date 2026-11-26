@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, Pressable, SectionList, View } from 'react-native';
+import { Keyboard, Pressable } from 'react-native';
 import type { HostCall } from '@botharness/host-client/host-answer';
 import { sessionModel } from '@botharness/host-client/session-model';
 import type {
@@ -14,23 +14,13 @@ import { modelCatalogCache, sessionModelQueries, stateQuery } from '../../host/s
 
 import { space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { HeaderButton } from '../primitives/drawer-header';
-import { LoadingIndicator } from '../primitives/loading-indicator';
-import { PreferenceRow } from '../primitives/preference-row';
-import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
-import { RefreshIcon } from '../shell/icons';
 import { composerControl } from './composer-chrome';
-import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
-import { NativeSessionModelSheet } from './session-model-native';
+import { ModelPickerSheet } from './model-picker-sheet';
 import { engineEffortName } from '@botharness/host-protocol/subscription-engine';
 import { sessionModelKey, sessionModelLabel } from './session-model-label';
-import {
-  ModelFilterStrip,
-  SessionModelSkeletonRows,
-  filterAccessibleName,
-} from './session-model-filter-strip';
+import { filterAccessibleName } from './session-model-filter-strip';
 import {
   catalogDefaultChoice,
   filterSessionModelSections,
@@ -39,9 +29,7 @@ import {
   sessionModelEffort,
   sessionModelSkeleton,
   type SessionModelRow,
-  type SessionModelSection,
 } from './session-model-sections';
-import { SHEET_GROUP, Sheet, SheetCallout, SheetFailed, SheetHeading, SheetNote } from './sheet';
 
 export interface ComposerSessionModel {
   slug: string | null;
@@ -213,7 +201,6 @@ export function SessionModelLogo({ control, disabled }: { control: Control; disa
 export function SessionModelPicker({ control }: { control: Control }) {
   const t = useStrings();
   const copy = t.sessionModel;
-  const theme = useDesignTheme();
   const {
     catalog,
     state,
@@ -279,173 +266,57 @@ export function SessionModelPicker({ control }: { control: Control }) {
   const note =
     ready && summary.pending && summary.name !== undefined
       ? `${summary.name} · ${copy.nextTurnNote}`
-      : refused
-        ? copy.saveFailed
-        : undefined;
-  if (NativeSessionModelSheet !== undefined) {
-    const choices = new Map(all.flatMap((section) => section.rows).map((row) => [row.key, row]));
-    return (
-      <NativeSessionModelSheet
-        visible={visible}
-        title={copy.choice}
-        closeLabel={t.close}
-        note={note}
-        failure={failed ? copy.loadFailed : undefined}
-        retryLabel={t.retry}
-        loading={!failed && !ready}
-        refreshLabel={copy.refresh}
-        refreshingLabel={copy.refreshing}
-        refreshing={refreshing && ready}
-        onRefresh={refresh}
-        current={current}
-        saving={saving}
-        savingLabel={copy.saving}
-        skeleton={skeleton}
-        filters={filters.map((entry) => ({
-          ...entry,
-          accessible: filterAccessibleName(entry, copy.subscription),
-        }))}
-        filter={active}
-        filterLabel={copy.filters}
-        effort={effort}
-        effortLabel={copy.effortLevel}
-        onEffort={chooseEffort}
-        onFilter={setFilter}
-        sections={sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          data: section.rows.map((row) => ({
-            key: row.key,
-            name: row.name,
-            brand: row.brand,
-            detail: row.detail,
-            tag: row.tag,
-            disabled: row.disabled,
-            accessible: accessible(row),
-          })),
-        }))}
-        onClose={close}
-        onRetry={retry}
-        onChoose={(key) => {
-          const row = choices.get(key);
-          if (row !== undefined) void choose(row.choice);
-        }}
-      />
-    );
-  }
+      : undefined;
+  const choices = new Map(all.flatMap((section) => section.rows).map((row) => [row.key, row]));
   return (
-    <Sheet
+    <ModelPickerSheet
       visible={visible}
-      label={copy.choice}
       title={copy.choice}
+      closeLabel={t.close}
+      note={note}
+      alert={refused ? copy.saveFailed : undefined}
+      failure={failed ? copy.loadFailed : undefined}
+      retryLabel={t.retry}
+      loading={!failed && !ready}
+      refreshLabel={copy.refresh}
+      refreshingLabel={copy.refreshing}
+      refreshing={refreshing && ready}
+      onRefresh={refresh}
+      current={current}
+      saving={saving}
+      savingLabel={copy.saving}
+      skeleton={skeleton}
+      filters={filters.map((entry) => ({
+        ...entry,
+        accessible: filterAccessibleName(entry, copy.subscription),
+      }))}
+      filter={active}
+      filterLabel={copy.filters}
+      effort={effort}
+      effortLabel={copy.effortLevel}
+      onEffort={chooseEffort}
+      subLabel={copy.subscription}
+      onFilter={setFilter}
+      sections={sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        data: section.rows.map((row, index) => ({
+          testID: `session-model-option-${row.choice === null ? 'default' : `${row.choice.kind}-${index}`}`,
+          key: row.key,
+          name: row.name,
+          brand: row.brand,
+          detail: row.detail,
+          tag: row.tag,
+          disabled: row.disabled,
+          accessible: accessible(row),
+        })),
+      }))}
       onClose={close}
-      resizable
-      trailing={
-        refreshing && ready ? (
-          <View style={{ width: theme.touch, height: theme.touch, justifyContent: 'center' }}>
-            <LoadingIndicator accessibilityLabel={copy.refreshing} />
-          </View>
-        ) : (
-          <HeaderButton label={copy.refresh} testID="session-model-refresh" onPress={refresh}>
-            <RefreshIcon color={theme.color.fg} size={theme.type.title.line} />
-          </HeaderButton>
-        )
-      }
-    >
-      {failed ? (
-        <SheetFailed message={copy.loadFailed} on={SHEET_GROUP} onRetry={retry} />
-      ) : !ready ? (
-        <SessionModelSkeletonRows skeleton={skeleton} label={copy.refreshing} />
-      ) : (
-        <>
-          {refused ? <SheetCallout tone="danger">{copy.saveFailed}</SheetCallout> : null}
-          {summary.pending && summary.name !== undefined ? (
-            <SheetNote>{`${summary.name} · ${copy.nextTurnNote}`}</SheetNote>
-          ) : null}
-          <SectionList<SessionModelRow, SessionModelSection & { data: SessionModelRow[] }>
-            nestedScrollEnabled
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: space.x5 }}
-            sections={sections.map((section) => ({ ...section, data: section.rows }))}
-            keyExtractor={(row) => row.key}
-            stickySectionHeadersEnabled={false}
-            renderSectionHeader={({ section }) =>
-              section.title && section.data.length > 0 ? (
-                <SheetHeading>{section.title}</SheetHeading>
-              ) : null
-            }
-            renderSectionFooter={({ section }) =>
-              section.id === 'default' && filters.length > 0 ? (
-                <ModelFilterStrip
-                  filters={filters}
-                  active={active}
-                  label={copy.filters}
-                  sub={copy.subscription}
-                  onFilter={setFilter}
-                />
-              ) : null
-            }
-            renderItem={({ item, index, section }) => {
-              const selected = current === item.key;
-              return (
-                <SettingsGroupItem
-                  first={index === 0}
-                  last={index === section.data.length - 1}
-                  on={SHEET_GROUP}
-                >
-                  <SettingsRow
-                    on={SHEET_GROUP}
-                    testID={`session-model-option-${item.choice === null ? 'default' : `${item.choice.kind}-${index}`}`}
-                    title={item.name}
-                    detail={saving === item.key ? copy.saving : item.detail}
-                    selected={selected}
-                    accessibilityLabel={accessible(item)}
-                    control={
-                      saving === item.key
-                        ? { kind: 'busy' }
-                        : selected
-                          ? { kind: 'check' }
-                          : undefined
-                    }
-                    leading={
-                      <ModelBrandIcon
-                        brand={item.brand}
-                        size={theme.type.title.line * theme.fontScale}
-                        color={theme.color.muted}
-                      />
-                    }
-                    trailing={
-                      item.tag === undefined ? undefined : (
-                        <Text variant="meta" tone="muted">
-                          {item.tag}
-                        </Text>
-                      )
-                    }
-                    {...(item.disabled || saving !== undefined
-                      ? { tone: 'muted' }
-                      : {
-                          onPress: () => void choose(item.choice),
-                        })}
-                  />
-                  {effort !== undefined && effort.key === item.key ? (
-                    <PreferenceRow
-                      on={SHEET_GROUP}
-                      testID="session-model-effort"
-                      title={copy.effortLevel}
-                      value={effort.current}
-                      options={effort.options.map((option) => ({
-                        value: option.id,
-                        label: option.name,
-                      }))}
-                      onChange={chooseEffort}
-                    />
-                  ) : null}
-                </SettingsGroupItem>
-              );
-            }}
-          />
-        </>
-      )}
-    </Sheet>
+      onRetry={retry}
+      onChoose={(key) => {
+        const row = choices.get(key);
+        if (row !== undefined) void choose(row.choice);
+      }}
+    />
   );
 }

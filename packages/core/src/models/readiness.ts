@@ -14,6 +14,8 @@ export interface ModelPlanState {
   revision?: number;
   plan?: PersonaBotModelPlan;
   inheritedPresetId?: string;
+  presetId?: string;
+  overrides?: ('main' | 'sub')[];
   repair?: ModelRouteRepair;
 }
 

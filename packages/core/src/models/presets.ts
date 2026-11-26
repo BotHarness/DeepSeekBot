@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -227,6 +228,7 @@ export interface PersonaBotModelPlan {
   assignmentDefaultGroupId?: string;
   assignmentGroupOptions?: AssignmentGroupOption[];
   appliedAt: string;
+  overrides?: ('main' | 'sub')[];
 }
 
 export class AssignmentChoiceError extends HarnessError {
@@ -532,6 +534,9 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['overrides'] === undefined ||
+      (Array.isArray(plan['overrides']) &&
+        plan['overrides'].every((slot) => slot === 'main' || slot === 'sub'))) &&
     (plan['sub'] === undefined || isPresetSub(plan['sub'])) &&
     (plan['openAssignmentModels'] === undefined ||
       (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
@@ -619,6 +624,19 @@ function presetRecord(preset: ModelPreset): ModelPreset {
     ...presetGroups(preset),
     ...presetEngines(preset),
   };
+}
+
+export function readModelPreset(database: DatabaseSync, id: string): ModelPreset | undefined {
+  let row: Record<string, unknown> | undefined;
+  try {
+    row = database.prepare('SELECT body FROM model_presets WHERE id = ?').get(id);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('no such table')) return undefined;
+    throw error;
+  }
+  if (row === undefined) return undefined;
+  const parsed: unknown = JSON.parse(String(row['body']));
+  return isModelPreset(parsed) ? parsed : undefined;
 }
 
 export function createModelPresetStore(options: ModelPresetStoreOptions): ModelPresetStore {

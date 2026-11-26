@@ -109,6 +109,7 @@ export const bridgeMethodInventory = [
   'onboardingModel',
   'telemetryEvent',
   'modelPlanInherit',
+  'modelPlanReset',
   'channelRetry',
   'botNewSession',
   'botCompact',
