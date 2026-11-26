@@ -65,7 +65,9 @@ export function DmCallControl({
   const view = mine ? desktopCallView(snapshot.state) : undefined;
   const elsewhere =
     !mine && (snapshot.state.status === 'opening' || snapshot.state.status === 'live');
-  const speaking = view !== undefined && snapshot.state.status === 'live' && !view.muted;
+  const micMuted =
+    view !== undefined && (snapshot.sound === 'on' ? snapshot.micMuted === true : view.muted);
+  const speaking = view !== undefined && snapshot.state.status === 'live' && !micMuted;
   const rippleMount = useVoiceRipple<HTMLSpanElement>(speaking, call.level);
 
   if (view !== undefined) {
@@ -124,13 +126,13 @@ export function DmCallControl({
             data-ripple={speaking ? 'on' : undefined}
           >
             <IconButton
-              aria-label={view.muted ? t('call.unmute') : t('call.mute')}
-              aria-pressed={view.muted}
-              data-muted={view.muted}
+              aria-label={micMuted ? t('call.unmute') : t('call.mute')}
+              aria-pressed={micMuted}
+              data-muted={micMuted}
               disabled={snapshot.state.status !== 'live'}
-              onClick={() => void call.mute(!view.muted)}
+              onClick={() => void call.mute(!micMuted)}
             >
-              <ChannelSidebarIcon name={view.muted ? 'mic-off' : 'mic'} />
+              <ChannelSidebarIcon name={micMuted ? 'mic-off' : 'mic'} />
             </IconButton>
           </span>
           <button

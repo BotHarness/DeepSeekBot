@@ -148,6 +148,7 @@ export function createBrowserCallMedia(
       throw new ComputerSoundMissing();
     }
     if (token !== shareToken || sender !== owner) {
+      if (sender === owner) await owner.replaceTrack(mic).catch(() => undefined);
       mix.close();
       sound.release();
       return false;

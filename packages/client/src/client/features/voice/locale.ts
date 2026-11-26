@@ -171,8 +171,8 @@ export const zh = {
   'call.again': '再次通话',
   'call.close': '关闭',
   'call.openVoiceSettings': '打开语音设置',
-  'call.soundOn': '让 {name} 也听到这台电脑的声音',
-  'call.soundOff': '不再让 {name} 听电脑的声音',
+  'call.soundOn': '把你电脑上的声音也共享给 {name}',
+  'call.soundOff': '停止把电脑声音共享给 {name}',
   'call.soundMissing':
     '没有共享到电脑声音。在弹出的共享窗口里选一个标签页或屏幕，并打开“共享音频”。',
   'call.soundRetry': '重新共享',
@@ -387,8 +387,8 @@ export const en = {
   'call.again': 'Call again',
   'call.close': 'Close',
   'call.openVoiceSettings': 'Open Voice settings',
-  'call.soundOn': 'Let {name} hear this computer’s sound too',
-  'call.soundOff': 'Stop sharing computer sound with {name}',
+  'call.soundOn': 'Share your computer’s sound with {name}',
+  'call.soundOff': 'Stop sharing your computer’s sound with {name}',
   'call.soundMissing':
     'No computer sound was shared. In the share window, pick a tab or screen and turn on “Share audio”.',
   'call.soundRetry': 'Share again',

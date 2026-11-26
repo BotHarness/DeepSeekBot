@@ -60,8 +60,8 @@ describe('desktop call voice setup and computer sound', () => {
       for (let index = 0; index < 20 && mac.call.snapshot().state.status !== 'live'; index += 1)
         await new Promise((resolve) => setTimeout(resolve, 5));
     });
-    const share = 'button[aria-label="Let Mira hear this computer’s sound too"]';
-    const unshare = 'button[aria-label="Stop sharing computer sound with Mira"]';
+    const share = 'button[aria-label="Share your computer’s sound with Mira"]';
+    const unshare = 'button[aria-label="Stop sharing your computer’s sound with Mira"]';
     await act(async () => element.querySelector<HTMLButtonElement>(share)!.click());
     expect(element.querySelector(unshare)?.getAttribute('aria-pressed')).toBe('true');
     await act(async () => mac.media.endSound());
@@ -85,5 +85,51 @@ describe('desktop call voice setup and computer sound', () => {
       element.querySelector<HTMLButtonElement>('button[aria-label="Hang up"]')!.click(),
     );
     expect(mac.call.snapshot().sound).toBe('off');
+  });
+  it('mutes only the microphone while sharing, so the Bot keeps hearing the shared sound', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    await act(async () =>
+      root.render(<DmCallControl slug="mira" name="Mira" t={translate()} call={mac.call} />),
+    );
+    await act(async () =>
+      element.querySelector<HTMLButtonElement>('button[aria-label="Call Mira"]')!.click(),
+    );
+    await act(async () => {
+      for (let index = 0; index < 20 && mac.call.snapshot().state.status !== 'live'; index += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    const hostMuted = () => (mac.call.snapshot().state as { muted?: boolean }).muted;
+    const click = (label: string) =>
+      act(async () =>
+        element.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click(),
+      );
+
+    await click('Mute');
+    expect(hostMuted()).toBe(true);
+    await click('Share your computer’s sound with Mira');
+    expect(hostMuted()).toBe(false);
+    expect(mac.media.muted.at(-1)).toBe(true);
+    expect(element.querySelector('button[aria-label="Unmute"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+
+    await click('Unmute');
+    expect(mac.media.muted.at(-1)).toBe(false);
+    await click('Mute');
+    expect(mac.media.muted.at(-1)).toBe(true);
+    expect(hostMuted()).toBe(false);
+
+    await act(async () => mac.media.endSound());
+    await act(async () => {
+      for (let index = 0; index < 20 && hostMuted() !== true; index += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(hostMuted()).toBe(true);
+    expect(element.querySelector('button[aria-label="Unmute"]')).not.toBeNull();
   });
 });

@@ -190,6 +190,41 @@ describe('computer sound in a call', () => {
     expect(heard).toEqual([]);
   });
 
+  it('puts the microphone back when the share is turned off while the mix is being attached', async () => {
+    stubBrowser();
+    const share = sharedSound();
+    let grant: (sound: ComputerSound) => void = () => undefined;
+    const { media, mic, heard } = await liveCall(
+      () =>
+        new Promise<ComputerSound>((resolve) => {
+          grant = resolve;
+        }),
+    );
+    const sender = FakeSender.current!;
+    const replace = sender.replaceTrack;
+    let attach: () => void = () => undefined;
+    let attaching = false;
+    sender.replaceTrack = (next: unknown) =>
+      next === mic
+        ? replace(next)
+        : new Promise<void>((resolve) => {
+            attaching = true;
+            attach = () => {
+              sender.sent = next;
+              resolve();
+            };
+          });
+    const sharing = media.computerSound(true);
+    grant(share.owned);
+    await vi.waitFor(() => expect(attaching).toBe(true));
+    await media.computerSound(false);
+    attach();
+    await expect(sharing).resolves.toBe(false);
+    expect(sender.sent).toBe(mic);
+    expect(share.released()).toBe(1);
+    expect(heard).toEqual([]);
+  });
+
   it('stops the share on hangup', async () => {
     stubBrowser();
     const share = sharedSound();
