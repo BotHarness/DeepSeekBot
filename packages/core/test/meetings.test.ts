@@ -364,6 +364,41 @@ describe('meetings', () => {
     expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'time-limit' });
   });
 
+  it('stops the call and retries the time limit when the attendance write fails', async () => {
+    vi.useFakeTimers();
+    const { store } = storeFixture();
+    let writes = 0;
+    const flaky = {
+      ...store,
+      end: (...args: Parameters<typeof store.end>) => {
+        writes += 1;
+        if (writes === 1) throw new Error('database is locked');
+        return store.end(...args);
+      },
+    };
+    const stopped: string[] = [];
+    const meetings = createMeetings({
+      store: flaky,
+      admitted: () => undefined,
+      stopCall: async (callId) => {
+        stopped.push(callId);
+      },
+      limits: { maxDurationMs: 1_000 },
+    });
+    cleanup.push(() => meetings.dispose());
+    const meeting = meetings.begin({
+      slug: 'ada',
+      callId: 'call-1',
+      platform: 'owner-window',
+      dispatcher,
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(stopped).toEqual(['call-1']);
+    expect(store.get(meeting.id)?.state).toBe('in-meeting');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'time-limit' });
+  });
+
   it('stops the call when the Bot leaves or the time limit passes', async () => {
     vi.useFakeTimers();
     const { begin, meetings, store, stopped } = meetingsFixture({ maxDurationMs: 1_000 });
