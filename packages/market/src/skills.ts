@@ -335,7 +335,7 @@ export function createMarketSkills(deps: {
         folder,
         blobs: tree.value.blobs,
         existing: existing.find((row) => row.id === id),
-        curated: options.curated,
+        curated,
       });
       if (outcome === 'retry') {
         seen.add(id);
@@ -436,8 +436,12 @@ export function createMarketSkills(deps: {
         }
       }
       for (const repository of found.values()) {
-        const one = await indexRepository(repository, { curated: false });
+        const one = await indexRepository(repository, { curated: false }).catch(() => undefined);
         report.repositories += 1;
+        if (one === undefined) {
+          report.skipped += 1;
+          continue;
+        }
         report.listed += one.listed;
         report.rejected += one.rejected;
         report.hidden += one.hidden;

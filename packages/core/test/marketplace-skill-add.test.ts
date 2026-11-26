@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import { z } from 'zod';
 import { createMarket, fakeRepository } from '../../market/test/market-harness.js';
 import { DISCOVERY_CRON } from '../../market/src/worker.js';
 import { runSkillCommand } from '../src/bots/cli-skills.js';
@@ -218,6 +219,39 @@ it('adds globally, then replaces or renames on conflict', async () => {
   expect(existsSync(join(memoryDir, '.agents/skills/tidy-notes/old.md'))).toBe(false);
 });
 
+it('refuses replace when the clashing Bot Skill lives in another folder', async () => {
+  const market = createMarket();
+  publishSkill(market, { 'SKILL.md': SKILL_MD });
+  const id = await listedId(market);
+  const host = makeHost(market);
+  host.bot('first');
+  const bridge = host.methods(owner);
+  const memoryDir = host.core.registry.memoryDirFor('first')!;
+  mkdirSync(join(memoryDir, '.agents/skills/notes-helper'), { recursive: true });
+  writeFileSync(join(memoryDir, '.agents/skills/notes-helper/SKILL.md'), SKILL_MD);
+  const review = value(await bridge.marketplaceSkillReview({ id }));
+  expect(review.conflicts.bots).toEqual(['first']);
+  expect(
+    await bridge.marketplaceSkillAdd({
+      id,
+      reviewId: review.reviewId,
+      bots: ['first'],
+      onConflict: 'replace',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'skill-exists' } });
+  expect(existsSync(join(memoryDir, '.agents/skills/tidy-notes'))).toBe(false);
+  expect(
+    value(
+      await bridge.marketplaceSkillAdd({
+        id,
+        reviewId: review.reviewId,
+        bots: ['first'],
+        onConflict: 'rename',
+      }),
+    ),
+  ).toMatchObject({ added: [{ target: 'first', name: 'tidy-notes-2' }] });
+});
+
 it('refuses unknown Bots, empty targets and stale reviews', async () => {
   const market = createMarket();
   publishSkill(market, { 'SKILL.md': SKILL_MD });
@@ -278,9 +312,9 @@ it('drives search, show, review and add through the CLI', async () => {
     content: SKILL_MD,
   });
   await expect(runSkillCommand('skills-add', [id], {}, connect)).rejects.toThrow(/--global/);
-  const preview = (await runSkillCommand('skills-add', [id], { bot: 'first' }, connect)) as {
-    review: { reviewId: string };
-  };
+  const preview = z
+    .looseObject({ review: z.looseObject({ reviewId: z.string().min(1) }) })
+    .parse(await runSkillCommand('skills-add', [id], { bot: 'first' }, connect));
   expect(preview).toMatchObject({
     review: { verdict: 'clean' },
     candidates: { bots: [{ slug: 'first' }] },

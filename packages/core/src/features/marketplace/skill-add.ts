@@ -229,6 +229,11 @@ export function createMarketplaceSkillMethods(
         const taken = await botHasSkill(memoryDir, skillsDir, staged.name);
         if (taken && onConflict === undefined)
           return failure('skill-exists', `${slug} already has a Skill named ${staged.name}`);
+        if (taken && onConflict === 'replace' && !skillExists(skillsDir, staged.name))
+          return failure(
+            'skill-exists',
+            `${slug} has a Skill named ${staged.name} outside .agents/skills/${staged.name}; choose rename instead`,
+          );
         const names = new Set((await listBotSkills(memoryDir).catch(() => [])).map((s) => s.name));
         const name =
           taken && onConflict === 'rename'

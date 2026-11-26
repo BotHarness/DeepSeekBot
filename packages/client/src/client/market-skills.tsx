@@ -99,7 +99,15 @@ export function MarketSkills({
       .then(
         (result) => {
           if (latest.current !== request) return;
-          setPage({ ...page, skills: [...page.skills, ...result.skills], next: result.nextCursor });
+          setPage((current) =>
+            current === undefined
+              ? current
+              : {
+                  ...current,
+                  skills: [...current.skills, ...result.skills],
+                  next: result.nextCursor,
+                },
+          );
         },
         (failure: unknown) => {
           if (latest.current === request) setError(failure);
