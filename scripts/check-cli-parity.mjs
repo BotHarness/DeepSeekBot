@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from '@babel/parser';
 
@@ -18,6 +18,79 @@ export function bridgeMethodsFrom(rpcSource) {
     if (names.includes('sessions')) return names;
   }
   return [];
+}
+
+export function featureRpcMethodsFrom(read, registryPath) {
+  const modules = new Map();
+  const statements = (path) => {
+    if (!modules.has(path)) {
+      modules.set(
+        path,
+        parse(read(path), { sourceType: 'module', plugins: ['typescript'] }).program.body,
+      );
+    }
+    return modules.get(path);
+  };
+  const binding = (path, name) => {
+    for (const statement of statements(path)) {
+      if (statement.type === 'ImportDeclaration') {
+        const specifier = statement.specifiers.find((item) => item.local.name === name);
+        if (specifier?.type === 'ImportSpecifier' && specifier.imported.type === 'Identifier') {
+          const target = join(dirname(path), statement.source.value).replace(/\.js$/u, '.ts');
+          return binding(target, specifier.imported.name);
+        }
+      }
+      const declaration =
+        statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+      if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name === name) {
+        return {
+          path,
+          node: declaration.body.body.find((item) => item.type === 'ReturnStatement')?.argument,
+        };
+      }
+      if (declaration?.type === 'VariableDeclaration') {
+        const variable = declaration.declarations.find(
+          (item) => item.id.type === 'Identifier' && item.id.name === name,
+        );
+        if (variable) return { path, node: variable.init };
+      }
+    }
+    throw new Error(`Cannot read feature RPC declarations for ${name} in ${path}`);
+  };
+  const expression = (node) =>
+    node?.type === 'TSAsExpression' || node?.type === 'TSSatisfiesExpression'
+      ? expression(node.expression)
+      : node;
+  const featureList = expression(binding(registryPath, 'createFeatureContributions').node);
+  if (featureList?.type !== 'ArrayExpression') throw new Error('Expected a static feature list');
+  return featureList.elements.flatMap((entry) => {
+    const name = entry?.type === 'CallExpression' ? entry.callee : entry;
+    if (name?.type !== 'Identifier')
+      throw new Error('Expected a named feature descriptor or factory');
+    const { path: featurePath, node } = binding(registryPath, name.name);
+    const feature = expression(node);
+    if (feature?.type !== 'ObjectExpression')
+      throw new Error(`Expected a descriptor in ${featurePath}`);
+    const rpc = feature.properties.find(
+      (property) =>
+        property.type === 'ObjectProperty' &&
+        property.key.type === 'Identifier' &&
+        property.key.name === 'rpc',
+    )?.value;
+    if (!rpc) return [];
+    const table = expression(rpc.type === 'Identifier' ? binding(featurePath, rpc.name).node : rpc);
+    if (table?.type !== 'ObjectExpression')
+      throw new Error(`Expected an RPC table in ${featurePath}`);
+    return table.properties.map((property) => {
+      if (
+        property.type !== 'ObjectMethod' ||
+        property.computed ||
+        property.key.type !== 'Identifier'
+      )
+        throw new Error(`Expected a named RPC method in ${featurePath}`);
+      return property.key.name;
+    });
+  });
 }
 
 export function bridgeMethodsFromSharedReaders(cliSources, readReader) {
@@ -162,7 +235,10 @@ function main(root) {
     read(`packages/host-client/src/${module}.ts`),
   );
   const surfaces = {
-    bridge: bridgeMethodsFrom(read('packages/core/src/bridge/rpc.ts')),
+    bridge: [
+      ...bridgeMethodsFrom(read('packages/core/src/bridge/rpc.ts')),
+      ...featureRpcMethodsFrom(read, 'packages/core/src/feature-contributions.ts'),
+    ],
     routes: routePathsFrom(hostSources),
     tools: botToolNamesFrom(read('packages/core/src/workspaces/grant-execution.ts')),
   };

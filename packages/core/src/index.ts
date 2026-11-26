@@ -195,7 +195,7 @@ export type {
   ProfileWriterLeaseMetadata,
 } from './database/owner.js';
 export { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
-export { createBotRuntime } from './runtime/bot-runtime.js';
+export { createBotRuntime } from './core.js';
 export type {
   AssignmentAgentRun,
   AssignmentActivity,
@@ -212,7 +212,7 @@ export type {
   OrchestratorAgentRun,
   OrchestratorChannelAccess,
 } from './runtime/bot-runtime.js';
-export { createDshBotAgentAdapter } from './runtime/dsh-bot-agent-adapter.js';
+export { createDshBotAgentAdapter } from './agent-adapter.js';
 export type { DshAgentHost, DshBotAgentAdapterOptions } from './runtime/dsh-bot-agent-adapter.js';
 export {
   defineSchemaPlan,
