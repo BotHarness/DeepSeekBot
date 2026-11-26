@@ -23,7 +23,17 @@ export const View = (props: Props) =>
     { ...a11y(props), ref: props['ref'], 'data-style': JSON.stringify(props['style']) },
     props.children,
   );
-export const Text = (props: Props) => createElement('span', a11y(props), props.children);
+export const Text = (props: Props) =>
+  createElement(
+    'span',
+    {
+      ...a11y(props),
+      ...(props['numberOfLines'] === undefined
+        ? {}
+        : { 'data-lines': String(props['numberOfLines']) }),
+    },
+    props.children,
+  );
 export const ScrollView = View;
 export const Animated = {
   View,
