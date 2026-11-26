@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MethodRefused } from '../src/client-errors';
 import { HostAnswerInvalid } from '../src/host-answer';
 import {
   botAttentionItems,
@@ -193,6 +194,26 @@ describe('Human attention', () => {
     await expect(
       readHumanAttention(host({ items: [], source: 'everything' }), {}),
     ).rejects.toBeInstanceOf(HostAnswerInvalid);
+  });
+
+  it('retries without source when an older Host gateway refuses the argument', async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(new MethodRefused('gateway/arguments-invalid', 'unexpected "source"'))
+      .mockResolvedValueOnce({ items: [item] });
+    await expect(
+      readHumanAttention({ call }, { category: 'action', source: 'all' }),
+    ).resolves.toEqual({ items: [item] });
+    expect(call.mock.calls).toEqual([
+      ['humanAttention', { category: 'action', source: 'all' }],
+      ['humanAttention', { category: 'action' }],
+    ]);
+    const refused = vi.fn().mockRejectedValue(new MethodRefused('remote-access/denied', 'no'));
+    await expect(readHumanAttention({ call: refused }, { source: 'all' })).rejects.toThrow('no');
+    expect(refused).toHaveBeenCalledTimes(1);
+    const old = vi.fn().mockRejectedValue(new MethodRefused('gateway/arguments-invalid', 'x'));
+    await expect(readHumanAttention({ call: old }, { category: 'action' })).rejects.toThrow('x');
+    expect(old).toHaveBeenCalledTimes(1);
   });
 
   it('requires both counts and a boolean continuation on the dismissal receipt', async () => {

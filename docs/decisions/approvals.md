@@ -33,6 +33,8 @@ One click (or the A shortcut) both approves the current call and saves a rule, w
 
 The same decision, `allowed-always-tool`, comes from the Web card, the phone card and the online CLI. An external IM reviewer may save a rule only when it holds current approve and save-rules authority and its Provider supports confirmed rule cards; otherwise its control opens the authenticated app.
 
+Native Session asks are the exception. A Host Owner's own DSH Session (not a Bot) offers Allow once and Reject only, in Session detail, in Activity and through `session-answer-approval`. The Host decision type is `allowed-once | rejected`; no BotHarness rule owner covers a native Session, because these rules are scoped to a Bot; and DSH keeps its own approval policy for the Session. The phone card keeps Always allow for Bot tool calls.
+
 Why: the Human asked for the same three actions on every approval. A rule that remembers the tool, not the input, matches how people think about trust ("this Bot may run tests"); a rule wider than the tool would silently grant things the Human never saw.
 
 Enforced by: `tool-approval-rules.test.ts`, `secret-cli-approval-rule.test.ts`, `lark-approval-standing-rules.test.ts`, `tool-approval-history.test.ts`.

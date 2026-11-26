@@ -117,8 +117,8 @@ describe('navigation Activity count', () => {
     };
     expect(await readActivityCount(client, ['approvals'])).toBe(1);
     expect(calls).toEqual([
-      { category: 'action', queryVersion: 1, limit: 100 },
-      { category: 'action', queryVersion: 1, limit: 100, cursor: 'next' },
+      { category: 'action', queryVersion: 1, limit: 100, source: 'all' },
+      { category: 'action', queryVersion: 1, limit: 100, source: 'all', cursor: 'next' },
     ]);
   });
 

@@ -24,7 +24,7 @@ import {
 } from '@botharness/host-client/requests';
 import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
-import { QuestionCard } from '../src/ui/chat/question-card';
+import { QuestionCard, questionCategory } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { played } from './expo-haptics-shim';
@@ -751,4 +751,18 @@ describe('Question card in the DM', () => {
     expect(await answerInChat(connect(fake), question, 'violet')).toBe(false);
     expect(fake.requests.filter((request) => request.includes('userQuestionAnswer'))).toEqual([]);
   });
+});
+
+it('shows a question header only when it adds something beyond the question', () => {
+  expect(questionCategory({ header: 'Which tree?', question: 'Which tree?' }, 'Question')).toBe(
+    'Question',
+  );
+  expect(questionCategory({ header: ' which TREE? ', question: 'Which tree?' }, 'Question')).toBe(
+    'Question',
+  );
+  expect(questionCategory({ header: 'Garden', question: 'Which tree?' }, 'Question')).toBe(
+    'Garden',
+  );
+  expect(questionCategory({ question: 'Which tree?' }, 'Question')).toBe('Question');
+  expect(questionCategory(undefined, 'Question')).toBe('Question');
 });
