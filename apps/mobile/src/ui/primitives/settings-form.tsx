@@ -9,6 +9,7 @@ import { useSettingsScroll } from './settings-scroll';
 export type SettingsFormProps = {
   header?: ReactNode;
   testID?: string;
+  reordering?: boolean;
   children: ReactNode;
 };
 

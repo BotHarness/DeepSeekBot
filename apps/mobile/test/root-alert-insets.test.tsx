@@ -99,7 +99,6 @@ vi.mock('../src/ui/shell/channel-navigation', async (importOriginal) => ({
   channelStackRouter: () => ({}),
 }));
 vi.mock('../src/ui/shell/cloud-channel-navigation', () => ({ cloudChannelRouteId: () => '' }));
-vi.mock('../src/ui/shell/tob-mode-model', () => ({ tobEntranceScreenOptions: {} }));
 vi.mock('../src/ui/shell/swipe-entry', () => ({
   swipeEntryListeners: () => ({}),
   swipeEntryOptions: () => ({}),

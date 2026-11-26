@@ -48,7 +48,6 @@ export function renderConversationTimeline({
   nativeSpacer,
   headerPadding,
   listSafeArea,
-  stackRoot,
   pull,
   markdownViewport,
   initialScroll,
@@ -75,7 +74,6 @@ export function renderConversationTimeline({
   nativeSpacer: boolean;
   headerPadding: number;
   listSafeArea: number;
-  stackRoot: boolean;
   pull: ReturnType<typeof usePullToCompose>;
   markdownViewport: ContextType<typeof MarkdownViewportContext>;
   initialScroll: ReturnType<typeof useChatInitialScroll>;
@@ -300,12 +298,11 @@ export function renderConversationTimeline({
             latest={latest}
             composerHeight={composerHeight}
           >
-            {(composable || stackRoot) && Platform.OS === 'ios' ? (
+            {composable && Platform.OS === 'ios' ? (
               <PullToComposeHint
                 progress={pull.progress}
                 ready={pull.ready}
                 bottom={composerHeight + space.x3}
-                leaves={stackRoot}
               />
             ) : null}
           </ChatTimelineOverlays>

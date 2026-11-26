@@ -88,7 +88,6 @@ for (const name of [
   'language',
   'computer',
   'do-not-touch',
-  'tob-mode',
   'call',
   'more-vert',
 ]) {
