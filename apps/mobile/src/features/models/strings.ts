@@ -147,10 +147,6 @@ export const en = {
     restoreMain: (preset: string) => `Use the main model of “${preset}”`,
     restoreSub: (preset: string) => `Use the task models of “${preset}”`,
     restoreAll: 'Restore all',
-    ownBanner: (count: number) =>
-      count === 1
-        ? '1 model is set for this Bot and stays when the preset changes.'
-        : `${count} models are set for this Bot and stay when the preset changes.`,
     mainHint: 'Chats, and decides which task model gets each delegated task.',
     effort: 'Reasoning effort',
     add: (count: number) => (count === 0 ? 'Add' : `Add ${count}`),
@@ -357,7 +353,6 @@ export const zh: typeof en = {
     restoreMain: (preset: string) => `改用「${preset}」的主模型`,
     restoreSub: (preset: string) => `改用「${preset}」的副模型`,
     restoreAll: '全部恢复',
-    ownBanner: (count: number) => `此 Bot 单独设置了 ${count} 项，预设改动不会影响它们。`,
     mainHint: '负责对话，也决定把任务分派给哪个副模型。',
     effort: '推理强度',
     add: (count: number) => (count === 0 ? '添加' : `添加 ${count} 个`),

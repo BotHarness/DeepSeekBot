@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { errorText } from '@botharness/host-client/bot-settings';
 import { Keyboard } from 'react-native';
 import type { HostCall } from '@botharness/host-client/host-answer';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
@@ -59,9 +60,8 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
   const [filter, setFilter] = useState<string>();
   const [current, setCurrent] = useState<SessionModelChoice | null>();
   const [picked, setPicked] = useState<SessionModelChoice[]>([]);
-  const [focus, setFocus] = useState<string>();
   const [saving, setSaving] = useState<string>();
-  const [refused, setRefused] = useState(false);
+  const [refused, setRefused] = useState<string>();
   const enabled = visible && host !== undefined && hostId !== undefined;
   const catalogResult = useQuery(
     {
@@ -138,8 +138,7 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
     setRequest(next);
     setFilter(undefined);
     setPicked([]);
-    setFocus(undefined);
-    setRefused(false);
+    setRefused(undefined);
     setCurrent(next.kind === 'main' ? next.current : undefined);
     setVisible(true);
     void modelCatalogCache.revalidate(host, hostId);
@@ -152,13 +151,13 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
   async function pickMain(choice: SessionModelChoice | null, stay: boolean) {
     if (request?.kind !== 'main' || saving !== undefined) return;
     setSaving(sessionModelKey(choice));
-    setRefused(false);
+    setRefused(undefined);
     try {
       await request.onPick(choice);
       setCurrent(choice);
       if (!stay) setVisible(false);
-    } catch {
-      setRefused(true);
+    } catch (cause) {
+      setRefused(errorText(cause));
     } finally {
       setSaving(undefined);
     }
@@ -167,21 +166,18 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
   async function add() {
     if (request?.kind !== 'add' || picked.length === 0 || saving !== undefined) return;
     setSaving('confirm');
-    setRefused(false);
+    setRefused(undefined);
     try {
       await request.onAdd(picked);
       setVisible(false);
-    } catch {
-      setRefused(true);
+    } catch (cause) {
+      setRefused(errorText(cause));
     } finally {
       setSaving(undefined);
     }
   }
 
-  const focused =
-    request?.kind === 'main'
-      ? (current ?? undefined)
-      : picked.find((choice) => sessionModelKey(choice) === focus);
+  const focused = request?.kind === 'main' ? (current ?? undefined) : undefined;
   const effortOptions = slotEffortOptions(catalog, focused, t.modelSettings.providerDefault);
   const effort =
     focused === undefined || effortOptions.length === 0
@@ -191,26 +187,20 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
           options: effortOptions,
           current: focused.effort ?? '',
           onChoose: (id: string) => {
-            if (request?.kind === 'main') void pickMain(withEffort(focused, id), true);
-            else
-              setPicked((list) =>
-                list.map((choice) =>
-                  sessionModelKey(choice) === focus ? withEffort(choice, id) : choice,
-                ),
-              );
+            void pickMain(withEffort(focused, id), true);
           },
         };
 
   async function pickPreset(id: string) {
     if (request?.kind !== 'main' || request.presets === undefined || saving !== undefined) return;
     setSaving(`${PRESET_KEY}${id}`);
-    setRefused(false);
+    setRefused(undefined);
     try {
       await request.presets.onPick(id);
       setCurrent(null);
       setVisible(false);
-    } catch {
-      setRefused(true);
+    } catch (cause) {
+      setRefused(errorText(cause));
     } finally {
       setSaving(undefined);
     }
@@ -240,7 +230,6 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
         ? list.filter((entry) => sessionModelKey(entry) !== key)
         : [...list, choice],
     );
-    setFocus((previous) => (previous === key ? undefined : key));
   }
 
   const accessible = (row: SessionModelRow) =>
@@ -251,7 +240,7 @@ export function useSlotPicker(host: HostCall | undefined, hostId: string | undef
         visible={visible}
         title={request.title}
         closeLabel={t.close}
-        alert={refused ? t.settingFailed : undefined}
+        alert={refused === undefined ? undefined : `${t.settingFailed} ${refused}`}
         failure={failed ? copy.loadFailed : undefined}
         retryLabel={t.retry}
         loading={!failed && !ready}

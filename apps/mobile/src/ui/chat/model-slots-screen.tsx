@@ -236,11 +236,7 @@ export function ModelSlotsView({ client, scope }: { client: HostClient; scope: S
       {models.busy ? <LoadingIndicator /> : null}
       {scope.kind === 'bot' ? (
         <View style={{ paddingHorizontal: space.x5 }}>
-          <SettingsSection
-            title={copy.preset}
-            on={SHEET_GROUP}
-            {...(own.length > 0 ? { footer: copy.ownBanner(own.length) } : {})}
-          >
+          <SettingsSection title={copy.preset} on={SHEET_GROUP}>
             <SettingsRow
               on={SHEET_GROUP}
               testID="model-slots-preset"
