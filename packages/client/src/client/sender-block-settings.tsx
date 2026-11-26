@@ -33,7 +33,7 @@ export function SenderBlocksPanel({
     {
       id: 'app',
       accessorFn: (block) => accountName(block.bindingId),
-      header: t('pairing.account'),
+      header: t('pairing.app'),
     },
     {
       id: 'time',
