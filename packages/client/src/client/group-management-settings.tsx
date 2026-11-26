@@ -10,6 +10,7 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows } from './ds/settings-row.js';
 import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
+import { recheckGroupDetails, useGroupDetailsEditable } from './group-details-access.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary } from './store.js';
 
@@ -34,6 +35,12 @@ const styles = stylex.create({
   },
   image: { width: '100%', height: '100%', objectFit: 'cover' },
   file: { display: 'none' },
+  value: {
+    color: color.muted,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    overflowWrap: 'anywhere',
+  },
   field: {
     boxSizing: 'border-box',
     width: '200px',
@@ -59,7 +66,8 @@ export function GroupManagementSettings({
   const name = nameState.source === group.name ? nameState.draft : group.name;
   const [cropFile, setCropFile] = useState<File>();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'failed' | 'refused'>();
+  const editable = useGroupDetailsEditable(actions.teamCall, group.id) === true;
   const fileInput = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
   const pending = useRef(false);
@@ -68,13 +76,22 @@ export function GroupManagementSettings({
     setBusy(true);
     try {
       const ok = await result;
-      setError(!ok);
+      if (ok) setError(undefined);
+      else {
+        const allowed = await recheckGroupDetails(actions.teamCall, group.id);
+        if (!allowed) setNameState({ source: group.name, draft: group.name });
+        setError(allowed ? 'failed' : 'refused');
+      }
       return ok;
     } finally {
       pending.current = false;
       setBusy(false);
     }
   };
+  const errorNote =
+    error === undefined ? null : (
+      <Note tone="danger">{t(error === 'refused' ? 'group.detailsRefused' : 'members.error')}</Note>
+    );
   const commitName = (): void => {
     const next = name.trim();
     if (!next) {
@@ -96,7 +113,7 @@ export function GroupManagementSettings({
                 <span aria-hidden="true">#</span>
               )}
             </span>
-            {group.avatar ? (
+            {editable && group.avatar ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -106,14 +123,16 @@ export function GroupManagementSettings({
                 {t('group.avatarRemove')}
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => fileInput.current?.click()}
-            >
-              {t('group.avatarChoose')}
-            </Button>
+            {editable ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => fileInput.current?.click()}
+              >
+                {t('group.avatarChoose')}
+              </Button>
+            ) : null}
             <input
               ref={fileInput}
               type="file"
@@ -132,39 +151,46 @@ export function GroupManagementSettings({
       />
       <SettingsRow
         title={t('group.name')}
+        {...(editable ? {} : { description: t('group.detailsAdminsOnly') })}
         control={
-          <Input
-            aria-label={t('group.name')}
-            className={stylex.props(styles.field).className ?? ''}
-            value={name}
-            maxLength={120}
-            disabled={busy}
-            onChange={(event) =>
-              setNameState({
-                source: group.name,
-                draft: event.currentTarget.value,
-              })
-            }
-            onCompositionStart={() => {
-              composing.current = true;
-            }}
-            onCompositionEnd={() => {
-              composing.current = false;
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                setNameState({ source: group.name, draft: group.name });
-                return;
+          editable ? (
+            <Input
+              aria-label={t('group.name')}
+              className={stylex.props(styles.field).className ?? ''}
+              value={name}
+              maxLength={120}
+              disabled={busy}
+              onChange={(event) =>
+                setNameState({
+                  source: group.name,
+                  draft: event.currentTarget.value,
+                })
               }
-              if (event.key !== 'Enter' || composing.current) return;
-              event.preventDefault();
-              commitName();
-            }}
-            onBlur={commitName}
-          />
+              onCompositionStart={() => {
+                composing.current = true;
+              }}
+              onCompositionEnd={() => {
+                composing.current = false;
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setNameState({ source: group.name, draft: group.name });
+                  return;
+                }
+                if (event.key !== 'Enter' || composing.current) return;
+                event.preventDefault();
+                commitName();
+              }}
+              onBlur={commitName}
+            />
+          ) : (
+            <span data-group-name="read-only" {...stylex.props(styles.value)}>
+              {group.name}
+            </span>
+          )
         }
       >
-        {error ? <Note tone="danger">{t('members.error')}</Note> : null}
+        {errorNote}
       </SettingsRow>
       {actions.teamCall === undefined ? null : (
         <ChannelAccessSettings
@@ -174,7 +200,7 @@ export function GroupManagementSettings({
           t={t}
         />
       )}
-      {cropFile ? (
+      {cropFile && editable ? (
         <GroupAvatarCropModal
           file={cropFile}
           t={t}

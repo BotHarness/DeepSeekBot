@@ -188,7 +188,7 @@ export interface ChannelRenameModalProps {
   bot: boolean;
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onRename: (name: string) => void;
+  onRename: (name: string) => Promise<string | undefined>;
 }
 
 export function ChannelRenameModal({
@@ -199,21 +199,39 @@ export function ChannelRenameModal({
   onRename,
 }: ChannelRenameModalProps): ReactElement {
   const [draft, setDraft] = useState(name);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const pending = useRef(false);
   const trimmed = draft.trim();
   const label = bot ? t('bot.name.label') : t('channel.name.label');
+  const submit = (): void => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError(undefined);
+    void onRename(trimmed)
+      .then(setError, () => setError(t('channel.renameFailed')))
+      .finally(() => {
+        pending.current = false;
+        setBusy(false);
+      });
+  };
   return (
     <FormDialog
       title={bot ? t('bot.rename.title') : t('channel.rename.title')}
       labels={dialogLabels(t)}
       submitLabel={t('common.rename')}
       submitDisabled={trimmed.length === 0}
+      busy={busy}
+      error={error}
       onCancel={onCancel}
-      onSubmit={() => onRename(trimmed)}
+      onSubmit={submit}
     >
       <TextField
         label={label}
         placeholder={label}
         value={draft}
+        disabled={busy}
         onChange={setDraft}
         initialFocus
         selectOnFocus
