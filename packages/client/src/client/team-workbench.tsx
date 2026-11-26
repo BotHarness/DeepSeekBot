@@ -443,6 +443,7 @@ export function TeamWorkbench({
     role === undefined ? [] : members.filter((member) => member.roleIds.includes(role.roleId));
 
   const choose = async (target: TeamRole, id: string, choice: PermissionChoice): Promise<void> => {
+    const request = inspection.current;
     setBusy(true);
     setError(undefined);
     try {
@@ -453,8 +454,7 @@ export function TeamWorkbench({
       setRoles((current) =>
         current.map((item) => (item.roleId === updated.roleId ? updated : item)),
       );
-      if (inspected !== undefined) {
-        const request = inspection.current;
+      if (inspected !== undefined && request === inspection.current) {
         const result = await loadMemberPermissions(call, inspected.member.humanId);
         if (request === inspection.current) setInspected({ member: inspected.member, result });
       }

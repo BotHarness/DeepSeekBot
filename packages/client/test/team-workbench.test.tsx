@@ -206,3 +206,48 @@ it('retries loading the workbench after a failed load', async () => {
   expect(host.querySelector('[data-team-retry]')).toBeNull();
   expect(host.querySelector('[data-team-role-detail="leads"]')).not.toBeNull();
 });
+
+it('keeps a member inspection closed when the role changes during a save', async () => {
+  let current = role();
+  let release: () => void = () => undefined;
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles')
+      return { ok: true, value: [current, role({ roleId: 'interns', name: 'Interns' })] };
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members')
+      return {
+        ok: true,
+        value: [
+          {
+            humanId: 'bob',
+            username: 'bob',
+            displayName: 'Bob',
+            status: 'active',
+            roleIds: ['member', 'leads'],
+          },
+        ],
+      };
+    if (method === 'roleUpdate') {
+      await new Promise<void>((resolve) => (release = resolve));
+      current = {
+        ...current,
+        permissions: args['permissions'],
+        denied: args['denied'],
+      } as TeamRole;
+      return { ok: true, value: { role: current } };
+    }
+    if (method === 'memberPermissions')
+      return { ok: true, value: { humanId: 'bob', owner: false, active: true, permissions: [] } };
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-team-holder="bob"]')!.click());
+  expect(host.querySelector('[data-team-effective="bob"]')).not.toBeNull();
+
+  await act(async () => segment('channels.create', '拒绝').click());
+  await act(async () => host.querySelector<HTMLElement>('[data-team-role="interns"]')!.click());
+  await act(async () => release());
+  expect(host.querySelector('[data-team-effective="bob"]')).toBeNull();
+  expect(call.mock.calls.filter(([method]) => method === 'memberPermissions')).toHaveLength(1);
+});
