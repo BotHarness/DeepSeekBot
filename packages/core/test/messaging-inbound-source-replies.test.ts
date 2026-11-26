@@ -557,7 +557,7 @@ it('unified messaging preserves an unknown external outcome without concluding o
   ).toBe('open');
 });
 
-it('ends a turn that keeps replying to one source with no other work in between', async () => {
+it('ends a turn that keeps replying to one source with no other work in between, and closes that source', async () => {
   let results: Record<string, unknown>[] = [];
   let conclusions = 0;
   let ignoredState: string | undefined;
@@ -588,7 +588,7 @@ it('ends a turn that keeps replying to one source with no other work in between'
         .list({ botSlug: 'ada' })
         .items.find((item) => item.id === sourceId)?.state;
       resetSendStreak(run);
-      results.push(await send('five', 'Done.'));
+      results.push(await send('five', 'Five.'));
     },
   });
   await fx.enable();
@@ -600,18 +600,14 @@ it('ends a turn that keeps replying to one source with no other work in between'
     'provider-accepted',
     'provider-accepted',
     'refused',
-    'provider-accepted',
+    'refused',
   ]);
+  expect(results[5]).toMatchObject({ reason: 'source-closed' });
   expect(results[4]).toMatchObject({
     reason: 'send-streak',
     inboxResolution: { outcome: 'ignored' },
   });
   expect(ignoredState).not.toBe('open');
   expect(conclusions).toBe(1);
-  expect(fx.replies.map((reply) => reply.text)).toEqual([
-    'Creating it now.',
-    'On it.',
-    'Working.',
-    'Done.',
-  ]);
+  expect(fx.replies.map((reply) => reply.text)).toEqual(['Creating it now.', 'On it.', 'Working.']);
 });

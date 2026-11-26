@@ -22,7 +22,12 @@ import {
   sourceReplyCapability,
 } from '../messaging/source-reply-capability.js';
 import { MessagingError } from '../messaging/provider.js';
-import { recordSend, SEND_STREAK_LIMIT } from './send-streak.js';
+import {
+  closeStreakSource,
+  isStreakSourceClosed,
+  recordSend,
+  SEND_STREAK_LIMIT,
+} from './send-streak.js';
 
 const QQ_REPLY_NOTICE =
   'Keep the answer in the original QQ conversation. Use its actual @-mention Source Event if it is still replyable. A failed reply does not authorize a proactive post.';
@@ -42,7 +47,10 @@ export class BotMessageError extends HarnessError {
   }
 }
 
-const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. This reply source was closed; a new message from the Human starts a fresh turn. If something you need, such as a tool, is unavailable, say so once instead of promising it.`;
+const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. This request is closed: do not reply to it or continue it later. Answer only new messages. If something you need, such as a tool, is unavailable, say so once instead of promising it.`;
+
+const CLOSED_SOURCE_NOTICE =
+  'Not sent: this request was closed after repeated messages in a row. Do not reply to it or finish it; answer only new messages.';
 
 const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
@@ -272,6 +280,16 @@ export function createBotMessageTool(
         );
       if (!args.body.trim() && !args.attachments?.length)
         throw new BotMessageError('empty-message', 'Text or an attachment is required.');
+      if (
+        args.source_event_id !== undefined &&
+        isStreakSourceClosed(run.sessionId, args.source_event_id)
+      )
+        return JSON.stringify({
+          status: 'refused',
+          reason: 'source-closed',
+          notice: CLOSED_SOURCE_NOTICE,
+          inboxResolution: { outcome: 'not-requested' },
+        });
       const destination = destinations[0]!;
       if (
         recordSend(
@@ -282,6 +300,8 @@ export function createBotMessageTool(
       ) {
         exec.concludeTurn();
         let ignored = false;
+        if (args.source_event_id !== undefined)
+          closeStreakSource(run.sessionId, args.source_event_id);
         if (args.source_event_id !== undefined && run.triage !== undefined)
           try {
             ignored =
