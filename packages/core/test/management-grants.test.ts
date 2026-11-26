@@ -19,7 +19,7 @@ import { fixture, bob } from './team-member-lifecycle-fixtures.js';
 
 const both = ['manage-app', 'manage-bots'];
 
-it('gives a new built-in Tob both grants and lets only the Human Owner change them', async () => {
+it('gives a new built-in Tob both grants and lets only an authorized Human change them', async () => {
   const { core } = fixture();
   const home = await core.tob.ensure();
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -27,7 +27,6 @@ it('gives a new built-in Tob both grants and lets only the Human Owner change th
   const on = { slug: 'ada', capability: 'manage-app', enabled: true, confirm: true };
   const denial = { ok: false, error: { code: 'permission-required' } };
   expect(MEMBER_METHODS.has('managementGrants')).toBe(true);
-  expect(MEMBER_METHODS.has('managementGrantSet')).toBe(false);
   expect(methods(bob).managementGrants({})).toEqual({
     ok: true,
     value: { tobSlug: home.botSlug, holders: [], editable: false },
@@ -40,7 +39,10 @@ it('gives a new built-in Tob both grants and lets only the Human Owner change th
       editable: true,
     },
   });
-  expect(methods(bob).managementGrantSet(on)).toMatchObject(denial);
+  expect(methods(bob).managementGrantSet(on)).toMatchObject({
+    ok: false,
+    error: { code: 'bot-not-found' },
+  });
   expect(methods({ ...owner, caller: 'bot' }).managementGrantSet(on)).toMatchObject(denial);
   expect(methods(owner).managementGrantSet({ ...on, confirm: false })).toMatchObject({
     ok: false,

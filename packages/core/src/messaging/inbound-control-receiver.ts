@@ -6,6 +6,7 @@ import {
   platformPeople,
   readSenderPolicy,
   senderAdmission,
+  senderBlocked,
 } from './permissions/index.js';
 import { readMessagingIdentity } from './identity.js';
 import { assertMessagingIdentity } from './identity.js';
@@ -282,11 +283,24 @@ export function createInboundControlReceiver(wiring: {
     );
   };
 
+  const blockedSender = (providerId: string, event: MessagingInboundEvent) =>
+    event.actor.kind === 'user' &&
+    database.read((db) =>
+      (
+        db
+          .prepare(
+            'SELECT bot_slug FROM messaging_bindings WHERE provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
+          )
+          .all(providerId, event.botId, event.fingerprint) as { bot_slug: string }[]
+      ).some((row) => senderBlocked(db, row.bot_slug, event)),
+    );
+
   const controlIntake = async (
     provider: MessagingProvider,
     event: MessagingInboundEvent,
     signal: AbortSignal,
   ) => {
+    if (blockedSender(provider.id, event)) return true;
     if (await options.onQuestionText?.(provider.id, event, signal)) return true;
     if (!options.pairing || !chatPairingApplies(event) || provider.id !== `dsh-im/${event.channel}`)
       return false;

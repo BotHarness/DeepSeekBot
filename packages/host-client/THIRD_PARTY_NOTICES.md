@@ -2,6 +2,12 @@
 
 This package vendors the following third-party material.
 
+## IM app marks
+
+- Source: the channel logos in [dsh-im](https://github.com/DoodleBears/dsh-im) (`plugin-src/client/channel-logos.js`)
+- License: the WeChat, QQ and Discord marks use path data published by [Simple Icons](https://simpleicons.org) under CC0 1.0 Universal. The Lark / Feishu and Slack marks are inline vectors used for channel identification.
+- Used for: IM app icons in `packages/host-client/src/shared/im-platform-icons.ts`, drawn by the mobile IM apps and External contacts pages. The logos are trademarks of their owners and identify the IM app a Bot is connected through.
+
 ## LobeHub Icons
 
 - Package: `@lobehub/icons-static-svg` 1.103.0

@@ -1,15 +1,15 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, sep } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { parseAgentManagement } from '../src/bots/cli-agent-management.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createShareDrafts, shareDraftFlags } from '../src/marketplace/share-draft.js';
+import { observeWorktree } from '../src/memory/accepted-observation.js';
 import { createCore } from '../src/plugin.js';
 import { createTobShareDraftOperations } from '../src/tob/cli-share-draft-operations.js';
 import { TobError } from '../src/tob/service.js';
@@ -24,23 +24,6 @@ afterEach(async () => {
 function write(root: string, path: string, data: string) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
-}
-
-function tree(root: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) walk(full);
-      else {
-        const path = relative(root, full);
-        if (path.split(sep)[0] === '.git' && path.endsWith('.lock')) continue;
-        out[path] = createHash('sha256').update(readFileSync(full)).digest('hex');
-      }
-    }
-  };
-  walk(root);
-  return out;
 }
 
 function fixture() {
@@ -81,18 +64,6 @@ function fixture() {
   return { core, bridge, drafts, slug, memory };
 }
 
-describe('share draft snapshot', () => {
-  it('ignores transient git lock files', () => {
-    const root = createTempRoot('share-draft-tree-');
-    mkdirSync(join(root, '.git', 'objects'), { recursive: true });
-    writeFileSync(join(root, '.git', 'objects', 'maintenance.lock'), '');
-    writeFileSync(join(root, '.git', 'HEAD'), 'ref: refs/heads/main\n');
-    writeFileSync(join(root, 'note.md'), 'kept');
-
-    expect(Object.keys(tree(root)).sort()).toEqual(['.git/HEAD', 'note.md']);
-  });
-});
-
 describe('Share Draft', () => {
   it('flags secrets, emails and phone numbers', () => {
     expect(shareDraftFlags('token: ghp_abcdefghijklmnopqrstuvwxyz0123')).toContain('secret');
@@ -104,7 +75,7 @@ describe('Share Draft', () => {
 
   it('copies the Memory into a draft, decides each file, and never changes the source', () => {
     const f = fixture();
-    const before = tree(f.memory);
+    const before = observeWorktree(f.memory);
     const head = execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: f.memory,
       encoding: 'utf8',
@@ -161,7 +132,7 @@ describe('Share Draft', () => {
     );
     expect(existsSync(join(source.value.dir, 'notes/keys.md'))).toBe(false);
 
-    expect(tree(f.memory)).toEqual(before);
+    expect(observeWorktree(f.memory)).toEqual(before);
     expect(
       execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: f.memory,

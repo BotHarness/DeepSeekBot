@@ -5,6 +5,7 @@ import type { ApprovalMessaging, ApprovalMessagingSnapshot } from './approval-me
 import type {
   ExternalPermissionGroup,
   BehaviorPermission,
+  SenderBlock,
   SenderPermissions,
   SenderAccessInput,
   SenderPolicy,
@@ -143,6 +144,7 @@ export interface MessagingSnapshot {
   checks?: 'pending' | 'complete';
   questions?: QuestionDelivery[];
   permissionGroups?: ExternalPermissionGroup[];
+  senderBlocks?: SenderBlock[];
   behaviorPermissions?: BehaviorPermission[];
   senderPolicy?: SenderPolicy;
   roles?: ExternalUserRole[];

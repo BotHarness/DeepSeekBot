@@ -143,7 +143,7 @@ Usage:
   tobs git-status
   tobs git-install
   tobs pairing-list <id>
-  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ...] [--confirm]
+  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ... [--delegable]] [--confirm]
   tobs workspace-options
   tobs grant-create <id> --workspace <workspace-id>
   tobs browser-access-set <id> (--enabled | --disabled)

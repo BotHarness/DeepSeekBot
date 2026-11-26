@@ -16,6 +16,7 @@ import * as humansCopy from '../features/humans/strings';
 import * as interfaceControlsCopy from '../features/interface-controls/strings';
 import * as marketplaceCopy from '../features/marketplace/strings';
 import * as memoryCopy from '../features/memory/strings';
+import * as messagingCopy from '../features/messaging/strings';
 import * as modelsCopy from '../features/models/strings';
 import * as personabotsCopy from '../features/personabots/strings';
 import * as pinnedTabCopy from '../features/pinned-tab/strings';
@@ -56,6 +57,7 @@ const en = {
   ...interfaceControlsCopy.en,
   ...marketplaceCopy.en,
   ...memoryCopy.en,
+  ...messagingCopy.en,
   ...modelsCopy.en,
   ...personabotsCopy.en,
   ...privateInputCopy.en,
@@ -125,6 +127,7 @@ const zh: typeof en = {
   ...interfaceControlsCopy.zh,
   ...marketplaceCopy.zh,
   ...memoryCopy.zh,
+  ...messagingCopy.zh,
   ...modelsCopy.zh,
   ...personabotsCopy.zh,
   ...privateInputCopy.zh,

@@ -16,6 +16,7 @@ import { space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { HeaderButton } from '../primitives/drawer-header';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { PreferenceRow } from '../primitives/preference-row';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { RefreshIcon } from '../shell/icons';
 import { composerControl } from './composer-chrome';
@@ -23,6 +24,7 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
 import { NativeSessionModelSheet } from './session-model-native';
+import { engineEffortName } from '@botharness/host-protocol/subscription-engine';
 import { sessionModelKey, sessionModelLabel } from './session-model-label';
 import {
   ModelFilterStrip,
@@ -34,6 +36,7 @@ import {
   filterSessionModelSections,
   sessionModelFilters,
   sessionModelSections,
+  sessionModelEffort,
   sessionModelSkeleton,
   type SessionModelRow,
   type SessionModelSection,
@@ -117,11 +120,11 @@ export function useSessionModelControl({
     if (!writing.current) setOpen(false);
   }
 
-  async function choose(choice: SessionModelChoice | null) {
+  async function choose(choice: SessionModelChoice | null, stay = false) {
     if (!ready || writing.current) return;
     if (sessionId === undefined) {
       setDraft({ override: choice, default: null });
-      setOpen(false);
+      if (!stay) setOpen(false);
       return;
     }
     writing.current = true;
@@ -130,7 +133,7 @@ export function useSessionModelControl({
     try {
       const value = await sessionModel(host, slug, sessionId, choice);
       sessionModelQueries.setQueryData(stateOptions.queryKey, value);
-      setOpen(false);
+      if (!stay) setOpen(false);
     } catch {
       setRefused(true);
     } finally {
@@ -254,6 +257,22 @@ export function SessionModelPicker({ control }: { control: Control }) {
   const sections = useMemo(() => filterSessionModelSections(all, active), [all, active]);
   const skeleton = sessionModelSkeleton(native, strings);
   const current = sessionModelKey(state?.override ?? null);
+  const effort = useMemo(
+    () =>
+      sessionModelEffort(
+        catalog,
+        state?.override ?? null,
+        (id, name) => engineEffortName(id, copy.effort, name),
+        copy.effortDefault,
+      ),
+    [catalog, copy, state?.override],
+  );
+  const chooseEffort = (id: string) => {
+    const override = state?.override;
+    if (override == null || override.kind === 'group') return;
+    const { effort: _effort, ...bare } = override;
+    void choose(id === '' ? bare : { ...bare, effort: id }, true);
+  };
   const summary = useSessionModelSummary(control);
   const accessible = (row: SessionModelRow) =>
     copy.accessible([row.name, row.tag, row.detail].filter((part) => part !== undefined));
@@ -288,6 +307,9 @@ export function SessionModelPicker({ control }: { control: Control }) {
         }))}
         filter={active}
         filterLabel={copy.filters}
+        effort={effort}
+        effortLabel={copy.effortLevel}
+        onEffort={chooseEffort}
         onFilter={setFilter}
         sections={sections.map((section) => ({
           id: section.id,
@@ -405,6 +427,19 @@ export function SessionModelPicker({ control }: { control: Control }) {
                           onPress: () => void choose(item.choice),
                         })}
                   />
+                  {effort !== undefined && effort.key === item.key ? (
+                    <PreferenceRow
+                      on={SHEET_GROUP}
+                      testID="session-model-effort"
+                      title={copy.effortLevel}
+                      value={effort.current}
+                      options={effort.options.map((option) => ({
+                        value: option.id,
+                        label: option.name,
+                      }))}
+                      onChange={chooseEffort}
+                    />
+                  ) : null}
                 </SettingsGroupItem>
               );
             }}
