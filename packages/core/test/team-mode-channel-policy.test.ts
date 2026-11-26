@@ -931,6 +931,7 @@ it('enforces Role post denials through RPC while Channel admins can send', async
       description: 'Selected members can edit the details.',
     }),
   ).toMatchObject({ ok: true });
+  await f.team.changePassword(f.human, f.initialPassword, 'channel-table-password-1');
   const cli = await host(undefined, undefined, undefined, undefined, async (input) => {
     try {
       const value = await f.team.asMember(input.username, (peer) => {
