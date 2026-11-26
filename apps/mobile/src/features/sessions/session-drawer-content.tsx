@@ -81,6 +81,7 @@ export function SessionDrawerContent({ active }: { active: boolean }) {
       key={scope.scope}
       hosts={scope.hosts}
       title={scope.title}
+      environmentHostId={scope.showHost ? undefined : scope.hosts[0]?.hostId}
       showHost={scope.showHost}
       active={active}
       selected={

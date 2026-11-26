@@ -16,8 +16,10 @@ import { SearchField } from '../../ui/primitives/search-field';
 import { Text } from '../../ui/primitives/text';
 import type { SessionQueryRow } from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
+import { SessionDrawerEnvironmentChip } from './session-drawer-environment-chip';
+import { SessionDrawerNewButton } from './session-drawer-new-button';
 import { EdgeBar, edgeBars } from './session-drawer-edge';
-import { ActivitySearchIcon, PencilIcon, PlusIcon } from '../../ui/shell/icons';
+import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
 import { useStrings } from '../../ui/strings';
 import { sessionDrawerSections, type SessionDrawerGroup } from './session-drawer-model';
 import { SessionOptionsMenu } from './session-options-menu';
@@ -30,6 +32,7 @@ import { useSessionQuery, type SessionQueryHost } from './use-session-query';
 export type SessionDrawerPanelProps = {
   hosts: readonly SessionQueryHost[];
   title: string;
+  environmentHostId?: string | undefined;
   showHost: boolean;
   active: boolean;
   selected?: { hostId: string; sessionId: string } | undefined;
@@ -46,6 +49,7 @@ const AnimatedSectionList = Animated.createAnimatedComponent(
 export function SessionDrawerPanel({
   hosts,
   title,
+  environmentHostId,
   showHost,
   active,
   selected,
@@ -153,16 +157,9 @@ export function SessionDrawerPanel({
           paddingRight: page ? space.x4 : space.x3,
         }}
       >
-        <Text
-          variant="title"
-          strong
-          accessibilityRole="header"
-          testID="session-drawer-environment"
-          numberOfLines={theme.largeText ? 2 : 1}
-          style={{ flex: 1 }}
-        >
-          {title}
-        </Text>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <SessionDrawerEnvironmentChip title={title} hostId={environmentHostId} />
+        </View>
         {query.canQuery ? (
           <SessionOptionsMenu active={query.optionsActive} groups={query.groups} />
         ) : null}
@@ -280,30 +277,7 @@ export function SessionDrawerPanel({
                   <View style={{ flex: 1 }}>{searchBlock}</View>
                 )}
                 {canCreate && !searching && floating ? (
-                  <Pressable
-                    testID="session-drawer-new"
-                    accessibilityRole="button"
-                    accessibilityLabel={t.create}
-                    onPress={onNew}
-                    style={({ pressed }) => ({
-                      minHeight: theme.touch,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: space.x2,
-                      paddingHorizontal: space.x5,
-                      borderRadius: capsuleRadius(theme.fontScale),
-                      backgroundColor: theme.color.fg,
-                      opacity: pressed ? glassPress.dim : 1,
-                    })}
-                  >
-                    <PlusIcon
-                      color={theme.color.base}
-                      size={theme.type.body.size * theme.fontScale}
-                    />
-                    <Text strong numberOfLines={1} style={{ color: theme.color.base }}>
-                      {t.create}
-                    </Text>
-                  </Pressable>
+                  <SessionDrawerNewButton label={t.create} onPress={onNew} />
                 ) : canCreate && !searching ? (
                   <Pressable
                     testID="session-drawer-new"
