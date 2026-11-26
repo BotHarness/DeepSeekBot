@@ -16,6 +16,10 @@ import type { BrowserTab } from '../runtime/browser.js';
 import type { BorrowService } from '../borrow.js';
 import type { ProfileControl } from '../profile-control.js';
 import type { DailyControl } from '../daily.js';
+import {
+  LocalVideoError,
+  type LocalDesktopControl,
+} from '../../../computer/src/local-video-contract.js';
 
 export const BROWSER_PROMPT_SECTION = 'botharness:browser';
 
@@ -61,11 +65,14 @@ export interface BrowserToolProviderOptions {
   readonly borrowed?: () => Pick<BorrowService, 'observe'> | undefined;
   readonly takeover?: () => TakeoverService | undefined;
   readonly takeoverUrlFor?: (slug: string) => string | undefined;
-  readonly desktopControl?: () => { readonly held: boolean; readonly epoch: number } | undefined;
+  readonly desktopControl?: () =>
+    | (Pick<LocalDesktopControl, 'held' | 'epoch' | 'unavailable'> & { readonly ready?: boolean })
+    | undefined;
+  readonly runDesktopOperation?: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
 export const DESKTOP_HELD_MESSAGE =
-  'The Human holds the Computer: they are using this desktop, including the Bot Browser, from the Computer view. Wait for them to hand it back, then call browser_observe before acting';
+  'The Human holds the Computer pause. Wait for them to Resume, then call browser_observe before acting';
 export const DESKTOP_STALE_MESSAGE =
   'The Human used the Computer since your last browser_observe; call browser_observe of the current page before acting';
 
@@ -242,10 +249,16 @@ export function createBrowserToolProvider(
       );
     }
     const desktop = options.desktopControl?.();
+    if (desktop?.unavailable !== undefined && raw !== 'takeover')
+      throw new LocalVideoError(desktop.unavailable.code, desktop.unavailable.detail);
     if (desktop?.held === true && raw !== 'takeover') {
       note(`phase=control-refused owner=computer-pause slug=${slug} tool=${raw}`);
       throw new Error(DESKTOP_HELD_MESSAGE);
     }
+    if (desktop?.ready === false && raw !== 'takeover')
+      throw new Error(
+        'Check the current desktop in Computer settings before using the Bot Browser.',
+      );
     if (['click', 'type', 'press_key', 'scroll', 'upload'].includes(raw)) {
       const state = botTabs(slug);
       if (state.observedControlRevision !== state.controlRevision) {
@@ -396,7 +409,10 @@ export function createBrowserToolProvider(
                 signal.throwIfAborted();
                 assertExecutionAllowed(spec.raw, slug);
                 assertControlCurrent();
-                return runTool(spec.raw, args, slug, signal, assertControlCurrent);
+                const operation = () => runTool(spec.raw, args, slug, signal, assertControlCurrent);
+                return spec.raw === 'takeover' || options.runDesktopOperation === undefined
+                  ? operation()
+                  : options.runDesktopOperation(operation);
               };
               if (
                 options.daily?.() !== undefined ||
@@ -530,7 +546,10 @@ export function createBrowserToolProvider(
         assertCurrent();
         const execute = () => {
           assertCurrent();
-          return runTool(raw, args, slug, signal, assertCurrent);
+          const operation = () => runTool(raw, args, slug, signal, assertCurrent);
+          return raw === 'takeover' || options.runDesktopOperation === undefined
+            ? operation()
+            : options.runDesktopOperation(operation);
         };
         if (
           options.daily?.() !== undefined ||

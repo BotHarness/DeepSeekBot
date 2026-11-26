@@ -18,6 +18,7 @@ export function createAgentBrowserRuntime(options: BotBrowserRuntimeOptions): Bo
   const note = options.onEvent ?? (() => undefined);
   const process = createAgentBrowserProcess(note);
   let endpoint: string | undefined;
+  let processEndpoint: string | undefined;
   let active: string | undefined;
   let lastUrl: string | undefined;
   let stopping: Promise<void> | undefined;
@@ -37,6 +38,7 @@ export function createAgentBrowserRuntime(options: BotBrowserRuntimeOptions): Bo
       references.clear();
       active = undefined;
       endpoint = undefined;
+      processEndpoint = undefined;
       await Promise.all([process.stop(), base.stop()]);
     })().finally(() => {
       stopping = undefined;
@@ -96,11 +98,13 @@ export function createAgentBrowserRuntime(options: BotBrowserRuntimeOptions): Bo
     await base.ensure();
     assertCurrent();
     if (endpoint === undefined) throw new Error('The managed Browser endpoint is unavailable');
-    if (!process.isRunning()) {
+    if (!process.isRunning() || processEndpoint !== endpoint) {
       references.clear();
       active = undefined;
       try {
+        if (process.isRunning()) await process.stop();
         await process.start(endpoint);
+        processEndpoint = endpoint;
       } catch (error) {
         await stop();
         throw error;

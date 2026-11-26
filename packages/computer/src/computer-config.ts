@@ -77,7 +77,11 @@ export function createComputerConfig(): {
   };
 
   const Config: Schema<Partial<ComputerConfig>, ComputerSchemaConfig> = Schema.object({
-    target: Schema.union([Schema.const('local'), Schema.const('container')])
+    target: Schema.union([
+      Schema.const('local'),
+      Schema.const('container'),
+      Schema.const('current-desktop'),
+    ])
       .default('container')
       .volatile(),
     enabled: Schema.boolean().default(DEFAULT_CONFIG.enabled).description('启用 Computer'),

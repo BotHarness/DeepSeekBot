@@ -1116,7 +1116,7 @@
       "id": "browser-computer-native-settings",
       "scope": "Host Settings",
       "description": "Browser target/drivers and Computer target, idle stop, export directory and auto-allow are native namespace settings. Generic Human CLI coverage is not Tob authorization.",
-      "commands": ["settings", "settings-set"],
+      "commands": ["settings", "settings-set", "computer-target"],
       "surfaces": [
         "field-control:packages/browser/src/client/settings.tsx:\"target\"",
         "field-control:packages/browser/src/client/settings.tsx:{target === 'container' ? 'containerDriver' : 'localDriver'}",

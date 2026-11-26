@@ -91,7 +91,7 @@ function resultOf(value: unknown): LocalVideoResult | undefined {
 
 export function createLocalVideoClient(
   transport: LocalVideoTransport,
-  options: { mediaAvailable?: boolean } = {},
+  options: { mediaAvailable?: boolean; desktopFrameFallback?: boolean } = {},
 ): LocalVideoClient {
   const listeners = new Set<() => void>();
   let state: LocalVideoClientState = {
@@ -328,6 +328,12 @@ export function createLocalVideoClient(
       const capability = await request({ kind: 'status' }, generation);
       if (capability === undefined) return;
       if (generation !== lifetime) return;
+      if (capability.transport === 'frames') {
+        if (options.desktopFrameFallback)
+          update({ status: 'unsupported', code: 'frame-transport' });
+        else void end('unavailable', 'unsupported-platform');
+        return;
+      }
       update({ host: withoutAttempt(capability) });
       if (generation !== lifetime) return;
       if (options.mediaAvailable === false) {

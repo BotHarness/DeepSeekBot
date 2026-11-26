@@ -49,11 +49,18 @@ interface LocalStatus {
 export function LocalComputerStatus({
   t,
   observeResource,
+  target = 'local',
+  startPending = false,
 }: {
   t: ComputerTranslate;
   observeResource?: ObserveResource | undefined;
+  target?: 'local' | 'current-desktop';
+  startPending?: boolean;
 }): ReactElement {
-  const [payload, setPayload] = useState<LocalStatus>();
+  const current = target === 'current-desktop';
+  const [received, setPayload] = useState<LocalStatus>();
+  const payload =
+    received?.target === undefined || received.target === target ? received : undefined;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -80,7 +87,7 @@ export function LocalComputerStatus({
     [observeResource, refresh],
   );
   const installing = payload?.install?.state === 'installing';
-  const preparing = busy || installing || payload?.status?.phase === 'starting';
+  const preparing = startPending || busy || installing || payload?.status?.phase === 'starting';
   const missing = payload?.status?.missing;
   const failureDetail =
     error ??
@@ -91,6 +98,7 @@ export function LocalComputerStatus({
     failureDetail === undefined
       ? undefined
       : localSetupFailure(error ?? payload?.status?.refusal, t);
+  const waitingForGnome = preparing && current && failure !== undefined;
   const permissions =
     payload?.status?.refusal === 'permissions-required' ? payload.status.permissions : undefined;
   const post = (path: string, body: Record<string, unknown>): void => {
@@ -113,7 +121,7 @@ export function LocalComputerStatus({
       .catch(() => setError('request-failed'))
       .finally(() => setBusy(false));
   };
-  const check = (): void => post('./api/computer/start', { authorize: true, target: 'local' });
+  const check = (): void => post('./api/computer/start', { authorize: true, target });
   const install = (): void => post('./api/computer/install-packages', { authorize: true });
   const granted = payload?.status?.state === 'running';
   const download = payload?.status?.progress;
@@ -130,10 +138,14 @@ export function LocalComputerStatus({
     <Button
       size="sm"
       variant="outline"
-      disabled={preparing || payload?.probe?.available === false}
+      disabled={
+        preparing ||
+        payload?.probe?.available === false ||
+        payload?.status?.refusal === 'desktop-locked'
+      }
       onClick={check}
     >
-      {t(preparing ? 'local.checking' : 'local.check')}
+      {t(preparing ? 'local.checking' : current ? 'local.desktop.check' : 'local.check')}
     </Button>
   );
   const packages = installing ? (payload?.install?.packages ?? []) : (missing?.packages ?? []);
@@ -210,10 +222,10 @@ export function LocalComputerStatus({
       <SidebarCardList className="bh-computer-cards">
         <SidebarCardRow
           icon="monitor"
-          title={t('local.title')}
+          title={t(current ? 'rows.target.current-desktop' : 'local.title')}
           chips={
             granted ? (
-              <Tag tone="success">{t('local.chip.granted')}</Tag>
+              <Tag tone="success">{t(current ? 'entry.chip.running' : 'local.chip.granted')}</Tag>
             ) : preparing ? (
               <Tag tone="info">{t('local.chip.checking')}</Tag>
             ) : missing !== undefined ? (
@@ -224,10 +236,22 @@ export function LocalComputerStatus({
               <Tag tone="danger">{t('local.chip.failed')}</Tag>
             )
           }
-          meta={t(granted ? 'local.granted' : 'local.description')}
+          meta={t(
+            current
+              ? granted
+                ? 'local.desktop.ready'
+                : 'local.desktop.description'
+              : granted
+                ? 'local.granted'
+                : 'local.description',
+          )}
           detail={
             <div {...stylex.props(styles.detail)}>
-              {failure === undefined ? null : <Note tone="danger">{failure}</Note>}
+              {failure === undefined ? null : waitingForGnome ? (
+                <Note>{failure}</Note>
+              ) : (
+                <Note tone="danger">{failure}</Note>
+              )}
               {body}
             </div>
           }
