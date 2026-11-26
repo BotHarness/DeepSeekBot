@@ -214,6 +214,17 @@ export async function deleteGroupChannel(host: HostCall, channelId: string): Pro
   if (answer['deleted'] !== true) throw new HostAnswerInvalid('The group was not disbanded.');
 }
 
+export type ChannelAccess = 'readable' | 'removed' | 'unavailable';
+
+export async function readChannelAccess(host: HostCall, channelId: string): Promise<ChannelAccess> {
+  const state = answerRecord(
+    await host.call('channelAccessState', { channelId }),
+    'channelAccessState',
+  )['state'];
+  if (state === 'readable' || state === 'removed' || state === 'unavailable') return state;
+  throw new HostAnswerInvalid('channelAccessState returned an unknown state.');
+}
+
 const activities: ReadonlySet<unknown> = new Set<AssignmentActivity>([
   'working',
   'idle',

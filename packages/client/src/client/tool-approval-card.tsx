@@ -397,6 +397,8 @@ export function ToolApprovalCard({
         : request.approvalReview.fallback === undefined
           ? request.approvalReview.reason
           : t('autoApproval.reviewUnavailable');
+  const secretRisk =
+    canAlwaysAllow && (secretCli || request.toolName === 'secret_mcp_connect') ? scope : undefined;
   const hostAccess =
     message.approval?.masked === false && message.approval.opaque
       ? t('approval.opaqueWarning')
@@ -408,28 +410,20 @@ export function ToolApprovalCard({
           t('approval.cwd', { path: request.cwd }),
           effects,
           review,
-          scope,
-          summary.command === undefined ? hostAccess : undefined,
+          secretRisk === undefined ? scope : undefined,
+          hostAccess,
         ]
       : [
           `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
           effects,
           origin,
           review,
-          canAlwaysAllow ? undefined : scope,
+          scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
           hostAccess,
         ]
   )
     .filter((line) => line !== undefined && line !== '')
     .join('\n');
-  const shortScope =
-    scope === undefined || !canAlwaysAllow
-      ? undefined
-      : memoryEdit !== undefined
-        ? t('approval.alwaysMemoryScope')
-        : secretCli || request.toolName === 'secret_mcp_connect'
-          ? scope
-          : t('approval.alwaysToolScopeShort', { tool: request.toolName });
   const details =
     memoryEdit !== undefined ? (
       <ApprovalInput
@@ -548,11 +542,6 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
-        {hostAccess === undefined || summary.command === undefined ? null : (
-          <div {...hooked('bh-tool-approval-host-access', styles.caption, styles.warning)}>
-            {hostAccess}
-          </div>
-        )}
         {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
           <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
         )}
@@ -571,8 +560,8 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {shortScope === undefined ? null : (
-        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{shortScope}</div>
+      {secretRisk === undefined ? null : (
+        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{secretRisk}</div>
       )}
       {settled !== undefined ? (
         <RequestOutcome

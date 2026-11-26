@@ -832,6 +832,7 @@ export {
   searchChannelMessages,
   searchAllMessages,
   loadChannels,
+  loadChannel,
   validateComposerDraft,
   openDmChannel,
   createGroupChannel,

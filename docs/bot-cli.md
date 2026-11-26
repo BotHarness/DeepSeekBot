@@ -79,7 +79,7 @@ Staging is outside canonical Bot storage. Limits match desktop archives: 100 MiB
 
 The phone command explicitly settles JavaScript Promises through the inspector; it does not rely on Hermes honoring CDP `awaitPromise`. A single 20-second deadline covers starting the operation, polling and consuming its result after connection. Each request has a unique temporary result slot, removed when consumed or cancelled, with a 20-second runtime expiry if the debugger disconnects. Late completion cannot recreate a removed slot. Runtime expiry needs the app's JavaScript event loop to run; a suspended app clears it when timers resume. Only a validated phone-owner result is success; Promise internals or malformed replies return `inspector-result-required`. The transport cannot undo an owner write already started, so a timeout remains an unknown write outcome, not proof that nothing changed. Read back before retrying. The command itself distinguishes these outcomes: if a write may have been dispatched but its result is unavailable, it keeps the underlying error code and explicitly reports an unknown write outcome with instructions to read without `--preferences-stdin`. Read failures and definite pre-write refusals do not use that warning.
 
-`deepseekbot activity --notifications [--limit 1..100] [--cursor <cursor>]` uses the Host's existing `humanAttention` query with notification discovery enabled. Follow every returned cursor to obtain Host-decided actions, unread group mentions/replies and ordinary unread DM replies. This is independent of Activity's mentions-first page; filters cannot be combined with this mode. `notificationVersion: 1` is required, with a coded refusal on older Hosts. It opens no additional feed connection and does not change attention or unread state.
+`deepseekbot activity --notifications [--limit 1..100] [--cursor <cursor>] [--source all|bot|native]` uses the Host's existing `humanAttention` query with notification discovery enabled. Follow every returned cursor to obtain Host-decided actions, unread group mentions/replies and ordinary unread DM replies. This is independent of Activity's mentions-first page; filters cannot be combined with this mode, except `--source all` (or `native`), which adds the Owner's native Session requests to the first page when the Host's "Session requests in Activity" setting is on. `notificationVersion: 1` is required, with a coded refusal on older Hosts. It opens no additional feed connection and does not change attention or unread state.
 
 `deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
 
@@ -563,6 +563,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"delete-role","id":"<role-id>","expectedRevision":2}' | deepseekbot sender-access <bot-id> --input-stdin --confirm
 printf '{"kind":"default-role","roleId":"<role-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
@@ -1476,6 +1477,19 @@ deepseekbot connector-key-clear --confirm
 ```
 
 `connector-search [query]` lists the apps you can connect: the featured apps that match come first, then every matching app Composio supports (about 2,000), with `next` as the `--cursor` for the following page. Chinese words match the featured apps only; English words such as `crm` or `email` search all of Composio. Without a key it returns only the featured apps. A Bot's `connector_catalog` uses the same search. `connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
+
+### App connections (remote MCP)
+
+Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to `/botharness/connectors/oauth/callback` on the Host and the account turns `active`. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.
+
+```bash
+deepseekbot connector-mcp-search posthog
+deepseekbot connector-connect mcp_posthog --label "Team PostHog"
+deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label Work
+deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
+```
+
+`connector-connect` takes a `service` from the search, and `connector-mcp-add` takes any https address. Both print a sign-in link when the server needs one. If the browser that signs in cannot reach the Host, copy the address the sign-in page finally opened and pass it to `connector-mcp-finish`. Grants work as for Composio accounts: each granted account appears to the Bot as its own `mcp__app_<service>__` tools, `read` allows only the tools the server marks read-only, and `write` allows all of them.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 
@@ -2666,6 +2680,14 @@ deepseekbot --as bob channels add-member <channel-id> alice
 ```
 
 Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.
+
+### Channel access after a removal
+
+```sh
+deepseekbot --as alice channels access <channel-id>
+```
+
+Returns `{ channelId, state }` for the calling Human. `readable` means the person can open the Channel. `removed` means they were a member, the Group still exists and they lost access, for example after a role revoke or removal by an admin. `unavailable` covers a deleted Channel, one they never joined and an unknown id, so the answer never reveals a Channel the person did not already know. The phone and the Web Client use it to say "You no longer have access" instead of "Group no longer available".
 
 ### Custom HTTP voice request templates
 

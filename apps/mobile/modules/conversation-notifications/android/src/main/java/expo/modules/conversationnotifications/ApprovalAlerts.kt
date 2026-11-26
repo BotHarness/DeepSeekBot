@@ -294,6 +294,7 @@ class ApprovalAlerts internal constructor(
       "user-question", "assignment-waiting-human", "assignment-blocked" -> "question"
       "private-input" -> "private-input"
       "channel-reply", "channel-mention" -> "reply"
+      "native-session-input" -> if (data.optString("input") == "question") "question" else "approval"
       else -> return false
     }
     val policy = preferences.getString("kinds", null)?.let(::JSONObject)
@@ -313,7 +314,7 @@ class ApprovalAlerts internal constructor(
       instance ?: ApprovalAlerts(context.applicationContext).also { instance = it }
     }
     fun handles(notification: Notification): Boolean = notification.notificationRequest.content.body?.let {
-      it.optInt("v") == 1 && it.optString("kind") in setOf("tool-approval", "workspace-grant-request", "auto-rejection", "group-join-request", "user-question", "assignment-waiting-human", "assignment-blocked", "private-input", "channel-reply", "channel-mention") &&
+      it.optInt("v") == 1 && it.optString("kind") in setOf("tool-approval", "workspace-grant-request", "auto-rejection", "group-join-request", "user-question", "assignment-waiting-human", "assignment-blocked", "private-input", "channel-reply", "channel-mention", "native-session-input") &&
         it.optString("hostId").isNotEmpty() && it.optString("itemId").isNotEmpty()
     } == true
     private fun identifier(host: String, item: String): String = "local-approval-" +

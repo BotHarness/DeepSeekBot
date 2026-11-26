@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
@@ -5,7 +7,17 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 
 import type { BotHarnessCore } from '../plugin-types.js';
 import { CONNECTOR_CATALOG, matchesCatalog } from './catalog.js';
-import { CONNECTOR_MCP_SERVER, CONNECTOR_TOOL_PREFIX, connectorToolDenial } from './policy.js';
+import {
+  CONNECTOR_MCP_SERVER,
+  CONNECTOR_TOOL_PREFIX,
+  REMOTE_MCP_TOOL_PREFIX,
+  connectorToolDenial,
+  mcpPublicToolName,
+  remoteMcpServerName,
+  remoteMcpServerNames,
+  remoteMcpToolDenial,
+} from './policy.js';
+import { FEATURED_MCP_SERVERS } from './remote.js';
 import { ConnectorError, type ConnectorApp, type ConnectorService } from './service.js';
 import type { ConnectorAccess } from './store.js';
 
@@ -13,17 +25,118 @@ type Fiber = ReturnType<Context['plugin']>;
 
 const CATALOG_LIMIT = 15;
 
+interface RemoteMount {
+  accountId: string;
+  signature: string;
+  fiber: Fiber;
+  access: ConnectorAccess;
+  readOnly: ReadonlySet<string> | undefined;
+}
+
 interface Mounted {
   botSlug: string;
   agentCtx: Context;
   signature: string | undefined;
   fiber: Fiber | undefined;
+  remote: Map<string, RemoteMount>;
   queue: Promise<void>;
   disposed: boolean;
   retry: ReturnType<typeof setTimeout> | undefined;
+  renew: ReturnType<typeof setTimeout> | undefined;
 }
 
 const SESSION_RETRY_MS = 30_000;
+const RENEW_EARLY_MS = 60_000;
+const LOOKUP_RETRY_MS = 30_000;
+export const CONNECTOR_CALLBACK_PATH = '/botharness/connectors/oauth/callback';
+
+export function connectorCallback() {
+  let origin: (() => string) | undefined;
+  return {
+    url: () => (origin === undefined ? undefined : `${origin()}${CONNECTOR_CALLBACK_PATH}`),
+    attach(next: (() => string) | undefined) {
+      origin = next;
+    },
+  };
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}
+
+function callbackPage(title: string, detail: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f6f6f7;color:#18181b}@media (prefers-color-scheme:dark){body{background:#18181b;color:#f4f4f5}}main{max-width:28rem;padding:2rem;text-align:center}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(detail)}</p></main></body></html>`;
+}
+
+interface CallbackWebServer {
+  getOrigin(): string;
+  register(route: {
+    kind: 'exact' | 'prefix';
+    path: string;
+    handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>;
+  }): () => void;
+}
+
+function callbackWebServer(value: unknown): value is CallbackWebServer {
+  const web = value as Partial<CallbackWebServer> | null | undefined;
+  return typeof web?.getOrigin === 'function' && typeof web.register === 'function';
+}
+
+function mountCallback(
+  ctx: Context,
+  service: ConnectorService,
+  callback: ReturnType<typeof connectorCallback>,
+): void {
+  ctx.inject(['webServer'], (webCtx) => {
+    const web: unknown = webCtx.get('webServer');
+    if (!callbackWebServer(web)) {
+      webCtx.logger.warn('connectors phase=callback-unavailable');
+      return;
+    }
+    webCtx.effect(() => {
+      callback.attach(() => web.getOrigin());
+      const off = web.register({
+        kind: 'exact',
+        path: CONNECTOR_CALLBACK_PATH,
+        handler: async (request, response) => {
+          const params = new URL(request.url ?? '/', 'http://callback').searchParams;
+          let status = 200;
+          let page: string;
+          try {
+            const account = await service.remote.finish(params);
+            page = callbackPage(
+              `${account.label} is connected`,
+              'You can close this tab and go back to Tobs.',
+            );
+          } catch (error) {
+            status = 400;
+            page = callbackPage(
+              'Sign-in did not finish',
+              error instanceof ConnectorError ? error.message : 'Try connecting the app again.',
+            );
+          }
+          response.writeHead(status, {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store',
+            'referrer-policy': 'no-referrer',
+            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+          });
+          response.end(page);
+        },
+      });
+      return () => {
+        off();
+        callback.attach(undefined);
+      };
+    }, 'botharness: App connection sign-in callback');
+  });
+}
+
+function remoteSignature(connection: { url: string; headers: Record<string, string> }): string {
+  return createHash('sha256')
+    .update(JSON.stringify([connection.url, connection.headers]))
+    .digest('hex');
+}
 
 export function connectorAccessMap(
   service: Pick<ConnectorService, 'forBot'>,
@@ -31,7 +144,7 @@ export function connectorAccessMap(
 ): Record<string, ConnectorAccess> {
   const access: Record<string, ConnectorAccess> = {};
   for (const connector of service.forBot(botSlug)) {
-    if (connector.status !== 'active') continue;
+    if (connector.status !== 'active' || connector.provider !== 'composio') continue;
     access[connector.service] = access[connector.service] === 'read' ? 'read' : connector.access;
   }
   return access;
@@ -53,7 +166,30 @@ export function connectorCatalogFor(
     0,
     CATALOG_LIMIT,
   );
-  const usable = granted.some((connector) => connector.status === 'active');
+  const usable = granted.some(
+    (connector) => connector.status === 'active' && connector.provider === 'composio',
+  );
+  const servers = remoteMcpServerNames(
+    granted.filter((connector) => connector.status === 'active'),
+  );
+  const remote = [...servers.values()].map((name) => `mcp__${name}__*`);
+  const mcp = FEATURED_MCP_SERVERS.filter((server) =>
+    [server.name, server.summary, ...server.keywords].some(
+      (word) =>
+        query === undefined ||
+        query.trim() === '' ||
+        query.toLowerCase().includes(word.toLowerCase()) ||
+        word.toLowerCase().includes(query.trim().toLowerCase()),
+    ),
+  ).slice(0, 5);
+  const steps = [
+    ...(usable
+      ? [
+          `Use ${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS to find a tool, ${CONNECTOR_TOOL_PREFIX}COMPOSIO_GET_TOOL_SCHEMAS for its arguments, then ${CONNECTOR_TOOL_PREFIX}COMPOSIO_MULTI_EXECUTE_TOOL to run it.`,
+        ]
+      : []),
+    ...(remote.length > 0 ? [`Use the MCP tools named ${remote.join(', ')}.`] : []),
+  ];
   return {
     configured,
     granted: granted.map((connector) => ({
@@ -64,6 +200,9 @@ export function connectorCatalogFor(
       ...(connector.identity === undefined ? {} : { identity: connector.identity }),
       status: connector.status,
       access: connector.access,
+      ...(servers.has(connector.accountId)
+        ? { tools: `mcp__${servers.get(connector.accountId)}__*` }
+        : {}),
     })),
     requestable: requestable.map((account) => ({
       account_id: account.accountId,
@@ -76,13 +215,20 @@ export function connectorCatalogFor(
       name: entry.name,
       summary: entry.summary,
     })),
-    next: usable
-      ? `Use ${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS to find a tool, ${CONNECTOR_TOOL_PREFIX}COMPOSIO_GET_TOOL_SCHEMAS for its arguments, then ${CONNECTOR_TOOL_PREFIX}COMPOSIO_MULTI_EXECUTE_TOOL to run it.`
-      : requestable.length > 0
-        ? 'Call connector_request with the account_id the user needs; the Owner approves it on a card.'
-        : configured
-          ? 'Tell the user which app connection would help and ask the Owner to connect it in Settings › App connections; then call connector_request.'
-          : 'App connections are not set up on this Host yet; ask the Owner to add a Composio API key in Settings › App connections.',
+    mcp_servers: mcp.map((server) => ({
+      service: server.service,
+      name: server.name,
+      summary: server.summary,
+      sign_in: 'OAuth, no Composio key needed',
+    })),
+    next:
+      steps.length > 0
+        ? steps.join(' ')
+        : requestable.length > 0
+          ? 'Call connector_request with the account_id the user needs; the Owner approves it on a card.'
+          : configured
+            ? 'Tell the user which app connection would help and ask the Owner to connect it in Settings › App connections; then call connector_request.'
+            : 'Ask the Owner to connect the app in Settings › App connections: many apps (for example PostHog, Notion, Linear) connect by signing in, and others need a Composio API key.',
   };
 }
 
@@ -90,10 +236,106 @@ export function mountConnectors(
   ctx: Context,
   core: Pick<BotHarnessCore, 'contributeBotAgentSetup' | 'ownership'>,
   service: ConnectorService,
+  callback?: ReturnType<typeof connectorCallback>,
 ): void {
   const mounted = new Map<Agent, Mounted>();
+  if (callback !== undefined) mountCallback(ctx, service, callback);
+  const remote = async (entry: Mounted): Promise<void> => {
+    if (entry.renew !== undefined) clearTimeout(entry.renew);
+    entry.renew = undefined;
+    const granted = service
+      .forBot(entry.botSlug)
+      .filter((connector) => connector.provider === 'mcp' && connector.status === 'active');
+    const names = remoteMcpServerNames(granted);
+    let renewAt: number | undefined;
+    for (const [serverName, current] of [...entry.remote]) {
+      if (names.get(current.accountId) === serverName) continue;
+      entry.remote.delete(serverName);
+      await Promise.resolve(current.fiber.dispose()).catch(() => undefined);
+    }
+    for (const connector of granted) {
+      if (entry.disposed) return;
+      const serverName = names.get(connector.accountId)!;
+      let connection: Awaited<ReturnType<ConnectorService['remote']['connection']>>;
+      try {
+        connection = await service.remote.connection(connector.accountId);
+      } catch {
+        const kept = entry.remote.get(serverName);
+        if (kept !== undefined) kept.access = connector.access;
+        renewAt = Math.min(renewAt ?? Infinity, Date.now() + LOOKUP_RETRY_MS);
+        continue;
+      }
+      const current = entry.remote.get(serverName);
+      if (connection === undefined) {
+        if (current !== undefined) {
+          entry.remote.delete(serverName);
+          await Promise.resolve(current.fiber.dispose()).catch(() => undefined);
+        }
+        continue;
+      }
+      if (connection.expiresAt !== undefined)
+        renewAt = Math.min(renewAt ?? Infinity, connection.expiresAt - RENEW_EARLY_MS);
+      const signature = remoteSignature(connection);
+      if (current?.signature === signature) {
+        current.access = connector.access;
+        continue;
+      }
+      if (current !== undefined) {
+        entry.remote.delete(serverName);
+        await Promise.resolve(current.fiber.dispose()).catch(() => undefined);
+      }
+      if (entry.disposed) return;
+      const mount: RemoteMount = {
+        accountId: connector.accountId,
+        signature,
+        access: connector.access,
+        readOnly: undefined,
+        fiber: entry.agentCtx.plugin(mcpClient, {
+          transport: 'streamable-http',
+          serverName,
+          url: connection.url,
+          headers: connection.headers,
+          toolCallTimeoutMs: 120_000,
+        }),
+      };
+      entry.remote.set(serverName, mount);
+      const load = (): void => {
+        void service.remote.tools(connector.accountId).then(
+          (tools) => {
+            mount.readOnly = new Set(
+              tools
+                .filter((tool) => tool.readOnly)
+                .map((tool) => mcpPublicToolName(serverName, tool.name)),
+            );
+          },
+          () => {
+            if (entry.disposed || entry.remote.get(serverName) !== mount) return;
+            setTimeout(() => {
+              if (!entry.disposed && entry.remote.get(serverName) === mount) load();
+            }, LOOKUP_RETRY_MS).unref?.();
+          },
+        );
+      };
+      load();
+    }
+    if (renewAt !== undefined && !entry.disposed)
+      entry.renew = setTimeout(
+        () => {
+          entry.renew = undefined;
+          void sync(entry);
+        },
+        Math.max(5_000, renewAt - Date.now()),
+      );
+  };
   const sync = (entry: Mounted): Promise<void> => {
     entry.queue = entry.queue.then(async () => {
+      if (entry.disposed) return;
+      await remote(entry).catch((error: unknown) =>
+        ctx.logger.warn(
+          'botharness: remote MCP mount failed %j',
+          error instanceof Error ? error.name : 'error',
+        ),
+      );
       if (entry.disposed) return;
       if (entry.retry !== undefined) clearTimeout(entry.retry);
       entry.retry = undefined;
@@ -135,6 +377,20 @@ export function mountConnectors(
       }),
     'botharness: connector changes',
   );
+  ctx.tools.guard(({ name, agent }) => {
+    if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
+    const entry = agent === undefined ? undefined : mounted.get(agent);
+    if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
+    const access = new Map(service.forBot(entry.botSlug).map((c) => [c.accountId, c]));
+    const servers = new Map(
+      [...entry.remote].flatMap(([serverName, mount]) => {
+        const connector = access.get(mount.accountId);
+        if (connector === undefined || connector.status !== 'active') return [];
+        return [[serverName, { access: connector.access, readOnly: mount.readOnly }] as const];
+      }),
+    );
+    return remoteMcpToolDenial(name, servers);
+  });
   ctx.tools.guard(({ name, agent, arguments: args }) => {
     if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return undefined;
     const botSlug =
@@ -220,7 +476,10 @@ export function mountConnectors(
                 granted: true,
                 service: account.service,
                 access: args.access,
-                tools: `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
+                tools:
+                  account.provider === 'mcp'
+                    ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
+                    : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
               });
             },
           }),
@@ -230,9 +489,11 @@ export function mountConnectors(
           agentCtx,
           signature: undefined,
           fiber: undefined,
+          remote: new Map(),
           queue: Promise.resolve(),
           disposed: false,
           retry: undefined,
+          renew: undefined,
         };
         mounted.set(agent, entry);
         agentCtx.effect(
@@ -240,6 +501,11 @@ export function mountConnectors(
             entry.disposed = true;
             if (entry.retry !== undefined) clearTimeout(entry.retry);
             entry.retry = undefined;
+            if (entry.renew !== undefined) clearTimeout(entry.renew);
+            entry.renew = undefined;
+            for (const mount of entry.remote.values())
+              void Promise.resolve(mount.fiber.dispose()).catch(() => undefined);
+            entry.remote.clear();
             if (mounted.get(agent) === entry) mounted.delete(agent);
             const fiber = entry.fiber;
             entry.fiber = undefined;

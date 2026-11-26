@@ -155,6 +155,7 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           botName: (slug: string) =>
             host.snapshot.roster?.bots.find((bot) => bot.slug === slug)?.displayName,
           approvalText: t.localApprovalText,
+          untitledSession: t.hostSessions.untitled,
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
           focusedChannelIds: attentionFocus.channels(host.saved.hostId),
@@ -421,7 +422,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           }
         })
         .catch(() => undefined);
-      if (saved.member !== undefined) void refreshMemberPermissions(client).catch(() => undefined);
+      void refreshMemberPermissions(client).catch(() => undefined);
       void pushSession.retryFailed(saved);
       void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(

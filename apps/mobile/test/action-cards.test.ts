@@ -24,7 +24,7 @@ import {
 } from '@botharness/host-client/requests';
 import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
-import { QuestionCard } from '../src/ui/chat/question-card';
+import { QuestionCard, questionCategory } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { played } from './expo-haptics-shim';
@@ -204,7 +204,6 @@ describe('Tool approval card in the DM', () => {
     expect(view.textContent).not.toContain('/home/qa/.dsh/botharness/bots/');
     for (const label of [t.allowOnce, t.alwaysAllow, t.reject, t.details])
       expect(button(view, label).disabled).toBe(false);
-    expect(view.textContent).toContain(t.alwaysToolScopeShort('bash'));
     expect(view.textContent).not.toContain(t.alwaysToolScope('bash'));
     await press(button(view, t.details));
     expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
@@ -560,13 +559,15 @@ describe('Tool approval detail in the DM', () => {
     expect(view.textContent).toContain(t.riskOriginal);
   });
 
-  it('puts the secret warning next to the buttons for secret_cli', async () => {
+  it('puts the secret warning next to the buttons and the rule scope in details for secret_cli', async () => {
     const fake = host();
     fake.answers.set('channelTimeline', () =>
       edited('secret_cli', { account: 'github', program: 'gh', args: ['repo', 'list'] }),
     );
     const view = await render(card(connect(fake)));
     expect(view.textContent).toContain(t.riskSecretCli);
+    expect(view.textContent).not.toContain(t.alwaysKindScope);
+    await press(button(view, t.details));
     expect(view.textContent).toContain(t.alwaysKindScope);
   });
 });
@@ -750,4 +751,18 @@ describe('Question card in the DM', () => {
     expect(await answerInChat(connect(fake), question, 'violet')).toBe(false);
     expect(fake.requests.filter((request) => request.includes('userQuestionAnswer'))).toEqual([]);
   });
+});
+
+it('shows a question header only when it adds something beyond the question', () => {
+  expect(questionCategory({ header: 'Which tree?', question: 'Which tree?' }, 'Question')).toBe(
+    'Question',
+  );
+  expect(questionCategory({ header: ' which TREE? ', question: 'Which tree?' }, 'Question')).toBe(
+    'Question',
+  );
+  expect(questionCategory({ header: 'Garden', question: 'Which tree?' }, 'Question')).toBe(
+    'Garden',
+  );
+  expect(questionCategory({ question: 'Which tree?' }, 'Question')).toBe('Question');
+  expect(questionCategory(undefined, 'Question')).toBe('Question');
 });

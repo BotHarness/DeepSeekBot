@@ -38,7 +38,7 @@ import { resolveDshHome } from './im/config-store.js';
 import type { ChannelToolApproval } from './workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
-import { mountConnectors } from './connectors/mount.js';
+import { connectorCallback, mountConnectors } from './connectors/mount.js';
 import { ConnectorService } from './connectors/service.js';
 import { createConnectorStore } from './connectors/store.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
@@ -446,13 +446,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     diagnosticEvents,
   );
   if (core.operationalDatabase.mode === 'ready') {
+    const callback = connectorCallback();
     const connectors = new ConnectorService({
       store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
       credentials: () => ctx.get('credentials'),
       log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
+      redirectUri: callback.url,
     });
     core.connectors = connectors;
-    mountConnectors(ctx, core, connectors);
+    mountConnectors(ctx, core, connectors, callback);
   }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
@@ -597,6 +599,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: native Session attention',
   );
+  const stopTeamSessionWatch = team?.onAccessChanged(() => sessionListChanges.changedAll());
+  if (stopTeamSessionWatch !== undefined)
+    ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,

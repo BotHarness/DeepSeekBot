@@ -50,7 +50,14 @@ export type HostSessionSource =
 
 export type HostSessionSourceOption =
   | { kind: 'native' }
-  | { kind: 'bot'; botSlug: string; displayName: string };
+  | {
+      kind: 'bot';
+      botSlug: string;
+      displayName: string;
+      avatar?: string;
+      appearance?: unknown;
+      avatarSeed?: 2;
+    };
 
 export interface HostSessionListResult {
   sessions: HostSessionRow[];
@@ -97,6 +104,7 @@ export interface HostSessionRow {
   sortedAt?: number;
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export type HostSessionApprovalDecision = 'allowed-once' | 'rejected';

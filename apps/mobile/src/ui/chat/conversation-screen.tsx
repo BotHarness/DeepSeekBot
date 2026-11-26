@@ -197,8 +197,18 @@ function ChatConversation({
   };
   const { width: windowWidth } = useWindowDimensions();
   const source = useConversationSource({ place, focused });
-  const { client, inbox, saved, bot, channel, botDm, conversation, activeChannel, snapshot } =
-    source;
+  const {
+    client,
+    inbox,
+    saved,
+    bot,
+    channel,
+    pendingPerson,
+    botDm,
+    conversation,
+    activeChannel,
+    snapshot,
+  } = source;
   const draftState = useConversationDraft({ place, source });
   const { draftKey, setFiles, dictation } = draftState;
   const messageState = useConversationMessageState({ focused, source });
@@ -264,7 +274,7 @@ function ChatConversation({
             title: bot.displayName,
             href: chatHref(`/dm/${encodeURIComponent(bot.slug)}`, saved?.hostId),
           }
-        : channel !== undefined
+        : channel !== undefined && !pendingPerson
           ? {
               id: `channel:${saved?.hostId ?? ''}:${channel.id}`,
               title: channel.name,

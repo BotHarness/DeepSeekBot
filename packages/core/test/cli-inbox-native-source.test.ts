@@ -22,7 +22,11 @@ it('reads native Session requests in Activity with --source and refuses an older
       ? { ok: true, value: { unreadCount: 0, hasAction: true } }
       : {
           ok: true,
-          value: { items: [native], ...(args['source'] ? { source: args['source'] } : {}) },
+          value: {
+            items: [native],
+            ...(args['source'] ? { source: args['source'] } : {}),
+            ...(args['notifications'] ? { notificationVersion: 1 } : {}),
+          },
         },
   );
   expect((await invoke(['activity', '--source', 'native'], live.url)).json.items).toEqual([native]);
@@ -30,15 +34,19 @@ it('reads native Session requests in Activity with --source and refuses an older
     unreadCount: 0,
     hasAction: true,
   });
+  expect(
+    (await invoke(['activity', '--notifications', '--source', 'all'], live.url)).json.items,
+  ).toEqual([native]);
   for (const argv of [
     ['activity', '--source', 'bots'],
-    ['activity', '--notifications', '--source', 'all'],
+    ['activity', '--notifications', '--search', 'x'],
     ['activity-status', '--source', 'everything'],
   ])
     expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
   expect(live.calls).toEqual([
     { method: 'humanAttention', args: { source: 'native' } },
     { method: 'humanAttentionStatus', args: { messageCounts: true, source: 'all' } },
+    { method: 'humanAttention', args: { notifications: true, source: 'all' } },
   ]);
   const older = await host(() => ({ ok: true, value: { items: [] } }));
   expect((await invoke(['activity', '--source', 'all'], older.url)).json.error.code).toBe(

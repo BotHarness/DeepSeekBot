@@ -83,13 +83,8 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({
   LoadingIndicator: () => <span role="progressbar" />,
 }));
 
-const {
-  SessionModelChip,
-  SessionModelLogo,
-  SessionModelPicker,
-  useSessionModelControl,
-  useSessionModelMenuLabel,
-} = await import('../src/ui/chat/session-model-composer');
+const { SessionModelLogo, SessionModelPicker, useSessionModelControl, useSessionModelMenuLabel } =
+  await import('../src/ui/chat/session-model-composer');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 notifyManager.setScheduler((run) => run());
@@ -136,15 +131,7 @@ beforeEach(() => {
 
 afterEach(() => act(() => root.unmount()));
 
-function ComposerModel({
-  host,
-  width = 390,
-  fresh = false,
-}: {
-  host: HostCall;
-  width?: number;
-  fresh?: boolean;
-}) {
+function ComposerModel({ host, fresh = false }: { host: HostCall; fresh?: boolean }) {
   const control = useSessionModelControl({
     host,
     hostId: hostId(host),
@@ -156,7 +143,7 @@ function ComposerModel({
   });
   return (
     <>
-      <SessionModelChip control={control} width={width} disabled={false} />
+      <SessionModelLogo control={control} disabled={false} />
       <SessionModelPicker control={control} />
     </>
   );
@@ -193,7 +180,9 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
     choice: engine,
   });
   expect(container.querySelector('[role="dialog"]')).toBeNull();
-  expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
+  expect(button('composer-session-model').getAttribute('aria-label')).toContain(
+    'Next turn: Opus 5.5',
+  );
 
   allow = false;
   await act(async () => button('composer-session-model').click());
@@ -207,7 +196,9 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
     'Couldn’t change this session’s model choice.',
   );
   expect(button('session-model-option-engine-0').getAttribute('aria-pressed')).toBe('true');
-  expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
+  expect(button('composer-session-model').getAttribute('aria-label')).toContain(
+    'Next turn: Opus 5.5',
+  );
 });
 
 it('shows the brand at Send icon size while the catalog loads', async () => {
@@ -225,9 +216,9 @@ it('does not reload the Session or catalog for layout-only composer updates', as
     return defaultState;
   });
   const host = { call };
-  await act(async () => root.render(<ComposerModel host={host} width={390} />));
+  await act(async () => root.render(<ComposerModel host={host} />));
   expect(call.mock.calls).toHaveLength(2);
-  await act(async () => root.render(<ComposerModel host={host} width={205} />));
+  await act(async () => root.render(<ComposerModel host={host} />));
   expect(button('composer-session-model').textContent).toBe('');
   expect(call.mock.calls).toHaveLength(2);
 });
@@ -348,10 +339,61 @@ it('names the default model and its brand on "Use Bot default", also before a ne
   );
   await act(async () => root.render(<ComposerModel host={{ call }} fresh />));
   expect(call).toHaveBeenCalledWith('sessionModel', { slug: 'ada' });
-  expect(button('composer-session-model').textContent).toContain('V4.1 Flash');
+  const logo = button('composer-session-model');
+  expect(logo.textContent).toBe('');
+  expect(logo.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('deepseek');
+  expect(logo.getAttribute('aria-label')).toContain('V4.1 Flash');
   await act(async () => button('composer-session-model').click());
   const row = button('session-model-option-default');
   expect(row.textContent).toContain('Use Bot default');
   expect(row.textContent).toContain('V4.1 Flash');
   expect(row.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('deepseek');
+});
+
+function NewNativeSession({ host }: { host: HostCall }) {
+  const control = useSessionModelControl({
+    host,
+    hostId: hostId(host),
+    slug: null,
+    enabled: true,
+    sessionId: undefined,
+    running: false,
+  });
+  return (
+    <>
+      <SessionModelLogo control={control} disabled={false} />
+      <SessionModelPicker control={control} />
+    </>
+  );
+}
+
+it('names the Default preset model on a new native Session and filters by provider', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog'
+      ? {
+          ...catalog,
+          default: api,
+          models: [
+            ...catalog.models,
+            {
+              provider: 'opencode-go',
+              providerName: 'OpenCode Go',
+              model: 'claude-haiku-5-5',
+              modelName: 'Claude Haiku 5.5',
+            },
+          ],
+        }
+      : defaultState,
+  );
+  await act(async () => root.render(<NewNativeSession host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const row = button('session-model-option-default');
+  expect(row.textContent).toContain('Use the Default preset');
+  expect(row.textContent).toContain('V4.1 Flash');
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
+  await act(async () => button('session-model-filter-api:claude').click());
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(1);
+  expect(button('session-model-option-default')).toBeDefined();
+  await act(async () => button('session-model-filter-api:claude').click());
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
 });

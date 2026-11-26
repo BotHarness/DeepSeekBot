@@ -131,3 +131,23 @@ it('refuses a malformed cursor and reports itself unavailable without a change j
     error: { code: 'unavailable' },
   });
 });
+
+it('carries the creation time on rows and each Bot identity in the source options', async () => {
+  const { f, changes, setRows } = setup();
+  setRows([row('alice', { title: 'Alice work', createdAt: 7 })]);
+  changes.changed(true, 'alice');
+  const owner = await f
+    .bridge(OWNER_HUMAN_CONTEXT)
+    .sessionListChanges({ sinceSeq: 0, epoch: 'e1' });
+  expect(owner).toMatchObject({
+    ok: true,
+    value: {
+      sessions: [
+        { sessionId: 'alice', createdAt: 7, source: { kind: 'bot', botSlug: 'alice-bot' } },
+      ],
+      sources: expect.arrayContaining([
+        expect.objectContaining({ kind: 'bot', botSlug: 'alice-bot', displayName: 'alice-bot' }),
+      ]),
+    },
+  });
+});

@@ -851,6 +851,7 @@ function buildBridgeMethods(
     channelHumanNameSet: humansMethods.channelHumanNameSet,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
+    channelAccessState: channelsAdapterMethods.channelAccessState,
     channelDm: channelsAdapterMethods.channelDm,
     channelGet: channelsAdapterMethods.channelGet,
     channelCreate: channelsManagementAdapterMethods.channelCreate,

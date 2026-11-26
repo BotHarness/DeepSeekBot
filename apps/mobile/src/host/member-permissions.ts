@@ -4,7 +4,7 @@ import type { HostClient } from '@botharness/host-client/client';
 
 const BOT_CREATION = ['bots.createPrivate', 'bots.createPublic'];
 
-type CreationPermissions = { bots: boolean; channels: boolean };
+type CreationPermissions = { bots: boolean; channels: boolean; people: boolean };
 
 const creation = new WeakMap<HostClient, CreationPermissions>();
 const listeners = new Set<() => void>();
@@ -16,14 +16,21 @@ function subscribe(listener: () => void): () => void {
 
 export async function refreshMemberPermissions(client: HostClient): Promise<void> {
   const {
-    viewer: { permissions },
+    enabled,
+    viewer: { permissions, owner },
   } = await readTeamMode(client);
   const next = {
-    bots: BOT_CREATION.some((permission) => permissions.includes(permission)),
-    channels: permissions.includes('channels.create'),
+    bots: owner || BOT_CREATION.some((permission) => permissions.includes(permission)),
+    channels: owner || permissions.includes('channels.create'),
+    people: enabled && (owner || permissions.includes('dm.humans')),
   };
   const previous = creation.get(client);
-  if (previous?.bots === next.bots && previous.channels === next.channels) return;
+  if (
+    previous?.bots === next.bots &&
+    previous.channels === next.channels &&
+    previous.people === next.people
+  )
+    return;
   creation.set(client, next);
   for (const listener of listeners) listener();
 }

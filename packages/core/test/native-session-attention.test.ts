@@ -5,6 +5,7 @@ import {
   type NativeSessionAttentionEntry,
 } from '../src/features/activity/native-session-attention.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { notificationAttentionPage } from '../src/runtime/notification-attention.js';
 
 const botItem = (id: string, createdAt: string): HumanAttentionItem => ({
   id,
@@ -55,6 +56,18 @@ function setup(options: { enabled?: boolean; entries?: NativeSessionAttentionEnt
 }
 
 describe('native Session attention in Activity', () => {
+  it('adds native requests to notification discovery only when the read asks and the switch is on', () => {
+    const { query, setEnabled } = setup();
+    const read = (source?: 'all') =>
+      notificationAttentionPage(OWNER_HUMAN_CONTEXT, query, source ? { source } : {}).items.map(
+        (item) => item.id,
+      );
+    expect(read('all')).toContain('native-session:event-1');
+    expect(read()).not.toContain('native-session:event-1');
+    setEnabled(false);
+    expect(read('all')).not.toContain('native-session:event-1');
+  });
+
   it('keeps Activity Bot-only unless the read asks for native Sessions', () => {
     const { query, list } = setup();
     const page = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' });

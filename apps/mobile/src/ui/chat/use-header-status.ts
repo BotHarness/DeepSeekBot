@@ -19,9 +19,11 @@ export function useHeaderStatus(
         ? t.state[status.state]
         : Number.isFinite(at)
           ? t.lastChatActivity(t.ago(Math.max(0, Math.floor((now.getTime() - at) / 60_000))))
-          : bot === undefined
-            ? t.members(status.count)
-            : t.state.idle;
+          : bot !== undefined
+            ? t.state.idle
+            : status.count === undefined
+              ? undefined
+              : t.members(status.count);
   const states = ['blocked', 'waiting', 'working', 'thinking'] as const;
   const aggregate =
     status.bots.length > 1

@@ -44,6 +44,8 @@ import { useMountedResource } from './mounted-resource.js';
 import type { TeamModeView } from './team-bridge.js';
 import type { SidebarState, SidebarProps, ChannelMenuRequest } from './bot-sidebar-types.js';
 import { useBotSidebar } from './bot-sidebar-view.js';
+import type { BridgeCall } from './bridge.js';
+import { useGroupDetailsEditable } from './group-details-access.js';
 
 function useSidebarSearchInput({
   state,
@@ -382,6 +384,7 @@ export function ChannelMoveMenu({
   onSetPinned,
   onHide,
   onRename,
+  groupDetailsCall,
   onCreateSection,
   onPick,
   onClose,
@@ -415,10 +418,12 @@ export function ChannelMoveMenu({
   onSetPinned?: (channelId: string, pinned: boolean) => void;
   onHide?: (channelId: string) => void;
   onRename?: (channelId: string) => void;
+  groupDetailsCall?: BridgeCall | undefined;
   onCreateSection?: (channelId: string) => void;
   onPick: (sectionId: string | undefined) => void;
   onClose: () => void;
 }): ReactElement {
+  const renameAllowed = useGroupDetailsEditable(groupDetailsCall, menu.channelId) === true;
   const proxy = useRef<HTMLSpanElement | null>(null);
   const menuMount = useMountedResource<HTMLSpanElement>(() => {
     const timer = window.setTimeout(() => {
@@ -531,11 +536,15 @@ export function ChannelMoveMenu({
         'type' in entry ? entry : { ...entry, icon: <Icon name="folder-open" size={16} /> },
     ),
     { type: 'separator', id: 'channel-action-separator' },
-    {
-      id: 'rename',
-      label: t('channel.rename'),
-      icon: <Icon name="pencil" size={16} />,
-    },
+    ...(renameAllowed
+      ? [
+          {
+            id: 'rename',
+            label: t('channel.rename'),
+            icon: <Icon name="pencil" size={16} />,
+          },
+        ]
+      : []),
     ...(nicknameAction === undefined ? [] : [channelNicknameItem(t)]),
     ...(dmActions === undefined
       ? []

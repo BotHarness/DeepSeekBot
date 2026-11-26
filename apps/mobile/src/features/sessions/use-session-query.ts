@@ -26,6 +26,8 @@ import {
 import {
   localSessionKey,
   localSessionRows,
+  localTitleMatches,
+  mergeSearchRows,
   localSessionSources,
   readLocalSessionLists,
   readStoredSessionLists,
@@ -63,13 +65,13 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   const online = useOnline(hosts);
   const options = { sort, source, search };
   const hostIds = hosts.map((host) => host.hostId);
-  const local = search === '' && sort === 'last-human-turn';
+  const local = search === '';
   const reachable = active && online && searchReady && hosts.length > 0;
   const synced = useQuery(
     {
       queryKey: localSessionKey(hostIds),
       queryFn: ({ signal }) => readLocalSessionLists(hosts, signal),
-      enabled: reachable && local,
+      enabled: active && online && hosts.length > 0,
     },
     sessionQueries,
   );
@@ -77,7 +79,7 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     {
       queryKey: storedSessionKey(hostIds),
       queryFn: () => readStoredSessionLists(hosts),
-      enabled: local && hosts.length > 0,
+      enabled: hosts.length > 0,
       staleTime: Infinity,
     },
     sessionQueries,
@@ -93,11 +95,12 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     sessionQueries,
   );
   const localLists = synced.data ?? stored.data;
+  const localRows = localSessionRows(localLists, hosts, source, sort);
   const read = local
-    ? localSessionRows(localLists, hosts, source)
-    : sessionListRows(list.data, hosts);
+    ? localRows
+    : mergeSearchRows(localTitleMatches(localRows, search), sessionListRows(list.data, hosts));
   const rows = hideBots ? read?.filter((row) => row.source.kind !== 'bot') : read;
-  const sources = local ? localSessionSources(localLists) : sessionListSources(list.data);
+  const sources = localSessionSources(localLists) ?? sessionListSources(list.data);
   const failed = local
     ? synced.isError || (synced.data?.failed ?? 0) > 0
     : list.isError || sessionListPartlyFailed(list.data);

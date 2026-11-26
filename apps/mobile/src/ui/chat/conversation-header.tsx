@@ -1,4 +1,5 @@
 import { useHeaderStatus } from './use-header-status';
+import { useGroupGoneReason } from '../../host/channel-access';
 import { HeaderTitleButton } from './header-title-button';
 import type { useProfilePaging } from './profile-paging';
 import { ConnectionProgress, useConnectionPresence } from '../primitives/connection-progress';
@@ -101,6 +102,7 @@ export function useConversationProfile({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const missingGroup = missing && !dm && !hostRefused && snapshot.status !== 'refused';
+  const groupGone = useGroupGoneReason(client, missingGroup ? channelId : undefined);
   useLayoutEffect(() => {
     if (missingGroup && focused) Keyboard.dismiss();
   }, [missingGroup, focused]);
@@ -251,6 +253,7 @@ export function useConversationProfile({
     connectionLabel,
     missing,
     missingGroup,
+    groupGone,
     backToChats,
     profileTravel,
     canGoBack,

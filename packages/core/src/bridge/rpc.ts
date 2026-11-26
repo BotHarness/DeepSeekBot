@@ -610,6 +610,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'connectorRefresh',
   'connectorSearch',
   'connectorLogos',
+  'connectorMcpSearch',
+  'connectorMcpAdd',
+  'connectorMcpFinish',
   'connectorGrantSet',
   'connectorAccountRemove',
   'botConnectors',
@@ -727,6 +730,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelChanges',
   'channelChangeCursor',
   'channelListChanges',
+  'channelAccessState',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

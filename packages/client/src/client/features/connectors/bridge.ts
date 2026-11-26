@@ -3,7 +3,7 @@ export type ConnectorStatus = 'pending' | 'active' | 'expired' | 'failed';
 
 export interface ConnectorAccountRecord {
   accountId: string;
-  provider: 'composio';
+  provider: 'composio' | 'mcp';
   service: string;
   label: string;
   identity?: string;
@@ -44,6 +44,21 @@ export interface ConnectorAppSearch {
   offline?: true;
 }
 
+export interface McpApp {
+  service: string;
+  name: string;
+  summary: string;
+  url: string;
+  featured: boolean;
+  website?: string;
+}
+
+export interface McpAppSearch {
+  apps: McpApp[];
+  next?: string;
+  offline?: true;
+}
+
 export interface BotConnector {
   accountId: string;
   service: string;
@@ -62,11 +77,19 @@ export interface ConnectorActions {
   connectorConnect?(
     service: string,
     label?: string,
-  ): Promise<{ account: ConnectorAccountRecord; url: string }>;
-  connectorReconnect?(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }>;
+  ): Promise<{ account: ConnectorAccountRecord; url?: string }>;
+  connectorReconnect?(
+    accountId: string,
+  ): Promise<{ account: ConnectorAccountRecord; url?: string }>;
   connectorRefresh?(): Promise<ConnectorsView>;
   connectorSearch?(query: string, cursor?: string): Promise<ConnectorAppSearch>;
   connectorLogos?(services: string[]): Promise<{ logos: Record<string, string> }>;
+  connectorMcpSearch?(query: string, cursor?: string): Promise<McpAppSearch>;
+  connectorMcpAdd?(input: {
+    url: string;
+    name?: string;
+    label?: string;
+  }): Promise<{ account: ConnectorAccountRecord; url?: string }>;
   connectorGrantSet?(
     slug: string,
     accountId: string,
@@ -88,6 +111,9 @@ export function createConnectorActions(invoke: InvokeAction) {
     connectorSearch: (query, cursor) =>
       invoke('connectorSearch', cursor === undefined ? { query } : { query, cursor }),
     connectorLogos: (services) => invoke('connectorLogos', { services }),
+    connectorMcpSearch: (query, cursor) =>
+      invoke('connectorMcpSearch', cursor === undefined ? { query } : { query, cursor }),
+    connectorMcpAdd: (input) => invoke('connectorMcpAdd', input),
     connectorGrantSet: (slug, accountId, access) =>
       invoke('connectorGrantSet', { slug, accountId, access }),
     connectorAccountRemove: (accountId) => invoke('connectorAccountRemove', { accountId }),
