@@ -144,6 +144,17 @@ function inputText(args: unknown): string {
   }
 }
 
+function sourceBlockChange(operation: object): boolean {
+  const named = (key: string) =>
+    key in operation &&
+    typeof (operation as Record<string, unknown>)[key] === 'string' &&
+    (operation as Record<string, unknown>)[key] !== '';
+  const action = 'action' in operation ? operation.action : undefined;
+  if (action === 'block') return named('source_event_id') && named('target_name') && named('app');
+  if (action === 'unblock') return named('block_id') && named('target_name');
+  return false;
+}
+
 export function toolEffects(name: string, args: unknown): ToolEffects | undefined {
   if (name === 'deepseekbot_cli') {
     if (
@@ -188,7 +199,7 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     name === 'bridge_source_block' &&
     operation &&
     'action' in operation &&
-    (operation.action === 'list' || operation.action === 'preview')
+    !sourceBlockChange(operation)
   ) {
     const { authority: _authority, ...listed } = effects;
     return { ...listed, changes: 'none' };

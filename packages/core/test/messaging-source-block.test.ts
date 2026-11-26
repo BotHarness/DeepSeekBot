@@ -178,10 +178,16 @@ it('the Host blocks and unblocks a conversation through sender access', async ()
 });
 
 it('blocking asks the Human first, listing does not', () => {
-  expect(toolEffects('bridge_source_block', { action: 'block' })).toMatchObject({
-    authority: 'management',
-  });
-  expect(toolApprovalRequired('bridge_source_block', { action: 'unblock' }, false)).toBe(true);
+  const block = { action: 'block', source_event_id: 'e', target_name: 'QA', app: 'Slack' };
+  expect(toolEffects('bridge_source_block', block)).toMatchObject({ authority: 'management' });
+  const unblock = { action: 'unblock', block_id: 'b', target_name: 'QA' };
+  expect(toolApprovalRequired('bridge_source_block', unblock, false)).toBe(true);
+  for (const incomplete of [
+    { action: 'block', source_event_id: 'e' },
+    { action: 'block', source_event_id: 'e', target_name: 'QA' },
+    { action: 'unblock', block_id: 'b' },
+  ])
+    expect(toolApprovalRequired('bridge_source_block', incomplete, false)).toBe(false);
   expect(toolEffects('bridge_source_block', { action: 'list' })).toEqual({
     changes: 'none',
     reach: 'local',

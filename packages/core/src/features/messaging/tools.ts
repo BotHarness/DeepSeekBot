@@ -323,7 +323,9 @@ export function registerExternalMessagingTools(
               blocks({ action: 'preview', scope: args.scope, sourceEventId: args.source_event_id }),
             );
           if (!args.target_name || !args.app)
-            throw new Error('bridge_source_block: block needs target_name and app');
+            throw new Error(
+              'bridge_source_block: call preview first, then block with its target_name and app',
+            );
           return JSON.stringify(
             blocks({
               action: 'block',
