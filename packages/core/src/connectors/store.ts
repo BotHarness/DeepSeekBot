@@ -30,6 +30,7 @@ export interface ConnectorAccountRecord {
   holderSlug?: string;
   externalId: string;
   status: ConnectorAccountStatus;
+  access?: ConnectorAccess;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +52,7 @@ interface AccountRow {
   holder_slug: string | null;
   external_id: string;
   status: ConnectorAccountStatus;
+  access: ConnectorAccess | null;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -72,6 +74,7 @@ export interface ConnectorStore {
     label: string;
     holderSlug?: string;
     externalId: string;
+    access?: ConnectorAccess;
   }): ConnectorAccountRecord;
   updateAccount(
     accountId: string,
@@ -79,6 +82,7 @@ export interface ConnectorStore {
       status: ConnectorAccountStatus;
       identity?: string | null;
       externalId?: string;
+      access?: ConnectorAccess;
     },
   ): ConnectorAccountRecord | undefined;
   removeAccount(accountId: string): boolean;
@@ -116,6 +120,7 @@ function account(row: AccountRow): ConnectorAccountRecord {
     ...(row.holder_slug === null ? {} : { holderSlug: row.holder_slug }),
     externalId: row.external_id,
     status: row.status,
+    ...(row.access === null || row.access === undefined ? {} : { access: row.access }),
     revision: Number(row.revision),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -162,8 +167,8 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
             .prepare(
               `INSERT INTO connector_accounts
                (account_id, provider, service, label, identity, holder_slug, external_id, status,
-                revision, created_at, updated_at)
-               VALUES (?, ?, ?, ?, NULL, ?, ?, 'pending', 1, ?, ?)`,
+                access, revision, created_at, updated_at)
+               VALUES (?, ?, ?, ?, NULL, ?, ?, 'pending', ?, 1, ?, ?)`,
             )
             .run(
               accountId,
@@ -172,6 +177,7 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
               input.label,
               input.holderSlug ?? null,
               input.externalId,
+              input.access ?? null,
               now,
               now,
             ),
@@ -184,20 +190,22 @@ export function createConnectorStore(database: OperationalDatabaseModulePort): C
       if (current === undefined) return undefined;
       const identity = change.identity === null ? null : (change.identity ?? current.identity);
       const externalId = change.externalId ?? current.external_id;
+      const access = change.access ?? current.access;
       if (
         current.status === change.status &&
         current.identity === identity &&
-        current.external_id === externalId
+        current.external_id === externalId &&
+        current.access === access
       )
         return account(current);
       database.transaction(
         (connection) =>
           connection
             .prepare(
-              `UPDATE connector_accounts SET status = ?, identity = ?, external_id = ?,
+              `UPDATE connector_accounts SET status = ?, identity = ?, external_id = ?, access = ?,
                revision = revision + 1, updated_at = ? WHERE account_id = ?`,
             )
-            .run(change.status, identity, externalId, new Date().toISOString(), accountId),
+            .run(change.status, identity, externalId, access, new Date().toISOString(), accountId),
         MODULE,
       );
       return account(read(accountId)!);

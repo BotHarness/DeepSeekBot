@@ -772,6 +772,10 @@
     "sha256": "a6ede706bb8c3bc5f73c78ef02c7c6f8a620a3ad7036629b3f4b58df3df775c6"
   },
   {
+    "id": "connector-sign-in-access",
+    "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
+  },
+  {
     "id": "workspace-looks",
     "sha256": "1f0c624e90e6666c80ada16f81a37ca0c1b2ac9bf5f5784d64bcf5903709d239"
   }
