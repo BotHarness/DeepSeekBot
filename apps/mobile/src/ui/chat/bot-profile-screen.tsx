@@ -165,6 +165,11 @@ export function BotProfileScreen({
                 pathname: '/bot/[slug]/access',
                 params: { slug: bot.slug, hostId: saved?.hostId },
               }),
+            onExternal: () =>
+              router.push({
+                pathname: '/bot/[slug]/external',
+                params: { slug: bot.slug, hostId: saved?.hostId },
+              }),
           }}
         />
       }

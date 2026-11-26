@@ -23,6 +23,7 @@ export interface SettingsActions {
   onModelProviders(): void;
   onModels(): void;
   onVoice?: (() => void) | undefined;
+  onImApps?: (() => void) | undefined;
   onPrompts(): void;
   onCopyVersion(text: string): void;
 }
@@ -100,6 +101,17 @@ export function SettingsView({
           disclosure
           onPress={actions.onModels}
         />
+        {actions.onImApps === undefined ? null : (
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.imApps.title}
+            icon="messageDisplay"
+            detail={t.imApps.rowHint}
+            disclosure
+            testID="settings-im-apps"
+            onPress={actions.onImApps}
+          />
+        )}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.prompts.title}
