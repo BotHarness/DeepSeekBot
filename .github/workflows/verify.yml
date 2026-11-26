@@ -93,7 +93,7 @@ jobs:
 
   static:
     name: lint, format, typecheck, build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -223,7 +223,7 @@ jobs:
     name: Android native module tests
     needs: plan
     if: needs.plan.outputs.android-native == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 25
     env:
       ROBOLECTRIC_MAVEN_URL: https://repo.maven.apache.org/maven2
@@ -418,7 +418,7 @@ jobs:
     name: test (shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'full'
-    runs-on: ubuntu-24.04-arm
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 17
     strategy:
       fail-fast: false
@@ -443,7 +443,7 @@ jobs:
     name: test (affected shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '4'
-    runs-on: ubuntu-24.04-arm
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 17
     strategy:
       fail-fast: false
@@ -487,7 +487,7 @@ jobs:
     name: e2e smoke (isolated DSH Host)
     needs: plan
     if: needs.plan.outputs.tests != 'none'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 14
     steps:
       - uses: actions/checkout@v7
@@ -540,7 +540,7 @@ jobs:
     name: timeline performance budget
     needs: plan
     if: needs.plan.outputs.perf == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && 20 || 18 }}
     env:
       BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
