@@ -77,12 +77,19 @@ export function windowMedia(refuse?: Error) {
   const sounds: boolean[] = [];
   const soundListeners = new Set<(on: boolean) => void>();
   let soundFails = false;
+  let sharing = false;
+  const emitSound = (on: boolean) => {
+    sharing = on;
+    for (const listener of [...soundListeners]) listener(on);
+  };
   const media: CallClientMedia &
     Pick<BrowserCallMedia, 'level' | 'computerSound' | 'onComputerSound'> = {
     level: () => level,
     async computerSound(on) {
       sounds.push(on);
       if (on && soundFails) throw new Error('no sound');
+      if (on) emitSound(true);
+      else if (sharing) emitSound(false);
       return on;
     },
     onComputerSound(listener) {
@@ -108,9 +115,7 @@ export function windowMedia(refuse?: Error) {
     failSound: (fails: boolean) => {
       soundFails = fails;
     },
-    endSound: () => {
-      for (const listener of [...soundListeners]) listener(false);
-    },
+    endSound: () => emitSound(false),
     stops: () => stops,
     speak: (value: number) => {
       level = value;

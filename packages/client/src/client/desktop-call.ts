@@ -286,8 +286,9 @@ export function createDesktopCall(
           micHold = false;
           owned.mute(true);
           const state = current.state;
-          if (state.status === 'live' && state.call.muted) {
-            await owned.computerSound?.(false);
+          const refused = state.status === 'live' && state.call.muted;
+          if (refused || current.sound !== 'on') {
+            if (refused) await owned.computerSound?.(false);
             await session?.client.mute(true);
             if (sessionMedia === owned) set({ sound: 'off', micMuted: false });
             return;

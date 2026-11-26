@@ -132,8 +132,8 @@ describe('desktop call voice setup and computer sound', () => {
     expect(hostMuted()).toBe(true);
     expect(element.querySelector('button[aria-label="Unmute"]')).not.toBeNull();
   });
-  it.each(['slow', 'refused'] as const)(
-    'keeps the microphone off while a muted call starts sharing, with a %s Host unmute',
+  it.each(['slow', 'refused', 'ended'] as const)(
+    'keeps the microphone off while a muted call starts sharing (%s)',
     async (answer) => {
       vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
       const { fetcher } = host();
@@ -159,6 +159,7 @@ describe('desktop call voice setup and computer sound', () => {
       const sharing = mac.call.computerSound(true);
       await vi.waitFor(() => expect(holding).toBe(false));
       expect(mac.media.muted.slice(heardMic)).not.toContain(false);
+      if (answer === 'ended') mac.media.endSound();
       release();
       await sharing;
       expect(mac.media.muted.slice(heardMic)).not.toContain(false);
@@ -169,7 +170,7 @@ describe('desktop call voice setup and computer sound', () => {
       } else {
         expect(state.call?.muted).toBe(true);
         expect(mac.call.snapshot()).toMatchObject({ sound: 'off', micMuted: false });
-        expect(mac.media.sounds).toEqual([true, false]);
+        expect(mac.media.sounds).toEqual(answer === 'refused' ? [true, false] : [true]);
       }
     },
   );
