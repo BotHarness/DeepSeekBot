@@ -157,7 +157,13 @@ export function useModels(client: HostClient, scope: ModelScope) {
       },
     );
   };
-  return { value, error, busy, refresh, run, favorites, favorite };
+  const write = async (work: () => Promise<void>) => {
+    generation.current += 1;
+    setError(undefined);
+    await resource.write(work);
+    setValue(await resource.refresh());
+  };
+  return { value, error, busy, refresh, run, write, favorites, favorite };
 }
 
 export function ModelsView({

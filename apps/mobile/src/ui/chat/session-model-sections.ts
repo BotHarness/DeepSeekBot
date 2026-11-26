@@ -5,7 +5,9 @@ import type { SessionModelChoice } from '@botharness/host-protocol/session-model
 import type { SessionModelCatalog } from '../../host/session-model-query';
 import { sessionDefaultModel, sessionModelKey } from './session-model-label';
 
-export type SessionModelSource = 'default' | 'sub' | 'api' | 'group';
+export type SessionModelSource = 'default' | 'sub' | 'api' | 'group' | 'preset';
+export type SessionModelMode = 'session' | 'slot';
+export const GROUP_FILTER = 'groups';
 
 export interface SessionModelRow {
   key: string;
@@ -16,9 +18,10 @@ export interface SessionModelRow {
   detail?: string | undefined;
   tag?: string | undefined;
   disabled?: boolean | undefined;
+  filters?: readonly string[] | undefined;
 }
 
-export type SessionModelSectionId = 'default' | 'subs' | 'api' | 'groups';
+export type SessionModelSectionId = 'default' | 'presets' | 'subs' | 'api' | 'groups';
 
 export interface SessionModelSection {
   id: SessionModelSectionId;
@@ -29,7 +32,7 @@ export interface SessionModelSection {
 export interface SessionModelFilter {
   key: string;
   brand: ModelBrand | undefined;
-  source: 'sub' | 'api';
+  source: 'sub' | 'api' | 'group';
   title: string;
 }
 
@@ -51,6 +54,7 @@ export interface SessionModelSectionStrings {
 
 export const SKELETON_SUB_ROWS = 3;
 export const SKELETON_API_ROWS = 6;
+export const SKELETON_GROUP_ROWS = 2;
 
 export function catalogDefaultChoice(
   catalog: SessionModelCatalog | undefined,
@@ -72,12 +76,15 @@ export function sessionModelSections({
   defaultChoice,
   native,
   strings,
+  mode = 'session',
 }: {
   catalog: SessionModelCatalog;
   defaultChoice: SessionModelChoice | null;
   native: boolean;
   strings: SessionModelSectionStrings;
+  mode?: SessionModelMode;
 }): SessionModelSection[] {
+  const slot = mode === 'slot';
   const fallback = sessionDefaultModel(defaultChoice, catalog);
   const subs = (native ? [] : catalog.engines).flatMap((engine): SessionModelRow[] =>
     engine.available
@@ -131,14 +138,48 @@ export function sessionModelSections({
       disabled: model.credential !== undefined || model.restingUntil !== undefined,
     };
   });
-  const groups = (native ? [] : (catalog.groups ?? [])).map((group): SessionModelRow => {
+  const groups = (native && !slot ? [] : (catalog.groups ?? [])).map((group): SessionModelRow => {
     const choice: SessionModelChoice = { kind: 'group', id: group.id };
+    const filters = new Set<string>();
+    for (const route of group.routes)
+      filters.add(
+        filterKey(
+          'api',
+          turnTargetLabel({ kind: 'dsh', provider: route.provider, model: route.model }, catalog)
+            .brand,
+        ),
+      );
+    for (const member of group.members ?? [])
+      if (member.kind === 'engine')
+        filters.add(
+          filterKey(
+            'sub',
+            turnTargetLabel(
+              { kind: 'engine', engine: member.engine, model: member.model ?? '' },
+              catalog,
+            ).brand,
+          ),
+        );
     return {
       key: sessionModelKey(choice),
       choice,
       name: group.name,
       source: 'group',
       disabled: group.restingUntil !== undefined,
+      ...(slot
+        ? {
+            detail: group.routes
+              .map(
+                (route) =>
+                  turnTargetLabel(
+                    { kind: 'dsh', provider: route.provider, model: route.model },
+                    catalog,
+                  ).short,
+              )
+              .join(' → '),
+            filters: [...filters],
+          }
+        : {}),
     };
   });
   return [
@@ -155,9 +196,10 @@ export function sessionModelSections({
         },
       ],
     },
+    ...(slot ? [{ id: 'groups' as const, title: strings.groups, rows: groups }] : []),
     { id: 'subs', title: strings.subscriptions, rows: subs },
     { id: 'api', title: strings.apiModels, rows: api },
-    { id: 'groups', title: strings.groups, rows: groups },
+    ...(slot ? [] : [{ id: 'groups' as const, title: strings.groups, rows: groups }]),
   ];
 }
 
@@ -167,6 +209,7 @@ const filterKey = (source: 'sub' | 'api', brand: ModelBrand | undefined) =>
 export function sessionModelFilters(
   sections: readonly SessionModelSection[],
   other: string,
+  groups?: string,
 ): SessionModelFilter[] {
   const order = Object.keys(MODEL_BRAND_ICONS) as ModelBrand[];
   const rank = (brand: ModelBrand | undefined) =>
@@ -185,7 +228,11 @@ export function sessionModelFilters(
       });
     }
   const filters = [...seen.values()];
+  const hasGroups = sections.some((section) => section.rows.some((row) => row.source === 'group'));
   return [
+    ...(groups !== undefined && hasGroups
+      ? [{ key: GROUP_FILTER, brand: undefined, source: 'group' as const, title: groups }]
+      : []),
     ...filters.filter((f) => f.source === 'sub').sort((a, b) => rank(a.brand) - rank(b.brand)),
     ...filters.filter((f) => f.source === 'api').sort((a, b) => rank(a.brand) - rank(b.brand)),
   ];
@@ -197,14 +244,17 @@ export function filterSessionModelSections(
 ): SessionModelSection[] {
   return sections
     .map((section) =>
-      filter === undefined || section.id === 'default'
+      filter === undefined || section.id === 'default' || section.id === 'presets'
         ? section
         : {
             ...section,
-            rows: section.rows.filter(
-              (row) =>
-                (row.source === 'sub' || row.source === 'api') &&
-                filterKey(row.source, row.brand) === filter,
+            rows: section.rows.filter((row) =>
+              filter === GROUP_FILTER
+                ? row.source === 'group'
+                : row.source === 'group'
+                  ? row.filters?.includes(filter) === true
+                  : (row.source === 'sub' || row.source === 'api') &&
+                    filterKey(row.source, row.brand) === filter,
             ),
           },
     )
@@ -213,8 +263,15 @@ export function filterSessionModelSections(
 
 export function sessionModelSkeleton(
   native: boolean,
-  strings: Pick<SessionModelSectionStrings, 'subscriptions' | 'apiModels'>,
+  strings: Pick<SessionModelSectionStrings, 'subscriptions' | 'apiModels' | 'groups'>,
+  mode: SessionModelMode = 'session',
 ): SessionModelSkeletonSection[] {
+  if (mode === 'slot')
+    return [
+      { id: 'groups', title: strings.groups, rows: SKELETON_GROUP_ROWS },
+      { id: 'subs', title: strings.subscriptions, rows: SKELETON_SUB_ROWS },
+      { id: 'api', title: strings.apiModels, rows: SKELETON_API_ROWS },
+    ];
   return [
     { id: 'default', title: '', rows: 1 },
     ...(native
