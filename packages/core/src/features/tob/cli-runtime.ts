@@ -209,6 +209,11 @@ export function createTobCliRuntime(ports: TobCliPorts) {
     }
   }
 
+  const botOwnerOf = (slug: string): string | undefined => {
+    const bot = ports.registry.get(slug);
+    return bot === undefined ? undefined : botOwner(bot);
+  };
+
   function captureTobCliAuthority(sessionId: string): TobCliAuthority {
     const owner = ports.ownership.resolve(sessionId);
     const tob = ports.tob;
@@ -221,9 +226,9 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       !tob.holdsManagementGrant(owner.botSlug)
     )
       throw new TobError('tob-authority-required');
-    const humanId = tob.ownerId();
     const bot = ports.registry.get(owner.botSlug);
-    if (!bot || botOwner(bot) !== humanId) throw new TobError('tob-authority-required');
+    if (!bot) throw new TobError('tob-authority-required');
+    const humanId = botOwner(bot);
     const turn = ports.turnSources.get(owner.botSlug);
     if (turn?.sessionId !== sessionId || turn.acceptedEventIds.size === 0)
       throw new TobError('human-dm-required');
@@ -240,7 +245,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         currentOwner.rootRole !== 'orchestrator' ||
         currentOwner.parentSessionId !== undefined ||
         !tob.holdsManagementGrant(owner.botSlug) ||
-        tob.ownerId() !== humanId
+        botOwnerOf(owner.botSlug) !== humanId
       )
         throw new TobError('tob-authority-required');
 

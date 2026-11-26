@@ -760,6 +760,10 @@
     "sha256": "4897d986659a9c3f523737c7efb0ce62b8845f98fb9f85a75b1545a6f9ee2d82"
   },
   {
+    "id": "sender-block",
+    "sha256": "6038e99514650fd293e152f4c762f10765a7321c66edc1a5c79d025dc1420f9c"
+  },
+  {
     "id": "connector-sign-in-access",
     "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
   }

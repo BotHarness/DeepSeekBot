@@ -1,4 +1,4 @@
-export async function runManagementGrantGate(s, { as, target }, check) {
+export async function runManagementGrantGate(s, { as, target, ownBot, roleIds, tag }, check) {
   const member = { as };
   const holders = (options) => s.cli(['bot-grants'], options).holders ?? [];
   const holds = (slug, capability) =>
@@ -20,8 +20,8 @@ export async function runManagementGrantGate(s, { as, target }, check) {
     allowFail: true,
   });
   check(
-    'Member remote policy excludes App management grants',
-    denied.error?.code === 'remote-access/denied',
+    "A member cannot switch the Owner's Bot",
+    denied.error?.code === 'bot-not-found',
     denied.error?.code,
   );
   check('Member denial changes no grant', !holds(target, 'manage-app'));
@@ -69,4 +69,62 @@ export async function runManagementGrantGate(s, { as, target }, check) {
   );
   const revoked = s.cli(['bot-grant', target, 'manage-app', 'off']);
   check('Owner turns the grant off again', !revoked.capabilities?.includes('manage-app'));
+
+  const ownDenied = s.cli(['bot-grant', ownBot, 'manage-app', 'on', '--confirm'], {
+    ...member,
+    allowFail: true,
+  });
+  check(
+    'Without authorization a member cannot switch their own Bot either',
+    ownDenied.error?.code === 'permission-required',
+    ownDenied.error?.code,
+  );
+  const steward = s.cli([
+    'roles',
+    'create',
+    '--name',
+    `Grant stewards ${tag}`,
+    '--permissions',
+    'bots.manageGrants',
+  ]).role;
+  s.cli(['members', 'roles', as, '--set', [...roleIds, steward.roleId].join(',')]);
+  check(
+    'An authorized member can switch their own Bot',
+    s.cli(['bot-grants', '--bot', ownBot], member).editable === true,
+  );
+  check(
+    "An authorized member still cannot switch the Owner's Bot",
+    s.cli(['bot-grants', '--bot', target], { ...member, allowFail: true }).error?.code ===
+      'bot-not-found' &&
+      s.cli(['bot-grant', target, 'manage-app', 'on', '--confirm'], { ...member, allowFail: true })
+        .error?.code === 'bot-not-found' &&
+      !holds(target, 'manage-app'),
+  );
+  const memberOn = s.cli(['bot-grant', ownBot, 'manage-app', 'on', '--confirm'], member);
+  const memberHolders = s.cli(['bot-grants'], member).holders ?? [];
+  check(
+    "The member's own Bot holds Manage the App and the member sees only their own holders",
+    memberOn.capabilities?.includes('manage-app') &&
+      memberHolders.length === 1 &&
+      memberHolders[0].botSlug === ownBot,
+    { memberOn, memberHolders },
+  );
+  check("The Owner's list stays the Owner's Bots", !holds(ownBot, 'manage-app'));
+  s.cli(['members', 'roles', as, '--set', roleIds.join(',')]);
+  const withdrawn = s.cli(['bot-grants'], member);
+  check(
+    "Withdrawing the authorization stops the member Bot's grant",
+    withdrawn.holders?.length === 0 && withdrawn.editable === false,
+    withdrawn,
+  );
+  const afterWithdraw = s.cli(['bot-grant', ownBot, 'manage-app', 'off'], {
+    ...member,
+    allowFail: true,
+  });
+  check(
+    'Without authorization the member cannot switch it off or on',
+    afterWithdraw.error?.code === 'permission-required',
+    afterWithdraw.error?.code,
+  );
+  s.cli(['roles', 'delete', steward.roleId], { allowFail: true });
 }

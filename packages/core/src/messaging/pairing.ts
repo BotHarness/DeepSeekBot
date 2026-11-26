@@ -33,13 +33,16 @@ export const pairingReviewInput = z.discriminatedUnion('kind', [
       id: z.string().uuid(),
       expectedRevision: z.number().int().positive(),
       capabilities: z.array(z.enum(pairingCapabilities)).min(1).max(5).optional(),
+      delegable: z.boolean().optional(),
       roleId: z.string().uuid().optional(),
       expectedRoleRevision: z.number().int().positive().optional(),
     })
     .strict()
     .refine((value) =>
       value.roleId
-        ? value.capabilities === undefined && value.expectedRoleRevision !== undefined
+        ? value.capabilities === undefined &&
+          value.delegable === undefined &&
+          value.expectedRoleRevision !== undefined
         : value.capabilities !== undefined && value.expectedRoleRevision === undefined,
     ),
   z
@@ -63,6 +66,7 @@ export interface PairingRequest {
   conversationKind?: 'dm' | 'group';
   status: 'pending' | 'approved' | 'rejected' | 'revoked' | 'expired' | 'unavailable';
   capabilities: PairingCapability[];
+  delegableCapabilities?: PairingCapability[];
   createdAt: string;
   updatedAt?: string;
   expiresAt: string;
@@ -411,6 +415,9 @@ export function createBotPairing(
           reviewedBy: reviewer ? 'paired-reviewer' : 'authenticated-web',
           ...(reviewer ? { reviewerActorId: reviewer.actorId } : {}),
         };
+        if (input.kind === 'approve' && input.delegable && input.capabilities)
+          next.delegableCapabilities = next.capabilities;
+        else delete next.delegableCapabilities;
         db.prepare('UPDATE messaging_pairings SET status = ?, body = ? WHERE id = ?').run(
           next.status,
           JSON.stringify(next),

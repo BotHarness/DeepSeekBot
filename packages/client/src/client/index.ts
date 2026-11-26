@@ -351,7 +351,7 @@ export function apply(ctx: ClientContext): void {
   const botSettings = new BotSettings(() =>
     openEnvironmentJoin(dockPanels, () => ctx.layout.selectPanel(PANEL_ID)),
   );
-  ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
+  ctx.effect(() => mountHostSettingsOpener(botSettings));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
   ctx.effect(

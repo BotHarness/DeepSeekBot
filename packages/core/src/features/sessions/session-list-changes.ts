@@ -32,6 +32,7 @@ export function createSessionListChanges(
   let allSeq = 0;
   const touched = new Map<string, number>();
   const touchedAt = new Map<string, number>();
+  const firstTouchedAt = new Map<string, number>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const signal = (push: boolean) => {
     if (!push || timer !== undefined) return;
@@ -50,12 +51,18 @@ export function createSessionListChanges(
         seq += 1;
         touched.delete(sessionId);
         touched.set(sessionId, seq);
-        if (at !== undefined) touchedAt.set(sessionId, Math.max(at, touchedAt.get(sessionId) ?? 0));
+        if (at !== undefined) {
+          touchedAt.set(sessionId, Math.max(at, touchedAt.get(sessionId) ?? 0));
+          if (!firstTouchedAt.has(sessionId)) firstTouchedAt.set(sessionId, at);
+        }
       }
       signal(push);
     },
     touchedAt(sessionId: string): number | undefined {
       return touchedAt.get(sessionId);
+    },
+    firstTouchedAt(sessionId: string): number | undefined {
+      return firstTouchedAt.get(sessionId);
     },
     changedAll() {
       seq += 1;

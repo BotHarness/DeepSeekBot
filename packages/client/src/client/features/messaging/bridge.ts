@@ -1,4 +1,19 @@
-import { asRecord, BridgeCallError, unwrap, type BridgeCall } from '../../bridge-transport.js';
+import {
+  asRecord,
+  BridgeCallError,
+  bridgeHost,
+  unwrap,
+  type BridgeCall,
+} from '../../bridge-transport.js';
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
+import {
+  changeMessagingIdentity,
+  changeSenderAccess,
+  readMessagingApps,
+  readMessagingSnapshot,
+  reviewPairingRequest,
+  validReceptionRecovery,
+} from '@botharness/host-client/messaging';
 import type { HostFileTarget } from '../../host-file-actions.js';
 import type {
   PairingRequest,
@@ -25,21 +40,12 @@ import type {
   ThreadReceptionInput,
 } from '../../bridge.js';
 
-export async function manageMessagingIdentity(
+export function manageMessagingIdentity(
   call: BridgeCall,
   slug: string,
   input: MessagingIdentityInput,
 ): Promise<MessagingIdentity> {
-  const record = asRecord(await unwrap(call, 'messagingIdentity', { slug, input }));
-  const identity = asRecord(record?.['identity']);
-  if (
-    !identity ||
-    typeof identity['id'] !== 'string' ||
-    typeof identity['revision'] !== 'number' ||
-    typeof identity['enabled'] !== 'boolean'
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid identity result');
-  return identity as unknown as MessagingIdentity;
+  return shared(changeMessagingIdentity(bridgeHost(call), slug, input));
 }
 
 export async function loadMessagingDefaults(
@@ -76,21 +82,6 @@ export async function saveMessagingDefaults(
 ): Promise<MessagingDefaults> {
   await unwrap(call, 'messagingDefaultsSet', { input });
   return loadMessagingDefaults(call, input.platform);
-}
-
-function validReceptionRecovery(value: unknown): boolean {
-  if (value === undefined) return true;
-  const row = asRecord(value);
-  if (row?.['kind'] === 'action-required')
-    return typeof row['reason'] === 'string' && row['reason'].length > 0;
-  return (
-    row?.['kind'] === 'retrying' &&
-    row['reason'] === 'provider-unavailable' &&
-    Number.isSafeInteger(row['attempt']) &&
-    Number(row['attempt']) > 0 &&
-    typeof row['nextRetryAt'] === 'string' &&
-    Number.isFinite(Date.parse(row['nextRetryAt']))
-  );
 }
 
 export async function loadChannelBridges(
@@ -229,134 +220,45 @@ export async function retryFailureAlerts(
   await unwrap(call, 'failureAlertsRetry', { slug, id });
 }
 
-export async function reviewPairing(
+export function reviewPairing(
   call: BridgeCall,
   slug: string,
   input: PairingReviewInput,
 ): Promise<PairingRequest> {
-  const value = asRecord(await unwrap(call, 'pairingReview', { slug, input }));
-  const pairing = asRecord(value?.['pairing']);
-  if (
-    !pairing ||
-    pairing['botSlug'] !== slug ||
-    typeof pairing['id'] !== 'string' ||
-    !Array.isArray(pairing['capabilities']) ||
-    typeof pairing['revision'] !== 'number'
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid pairing review');
-  return pairing as unknown as PairingRequest;
+  return shared(reviewPairingRequest(bridgeHost(call), slug, input));
 }
 
-export async function changeExternalSenderAccess(
+export function changeExternalSenderAccess(
   call: BridgeCall,
   slug: string,
   input: SenderAccessInput,
 ): Promise<void> {
-  await unwrap(call, 'senderAccess', { slug, input });
+  return shared(changeSenderAccess(bridgeHost(call), slug, input));
 }
 
-export async function loadMessagingApps(call: BridgeCall): Promise<{
+export function loadMessagingApps(call: BridgeCall): Promise<{
   apps: MessagingApp[];
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }> {
-  const record = asRecord(await unwrap(call, 'messagingApps', {}));
-  const apps = record?.['apps'];
-  const setups = record?.['setups'];
-  if (
-    !Array.isArray(apps) ||
-    !Array.isArray(setups) ||
-    !setups.every((value) => typeof asRecord(value)?.['providerId'] === 'string') ||
-    !apps.every((value) => {
-      const app = asRecord(value);
-      return (
-        typeof app?.['providerId'] === 'string' &&
-        typeof app['ref'] === 'string' &&
-        typeof app['platform'] === 'string' &&
-        typeof app['name'] === 'string' &&
-        typeof app['fingerprint'] === 'string' &&
-        typeof app['connected'] === 'boolean' &&
-        (app['boundBotSlug'] === undefined || typeof app['boundBotSlug'] === 'string')
-      );
-    })
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid messaging apps');
-  return {
-    apps: apps as MessagingApp[],
-    setups: setups as NonNullable<MessagingSnapshot['appSetups']>,
-  };
+  return shared(readMessagingApps(bridgeHost(call)));
 }
 
-export async function loadMessagingSnapshot(
+export function loadMessagingSnapshot(
   call: BridgeCall,
   slug: string,
   mode?: MessagingReadMode,
 ): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', {
-    slug,
-    ...(mode ? { mode } : {}),
-  });
-  const record = asRecord(value);
-  if (
-    !record ||
-    (record['checks'] !== undefined &&
-      !['pending', 'complete'].includes(String(record['checks']))) ||
-    !Array.isArray(record['accounts']) ||
-    !Array.isArray(record['grants']) ||
-    !record['grants'].every((item: unknown) =>
-      validReceptionRecovery(asRecord(item)?.['recovery']),
-    ) ||
-    (record['identities'] !== undefined &&
-      (!Array.isArray(record['identities']) ||
-        !record['identities'].every((item: unknown) =>
-          validReceptionRecovery(asRecord(item)?.['recovery']),
-        ))) ||
-    !Array.isArray(record['intents']) ||
-    (record['setup'] !== undefined && !validLarkSetupSnapshot(record['setup'])) ||
-    (record['channelTargets'] !== undefined &&
-      (!Array.isArray(record['channelTargets']) ||
-        !record['channelTargets'].every((value) => {
-          const target = asRecord(value);
-          return (
-            typeof target?.['id'] === 'string' &&
-            target['id'].length > 0 &&
-            typeof target['name'] === 'string'
-          );
-        })))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid messaging snapshot');
-  return value as MessagingSnapshot;
+  return shared(readMessagingSnapshot(bridgeHost(call), slug, mode));
 }
 
-function validLarkSetupSnapshot(value: unknown): boolean {
-  const setup = asRecord(value);
-  return (
-    typeof setup?.['providerReady'] === 'boolean' &&
-    Array.isArray(setup['receipts']) &&
-    setup['receipts'].length <= 20 &&
-    setup['receipts'].every((item: unknown) => {
-      const row = asRecord(item);
-      return (
-        !!row &&
-        ['sourceEventId', 'grantId', 'messageId', 'conversationId', 'at'].every(
-          (key) => typeof row[key] === 'string' && row[key].length > 0,
-        ) &&
-        typeof row['echoObserved'] === 'boolean' &&
-        (row['replyMessageId'] === undefined ||
-          (typeof row['replyMessageId'] === 'string' && row['replyMessageId'].length > 0)) &&
-        (row['threadId'] === undefined || typeof row['threadId'] === 'string') &&
-        (row['replyState'] === undefined ||
-          [
-            'provider-accepted',
-            'unknown-outcome',
-            'pending',
-            'in-flight',
-            'grant-revoked',
-            'cancelled',
-            'failed',
-          ].includes(String(row['replyState'])))
-      );
-    })
-  );
+async function shared<T>(read: Promise<T>): Promise<T> {
+  try {
+    return await read;
+  } catch (error) {
+    if (error instanceof HostAnswerInvalid)
+      throw new BridgeCallError('invalid-response', error.message);
+    throw error;
+  }
 }
 
 export async function loadMessagingTargets(
