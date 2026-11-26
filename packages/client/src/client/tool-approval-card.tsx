@@ -26,7 +26,8 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalMemoryEdit, approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
-import { ApprovalPresetPicker, type ApprovalPresetActions } from './approval-preset-picker.js';
+import { ApprovalPresetPicker } from './approval-preset-picker.js';
+import type { TemplateActions } from './approval-template-entry.js';
 
 function isReadTimeout(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
@@ -60,7 +61,7 @@ export function ToolApprovalCard({
     | 'toolApprovalExecutionState'
     | 'decideToolApproval'
   > &
-    ApprovalPresetActions;
+    TemplateActions;
   hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:

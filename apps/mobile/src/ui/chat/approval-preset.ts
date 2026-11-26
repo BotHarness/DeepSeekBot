@@ -21,9 +21,9 @@ export interface PresetOption {
   disabled?: boolean;
 }
 
-const OFF = '@off';
+export const TEMPLATE_OFF = '@off';
 
-function globalTitle(presets: ApprovalTemplates): string | undefined {
+export function globalTemplateLabel(presets: ApprovalTemplates): string | undefined {
   const name = presets.globalDefault;
   if (name === undefined) return undefined;
   if (name === null) return t.autoApprovalOff;
@@ -31,45 +31,43 @@ function globalTitle(presets: ApprovalTemplates): string | undefined {
   return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
 }
 
-export function presetName(presets: ApprovalTemplates): string {
+export function templateChoices(
+  presets: ApprovalTemplates,
+  inheritTitle: string,
+): {
+  inherit: PresetOption;
+  off: PresetOption;
+  templates: PresetOption[];
+  missing: PresetOption | undefined;
+} {
   const selected = presets.selected;
-  if (selected === null) return t.autoApprovalOff;
-  if (selected === INHERIT_APPROVAL_TEMPLATE) return t.autoApprovalFollowGlobal;
-  const template = presets.templates.find((item) => item.name === selected);
-  return template === undefined ? t.autoApprovalUnavailable(selected) : templateTitle(template);
-}
-
-export function presetOptions(presets: ApprovalTemplates): PresetOption[] {
-  const global = globalTitle(presets);
-  const missing =
-    presets.selected !== null &&
-    presets.selected !== INHERIT_APPROVAL_TEMPLATE &&
-    !presets.templates.some((template) => template.name === presets.selected);
-  return [
-    {
+  const global = globalTemplateLabel(presets);
+  return {
+    inherit: {
       key: INHERIT_APPROVAL_TEMPLATE,
       value: INHERIT_APPROVAL_TEMPLATE,
-      title: t.autoApprovalFollowGlobal,
+      title: inheritTitle,
       ...(global === undefined ? {} : { detail: global }),
-      selected: presets.selected === INHERIT_APPROVAL_TEMPLATE,
+      selected: selected === INHERIT_APPROVAL_TEMPLATE,
     },
-    ...presets.templates.map((template) => ({
+    off: { key: TEMPLATE_OFF, value: null, title: t.autoApprovalOff, selected: selected === null },
+    templates: presets.templates.map((template) => ({
       key: template.name,
       value: template.name,
       title: templateTitle(template),
-      selected: presets.selected === template.name,
+      selected: selected === template.name,
     })),
-    ...(missing && presets.selected !== null
-      ? [
-          {
-            key: presets.selected,
-            value: presets.selected,
-            title: t.autoApprovalUnavailable(presets.selected),
+    missing:
+      selected !== null &&
+      selected !== INHERIT_APPROVAL_TEMPLATE &&
+      !presets.templates.some((template) => template.name === selected)
+        ? {
+            key: selected,
+            value: selected,
+            title: t.autoApprovalUnavailable(selected),
             selected: true,
             disabled: true,
-          },
-        ]
-      : []),
-    { key: OFF, value: null, title: t.autoApprovalOff, selected: presets.selected === null },
-  ];
+          }
+        : undefined,
+  };
 }

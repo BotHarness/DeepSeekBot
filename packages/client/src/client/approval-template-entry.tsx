@@ -40,7 +40,7 @@ export function templateDescription(
   return template.description;
 }
 
-type TemplateActions = {
+export type TemplateActions = {
   approvalTemplates?(slug: string): Promise<{
     templates: ApprovalTemplateView[];
     selected: string | null;
@@ -49,10 +49,73 @@ type TemplateActions = {
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
 };
 
-function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: TemplateActions) {
+export interface TemplateChoice {
+  readonly selection: string | null;
+  readonly label: string;
+  readonly detail?: string | undefined;
+  readonly disabled?: boolean;
+}
+
+export function globalTemplateTitle(
+  t: BotHarnessTranslate,
+  templates: readonly ApprovalTemplateView[],
+  globalDefault: string | null | undefined,
+): string | undefined {
+  if (globalDefault === undefined) return undefined;
+  if (globalDefault === null) return t('autoApproval.off');
+  const template = templates.find((item) => item.name === globalDefault);
+  return template === undefined
+    ? t('autoApproval.templateMissing', { name: globalDefault })
+    : templateTitle(t, template.name, template.title);
+}
+
+export function templateChoices(
+  t: BotHarnessTranslate,
+  state: {
+    readonly templates: readonly ApprovalTemplateView[];
+    readonly selected: string | null;
+    readonly globalDefault: string | null | undefined;
+  },
+  inheritLabel: string,
+): {
+  inherit: TemplateChoice;
+  off: TemplateChoice;
+  templates: TemplateChoice[];
+  missing: TemplateChoice | undefined;
+} {
+  const selected = state.selected;
+  return {
+    inherit: {
+      selection: INHERIT,
+      label: inheritLabel,
+      detail: globalTemplateTitle(t, state.templates, state.globalDefault),
+    },
+    off: { selection: null, label: t('autoApproval.off') },
+    templates: state.templates.map((template) => ({
+      selection: template.name,
+      label: templateTitle(t, template.name, template.title),
+    })),
+    missing:
+      selected !== null &&
+      selected !== INHERIT &&
+      !state.templates.some((template) => template.name === selected)
+        ? {
+            selection: selected,
+            label: t('autoApproval.templateMissing', { name: selected }),
+            disabled: true,
+          }
+        : undefined,
+  };
+}
+
+export function useApprovalTemplates<E extends HTMLElement>(
+  botSlug: string,
+  actions: TemplateActions,
+  keepReadable = false,
+) {
   const [templates, setTemplates] = useState<ApprovalTemplateView[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [globalDefault, setGlobalDefault] = useState<string | null>(null);
+  const [globalDefault, setGlobalDefault] = useState<string | null | undefined>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -70,38 +133,40 @@ function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: T
         if (current.current !== botSlug) return;
         setTemplates(next.templates);
         setSelected(next.selected);
-        setGlobalDefault(next.globalDefault ?? null);
+        setGlobalDefault(next.globalDefault);
         setLoaded(true);
       })
       .catch((cause: unknown) => {
         if (current.current === botSlug) setError(errorMessage(cause));
       });
   }, [actions, botSlug]);
-  const choose = (name: string | null): void => {
-    if (actions.setBotApprovalTemplate === undefined || !loaded || busy) return;
+  const choose = async (name: string | null): Promise<boolean> => {
+    if (actions.setBotApprovalTemplate === undefined || !loaded || busy) return false;
     const previous = selected;
     setSelected(name);
     setBusy(true);
     setError(undefined);
-    void actions
-      .setBotApprovalTemplate(botSlug, name)
-      .then(async () => {
-        const next = await actions.approvalTemplates?.(botSlug);
-        if (next === undefined || current.current !== botSlug) return;
+    let saved = false;
+    try {
+      await actions.setBotApprovalTemplate(botSlug, name);
+      saved = true;
+      const next = await actions.approvalTemplates?.(botSlug);
+      if (next !== undefined && current.current === botSlug) {
         setSelected(next.selected);
-        setGlobalDefault(next.globalDefault ?? null);
+        setGlobalDefault(next.globalDefault);
         setTemplates(next.templates);
         setLoaded(true);
-      })
-      .catch((cause: unknown) => {
-        if (current.current !== botSlug) return;
+      }
+    } catch (cause) {
+      if (current.current === botSlug && !(saved && keepReadable)) {
         setSelected(previous);
-        setLoaded(false);
+        if (!keepReadable) setLoaded(false);
         setError(errorMessage(cause));
-      })
-      .finally(() => {
-        if (current.current === botSlug) setBusy(false);
-      });
+      }
+    } finally {
+      if (current.current === botSlug) setBusy(false);
+    }
+    return saved;
   };
   const available =
     actions.approvalTemplates !== undefined && actions.setBotApprovalTemplate !== undefined;
@@ -109,7 +174,8 @@ function useApprovalTemplates<E extends HTMLElement>(botSlug: string, actions: T
     mount,
     templates,
     selected,
-    effective: selected === INHERIT ? globalDefault : selected,
+    globalDefault,
+    effective: selected === INHERIT ? (globalDefault ?? null) : selected,
     loaded,
     busy,
     error,
@@ -132,6 +198,11 @@ export function ApprovalTemplateEntry({
   const state = useApprovalTemplates<HTMLDivElement>(botSlug, actions);
   if (!state.available) return null;
   const chosen = state.templates.find((template) => template.name === state.effective);
+  const choices = templateChoices(t, state, t('autoApproval.inherit'));
+  const option = (choice: TemplateChoice) => ({
+    value: choice.selection ?? OFF,
+    label: choice.label,
+  });
   return (
     <>
       <SettingsSection title={t('autoApproval.section')}>
@@ -150,10 +221,7 @@ export function ApprovalTemplateEntry({
                 ? t('autoApproval.unavailable')
                 : state.selected === INHERIT
                   ? t('autoApproval.inherited', {
-                      template:
-                        chosen === undefined
-                          ? t('autoApproval.off')
-                          : templateTitle(t, chosen.name, chosen.title),
+                      template: choices.inherit.detail ?? t('autoApproval.off'),
                     })
                   : chosen === undefined
                     ? t('autoApproval.hintOff')
@@ -177,25 +245,12 @@ export function ApprovalTemplateEntry({
                       },
                     ]
                   : []),
-                ...(state.loaded &&
-                state.selected !== null &&
-                state.selected !== INHERIT &&
-                !state.templates.some((template) => template.name === state.selected)
-                  ? [
-                      {
-                        value: state.selected,
-                        label: t('autoApproval.templateMissing', { name: state.selected }),
-                      },
-                    ]
-                  : []),
-                { value: INHERIT, label: t('autoApproval.inherit') },
-                { value: OFF, label: t('autoApproval.off') },
-                ...state.templates.map((template) => ({
-                  value: template.name,
-                  label: templateTitle(t, template.name, template.title),
-                })),
+                ...(state.loaded && choices.missing !== undefined ? [option(choices.missing)] : []),
+                option(choices.inherit),
+                option(choices.off),
+                ...choices.templates.map(option),
               ]}
-              onChange={(value) => state.choose(value === OFF ? null : value)}
+              onChange={(value) => void state.choose(value === OFF ? null : value)}
             />
           }
         />

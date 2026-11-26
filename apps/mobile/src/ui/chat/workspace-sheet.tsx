@@ -27,7 +27,7 @@ import {
 import { Text } from '../primitives/text';
 import { CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
 import { useStrings, t } from '../strings';
-import { templateTitle } from './approval-template-title';
+import { globalTemplateLabel, templateChoices, type PresetOption } from './approval-preset';
 import {
   Sheet,
   type SheetPageProps,
@@ -96,12 +96,30 @@ export function locationSection(listing: HostFolderListing) {
   return data.length === 0 ? [] : [{ key: 'locations', title: t.browseLocations, data }];
 }
 
-function inheritedTemplateLabel(selection: ApprovalTemplates): string {
-  const name = selection.globalDefault;
-  if (name === undefined) return t.contextUnavailable;
-  if (name === null) return t.autoApprovalOff;
-  const template = selection.templates.find((template) => template.name === name);
-  return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
+function templateSheetRows(value: ApprovalTemplates): MainRow[] {
+  const choices = templateChoices(value, t.autoApprovalInherit);
+  const row = (choice: PresetOption, detail: string): MainRow => ({
+    kind: 'template',
+    key: `template:${choice.value ?? OFF}`,
+    name: choice.value,
+    title: choice.title,
+    detail,
+    selected: choice.selected,
+  });
+  return [
+    ...(value.globalDefault === undefined && value.selected !== INHERIT_APPROVAL_TEMPLATE
+      ? []
+      : [
+          row(
+            choices.inherit,
+            t.autoApprovalInherited(globalTemplateLabel(value) ?? t.contextUnavailable),
+          ),
+        ]),
+    row(choices.off, t.autoApprovalOffHint),
+    ...choices.templates.map((choice, index) =>
+      row(choice, templateDescription(value.templates[index]!)),
+    ),
+  ];
 }
 
 export function templateDescription(template: ApprovalTemplate): string {
@@ -619,37 +637,7 @@ export function WorkspaceSheet({
       ? [{ kind: 'loading', key: 'templates-loading' }]
       : templates.status === 'failed'
         ? [{ kind: 'failed', key: 'templates-failed', text: templates.error }]
-        : [
-            ...(templates.value.globalDefault === undefined &&
-            templates.value.selected !== INHERIT_APPROVAL_TEMPLATE
-              ? []
-              : [
-                  {
-                    kind: 'template' as const,
-                    key: `template:${INHERIT_APPROVAL_TEMPLATE}`,
-                    name: INHERIT_APPROVAL_TEMPLATE,
-                    title: t.autoApprovalInherit,
-                    detail: t.autoApprovalInherited(inheritedTemplateLabel(templates.value)),
-                    selected: templates.value.selected === INHERIT_APPROVAL_TEMPLATE,
-                  },
-                ]),
-            {
-              kind: 'template',
-              key: `template:${OFF}`,
-              name: null,
-              title: t.autoApprovalOff,
-              detail: t.autoApprovalOffHint,
-              selected: templates.value.selected === null,
-            },
-            ...templates.value.templates.map((template): MainRow => ({
-              kind: 'template',
-              key: `template:${template.name}`,
-              name: template.name,
-              title: templateTitle(template),
-              detail: templateDescription(template),
-              selected: templates.value.selected === template.name,
-            })),
-          ];
+        : templateSheetRows(templates.value);
 
   const sections: MainSection[] = [
     { key: 'folders', title: t.workspaceFolders, data: folderRows },

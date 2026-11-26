@@ -7,13 +7,19 @@ import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { useStrings } from '../strings';
-import {
-  presetName,
-  presetOptions,
-  type ApprovalPresetPort,
-  type PresetOption,
-} from './approval-preset';
+import { templateChoices, type ApprovalPresetPort, type PresetOption } from './approval-preset';
 import { ApprovalPresetPicker } from './approval-preset-picker';
+
+function presetMenu(presets: ApprovalTemplates, inheritTitle: string) {
+  const choices = templateChoices(presets, inheritTitle);
+  const options = [
+    choices.inherit,
+    ...choices.templates,
+    ...(choices.missing === undefined ? [] : [choices.missing]),
+    choices.off,
+  ];
+  return { options, name: options.find((option) => option.selected)?.title ?? '' };
+}
 
 export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
   const t = useStrings();
@@ -50,7 +56,9 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
       .then(async () => {
         if (!live.current) return;
         setSwitched(true);
-        const message = t.autoApprovalSwitched(presetName(optimistic));
+        const message = t.autoApprovalSwitched(
+          presetMenu(optimistic, t.autoApprovalFollowGlobal).name,
+        );
         if (Platform.OS === 'android') ToastAndroid.show(message, ToastAndroid.SHORT);
         else AccessibilityInfo.announceForAccessibility(message);
         const next = await port.load().catch(() => undefined);
@@ -87,10 +95,12 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
           )}
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
             <ApprovalPresetPicker
-              label={t.autoApprovalPresetTrigger(presetName(presets))}
+              label={t.autoApprovalPresetTrigger(
+                presetMenu(presets, t.autoApprovalFollowGlobal).name,
+              )}
               header={t.autoApprovalPresetTitle}
               note={t.autoApprovalPresetNote}
-              options={presetOptions(presets)}
+              options={presetMenu(presets, t.autoApprovalFollowGlobal).options}
               {...(port.manage === undefined
                 ? {}
                 : { manageLabel: t.autoApprovalManage, onManage: port.manage })}

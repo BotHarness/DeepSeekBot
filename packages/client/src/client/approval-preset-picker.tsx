@@ -1,10 +1,13 @@
 import * as stylex from '@stylexjs/stylex';
-import { useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
-import { templateTitle } from './approval-template-entry.js';
+import {
+  templateChoices,
+  useApprovalTemplates,
+  type TemplateActions,
+  type TemplateChoice,
+} from './approval-template-entry.js';
 import { requestApprovalTemplateCreate } from './approval-template-create-request.js';
-import type { ApprovalTemplateView } from './bridge.js';
-import { errorMessage } from './bridge.js';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { Menu, type MenuEntry } from './ds/menu.js';
@@ -12,28 +15,11 @@ import { Tag } from './ds/tag.js';
 import { ink, space, type } from './ds/tobs.stylex.js';
 import { canOpenSettingsSection, openSettingsSection } from './environment-settings-source.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { useMountedResource } from './mounted-resource.js';
 
-export const APPROVAL_PRESET_INHERIT = '@global';
 const OFF = '@off';
 const NEW = '@new';
 const MANAGE = '@manage';
 const SETTINGS_SECTION = 'auto-approval';
-
-export interface ApprovalPresetActions {
-  approvalTemplates?(slug: string): Promise<{
-    templates: ApprovalTemplateView[];
-    selected: string | null;
-    globalDefault?: string | null;
-  }>;
-  setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
-}
-
-interface Presets {
-  readonly templates: readonly ApprovalTemplateView[];
-  readonly selected: string | null;
-  readonly globalDefault: string | null | undefined;
-}
 
 const styles = stylex.create({
   row: {
@@ -72,30 +58,8 @@ const styles = stylex.create({
   error: { color: ink.secondary, fontSize: type.captionSize, lineHeight: type.captionLine },
 });
 
-export function approvalPresetKey(selected: string | null): string {
-  return selected === null ? OFF : selected;
-}
-
-export function approvalPresetTitle(
-  t: BotHarnessTranslate,
-  presets: Presets,
-  selected: string | null,
-): string {
-  if (selected === null) return t('autoApproval.off');
-  if (selected === APPROVAL_PRESET_INHERIT) return t('autoApproval.preset.followGlobal');
-  const template = presets.templates.find((item) => item.name === selected);
-  return template === undefined
-    ? t('autoApproval.templateMissing', { name: selected })
-    : templateTitle(t, template.name, template.title);
-}
-
-function globalTitle(t: BotHarnessTranslate, presets: Presets): string | undefined {
-  if (presets.globalDefault === undefined) return undefined;
-  if (presets.globalDefault === null) return t('autoApproval.off');
-  const template = presets.templates.find((item) => item.name === presets.globalDefault);
-  return template === undefined
-    ? t('autoApproval.templateMissing', { name: presets.globalDefault })
-    : templateTitle(t, template.name, template.title);
+function choiceKey(selection: string | null): string {
+  return selection === null ? OFF : selection;
 }
 
 export function ApprovalPresetPicker({
@@ -105,124 +69,70 @@ export function ApprovalPresetPicker({
   t,
 }: {
   botSlug: string;
-  actions: ApprovalPresetActions;
+  actions: TemplateActions;
   manage: boolean;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const [presets, setPresets] = useState<Presets>();
+  const state = useApprovalTemplates<HTMLDivElement>(botSlug, actions, true);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [switched, setSwitched] = useState(false);
-  const [error, setError] = useState<string>();
-  const live = useRef(false);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    live.current = true;
-    setPresets(undefined);
-    setSwitched(false);
-    setError(undefined);
-    void actions.approvalTemplates?.(botSlug).then(
-      (next) => {
-        if (!live.current) return;
-        setPresets({
-          templates: next.templates,
-          selected: next.selected,
-          globalDefault: next.globalDefault,
-        });
-      },
-      () => undefined,
-    );
-    return () => {
-      live.current = false;
-    };
-  }, [actions, botSlug]);
-  if (actions.approvalTemplates === undefined || actions.setBotApprovalTemplate === undefined)
-    return null;
+  if (!state.available) return null;
   const settings = manage && canOpenSettingsSection();
-  const choose = (name: string | null): void => {
-    if (presets === undefined || busy) return;
-    if (name === presets.selected) return;
-    const previous = presets;
-    setPresets({ ...presets, selected: name });
-    setBusy(true);
-    setError(undefined);
-    void actions.setBotApprovalTemplate!(botSlug, name)
-      .then(async () => {
-        if (!live.current) return;
-        setSwitched(true);
-        const next = await actions.approvalTemplates!(botSlug).catch(() => undefined);
-        if (next === undefined || !live.current) return;
-        setPresets({
-          templates: next.templates,
-          selected: next.selected,
-          globalDefault: next.globalDefault,
-        });
-      })
-      .catch((cause: unknown) => {
-        if (!live.current) return;
-        setPresets(previous);
-        setError(errorMessage(cause));
-      })
-      .finally(() => {
-        if (live.current) setBusy(false);
-      });
+  const choose = (selection: string | null): void => {
+    if (selection === state.selected) return;
+    void state.choose(selection).then((saved) => {
+      if (saved) setSwitched(true);
+    });
   };
-  const followGlobal = presets === undefined ? undefined : globalTitle(t, presets);
-  const items: MenuEntry[] =
-    presets === undefined
-      ? []
-      : [
-          { type: 'label', id: 'heading', text: t('autoApproval.preset.menuTitle') },
-          {
-            id: APPROVAL_PRESET_INHERIT,
-            label: (
-              <>
-                {t('autoApproval.preset.followGlobal')}
-                {followGlobal === undefined ? null : (
-                  <span {...stylex.props(styles.secondary)}>{followGlobal}</span>
-                )}
-              </>
-            ),
-          },
-          ...presets.templates.map((template) => ({
-            id: template.name,
-            label: templateTitle(t, template.name, template.title),
-          })),
-          ...(presets.selected !== null &&
-          presets.selected !== APPROVAL_PRESET_INHERIT &&
-          !presets.templates.some((template) => template.name === presets.selected)
-            ? [
-                {
-                  id: presets.selected,
-                  label: t('autoApproval.templateMissing', { name: presets.selected }),
-                  disabled: true,
-                },
-              ]
-            : []),
-          { id: OFF, label: t('autoApproval.off') },
-          ...(settings
-            ? [
-                { type: 'separator' as const, id: 'manage-separator' },
-                { id: NEW, label: t('autoApproval.preset.new') },
-                { id: MANAGE, label: t('autoApproval.preset.manage') },
-              ]
-            : []),
-        ];
-  const name = presets === undefined ? '' : approvalPresetTitle(t, presets, presets.selected);
+  const choices = templateChoices(t, state, t('autoApproval.preset.followGlobal'));
+  const ordered: TemplateChoice[] = [
+    choices.inherit,
+    ...choices.templates,
+    ...(choices.missing === undefined ? [] : [choices.missing]),
+    choices.off,
+  ];
+  const item = (choice: TemplateChoice): MenuEntry => ({
+    id: choiceKey(choice.selection),
+    label:
+      choice.detail === undefined ? (
+        choice.label
+      ) : (
+        <>
+          {choice.label}
+          <span {...stylex.props(styles.secondary)}>{choice.detail}</span>
+        </>
+      ),
+    ...(choice.disabled === true ? { disabled: true } : {}),
+  });
+  const items: MenuEntry[] = !state.loaded
+    ? []
+    : [
+        { type: 'label', id: 'heading', text: t('autoApproval.preset.menuTitle') },
+        ...ordered.map(item),
+        ...(settings
+          ? [
+              { type: 'separator' as const, id: 'manage-separator' },
+              { id: NEW, label: t('autoApproval.preset.new') },
+              { id: MANAGE, label: t('autoApproval.preset.manage') },
+            ]
+          : []),
+      ];
+  const name = ordered.find((choice) => choice.selection === state.selected)?.label ?? '';
   const text = t('autoApproval.preset.trigger', { name });
   return (
     <div
-      ref={mount}
+      ref={state.mount}
       data-approval-preset=""
-      {...stylex.props(styles.row, presets === undefined && styles.hidden)}
+      {...stylex.props(styles.row, !state.loaded && styles.hidden)}
     >
-      {presets === undefined ? null : (
+      {!state.loaded ? null : (
         <>
-          {error === undefined ? null : (
+          {state.error === undefined ? null : (
             <span role="alert" {...stylex.props(styles.error)}>
-              {error}
+              {state.error}
             </span>
           )}
-          {switched && error === undefined ? (
+          {switched && state.error === undefined ? (
             <Tag tone="neutral" data-approval-preset-next="">
               {t('autoApproval.preset.next')}
             </Tag>
@@ -242,7 +152,7 @@ export function ApprovalPresetPicker({
                 aria-expanded={open}
                 aria-label={text}
                 title={text}
-                disabled={busy}
+                disabled={state.busy}
                 data-approval-preset-trigger=""
                 onClick={() => setOpen((value) => !value)}
               >
@@ -254,7 +164,7 @@ export function ApprovalPresetPicker({
             }
             items={items}
             footer={[{ type: 'label', id: 'note', text: t('autoApproval.preset.note') }]}
-            selectedId={approvalPresetKey(presets.selected)}
+            selectedId={choiceKey(state.selected)}
             onSelect={(id) => {
               setOpen(false);
               if (id === NEW) {
