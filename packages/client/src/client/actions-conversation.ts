@@ -152,7 +152,7 @@ export function createConversationActions(
     );
     if (unreadAfterMessageId !== undefined) clientStore.setConversation({ unreadAfterMessageId });
   };
-  const MISSING_CHANNEL = ['not-found', 'channel-not-found', 'bot-not-found'];
+  const MISSING_CHANNEL = ['not-found', 'unknown-channel', 'channel-not-found', 'bot-not-found'];
   let latestOpen = 0;
   const openChannelById = async (
     channelId: string,

@@ -60,6 +60,7 @@ describe('bridge actions', () => {
     const { clientStore, actions } = setup({
       channelGet: ({ channelId }) => {
         if (channelId === 'offline') throw new BridgeCallError('unavailable', 'Host unavailable');
+        if (channelId === 'deleted') throw new BridgeCallError('unknown-channel', 'deleted');
         if (channelId !== pending.id) throw new BridgeCallError('not-found', 'unknown Channel');
         return { channel: pending };
       },
@@ -96,6 +97,8 @@ describe('bridge actions', () => {
     ).toBe(JSON.stringify(['host', 'profile', 'alice', pending.id]));
     clientStore.select(undefined);
     await actions.openChannel('missing');
+    expect(clientStore.getSnapshot().selection).toBeUndefined();
+    await actions.openChannel('deleted');
     expect(clientStore.getSnapshot().selection).toBeUndefined();
     await expect(actions.openChannel('offline')).rejects.toMatchObject({ code: 'unavailable' });
     expect(clientStore.getSnapshot().selection).toBeUndefined();
