@@ -84,15 +84,21 @@ node $qa metro -Owner $runner -Batch $batch
 node $qa open -Owner $runner -Batch $batch
 ```
 
-`build` runs Expo prebuild for Android, then the generated Gradle wrapper with CMake staging
-and the **selected device's ABI**. An x86_64 emulator APK does not qualify an arm64 phone.
+`build` first looks for a compatible Debug APK under the queue's `apk-cache/` directory.
+Worktrees that use the same queue can reuse an APK when the Android native fingerprint,
+workspace lockfile, selected device's ABI, debug keystore and build-time Metro port match.
+On a miss, `build` runs Expo prebuild and the Gradle wrapper with CMake staging, then
+publishes the APK and its SHA-256. `install` checks the current inputs and verifies the
+cached file before installing. If `install` reports a missing or damaged APK, run `build` again.
 Keep the Gradle output in the batch's local evidence. One build runs at a time; check D-drive
 free space first. Do not delete shared caches or generated files another build uses.
 
 Native input changes (`app.json` native fields, config plugins, Expo/RN or native dependency
 versions) require a rebuild; check the batch base as well as its PRs. JS-only batches may reuse
-a dev client only after recording its build provenance/native compatibility. `metro` deliberately
-sets `CI=1` to disable the watcher that timed out on this Windows checkout: restart Metro after
+a compatible dev client. In the batch evidence, `build.json` and `install.json` record the APK's
+original build commit and checksum. `metro.json` records the checkout commit, dirty state and
+port at Metro startup. Keep the dirty diff with the batch if you test uncommitted changes.
+`metro` deliberately sets `CI=1` to disable the watcher that timed out on this Windows checkout: restart Metro after
 source changes. It also sets Node's DNS order to `ipv4first`: a Metro listening only on `::1`
 left a USB phone stuck loading because ADB reverse targeted IPv4. Check
 `http://127.0.0.1:<metro-port>/status` before opening the phone. The claim's `-MetroPort`
