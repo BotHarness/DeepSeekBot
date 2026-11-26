@@ -185,6 +185,7 @@ export function useApprovalTemplates<E extends HTMLElement>(
       saved = true;
       if (actions.approvalTemplates !== undefined)
         announceApprovalTemplateChange(actions.approvalTemplates, botSlug, self);
+      if (generation.current !== run) return saved;
       seq = ++reads.current;
       const next = await actions.approvalTemplates?.(botSlug);
       if (next !== undefined && generation.current === run && reads.current === seq) {

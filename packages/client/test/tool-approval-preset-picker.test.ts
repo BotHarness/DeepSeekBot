@@ -324,6 +324,37 @@ describe('Auto approval preset picker on the approval card', () => {
     expect(trigger(card)!.textContent).toBe('自动审批 · 谨慎');
   });
 
+  it('keeps the refresh of replaced actions when a save from the old actions finishes', async () => {
+    let current: string | null = 'get-work-done';
+    let finish: () => void = () => undefined;
+    const fixture = {
+      approvalTemplates: vi.fn(async () => ({
+        ...library,
+        selected: current,
+        globalDefault: 'cautious',
+      })),
+      setBotApprovalTemplate: vi.fn(
+        (_slug: string, template: string | null) =>
+          new Promise<void>((resolve) => {
+            finish = () => {
+              current = template;
+              resolve();
+            };
+          }),
+      ),
+    } satisfies Pick<CardActions, 'approvalTemplates' | 'setBotApprovalTemplate'>;
+    const card = await render(message(), fixture);
+    await openMenu(card);
+    await act(async () => item('谨慎')!.click());
+    expect(fixture.setBotApprovalTemplate).toHaveBeenCalledWith('ada', 'cautious');
+    const replaced = await render(message(), fixture);
+    await act(async () => finish());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(trigger(replaced)!.textContent).toBe('自动审批 · 谨慎');
+  });
+
   it('writes the chosen preset even when the card still shows it as current', async () => {
     const chosen: Array<string | null> = [];
     const shared = presets(null, chosen);
