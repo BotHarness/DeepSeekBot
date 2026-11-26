@@ -239,6 +239,7 @@ deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
+deepseekbot approval-rule-add <channel-id> --message-id <卡片-id> --prefix "git status *"
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-once
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-tool
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-always-kind
@@ -262,6 +263,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `marketplace-skill-list` 搜索 Marketplace 的 Skills 分区：收录带 `tobs-skill` topic 的公开 GitHub 仓库（Indexed Skill Repository），每个含 `SKILL.md` 的文件夹算一个条目，按安装数和星数排序。`marketplace-skill-detail <skill-id>` 返回条目的 `SKILL.md`、文件清单、`scripts` 和扫描 `findings`。`skills-add <skill-id>` 不带 `--confirm` 时，会下载条目收录时那个 commit 的文件，在 Host 上重新扫描，然后输出审阅结果（`verdict`、`findings`、`scripts`、`files`、`conflicts`）和你能添加到的 Bot，不做任何改动。把审阅结果给 Human 看过后，再带 `--confirm` 执行。`--bot` 添加到你拥有的每只 Bot：写入 Memory Repository 的 `.agents/skills/<名称>/` 并提交 `skills: add <名称> from Marketplace (<owner>/<repo>)`。`--global` 添加为 Host Skill，写入 `<DSH home>/skills/<名称>/`，所有 Bot 都能看到，除非某只 Bot 有同名的 Project Skill；只有 Host owner（或其 Bot）可以这样做。写入的 `SKILL.md` 在 `metadata` 中记录 `tobs-source`（条目 id）、`tobs-repository` 和 `tobs-hash`。同名已存在时以 `skill-exists` 拒绝，除非指定 `--on-conflict replace`（覆盖文件夹）或 `rename`（以 `<名称>-2` 添加）。文件中含下载即执行模式的 Skill 以 `skill-blocked` 拒绝；审阅超过 30 分钟以 `review-expired` 拒绝。每个 Bot 目标和全局目标各计一次 Install Receipt。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
+
+对于待处理的 Shell 审批卡，`tool-approval-status` 还返回 `shellSuggestions`。用 `approval-rule-add` 按子命令顺序传入一至五个 `--prefix`，可一次批准当前调用并保存前缀。使用 `--outcome allowed-always-exact` 可记住完整调用。`tool-approval-rules <bot-id>` 将前缀规则显示为 `prefix`，`input` 保存模式文本。使用 `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm` 撤销。
 
 `user-question-answer` 接受与网页卡片相同的已提供选项。持久化限时提问可在 Host 重启后回答，
 请保留原 Channel 与卡片 ID。冷恢复继续原生调用并保留 Memory，但不产生新的 Inbox Admission

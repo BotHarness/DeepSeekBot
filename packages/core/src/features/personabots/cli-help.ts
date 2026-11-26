@@ -80,6 +80,7 @@ Usage:
   tobs send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
   tobs send-status <id> --message-id <Human-message-id>
   tobs tool-approval-status <channel> --message-id <card-id>
+  tobs approval-rule-add <channel> --message-id <card-id> --prefix "git status *"
   tobs tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
   tobs user-question-status <channel> --message-id <card-id>
   tobs user-question-answer <channel> --message-id <card-id> --answer-stdin

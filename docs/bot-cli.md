@@ -243,6 +243,7 @@ deepseekbot tool-approval-status <channel-id> --message-id <card-id>
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-once
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-tool
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-kind
+deepseekbot approval-rule-add <channel-id> --message-id <card-id> --prefix "git status *"
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome rejected
 deepseekbot user-question-status <channel-id> --message-id <card-id>
 deepseekbot user-question-answer <channel-id> --message-id <card-id> --answer-stdin
@@ -273,6 +274,8 @@ Trusted effect declarations describe tool calls on approval cards; they do not b
 `marketplace-skill-list` searches the Skills section of the Marketplace: Indexed Skill Repositories (public GitHub repositories with the `tobs-skill` topic), one entry per `SKILL.md` folder, ordered by installs then stars. `marketplace-skill-detail <skill-id>` returns the entry's `SKILL.md`, file list, `scripts` and scan `findings`. `skills-add <skill-id>` without `--confirm` downloads the listed commit's files, scans them again on the Host, and prints the review (`verdict`, `findings`, `scripts`, `files`, `conflicts`) plus the Bots you may add to; nothing changes. Show that review to the Human, then repeat with `--confirm`. `--bot` adds to each named Bot you own: it writes `.agents/skills/<name>/` in the Memory Repository and commits `skills: add <name> from Marketplace (<owner>/<repo>)`. `--global` adds a Host Skill under `<DSH home>/skills/<name>/`, visible to every Bot unless a Bot has its own Project Skill with that name; only the Host owner (or the owner's Bots) may. The written `SKILL.md` records `metadata.tobs-source` (the entry id), `tobs-repository` and `tobs-hash`. A name already taken refuses with `skill-exists` unless `--on-conflict replace` (overwrite the folder) or `rename` (add as `<name>-2`). A Skill whose files hold a download-and-execute pattern refuses with `skill-blocked`; a review older than 30 minutes refuses with `review-expired`. Each Bot target and the global target count one Install Receipt.
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
+
+For a pending Shell card, `tool-approval-status` also returns `shellSuggestions`. Use `approval-rule-add` with one to five repeatable `--prefix` flags in subcommand order to approve the call and save those prefixes together. Use `--outcome allowed-always-exact` to remember the full call. `tool-approval-rules <bot-id>` lists the saved rules with kind `prefix` and the pattern in `input`. To revoke one, run `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm`.
 
 `user-question-answer` accepts the same offered selections as the Web card. A durable timed
 question can be answered after restarting the Host; keep its original Channel and card IDs.

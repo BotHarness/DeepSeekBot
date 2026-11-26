@@ -640,6 +640,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       (decision['outcome'] !== 'allowed-once' &&
         decision['outcome'] !== 'allowed-always-tool' &&
         decision['outcome'] !== 'allowed-always-exact' &&
+        decision['outcome'] !== 'allowed-always-prefix' &&
         decision['outcome'] !== 'allowed-always-all' &&
         decision['outcome'] !== 'rejected') ||
       replyTo !== decision['requestMessageId']

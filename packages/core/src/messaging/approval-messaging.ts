@@ -9,7 +9,11 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import { pairedRoute, type BotPairing, type PairingRequest } from './pairing.js';
-import { approvalCardActions, approvalStatusLabels } from './approval-card.js';
+import {
+  approvalCardActions,
+  approvalStatusLabels,
+  savedShellPrefixDetails,
+} from './approval-card.js';
 import { approvalSurface } from './interactions/surface.js';
 import { createInteractionAuthority, withoutFailedGroup } from './authority.js';
 import type { InteractionContext, InteractionDestination } from './authority.js';
@@ -65,6 +69,7 @@ export interface ApprovalDelivery {
   };
   savedRuleKind?: 'exact' | 'all-opaque' | 'secret-cli';
   savedRuleId?: string;
+  savedPrefixRuleIds?: string[];
 }
 export interface ApprovalMessagingSnapshot {
   route?: ApprovalRoute;
@@ -216,6 +221,8 @@ export function createApprovalMessaging(options: {
     const pending = owner?.pending(value.botSlug, value.requestMessageId);
     return pending !== undefined && operationHash(pending) === value.operationHash;
   };
+  const prefixRuleDetails = (value: ApprovalDelivery) =>
+    savedShellPrefixDetails(value.savedPrefixRuleIds, (id) => owner?.rule(value.botSlug, id));
   const render = (value: ApprovalDelivery): MessagingApprovalCard => {
     const notice = canonical(value);
     const ruleScope =
@@ -225,6 +232,7 @@ export function createApprovalMessaging(options: {
         : owner?.ruleScope(value.botSlug, value.requestMessageId ?? '')?.scopeKey);
     const fullDetail = [
       approvalStatusLabels[value.status],
+      ...prefixRuleDetails(value),
       ...(value.savedRuleId
         ? [
             savedRuleStatus(value) === 'active'
@@ -391,6 +399,7 @@ export function createApprovalMessaging(options: {
     if (!value?.receipt) return;
     const cleanup = cleanupContext(value);
     if (!safe(value) && !cleanup) return;
+    const prefixDetails = JSON.stringify(prefixRuleDetails(value));
     busy.add(id);
     let updateReason = 'none';
     try {
@@ -424,6 +433,7 @@ export function createApprovalMessaging(options: {
             read(id)?.status === currentStatus &&
             read(id)?.ruleConfirmation?.id === confirmationId &&
             read(id)?.savedRuleId === savedRuleId &&
+            JSON.stringify(prefixRuleDetails(value)) === prefixDetails &&
             (savedRuleId ? owner?.rule(value.botSlug, savedRuleId)?.revokedAt : undefined) ===
               revokedAt,
         }),
@@ -468,6 +478,7 @@ export function createApprovalMessaging(options: {
         (latest.status !== value.status ||
           latest.ruleConfirmation?.id !== value.ruleConfirmation?.id ||
           latest.savedRuleId !== value.savedRuleId ||
+          JSON.stringify(prefixRuleDetails(latest)) !== prefixDetails ||
           (latest.savedRuleId &&
             owner?.rule(latest.botSlug, latest.savedRuleId)?.revokedAt &&
             !cleanup))
@@ -610,6 +621,7 @@ export function createApprovalMessaging(options: {
     } else {
       const value = read(notice.messageId);
       if (!value) return;
+      if (notice.savedPrefixRuleIds) value.savedPrefixRuleIds = notice.savedPrefixRuleIds;
       write({
         ...value,
         status:
@@ -771,17 +783,14 @@ export function createApprovalMessaging(options: {
       return send(id);
     },
     refreshRules(botSlug) {
-      const values = database.read((db) =>
+      const rows = database.read((db) =>
         db
           .prepare(
-            "SELECT body FROM messaging_approval_deliveries WHERE bot_slug = ? AND json_extract(body, '$.savedRuleId') IS NOT NULL",
+            "SELECT id FROM messaging_approval_deliveries WHERE bot_slug = ? AND (json_extract(body, '$.savedRuleId') IS NOT NULL OR json_extract(body, '$.savedPrefixRuleIds') IS NOT NULL)",
           )
           .all(botSlug),
-      ) as { body: string }[];
-      for (const row of values) {
-        const value = JSON.parse(row.body) as ApprovalDelivery;
-        queueMicrotask(() => void update(value.id));
-      }
+      );
+      for (const row of rows) queueMicrotask(() => void update(String(row.id)));
     },
     async action(providerId, event, signal) {
       const value = read(event.requestId);
@@ -899,7 +908,7 @@ export function createApprovalMessaging(options: {
                 actor,
                 onRuleSaved: (rule) => {
                   const latest = read(value.id);
-                  if (latest && rule.kind !== 'tool')
+                  if (latest && rule.kind !== 'tool' && rule.kind !== 'prefix')
                     write({ ...latest, savedRuleId: rule.id, savedRuleKind: rule.kind });
                 },
                 ...(event.kind === 'approval-rule'

@@ -410,6 +410,7 @@ export function ChannelMessageBody({
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected'
     | undefined;
