@@ -18,7 +18,7 @@ import { createEngineMemoryTools } from '../src/engines/engine-memory-tools.js';
 import { engineRouteFetch, type EngineRouteDeps } from '../src/engines/engine-route.js';
 import type { EngineBotTool, EngineToolGate } from '../src/engines/engine-tools.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 
 const DSH_GENERIC = [

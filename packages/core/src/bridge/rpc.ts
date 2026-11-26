@@ -73,7 +73,6 @@ import { browserServiceRpc } from '../features/browser/rpc.js';
 import { voiceProviderRpc, voiceSettingsRpc } from '../features/voice/rpc.js';
 import { avatarRpc } from '../features/avatars/rpc.js';
 import { skillRpc } from '../features/skills/rpc.js';
-import { genuiServiceRpc } from '../features/genui/rpc.js';
 import {
   assignmentsRpcMethods,
   assignmentRpc,
@@ -84,7 +83,11 @@ import { memoryRpcMethods, memoryServiceRpc } from '../features/memory/rpc.js';
 import { usageRpcMethods, overviewUsageRpc } from '../features/usage/rpc.js';
 import { releaseRpc } from '../features/release/rpc.js';
 import { takeoverRpc } from '../features/takeover/rpc.js';
-import { schedulesServiceRpc } from '../features/schedules/rpc.js';
+import {
+  featureContributions,
+  mergeFeatureMethods,
+  type RegisteredFeatures,
+} from '../feature-contributions.js';
 import { resolveInvocationHuman } from './invocation-human.js';
 import type { BridgeLive } from './rpc-types.js';
 export { resolveInvocationHuman } from './invocation-human.js';
@@ -162,7 +165,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 }
 
-const rpcMethods = {
+const legacyRpcMethods = {
   ...teamServiceRpc,
   followRoster: personabotsRpcMethods.followRoster,
   followActivity: activityRpcMethods.followActivity,
@@ -223,7 +226,6 @@ const rpcMethods = {
   channelAllBotPreview: channelsRpcMethods.channelAllBotPreview,
   tobCli: tobRpcMethods.tobCli,
   ...channelSendRpc,
-  ...genuiServiceRpc,
   ...attentionRpc,
   humanAssignmentContext: assignmentsRpcMethods.humanAssignmentContext,
   ...humanAttentionDismissalRpc,
@@ -252,22 +254,22 @@ const rpcMethods = {
   ...releaseRpc,
   ...hostDiagnosticsRpc,
   ...takeoverRpc,
-  ...schedulesServiceRpc,
 };
 
-type PublicRpcMethods = Omit<typeof rpcMethods, 'requireApproval' | 'requirePrivateOwner'>;
+function contributedRpcMethods(features: RegisteredFeatures) {
+  return mergeFeatureMethods(
+    features.flatMap((feature) => ('rpc' in feature ? [feature.rpc] : [])),
+  );
+}
+
+type PublicRpcMethods = Omit<
+  typeof legacyRpcMethods & ReturnType<typeof contributedRpcMethods>,
+  'requireApproval' | 'requirePrivateOwner'
+>;
 
 export interface BotharnessBridgeService extends PublicRpcMethods {}
 
-for (const [name, method] of Object.entries(rpcMethods)) {
-  Object.defineProperty(BotharnessBridgeService.prototype, name, {
-    configurable: true,
-    writable: true,
-    value: method,
-  });
-}
-
-markRemoteMethods(BotharnessBridgeService.prototype, [
+const legacyRemoteMethods = [
   'botVisibility',
   'botVisibilitySet',
   'botSwitches',
@@ -500,8 +502,6 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botSkillRemove',
   'channelSend',
   'channelSendStatus',
-  'channelGenuiView',
-  'channelGenuiViewSave',
   'botAttention',
   'botSourcePolicies',
   'botSourcePolicySet',
@@ -725,31 +725,34 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'telemetrySet',
   'gitStatus',
   'gitInstall',
-  'scheduleList',
   'takeoverList',
   'takeoverStatus',
   'takeoverRequest',
   'takeoverComplete',
   'takeoverCancel',
-  'scheduleCreate',
-  'scheduleUpdate',
-  'scheduleDelete',
-  'scheduleHistory',
-  'scheduleRunNow',
-  'schedulePreview',
   'channelJournalPage',
   'channelFilesPage',
   'channelChanges',
   'channelChangeCursor',
   'channelListChanges',
   'channelAccessState',
-]);
-markRemoteStreams(BotharnessBridgeService.prototype, [
-  'followRoster',
-  'followActivity',
-  'followChannel',
-  'followCompanion',
-]);
+];
+function installRemoteMethods(prototype: object, features: RegisteredFeatures): void {
+  const contributions = contributedRpcMethods(features);
+  const methods = mergeFeatureMethods([legacyRpcMethods, contributions]);
+  for (const [name, method] of Object.entries(methods)) {
+    Object.defineProperty(prototype, name, { configurable: true, writable: true, value: method });
+  }
+  markRemoteMethods(prototype, legacyRemoteMethods.concat(Object.keys(contributions)));
+  markRemoteStreams(prototype, [
+    'followRoster',
+    'followActivity',
+    'followChannel',
+    'followCompanion',
+  ]);
+}
+
+installRemoteMethods(BotharnessBridgeService.prototype, featureContributions);
 
 export function registerBridge(
   ctx: Context,
@@ -757,6 +760,11 @@ export function registerBridge(
   privateInputs?: PrivateInputs,
   live?: BridgeLive,
   team?: TeamService,
+  features: RegisteredFeatures = featureContributions,
 ): BotharnessBridgeService {
-  return new BotharnessBridgeService(ctx, methods, privateInputs, live, team);
+  if (features === featureContributions)
+    return new BotharnessBridgeService(ctx, methods, privateInputs, live, team);
+  class HostBridgeService extends BotharnessBridgeService {}
+  installRemoteMethods(HostBridgeService.prototype, features);
+  return new HostBridgeService(ctx, methods, privateInputs, live, team);
 }

@@ -3,7 +3,8 @@ import { createChannelActionTool } from './channel-action-tool.js';
 import { executeNativeTool } from './native-agent-compat.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
-import { registerGenuiTools } from '../features/genui/tools.js';
+import { agentFeatureContext } from './agent-feature-context.js';
+import type { FeatureToolRegistrar } from '../kernel/feature-contribution.js';
 import { registerInboxTools, registerSourceAttentionTools } from '../features/activity/tools.js';
 import {
   createAssignmentTool,
@@ -24,7 +25,6 @@ import {
   createBridgeAttachmentSaveTool,
   registerChannelFileTools,
 } from '../features/channel-files/tools.js';
-import { registerScheduleTools } from '../features/schedules/tools.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { AttachmentId } from '@deepseek-ai/dsh-attachment';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
@@ -50,10 +50,9 @@ type OrchestratorToolsContext = Pick<
   | 'assignmentModes'
   | 'drafts'
   | 'engineChannels'
-  | 'genuiAttachmentContext'
-  | 'genuiPreviewBrowserPath'
+  | 'featureContributions'
   | 'modelFilter'
-  | 'onGenuiDiagnostic'
+  | 'promptText'
   | 'openAssignmentRoutes'
   | 'orchestratorModeChoices'
   | 'resolveModelPlan'
@@ -87,18 +86,24 @@ export function orchestratorTools(
   agentCtx: Pick<Context, 'get'>,
   registerTool: (tool: ToolDefinition) => unknown,
   registerBridgeTool: (tool: ToolDefinition) => unknown,
+  guardFeatureTool: FeatureToolRegistrar['guard'] = () => {},
 ): void {
   const currentOrchestrator = () => {
     const active = adapter.runs.get(run.sessionId);
     return active?.role === 'orchestrator' ? active : undefined;
   };
   const currentRun = () => currentOrchestrator()?.run;
-  registerGenuiTools(agentCtx, registerTool, {
-    browserPath: adapter.genuiPreviewBrowserPath,
-    onDiagnostic: adapter.onGenuiDiagnostic,
-    attachmentContext: adapter.genuiAttachmentContext,
-    scope: run.bot.slug,
-  });
+  const featureContext = agentFeatureContext(adapter, run, agentCtx);
+  const lateFeatureTools: ToolDefinition[] = [];
+  for (const feature of adapter.featureContributions) {
+    feature.tools?.(featureContext, {
+      register(tool, placement) {
+        if (placement === 'after-channel-tools') lateFeatureTools.push(tool);
+        else registerTool(tool);
+      },
+      guard: guardFeatureTool,
+    });
+  }
   registerTool(
     createChannelActionTool(
       () => {
@@ -382,7 +387,7 @@ export function orchestratorTools(
   registerTool(createGroupCreateTool(currentRun));
   registerGroupChannelTools(currentRun, registerTool);
   registerSourceAttentionTools(currentRun, registerTool);
-  registerScheduleTools(currentRun, registerTool);
+  for (const tool of lateFeatureTools) registerTool(tool);
   registerTool(createGroupLeaveTool(currentRun));
 }
 

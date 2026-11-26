@@ -8,10 +8,10 @@ import { GenuiError, type GenuiPrivateView } from '../../channels/genui.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { HumanContext } from '../../humans/context.js';
 
-export interface GenuiBridgeMethods {
+export type GenuiBridgeMethods = {
   channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
   channelGenuiViewSave(payload: unknown): BridgeResult<GenuiPrivateView>;
-}
+};
 
 export function createGenuiBridgeMethods(
   human: HumanContext,

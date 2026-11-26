@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { GenuiDocumentState } from '../../channels/genui-document.js';
 import type { GenuiPrivateView, GenuiViewState } from '../../channels/genui.js';
@@ -52,4 +51,4 @@ export const genuiServiceRpc = {
       state,
     );
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: GenuiBridgeMethods }>;
