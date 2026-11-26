@@ -23,6 +23,7 @@ import type { useStrings } from '../strings';
 import type { ActivityFilter } from './activity-filters';
 import type { Dispatch, SetStateAction } from 'react';
 import type { HiddenItems } from './activity-feed-rows';
+import { nativeSessionOf } from './activity-native';
 
 export function activityItemActions({
   setHidden,
@@ -107,7 +108,8 @@ export function activityItemActions({
   };
   const actionsFor = (item: HumanAttentionItem, section: InboxSection): SwipeAction[] => {
     const client = clientFor(item);
-    if (client === undefined || section === 'handled') return [];
+    if (client === undefined || section === 'handled' || nativeSessionOf(item) !== undefined)
+      return [];
     if (filter.section === 'cleared')
       return [
         {

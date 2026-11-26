@@ -625,6 +625,7 @@ export function createActions(
     setModelPlan: modelsActions.setModelPlan,
     setModelPlanSub: modelsActions.setModelPlanSub,
     listHostFolders: workspaceActions.listHostFolders,
+    createHostFolder: workspaceActions.createHostFolder,
     addWorkspaceFolder: workspaceActions.addWorkspaceFolder,
     authorizeWorkspacePath: workspaceActions.authorizeWorkspacePath,
     resolveWorkspaceFolder: workspaceActions.resolveWorkspaceFolder,

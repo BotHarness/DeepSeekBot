@@ -80,6 +80,7 @@ Usage:
   tobs send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
   tobs send-status <id> --message-id <Human-message-id>
   tobs tool-approval-status <channel> --message-id <card-id>
+  tobs approval-rule-add <channel> --message-id <card-id> --prefix "git status *"
   tobs tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
   tobs user-question-status <channel> --message-id <card-id>
   tobs user-question-answer <channel> --message-id <card-id> --answer-stdin
@@ -230,8 +231,8 @@ Usage:
   tobs bot-activity <id> [--limit <1-100>] [--cursor <next>]
   tobs inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
                     [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest]
-                    [--snoozed | --dismissed] [--kind auto-rejection]
-  tobs inbox-status
+                    [--snoozed | --dismissed] [--kind auto-rejection] [--source all|bot|native]
+  tobs inbox-status [--source all|bot|native]
   tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
   tobs inbox-restore <item-id> [--source-key <source-event-id>]
   tobs inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies]

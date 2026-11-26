@@ -12,7 +12,13 @@ import { readBlock } from '../conversations.js';
 import { groupReceptionPolicy } from './group-reception.js';
 import { channelBridgeRoutes } from '../channel-bridge.js';
 import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior.js';
-import { blockSender, senderBlocked, unblockSender } from './sender-blocks.js';
+import {
+  blockConversationSource,
+  blockSender,
+  sourceBlocked,
+  unblockConversationSource,
+  unblockSender,
+} from './sender-blocks.js';
 import { messagingDefaults } from '../defaults.js';
 import { threadReceptionPolicy } from './thread-reception.js';
 import { matchingIngests, type ConversationIngest } from '../conversation-ingest.js';
@@ -107,6 +113,26 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
       kind: z.literal('unblock-sender'),
       bindingId: z.string().min(1).max(200),
       actorId: z.string().trim().min(1).max(200),
+      expectedRevision: z.number().int().positive().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('block-conversation'),
+      bindingId: z.string().min(1).max(200),
+      conversation: z
+        .object({ kind: z.enum(['dm', 'group']), id: z.string().min(1).max(200) })
+        .strict(),
+      name: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('unblock-conversation'),
+      bindingId: z.string().min(1).max(200),
+      conversation: z
+        .object({ kind: z.enum(['dm', 'group']), id: z.string().min(1).max(200) })
+        .strict(),
       expectedRevision: z.number().int().positive().optional(),
     })
     .strict(),
@@ -518,6 +544,13 @@ export function changeSenderAccess(
     bumpSenderPolicy(db, botSlug);
     return;
   }
+  if (input.kind === 'block-conversation' || input.kind === 'unblock-conversation') {
+    if (reviewer) throw new MessagingError('pairing-unauthorized');
+    if (input.kind === 'block-conversation') blockConversationSource(db, botSlug, input);
+    else unblockConversationSource(db, botSlug, input);
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
   if (input.kind === 'create-role') {
     if (externalUserRoles(db, botSlug).length >= 50) throw new MessagingError('role-capacity');
     const at = new Date().toISOString();
@@ -844,7 +877,7 @@ export function senderAdmission(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): SenderAdmission {
-  if (senderBlocked(db, botSlug, event)) return 'refused';
+  if (sourceBlocked(db, botSlug, event)) return 'refused';
   if (senderAdmissionAllowed(db, botSlug, event)) return 'wake';
   return senderContextAllowed(db, botSlug, event) ? 'context' : 'refused';
 }
@@ -868,7 +901,7 @@ export function sourceAdmission(
       : cloudMessageAllowed(db, botSlug, event, true)
         ? 'context'
         : 'refused';
-  if (event?.fingerprint && senderBlocked(db, botSlug, event)) return 'refused';
+  if (event?.fingerprint && sourceBlocked(db, botSlug, event)) return 'refused';
   if (!readSenderPolicy(db, botSlug).restricted) return 'wake';
   return event ? senderAdmission(db, botSlug, event) : 'refused';
 }

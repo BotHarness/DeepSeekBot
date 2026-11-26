@@ -28,6 +28,11 @@ import { createInboxHistoryQuery } from './runtime/inbox-history.js';
 import { createBotSourcePolicyStore } from './runtime/source-policy.js';
 import { createAssignmentAccessStore } from './workspaces/assignment-access.js';
 import { createSessionOwnership } from './sessions/ownership.js';
+import { DEFAULT_NATIVE_SESSION_ATTENTION } from '@botharness/host-client/shared/bot-mode-settings';
+import {
+  withNativeSessionAttention,
+  type NativeSessionAttentionSource,
+} from './features/activity/native-session-attention.js';
 import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import { createBotStateTracker } from './state/bot-state.js';
 import type { UsageProjection } from './usage/usage.js';
@@ -243,15 +248,34 @@ function initializeCore(
     tob: () => tob,
     options,
   });
-  const { humanAttention, humanAttentionDecisions } = activityFeature.createHumanAttention({
-    startup,
-    operationalDatabase,
-    options,
-    roster: () => roster,
-    team,
-    states,
-    registry: () => registry,
-    live: () => live,
+  const nativeAttentionSources: NativeSessionAttentionSource[] = [];
+  const nativeAttentionSettings: { read: () => boolean }[] = [];
+  const nativeAttentionListeners = new Set<() => void>();
+  const nativeAttentionChanged = () => {
+    for (const listener of [...nativeAttentionListeners]) listener();
+  };
+  const onNativeSessionAttention = (listener: () => void) => {
+    nativeAttentionListeners.add(listener);
+    return () => {
+      nativeAttentionListeners.delete(listener);
+    };
+  };
+  const { humanAttention: botHumanAttention, humanAttentionDecisions } =
+    activityFeature.createHumanAttention({
+      startup,
+      operationalDatabase,
+      options,
+      roster: () => roster,
+      team,
+      states,
+      registry: () => registry,
+      live: () => live,
+    });
+  const humanAttention = withNativeSessionAttention(botHumanAttention, {
+    source: () => nativeAttentionSources.at(-1),
+    enabled: () =>
+      (nativeAttentionSettings.at(-1)?.read() ?? DEFAULT_NATIVE_SESSION_ATTENTION) !== false,
+    owner: (human) => human.caller !== 'bot' && team.isOwner(human),
   });
   const spaces = workspacesFeature.apply(operationalDatabase, dshHome, team);
   startup.enter('channel-live', 'initialize');
@@ -262,6 +286,7 @@ function initializeCore(
     contentPurge,
     operationalDatabase,
     team,
+    onNativeSessionAttention,
   });
   team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
@@ -458,6 +483,26 @@ function initializeCore(
         if (index !== -1) assignmentLimits.splice(index, 1);
       };
     },
+    configureNativeSessionAttention: (read) => {
+      const registration = { read };
+      nativeAttentionSettings.push(registration);
+      return () => {
+        const index = nativeAttentionSettings.indexOf(registration);
+        if (index !== -1) nativeAttentionSettings.splice(index, 1);
+      };
+    },
+    contributeNativeSessionAttention: (source) => {
+      nativeAttentionSources.push(source);
+      const off = source.subscribe(nativeAttentionChanged);
+      nativeAttentionChanged();
+      return () => {
+        off();
+        const index = nativeAttentionSources.indexOf(source);
+        if (index !== -1) nativeAttentionSources.splice(index, 1);
+        nativeAttentionChanged();
+      };
+    },
+    onNativeSessionAttention,
     configureGroupInvitations: (autoAccept) => {
       const registration = { policy: autoAccept };
       groupInvitationPolicies.push(registration);

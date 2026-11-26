@@ -1,5 +1,6 @@
 import type {
   QuestionAnswer,
+  ShellPrefixApproval,
   ToolApprovalOutcome,
   WireApprovalCard,
   WireApprovalRule,
@@ -86,6 +87,7 @@ const ruleKinds: ReadonlySet<unknown> = new Set<WireApprovalRule['kind']>([
   'exact',
   'tool',
   'all-opaque',
+  'prefix',
   'secret-cli',
 ]);
 
@@ -159,6 +161,28 @@ const executions: ReadonlySet<unknown> = new Set<WireToolApprovalExecution>([
   'needs-repair',
 ]);
 
+function isShellSuggestions(value: unknown): boolean {
+  const row = record(value);
+  const subcommands = row?.['subcommands'];
+  return (
+    row !== undefined &&
+    typeof row['exact'] === 'string' &&
+    typeof row['compound'] === 'boolean' &&
+    typeof row['unparseable'] === 'boolean' &&
+    Array.isArray(subcommands) &&
+    subcommands.length <= 5 &&
+    subcommands.every((value) => {
+      const subcommand = record(value);
+      return (
+        subcommand !== undefined &&
+        typeof subcommand['exact'] === 'string' &&
+        optional(subcommand['oneWordPrefix'], text) &&
+        optional(subcommand['twoWordPrefix'], text)
+      );
+    })
+  );
+}
+
 function isToolApprovalState(value: unknown): value is WireToolApprovalState {
   const row = record(value);
   const status = row?.['status'];
@@ -167,6 +191,7 @@ function isToolApprovalState(value: unknown): value is WireToolApprovalState {
     (status === 'pending' || status === 'expired' || status === 'stopped') &&
     optional(row['expiresAt'], (at) => text(at) && Number.isFinite(Date.parse(at))) &&
     optional(row['execution'], (execution) => executions.has(execution)) &&
+    optional(row['shellSuggestions'], isShellSuggestions) &&
     optional(row['approval'], isApprovalCard)
   );
 }
@@ -219,9 +244,15 @@ export async function decideToolApproval(
   channelId: string,
   messageId: string,
   outcome: ToolApprovalOutcome | 'allowed-always-kind',
+  rule?: ShellPrefixApproval,
 ): Promise<{ accepted: true }> {
   return accepted(
-    await host.call('toolApprovalDecide', { channelId, messageId, outcome }),
+    await host.call('toolApprovalDecide', {
+      channelId,
+      messageId,
+      outcome,
+      ...(rule ? { rule } : {}),
+    }),
     'toolApprovalDecide',
   );
 }
