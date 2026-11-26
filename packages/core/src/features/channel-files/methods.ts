@@ -3,7 +3,7 @@ import {
   asObject,
   invalidInput,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { createMessageAttachmentFiles } from '../../attachments/message-files.js';
 import { ChannelAttachmentError } from '../../attachments/store.js';
 import { type MemoryFileTarget } from '../../memory/file-actions.js';

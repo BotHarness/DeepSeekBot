@@ -5,7 +5,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { TeamError } from '../../team/error.js';
 import { ownsBot } from '../../team/bot-access.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';
@@ -37,6 +37,7 @@ export interface TobAdapterMethods {
     tobSlug?: string;
     holders: { botSlug: string; capabilities: ManagementCapability[] }[];
     editable: boolean;
+    memberBot: boolean;
   }>;
   managementGrantSet(payload: unknown): BridgeResult<ManagementGrantChange>;
   tobHome(
@@ -77,6 +78,7 @@ export function createTobAdapterMethods(
           holders:
             isHostOwner() || authorized ? deps.tob.managementGrantHolders(human.humanId) : [],
           editable: authorized && (slug === undefined || ownsBot(human, bot)),
+          memberBot: !isHostOwner(),
         },
       };
     },

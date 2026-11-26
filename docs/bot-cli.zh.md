@@ -230,6 +230,10 @@ deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <文本>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <名称> --owner bot:<bot-id>
 deepseekbot skills-remove <名称> --bot <bot-id> --confirm
+deepseekbot marketplace-skill-list [--query <文本>] [--cursor <n>]
+deepseekbot marketplace-skill-detail <skill-id>
+deepseekbot skills-add <skill-id> --bot <bot-id>[,<bot-id>...] [--on-conflict replace|rename] [--review <review-id> --confirm]
+deepseekbot skills-add <skill-id> --global [--on-conflict replace|rename] [--review <review-id> --confirm]
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
@@ -255,6 +259,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `skills-list --bot <bot-id> --session <session-id>` 返回该 Session 详情输入框中 `/` 菜单提供的 Skill。它列出该 Session 自己能发现的 Skill：Host Skill、该 Bot 的 Memory Repository Skill，以及工作目录所在 Workspace Grant 的 Project Skill。同名只列一项，优先级按 [ADR-0345](decisions/workspaces.md#adr-0345)：Workspace，然后 Memory，然后 Host。选中后插入纯文本 `/name`。请求以用户输入送达该 Session，由 DSH 自己的 Skill 手势在其中加载该 Skill，不另存快照。
 
 `skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
+
+`marketplace-skill-list` 搜索 Marketplace 的 Skills 分区：收录带 `tobs-skill` topic 的公开 GitHub 仓库（Indexed Skill Repository），每个含 `SKILL.md` 的文件夹算一个条目，按安装数和星数排序。`marketplace-skill-detail <skill-id>` 返回条目的 `SKILL.md`、文件清单、`scripts` 和扫描 `findings`。`skills-add <skill-id>` 不带 `--confirm` 时，会下载条目收录时那个 commit 的文件，在 Host 上重新扫描，然后输出审阅结果（`verdict`、`findings`、`scripts`、`files`、`conflicts`）和你能添加到的 Bot，不做任何改动。把审阅结果给 Human 看过后，再带 `--review <reviewId> --confirm` 执行；添加的正是这次审阅的文件，即使条目之后被刷新也一样。`--bot` 添加到你拥有的每只 Bot：写入 Memory Repository 的 `.agents/skills/<名称>/` 并提交 `skills: add <名称> from Marketplace (<owner>/<repo>)`。`--global` 添加为 Host Skill，写入 `<DSH home>/skills/<名称>/`，所有 Bot 都能看到，除非某只 Bot 有同名的 Project Skill；只有 Host owner（或其 Bot）可以这样做。写入的 `SKILL.md` 在 `metadata` 中记录 `tobs-source`（条目 id）、`tobs-repository` 和 `tobs-hash`。同名已存在时以 `skill-exists` 拒绝，除非指定 `--on-conflict replace`（覆盖文件夹）或 `rename`（以 `<名称>-2` 添加）。文件中含下载即执行模式的 Skill 以 `skill-blocked` 拒绝；审阅超过 30 分钟以 `review-expired` 拒绝。每个 Bot 目标和全局目标各计一次 Install Receipt。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 
@@ -1421,7 +1427,7 @@ deepseekbot connector-key-clear --confirm
 
 ### 应用连接（远程 MCP）
 
-很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host 上的 `/botharness/connectors/oauth/callback`，账号变为 `active`。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。
+很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host，账号变为 `active`。Host 有公网 https 地址（Tobs Connect、Tailscale HTTPS 地址，或你自己提供的 https 地址）时，登录会回到该地址上的 `/botharness-device/connectors/oauth/callback`，所以可以在手机或任何设备上打开登录链接；没有时回到本机的 `/botharness/connectors/oauth/callback`。登录链接 60 分钟内有效。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。
 
 ```bash
 deepseekbot connector-mcp-search posthog
@@ -1690,7 +1696,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot bot-grants` 列出持有 App 管理授权的 Bot，返回 `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }] }`；只有 Host Owner 本人的 `editable` 为 true；Team 成员只得到 `tobSlug`、空列表和 `editable: false`。Host Owner 本人运行 `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off`，为自己拥有的活跃 Bot 打开或关闭“管理 App”或“管理其他 Bot”；`on` 需要 `--confirm`。结果为 `{botSlug, capabilities, changed, noAppManager}`。该 Bot 自己的 Human DM 会收到系统提示，下一轮 Human DM 对话会收到一行 `[Host timeline]`，不修改系统提示词。CLI broker 以 `cli-command-refused` 拒绝 `bot-grant`，Team 成员的 CLI 收到 `remote-access/denied`。见 [Tob 决策 §11](decisions/tob.md#app-management-grant)。
+`deepseekbot bot-grants` 列出持有 App 管理授权的 Bot，返回 `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true, "memberBot": false }`；Host Owner 本人，以及角色持有 Owner 授予的 `bots.manageGrants` 的成员，`editable` 为 true；其他 Team 成员只得到 `tobSlug`、空列表和 `editable: false`。调用者是成员而非 Owner 时 `memberBot` 为 true：成员的 Bot 打开“管理 App”后只能创建 Bot、分享 Bot 草稿，不能改设置、模型和诊断。Host Owner 本人或上述成员运行 `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off`，为自己拥有的活跃 Bot 打开或关闭“管理 App”或“管理其他 Bot”；`on` 需要 `--confirm`。结果为 `{botSlug, capabilities, changed, noAppManager}`。该 Bot 自己的 Human DM 会收到系统提示，下一轮 Human DM 对话会收到一行 `[Host timeline]`，不修改系统提示词。CLI broker 以 `cli-command-refused` 拒绝 `bot-grant`，Team 成员的 CLI 收到 `remote-access/denied`。见 [Tob 决策 §11](decisions/tob.md#app-management-grant)。
 
 `deepseekbot tob-home` 幂等准备本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
@@ -2454,6 +2460,8 @@ deepseekbot roles catalog
 deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles update <roleId> --deny channels.create
+deepseekbot roles effective bob
 deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
 deepseekbot members roles bob --set member,<roleId>
@@ -2461,6 +2469,8 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+`--deny` 列出该角色拒绝的权限。成员任一角色拒绝即覆盖其他角色的允许；同一角色不能同时允许和拒绝同一权限。`roles effective [<username>]` 列出每项权限是已授予、已拒绝还是未设，以及来源角色；省略用户名时显示自己的。
 
 `members reset-password <username> --initial-password-file <path>` 需要 `members.manage`，且调用者的权限覆盖目标角色的全部权限；Admin 目标仅限 Owner。用于恢复已创建但丢失一次性密码的成员。命令写入新的私密密码文件，要求再次改密，并撤销该成员的授权；已有输出文件会被拒绝。拒绝码包括 `owner-protected`、`member-not-found`。提交后的文件写入失败返回 `initial-password-recovery-required`；请使用新的输出路径重试恢复。
 

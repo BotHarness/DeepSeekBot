@@ -89,6 +89,7 @@ export const RULES = [
   full('patches/**', 'Dependency patches'),
   full('.node-version', 'Node version'),
   full('vitest.config.ts', 'Test runner config'),
+  full('apps/mobile/vitest.config.mts', 'Mobile test runner config'),
   full('tsconfig.json', 'Root TypeScript config'),
   full('*/*/tsconfig.json', 'Package TypeScript configs'),
   full('tsdown*.config.ts', 'Bundle configs'),

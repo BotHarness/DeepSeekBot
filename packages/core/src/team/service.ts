@@ -400,6 +400,7 @@ export class TeamService {
     };
   }
 
+  readonly publicOrigins = async () => (await this.devices?.routes()) ?? [];
   bindDevices(devices: NonNullable<TeamService['devices']>): () => void {
     this.devices = devices;
     return () => {

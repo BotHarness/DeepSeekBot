@@ -122,6 +122,7 @@ export function guardHumanBridge(
             'reachableBots',
             'botProactiveOptOut',
             'roleConflicts',
+            'memberPermissions',
             'speakerPolicy',
           ].includes(property)
         )

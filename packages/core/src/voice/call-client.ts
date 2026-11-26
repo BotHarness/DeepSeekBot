@@ -154,6 +154,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
   let beating = false;
   let unsubscribe: (() => void) | undefined;
   let disposed = false;
+  let muting: Promise<void> = Promise.resolve();
 
   const status = (): CallClientState['status'] => state.status;
   const set = (next: CallClientState) => {
@@ -340,10 +341,14 @@ export function createCallClient(options: CallClientOptions): CallClient {
       muted = next;
       options.media.mute(next);
       live();
-      try {
-        const result = await options.post({ kind: 'mute', callId: call.callId, muted: next });
+      const callId = call.callId;
+      const sending = muting.then(async () => {
+        if (status() !== 'live' || call?.callId !== callId) return;
+        const result = await options.post({ kind: 'mute', callId, muted: next });
         if (result.ok) absorb(result.call);
-      } catch {}
+      });
+      muting = sending.catch(() => undefined);
+      await muting;
       if (status() === 'live') live();
     },
     async visual(source, change) {

@@ -15,6 +15,7 @@ import type { TeamChannels } from './channels.js';
 import { TeamError } from './error.js';
 import { PrivateAudit } from './audit.js';
 import { botOwner } from './bot-access.js';
+import { roleGrantedPermissionsSql } from './host-permissions.js';
 import {
   auditListSchema,
   privateListSchema,
@@ -139,8 +140,8 @@ export class TeamPrivateContent {
               .prepare(`SELECT h.human_id FROM humans h CROSS JOIN team_settings s
         WHERE ${scope} (
           h.human_id = s.owner_human_id OR EXISTS (
-            SELECT 1 FROM human_roles m JOIN host_roles r USING(role_id), json_each(r.permissions_json) p
-            WHERE m.human_id = h.human_id AND p.value NOT IN (SELECT value FROM json_each(?))))`)
+            SELECT 1 FROM (${roleGrantedPermissionsSql('h.human_id')}) p
+            WHERE p.value NOT IN (SELECT value FROM json_each(?))))`)
               .all(...bindings),
           ),
         )

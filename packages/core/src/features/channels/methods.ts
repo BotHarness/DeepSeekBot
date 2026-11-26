@@ -12,7 +12,7 @@ import {
   unavailable,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { MAX_CHANNEL_QUOTES, quoteTextMatches } from '../../channels/quotes.js';
 import type { TeamChannels } from '../../team/channels.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';

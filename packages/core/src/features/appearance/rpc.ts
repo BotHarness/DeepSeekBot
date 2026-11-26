@@ -1,8 +1,8 @@
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import { LiveRefused } from '../../channels/live-frames.js';
 import type { CompanionLiveFrame } from '../../companions/live.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { BotModesView } from './methods.js';
 import type { BotModeBridgeMethods } from './methods.js';
 

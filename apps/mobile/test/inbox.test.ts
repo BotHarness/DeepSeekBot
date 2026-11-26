@@ -24,6 +24,7 @@ import {
 } from '@botharness/host-client/requests';
 import type { HumanAttentionItem, QuestionItem } from '@botharness/host-protocol/wire';
 import { t } from '../src/ui/strings';
+import { shellScopeErrorText } from '../src/ui/chat/shell-scope-actions';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { messageHref, unreadHref } from '@botharness/host-client/push';
 import hostWire from '../../../packages/host-client/test/fixtures/host-wire.json';
@@ -405,6 +406,51 @@ describe('Tool approval', () => {
       status: 'decided',
       outcome: 'allowed-once',
     });
+  });
+
+  it('reads Shell suggestions and saves a prefix rule with its patterns', async () => {
+    const fake = host();
+    const target = connect(fake);
+    const shellSuggestions = {
+      exact: 'git status -s',
+      compound: false,
+      unparseable: false,
+      subcommands: [
+        { exact: 'git status -s', oneWordPrefix: 'git *', twoWordPrefix: 'git status *' },
+      ],
+    };
+    fake.answers.set('toolApprovalStatus', () => ({
+      ok: true,
+      value: { status: 'pending', shellSuggestions },
+    }));
+    expect(await loadApproval(target, approval)).toMatchObject({ shellSuggestions });
+    const decided: Array<Record<string, unknown>> = [];
+    fake.answers.set('toolApprovalDecide', (args) => {
+      decided.push(args);
+      return recorded('toolApprovalDecide.accepted');
+    });
+    const rule = { kind: 'prefix' as const, patterns: ['git status *'] };
+    expect(await decideApproval(target, approval, 'allowed-always-prefix', 'app', rule)).toBe(
+      'accepted',
+    );
+    expect(decided[0]).toEqual({ ...pick(approval), outcome: 'allowed-always-prefix', rule });
+  });
+
+  it('keeps the Host prefix error code so the sheet can explain it', async () => {
+    const fake = host();
+    const target = connect(fake);
+    fake.answers.set('toolApprovalDecide', () => ({
+      ok: false,
+      error: {
+        code: 'unsafe-shell-prefix-runner',
+        message: 'This prefix would allow arbitrary code through a command runner.',
+      },
+    }));
+    const failure = await decideApproval(target, approval, 'allowed-always-prefix', 'app', {
+      kind: 'prefix',
+      patterns: ['bash *'],
+    }).catch((error: unknown) => error);
+    expect(shellScopeErrorText(failure)).toBe(t.shellScope.unsafeRunner);
   });
 
   it('reports an approval that expired without a decision', async () => {

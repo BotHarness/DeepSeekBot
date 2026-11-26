@@ -1236,6 +1236,14 @@
       "sha256": "dd494da2928ceac643a8efb3e1eff45bc1ad192d01baa99316d8eb652814a4d1"
     },
     {
+      "path": "scripts/e2e-mobile-shell-scope-keyboard.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.approval.three-actions"],
+      "reason": "On a prepared Android emulator with a real IME and a pending Shell approval, opens Custom from the scope menu and verifies keyboard visibility and prefix field focus.",
+      "task": 5459,
+      "sha256": "ca43c2b10fb690e7546ee5c1e84c37c143a14e1e71a53eff6aa15f862d7ddd9e"
+    },
+    {
       "path": "scripts/e2e-workspace-request-write.mjs",
       "category": "mapped",
       "behaviors": ["desktop.grants.request-write-continue"],

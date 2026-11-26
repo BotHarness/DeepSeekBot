@@ -66,6 +66,8 @@ import {
   readAvatarPublishBody,
 } from './avatars.js';
 import { logLine, logWorker } from './worker-log.js';
+import { handleSkillRoute, isSkillRoute } from './skill-routes.js';
+import { createMarketSkills, type MarketSkills } from './skills.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -91,6 +93,7 @@ export interface MarketHandlerDeps {
   digests?: Digests | undefined;
   uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
   avatars?: ReturnType<typeof createMarketAvatars> | undefined;
+  skills?: MarketSkills | undefined;
 }
 
 export interface MarketOptions {
@@ -188,6 +191,19 @@ export function createMarketHandler(
 
   const route = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
+    if (isSkillRoute(url.pathname))
+      return handleSkillRoute(request, {
+        skills: deps.skills,
+        protection,
+        admin: async (incoming) => {
+          const given = /^Bearer (.+)$/u.exec(incoming.headers.get('authorization') ?? '')?.[1];
+          return (
+            deps.adminToken !== undefined &&
+            given !== undefined &&
+            (await sameSecret(given, deps.adminToken))
+          );
+        },
+      });
     const appliedAvatarId = AVATAR_APPLY_ROUTE.exec(url.pathname)?.[1];
     if (appliedAvatarId !== undefined) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
@@ -698,6 +714,7 @@ export function handlerForEnv(
     rankings: createRankings({ db, now }),
     digests: createDigests({ db }),
     avatars: bucket === undefined ? undefined : createMarketAvatars({ db, bucket, now }),
+    skills: createMarketSkills({ db, github, now }),
     uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }
@@ -807,6 +824,35 @@ export async function runScheduled(
       ...report,
     }),
   );
+  if (phase === 'discovery') {
+    const skillsStarted = Date.now();
+    try {
+      const skills = await createMarketSkills({
+        db: env.MARKET_DB,
+        github,
+        now,
+      }).discover();
+      log(
+        JSON.stringify({
+          module: 'marketplace-worker',
+          initiator: 'scheduled',
+          phase: 'skills',
+          durationMs: Date.now() - skillsStarted,
+          ...skills,
+        }),
+      );
+    } catch (error) {
+      log(
+        JSON.stringify({
+          module: 'marketplace-worker',
+          initiator: 'scheduled',
+          phase: 'skills',
+          durationMs: Date.now() - skillsStarted,
+          failed: error instanceof Error ? error.message : 'unknown',
+        }),
+      );
+    }
+  }
   if (phase !== 'refresh') return;
   if (summarizer === undefined) {
     log(

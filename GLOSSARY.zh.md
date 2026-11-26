@@ -53,7 +53,7 @@ _避免使用_：会议机器人、会议 Session、录音
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
-Tob 模式。手机端从 Chats 上的 Tob 入口栏打开的 Tob DM 普通 Conversation screen。与点击 Tob 行相比只是入口和过渡动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。入口的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。 它将由 Pinned tab 取代（#5191）。
+已停用（Tob 决策 §2，#5198）。从 Tob 入口栏打开 Tob DM 的手机入口已由 **Pinned tab** 取代；Tob DM 与其他对话一样，从 Chats 行或 Pinned tab 打开。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：
@@ -528,6 +528,14 @@ _避免使用_：install、download、subscribe
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
 
+**Indexed Skill Repository**：
+带有 `tobs-skill` topic 的公开 GitHub 仓库，或由管理员手动收录的仓库；Marketplace 把其中每个 `SKILL.md` 文件夹列为 Marketplace Skill，并定期刷新。
+_避免使用_：skill pack、skill source、plugin repository
+
+**Marketplace Skill**：
+Indexed Skill Repository 中的一个 `SKILL.md` 文件夹，以 Marketplace 最近读取的 commit 上架，附带其脚本和安全扫描结果。添加时把该文件夹复制到所选 PersonaBot 的 Memory Repository 作为 Project Skill，或复制到 Host 作为 Host Skill；上游之后的改动不会影响这份副本。
+_避免使用_：plugin、connector、应用连接、extension、Skill install
+
 **Uploaded Bot**：
 已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
 _避免使用_：Listing、Version、SoulSnapshot、publication
@@ -635,7 +643,7 @@ Host Member 向 Host 证明身份的一种方式，与身份本身分离；首�
 _避免使用_：session、账号、设备授权
 
 **Host Role**：
-分配给 Host Member 的一组具名 Host Permission，同一成员的多个角色取并集；内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
+分配给 Host Member 的一组具名 Host Permission，每项可设为允许、拒绝或未设；成员持有其各角色允许项的并集，再减去任一角色拒绝的权限。内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
 _避免使用_：group、Channel 角色、pairing Role
 
 **Host Permission**：
@@ -1298,11 +1306,11 @@ Session 导航方式。手机本地偏好，决定 Sessions tab 怎样在 Sessio
 _避免使用_：Session 模式、布局模式
 
 **Tob entry bar**：
-Tob 入口栏。Chats 上 tab island 上方、长得像 Composer 的点击区域，点击打开 Tob Mode。它只是入口，不能在原地输入。 它将由 Pinned tab 取代（#5191）。
+已停用（Tob 决策 §2，#5198）。Chats 上长得像 Composer 的点击区域已由 **Pinned tab** 取代；Chats 不再有 Composer 形状的栏。
 _避免使用_：Tob 输入框、快捷输入框、下拉进 Tob
 
 **Pinned tab**：
-固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定内置 Tob 的 DM（没有时用最近的对话），跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。
+固定对话 tab（#5191、#5195）。手机端 tab 栏中的一个位置，每个 Environment 绑定一个对话（Bot DM、Channel 或真人 DM），显示其头像和未读数，点击作为独立 tab 打开。默认绑定内置 Tob 的 DM（没有时用最近的对话），跟随 Environment Scope，取代 Tob 入口栏与 Tob 模式。在 设置 → 标签栏 中可拖动调整 tab 顺序，并为当前 Environment 选择绑定的对话（#5196）。
 _避免使用_：Tob tab、收藏、快捷 tab
 
 **Settings**：

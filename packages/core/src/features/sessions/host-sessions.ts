@@ -29,7 +29,7 @@ import {
   invalidInput,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { normalizeWorkspaceLook } from '../../workspaces/workspace-looks.js';
 import { isAbsolute } from 'node:path';
 import type { HumanContext } from '../../humans/context.js';

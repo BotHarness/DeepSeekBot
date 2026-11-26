@@ -7,7 +7,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import {
   isMarketplaceAvatarRanking,
   parseMarketplaceAvatarEdit,
@@ -78,6 +78,11 @@ import { isPersonaBotAvatar } from '../../bots/persona-bot.js';
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { createMarketplaceAvatarApply } from './avatar-apply.js';
+import {
+  createMarketplaceSkillMethods,
+  type MarketplaceSkillBridgeDeps,
+  type MarketplaceSkillBridgeMethods,
+} from './skill-add.js';
 
 function avatarManagementRefused(): BridgeResult<never> {
   return {
@@ -89,7 +94,7 @@ function avatarManagementRefused(): BridgeResult<never> {
   };
 }
 
-export interface MarketplaceBridgeMethods {
+export interface MarketplaceBridgeMethods extends MarketplaceSkillBridgeMethods {
   zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
@@ -155,7 +160,7 @@ export interface MarketplaceBridgeMethods {
   >;
 }
 
-export interface MarketplaceBridgeDeps {
+export interface MarketplaceBridgeDeps extends MarketplaceSkillBridgeDeps {
   zipImports?: BotZipImportService;
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
@@ -240,6 +245,7 @@ export function createMarketplaceBridgeMethods(
       | 'tob'
       | 'team'
       | 'marketplaceReceipts'
+      | 'skills'
     >,
   globalRegistry: BridgeMethodsDeps['registry'],
   isHostOwner: () => boolean,
@@ -546,6 +552,7 @@ export function createMarketplaceBridgeMethods(
         isHostOwner,
         marketplaceCall,
       ),
+      ...createMarketplaceSkillMethods(human, deps, isHostOwner),
       marketplaceAvatarList(payload) {
         const { cursor, q, tag, sort } = asObject(payload);
         if (
@@ -918,6 +925,7 @@ export function createMarketplaceBridgeMethods(
       MarketplaceBridgeMethods,
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
+      | keyof MarketplaceSkillBridgeMethods
       | 'marketplaceAvatarList'
       | 'marketplaceAvatarTags'
       | 'marketplaceAvatarDetail'

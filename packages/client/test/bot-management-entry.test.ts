@@ -103,6 +103,23 @@ describe('Bot management entry', () => {
     expect(box.textContent).toContain('现在没有 Bot 能管理 App');
   });
 
+  it('describes Manage the App on a member Bot as creating and sharing Bots only', async () => {
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { editable: true, memberBot: true, holders: [] },
+    })) as unknown as BridgeCall;
+    const box = await mount(call);
+    const row = box.querySelector('[data-bot-management-row="manage-app"]')!;
+    expect(row.textContent).toContain('替你创建 Bot、分享 Bot 草稿');
+    expect(row.textContent).not.toContain('替你改设置');
+    await act(async () => toggle(box, 'manage-app').click());
+    expect(document.body.textContent).toContain('让这个 Bot 替你创建 Bot？');
+    expect(document.body.textContent).toContain('仍然只有 Owner 能改');
+    expect(box.querySelector('[data-bot-management-row="manage-bots"]')!.textContent).toContain(
+      '其他 Bot 的资料和 Memory',
+    );
+  });
+
   it('shows no switches to anyone but the Owner', async () => {
     const call = vi.fn(async () => ({
       ok: true as const,

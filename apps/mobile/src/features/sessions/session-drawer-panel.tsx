@@ -23,7 +23,7 @@ import {
 } from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
 import { SessionDrawerEnvironmentChip } from './session-drawer-environment-chip';
-import { SessionDrawerNewButton } from './session-drawer-new-button';
+import { SessionDrawerFooterActions } from './session-drawer-footer-actions';
 import { EdgeBar, edgeBars } from './session-drawer-edge';
 import { ActivitySearchIcon, PencilIcon } from '../../ui/shell/icons';
 import { useStrings } from '../../ui/strings';
@@ -74,6 +74,7 @@ export function SessionDrawerPanel({
   const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
   const floating = !page && edgeBars;
+  const compactFooter = floating || Platform.OS === 'android';
   const [headerHeight, setHeaderHeight] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
   const hideChrome = useHideChromeOnScroll(page && !searching);
@@ -283,46 +284,40 @@ export function SessionDrawerPanel({
                   paddingBottom: Math.max(windowInsets.bottom, space.x4),
                 }}
               >
-                {floating && !searching ? (
-                  <>
-                    <NavigationAction
-                      search
-                      size={theme.touch}
-                      label={t.search}
-                      testID="session-drawer-search"
-                      disabled={!query.canQuery}
-                      onPress={() => {
-                        if (query.canQuery) setSearching(true);
-                      }}
-                    />
-                    {canCreate ? null : <View style={{ flex: 1 }} />}
-                  </>
+                {compactFooter && !searching ? (
+                  <SessionDrawerFooterActions
+                    searchLabel={t.search}
+                    createLabel={t.create}
+                    canSearch={query.canQuery}
+                    canCreate={canCreate}
+                    onSearch={() => setSearching(true)}
+                    onCreate={onNew}
+                  />
                 ) : (
-                  <View style={{ flex: 1 }}>{searchBlock}</View>
+                  <>
+                    <View style={{ flex: 1 }}>{searchBlock}</View>
+                    {canCreate && !searching ? (
+                      <Pressable
+                        testID="session-drawer-new"
+                        accessibilityRole="button"
+                        accessibilityLabel={t.create}
+                        onPress={onNew}
+                        style={({ pressed }) => ({
+                          width: theme.touch,
+                          height: theme.touch,
+                          borderRadius: radius.round,
+                          overflow: 'hidden',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: theme.color.fg,
+                          opacity: pressed ? glassPress.dim : 1,
+                        })}
+                      >
+                        <PencilIcon color={theme.color.base} size={theme.type.title.line} />
+                      </Pressable>
+                    ) : null}
+                  </>
                 )}
-                {canCreate && !searching && floating ? (
-                  <SessionDrawerNewButton label={t.create} onPress={onNew} />
-                ) : canCreate && !searching ? (
-                  <Pressable
-                    testID="session-drawer-new"
-                    accessibilityRole="button"
-                    accessibilityLabel={t.create}
-                    onPress={onNew}
-                    android_ripple={{ color: pressTint(theme.color.base), foreground: true }}
-                    style={({ pressed }) => ({
-                      width: theme.touch,
-                      height: theme.touch,
-                      borderRadius: radius.round,
-                      overflow: 'hidden',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: theme.color.fg,
-                      opacity: pressed ? glassPress.dim : 1,
-                    })}
-                  >
-                    <PencilIcon color={theme.color.base} size={theme.type.title.line} />
-                  </Pressable>
-                ) : null}
               </View>
             </EdgeBar>
           </FooterKeyboard>

@@ -1,4 +1,4 @@
-import { invalidInput } from '../../bridge/method-utils.js';
+import { invalidInput } from '../../kernel/method-utils.js';
 import { isPresetSub, type PresetSub } from '../../models/preset-sub.js';
 import {
   isAssignmentGroupOption,

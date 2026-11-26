@@ -21,8 +21,8 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
-import { sessionTarget } from '../../bridge/session-target.js';
+} from '../../kernel/method-utils.js';
+import { sessionTarget } from '../../kernel/session-target.js';
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { type RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';

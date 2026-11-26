@@ -32,6 +32,8 @@ export const ROW_ICON_SOURCES: Record<
   delivery: require('../../../assets/row-icons/delivery.xml'),
   sessions: require('../../../assets/toolbar/sessions.xml'),
   scrollBars: require('../../../assets/row-icons/scrollBars.xml'),
+  tabBar: require('../../../assets/row-icons/tabBar.xml'),
+  pin: require('../../../assets/row-icons/stay.xml'),
   sendJump: require('../../../assets/row-icons/sendJump.xml'),
   messageDisplay: require('../../../assets/row-icons/messageDisplay.xml'),
   streaming: require('../../../assets/row-icons/streaming.xml'),

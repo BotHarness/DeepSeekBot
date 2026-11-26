@@ -49,9 +49,7 @@ export class DshBotAgentAdapterState {
   readonly turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly promptText: (sessionId: string) => PromptText;
   readonly hasSession: DshBotAgentAdapterOptions['hasSession'];
-  readonly onGenuiDiagnostic: DshBotAgentAdapterOptions['onGenuiDiagnostic'];
-  readonly genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
-  readonly genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
+  readonly featureContributions: NonNullable<DshBotAgentAdapterOptions['featureContributions']>;
   readonly orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPresetOf: () => string | undefined;
   readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
@@ -116,9 +114,7 @@ export class DshBotAgentAdapterState {
     readonly runsOnEngine: (botSlug: string, role?: 'orchestrator' | 'assignment') => boolean,
   ) {
     this.tobCliInvocation = options.tobCliInvocation ?? new ModelFreeTobCliInvocation();
-    this.onGenuiDiagnostic = options.onGenuiDiagnostic;
-    this.genuiPreviewBrowserPath = options.genuiPreviewBrowserPath;
-    this.genuiAttachmentContext = options.genuiAttachmentContext;
+    this.featureContributions = options.featureContributions ?? [];
     this.agents = options.agents;
     this.defaultModel = options.defaultModel;
     this.resolveModelPlan = options.resolveModelPlan;

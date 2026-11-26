@@ -5,7 +5,7 @@ import {
   unknownBot,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import {
   assertQuoteTargets,
   ChannelQuoteError,
@@ -22,7 +22,7 @@ import {
   AllBotPreviewChangedError,
   type AllBotMention,
 } from '../../channels/all-bot-mention.js';
-import { AssignmentReplyTargetError } from '../../runtime/assignment-human-context.js';
+import { AssignmentReplyTargetError } from '../../channels/assignment-reply.js';
 import { attachmentIntent } from '../../attachments/ref.js';
 import { randomUUID } from 'node:crypto';
 import {

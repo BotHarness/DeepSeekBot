@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { resolveGrants } from '../authorization/grants.js';
+import { hostPermissionHolderSql } from '../team/host-permissions.js';
+import type { HostPermission } from '../team/permissions.js';
 
 export const MANAGEMENT_CAPABILITIES = ['manage-app', 'manage-bots'] as const;
 export type ManagementCapability = (typeof MANAGEMENT_CAPABILITIES)[number];
@@ -12,20 +14,12 @@ export function isManagementCapability(value: unknown): value is ManagementCapab
 
 const GrantRow = z.object({ botSlug: z.string().min(1), capability: z.string() });
 
-export const MANAGE_GRANTS_PERMISSION = 'bots.manageGrants';
-
-const AUTHORIZED_HUMAN_SQL = (
-  human: string,
-) => `(${human} = s.owner_human_id OR (s.enabled = 1 AND EXISTS (
-    SELECT 1 FROM humans h JOIN human_roles m ON m.human_id = h.human_id
-    JOIN host_roles r ON r.role_id = m.role_id, json_each(r.permissions_json) p
-    WHERE h.human_id = ${human} AND h.status = 'active' AND p.value = '${MANAGE_GRANTS_PERMISSION}')))`;
+export const MANAGE_GRANTS_PERMISSION = 'bots.manageGrants' satisfies HostPermission;
 
 const GRANT_HOLDERS_SQL = `
   SELECT g.bot_slug AS botSlug, g.capability FROM bot_management_grants g
   JOIN persona_bots b ON b.slug = g.bot_slug
-  CROSS JOIN team_settings s
-  WHERE ${AUTHORIZED_HUMAN_SQL('b.owner_human_id')}
+  WHERE ${hostPermissionHolderSql('b.owner_human_id', MANAGE_GRANTS_PERMISSION)}
     AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = g.bot_slug)
     AND COALESCE(json_extract(b.body, '$.paused'), 0) = 0`;
 
@@ -50,8 +44,8 @@ export function canManageGrants(database: OperationalDatabaseModulePort, humanId
   return database.read(
     (db) =>
       db
-        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('?')}`)
-        .get(humanId, humanId) !== undefined,
+        .prepare(`SELECT ${hostPermissionHolderSql('$humanId', MANAGE_GRANTS_PERMISSION)} AS ok`)
+        .get({ $humanId: humanId })?.['ok'] === 1,
   );
 }
 

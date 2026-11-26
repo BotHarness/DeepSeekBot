@@ -328,9 +328,12 @@ function Post({
     return {
       approval: {
         load: () => loadApproval(client, stableRef),
-        decide: (outcome: Parameters<typeof decideApproval>[2]) => {
+        decide: (
+          outcome: Parameters<typeof decideApproval>[2],
+          rule?: Parameters<typeof decideApproval>[4],
+        ) => {
           connected();
-          return decideApproval(client, stableRef, outcome);
+          return decideApproval(client, stableRef, outcome, 'app', rule);
         },
       },
       preset: approvalPresetPort(client, botSlug, false),

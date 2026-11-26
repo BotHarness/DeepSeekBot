@@ -1,5 +1,6 @@
 import { Form, Host, RNHostView, Section, VStack } from '@expo/ui/swift-ui';
 import {
+  environment,
   listRowBackground,
   listRowInsets,
   scrollContentBackground,
@@ -14,7 +15,7 @@ import { SettingsFormContext, useSettingsFormPlace } from './settings-form-conte
 import { SystemSheet } from './system-sheet';
 import type { SettingsFormProps } from './settings-form';
 
-export function SettingsForm({ header, testID, children }: SettingsFormProps) {
+export function SettingsForm({ header, testID, reordering, children }: SettingsFormProps) {
   const theme = useDesignTheme();
   const tabInset = useFloatingTabInset();
   const fill = useContext(SystemSheet) ? undefined : theme.overlay.fill;
@@ -22,7 +23,11 @@ export function SettingsForm({ header, testID, children }: SettingsFormProps) {
     <Host style={{ flex: 1, backgroundColor: fill }} colorScheme={theme.scheme}>
       <Form
         {...(testID === undefined ? {} : { testID })}
-        modifiers={[scrollContentBackground('hidden'), tint(theme.color.accent)]}
+        modifiers={[
+          scrollContentBackground('hidden'),
+          tint(theme.color.accent),
+          ...(reordering === true ? [environment('editMode', 'active')] : []),
+        ]}
       >
         <SettingsFormContext.Provider value="form">
           {children}

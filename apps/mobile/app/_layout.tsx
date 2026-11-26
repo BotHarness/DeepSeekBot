@@ -101,6 +101,8 @@ function RootNavigator() {
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
     ['activity-count', t.activityCountSettings.title],
+    ['tab-bar', t.tabBarSettings.title],
+    ['pinned-conversation', t.tabBarSettings.pickerTitle],
     ['chat-background', t.chatBackground.global],
   ];
   const profileListeners = swipeEntryListeners(

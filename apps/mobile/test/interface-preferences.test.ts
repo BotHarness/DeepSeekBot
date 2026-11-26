@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInterfacePreferences, preferredLanguage } from '../src/ui/interface-preferences';
 
 describe('phone interface preferences', () => {
+  it('starts in English when the test uses the system language', () => {
+    expect(createInterfacePreferences().getSnapshot()).toMatchObject({
+      language: 'system',
+      locale: 'en',
+    });
+  });
+
   it('remembers Session sort across device preference restores', async () => {
     let stored: unknown = { sessionsTab: true };
     const storage = {

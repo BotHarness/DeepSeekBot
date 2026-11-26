@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { TelemetryStatus } from '../../telemetry/service.js';
 import type { GitStatus } from '../../memory/managed-git.js';
 import type { DiagnosticsAdapterMethods } from './methods.js';

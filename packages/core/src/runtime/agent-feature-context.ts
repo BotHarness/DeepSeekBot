@@ -1,0 +1,41 @@
+import type { Context } from '@deepseek-ai/cordis';
+import type { FeatureContribution } from '../kernel/feature-contribution.js';
+import type { PromptText } from '../prompts/prompt-parts.js';
+import type { OrchestratorAgentRun } from './bot-runtime.js';
+
+export interface AgentFeatureContext {
+  readonly agentContext: Pick<Context, 'get'>;
+  readonly botSlug: string;
+  readonly currentRun: () => OrchestratorAgentRun | undefined;
+  readonly promptText: () => PromptText;
+}
+
+export type AgentFeatureContribution = Pick<
+  FeatureContribution<never, AgentFeatureContext>,
+  'id' | 'promptSections' | 'tools'
+>;
+
+export function agentFeatureContext(
+  adapter: {
+    runs: Pick<
+      ReadonlyMap<
+        string,
+        { role: 'orchestrator'; run: OrchestratorAgentRun } | { role: 'assignment' }
+      >,
+      'get'
+    >;
+    promptText(sessionId: string): PromptText;
+  },
+  run: OrchestratorAgentRun,
+  agentContext: AgentFeatureContext['agentContext'],
+): AgentFeatureContext {
+  return {
+    agentContext,
+    botSlug: run.bot.slug,
+    currentRun: () => {
+      const current = adapter.runs.get(run.sessionId);
+      return current?.role === 'orchestrator' ? current.run : undefined;
+    },
+    promptText: () => adapter.promptText(run.sessionId),
+  };
+}

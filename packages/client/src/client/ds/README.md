@@ -11,6 +11,7 @@ Generated from exported components and [catalogue.json](catalogue.json) by `pnpm
 - [CatalogGrid](catalog-grid.tsx) replaces hand-built multi-column grids of browsable catalog items.
 - [Checkbox](checkbox.tsx) replaces raw checkboxes and one-off checkmark styling.
 - [ChipButton](chip-button.tsx) replaces hand-styled compact chip actions.
+- [ChipTabs](chip-tabs.tsx) replaces tab rows that overflow a narrow Panel, and hand-built scrolling chip navigation.
 - [ChoiceButton](choice-button.tsx) replaces custom clickable option cards with local selection styles.
 - [ColorInput](input.tsx) replaces hand-styled colour input controls.
 - [ComposerControl](chat-chrome.tsx) replaces hand-styled action controls beside the message composer.

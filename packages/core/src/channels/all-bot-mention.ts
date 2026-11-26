@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
+import type { BridgeErrorPreview } from '../kernel/method-utils.js';
 import type { ChannelRecord, ChannelMention } from './channel.js';
 
-export interface AllBotPreview {
-  revision: string;
-  recipients: Array<{ botSlug: string; label: string }>;
-}
+export type AllBotPreview = BridgeErrorPreview;
 export interface AllBotMention {
   start: number;
   end: number;

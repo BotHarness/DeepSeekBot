@@ -46,6 +46,7 @@ export function createHostBridgeDependencies(
   ctx: Context,
   deps: {
     core: BotHarnessCore;
+    featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
     skills: ReturnType<typeof skillsFeature.apply>;
     release: ReturnType<typeof releaseFeature.apply>['release'];
@@ -83,6 +84,8 @@ export function createHostBridgeDependencies(
     marketplaceClient: ReturnType<typeof marketplace.apply>['marketplaceClient'];
     marketplaceUploads: ReturnType<typeof marketplace.apply>['marketplaceUploads'];
     shareDrafts: ReturnType<typeof marketplace.apply>['shareDrafts'];
+    marketplaceSkillSource: ReturnType<typeof marketplace.apply>['marketplaceSkillSource'];
+    hostSkillsDir: string;
     dshHome: string;
     reviewing: Set<string>;
     telemetryDir: string;
@@ -131,6 +134,8 @@ export function createHostBridgeDependencies(
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,
@@ -143,6 +148,12 @@ export function createHostBridgeDependencies(
     developerMode,
   } = deps;
   const { botModeSettings, productBotMode, installedBotModes, botModeOf } = botModes;
+  const marketplaceReceipts = marketplace.createReceipts(
+    ctx,
+    marketplaceClient,
+    telemetryDir,
+    marketplaceSkillSource,
+  );
   return {
     team,
     skills: skills.catalog,
@@ -374,6 +385,7 @@ export function createHostBridgeDependencies(
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    featureContributions: deps.featureContributions,
     takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
@@ -396,7 +408,13 @@ export function createHostBridgeDependencies(
       marketplaceUploads,
     }),
     shareDrafts,
-    marketplaceReceipts: marketplace.createReceipts(ctx, marketplaceClient, telemetryDir),
+    marketplaceReceipts,
+    marketplaceSkills: {
+      source: marketplaceSkillSource,
+      hostSkillsDir,
+      receipt: (skillId: string, target: string) =>
+        void marketplaceReceipts.sendSkill?.(skillId, target).catch(() => undefined),
+    },
     release: releaseService,
     plugins: pluginUpdates,
     updates: updateRuns,

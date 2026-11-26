@@ -189,7 +189,7 @@ interface PendingLogin {
   expiresAt: number;
 }
 
-const LOGIN_TTL_MS = 15 * 60_000;
+const LOGIN_TTL_MS = 60 * 60_000;
 const REJECTED: ReadonlySet<string> = new Set([
   'invalid_grant',
   'invalid_client',
@@ -243,7 +243,7 @@ export class RemoteMcpConnectors {
   readonly #store: ConnectorStore;
   readonly #credentials: () => Credentials | undefined;
   readonly #client: RemoteMcpClient;
-  readonly #redirectUri: () => string | undefined;
+  readonly #redirectUri: () => string | undefined | Promise<string | undefined>;
   readonly #changed: () => void;
   readonly #log: (phase: string, fields?: Record<string, string | number>) => void;
   readonly #pending = new Map<string, PendingLogin>();
@@ -257,7 +257,7 @@ export class RemoteMcpConnectors {
     store: ConnectorStore;
     credentials: () => Credentials | undefined;
     client?: RemoteMcpClient;
-    redirectUri: () => string | undefined;
+    redirectUri: () => string | undefined | Promise<string | undefined>;
     changed: () => void;
     log?: (phase: string, fields?: Record<string, string | number>) => void;
   }) {
@@ -412,7 +412,7 @@ export class RemoteMcpConnectors {
       this.#changed();
       return { account: active };
     }
-    const redirectUri = this.#requireRedirect();
+    const redirectUri = await this.#requireRedirect();
     const client = await this.#clientFor(oauth, redirectUri);
     this.#claim(service, url);
     this.#saveServer(service, name, url, input.icon);
@@ -438,7 +438,7 @@ export class RemoteMcpConnectors {
       this.#changed();
       return { account: active };
     }
-    const redirectUri = this.#requireRedirect();
+    const redirectUri = await this.#requireRedirect();
     const client = await this.#clientFor(oauth, redirectUri);
     const pending = this.#store.updateAccount(accountId, { status: 'pending', identity: null })!;
     const url = await this.#begin(accountId, oauth, client, redirectUri);
@@ -752,8 +752,8 @@ export class RemoteMcpConnectors {
     });
   }
 
-  #requireRedirect(): string {
-    const redirect = this.#redirectUri();
+  async #requireRedirect(): Promise<string> {
+    const redirect = await this.#redirectUri();
     if (redirect === undefined)
       throw new RemoteMcpError('upstream', 'The Host web address is not ready yet; try again.');
     return redirect;

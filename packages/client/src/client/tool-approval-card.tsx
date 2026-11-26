@@ -28,6 +28,11 @@ import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 import { ApprovalPresetPicker } from './approval-preset-picker.js';
 import type { TemplateActions } from './approval-template-entry.js';
+import { shellScopeErrorText, useShellScopeMenu } from './shell-approval-scope-menu.js';
+import type {
+  ShellPrefixApproval,
+  WireShellApprovalSuggestions,
+} from '@botharness/host-protocol/wire';
 
 function sourceBlockSentence(
   toolName: string,
@@ -126,6 +131,7 @@ export function ToolApprovalCard({
   const [executionState, setExecutionState] = useState<ToolApprovalExecutionState | undefined>();
   const [retry, setRetry] = useState(0);
   const [expiresAt, setExpiresAt] = useState<string>();
+  const [shellSuggestions, setShellSuggestions] = useState<WireShellApprovalSuggestions>();
   const [now, setNow] = useState(() => Date.now());
   const target = useRef(companionTarget);
   target.current = companionTarget;
@@ -173,6 +179,7 @@ export function ToolApprovalCard({
             status,
             expiresAt: undefined,
             execution: undefined,
+            shellSuggestions: undefined,
           })));
         if (!active) return;
         loaded = true;
@@ -185,6 +192,7 @@ export function ToolApprovalCard({
               : snapshot.status,
           );
           setExpiresAt(snapshot.expiresAt);
+          setShellSuggestions(snapshot.shellSuggestions);
         }
         if (
           snapshot.status !== 'pending' &&
@@ -258,8 +266,11 @@ export function ToolApprovalCard({
       | 'allowed-once'
       | 'allowed-always-tool'
       | 'allowed-always-exact'
+      | 'allowed-always-prefix'
       | 'allowed-always-all'
       | 'rejected',
+    rule?: ShellPrefixApproval,
+    report?: (cause: unknown) => void,
   ): void => {
     if (botSlug === undefined || submitting.current || !actionable) return;
     if (companionTarget && !qualified()) return;
@@ -288,7 +299,9 @@ export function ToolApprovalCard({
           return;
         }
       }
-      await actions.decideToolApproval(channelId, message.id, outcome);
+      await (rule === undefined
+        ? actions.decideToolApproval(channelId, message.id, outcome)
+        : actions.decideToolApproval(channelId, message.id, outcome, rule));
       if (mounted.current) {
         setAcceptedDecision(outcome);
         setStatus('decided');
@@ -302,7 +315,17 @@ export function ToolApprovalCard({
             (latest) => {
               if (!mounted.current) return;
               setStatus(latest);
-              setError(latest === 'pending' ? errorMessage(cause) : undefined);
+              if (latest === 'pending' && report !== undefined) {
+                setError(undefined);
+                report(cause);
+              } else
+                setError(
+                  latest !== 'pending'
+                    ? undefined
+                    : rule === undefined
+                      ? errorMessage(cause)
+                      : shellScopeErrorText(cause, t),
+                );
             },
             () => {
               if (!mounted.current) return;
@@ -318,6 +341,19 @@ export function ToolApprovalCard({
       });
   };
   const disabled = busy || !actionable || (companionTarget !== undefined && !qualified());
+  const scopeMenu = useShellScopeMenu({
+    suggestions: shellSuggestions,
+    toolName: request.toolName,
+    enabled: canAlwaysAllow && actionable,
+    busy,
+    t,
+    onDecide: (decision, report) =>
+      decide(
+        decision.outcome,
+        decision.outcome === 'allowed-always-prefix' ? decision.rule : undefined,
+        report,
+      ),
+  });
   const selectedChoice =
     effectiveDecision === undefined ||
     effectiveDecision === 'allowed-once' ||
@@ -639,8 +675,11 @@ export function ToolApprovalCard({
             size={size}
             disabled={disabled || !canAlwaysAllow}
             aria-pressed={selectedChoice === 'allowed-always-tool'}
-            busy={busy && busyChoice === 'allowed-always-tool'}
-            onClick={() => decide('allowed-always-tool')}
+            busy={busy && busyChoice !== undefined && busyChoice.startsWith('allowed-always')}
+            {...scopeMenu.trigger}
+            onClick={() => {
+              if (!scopeMenu.consumeClick()) decide('allowed-always-tool');
+            }}
           >
             {t('approval.allowAlways')}
           </ActionButton>
@@ -662,6 +701,7 @@ export function ToolApprovalCard({
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
       ) : null}
+      {scopeMenu.overlay}
       {actionable && botSlug !== undefined ? (
         <ApprovalPresetPicker botSlug={botSlug} actions={actions} manage={!hostScoped} t={t} />
       ) : null}

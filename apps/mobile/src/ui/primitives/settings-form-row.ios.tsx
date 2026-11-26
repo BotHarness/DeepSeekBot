@@ -314,7 +314,7 @@ export function FormRow({
     end.kind === 'value' ? (
       <LabeledContent label={label}>
         <HStack spacing={space.x2}>
-          <Text modifiers={end.digits ? [monospacedDigit()] : []}>{end.text}</Text>
+          <Text modifiers={[...(end.digits ? [monospacedDigit()] : []), ...lines]}>{end.text}</Text>
           {chevron}
         </HStack>
       </LabeledContent>

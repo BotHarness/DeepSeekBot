@@ -21,10 +21,12 @@ import type {
   HumanAttentionItem,
   QuestionAnswer,
   QuestionItem,
+  ShellPrefixApproval,
   TimelineMessage,
   ToolApprovalOutcome,
   ToolApprovalRequestCard,
   UserQuestionStatus,
+  WireShellApprovalSuggestions,
   WireToolApprovalExecution,
 } from '@botharness/host-protocol/wire';
 
@@ -48,6 +50,7 @@ export interface ApprovalRequest extends RequestRef {
   outcome?: ToolApprovalOutcome;
   expiresAt?: string;
   execution?: ApprovalExecution;
+  shellSuggestions?: WireShellApprovalSuggestions;
 }
 
 export type ApprovalContent = Pick<
@@ -116,10 +119,11 @@ async function readRequest(
 }
 
 export async function loadApproval(client: HostClient, ref: RequestRef): Promise<ApprovalRequest> {
-  const [{ request, later }, { status, expiresAt, execution }] = await Promise.all([
-    readRequest(client, ref),
-    readToolApprovalStatus(client, ref.channelId, ref.messageId),
-  ]);
+  const [{ request, later }, { status, expiresAt, execution, shellSuggestions }] =
+    await Promise.all([
+      readRequest(client, ref),
+      readToolApprovalStatus(client, ref.channelId, ref.messageId),
+    ]);
   const card =
     request.contentPurge === undefined ? approvalContent(request.toolApprovalRequest) : undefined;
   if (card === undefined) throw new Error('This message is not a Tool approval.');
@@ -143,6 +147,7 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
     ...(decision === undefined ? {} : { outcome: decision.outcome }),
     ...(decision === undefined && typeof expiresAt === 'string' ? { expiresAt } : {}),
     ...(execution === undefined ? {} : { execution }),
+    ...(decision === undefined && shellSuggestions !== undefined ? { shellSuggestions } : {}),
   };
 }
 
@@ -176,9 +181,10 @@ export async function decideApproval(
   ref: RequestRef,
   outcome: ApprovalChoice,
   entry: FeatureEntry = 'app',
+  rule?: ShellPrefixApproval,
 ): Promise<DecisionResult> {
   try {
-    await decideToolApproval(client, ref.channelId, ref.messageId, outcome);
+    await decideToolApproval(client, ref.channelId, ref.messageId, outcome, rule);
     markHandled(ref);
     recordFeature('activity:approval_submit', { decision: APPROVAL_DECISIONS[outcome], entry });
     return 'accepted';

@@ -1,3 +1,4 @@
+import type { FeatureContribution } from '../kernel/feature-contribution.js';
 import {
   type DirectBotToolCall,
   type DirectBotToolSpec,
@@ -67,7 +68,7 @@ import type {
   DmMessageAdmission,
   HandleDmMessageInput,
   OrchestratorMessageOutcome,
-} from '../channels/runtime-admission-types.js';
+} from './runtime-admission-types.js';
 
 export interface BotRuntime {
   networkBotAvailability?(
@@ -244,6 +245,7 @@ export interface BotRuntimeOptions {
   database: OperationalDatabaseOwner;
   sourcePolicy?: BotSourcePolicyStore;
   schedules?: Pick<BotScheduleStore, 'list' | 'create' | 'update' | 'remove'>;
+  runtimeFeatures?: readonly Pick<FeatureContribution, 'id' | 'runtime'>[];
   registry: PersonaBotRegistry;
   channels: ChannelStore;
   agents: BotAgentAdapter;

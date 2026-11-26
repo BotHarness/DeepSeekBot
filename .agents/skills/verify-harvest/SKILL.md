@@ -46,7 +46,7 @@ When a change to the harvest is intended:
 
 ## Coverage
 
-Channel admission uses [runtime-admission.ts](../../../packages/core/src/channels/runtime-admission.ts), harvest readiness uses [group-digest.ts](../../../packages/core/src/runtime/group-digest.ts), and scheduling uses [orchestrator-scheduling.ts](../../../packages/core/src/runtime/orchestrator-scheduling.ts). The harvest and recovery transactions remain in [bot-runtime.ts](../../../packages/core/src/runtime/bot-runtime.ts).
+Channel admission uses [runtime-admission.ts](../../../packages/core/src/runtime/runtime-admission.ts), harvest readiness uses [group-digest.ts](../../../packages/core/src/runtime/group-digest.ts), and scheduling uses [orchestrator-scheduling.ts](../../../packages/core/src/runtime/orchestrator-scheduling.ts). The harvest and recovery transactions remain in [bot-runtime.ts](../../../packages/core/src/runtime/bot-runtime.ts).
 
 | Model step | Code |
 | --- | --- |

@@ -4,7 +4,7 @@ import {
   invalidInput,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { HumanContext } from '../../humans/context.js';
 import {
@@ -21,7 +21,7 @@ export interface SchedulesBridgeDeps {
   schedules?: BotScheduleStore;
 }
 
-export interface SchedulesBridgeMethods {
+export type SchedulesBridgeMethods = {
   scheduleList(payload: unknown): BridgeResult<{ schedules: BotSchedule[] }>;
   scheduleCreate(payload: unknown): BridgeResult<{ schedule: BotSchedule; reconciled?: true }>;
   scheduleUpdate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
@@ -29,7 +29,7 @@ export interface SchedulesBridgeMethods {
   scheduleHistory(payload: unknown): BridgeResult<{ firings: BotScheduleFiring[] }>;
   scheduleRunNow(payload: unknown): BridgeResult<{ firing: BotScheduleFiring }>;
   schedulePreview(payload: unknown): BridgeResult<{ occurrences: string[] }>;
-}
+};
 
 function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
   const source = asObject(value);

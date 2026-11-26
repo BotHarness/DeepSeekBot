@@ -231,6 +231,10 @@ deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <text>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <name> --owner bot:<bot-id>
 deepseekbot skills-remove <name> --bot <bot-id> --confirm
+deepseekbot marketplace-skill-list [--query <text>] [--cursor <n>]
+deepseekbot marketplace-skill-detail <skill-id>
+deepseekbot skills-add <skill-id> --bot <bot-id>[,<bot-id>...] [--on-conflict replace|rename] [--review <review-id> --confirm]
+deepseekbot skills-add <skill-id> --global [--on-conflict replace|rename] [--review <review-id> --confirm]
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
 deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
@@ -266,6 +270,8 @@ Trusted effect declarations describe tool calls on approval cards; they do not b
 `skills-list --bot <bot-id> --session <session-id>` returns what the `/` menu in that Session's detail composer offers. It lists the Skills the Session itself can discover: Host Skills, that Bot's Memory Repository Skills, and the Project Skills of the Workspace Grant whose folder is the Session's working directory. It lists one entry per name, using the precedence in [ADR-0345](decisions/workspaces.md#adr-0345): Workspace, then Memory, then Host. Picking one inserts a plain `/name` token. The request reaches the Session as user input, so DSH's own Skill gesture loads that Skill there; no snapshot is stored.
 
 `skills-memory --bot <bot-id>` lists the Project Skills in that PersonaBot's own Memory Repository, the same list as its profile's **Skills** card: root `.dsh/skills` before `.agents/skills`, model-only Skills included (`userInvocable: false`), Workspace Skills excluded. `skills-show <name> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` returns that Skill's full text. `skills-remove <name> --bot <bot-id> --confirm` deletes the Skill folder (or flat `.md` file) from the Memory Repository and commits `skills: remove <name>`, so git history can restore it (uncommitted edits are committed first as `skills: save <name> before removal`; a folder holding git-ignored files refuses with `skill-has-ignored-files`, because history could not restore them); the open `/` menu updates through the live catalog event. Without `--confirm` it refuses. There is no disable switch. A missing Skill refuses with `skill-not-found`.
+
+`marketplace-skill-list` searches the Skills section of the Marketplace: Indexed Skill Repositories (public GitHub repositories with the `tobs-skill` topic), one entry per `SKILL.md` folder, ordered by installs then stars. `marketplace-skill-detail <skill-id>` returns the entry's `SKILL.md`, file list, `scripts` and scan `findings`. `skills-add <skill-id>` without `--confirm` downloads the listed commit's files, scans them again on the Host, and prints the review (`verdict`, `findings`, `scripts`, `files`, `conflicts`) plus the Bots you may add to; nothing changes. Show that review to the Human, then repeat with `--review <reviewId> --confirm`; the add uses exactly the files of that review, even if the entry was refreshed since. `--bot` adds to each named Bot you own: it writes `.agents/skills/<name>/` in the Memory Repository and commits `skills: add <name> from Marketplace (<owner>/<repo>)`. `--global` adds a Host Skill under `<DSH home>/skills/<name>/`, visible to every Bot unless a Bot has its own Project Skill with that name; only the Host owner (or the owner's Bots) may. The written `SKILL.md` records `metadata.tobs-source` (the entry id), `tobs-repository` and `tobs-hash`. A name already taken refuses with `skill-exists` unless `--on-conflict replace` (overwrite the folder) or `rename` (add as `<name>-2`). A Skill whose files hold a download-and-execute pattern refuses with `skill-blocked`; a review older than 30 minutes refuses with `review-expired`. Each Bot target and the global target count one Install Receipt.
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
 
@@ -1494,7 +1500,7 @@ deepseekbot connector-key-clear --confirm
 
 ### App connections (remote MCP)
 
-Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to `/botharness/connectors/oauth/callback` on the Host and the account turns `active`. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.
+Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to the Host and the account turns `active`. When the Host has a public https address (Tobs Connect, a Tailscale HTTPS address, or an https address you serve it on), the sign-in returns to `/botharness-device/connectors/oauth/callback` there, so you can open the link on your phone or any other device; otherwise it returns to `/botharness/connectors/oauth/callback` on This Host. A sign-in link stays valid for 60 minutes. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.
 
 ```bash
 deepseekbot connector-mcp-search posthog
@@ -1762,7 +1768,7 @@ The repository moves to `<absolute-dir>/<bot-id>`; the folder must already exist
 
 ## Home and Tob
 
-`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true }`; pass `--bot <bot-id>` (payload `slug`) to ask about one Bot. `editable` is true for the Human Host Owner and for a member whose role holds the Owner-granted `bots.manageGrants`, and with a Bot named only when the caller owns it; each caller sees only the holders among their own Bots, and any other Team member gets only `tobSlug`, an empty list and `editable: false`. The Human Host Owner, or such a member, runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and a Team member without `bots.manageGrants` receives `permission-required`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
+`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true, "memberBot": false }`; pass `--bot <bot-id>` (payload `slug`) to ask about one Bot. `editable` is true for the Human Host Owner and for a member whose role holds the Owner-granted `bots.manageGrants`, and with a Bot named only when the caller owns it; each caller sees only the holders among their own Bots, and any other Team member gets only `tobSlug`, an empty list and `editable: false`. The Human Host Owner, or such a member, runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. `memberBot` is true when the caller is a member rather than the Owner: on a member's Bot, "Manage the App" covers only creating Bots and sharing Bot drafts, never settings, models or diagnostics. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and a Team member without `bots.manageGrants` receives `permission-required`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
 
 `deepseekbot tob-home` prepares/reuses the local Tob identity, Memory, managed Workspace and DM, returning their IDs and the canonical attention summary. It does not send a message. `deepseekbot home-model-set --provider <id> --model <id>` sets the pinned Default preset’s main model. Bots with independent plans keep their choices.
 
@@ -2577,6 +2583,8 @@ deepseekbot roles catalog
 deepseekbot roles list
 deepseekbot roles create --name reviewers --permissions audit.view,usage.view
 deepseekbot roles update <roleId> --permissions usage.view
+deepseekbot roles update <roleId> --deny channels.create
+deepseekbot roles effective bob
 deepseekbot roles delete <roleId> --confirm
 deepseekbot members create --username bob --display-name Bob --role-ids member --initial-password-file <new-private-file>
 deepseekbot members roles bob --set member,<roleId>
@@ -2584,6 +2592,8 @@ deepseekbot --as bob devices --member bob
 deepseekbot devices --member bob --revoke <grantId>
 deepseekbot team-mode transfer-owner bob --password-stdin --confirm
 ```
+
+`--deny` lists permissions the role denies. A deny on any of a member's roles wins over an allow on another; a role cannot allow and deny the same permission. `roles effective [<username>]` shows each permission as granted, denied or unset with the roles it comes from; without a username it shows your own.
 
 `members reset-password <username> --initial-password-file <path>` requires `members.manage` and coverage of the target roles (Admin targets require the Owner); it provides recovery when a committed member's one-time password was lost. It writes a new private password file, requires another password change, and revokes that member's grants. An existing output path is refused. Refusals include `owner-protected` and `member-not-found`. A file-write failure after commit returns `initial-password-recovery-required`; retry recovery with a new output path.
 

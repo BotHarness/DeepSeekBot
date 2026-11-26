@@ -3,7 +3,7 @@ import type {
   VoiceTemplateValidation,
 } from '../../voice/request-template.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type {
   VoiceProvidersView,
   VoiceSynthesisView,

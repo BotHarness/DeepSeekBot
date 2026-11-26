@@ -1,7 +1,11 @@
-import { toRemoteError } from '../../bridge/rpc-result.js';
 import { type RosterLiveFrame } from '../../channels/live.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync, type AdminResult } from '../../bridge/rpc-result.js';
+import {
+  toRemoteError,
+  unwrap,
+  unwrapAsync,
+  type AdminResult as KernelAdminResult,
+} from '../../kernel/rpc-result.js';
 import type {
   BotMetadata,
   BotMetadataResult,
@@ -23,6 +27,8 @@ import type {
 import type { RosterSection, RosterSnapshot } from '../../roster/store.js';
 import type { TopOrderEntry } from '../../roster/spec.js';
 import type { PersonaBotsBridgeMethods } from './methods.js';
+
+type AdminResult<T, M = BotMetadataResult> = KernelAdminResult<T, M>;
 
 export function onboarding(
   methods: PersonaBotsBridgeMethods,

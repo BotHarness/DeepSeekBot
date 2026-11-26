@@ -53,7 +53,7 @@ The built-in local PersonaBot every Profile creates first; its name reverses “
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-On mobile, the Tob DM's normal Conversation screen opened from the Tob entry bar on Chats. Only the entry and transition differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The entry always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel. The Pinned tab replaces it (#5191).
+Retired ([Tob decisions §2](docs/decisions/tob.md#adr-0268), #5198). The mobile entrance that opened the Tob DM from the Tob entry bar was replaced by the **Pinned tab**; the Tob DM opens from its Chats row or the Pinned tab like any conversation.
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
@@ -529,6 +529,14 @@ _Avoid_: install, download, subscribe
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
 
+**Indexed Skill Repository**:
+A public GitHub repository carrying the `tobs-skill` topic, or one an administrator indexed by hand, whose `SKILL.md` folders the Marketplace lists as Marketplace Skills and refreshes on a schedule.
+_Avoid_: skill pack, skill source, plugin repository
+
+**Marketplace Skill**:
+One `SKILL.md` folder of an Indexed Skill Repository, listed at the commit the Marketplace last read, with its scripts and safety-scan findings. Adding it copies the folder into chosen PersonaBots' Memory Repositories as a Project Skill, or into the Host as a Host Skill; later changes upstream never reach the copy.
+_Avoid_: plugin, connector, App connection, extension, Skill install
+
 **Uploaded Bot**:
 A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
 _Avoid_: Listing, Version, SoulSnapshot, publication
@@ -636,7 +644,7 @@ One way a Host Member proves identity to a Host, separate from the identity itse
 _Avoid_: session, account, device grant
 
 **Host Role**:
-A named set of Host Permissions assigned to Host Members, with union semantics across a member's roles; Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
+A named set of Host Permissions assigned to Host Members, each allowed, denied or left unset; a member holds the union of their roles' allowed permissions minus any permission one of their roles denies. Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
 _Avoid_: group, Channel role, pairing Role
 
 **Host Permission**:
@@ -1299,11 +1307,11 @@ A per-phone preference for how the Sessions tab moves between Sessions: Drawer (
 _Avoid_: Session mode, layout mode
 
 **Tob entry bar**:
-The Composer-shaped tap target above the tab island on Chats that opens Tob Mode. It is only an entry: nothing is typed into it in place. The Pinned tab replaces it (#5191).
+Retired ([Tob decisions §2](docs/decisions/tob.md#adr-0268), #5198). The Composer-shaped tap target on Chats was replaced by the **Pinned tab**; Chats has no Composer-shaped bar.
 _Avoid_: Tob input, quick composer, pull to Tob
 
 **Pinned tab**:
-The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the built-in Tob's DM (then the most recent conversation), follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the built-in Tob's DM (then the most recent conversation), follows the Environment Scope, and replaces the Tob entry bar and Tob Mode. Settings → Tab bar reorders the tabs by dragging and picks the bound conversation for the current Environment (#5196).
 _Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:

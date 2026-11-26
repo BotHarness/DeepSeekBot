@@ -35,6 +35,12 @@ vi.mock(
   () => import('../src/ui/primitives/loading-indicator.android'),
 );
 vi.mock('../src/ui/chat/action-card', () => import('../src/ui/chat/action-card.android'));
+vi.mock('../src/ui/chat/shell-scope-sheet', () => ({ ShellScopeSheet: () => null }));
+const actionMenu = vi.hoisted(() => vi.fn());
+vi.mock('../src/ui/primitives/app-dialog', async (load) => ({
+  ...(await load<typeof import('../src/ui/primitives/app-dialog')>()),
+  showActionMenu: actionMenu,
+}));
 vi.mock('../src/ui/chat/approval-diff', () => import('../src/ui/chat/approval-diff.android'));
 vi.mock('../src/ui/design/theme', async () => {
   const { resolveTheme } = await import('../src/ui/design/resolve-theme');
@@ -472,3 +478,51 @@ it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     expect(decide).toHaveBeenCalledOnce();
   },
 );
+
+it('opens the Shell Always allow scope menu on a long press and saves the chosen prefix', async () => {
+  const request: ApprovalRequest = {
+    channelId: 'dm-qa',
+    messageId: 'qa-shell',
+    botSlug: 'qa',
+    toolName: 'bash',
+    role: 'orchestrator',
+    cwd: '/qa/workspace',
+    input: JSON.stringify({ command: 'git status -s' }),
+    allowAlways: true,
+    status: 'pending',
+    shellSuggestions: {
+      exact: 'git status -s',
+      compound: false,
+      unparseable: false,
+      subcommands: [
+        { exact: 'git status -s', oneWordPrefix: 'git *', twoWordPrefix: 'git status *' },
+      ],
+    },
+  };
+  const port: ApprovalCardPort = { load: async () => request, decide: async () => 'accepted' };
+  const decide = vi.spyOn(port, 'decide');
+  actionMenu.mockClear();
+  const view = await mount(<ApprovalCard port={port} subject="bash" />);
+  const always = view.querySelector<HTMLElement>('[data-testid="approval-always-allow"]')!;
+  await act(async () => {
+    always.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+  });
+  expect(actionMenu).toHaveBeenCalledOnce();
+  const [title, entries] = actionMenu.mock.calls[0] as [
+    string,
+    { text: string; onPress(): void }[],
+  ];
+  expect(title).toBe(t.shellScope.title);
+  expect(entries.map((entry) => entry.text)).toEqual([
+    t.shellScope.all('bash'),
+    t.shellScope.startsWith('git *'),
+    t.shellScope.startsWith('git status *'),
+    t.shellScope.exact,
+    t.shellScope.custom,
+  ]);
+  await act(async () => entries[2]!.onPress());
+  expect(decide).toHaveBeenCalledWith('allowed-always-prefix', {
+    kind: 'prefix',
+    patterns: ['git status *'],
+  });
+});

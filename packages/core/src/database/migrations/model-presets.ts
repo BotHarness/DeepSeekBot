@@ -1,6 +1,9 @@
 import type { SchemaMigration } from '../schema.js';
-import { presetSubFromLegacy, presetSubWithEngine } from '../../models/preset-sub.js';
-import type { ModelPreset } from '../../models/presets.js';
+import {
+  presetSubFromLegacy,
+  presetSubWithEngine,
+  type ModelPreset,
+} from '../historical-migration-snapshots.js';
 
 export const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   id: 'model-preset-storage',

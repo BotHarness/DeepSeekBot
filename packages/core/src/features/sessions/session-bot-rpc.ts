@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { SessionBotCreated } from './session-bot-methods.js';
 import type { ExternalSessionSummary } from './external-sessions.js';
 

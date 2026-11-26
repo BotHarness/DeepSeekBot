@@ -93,9 +93,11 @@ describe('bridge typert service', () => {
   it('marks every bridge endpoint for typert claims', () => {
     const { service } = setup();
 
-    expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual(
-      bridgeMethodInventory,
-    );
+    expect(
+      remoteMethods(service)
+        .map((marker) => marker.exportName ?? marker.method)
+        .sort(),
+    ).toEqual([...bridgeMethodInventory].sort());
   });
 
   it('marks the live stream methods whose final parameter is the injected signal', () => {
