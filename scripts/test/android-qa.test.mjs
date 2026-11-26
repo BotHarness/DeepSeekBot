@@ -8,6 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,8 @@ afterEach(() => {
 it.skipIf(process.platform === 'win32')(
   'reuses and installs a verified APK across JS-only checkouts and rebuilds when inputs or bytes change',
   () => {
+    const mobileRequire = createRequire(new URL('../../apps/mobile/package.json', import.meta.url));
+    const expo = dirname(mobileRequire.resolve('expo/package.json'));
     const folder = mkdtempSync(join(tmpdir(), 'bhapk-'));
     dirs.push(folder);
     const queue = join(folder, 'queue');
@@ -89,11 +92,7 @@ it.skipIf(process.platform === 'win32')(
       write(join(mobile, 'app.json'), appConfig(1));
       write(join(mobile, 'app.js'), `export default "${name}";\n`);
       mkdirSync(join(mobile, 'node_modules'), { recursive: true });
-      symlinkSync(
-        resolve(script, '../../../apps/mobile/node_modules/expo'),
-        join(mobile, 'node_modules', 'expo'),
-        'dir',
-      );
+      symlinkSync(expo, join(mobile, 'node_modules', 'expo'), 'dir');
       executable(
         join(mobile, 'android', 'gradlew'),
         `${record}
