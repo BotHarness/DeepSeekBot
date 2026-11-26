@@ -74,6 +74,11 @@ export const MODELS_USAGE_COMMANDS = [
     description: "drop a Bot's own model so it follows the Profile default model",
   },
   {
+    command: 'model-plan-reset',
+    description:
+      "drop a Bot's own main and/or sub model (--slot main|sub|all) so they follow its Model Preset again",
+  },
+  {
     command: 'model-plan-assignments-set',
     description: "set a Bot's Assignment default and allowed Assignment models from stdin",
   },
@@ -101,7 +106,8 @@ export const MODELS_USAGE_COMMANDS = [
   },
   {
     command: 'model-preset-delete',
-    description: 'delete a Model Preset at its revision and keep applied Bot plans (--confirm)',
+    description:
+      'delete a Model Preset at its revision; Bots on it follow the Default preset (--confirm)',
   },
   {
     command: 'model-groups',
@@ -159,6 +165,7 @@ export const MODELS_USAGE_COMMANDS = [
 ] as const;
 
 export interface ModelsUsageValues {
+  slot?: string;
   'orchestrator-engine'?: string;
   'orchestrator-engine-account'?: string;
   'orchestrator-engine-model'?: string;
@@ -720,6 +727,16 @@ export async function runModelsUsage(
       ...(orchestratorGroupId == null ? {} : { orchestratorGroupId }),
       ...mode,
     });
+  }
+  if (command === 'model-plan-reset') {
+    const raw = values.slot?.trim() ?? '';
+    const slots = raw === 'all' ? ['main', 'sub'] : raw.split(',').map((slot) => slot.trim());
+    if (slots.length === 0 || !slots.every((slot) => slot === 'main' || slot === 'sub'))
+      usage('--slot must be main, sub, main,sub or all.');
+    const rpc = await connect();
+    const expectedRevision =
+      expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    return rpc('modelPlanReset', { slug: target, slots: [...new Set(slots)], expectedRevision });
   }
   if (command === 'model-plan-inherit') {
     const rpc = await connect();

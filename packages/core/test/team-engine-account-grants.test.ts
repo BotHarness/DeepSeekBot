@@ -1,3 +1,4 @@
+import { presetEngineFor } from '../src/models/bot-model-engines.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { SessionLiveStreams } from '../src/runtime/session-live.js';
 import { sessionModelChoices } from '../src/runtime/session-model-choices.js';
@@ -131,6 +132,12 @@ function fixture(local = true) {
     detectCodex,
     detectClaude: async () => ({ installed: false, login: 'unknown' }),
     requireAccountGrant: (slug, id) => requireBotEngineAccount(f.team, f.registry.get(slug), id),
+    inheritedChoice: (slug, role) => {
+      const bot = f.registry.get(slug);
+      return bot === undefined
+        ? undefined
+        : presetEngineFor(bot, role, (id) => f.deps.modelPresets.get(id));
+    },
   });
   hosts.push(host);
   const work = host.store.addAccount('codex', 'Work', 0);
@@ -679,15 +686,14 @@ describe('Team subscription grants', () => {
       await f.methods.modelPresetUpdate({ ...preset, id: presetId, expectedRevision: 1 }),
     ).toMatchObject({ ok: true });
     expect(await f.methods.modelPresetApply({ slug: 'ada', presetId })).toMatchObject({ ok: true });
-    expect(
-      f.host.store
-        .selections()
-        .map(({ role, accountId }) => [role, accountId])
-        .sort(),
-    ).toEqual([
-      ['assignment', f.work.id],
-      ['orchestrator', f.work.id],
-    ]);
+    expect(f.host.store.selections()).toEqual([]);
+    for (const role of ['orchestrator', 'assignment'] as const) {
+      expect(f.host.engineFor('ada', role)).toBe('codex');
+      expect(
+        presetEngineFor(f.registry.get('ada')!, role, (id) => f.deps.modelPresets.get(id))
+          ?.accountId,
+      ).toBe(f.work.id);
+    }
     expect(await f.methods.modelPlanSet(groupPlan)).toMatchObject({ ok: true });
     f.grant();
     expect(

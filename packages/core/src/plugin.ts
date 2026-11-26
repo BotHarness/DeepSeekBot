@@ -242,7 +242,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
     ctx,
     config,
     dshHome,
@@ -347,6 +347,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { nativeSessions: () => hostNativeSessions, externalSessions },
     ),
   );
+  followPresetEngines();
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
     core.live.publishDraft(event);

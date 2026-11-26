@@ -404,6 +404,7 @@ export const CLI_EFFECTS = {
   'model-plan-assignments-set': { effects: write, brokerRead: false },
   'model-plan-customize': { effects: write, brokerRead: false },
   'model-plan-inherit': { effects: write, brokerRead: false },
+  'model-plan-reset': { effects: write, brokerRead: false },
   'model-plan-set': { effects: write, brokerRead: false },
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },

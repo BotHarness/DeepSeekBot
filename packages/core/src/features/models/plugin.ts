@@ -47,6 +47,12 @@ import {
   resolveBotModelPlan,
 } from '../../models/presets.js';
 import { createModelFavoriteStore } from '../../models/favorites.js';
+import type { PersonaBotRecord } from '../../bots/persona-bot.js';
+import {
+  ownsModelSlot,
+  presetEngineFor,
+  repeatsPresetEngine,
+} from '../../models/bot-model-engines.js';
 import { createOpenAssignmentRoutes } from '../../models/open-assignments.js';
 import { groupMemberRoute } from '../../models/catalog.js';
 import { createModelRouteReadiness } from '../../models/readiness.js';
@@ -81,6 +87,13 @@ export function createStores(
   });
   if (operationalDatabase.mode === 'ready' && options.legacyDefaultModel !== undefined)
     modelPresets.migrateDefault(options.legacyDefaultModel);
+  if (operationalDatabase.mode === 'ready') {
+    const linked = registry().migrateModelLinks();
+    if (linked.length > 0)
+      options.warn?.(
+        `bot-model-links-migrate initiator=host-startup phase=complete count=${linked.length} following=${linked.filter((entry) => entry.overrides.length === 0).length}`,
+      );
+  }
   startup.enter('routing-groups', 'initialize');
   const fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
   const routingGroups = createRoutingGroupStore({
@@ -88,10 +101,17 @@ export function createStores(
     references: (groupId) => {
       const uses = (source: { orchestratorGroupId?: string; assignmentGroups?: string[] }) =>
         source.orchestratorGroupId === groupId || (source.assignmentGroups ?? []).includes(groupId);
+      const ownPlan = (bot: PersonaBotRecord) =>
+        bot.modelLink === undefined
+          ? bot.modelPlan
+          : { ...bot.modelLink.main, ...bot.modelLink.sub };
       return [
         ...registry()
           .list()
-          .filter((bot) => bot.modelPlan !== undefined && uses(bot.modelPlan))
+          .filter((bot) => {
+            const own = ownPlan(bot);
+            return own !== undefined && uses(own);
+          })
           .map((bot) => `Bot ${bot.displayName}`),
         ...modelPresets
           .list()
@@ -164,7 +184,7 @@ export function mountEngines(
   dshHome: string,
   core: () => BotHarnessCore,
   toolApproval: () => ChannelToolApproval | undefined,
-  { defaultPreset, effectivePlan }: RoutingDefaults,
+  { effectivePlan }: RoutingDefaults,
 ) {
   const engineGateway = createEngineGateway();
   const localEngines = subscriptionEnginesAllowed(config, process.env);
@@ -196,7 +216,10 @@ export function mountEngines(
         ...registry
           .list()
           .filter((bot) =>
-            bot.modelPlan?.sub?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
+            (bot.modelLink === undefined
+              ? bot.modelPlan?.sub
+              : bot.modelLink.sub?.sub
+            )?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
           )
           .map((bot) => `Bot ${bot.displayName} (${bot.slug})`),
         ...routingGroups
@@ -213,18 +236,8 @@ export function mountEngines(
     routingGroupEffort: (slug) => effectivePlan(slug)?.orchestratorGroupEffort,
     inheritedChoice: (slug, role) => {
       const bot = core().registry.get(slug);
-      if (
-        bot === undefined ||
-        (bot.modelPlan === undefined && bot.model !== undefined) ||
-        (role === 'orchestrator'
-          ? bot.modelPlan !== undefined
-          : bot.modelPlan?.assignmentDefault !== undefined)
-      )
-        return;
-      const preset = defaultPreset();
-      return role === 'assignment' && preset?.assignmentFollowsMain !== true
-        ? preset?.assignmentEngine
-        : preset?.orchestratorEngine;
+      if (bot === undefined) return;
+      return presetEngineFor(bot, role, (id) => core().modelPresets.get(id));
     },
     observeTurnTarget: (sessionId, turn, target) => {
       const owner = core().ownership.resolve(sessionId);
@@ -285,7 +298,11 @@ export function mountEngines(
     },
     'botharness: Subscription Engine Sessions',
   );
-  return { engineHost, localEngines };
+  return {
+    engineHost,
+    localEngines,
+    followPresetEngines: () => followPresetEngines(engineHost, core()),
+  };
 }
 
 export function createFallback(
@@ -604,4 +621,20 @@ export function mountSubscriptionEngineRoute(
       }),
     'botharness: Subscription Engine route',
   );
+}
+
+function followPresetEngines(engineHost: EngineHost, core: BotHarnessCore): void {
+  if (core.operationalDatabase.mode !== 'ready') return;
+  for (const bot of core.registry.list()) {
+    for (const role of ['orchestrator', 'assignment'] as const) {
+      const engine = engineHost.store.selection(bot.slug, role);
+      if (engine === undefined || ownsModelSlot(bot, role === 'orchestrator' ? 'main' : 'sub'))
+        continue;
+      const inherited = presetEngineFor(bot, role, (id) => core.modelPresets.get(id));
+      if (
+        repeatsPresetEngine({ engine, choice: engineHost.store.choice(bot.slug, role) }, inherited)
+      )
+        engineHost.store.select(bot.slug, role, undefined);
+    }
+  }
 }

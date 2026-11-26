@@ -87,9 +87,9 @@ export const en = {
     title: 'Model',
     global: 'Global default model',
     globalHint:
-      'Bots use this default unless set on their own. Applying a preset copies its models to that Bot.',
+      'Bots use this default unless set on their own. A Bot follows its preset: later changes reach it at once.',
     botHint: 'The main model chats. Task models do delegated work. Only this Bot changes.',
-    presetHint: 'Bots already using this preset keep their settings until you apply it again.',
+    presetHint: 'Bots using this preset follow changes at once, except models a Bot sets itself.',
     orchestrator: 'Main model',
     effort: 'Reasoning effort',
     providerDefault: 'Provider default',
@@ -273,9 +273,9 @@ export const zh: typeof en = {
   modelSettings: {
     title: '模型',
     global: '全局默认模型',
-    globalHint: 'Bot 未单独设置时使用这里的默认模型。应用预设会把它的模型复制给该 Bot。',
+    globalHint: 'Bot 未单独设置时使用这里的默认模型。Bot 跟随所用的预设，预设改了立即生效。',
     botHint: '主模型负责对话，副模型执行委派任务。只影响此 Bot。',
-    presetHint: '已使用此预设的 Bot 保持原设置，重新应用后才更新。',
+    presetHint: '使用此预设的 Bot 立即跟随改动，Bot 单独设置的模型除外。',
     orchestrator: '主模型',
     effort: '推理强度',
     providerDefault: '服务商默认',

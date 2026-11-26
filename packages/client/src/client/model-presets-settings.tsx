@@ -432,7 +432,7 @@ export function ModelPresetsSettings({
               >
                 {dialog.usage.count > 0 ? (
                   <>
-                    <Note>{t('modelPreset.keepCopies')}</Note>
+                    <Note>{t('modelPreset.deleteFollowsDefault')}</Note>
                     {dialog.usage.botNames.length === 0 ? null : (
                       <ul>
                         {dialog.usage.botNames.map((name, index) => (
