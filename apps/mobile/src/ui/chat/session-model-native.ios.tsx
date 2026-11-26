@@ -23,6 +23,7 @@ import {
   accessibilityElement,
   accessibilityHidden,
   accessibilityLabel,
+  accessibilityValue,
   buttonBorderShape,
   buttonStyle,
   disabled,
@@ -376,7 +377,12 @@ export function NativeSessionModelSheet({
                                     pickerStyle('menu'),
                                     tint(theme.color.muted),
                                     disabled(saving !== undefined),
+                                    accessibilityElement('combine'),
                                     accessibilityLabel(effortLabel),
+                                    accessibilityValue(
+                                      effort.options.find((option) => option.id === effort.current)
+                                        ?.name ?? '',
+                                    ),
                                   ]}
                                 >
                                   {effort.options.map((option) => (

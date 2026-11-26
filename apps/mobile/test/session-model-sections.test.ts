@@ -186,11 +186,13 @@ describe('Session model reasoning effort', () => {
         effortCatalog,
         { kind: 'model', provider: 'opencode-go', model: 'reasoner' },
         name,
+        'Default',
       ),
     ).toEqual({
       key: JSON.stringify(['model', 'opencode-go', 'reasoner']),
-      current: 'medium',
+      current: '',
       options: [
+        { id: '', name: 'Default · Medium!' },
         { id: 'low', name: 'Low!' },
         { id: 'medium', name: 'Medium!' },
         { id: 'high', name: 'High!' },
@@ -210,18 +212,22 @@ describe('Session model reasoning effort', () => {
           effort: 'max',
         },
         name,
+        'Default',
       )?.current,
     ).toBe('max');
   });
 
   it('shows nothing for the default, groups or models without levels', () => {
-    expect(sessionModelEffort(effortCatalog, null, name)).toBeUndefined();
-    expect(sessionModelEffort(effortCatalog, { kind: 'group', id: 'fast' }, name)).toBeUndefined();
+    expect(sessionModelEffort(effortCatalog, null, name, 'Default')).toBeUndefined();
+    expect(
+      sessionModelEffort(effortCatalog, { kind: 'group', id: 'fast' }, name, 'Default'),
+    ).toBeUndefined();
     expect(
       sessionModelEffort(
         effortCatalog,
         { kind: 'model', provider: 'opencode-go', model: 'plain' },
         name,
+        'Default',
       ),
     ).toBeUndefined();
   });

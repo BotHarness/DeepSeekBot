@@ -61,6 +61,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     accessibilityAddTraits: none,
     accessibilityElement: none,
     accessibilityHidden: none,
+    accessibilityValue: none,
     buttonBorderShape: none,
     buttonStyle: none,
     listRowBackground: none,

@@ -479,4 +479,13 @@ it('chooses the reasoning effort for the selected model and keeps the sheet open
   });
   expect(container.querySelector('[role="dialog"]')).not.toBeNull();
   expect(button('session-model-effort').textContent).toContain('Max');
+  await act(async () => button('session-model-effort').click());
+  expect(button('session-model-effort-').textContent).toBe('Model default · High');
+  await act(async () => button('session-model-effort-').click());
+  const { effort: _effort, ...bare } = engine;
+  expect(call).toHaveBeenCalledWith('sessionModel', {
+    slug: 'ada',
+    sessionId: 'current',
+    choice: bare,
+  });
 });

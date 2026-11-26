@@ -234,6 +234,7 @@ export function sessionModelEffort(
   catalog: SessionModelCatalog | undefined,
   choice: SessionModelChoice | null,
   name: (id: string, catalogName?: string) => string,
+  defaultName: string,
 ): SessionModelEffort | undefined {
   if (catalog === undefined || choice === null || choice.kind === 'group') return undefined;
   const model =
@@ -252,13 +253,19 @@ export function sessionModelEffort(
           .find((entry) => entry.id === choice.model);
   const efforts = model?.efforts ?? [];
   if (efforts.length < 2) return undefined;
-  const current =
-    efforts.find((effort) => effort.id === choice.effort)?.id ??
-    efforts.find((effort) => effort.id === model?.defaultEffort)?.id ??
-    efforts[0]!.id;
+  const fallback = efforts.find((effort) => effort.id === model?.defaultEffort);
   return {
     key: sessionModelKey(choice),
-    current,
-    options: efforts.map((effort) => ({ id: effort.id, name: name(effort.id, effort.name) })),
+    current: efforts.find((effort) => effort.id === choice.effort)?.id ?? '',
+    options: [
+      {
+        id: '',
+        name:
+          fallback === undefined
+            ? defaultName
+            : `${defaultName} · ${name(fallback.id, fallback.name)}`,
+      },
+      ...efforts.map((effort) => ({ id: effort.id, name: name(effort.id, effort.name) })),
+    ],
   };
 }

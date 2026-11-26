@@ -259,15 +259,19 @@ export function SessionModelPicker({ control }: { control: Control }) {
   const current = sessionModelKey(state?.override ?? null);
   const effort = useMemo(
     () =>
-      sessionModelEffort(catalog, state?.override ?? null, (id, name) =>
-        engineEffortName(id, copy.effort, name),
+      sessionModelEffort(
+        catalog,
+        state?.override ?? null,
+        (id, name) => engineEffortName(id, copy.effort, name),
+        copy.effortDefault,
       ),
     [catalog, copy, state?.override],
   );
   const chooseEffort = (id: string) => {
     const override = state?.override;
     if (override == null || override.kind === 'group') return;
-    void choose({ ...override, effort: id }, true);
+    const { effort: _effort, ...bare } = override;
+    void choose(id === '' ? bare : { ...bare, effort: id }, true);
   };
   const summary = useSessionModelSummary(control);
   const accessible = (row: SessionModelRow) =>
