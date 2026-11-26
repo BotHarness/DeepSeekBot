@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { BrowserBridgeMethods } from './methods.js';
@@ -27,4 +26,4 @@ export const browserServiceRpc = {
   browserProfileSet(slug: string, profile: string): { bot: PersonaBotDetail } {
     return browserProfileSet(this.methods, slug, profile);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: BrowserBridgeMethods }>;

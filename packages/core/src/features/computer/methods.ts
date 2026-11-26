@@ -5,13 +5,13 @@ import {
   unknownBot,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotDetailProjection } from '../personabots/bot-details.js';
 
-export interface ComputerBridgeMethods {
+export type ComputerBridgeMethods = {
   computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-}
+};
 
 export interface ComputerBridgeDeps {
   computerAccess?: { changed(slug: string): void };
@@ -19,7 +19,7 @@ export interface ComputerBridgeDeps {
 
 export function createComputerBridgeMethods(
   deps: ComputerBridgeDeps & { registry: Pick<PersonaBotRegistry, 'setComputerAccess'> },
-  detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
+  detailOf: PersonaBotDetailProjection,
 ): ComputerBridgeMethods {
   return {
     computerAccessSet(payload) {

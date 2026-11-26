@@ -5,14 +5,14 @@ import {
   unknownBot,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
+import type { PersonaBotDetailProjection } from '../personabots/bot-details.js';
 
-export interface BrowserBridgeMethods {
+export type BrowserBridgeMethods = {
   browserAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   browserProfileSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-}
+};
 
 export interface BrowserBridgeDeps {
   browserAccess?: { changed(slug: string): void };
@@ -23,7 +23,7 @@ export function createBrowserBridgeMethods(
   deps: BrowserBridgeDeps & {
     registry: Pick<PersonaBotRegistry, 'setBrowserAccess' | 'setBrowserProfile'>;
   },
-  detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
+  detailOf: PersonaBotDetailProjection,
 ): BrowserBridgeMethods {
   return {
     browserAccessSet(payload) {

@@ -52,16 +52,6 @@ import {
   type WorkspacesBridgeDeps,
 } from '../features/workspaces/methods.js';
 import {
-  createBrowserBridgeMethods,
-  type BrowserBridgeMethods,
-  type BrowserBridgeDeps,
-} from '../features/browser/methods.js';
-import {
-  createComputerBridgeMethods,
-  type ComputerBridgeMethods,
-  type ComputerBridgeDeps,
-} from '../features/computer/methods.js';
-import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   createEngineSelectionBridge,
@@ -379,8 +369,6 @@ export interface BridgeMethods
     AvatarsBridgeMethods,
     MarketplaceBridgeMethods,
     ModelsBridgeMethods,
-    ComputerBridgeMethods,
-    BrowserBridgeMethods,
     VoiceBridgeMethods,
     ApprovalsBridgeMethods,
     WorkspacesBridgeMethods,
@@ -434,8 +422,6 @@ export interface BridgeMethodsDeps
     AvatarsBridgeDeps,
     MarketplaceBridgeDeps,
     ModelsBridgeDeps,
-    ComputerBridgeDeps,
-    BrowserBridgeDeps,
     VoiceBridgeDeps,
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
@@ -643,8 +629,6 @@ function buildBridgeMethods(
     requireOwnedBot,
     modelRouting,
   );
-  const computerMethods = createComputerBridgeMethods(deps, detailOf);
-  const browserMethods = createBrowserBridgeMethods(deps, detailOf);
   const approvalsMethods = createApprovalsBridgeMethods(
     human,
     deps,
@@ -820,8 +804,6 @@ function buildBridgeMethods(
     update: personabotsMethods.update,
     pause: personabotsMethods.pause,
     resume: personabotsMethods.resume,
-    ...computerMethods,
-    ...browserMethods,
     approvalTemplates: approvalsMethods.approvalTemplates,
     approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
     approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
@@ -990,7 +972,7 @@ function buildBridgeMethods(
     developerModeSet: diagnosticsAdapterMethods.developerModeSet,
   };
   return authorizeChannelBridgeMethods(
-    mergeFeatureMethods([methods, contributedBridgeMethods(human, deps)]),
+    mergeFeatureMethods([methods, contributedBridgeMethods(human, deps, detailOf)]),
     human,
     deps,
     globalRegistry,
