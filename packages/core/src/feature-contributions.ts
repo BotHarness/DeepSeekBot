@@ -1,8 +1,9 @@
-import type { HumanContext } from './humans/context.js';
 import type { FeatureContribution } from './kernel/feature-contribution.js';
 import { createBrowserContribution } from './features/browser/contribution.js';
 import { createComputerContribution } from './features/computer/contribution.js';
-import type { PersonaBotDetailProjection } from './features/personabots/bot-details.js';
+import { createConnectorsContribution } from './features/connectors/contribution.js';
+import { createHumansContribution } from './features/humans/contribution.js';
+import { createPromptsContribution } from './features/prompts/contribution.js';
 import {
   createGenuiContribution,
   type GenuiContributionOptions,
@@ -19,6 +20,9 @@ export function createFeatureContributions(options?: {
     createGenuiContribution(options?.genui),
     createBrowserContribution(),
     createComputerContribution(),
+    createConnectorsContribution(),
+    createHumansContribution(),
+    createPromptsContribution(),
   ] as const;
 }
 
@@ -42,22 +46,24 @@ export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Int
   return methods as Intersection<T>;
 }
 
-type RegisteredBridgeFactory = Extract<
-  (typeof featureContributions)[number],
-  { bridgeMethods: NonNullable<FeatureContribution['bridgeMethods']> }
->['bridgeMethods'];
-export type ContributedBridgeDeps = Intersection<Parameters<RegisteredBridgeFactory>[0]['deps']> & {
+type RegisteredBridgeContext = Parameters<
+  Extract<
+    (typeof featureContributions)[number],
+    { bridgeMethods: NonNullable<FeatureContribution['bridgeMethods']> }
+  >['bridgeMethods']
+>[0];
+type InvocationContext<T> = T extends unknown ? Omit<T, 'deps'> : never;
+export type ContributedBridgeDeps = Intersection<RegisteredBridgeContext['deps']> & {
   featureContributions?: RegisteredFeatures;
 };
 
 export function contributedBridgeMethods(
-  human: HumanContext,
   deps: ContributedBridgeDeps,
-  detailOf: PersonaBotDetailProjection,
+  invocation: Intersection<InvocationContext<RegisteredBridgeContext>>,
 ) {
   return mergeFeatureMethods(
     (deps.featureContributions ?? featureContributions).flatMap((feature) =>
-      'bridgeMethods' in feature ? [feature.bridgeMethods({ human, deps, detailOf })] : [],
+      'bridgeMethods' in feature ? [feature.bridgeMethods({ ...invocation, deps })] : [],
     ),
   );
 }
