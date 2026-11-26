@@ -12,26 +12,54 @@ export function isManagementCapability(value: unknown): value is ManagementCapab
 
 const GrantRow = z.object({ botSlug: z.string().min(1), capability: z.string() });
 
-const OWNER_BOTS_SQL = `
+export const MANAGE_GRANTS_PERMISSION = 'bots.manageGrants';
+
+const AUTHORIZED_HUMAN_SQL = (
+  human: string,
+) => `(${human} = s.owner_human_id OR (s.enabled = 1 AND EXISTS (
+    SELECT 1 FROM humans h JOIN human_roles m ON m.human_id = h.human_id
+    JOIN host_roles r ON r.role_id = m.role_id, json_each(r.permissions_json) p
+    WHERE h.human_id = ${human} AND h.status = 'active' AND p.value = '${MANAGE_GRANTS_PERMISSION}')))`;
+
+const GRANT_HOLDERS_SQL = `
   SELECT g.bot_slug AS botSlug, g.capability FROM bot_management_grants g
   JOIN persona_bots b ON b.slug = g.bot_slug
-  JOIN team_settings s ON s.owner_human_id = b.owner_human_id
-  WHERE NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = g.bot_slug)
+  CROSS JOIN team_settings s
+  WHERE ${AUTHORIZED_HUMAN_SQL('b.owner_human_id')}
+    AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = g.bot_slug)
     AND COALESCE(json_extract(b.body, '$.paused'), 0) = 0`;
 
-function rows(db: DatabaseSync, slug?: string): { botSlug: string; capability: string }[] {
-  const statement =
-    slug === undefined
-      ? db.prepare(`${OWNER_BOTS_SQL} ORDER BY g.bot_slug`)
-      : db.prepare(`${OWNER_BOTS_SQL} AND g.bot_slug = ?`);
-  return z.array(GrantRow).parse(slug === undefined ? statement.all() : statement.all(slug));
+function rows(
+  db: DatabaseSync,
+  filter: { slug?: string; ownerHumanId?: string } = {},
+): { botSlug: string; capability: string }[] {
+  const where = [
+    ...(filter.slug === undefined ? [] : ['g.bot_slug = ?']),
+    ...(filter.ownerHumanId === undefined ? [] : ['b.owner_human_id = ?']),
+  ];
+  const statement = db.prepare(
+    `${GRANT_HOLDERS_SQL}${where.map((clause) => ` AND ${clause}`).join('')} ORDER BY g.bot_slug`,
+  );
+  const params = [filter.slug, filter.ownerHumanId].filter(
+    (value): value is string => value !== undefined,
+  );
+  return z.array(GrantRow).parse(statement.all(...params));
+}
+
+export function canManageGrants(database: OperationalDatabaseModulePort, humanId: string): boolean {
+  return database.read(
+    (db) =>
+      db
+        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('?')}`)
+        .get(humanId, humanId) !== undefined,
+  );
 }
 
 export function managementGrants(
   database: OperationalDatabaseModulePort,
   slug: string,
 ): ManagementCapability[] {
-  const granted = database.read((db) => rows(db, slug));
+  const granted = database.read((db) => rows(db, { slug }));
   return resolveGrants(
     [{ allow: granted.map((row) => row.capability as ManagementCapability), deny: [] }],
     MANAGEMENT_CAPABILITIES,
@@ -49,9 +77,12 @@ export function holdsManagementGrant(
 
 export function managementGrantHolders(
   database: OperationalDatabaseModulePort,
+  ownerHumanId?: string,
 ): { botSlug: string; capabilities: ManagementCapability[] }[] {
   const byBot = new Map<string, ManagementCapability[]>();
-  for (const row of database.read((db) => rows(db))) {
+  for (const row of database.read((db) =>
+    rows(db, ownerHumanId === undefined ? {} : { ownerHumanId }),
+  )) {
     if (!isManagementCapability(row.capability)) continue;
     byBot.set(row.botSlug, [...(byBot.get(row.botSlug) ?? []), row.capability]);
   }
