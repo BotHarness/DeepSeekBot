@@ -42,7 +42,7 @@ export class BotMessageError extends HarnessError {
   }
 }
 
-const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. If something you need, such as a tool, is unavailable, say so once in your next reply instead of promising it.`;
+const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. This reply source was closed; a new message from the Human starts a fresh turn. If something you need, such as a tool, is unavailable, say so once instead of promising it.`;
 
 const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
@@ -281,11 +281,25 @@ export function createBotMessageTool(
         ) > SEND_STREAK_LIMIT
       ) {
         exec.concludeTurn();
+        let ignored = false;
+        if (args.source_event_id !== undefined && run.triage !== undefined)
+          try {
+            ignored =
+              run.triage.resolve({
+                ids: [args.source_event_id],
+                outcome: 'ignored',
+                note: 'send-streak',
+              }).outcome === 'resolved';
+          } catch {
+            ignored = false;
+          }
         return JSON.stringify({
           status: 'refused',
           reason: 'send-streak',
           notice: SEND_STREAK_NOTICE,
-          inboxResolution: { outcome: 'not-requested' },
+          inboxResolution: ignored
+            ? { outcome: 'ignored', resolved: [args.source_event_id] }
+            : { outcome: 'not-requested' },
         });
       }
       const reply =

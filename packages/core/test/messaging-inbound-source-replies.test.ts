@@ -560,6 +560,7 @@ it('unified messaging preserves an unknown external outcome without concluding o
 it('ends a turn that keeps replying to one source with no other work in between', async () => {
   let results: Record<string, unknown>[] = [];
   let conclusions = 0;
+  let ignoredState: string | undefined;
   const fx = await fixture({
     onRun: async (run) => {
       const sourceId = run.triage!.current()[0]!;
@@ -583,6 +584,9 @@ it('ends a turn that keeps replying to one source with no other work in between'
         await send('three', 'Working.'),
         await send('four', 'Almost there.'),
       ];
+      ignoredState = fx.core.attention
+        .list({ botSlug: 'ada' })
+        .items.find((item) => item.id === sourceId)?.state;
       resetSendStreak(run);
       results.push(await send('five', 'Done.'));
     },
@@ -598,7 +602,11 @@ it('ends a turn that keeps replying to one source with no other work in between'
     'refused',
     'provider-accepted',
   ]);
-  expect(results[4]).toMatchObject({ reason: 'send-streak' });
+  expect(results[4]).toMatchObject({
+    reason: 'send-streak',
+    inboxResolution: { outcome: 'ignored' },
+  });
+  expect(ignoredState).not.toBe('open');
   expect(conclusions).toBe(1);
   expect(fx.replies.map((reply) => reply.text)).toEqual([
     'Creating it now.',
