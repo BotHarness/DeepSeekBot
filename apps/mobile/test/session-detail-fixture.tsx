@@ -328,7 +328,11 @@ export async function open({
   transcript = () => ({ displayTitle: 'Review the release' }),
   pendingInput,
   livePendingInput,
+  liveGate,
+  archiveGate,
 }: {
+  liveGate?: Promise<void>;
+  archiveGate?: Promise<void>;
   pendingInput?: HostSessionPendingInput[];
   livePendingInput?: HostSessionPendingInput[];
   role?: 'orchestrator' | 'assignment' | 'native';
@@ -370,6 +374,7 @@ export async function open({
     }
     if (method === 'sessionLive') {
       if (args?.['after'] !== undefined) return new Promise(() => {});
+      await liveGate;
       return {
         seq: 4,
         revision: 1,
@@ -390,7 +395,10 @@ export async function open({
       sessionRunning = false;
       return { sessionId: 'chosen', accepted: true };
     }
-    if (method === 'sessionNativeArchive') return { sessionId: 'chosen', accepted: true };
+    if (method === 'sessionNativeArchive') {
+      await archiveGate;
+      return { sessionId: 'chosen', accepted: true };
+    }
     if (method === 'sessionStop') {
       sessionRunning = false;
       return { stopped: [], alreadyIdle: [] };
