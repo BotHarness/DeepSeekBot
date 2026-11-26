@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { ALL_PERMISSIONS } from '../src/team/permissions.js';
+import { ALL_PERMISSIONS } from '../src/team-policy/permissions.js';
 import { TeamRoles } from '../src/team/roles.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 

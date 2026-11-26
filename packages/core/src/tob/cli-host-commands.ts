@@ -2,7 +2,7 @@ import { BROKER_CLI_READS, cliEffects } from '../bots/cli-effects.js';
 import { canonicalCliCommandName } from '../bots/cli-command-names.js';
 export { BROKER_CLI_READS as TOB_HOST_CLI_READS } from '../bots/cli-effects.js';
 import { parseBotCliArgs } from '../bots/cli-options.js';
-import { ownsBot } from '../team/bot-access.js';
+import { ownsBot } from '../team-policy/bot-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { HumanContext } from '../humans/context.js';

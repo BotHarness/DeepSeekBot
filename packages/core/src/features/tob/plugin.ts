@@ -1,4 +1,4 @@
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import { humanContext, type HumanContext } from '../../humans/context.js';
 import { TOB_CHANNEL_CAPABILITIES } from '../../tob/cli-channel-operations.js';
 import { TOB_BOT_CREATE_CAPABILITIES } from '../../tob/cli-bot-create.js';

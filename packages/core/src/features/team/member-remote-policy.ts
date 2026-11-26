@@ -3,13 +3,13 @@ import type {
   RemoteAccessCondition,
   RemoteAccessPolicy,
 } from '@deepseek-ai/dsh-api-remote-access';
-import { humanContext } from '../humans/context.js';
-import type { MemberPrincipal, TeamService } from './service.js';
+import { humanContext } from '../../humans/context.js';
+import type { MemberPrincipal, TeamService } from '../../team/service.js';
 import {
   MEMBER_CHANNEL_METHODS,
   MEMBER_APPROVAL_METHODS,
   MEMBER_METHODS,
-} from './member-methods.js';
+} from '../../team/member-methods.js';
 const channelMethods = new Set<string>([...MEMBER_CHANNEL_METHODS, ...MEMBER_APPROVAL_METHODS]);
 
 export function memberPolicy(team: TeamService): RemoteAccessPolicy<MemberPrincipal> {

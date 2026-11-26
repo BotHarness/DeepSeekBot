@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { Client, fetch } from 'undici';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TEAM_PATH } from '../src/team/http.js';
+import { TEAM_PATH } from '../src/features/team/http.js';
 import { deferred } from './deferred.js';
 import { cleanup, enabledFixture, memberHttp } from './team-mode-fixtures.js';
 

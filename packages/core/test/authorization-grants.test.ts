@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveGrants } from '../src/authorization/grants.js';
+import { resolveGrants } from '../src/kernel/grants.js';
 
 type Capability = 'approve' | 'reject' | 'answer' | 'save-rules';
 

@@ -2,7 +2,7 @@ import { questionAnswerReceipts } from '../src/channels/question-answer-receipts
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { createTeamHttp, TEAM_PATH, MEMBER_COOKIE } from '../src/team/http.js';
+import { createTeamHttp, TEAM_PATH, MEMBER_COOKIE } from '../src/features/team/http.js';
 import { hashPassword } from '../src/team/password.js';
 import { nativeTimedQuestions } from '../src/channels/native-timed-questions.js';
 import type { TimedQuestionPort } from '../src/channels/user-questions.js';

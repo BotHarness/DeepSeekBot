@@ -1,7 +1,7 @@
 import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { TeamError } from '../src/team/service.js';
+import { TeamError } from '../src/team-policy/error.js';
 import { ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/team/password.js';
 import * as passwords from '../src/team/password.js';
 import { SignInRateLimit } from '../src/team/rate-limit.js';

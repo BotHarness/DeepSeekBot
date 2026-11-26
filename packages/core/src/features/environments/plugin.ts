@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 
 import type { BotHarnessCore } from '../../plugin.js';
-import { mountDevicePairing } from '../../devices/mount.js';
+import { mountDevicePairing } from './mount.js';
 
 type DeviceOptions = Parameters<typeof mountDevicePairing>[1];
 

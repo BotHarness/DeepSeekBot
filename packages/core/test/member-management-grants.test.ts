@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
-import { ADMIN_PERMISSIONS, ownerGrantedPermission } from '../src/team/permissions.js';
+import { ADMIN_PERMISSIONS, ownerGrantedPermission } from '../src/team-policy/permissions.js';
 import { MEMBER_BOT_CAPABILITIES } from '../src/features/tob/plugin.js';
 import { fixture, bob, alice } from './team-member-lifecycle-fixtures.js';
 

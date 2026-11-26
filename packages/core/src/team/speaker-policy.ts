@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { resolveBehaviorPermissions } from '../messaging/permissions/index.js';
-import { rolePolicySchema } from './bot-contract.js';
+import { rolePolicySchema } from '../team-policy/bot-contract.js';
 import type { TeamRoles } from './roles.js';
 import type { HumanContext } from '../humans/context.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 
 const role = z.object({
   roleId: z.string(),

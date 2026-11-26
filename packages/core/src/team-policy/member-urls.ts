@@ -1,19 +1,4 @@
 import { isIPv4 } from 'node:net';
-import type { RouteStatus } from '../devices/routes.js';
-
-export function memberRoutes(origin: string, status: RouteStatus): string[] {
-  return memberUrls([
-    ...(origin.startsWith('https:') ? [origin] : []),
-    ...status.routes
-      .filter(
-        (route) =>
-          route.ready &&
-          (route.kind === 'connect' ||
-            (route.kind === 'tailscale' && route.memberSignIn === 'managed-tls')),
-      )
-      .map((route) => route.url),
-  ]);
-}
 
 export function memberUrls(addresses: string[]): string[] {
   return [...new Set(addresses)].filter((address) => {

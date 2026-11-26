@@ -1,5 +1,5 @@
 import { skillOwnerKey } from '../skills/entries.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import { acceptedQuestionAnswer } from './accepted-question-answer.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';

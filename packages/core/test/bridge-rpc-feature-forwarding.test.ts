@@ -1,4 +1,4 @@
-import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team-policy/channel-contract.js';
 import { registryDatabase } from './registry-fixture.js';
 import { rmSync } from 'node:fs';
 import { Context } from '@deepseek-ai/cordis';

@@ -11,7 +11,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { createTempRoot } from './helpers.js';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { createTeamBridge } from '../src/team/bridge.js';
+import { createTeamBridge } from '../src/features/team/bridge.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';

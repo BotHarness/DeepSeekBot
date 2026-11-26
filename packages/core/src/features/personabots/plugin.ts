@@ -2,7 +2,7 @@ import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js'
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { defaultSpaceMemoryPath } from '../../workspaces/space-memory.js';
-import type { TeamError } from '../../team/error.js';
+import type { TeamError } from '../../team-policy/error.js';
 import { requireBotEngineAccount, requireBotModel } from '../../team/models.js';
 import { humanContext } from '../../humans/context.js';
 import { realpathSync } from 'node:fs';

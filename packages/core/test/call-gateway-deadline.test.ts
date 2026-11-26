@@ -8,7 +8,7 @@ import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
 import type { HostRequest } from '@botharness/host-protocol/carrier';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { createDevicePairing } from '../src/devices/pairing.js';

@@ -1,5 +1,5 @@
 import { type HumanContext } from '../humans/context.js';
-import { ownsBot } from '../team/bot-access.js';
+import { ownsBot } from '../team-policy/bot-access.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';

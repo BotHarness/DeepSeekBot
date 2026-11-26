@@ -1,5 +1,5 @@
 import { botProfileFingerprint } from '../bots/profile-snapshot.js';
-import type { BotAdminAction } from './bot-administration.js';
+import type { BotAdminAction } from './private-contract.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
@@ -12,10 +12,10 @@ import type { HumanContext } from '../humans/context.js';
 import type { MemoryAcceptance } from '../memory/accepted.js';
 import type { TeamRoles } from './roles.js';
 import type { TeamChannels } from './channels.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import { PrivateAudit } from './audit.js';
-import { botOwner } from './bot-access.js';
-import { roleGrantedPermissionsSql } from './host-permissions.js';
+import { botOwner } from '../team-policy/bot-access.js';
+import { roleGrantedPermissionsSql } from '../team-policy/host-access.js';
 import {
   auditListSchema,
   privateListSchema,

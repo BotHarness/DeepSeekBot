@@ -1,3 +1,4 @@
+import { requireChannelAccess } from '../team-policy/channel-access.js';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { TeamRoles } from './roles.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   channelPolicySchema,
   channelBotDmEligibleSql,
@@ -15,7 +16,7 @@ import {
   channelVisibilitySchema,
   type ChannelPolicy,
   type ChannelVisibility,
-} from './channel-contract.js';
+} from '../team-policy/channel-contract.js';
 
 const settingsSchema = z.object({
   owner: z.string(),
@@ -123,52 +124,27 @@ export class TeamChannels {
       : 'member';
   }
   requireManage(human: HumanContext, channelId: string): void {
-    if (!this.active(human)) throw new TeamError('permission-required');
-    this.settings(channelId);
-    if (this.roles.permissions(human).includes('channels.manageAll')) return;
-    if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
-    if (this.role(human, channelId) === 'member') throw new TeamError('permission-required');
+    this.requireAccess(human, channelId, 'manage');
   }
   requirePolicy(human: HumanContext, channelId: string, key: keyof ChannelPolicy): void {
-    if (key === 'addMembers') {
-      this.requireAddMembers(human, channelId);
-      return;
-    }
-    if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
-    const channel = this.channels.get(channelId);
-    if (channel?.type !== 'group') {
-      if (key === 'post') return;
-      throw new TeamError('channel-not-found');
-    }
-    if (
-      this.roles.permissions(human).includes('channels.manageAll') ||
-      this.settings(channelId).policy[key] === 'everyone' ||
-      this.role(human, channelId) !== 'member'
-    )
-      return;
-    throw new TeamError(
-      key === 'post'
-        ? 'channel-post-restricted'
-        : key === 'mentionAll'
-          ? 'channel-mention-restricted'
-          : 'permission-required',
-      undefined,
-      { permission: key },
-    );
+    this.requireAccess(human, channelId, key);
   }
-  private requireAddMembers(human: HumanContext, channelId: string): void {
-    const denied = () =>
-      new TeamError('permission-required', undefined, { permission: 'addMembers' });
-    if (!this.active(human)) throw denied();
-    const settings = this.settings(channelId);
-    if (this.roles.permissions(human).includes('channels.manageAll')) return;
-    if (!this.canRead(human, channelId, true)) throw denied();
-    if (settings.policy.addMembers === 'everyone' || this.role(human, channelId) !== 'member')
-      return;
-    throw denied();
+  private requireAccess(
+    human: HumanContext,
+    channelId: string,
+    action: 'manage' | keyof ChannelPolicy,
+  ): void {
+    requireChannelAccess(action, {
+      active: () => this.active(human),
+      joined: () => this.canRead(human, channelId, true),
+      group: () => this.channels.get(channelId)?.type === 'group',
+      groupPolicy: () => this.settings(channelId).policy,
+      role: () => this.role(human, channelId),
+      managesAll: () => this.roles.permissions(human).includes('channels.manageAll'),
+    });
   }
   memberCandidates(human: HumanContext, channelId: string, query: string) {
-    this.requireAddMembers(human, channelId);
+    this.requireAccess(human, channelId, 'addMembers');
     return this.searchMemberCandidates(channelId, null, query);
   }
   createMemberCandidates(human: HumanContext, query: string) {

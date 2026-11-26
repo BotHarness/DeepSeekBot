@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDeviceGateway } from '../src/devices/gateway.js';
+import { createDeviceGateway } from '../src/features/environments/gateway.js';
 import { createDevicePushHttp } from '../src/push/http.js';
 import { TOKEN_A, fixture, approval } from './push-delivery-fixtures.js';
 

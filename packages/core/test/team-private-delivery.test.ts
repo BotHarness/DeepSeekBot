@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { pairedDeviceHuman, deviceOwnsRequest } from '../src/team/device-audience.js';
+import { pairedDeviceHuman, deviceOwnsRequest } from '../src/devices/device-audience.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createPushDelivery, type ExpoMessage } from '../src/push/delivery.js';
 import { activityListPushSource } from '../src/push/source.js';

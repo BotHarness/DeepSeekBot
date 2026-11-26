@@ -1,34 +1,39 @@
+import { DEVICE_GATEWAY_PREFIX } from '../../devices/encrypted-gateway-path.js';
 import { memberDeviceRequest, deviceFailure } from '../team/device-http.js';
 import { TEAM_PATH, type TeamHttp } from '../team/http.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 
-import type { Admission, DevicePairing, DeviceRefusal, OfferRefusal } from './pairing.js';
-import { phoneRoute } from './routes.js';
+import type {
+  Admission,
+  DevicePairing,
+  DeviceRefusal,
+  OfferRefusal,
+} from '../../devices/pairing.js';
+import { phoneRoute } from '../../devices/routes.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LOCAL_VIDEO_PATH,
   type LocalVideoResult,
-} from '../../../computer/src/local-video-contract.js';
-import { COMPUTER_UNLOCK_PATH } from '../../../computer/src/unlock-contract.js';
+} from '../../../../computer/src/local-video-contract.js';
+import { COMPUTER_UNLOCK_PATH } from '../../../../computer/src/unlock-contract.js';
 import {
   DEVICE_NOISE_PEER_HEADER,
   DEVICE_ROUTE_HEADER,
   forwardDeviceRoute,
   isConnectRequest,
   noisePeerKey,
-} from './route-context.js';
+} from '../../devices/route-context.js';
 import {
   VOICE_CALL_CONNECT_REFUSAL,
   VOICE_CALL_LIMITS,
   VOICE_CALL_PATH,
   type VoiceCallResult,
-} from '../voice/call-contract.js';
-import { refuseConnectRpc } from './rpc-policy.js';
-import { connectMux } from './connect-mux.js';
+} from '../../voice/call-contract.js';
+import { refuseConnectRpc } from '../../devices/rpc-policy.js';
+import { connectMux } from '../../devices/connect-mux.js';
 
-export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
 export const DEVICE_FEED_READ_PATH = `${DEVICE_GATEWAY_PREFIX}/feed-read`;
 export const DEVICE_UNPAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/unpair`;

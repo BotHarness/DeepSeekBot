@@ -1,6 +1,7 @@
 import { toRemoteError } from '../kernel/rpc-result.js';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
-import { TeamError, type TeamService } from '../team/service.js';
+import { TeamError } from '../team-policy/error.js';
+import { type TeamService } from '../team/service.js';
 import { type HumanContext } from '../humans/context.js';
 import type { AllBotPreview } from '../channels/all-bot-mention.js';
 import type { Context } from '@deepseek-ai/cordis';

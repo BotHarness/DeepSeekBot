@@ -19,7 +19,7 @@ import {
 import { modelFailure } from '../../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 
 import { type HumanContext } from '../../humans/context.js';
 import { createBotImports, type BotImportsService } from '../../bots/imports.js';

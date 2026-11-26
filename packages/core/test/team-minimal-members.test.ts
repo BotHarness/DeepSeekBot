@@ -9,7 +9,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { ALL_PERMISSIONS } from '../src/team/permissions.js';
+import { ALL_PERMISSIONS } from '../src/team-policy/permissions.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 import { createTestRosterStore } from './roster-fixture.js';
 

@@ -208,7 +208,7 @@ export interface GroupJoinRequest {
   decidedBy?: 'human' | string;
 }
 
-export const LOCAL_HUMAN_ID = 'local-human';
+export { LOCAL_HUMAN_ID } from '../kernel/local-human.js';
 
 export interface LocalHumanIdentity {
   humanId: string;

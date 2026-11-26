@@ -8,8 +8,9 @@ import type { WebServer } from '@deepseek-ai/dsh-host-webserver';
 import type { ClientModuleRegistry } from '@deepseek-ai/dsh-client-modules';
 import { z } from 'zod';
 import { createTeamHttp, TEAM_PATH, type TeamHttp } from './http.js';
-import { memberPolicy } from './policy.js';
-import { TeamError, type TeamService } from './service.js';
+import { memberPolicy } from './member-remote-policy.js';
+import { TeamError } from '../../team-policy/error.js';
+import { type TeamService } from '../../team/service.js';
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertLookupMap {

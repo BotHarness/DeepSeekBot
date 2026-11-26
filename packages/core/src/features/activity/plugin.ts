@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
 import { activityListPushSource } from '../../push/source.js';
 import type { Presence } from '../../push/presence.js';
-import type { DevicePushOptions } from '../../devices/mount.js';
+import type { DevicePushOptions } from '../environments/mount.js';
 import type { DshSessionStore } from '../../sessions/source.js';
 import { ActivityToolDetails, createToolDetailIndex } from '../../state/tool-details.js';
 import { createDshActivityProjection } from '../../state/dsh-activity.js';

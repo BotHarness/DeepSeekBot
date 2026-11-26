@@ -1,5 +1,5 @@
 import { installMemorySkillProvider } from '../skills/memory-provider.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   installNativeModelSelection,
   installAgentNativeTools,

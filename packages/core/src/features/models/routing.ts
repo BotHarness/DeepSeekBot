@@ -8,8 +8,8 @@ import {
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { botModelGrants, requireBotModel } from '../../team/models.js';
 import { requireEngineAccountGrant } from '../../team/roles.js';
-import { allowsEngineAccount } from '../../team/permissions.js';
-import { TeamError } from '../../team/error.js';
+import { allowsEngineAccount } from '../../team-policy/permissions.js';
+import { TeamError } from '../../team-policy/error.js';
 import { type HumanContext } from '../../humans/context.js';
 import { join } from 'node:path';
 import {

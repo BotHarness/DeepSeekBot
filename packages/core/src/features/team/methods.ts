@@ -6,10 +6,10 @@ import {
 } from '../../kernel/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import type { UsageByMemberResult } from '../../usage/overview.js';
-import { createTeamBridge } from '../../team/bridge.js';
+import { createTeamBridge } from './bridge.js';
 import { type HumanContext } from '../../humans/context.js';
 import { isUsageOverviewPeriod } from '../../usage/overview.js';
-import type { TeamBridgeMethods as ExistingTeamBridgeMethods } from '../../team/bridge.js';
+import type { TeamBridgeMethods as ExistingTeamBridgeMethods } from './bridge.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 
 export interface TeamBridgeMethods extends ExistingTeamBridgeMethods {

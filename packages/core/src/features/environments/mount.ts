@@ -1,66 +1,68 @@
-import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
-import { createMemberDevices } from '../team/devices.js';
-import { createConnectHealth } from './connect-health.js';
-import { deviceOwnsRequest } from '../team/device-audience.js';
-import type { TeamService } from '../team/service.js';
-import { createDirectPeers } from './direct.js';
-import { createHostRelationships } from './relationships.js';
-import { createRelationshipControl } from './relationship-control.js';
-import { createRelationshipHttp, RELATIONSHIPS_PATH } from './relationship-http.js';
-import { createPrivateConnection } from './private-relay.js';
-import { createPrivateTunnel } from './private-tunnel.js';
-import { createConnectBotBridge } from './bot-connect-bridge.js';
-import { createLanBotBridge } from './bot-lan-bridge.js';
-import { createLanBotDiscovery } from './bot-lan-discovery.js';
-import { createLanBotMembership } from './bot-lan-membership.js';
-import { createLanBotControl } from './bot-lan-control.js';
-import { createActivityDelivery, type ActivityDelivery } from '../live-activity/delivery.js';
-import type { ChannelSendStatus } from '../channels/store.js';
-import { createNoiseIdentity } from './noise-identity.js';
-import { createEncryptedGateway, type CallChannelDiagnostic } from './encrypted-gateway.js';
+import { createMemberDevices, memberRoutes as eligibleMemberRoutes } from '../team/devices.js';
+import { createConnectHealth } from '../../devices/connect-health.js';
+import { deviceOwnsRequest } from '../../devices/device-audience.js';
+import type { TeamService } from '../../team/service.js';
+import { createDirectPeers } from '../../devices/direct.js';
+import { createHostRelationships } from '../../devices/relationships.js';
+import { createRelationshipControl } from '../../devices/relationship-control.js';
+import { createRelationshipHttp, RELATIONSHIPS_PATH } from '../../devices/relationship-http.js';
+import { createPrivateConnection } from '../../devices/private-relay.js';
+import { createPrivateTunnel } from '../../devices/private-tunnel.js';
+import { createConnectBotBridge } from '../../devices/bot-connect-bridge.js';
+import { createLanBotBridge } from '../../devices/bot-lan-bridge.js';
+import { createLanBotDiscovery } from '../../devices/bot-lan-discovery.js';
+import { createLanBotMembership } from '../../devices/bot-lan-membership.js';
+import { createLanBotControl } from '../../devices/bot-lan-control.js';
+import { createActivityDelivery, type ActivityDelivery } from '../../live-activity/delivery.js';
+import type { ChannelSendStatus } from '../../channels/store.js';
+import { createNoiseIdentity } from '../../devices/noise-identity.js';
+import {
+  createEncryptedGateway,
+  type CallChannelDiagnostic,
+} from '../../devices/encrypted-gateway.js';
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
-import { createDeviceLan } from './lan.js';
+import { createDeviceLan } from '../../devices/lan.js';
 import { hostname, platform } from 'node:os';
-import { createTailnetBotBridge } from './bot-tailnet-bridge.js';
-import { createBotNetworkRoutes } from './bot-network-routes.js';
+import { createTailnetBotBridge } from '../../devices/bot-tailnet-bridge.js';
+import { createBotNetworkRoutes } from '../../devices/bot-network-routes.js';
 import {
   receiveNetworkBotDm,
   BotNetworkDeliveryError,
   type BotNetworkPort,
-} from '../runtime/bot-network.js';
-import type { PersonaBotRegistry } from '../bots/registry.js';
-import type { ChannelStore } from '../channels/store.js';
+} from '../../runtime/bot-network.js';
+import type { PersonaBotRegistry } from '../../bots/registry.js';
+import type { ChannelStore } from '../../channels/store.js';
 import { join } from 'node:path';
-import type { ComputerService } from '../../../computer/src/service.js';
-import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
-import { localVideoCommand } from '../../../computer/src/local-video-http.js';
-import type { VoiceCallResult } from '../voice/call-contract.js';
-import type { VoiceCalls } from '../voice/calls.js';
+import type { ComputerService } from '../../../../computer/src/service.js';
+import type { LocalVideoOwner } from '../../../../computer/src/local-video-contract.js';
+import { localVideoCommand } from '../../../../computer/src/local-video-http.js';
+import type { VoiceCallResult } from '../../voice/call-contract.js';
+import type { VoiceCalls } from '../../voice/calls.js';
 
-import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
-import { openLogDatabase, type LogDatabase } from '../logs/log-db.js';
-import { createConnectAccount, type ConnectAccount } from './connect-account.js';
-import { cloudflaredCacheRoot } from './cloudflared.js';
-import { createDeviceConnect } from './connect.js';
-import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
-import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
-import { createManagedPhoneRoute, parseManagedPhoneRoute } from './routes.js';
+import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
+import { openLogDatabase, type LogDatabase } from '../../logs/log-db.js';
+import { createConnectAccount, type ConnectAccount } from '../../devices/connect-account.js';
+import { cloudflaredCacheRoot } from '../../devices/cloudflared.js';
+import { createDeviceConnect } from '../../devices/connect.js';
+import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from '../../devices/http.js';
+import { createDevicePairing, type DevicePairingEvent } from '../../devices/pairing.js';
+import { createManagedPhoneRoute, parseManagedPhoneRoute } from '../../devices/routes.js';
 import { mountDeviceGateway } from './mount-gateway.js';
 import {
   mountDevicePush,
   PUSH_SETTLE_MS,
   SETTLE_MAX_WAIT_MS,
   type DevicePushOptions,
-} from './mount-push.js';
-import { mountRemoteCustodyRoutes } from './mount-remote-custody.js';
-import type { ConnectionLike, WebServerLike } from './mount-types.js';
-import type { PushDelivery } from '../push/delivery.js';
-import type { TelemetryService } from '../telemetry/service.js';
-import { coalesce } from '../runtime/coalesce.js';
+} from '../../devices/mount-push.js';
+import { mountRemoteCustodyRoutes } from '../../devices/mount-remote-custody.js';
+import { isDeviceRouteConnection, isDeviceRouteWebServer } from '../../devices/mount-types.js';
+import type { PushDelivery } from '../../push/delivery.js';
+import type { TelemetryService } from '../../telemetry/service.js';
+import { coalesce } from '../../runtime/coalesce.js';
 
-export type { DevicePushOptions } from './mount-push.js';
+export type { DevicePushOptions } from '../../devices/mount-push.js';
 
 const CONNECT_OUTCOMES: Readonly<Record<string, 'success' | 'denied' | 'expired'>> = {
   'signed-in': 'success',
@@ -323,8 +325,9 @@ export function mountDevicePairing(
     });
 
   ctx.inject(['connection', 'webServer'], (webCtx) => {
-    const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
-    const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
+    const connection: unknown = webCtx.get('connection');
+    const webServer: unknown = webCtx.get('webServer');
+    if (!isDeviceRouteConnection(connection) || !isDeviceRouteWebServer(webServer)) return;
     const relationships = createHostRelationships({
       database: attachOperationalModule(options.database, 'host-relationships'),
       pairing,

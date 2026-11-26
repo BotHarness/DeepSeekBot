@@ -7,7 +7,7 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MemoryAcceptance } from '../memory/accepted-types.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { TobError } from './service.js';
 
 export const TOB_MEMORY_LEASE_READ_KINDS = ['snapshot', 'file', 'history', 'diff'] as const;

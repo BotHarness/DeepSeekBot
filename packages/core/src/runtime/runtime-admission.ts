@@ -7,7 +7,7 @@ import type {
 import { GROUP_MENTION_REMINDER } from './inbound-envelope.js';
 import type { TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import type { HumanContext } from '../humans/context.js';
 import { requireSourceEffects } from '../purge/fence.js';
 import type { createMemoryEvents } from '../features/memory/events.js';

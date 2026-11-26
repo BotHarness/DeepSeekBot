@@ -1,5 +1,5 @@
 import type { TeamService } from '../team/service.js';
-import { botOwner } from '../team/bot-access.js';
+import { botOwner } from '../team-policy/bot-access.js';
 import { type PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import { type ChannelRecord } from '../channels/channel.js';

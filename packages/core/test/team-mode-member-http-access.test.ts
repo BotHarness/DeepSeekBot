@@ -20,10 +20,10 @@ import {
 import { createRelationshipControl } from '../src/devices/relationship-control.js';
 import { IncomingMessage, request as httpRequest } from 'node:http';
 import { Socket } from 'node:net';
-import { passwordTransportAllowed, TEAM_PATH } from '../src/team/http.js';
+import { passwordTransportAllowed, TEAM_PATH } from '../src/features/team/http.js';
 import { API_PATH, HostConnectionService, Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TeamError } from '../src/team/service.js';
+import { TeamError } from '../src/team-policy/error.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { closes, teamFixture, enabledFixture, memberHttp, cleanup } from './team-mode-fixtures.js';
 

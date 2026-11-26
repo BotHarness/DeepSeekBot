@@ -1,4 +1,4 @@
-import { channelAudienceSql } from '../team/channel-contract.js';
+import { channelAudienceSql } from '../team-policy/channel-contract.js';
 import type { HumanContext } from '../humans/context.js';
 import { notChannelNoticeSql } from './channel-notice.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';

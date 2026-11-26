@@ -7,7 +7,7 @@ import {
   unknownChannel,
   type BridgeResult,
 } from '../../kernel/method-utils.js';
-import { botOwner } from '../../team/bot-access.js';
+import { botOwner } from '../../team-policy/bot-access.js';
 import { type HumanContext } from '../../humans/context.js';
 import { MemoryImageError } from '../../memory/image.js';
 import { inspectImage } from '../../media/image-format.js';

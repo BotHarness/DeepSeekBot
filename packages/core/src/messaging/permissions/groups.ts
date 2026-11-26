@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { PairingCapability, PairingRequest } from '../pairing.js';
 import type { ExternalUserRole } from './senders.js';
 import { platformPeople } from './people.js';
-import { resolveGrants } from '../../authorization/grants.js';
+import { resolveGrants } from '../../kernel/grants.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';

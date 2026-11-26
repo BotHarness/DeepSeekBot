@@ -3,7 +3,7 @@ import type * as approvalsFeature from '../approvals/plugin.js';
 import type * as workspacesFeature from '../workspaces/plugin.js';
 import type { SessionLiveStreams } from '../../runtime/session-live.js';
 import { changesSessionRow, type SessionListChanges } from './session-list-changes.js';
-import { TeamError } from '../../team/error.js';
+import { TeamError } from '../../team-policy/error.js';
 import { requireBotModel } from '../../team/models.js';
 import {
   compactUnknownContext,

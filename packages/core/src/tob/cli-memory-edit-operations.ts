@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ownsBot } from '../team/bot-access.js';
+import { ownsBot } from '../team-policy/bot-access.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import { MemoryAcceptError, type MemoryAcceptedCommit } from '../memory/accepted.js';

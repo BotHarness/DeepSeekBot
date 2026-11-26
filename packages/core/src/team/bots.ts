@@ -10,14 +10,14 @@ import type { ChannelRecord } from '../channels/channel.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { TeamRoles } from './roles.js';
 import type { TeamChannels } from './channels.js';
-import { TeamError } from './error.js';
+import { TeamError } from '../team-policy/error.js';
 import {
   audienceContains,
   botVisibilitySchema,
   botSwitchesSchema,
   type BotVisibility,
   type BotSwitches,
-} from './bot-contract.js';
+} from '../team-policy/bot-contract.js';
 
 const botRow = z.object({
   slug: z.string(),

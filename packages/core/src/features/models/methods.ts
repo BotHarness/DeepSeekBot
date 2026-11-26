@@ -26,8 +26,8 @@ import { sessionTarget } from '../../kernel/session-target.js';
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { type RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
-import { TeamError } from '../../team/error.js';
-import { ownsBot } from '../../team/bot-access.js';
+import { TeamError } from '../../team-policy/error.js';
+import { ownsBot } from '../../team-policy/bot-access.js';
 import { type HumanContext } from '../../humans/context.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import {

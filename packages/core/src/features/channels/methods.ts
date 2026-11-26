@@ -1,6 +1,6 @@
 import type { BridgeMethods } from '../../bridge/methods.js';
-import { botOwner } from '../../team/bot-access.js';
-import { TeamError } from '../../team/error.js';
+import { botOwner } from '../../team-policy/bot-access.js';
+import { TeamError } from '../../team-policy/error.js';
 import { MEMBER_CHANNEL_METHODS } from '../../team/member-methods.js';
 import { remoteChannelAvailability, remoteChannelContact } from '../environments/methods.js';
 import { channelPreviewMessage } from '../../channels/channel-notice.js';

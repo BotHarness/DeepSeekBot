@@ -1,4 +1,4 @@
-import { privateBotRegistry } from '../../team/bot-access.js';
+import { privateBotRegistry } from '../team/private-bot-registry.js';
 import { TeamRoles } from '../../team/roles.js';
 import { join } from 'node:path';
 import { createSqliteChannelStore } from '../../channels/sqlite-store.js';

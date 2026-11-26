@@ -1,6 +1,6 @@
 import { accountSpaceFiles, removeAccountSpace } from '../workspaces/space-lifecycle.js';
 import { acceptMemberBotPurge, type PersonaBotDeletions } from '../bots/deletion.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import { type HumanContext } from '../humans/context.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';

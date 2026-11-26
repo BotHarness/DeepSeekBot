@@ -13,7 +13,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import { memoryOwnership } from '../bots/deletion.js';
-import { TeamError } from '../team/error.js';
+import { TeamError } from '../team-policy/error.js';
 import { accountMemoryPath, defaultSpaceMemoryPath, botMemorySpaceId } from './space-memory.js';
 import { canonicalPath, within } from './space-paths.js';
 import { spaceDeletionSchema, spaceDeletionKey, restoreSpaceDeletion } from './space-deletion.js';
