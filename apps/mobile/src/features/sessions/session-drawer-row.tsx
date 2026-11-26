@@ -10,7 +10,7 @@ import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
 import { radius, rowGlyph, space } from '../../ui/design/tokens';
 import { clampScaledIconSize } from '../../ui/design/scaled-icon-size';
-import { ItemMenu } from '../../ui/primitives/item-menu';
+import { showActionMenu } from '../../ui/primitives/app-dialog';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { SessionFolderAvatar } from './session-folder-avatar';
@@ -206,12 +206,9 @@ export function SessionDrawerRow({
     </Pressable>
   );
   if (onFolderLook === undefined) return body();
-  return (
-    <ItemMenu
-      title={row.folderName ?? title}
-      actions={[{ key: 'folder-look', label: t.folderLook, glyph: 'folder', run: onFolderLook }]}
-    >
-      {(open) => body(open)}
-    </ItemMenu>
+  return body(() =>
+    showActionMenu(row.folderName ?? title, [
+      { text: t.folderLook, icon: 'folder', onPress: onFolderLook },
+    ]),
   );
 }

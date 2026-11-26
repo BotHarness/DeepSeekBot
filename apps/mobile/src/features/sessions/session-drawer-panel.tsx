@@ -15,7 +15,12 @@ import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
 import { ReadFailure } from '../../ui/primitives/read-failure';
 import { SearchField } from '../../ui/primitives/search-field';
 import { Text } from '../../ui/primitives/text';
-import { assignFolderColors, folderColorKey, type SessionQueryRow } from './session-query-model';
+import {
+  assignFolderColors,
+  folderColor,
+  folderColorKey,
+  type SessionQueryRow,
+} from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
 import { SessionDrawerEnvironmentChip } from './session-drawer-environment-chip';
 import { SessionDrawerNewButton } from './session-drawer-new-button';
@@ -245,6 +250,9 @@ export function SessionDrawerPanel({
                           hostId: item.hostId,
                           path: item.cwd!,
                           ...(item.folderName === undefined ? {} : { folderName: item.folderName }),
+                          autoColor:
+                            folderColors.get(folderColorKey(item.hostId, item.folderName)) ??
+                            folderColor(item.folderName),
                         },
                       })
               }

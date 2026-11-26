@@ -14,7 +14,12 @@ import { useStrings } from '../src/ui/strings';
 export default function FolderLookScreen() {
   const t = useStrings().hostSessions;
   const router = useRouter();
-  const params = useLocalSearchParams<{ hostId?: string; path?: string; folderName?: string }>();
+  const params = useLocalSearchParams<{
+    hostId?: string;
+    path?: string;
+    folderName?: string;
+    autoColor?: string;
+  }>();
   const { client } = useHostSession(params.hostId);
   const [look, setLook] = useState<WorkspaceLook | null | 'failed'>();
   useFocusEffect(
@@ -49,6 +54,7 @@ export default function FolderLookScreen() {
     <SheetScreen>
       <FolderLookEditor
         folderName={params.folderName}
+        autoColor={params.autoColor}
         look={look ?? {}}
         onSave={async (next) => {
           await setWorkspaceLook(client, path, next);

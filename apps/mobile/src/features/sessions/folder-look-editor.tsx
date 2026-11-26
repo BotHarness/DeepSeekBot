@@ -38,11 +38,13 @@ const sameIcon = (a: WorkspaceLookIcon | undefined, b: WorkspaceLookIcon) =>
 
 export function FolderLookEditor({
   folderName,
+  autoColor: assigned,
   look: initial,
   onSave,
   onClose,
 }: {
   folderName: string | undefined;
+  autoColor?: string | undefined;
   look: WorkspaceLook;
   onSave(look: WorkspaceLook | null): Promise<void>;
   onClose(): void;
@@ -54,7 +56,10 @@ export function FolderLookEditor({
   const [set, setSet] = useState<IconSet>(initial.icon?.kind ?? 'symbol');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const color = (look.color as HostColorId | undefined) ?? folderColor(folderName);
+  const auto: HostColorId = (HOST_COLOR_IDS as readonly string[]).includes(assigned ?? '')
+    ? (assigned as HostColorId)
+    : folderColor(folderName);
+  const color = (look.color as HostColorId | undefined) ?? auto;
   const ink = hostColorInk(theme.scheme, theme.color, color);
   const iconSize = theme.type.title.line;
   const setIcon = (icon: WorkspaceLookIcon) => setLook({ ...look, icon });
@@ -115,6 +120,7 @@ export function FolderLookEditor({
           <SessionFolderAvatar
             testID="folder-look-preview"
             folderName={folderName}
+            colorId={auto}
             look={look}
             size={theme.touch * 2}
             corner={theme.touch / 2}
@@ -185,7 +191,7 @@ export function FolderLookEditor({
               label={t.folderLookAuto}
               selected={look.color === undefined}
               ring={theme.color.fg}
-              fill={HOST_COLORS[folderColor(folderName)][theme.scheme]}
+              fill={HOST_COLORS[auto][theme.scheme]}
               onPress={() => setColor(undefined)}
             >
               {look.color === undefined ? (

@@ -28,30 +28,13 @@ vi.mock('react-native-keyboard-controller', () => ({
   ),
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock('../src/ui/primitives/item-menu', async () => {
-  const { useState } = await import('react');
-  return {
-    ItemMenu: ({
-      actions,
-      children,
-    }: {
-      actions: { key: string; run(): void }[];
-      children(open: () => void): ReactNode;
-    }) => {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          {children(() => setOpen(true))}
-          {open
-            ? actions.map((action) => (
-                <button key={action.key} data-testid={`menu-${action.key}`} onClick={action.run} />
-              ))
-            : null}
-        </>
-      );
-    },
-  };
-});
+const menus = vi.hoisted(() => ({
+  shown: [] as { title: string; actions: { text: string; onPress(): void }[] }[],
+}));
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showActionMenu: (title: string, actions: { text: string; onPress(): void }[]) =>
+    menus.shown.push({ title, actions }),
+}));
 vi.mock('expo-router', () => ({
   router: navigation,
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
@@ -507,16 +490,22 @@ it('shows the cached Sessions at once when the drawer opens again, and refreshes
 });
 
 it('opens 文件夹外观 from a long press on a Session whose folder the Owner can see', async () => {
+  menus.shown.length = 0;
   const { view } = await render({ second: true });
   const fresh = view.querySelector<HTMLElement>('[data-testid="host-session-fresh"]')!;
   await act(async () => fresh.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-  const action = view.querySelector<HTMLElement>('[data-testid="menu-folder-look"]')!;
-  await act(async () => action.click());
+  expect(menus.shown.map((menu) => menu.title)).toEqual(['botharness']);
+  await act(async () => menus.shown[0]!.actions[0]!.onPress());
   expect(navigation.push).toHaveBeenCalledWith({
     pathname: '/folder-look',
-    params: { hostId: 'studio', path: '/work/botharness', folderName: 'botharness' },
+    params: {
+      hostId: 'studio',
+      path: '/work/botharness',
+      folderName: 'botharness',
+      autoColor: expect.any(String),
+    },
   });
   const remote = view.querySelector<HTMLElement>('[data-testid="host-session-remote"]')!;
   await act(async () => remote.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-  expect(view.querySelectorAll('[data-testid="menu-folder-look"]')).toHaveLength(1);
+  expect(menus.shown).toHaveLength(1);
 });
