@@ -155,7 +155,6 @@ export const zh = {
   'approval.alwaysToolScope':
     '选择“始终允许”后，此 Bot 在当前授权范围使用 {tool} 不再询问，换参数也一样。终端命令可能访问当前目录之外。',
   'approval.alwaysServiceScope': '允许并记住这个服务，仍保留其独立访问限制。',
-  'approval.alwaysToolScopeShort': '始终允许后，此 Bot 在这里使用 {tool} 不再询问。',
   'approval.alwaysMemoryScope': '始终允许后，此 Bot 修改你的 Bot 的记忆时不再询问。',
   'approval.alwaysUnavailable': '此操作需要单独确认，不能设为始终允许。',
   'approval.toolRule': '始终允许 {tool}',
@@ -200,6 +199,13 @@ export const zh = {
   'autoApproval.inherit': '继承全局',
   'autoApproval.inherited': '来自全局：{template}',
   'autoApproval.section': '自动审批',
+  'autoApproval.preset.trigger': '自动审批 · {name}',
+  'autoApproval.preset.menuTitle': '这个 Bot 的自动审批预设',
+  'autoApproval.preset.followGlobal': '跟随全局',
+  'autoApproval.preset.new': '新建预设…',
+  'autoApproval.preset.manage': '管理预设…',
+  'autoApproval.preset.note': '切换后从下一次请求开始生效，这次仍需你确认。',
+  'autoApproval.preset.next': '下次生效',
   'autoApproval.offHint': '每张卡片由你批准',
   'autoApproval.activeSection': '当前生效',
   'autoApproval.templatesSection': '全部模板',
@@ -488,8 +494,6 @@ export const en = {
     'Choose Always allow to let this Bot use {tool} in the current authorization scope without asking again, even with different inputs. Shell commands may access files outside the current folder.',
   'approval.alwaysMemoryScope':
     'Always allow lets this Bot change your Bots’ memory without asking again.',
-  'approval.alwaysToolScopeShort':
-    'Always allow lets this Bot use {tool} here without asking again.',
   'approval.alwaysServiceScope':
     'Allow and remember this service, keeping its independent access restrictions.',
   'approval.alwaysUnavailable':
@@ -538,6 +542,13 @@ export const en = {
   'autoApproval.inherit': 'Inherit global',
   'autoApproval.inherited': 'From global: {template}',
   'autoApproval.section': 'Auto approval',
+  'autoApproval.preset.trigger': 'Auto approval · {name}',
+  'autoApproval.preset.menuTitle': 'Auto approval preset for this Bot',
+  'autoApproval.preset.followGlobal': 'Follow global',
+  'autoApproval.preset.new': 'New preset…',
+  'autoApproval.preset.manage': 'Manage presets…',
+  'autoApproval.preset.note': 'Applies from the next request. You still decide this one.',
+  'autoApproval.preset.next': 'Next request',
   'autoApproval.offHint': 'You approve each card',
   'autoApproval.activeSection': 'Active',
   'autoApproval.templatesSection': 'All templates',

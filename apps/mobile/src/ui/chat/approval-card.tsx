@@ -14,14 +14,7 @@ import {
 } from '@botharness/host-client/requests';
 import type { ToolApprovalOutcome } from '@botharness/host-protocol/wire';
 import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
-import {
-  alwaysNote,
-  alwaysShortNote,
-  executionNote,
-  expiryLabel,
-  highRisk,
-  riskNote,
-} from '../approval-note';
+import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';
@@ -31,6 +24,8 @@ import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './act
 import type { CardLineTone } from './card-line';
 import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
+import type { ApprovalPresetPort } from './approval-preset';
+import { ApprovalPresetRow } from './approval-preset-row';
 
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
@@ -117,6 +112,7 @@ interface ApprovalCardProps {
   group?: BubbleGroup;
   wide?: boolean;
   alwaysAllow?: boolean;
+  preset?: ApprovalPresetPort;
   onSettled?(result: DecisionResult): void;
 }
 
@@ -135,6 +131,7 @@ function ApprovalCardContent({
   focused = false,
   wide = false,
   alwaysAllow = true,
+  preset,
   onSettled,
 }: ApprovalCardProps) {
   const t = useStrings();
@@ -298,7 +295,6 @@ function ApprovalCardContent({
     request.effects === undefined
       ? undefined
       : toolEffectLabels(request.effects, locale).join(' · ');
-  const scope = alwaysShortNote(request);
   return (
     <View ref={mount}>
       <ActionCard
@@ -340,7 +336,6 @@ function ApprovalCardContent({
         )}
         {running === undefined ? null : <CardNote>{running}</CardNote>}
         {highRisk(request.toolName) ? <CardNote>{riskNote(request.toolName)}</CardNote> : null}
-        {scope === undefined ? null : <CardNote testID="approval-scope">{scope}</CardNote>}
         {line === undefined ? null : (
           <CardNote testID="approval-result" live>
             {line.text}
@@ -389,6 +384,7 @@ function ApprovalCardContent({
             onPress={() => void decide('rejected')}
           />
         </CardButtons>
+        {actionable && preset !== undefined ? <ApprovalPresetRow port={preset} /> : null}
       </ActionCard>
     </View>
   );

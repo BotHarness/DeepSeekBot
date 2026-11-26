@@ -349,3 +349,51 @@ it('names the default model and its brand on "Use Bot default", also before a ne
   expect(row.textContent).toContain('V4.1 Flash');
   expect(row.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('deepseek');
 });
+
+function NewNativeSession({ host }: { host: HostCall }) {
+  const control = useSessionModelControl({
+    host,
+    hostId: hostId(host),
+    slug: null,
+    enabled: true,
+    sessionId: undefined,
+    running: false,
+  });
+  return (
+    <>
+      <SessionModelLogo control={control} disabled={false} />
+      <SessionModelPicker control={control} />
+    </>
+  );
+}
+
+it('names the Default preset model on a new native Session and filters by provider', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog'
+      ? {
+          ...catalog,
+          default: api,
+          models: [
+            ...catalog.models,
+            {
+              provider: 'opencode-go',
+              providerName: 'OpenCode Go',
+              model: 'claude-haiku-5-5',
+              modelName: 'Claude Haiku 5.5',
+            },
+          ],
+        }
+      : defaultState,
+  );
+  await act(async () => root.render(<NewNativeSession host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const row = button('session-model-option-default');
+  expect(row.textContent).toContain('Use the Default preset');
+  expect(row.textContent).toContain('V4.1 Flash');
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
+  await act(async () => button('session-model-filter-api:claude').click());
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(1);
+  expect(button('session-model-option-default')).toBeDefined();
+  await act(async () => button('session-model-filter-api:claude').click());
+  expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
+});

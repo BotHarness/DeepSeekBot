@@ -96,6 +96,7 @@ export const zh = {
   'pairing.rejectCapability': '拒绝操作',
   'pairing.reviewCapability': '审核聊天配对',
   'pairing.delegable': '可委派管理能力',
+  'pairing.delegateApproved': '也可在 IM 里把这些能力授予别人',
   'pairing.delegateAllow': '允许委派',
   'pairing.delegateDeny': '禁止委派',
   'pairing.delegationHelp':
@@ -433,6 +434,7 @@ export const en = {
   'pairing.rejectCapability': 'Reject operations',
   'pairing.reviewCapability': 'Review chat pairing',
   'pairing.delegable': 'Delegable management capabilities',
+  'pairing.delegateApproved': 'Can also grant these to others in IM',
   'pairing.delegateAllow': 'Allow delegation',
   'pairing.delegateDeny': 'Deny delegation',
   'pairing.delegationHelp':

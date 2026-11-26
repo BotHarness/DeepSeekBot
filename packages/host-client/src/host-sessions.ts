@@ -43,6 +43,7 @@ function sessionRows(values: unknown[]): HostSessionRow[] {
       ...(row['waiting'] === true ? { waiting: true as const } : {}),
       ...(row['archived'] === true ? { archived: true as const } : {}),
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
+      ...(typeof row['createdAt'] === 'number' ? { createdAt: row['createdAt'] } : {}),
       ...modelOf(record(row['model'])),
     };
     if (source['kind'] === 'native') return [{ ...base, source: { kind: 'native' } }];
@@ -77,7 +78,16 @@ function sessionSources(values: unknown[]): HostSessionSourceOption[] {
       typeof option['botSlug'] === 'string' &&
       typeof option['displayName'] === 'string'
     )
-      return [{ kind: 'bot', botSlug: option['botSlug'], displayName: option['displayName'] }];
+      return [
+        {
+          kind: 'bot',
+          botSlug: option['botSlug'],
+          displayName: option['displayName'],
+          ...(typeof option['avatar'] === 'string' ? { avatar: option['avatar'] } : {}),
+          ...(option['appearance'] === undefined ? {} : { appearance: option['appearance'] }),
+          ...(option['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
+        },
+      ];
     return [];
   });
 }

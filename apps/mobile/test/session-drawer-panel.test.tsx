@@ -60,6 +60,7 @@ vi.mock('../src/ui/primitives/drawer-material', () => ({
   useLiquidGlass: () => false,
 }));
 
+import { Dimensions } from 'react-native';
 import { SessionDrawerPanel } from '../src/features/sessions/session-drawer-panel';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { sessionQueries } from '../src/features/sessions/session-list-query';
@@ -270,6 +271,20 @@ it('opens the environment sheet from the environment chip', async () => {
   expect(chip.getAttribute('role')).toBe('button');
   await act(async () => chip.click());
   expect(navigation.push).toHaveBeenCalledWith('/environment');
+});
+
+it('keeps the environment chip one line tall and shows only its icon at accessibility sizes', async () => {
+  const size = vi
+    .spyOn(Dimensions, 'get')
+    .mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 3 });
+  try {
+    const { view } = await render();
+    const chip = view.querySelector<HTMLElement>('[data-testid="session-drawer-environment"]')!;
+    expect(chip.textContent).toBe('');
+    expect(chip.getAttribute('aria-label')).toBe('Studio');
+  } finally {
+    size.mockRestore();
+  }
 });
 
 it('hides New Session from a member', async () => {

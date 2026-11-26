@@ -110,6 +110,7 @@ export const HOST_ADMIN_OPTIONS = {
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
+  delegable: { type: 'boolean' },
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },

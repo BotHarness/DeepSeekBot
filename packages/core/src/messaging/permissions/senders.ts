@@ -26,6 +26,7 @@ import {
   permissionGroupInputs,
   changePermissionGroups,
   effectivePairingPermissions,
+  externalPermissionGroups,
   type EffectivePermissions,
 } from './groups.js';
 
@@ -332,6 +333,111 @@ export interface SenderAccessReviewer {
   bindingId: string;
   actorId: string;
 }
+function assertReviewerExceptions(
+  db: DatabaseSync,
+  botSlug: string,
+  input: SenderAccessInput,
+  reviewer: SenderAccessReviewer,
+): void {
+  if (input.kind === 'edit-group') {
+    assertReviewerMembership(db, botSlug, input, reviewer);
+    return;
+  }
+  if (input.kind !== 'person-permissions') throw new MessagingError('pairing-unauthorized');
+  const row = db
+    .prepare('SELECT body FROM messaging_pairings WHERE id = ? AND bot_slug = ?')
+    .get(input.id, botSlug) as { body: string } | undefined;
+  if (!row) throw new MessagingError('pairing-stale');
+  const pairing = JSON.parse(row.body) as PairingRequest;
+  const permissions = effectivePairingPermissions(
+    db,
+    botSlug,
+    reviewer.bindingId,
+    reviewer.actorId,
+  );
+  if (
+    !permissions.capabilities.includes('review-pairing') ||
+    pairing.bindingId !== reviewer.bindingId ||
+    pairing.actorId === reviewer.actorId
+  )
+    throw new MessagingError('pairing-unauthorized');
+  const before = pairing.permissionExceptions;
+  const changed = (left: readonly string[] = [], right: readonly string[] = []) => [
+    ...left.filter((cap) => !right.includes(cap)),
+    ...right.filter((cap) => !left.includes(cap)),
+  ];
+  const delegable = permissions.delegableCapabilities ?? [];
+  if (
+    changed(before?.delegateAllow, input.delegateAllow ?? before?.delegateAllow).length ||
+    changed(before?.delegateDeny, input.delegateDeny ?? before?.delegateDeny).length ||
+    [...changed(before?.allow, input.allow), ...changed(before?.deny, input.deny)].some(
+      (cap) => !delegable.includes(cap as PairingCapability),
+    )
+  )
+    throw new MessagingError('pairing-delegation-denied');
+}
+function assertReviewerMembership(
+  db: DatabaseSync,
+  botSlug: string,
+  input: Extract<SenderAccessInput, { kind: 'edit-group' }>,
+  reviewer: SenderAccessReviewer,
+): void {
+  const group = externalPermissionGroups(db, botSlug).find((item) => item.id === input.id);
+  if (!group || group.revision !== input.expectedRevision)
+    throw new MessagingError('permission-group-stale');
+  const same = (left: readonly string[] = [], right: readonly string[] = []) =>
+    new Set(left).size === left.length &&
+    new Set(right).size === right.length &&
+    left.length === right.length &&
+    left.every((item) => right.includes(item));
+  const kept = (next: readonly string[] | undefined, current: readonly string[] | undefined) =>
+    next === undefined || same(next, current);
+  const added = input.memberIds.filter((id) => !group.memberIds.includes(id));
+  const removed = group.memberIds.filter((id) => !input.memberIds.includes(id));
+  if (
+    group.bindingId !== reviewer.bindingId ||
+    input.name !== group.name ||
+    !same(input.allow, group.allow) ||
+    !same(input.deny, group.deny) ||
+    !kept(input.delegateAllow, group.delegateAllow) ||
+    !kept(input.delegateDeny, group.delegateDeny) ||
+    !kept(input.behaviorAllow, group.behaviorAllow) ||
+    !kept(input.behaviorDeny, group.behaviorDeny) ||
+    added.length + removed.length !== 1
+  )
+    throw new MessagingError('pairing-unauthorized');
+  const row = db
+    .prepare(
+      "SELECT body FROM messaging_pairings WHERE id = ? AND bot_slug = ? AND purpose = 'conversation'",
+    )
+    .get([...added, ...removed][0]!, botSlug) as { body: string } | undefined;
+  if (!row) throw new MessagingError('pairing-stale');
+  const person = JSON.parse(row.body) as PairingRequest;
+  const permissions = effectivePairingPermissions(
+    db,
+    botSlug,
+    reviewer.bindingId,
+    reviewer.actorId,
+  );
+  if (
+    !permissions.capabilities.includes('review-pairing') ||
+    person.bindingId !== reviewer.bindingId ||
+    person.actorId === reviewer.actorId
+  )
+    throw new MessagingError('pairing-unauthorized');
+  const delegable = permissions.delegableCapabilities ?? [];
+  if (
+    group.behaviorAllow?.length ||
+    group.behaviorDeny?.length ||
+    [
+      ...group.allow,
+      ...group.deny,
+      ...(group.delegateAllow ?? []),
+      ...(group.delegateDeny ?? []),
+    ].some((cap) => !delegable.includes(cap))
+  )
+    throw new MessagingError('pairing-delegation-denied');
+}
 export function changeSenderAccess(
   db: DatabaseSync,
   botSlug: string,
@@ -354,6 +460,7 @@ export function changeSenderAccess(
     input.kind === 'delete-group' ||
     input.kind === 'person-permissions'
   ) {
+    if (reviewer) assertReviewerExceptions(db, botSlug, input, reviewer);
     changePermissionGroups(db, botSlug, input);
     bumpSenderPolicy(db, botSlug);
     return;

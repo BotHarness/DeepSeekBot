@@ -462,6 +462,7 @@ function PairingRow({
   t: BotHarnessTranslate;
 }): ReactElement {
   const [selected, setSelected] = useState<PairingCapability[]>([]);
+  const [delegable, setDelegable] = useState(false);
   const [roleId, setRoleId] = useState(
     request.roleId ?? (request.status === 'pending' ? (defaultRoleId ?? '') : ''),
   );
@@ -565,6 +566,12 @@ function PairingRow({
                   }
                 />
               ))}
+              <Checkbox
+                label={t('pairing.delegateApproved')}
+                checked={delegable}
+                disabled={busy}
+                onChange={setDelegable}
+              />
             </fieldset>
           )}
           <div className="bh-im-actions">
@@ -583,7 +590,12 @@ function PairingRow({
                         roleId: selectedRole.id,
                         expectedRoleRevision: selectedRole.revision,
                       }
-                    : { ...input, kind: 'approve', capabilities: selected },
+                    : {
+                        ...input,
+                        kind: 'approve',
+                        capabilities: selected,
+                        ...(delegable ? { delegable: true } : {}),
+                      },
                 )
               }
             >
@@ -608,6 +620,14 @@ function PairingRow({
               <Tag key={capability}>{t(labels[capability])}</Tag>
             ))}
           </div>
+          {request.delegableCapabilities?.length ? (
+            <div className="bh-im-pairing-capabilities">
+              <span>{t('pairing.delegable')}</span>
+              {request.delegableCapabilities.map((capability) => (
+                <Tag key={capability}>{t(labels[capability])}</Tag>
+              ))}
+            </div>
+          ) : null}
           <Button
             size="sm"
             variant="toolbar"
