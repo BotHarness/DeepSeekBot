@@ -414,6 +414,15 @@ export function SessionDetailBody({
   const [busy, setBusy] = useState<SessionCommand['kind']>();
   const [error, setError] = useState<string>();
   const pending = useRef(false);
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
   useFocusEffect(
     useCallback(() => {
       if (!online || role !== 'assignment' || slug === null) return;
@@ -467,6 +476,7 @@ export function SessionDetailBody({
           if (role === 'native') {
             await archiveHostSession(client, id);
             if (saved !== null && saved !== undefined) forgetLastSession(saved.hostId, id);
+            if (!focused.current) return true;
             if (inSessions && drawer) openNewSession();
             else if (inSessions) router.dismissTo('/sessions');
             else if (router.canGoBack()) router.back();

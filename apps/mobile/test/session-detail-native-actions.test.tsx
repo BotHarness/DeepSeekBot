@@ -40,6 +40,21 @@ it('shows a request that arrives on the live read before the next transcript rea
   expect(view.querySelector('[data-testid="session-pending-input"]')).not.toBeNull();
 });
 
+it('keeps a question the transcript showed when an older live read returns none', async () => {
+  let release!: () => void;
+  const liveGate = new Promise<void>((resolve) => (release = resolve));
+  const { view } = await open({
+    role: 'native',
+    running: true,
+    pendingInput: [question],
+    livePendingInput: [],
+    liveGate,
+  });
+  expect(view.textContent).toContain('Which file?');
+  await act(async () => release());
+  expect(view.textContent).toContain('Which file?');
+});
+
 it('answers a native question from its option', async () => {
   const { view, call } = await open({ role: 'native', running: true, pendingInput: [question] });
   expect(view.textContent).toContain('Which file?');
@@ -105,6 +120,19 @@ it('lands on the Sessions root after archiving from the Sessions tab, never anot
     place.segments = ['(tabs)', '(home)', 'session', '[id]'];
     place.index = 1;
   }
+});
+
+it('does not navigate when the Session screen is left before Archive finishes', async () => {
+  navigation.back.mockClear();
+  let release!: () => void;
+  const archiveGate = new Promise<void>((resolve) => (release = resolve));
+  const { view, call } = await open({ role: 'native', archiveGate });
+  await press(view, 'Review the release');
+  await press(view.querySelector<HTMLElement>('[role="menu"]')!, 'Archive');
+  expect(call).toHaveBeenCalledWith('sessionNativeArchive', { sessionId: 'chosen' });
+  await unmount();
+  await act(async () => release());
+  expect(navigation.back).not.toHaveBeenCalled();
 });
 
 it('keeps a native Session when Archive is cancelled', async () => {
