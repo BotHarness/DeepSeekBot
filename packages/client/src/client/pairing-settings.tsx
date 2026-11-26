@@ -20,6 +20,7 @@ import type {
   ExternalUserRole,
   SenderAccessInput,
   SenderBlock,
+  ConversationSourceBlock,
   SenderPolicy,
 } from '../../../core/src/messaging/permissions/client.js';
 import {
@@ -36,7 +37,7 @@ import type {
 } from '../../../core/src/messaging/pairing.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-export type { ExternalUserRole, SenderAccessInput, SenderBlock };
+export type { ConversationSourceBlock, ExternalUserRole, SenderAccessInput, SenderBlock };
 
 const capabilities = ['approve', 'reject', 'answer', 'save-rules', 'review-pairing'] as const;
 const labels = {
@@ -98,6 +99,7 @@ export function PairingSettings({
   behaviorPermissions = [],
   bindings = [],
   blocks = [],
+  conversationBlocks = [],
   policy,
   senderAccess,
   busy,
@@ -112,6 +114,7 @@ export function PairingSettings({
   behaviorPermissions?: BehaviorPermission[];
   bindings?: GroupBinding[];
   blocks?: SenderBlock[];
+  conversationBlocks?: ConversationSourceBlock[];
   policy?: SenderPolicy;
   senderAccess?(input: SenderAccessInput): Promise<void>;
   receivers?: {
@@ -292,7 +295,7 @@ export function PairingSettings({
           },
           {
             value: 'blocked',
-            label: `${t('pairing.blocked')} (${blocks.length})`,
+            label: `${t('pairing.blocked')} (${blocks.length + conversationBlocks.length})`,
             id: `${id}-blocked`,
             panelId: `${id}-panel-blocked`,
           },
@@ -333,6 +336,7 @@ export function PairingSettings({
         {tab === 'blocked' ? (
           <SenderBlocksPanel
             blocks={blocks}
+            conversationBlocks={conversationBlocks}
             accountName={(bindingId) =>
               requests.find((request) => request.bindingId === bindingId)?.accountName ??
               bindings.find((binding) => binding.id === bindingId)?.name ??

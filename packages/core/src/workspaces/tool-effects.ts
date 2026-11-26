@@ -43,6 +43,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   bridge_reachable_groups: read,
   bridge_read: read,
   bridge_sender_permissions: read,
+  bridge_source_block: { ...write, authority: 'management' },
   bridge_share: send,
   bridge_targets: read,
   bridge_thread_policy_list: read,
@@ -183,6 +184,15 @@ export function toolEffects(name: string, args: unknown): ToolEffects | undefine
     operation.method.toUpperCase() === 'GET'
   )
     return { ...effects, changes: 'none' };
+  if (
+    name === 'bridge_source_block' &&
+    operation &&
+    'action' in operation &&
+    operation.action === 'list'
+  ) {
+    const { authority: _authority, ...listed } = effects;
+    return { ...listed, changes: 'none' };
+  }
   if (name === 'browser_tabs' && operation && 'action' in operation && operation.action === 'close')
     return { ...effects, reach: 'local' };
   if (

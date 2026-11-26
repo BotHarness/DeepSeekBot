@@ -518,7 +518,12 @@ function pairingSummary(value: unknown) {
 async function messagingSnapshot(rpc: Rpc, slug: string) {
   const snapshot = record(await rpc('messagingSnapshot', { slug }));
   const list = (key: string) => (Array.isArray(snapshot[key]) ? snapshot[key] : []).map(record);
-  return { pairings: list('pairings'), roles: list('roles'), blocks: list('senderBlocks') };
+  return {
+    pairings: list('pairings'),
+    roles: list('roles'),
+    blocks: list('senderBlocks'),
+    conversationBlocks: list('conversationBlocks'),
+  };
 }
 
 async function readResetToken(io: BotCreateCliIo): Promise<string> {
@@ -884,6 +889,14 @@ export async function runHostAdminCommand(
           actorName: block['actorName'],
           revision: block['revision'],
           blockedAt: block['blockedAt'],
+        })),
+        blockedConversations: snapshot.conversationBlocks.map((block) => ({
+          bindingId: block['bindingId'],
+          conversation: block['conversation'],
+          name: block['name'],
+          revision: block['revision'],
+          blockedAt: block['blockedAt'],
+          blockedBy: block['blockedBy'],
         })),
       };
     }

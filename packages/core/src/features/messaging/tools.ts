@@ -282,6 +282,56 @@ export function registerExternalMessagingTools(
   );
   registerBridgeTool(
     defineTool({
+      name: 'bridge_source_block',
+      description:
+        "Rarely needed. Stop one external person, or one external group, channel or DM, from reaching you, or undo that. block takes a trusted source_event_id: scope sender blocks that message's author on that IM app, scope conversation blocks the conversation it came from. Blocked messages are dropped before you see them. The Owner's own IM accounts can never be blocked and still reach you inside a blocked conversation. list shows current blocks with blockId and revision; unblock takes a blockId. Every block or unblock asks the Human first.",
+      parameters: {
+        action: { type: 'string', required: true, enum: ['list', 'block', 'unblock'] },
+        source_event_id: {
+          type: 'string',
+          description:
+            'For block: trusted Source Event ID of a message from the person or conversation.',
+        },
+        scope: { type: 'string', enum: ['sender', 'conversation'], description: 'For block.' },
+        block_id: { type: 'string', description: 'For unblock: blockId from list.' },
+        expected_revision: { type: 'number', description: 'For unblock: revision from list.' },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      execute: async (args) => {
+        const active = currentRun();
+        if (active === undefined || !active.externalMessaging?.sourceBlocks)
+          throw new Error('bridge_source_block: unavailable');
+        if (args.action === 'list')
+          return JSON.stringify(active.externalMessaging.sourceBlocks({ action: 'list' }));
+        if (args.action === 'block') {
+          if (!args.source_event_id || (args.scope !== 'sender' && args.scope !== 'conversation'))
+            throw new Error('bridge_source_block: block needs source_event_id and scope');
+          return JSON.stringify(
+            active.externalMessaging.sourceBlocks({
+              action: 'block',
+              scope: args.scope,
+              sourceEventId: args.source_event_id,
+            }),
+          );
+        }
+        if (!args.block_id) throw new Error('bridge_source_block: unblock needs block_id');
+        return JSON.stringify(
+          active.externalMessaging.sourceBlocks({
+            action: 'unblock',
+            blockId: args.block_id,
+            ...(args.expected_revision === undefined
+              ? {}
+              : { expectedRevision: args.expected_revision }),
+          }),
+        );
+      },
+    }),
+  );
+  registerBridgeTool(
+    defineTool({
       name: 'bridge_thread_policy_list',
       description:
         'Inspect qualified Lark/Slack Threads received in your own Inbox: participation, revision, delivery proof and Human overrides. A reply never follows automatically.',

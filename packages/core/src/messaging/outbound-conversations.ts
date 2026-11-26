@@ -3,6 +3,7 @@ import { createPairingCards } from './pairing-cards.js';
 import { createMessagingDirectory } from './directory.js';
 import type { BotPairing } from './pairing.js';
 import {
+  botSourceBlocks,
   changeSenderAccess,
   bumpSenderPolicy,
   readSourceSenderPermissions,
@@ -63,6 +64,7 @@ export function createOutboundConversations({
   | 'senderAccess'
   | 'toolRuleCreatorAuthorized'
   | 'senderPermissions'
+  | 'sourceBlocks'
   | 'directory'
   | 'reviewPairing'
   | 'conversation'
@@ -99,6 +101,29 @@ export function createOutboundConversations({
         if (!(error instanceof MessagingError)) throw error;
         return false;
       }
+    },
+    sourceBlocks(botSlug, input) {
+      active(botSlug);
+      let source: Parameters<typeof botSourceBlocks>[3];
+      if (input.action === 'block') {
+        if (
+          typeof input.sourceEventId !== 'string' ||
+          !input.sourceEventId ||
+          input.sourceEventId.length > 200
+        )
+          throw new MessagingError('source-unavailable');
+        const shared = inbound.readShared(botSlug, input.sourceEventId);
+        source = { ...shared.event, conversationName: shared.conversationName };
+      }
+      const result = transaction(
+        (db) => botSourceBlocks(db, botSlug, input, source),
+        ['pairing', 'bot-inbox'],
+      );
+      if (input.action !== 'list') {
+        options.onAuthorizationChanged?.(botSlug);
+        pairingCards.refresh(botSlug);
+      }
+      return result;
     },
     senderPermissions(botSlug, sourceEventId) {
       active(botSlug);
