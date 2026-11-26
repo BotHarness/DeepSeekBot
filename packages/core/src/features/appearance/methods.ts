@@ -7,7 +7,7 @@ import {
   type BotModeOption,
   type BotModeSettings,
   type BotModeTemplate,
-} from '../../runtime/bot-mode-settings.js';
+} from '../../appearance/bot-mode-settings.js';
 import type { BridgeResult } from '../../kernel/method-utils.js';
 
 export interface BotModesDeps {
@@ -34,14 +34,14 @@ export interface BotModesView {
   bot?: BotModeView;
 }
 
-export interface BotModeBridgeMethods {
+export type BotModeBridgeMethods = {
   botModes(payload?: unknown): Promise<BridgeResult<BotModesView>>;
   botModeDefaultSet(payload: unknown): Promise<BridgeResult<BotModesView>>;
   botModeSet(payload: unknown): Promise<BridgeResult<BotModesView>>;
   botModeTemplateSave(payload: unknown): Promise<BridgeResult<BotModesView>>;
   botModeTemplateDelete(payload: unknown): Promise<BridgeResult<BotModesView>>;
   botModeTemplateSet(payload: unknown): Promise<BridgeResult<BotModesView>>;
-}
+};
 
 const fail = (code: string, message: string): BridgeResult<never> => ({
   ok: false,
@@ -56,8 +56,8 @@ function object(payload: unknown): Record<string, unknown> {
 
 export function createBotModeBridgeMethods(deps: {
   modes: BotModesDeps | undefined;
-  registry: PersonaBotRegistry;
-  everyone?: PersonaBotRegistry;
+  registry: Pick<PersonaBotRegistry, 'get' | 'list' | 'update'>;
+  everyone?: Pick<PersonaBotRegistry, 'list'>;
 }): BotModeBridgeMethods {
   const everyone = deps.everyone ?? deps.registry;
   const unavailable = () =>

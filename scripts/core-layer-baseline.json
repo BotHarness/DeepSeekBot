@@ -3,9 +3,6 @@
     "packages/core/src/bots/bot-create-cli.ts": {
       "bots -> features": 11
     },
-    "packages/core/src/bots/cli-bot-modes.ts": {
-      "bots -> runtime": 1
-    },
     "packages/core/src/bots/cli-idle-compaction.ts": {
       "bots -> runtime": 1
     },

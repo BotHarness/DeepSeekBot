@@ -68,7 +68,7 @@ import type { createGitService } from '../../memory/managed-git.js';
 import type { createTelemetryService } from '../../telemetry/service.js';
 import type { createHostModelCatalog } from '../../models/host-models.js';
 import { attachOperationalModule } from '../../database/owner.js';
-import type * as skillsFeature from '../skills/plugin.js';
+import type { DeveloperMode } from '../skills/plugin.js';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
 import type * as diagnosticsFeature from '../diagnostics/plugin.js';
 
@@ -141,7 +141,7 @@ export function mountSettingsOperations(
     releaseService,
   }: {
     modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'];
-    developerMode: ReturnType<typeof skillsFeature.createDeveloperMode>;
+    developerMode: Pick<DeveloperMode, 'set'>;
     telemetry: ReturnType<typeof createTelemetryService>;
     git: ReturnType<typeof createGitService>;
     releaseService: ReturnType<typeof createLoadingReleaseService>;

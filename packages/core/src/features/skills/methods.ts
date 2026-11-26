@@ -40,13 +40,13 @@ export interface SkillsBridgeDeps {
   skills?: SkillCatalog;
 }
 
-export interface SkillsBridgeMethods {
+export type SkillsBridgeMethods = {
   channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
   skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
   botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
-}
+};
 
 export function createSkillsBridgeMethods(
   deps: SkillsBridgeDeps & {

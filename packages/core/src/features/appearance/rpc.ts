@@ -1,7 +1,7 @@
 import { toRemoteError } from '../../kernel/rpc-result.js';
 import { LiveRefused } from '../../channels/live-frames.js';
 import type { CompanionLiveFrame } from '../../companions/live.js';
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
+import type { BridgeLive, BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { BotModesView } from './methods.js';
 import type { BotModeBridgeMethods } from './methods.js';
@@ -51,7 +51,7 @@ export function botModeTemplateSet(
   return unwrapAsync(methods.botModeTemplateSet({ slug, template }));
 }
 
-export const appearanceRpcMethods = {
+export const appearanceStreams = {
   async *followCompanion(
     resume: string,
     lastEventId: string,
@@ -70,7 +70,11 @@ export const appearanceRpcMethods = {
       throw error;
     }
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<
+  Pick<BridgeRpcReceiver, 'invocationHuman'> & {
+    live?: Pick<BridgeLive, 'followCompanion'>;
+  }
+>;
 
 export const botModeRpc = {
   botModes(slug?: string): Promise<BotModesView> {
@@ -96,4 +100,4 @@ export const botModeRpc = {
   botModeTemplateSet(slug: string, template: string | null): Promise<BotModesView> {
     return botModeTemplateSet(this.methods, slug, template);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: BotModeBridgeMethods }>;

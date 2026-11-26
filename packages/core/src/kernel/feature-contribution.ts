@@ -20,6 +20,7 @@ export interface FeatureContribution<
     context: BridgeContext,
   ) => Readonly<Record<string, (payload: unknown) => unknown>>;
   readonly rpc?: Readonly<Record<string, (...args: never[]) => unknown>>;
+  readonly streams?: Readonly<Record<string, (...args: never[]) => AsyncIterable<unknown>>>;
   readonly runtime?: (host: RuntimeHost) => void;
   readonly host?: HostHooks;
   readonly promptSections?: (context: AgentContext) => readonly FeaturePromptSection[];

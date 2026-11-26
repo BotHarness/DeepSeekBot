@@ -1,8 +1,17 @@
-import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import {
+  attachOperationalModule,
+  type OperationalDatabaseModulePort,
+  type OperationalDatabaseOwner,
+} from '../database/owner.js';
+import type { PersonaBotRegistryOptions } from './registry.js';
 import {
   canonicalCustomPart,
   customPartId,
   isPixelCustomPart,
+  isAvatarAppearance,
+  PART_SLOTS,
+  wornAvatarPart,
+  type PartSlot,
   type PixelCustomPart,
 } from './avatar-appearance.js';
 
@@ -15,6 +24,24 @@ export const PART_ORIGINS = [
 ] as const;
 export type PartOrigin = (typeof PART_ORIGINS)[number];
 export const MAX_PART_NAME = 60;
+
+export function createHostAvatarParts(operationalDatabase: OperationalDatabaseOwner) {
+  const partLibrary = createPartLibrary({
+    database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),
+  });
+  const onAppearanceImported: NonNullable<PersonaBotRegistryOptions['onAppearanceImported']> = (
+    record,
+  ) => {
+    const recipe = isAvatarAppearance(record.appearance) ? record.appearance.recipe : undefined;
+    if (recipe?.family !== 'illustrated') return;
+    for (const slot of Object.keys(PART_SLOTS) as PartSlot[]) {
+      const part = wornAvatarPart(recipe, slot);
+      if (part)
+        partLibrary.add({ part, name: '', origin: 'imported-bot', author: record.displayName });
+    }
+  };
+  return { partLibrary, onAppearanceImported };
+}
 
 export interface PartLibraryEntry {
   id: string;

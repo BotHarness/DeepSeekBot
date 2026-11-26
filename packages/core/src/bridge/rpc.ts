@@ -30,7 +30,6 @@ import {
 } from '../features/channels/rpc.js';
 import { sessionBotRpc } from '../features/sessions/session-bot-rpc.js';
 import { channelFilesRpcMethods } from '../features/channel-files/rpc.js';
-import { appearanceRpcMethods, botModeRpc } from '../features/appearance/rpc.js';
 import {
   privateInputRpc,
   externalApprovalRpc,
@@ -60,8 +59,6 @@ import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc
 import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
 import { voiceProviderRpc, voiceSettingsRpc } from '../features/voice/rpc.js';
-import { avatarRpc } from '../features/avatars/rpc.js';
-import { skillRpc } from '../features/skills/rpc.js';
 import {
   assignmentsRpcMethods,
   assignmentRpc,
@@ -160,7 +157,6 @@ const legacyRpcMethods = {
   channelJournalPage: channelsRpcMethods.channelJournalPage,
   channelFilesPage: channelFilesRpcMethods.channelFilesPage,
   ...channelChangeRpc,
-  followCompanion: appearanceRpcMethods.followCompanion,
   ...privateInputRpc,
   ...channelMessagingRpc,
   ...externalApprovalRpc,
@@ -188,18 +184,15 @@ const legacyRpcMethods = {
   ...approvalTemplateReadRpc,
   ...approvalTemplateWriteRpc,
   ...voiceProviderRpc,
-  ...botModeRpc,
   ...voiceSettingsRpc,
   ...approvalReviewerRpc,
   ...compactionSettingsRpc,
   standingLimitsSet: personabotsRpcMethods.standingLimitsSet,
-  ...avatarRpc,
   ...channelManagementRpc,
   composerValidate: channelsRpcMethods.composerValidate,
   ...channelDeletionRpc,
   ...profileStorageRpc,
   ...channelHistoryRpc,
-  ...skillRpc,
   channelAllBotPreview: channelsRpcMethods.channelAllBotPreview,
   tobCli: tobRpcMethods.tobCli,
   ...channelSendRpc,
@@ -235,8 +228,16 @@ function contributedRpcMethods(features: RegisteredFeatures) {
   );
 }
 
+function contributedRpcStreams(features: RegisteredFeatures) {
+  return mergeFeatureMethods(
+    features.flatMap((feature) => ('streams' in feature ? [feature.streams] : [])),
+  );
+}
+
 type PublicRpcMethods = Omit<
-  typeof legacyRpcMethods & ReturnType<typeof contributedRpcMethods>,
+  typeof legacyRpcMethods &
+    ReturnType<typeof contributedRpcMethods> &
+    ReturnType<typeof contributedRpcStreams>,
   'requireApproval' | 'requirePrivateOwner'
 >;
 
@@ -453,11 +454,6 @@ const legacyRemoteMethods = [
   'channelUnreadCounts',
   'channelAllBotPreview',
   'tobCli',
-  'channelSkillCatalog',
-  'sessionSkillCatalog',
-  'botSkills',
-  'skillShow',
-  'botSkillRemove',
   'channelSend',
   'channelSendStatus',
   'botAttention',
@@ -577,12 +573,6 @@ const legacyRemoteMethods = [
   'voiceTranscribe',
   'botAsrSet',
   'voiceDefaultSet',
-  'botModes',
-  'botModeDefaultSet',
-  'botModeSet',
-  'botModeTemplateSave',
-  'botModeTemplateDelete',
-  'botModeTemplateSet',
   'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',
@@ -590,15 +580,6 @@ const legacyRemoteMethods = [
   'idleCompactionCacheLifetimeSet',
   'compactionThresholdSet',
   'standingLimitsSet',
-  'botAvatarSet',
-  'botAppearanceSet',
-  'botPrimaryColorSet',
-  'partLibraryList',
-  'partLibraryAdd',
-  'partLibraryExport',
-  'partLibraryImport',
-  'partLibraryImportImage',
-  'botBannerSet',
   'marketplaceList',
   'marketplaceSubmit',
   'marketplaceTopics',
@@ -664,7 +645,8 @@ const legacyRemoteMethods = [
 ];
 function installRemoteMethods(prototype: object, features: RegisteredFeatures): void {
   const contributions = contributedRpcMethods(features);
-  const methods = mergeFeatureMethods([legacyRpcMethods, contributions]);
+  const streams = contributedRpcStreams(features);
+  const methods = mergeFeatureMethods([legacyRpcMethods, contributions, streams]);
   for (const [name, method] of Object.entries(methods)) {
     Object.defineProperty(prototype, name, { configurable: true, writable: true, value: method });
   }
@@ -673,7 +655,7 @@ function installRemoteMethods(prototype: object, features: RegisteredFeatures): 
     'followRoster',
     'followActivity',
     'followChannel',
-    'followCompanion',
+    ...Object.keys(streams),
   ]);
 }
 
