@@ -23,7 +23,7 @@ export const zh = {
   'connectors.accounts.bots': '{count} 个 Bot 可用',
   'connectors.accounts.remove': '断开',
   'connectors.accounts.removeTitle': '断开 {name}？',
-  'connectors.accounts.removeBody': '账号会在 Composio 中断开，所有 Bot 都将失去它。',
+  'connectors.accounts.removeBody': '账号会被断开，所有 Bot 都将失去它。',
   'connectors.accounts.reconnect': '重新连接',
   'connectors.accounts.details': '{name} 的 Bot 和操作',
   'connectors.accounts.botsTitle': '可以使用的 Bot',
@@ -78,6 +78,14 @@ export const zh = {
   'connectors.catalog.connect': '连接',
   'connectors.catalog.offline': '暂时连不上 Composio，只显示常用应用。',
   'connectors.catalog.more': '加载更多',
+  'connectors.catalog.source': '应用来源',
+  'connectors.catalog.sourceApps': 'Composio 应用',
+  'connectors.catalog.sourceMcp': 'MCP 服务器',
+  'connectors.catalog.searchMcp': '搜索 MCP 服务器，或粘贴 https 地址',
+  'connectors.catalog.mcpAbout':
+    '用你在该服务的账号登录即可连接，不需要 Composio key。列表来自 MCP Registry，也可以直接粘贴服务器地址。',
+  'connectors.catalog.mcpOffline': '暂时连不上 MCP Registry，只显示常用服务器。',
+  'connectors.connect.connected': '已连接，这个服务器不需要登录。',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -107,8 +115,7 @@ export const en = {
   'connectors.accounts.bots': 'Bots: {count}',
   'connectors.accounts.remove': 'Disconnect',
   'connectors.accounts.removeTitle': 'Disconnect {name}?',
-  'connectors.accounts.removeBody':
-    'The account is disconnected at Composio and every Bot loses it.',
+  'connectors.accounts.removeBody': 'The account is disconnected and every Bot loses it.',
   'connectors.accounts.reconnect': 'Reconnect',
   'connectors.accounts.details': 'Bots and actions for {name}',
   'connectors.accounts.botsTitle': 'Bots that can use it',
@@ -167,5 +174,14 @@ export const en = {
   'connectors.catalog.connect': 'Connect',
   'connectors.catalog.offline': 'Composio is unreachable; showing featured apps only.',
   'connectors.catalog.more': 'Load more',
+  'connectors.catalog.source': 'App source',
+  'connectors.catalog.sourceApps': 'Composio apps',
+  'connectors.catalog.sourceMcp': 'MCP servers',
+  'connectors.catalog.searchMcp': 'Search MCP servers or paste an https address',
+  'connectors.catalog.mcpAbout':
+    'Connect by signing in with your account on that service; no Composio key needed. The list comes from the MCP Registry, and you can paste a server address too.',
+  'connectors.catalog.mcpOffline':
+    'The MCP Registry is unreachable; showing featured servers only.',
+  'connectors.connect.connected': 'Connected. This server needs no sign-in.',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

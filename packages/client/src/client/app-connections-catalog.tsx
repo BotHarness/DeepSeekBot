@@ -1,9 +1,10 @@
 import * as stylex from '@stylexjs/stylex';
-import { useRef, useState, type ReactElement } from 'react';
+import { useId, useRef, useState, type ReactElement } from 'react';
 
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ConnectorLogo, type FetchLogos } from './features/connectors/logos.js';
+import { pastedMcpUrl } from './features/connectors/mcp-url.js';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
@@ -12,6 +13,7 @@ import { CatalogCard, CatalogGrid } from './ds/catalog-grid.js';
 import { FieldStack, SearchField, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { ConnectorApp, ConnectorsView } from './features/connectors/bridge.js';
 import { space } from './ds/tokens.stylex.js';
@@ -70,15 +72,28 @@ export function matchesApp(entry: Entry, query: string, t: BotHarnessTranslate):
 export interface PickedApp {
   service: string;
   name: string;
+  url?: string | undefined;
+}
+
+type Source = 'apps' | 'mcp';
+
+interface Listed {
+  service: string;
+  name: string;
+  summary: string;
+  featured: boolean;
+  url?: string | undefined;
 }
 
 interface Found {
+  source: Source;
   query: string;
-  apps: ConnectorApp[];
+  apps: Listed[];
   next?: string | undefined;
 }
 
 type Search = NonNullable<BridgeActions['connectorSearch']>;
+type McpSearch = NonNullable<BridgeActions['connectorMcpSearch']>;
 
 const SEARCH_DELAY_MS = 300;
 
@@ -92,6 +107,7 @@ export function AppCatalog({
   view,
   t,
   search,
+  mcpSearch,
   logos,
   disabled,
   onPick,
@@ -99,10 +115,15 @@ export function AppCatalog({
   view: ConnectorsView;
   t: BotHarnessTranslate;
   search?: Search | undefined;
+  mcpSearch?: McpSearch | undefined;
   logos?: FetchLogos | undefined;
   disabled?: boolean;
   onPick: (app: PickedApp) => void;
 }): ReactElement {
+  const id = useId();
+  const [source, setSource] = useState<Source>(
+    view.configured || mcpSearch === undefined ? 'apps' : 'mcp',
+  );
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Found | undefined>();
   const [more, setMore] = useState(false);
@@ -110,14 +131,22 @@ export function AppCatalog({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(0);
 
-  const run = (text: string) => {
-    if (search === undefined || !view.configured) return;
+  const fetchPage = (from: Source, text: string, cursor?: string) => {
+    if (from === 'mcp') return mcpSearch === undefined ? undefined : mcpSearch(text, cursor);
+    return search === undefined || !view.configured ? undefined : search(text, cursor);
+  };
+
+  const run = (from: Source, text: string) => {
     const ticket = ++latest.current;
-    search(text.trim()).then(
+    setFailed(false);
+    const page =
+      from === 'mcp' && pastedMcpUrl(text) !== undefined ? undefined : fetchPage(from, text.trim());
+    if (page === undefined) return;
+    page.then(
       (result) => {
         if (ticket !== latest.current) return;
         setFailed(result.offline === true);
-        setFound({ query: text, apps: result.apps, next: result.next });
+        setFound({ source: from, query: text, apps: result.apps, next: result.next });
       },
       () => {
         if (ticket === latest.current) setFailed(true);
@@ -126,25 +155,33 @@ export function AppCatalog({
   };
 
   const mount = useMountedResource<HTMLDivElement>(() => {
-    run('');
+    run(source, '');
     return () => {
       latest.current += 1;
       if (timer.current !== undefined) clearTimeout(timer.current);
     };
-  }, [search, view.configured]);
+  }, [search, mcpSearch, view.configured]);
 
   const change = (text: string) => {
     setQuery(text);
     if (timer.current !== undefined) clearTimeout(timer.current);
-    timer.current = setTimeout(() => run(text), SEARCH_DELAY_MS);
+    timer.current = setTimeout(() => run(source, text), SEARCH_DELAY_MS);
+  };
+
+  const switchSource = (next: Source) => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    setSource(next);
+    run(next, query);
   };
 
   const loadMore = () => {
-    if (search === undefined || found?.next === undefined || more) return;
+    if (found?.next === undefined || more) return;
     const current = found;
+    const page = fetchPage(current.source, current.query.trim(), current.next);
+    if (page === undefined) return;
     const ticket = latest.current;
     setMore(true);
-    search(current.query.trim(), current.next)
+    page
       .then(
         (result) => {
           if (ticket !== latest.current) return;
@@ -162,20 +199,62 @@ export function AppCatalog({
       .finally(() => setMore(false));
   };
 
-  const current = found !== undefined && found.query === query ? found : undefined;
-  const shown = current?.apps ?? localApps(view, query, t);
-  const summary = (app: ConnectorApp) =>
-    app.featured
+  const pasted = source === 'mcp' ? pastedMcpUrl(query) : undefined;
+  const current =
+    found !== undefined && found.query === query && found.source === source ? found : undefined;
+  const shown: Listed[] =
+    pasted !== undefined
+      ? [
+          {
+            service: `mcp_url_${pasted.host}`,
+            name: pasted.host,
+            summary: pasted.href,
+            featured: false,
+            url: pasted.href,
+          },
+        ]
+      : (current?.apps ?? (source === 'apps' ? localApps(view, query, t) : []));
+  const summary = (app: Listed) =>
+    app.featured && source === 'apps'
       ? appSummary({ service: app.service, name: app.name, summary: app.summary }, t)
       : app.summary;
+  const locked = source === 'apps' && !view.configured;
   return (
     <div ref={mount} {...stylex.props(styles.stack)}>
-      <SearchField label={t('connectors.catalog.search')} value={query} onChange={change} />
-      {failed ? <Note inset>{t('connectors.catalog.offline')}</Note> : null}
+      {mcpSearch === undefined ? null : (
+        <SegmentedControl<Source>
+          id={`${id}-source`}
+          label={t('connectors.catalog.source')}
+          value={source}
+          options={[
+            { value: 'apps', label: t('connectors.catalog.sourceApps') },
+            { value: 'mcp', label: t('connectors.catalog.sourceMcp') },
+          ]}
+          onChange={switchSource}
+        />
+      )}
+      <SearchField
+        label={
+          source === 'mcp' ? t('connectors.catalog.searchMcp') : t('connectors.catalog.search')
+        }
+        value={query}
+        onChange={change}
+      />
+      {source === 'mcp' ? <Note inset>{t('connectors.catalog.mcpAbout')}</Note> : null}
+      {locked ? <Note inset>{t('connectors.accounts.empty')}</Note> : null}
+      {failed ? (
+        <Note inset>
+          {source === 'mcp' ? t('connectors.catalog.mcpOffline') : t('connectors.catalog.offline')}
+        </Note>
+      ) : null}
       {shown.length === 0 ? (
-        <Note inset>{t('connectors.catalog.empty')}</Note>
+        current === undefined && source === 'mcp' && !failed ? (
+          <LoadingSkeleton kind="sidebar" label={t('connectors.catalog.searchMcp')} />
+        ) : (
+          <Note inset>{t('connectors.catalog.empty')}</Note>
+        )
       ) : (
-        <CatalogGrid label={t('connectors.connect.pick')} data={{ 'data-app-catalog': '' }}>
+        <CatalogGrid label={t('connectors.connect.pick')} data={{ 'data-app-catalog': source }}>
           {shown.map((app) => {
             const count = view.accounts.filter(
               (account) => account.service === app.service && account.status === 'active',
@@ -192,15 +271,21 @@ export function AppCatalog({
                 }
                 leading={<ConnectorLogo service={app.service} size={40} logos={logos} />}
                 actionLabel={t('connectors.catalog.connect')}
-                disabled={disabled === true}
+                disabled={disabled === true || locked}
                 data={{ 'data-connector-service': app.service }}
-                onClick={() => onPick({ service: app.service, name: app.name })}
+                onClick={() =>
+                  onPick(
+                    pasted !== undefined
+                      ? { service: app.service, name: app.name, url: app.url }
+                      : { service: app.service, name: app.name },
+                  )
+                }
               />
             );
           })}
         </CatalogGrid>
       )}
-      {current?.next === undefined ? null : (
+      {current?.next === undefined || pasted !== undefined ? null : (
         <Button variant="outline" size="sm" disabled={more} onClick={loadMore} xstyle={styles.more}>
           {t('connectors.catalog.more')}
         </Button>
@@ -208,6 +293,8 @@ export function AppCatalog({
     </div>
   );
 }
+
+export type ConnectLinked = (accountId: string, url: string | undefined) => void;
 
 export function ConnectAppDialog({
   actions,
@@ -217,12 +304,19 @@ export function ConnectAppDialog({
   onClose,
   onLinked,
 }: {
-  actions: Pick<BridgeActions, 'connectorConnect' | 'connectorSearch' | 'connectorLogos'>;
+  actions: Pick<
+    BridgeActions,
+    | 'connectorConnect'
+    | 'connectorSearch'
+    | 'connectorLogos'
+    | 'connectorMcpSearch'
+    | 'connectorMcpAdd'
+  >;
   view: ConnectorsView;
   t: BotHarnessTranslate;
   service?: PickedApp | undefined;
   onClose: () => void;
-  onLinked: (accountId: string, url: string) => void;
+  onLinked: ConnectLinked;
 }): ReactElement {
   const [picked, setPicked] = useState(initial);
   const [label, setLabel] = useState('');
@@ -245,6 +339,7 @@ export function ConnectAppDialog({
           view={view}
           t={t}
           search={actions.connectorSearch}
+          mcpSearch={actions.connectorMcpSearch}
           logos={actions.connectorLogos}
           onPick={setPicked}
         />
@@ -252,16 +347,27 @@ export function ConnectAppDialog({
     );
 
   const submit = async () => {
-    if (busy || actions.connectorConnect === undefined) return;
+    if (busy) return;
+    const trimmed = label.trim();
+    const named = trimmed === '' ? undefined : trimmed;
+    const start =
+      picked.url !== undefined
+        ? actions.connectorMcpAdd === undefined
+          ? undefined
+          : () =>
+              actions.connectorMcpAdd!({
+                url: picked.url!,
+                ...(named === undefined ? {} : { label: named }),
+              })
+        : actions.connectorConnect === undefined
+          ? undefined
+          : () => actions.connectorConnect!(picked.service, named);
+    if (start === undefined) return;
     setBusy(true);
     setError(undefined);
     try {
-      const trimmed = label.trim();
-      const linked = await actions.connectorConnect(
-        picked.service,
-        trimmed === '' ? undefined : trimmed,
-      );
-      window.open(linked.url, '_blank', 'noopener,noreferrer');
+      const linked = await start();
+      if (linked.url !== undefined) window.open(linked.url, '_blank', 'noopener,noreferrer');
       onLinked(linked.account.accountId, linked.url);
     } catch (failure) {
       setError(t('connectors.error', { message: errorMessage(failure) }));
@@ -288,6 +394,7 @@ export function ConnectAppDialog({
       <FieldStack>
         <SettingsRow
           title={picked.name}
+          description={picked.url}
           icon={<ConnectorLogo service={picked.service} size={28} logos={actions.connectorLogos} />}
         />
         <TextField
@@ -309,7 +416,12 @@ export function MarketAppConnections({
 }: {
   actions: Pick<
     BridgeActions,
-    'connectors' | 'connectorConnect' | 'connectorSearch' | 'connectorLogos'
+    | 'connectors'
+    | 'connectorConnect'
+    | 'connectorSearch'
+    | 'connectorLogos'
+    | 'connectorMcpSearch'
+    | 'connectorMcpAdd'
   >;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -318,6 +430,7 @@ export function MarketAppConnections({
   const [denied, setDenied] = useState(false);
   const [service, setService] = useState<PickedApp | undefined>();
   const [signIn, setSignIn] = useState<string | undefined>();
+  const [done, setDone] = useState(false);
   const load = () =>
     actions.connectors?.().then(setView, (failure: unknown) => {
       if (failure instanceof BridgeCallError && failure.code === 'permission-required')
@@ -338,17 +451,17 @@ export function MarketAppConnections({
           <Note tone="danger">{t('connectors.error', { message: error })}</Note>
         ) : view === undefined ? (
           <LoadingSkeleton kind="sidebar" label={t('botSettings.section.connectors')} />
-        ) : !view.configured ? (
-          <Note inset>{t('connectors.accounts.empty')}</Note>
         ) : (
           <AppCatalog
             view={view}
             t={t}
             search={actions.connectorSearch}
+            mcpSearch={actions.connectorMcpSearch}
             logos={actions.connectorLogos}
             onPick={setService}
           />
         )}
+        {done ? <Note>{t('connectors.connect.connected')}</Note> : null}
         {signIn === undefined ? null : (
           <Note>
             {t('connectors.market.opened')}{' '}
@@ -368,6 +481,7 @@ export function MarketAppConnections({
           onLinked={(_accountId, url) => {
             setService(undefined);
             setSignIn(url);
+            setDone(url === undefined);
             void load();
           }}
         />

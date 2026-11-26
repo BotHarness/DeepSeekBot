@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { ConnectorAccess } from './store.js';
 
 export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
@@ -6,6 +8,63 @@ export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
 ]);
 export const CONNECTOR_MCP_SERVER = 'composio';
 export const CONNECTOR_TOOL_PREFIX = `mcp__${CONNECTOR_MCP_SERVER}__`;
+export const REMOTE_MCP_SERVER_PREFIX = 'app_';
+export const REMOTE_MCP_TOOL_PREFIX = `mcp__${REMOTE_MCP_SERVER_PREFIX}`;
+
+const MAX_PUBLIC_NAME_LENGTH = 64;
+const HASH_LENGTH = 12;
+
+export function mcpPublicToolName(serverName: string, rawName: string): string {
+  const joined = `mcp__${serverName}__${rawName}`;
+  const normalized = joined.replace(/[^A-Za-z0-9_-]/g, '_');
+  if (normalized === joined && normalized.length <= MAX_PUBLIC_NAME_LENGTH) return normalized;
+  const hash = createHash('sha256')
+    .update(`${serverName}\0${rawName}`)
+    .digest('hex')
+    .slice(0, HASH_LENGTH);
+  return `${normalized.slice(0, MAX_PUBLIC_NAME_LENGTH - HASH_LENGTH - 1)}_${hash}`;
+}
+
+export function remoteMcpServerNames(
+  connectors: ReadonlyArray<{ accountId: string; provider: string; service: string }>,
+): Map<string, string> {
+  const names = new Map<string, string>();
+  const used = new Set<string>();
+  const remote = connectors
+    .filter((connector) => connector.provider === 'mcp')
+    .sort((a, b) => a.accountId.localeCompare(b.accountId));
+  for (const connector of remote) {
+    const base = `${REMOTE_MCP_SERVER_PREFIX}${connector.service.replace(/^mcp_/, '')}`.slice(
+      0,
+      28,
+    );
+    let name = base;
+    for (let index = 2; used.has(name); index += 1) name = `${base.slice(0, 28)}_${index}`;
+    used.add(name);
+    names.set(connector.accountId, name);
+  }
+  return names;
+}
+
+export function remoteMcpToolDenial(
+  name: string,
+  servers: ReadonlyMap<
+    string,
+    { access: ConnectorAccess; readOnly: ReadonlySet<string> | undefined }
+  >,
+): string | undefined {
+  if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
+  for (const [serverName, server] of servers) {
+    const prefix = `mcp__${serverName}__`;
+    if (!name.startsWith(prefix)) continue;
+    if (server.access === 'write') return undefined;
+    if (server.readOnly === undefined)
+      return 'This App connection is still loading its tool list; try again in a moment.';
+    if (server.readOnly.has(name)) return undefined;
+    return `${name.slice(prefix.length)} is not marked read-only by its server, and this Bot has Read access only; ask the Owner for Read and write before trying again.`;
+  }
+  return 'No App connection with this tool is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
+}
 
 const MULTI_EXECUTE = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 const DISCOVERY = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_GET_TOOL_SCHEMAS']);

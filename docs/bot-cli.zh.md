@@ -1404,6 +1404,19 @@ deepseekbot connector-key-clear --confirm
 
 `connector-search [关键词]` 列出可以连接的应用：先列出匹配的常用应用，再列出 Composio 支持的所有匹配应用（约 2000 个），返回的 `next` 可作为 `--cursor` 取下一页。中文关键词只匹配常用应用；英文词（如 `crm`、`email`）会搜索整个 Composio。没有 key 时只返回常用应用。Bot 的 `connector_catalog` 用的是同一个搜索。`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
 
+### 应用连接（远程 MCP）
+
+很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host 上的 `/botharness/connectors/oauth/callback`，账号变为 `active`。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。
+
+```bash
+deepseekbot connector-mcp-search posthog
+deepseekbot connector-connect mcp_posthog --label "Team PostHog"
+deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label Work
+deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
+```
+
+`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。授权方式和 Composio 账号相同：每个分配给 Bot 的账号会以独立的 `mcp__app_<service>__` 工具出现，`read` 只允许服务器标为只读的工具，`write` 允许全部工具。
+
 ### 市场、版本更新、使用统计、Git 与配对审核
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
