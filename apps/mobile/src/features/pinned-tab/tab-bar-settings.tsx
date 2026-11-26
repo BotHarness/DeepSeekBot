@@ -120,6 +120,7 @@ export function TabBarSettings() {
           on={SHEET_GROUP}
           title={copy.conversation}
           icon="pin"
+          singleLine
           testID="settings-pinned-conversation"
           control={{
             kind: 'value',

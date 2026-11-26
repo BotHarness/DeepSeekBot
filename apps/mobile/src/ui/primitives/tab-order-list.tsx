@@ -183,7 +183,12 @@ function TabOrderRow({
           color={theme.color.fg}
         />
       )}
-      <Text style={{ flex: 1, paddingVertical: space.x3 }}>{item.label}</Text>
+      <Text
+        style={{ flex: 1, paddingVertical: space.x3 }}
+        {...(theme.largeText ? {} : { numberOfLines: 1 })}
+      >
+        {item.label}
+      </Text>
       <GestureDetector gesture={pan}>
         <View
           testID={`tab-order-handle-${item.key}`}

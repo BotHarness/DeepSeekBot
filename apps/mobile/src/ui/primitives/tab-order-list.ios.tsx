@@ -4,7 +4,9 @@ import {
   accessibilityValue,
   font,
   foregroundStyle,
+  lineLimit,
   listRowBackground,
+  truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
 import { useCallback } from 'react';
 import { View } from 'react-native';
@@ -39,10 +41,17 @@ export function TabOrderList({ title, footer, items, copy, onMove }: TabOrderLis
               ),
             })}
       >
-        <Text modifiers={[font({ textStyle: 'body' })]}>{item.label}</Text>
+        <Text
+          modifiers={[
+            font({ textStyle: 'body' }),
+            ...(theme.largeText ? [] : [lineLimit(1), truncationMode('tail')]),
+          ]}
+        >
+          {item.label}
+        </Text>
       </Label>
     ),
-    [copy, items.length],
+    [copy, items.length, theme.largeText],
   );
   return (
     <Section
