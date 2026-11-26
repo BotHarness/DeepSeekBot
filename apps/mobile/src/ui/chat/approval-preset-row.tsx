@@ -21,6 +21,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
   const [busy, setBusy] = useState(false);
   const [switched, setSwitched] = useState(false);
   const [error, setError] = useState<string>();
+  const [width, setWidth] = useState(0);
   const live = useRef(false);
   const mount = useMounted<ViewInstance>(() => {
     live.current = true;
@@ -68,6 +69,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
     <View
       ref={mount}
       testID="approval-preset"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{
         flexDirection: 'row',
         justifyContent: 'flex-end',
@@ -83,12 +85,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
               {error}
             </Text>
           )}
-          {switched && error === undefined && Platform.OS !== 'android' ? (
-            <Text testID="approval-preset-next" variant="meta" tone="muted">
-              {t.autoApprovalNext}
-            </Text>
-          ) : null}
-          <View style={{ width: '50%', alignItems: 'flex-end' }}>
+          <View style={{ flex: 1, alignItems: 'flex-end' }}>
             <ApprovalPresetPicker
               label={t.autoApprovalPresetTrigger(presetName(presets))}
               header={t.autoApprovalPresetTitle}
@@ -98,6 +95,10 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
                 ? {}
                 : { manageLabel: t.autoApprovalManage, onManage: port.manage })}
               disabled={busy}
+              {...(width > 0 ? { maxWidth: width / 2 } : {})}
+              {...(switched && error === undefined && Platform.OS !== 'android'
+                ? { next: t.autoApprovalNext }
+                : {})}
               onSelect={choose}
             />
           </View>

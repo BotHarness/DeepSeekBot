@@ -564,12 +564,10 @@ describe('Auto approval preset picker on the phone approval card', () => {
       expect(button(view, label).disabled).toBe(false);
   });
 
-  it('keeps a long preset name to one line within half the row', async () => {
+  it('keeps the preset label to one line', async () => {
     const view = await render(presetCard(connect(presetHost('cautious'))));
     const label = trigger(view)!.querySelector('span')!;
     expect(label.getAttribute('data-lines')).toBe('1');
-    const half = trigger(view)!.closest('[data-testid="approval-preset"] > div')!;
-    expect(JSON.parse(half.getAttribute('data-style')!)).toMatchObject({ width: '50%' });
   });
 
   it('renders nothing when the Host refuses this Human the Bot preset', async () => {

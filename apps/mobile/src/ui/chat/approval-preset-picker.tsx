@@ -14,6 +14,8 @@ export interface ApprovalPresetPickerProps {
   options: PresetOption[];
   manageLabel?: string;
   disabled: boolean;
+  maxWidth?: number;
+  next?: string;
   onSelect(option: PresetOption): void;
   onManage?(): void;
 }
@@ -25,6 +27,8 @@ export function ApprovalPresetPicker({
   options,
   manageLabel,
   disabled,
+  maxWidth,
+  next,
   onSelect,
   onManage,
 }: ApprovalPresetPickerProps) {
@@ -32,6 +36,11 @@ export function ApprovalPresetPicker({
   const [open, setOpen] = useState(false);
   return (
     <View style={{ alignItems: 'flex-end', gap: space.x2 }}>
+      {next === undefined ? null : (
+        <Text testID="approval-preset-next" variant="meta" tone="muted">
+          {next}
+        </Text>
+      )}
       <Pressable
         testID="approval-preset-trigger"
         accessibilityRole="button"
@@ -48,7 +57,22 @@ export function ApprovalPresetPicker({
           opacity: pressed ? 0.6 : 1,
         })}
       >
-        <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text
+          variant="meta"
+          tone="muted"
+          numberOfLines={1}
+          style={{
+            flexShrink: 1,
+            ...(maxWidth === undefined
+              ? {}
+              : {
+                  maxWidth: Math.max(
+                    0,
+                    maxWidth - theme.type.meta.size * theme.fontScale - space.x1,
+                  ),
+                }),
+          }}
+        >
           {label}
         </Text>
         <ChevronDownIcon color={theme.color.muted} size={theme.type.meta.size * theme.fontScale} />

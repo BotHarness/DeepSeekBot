@@ -18,6 +18,7 @@ export function ApprovalPresetPicker({
   options,
   manageLabel,
   disabled,
+  maxWidth,
   onSelect,
   onManage,
 }: ApprovalPresetPickerProps) {
@@ -122,7 +123,22 @@ export function ApprovalPresetPicker({
           minHeight: theme.touch,
         }}
       >
-        <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text
+          variant="meta"
+          tone="muted"
+          numberOfLines={1}
+          style={{
+            flexShrink: 1,
+            ...(maxWidth === undefined
+              ? {}
+              : {
+                  maxWidth: Math.max(
+                    0,
+                    maxWidth - theme.type.meta.size * theme.fontScale - space.x1,
+                  ),
+                }),
+          }}
+        >
           {label}
         </Text>
         <ChevronDownIcon color={theme.color.muted} size={theme.type.meta.size * theme.fontScale} />
