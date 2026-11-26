@@ -449,6 +449,43 @@ describe('remote MCP tool policy', () => {
     expect(remoteMcpToolDenial('mcp__composio__X', servers)).toBeUndefined();
   });
 
+  it('lets Read access run PostHog exec commands that only read', () => {
+    const servers = new Map([
+      [
+        'app_posthog_be7f6b',
+        { access: 'read' as const, readOnly: new Set<string>(), service: 'mcp_posthog' },
+      ],
+    ]);
+    const exec = (command: string) =>
+      remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers, { command });
+    for (const command of [
+      'search insight',
+      'info query-trends',
+      'schema query-trends series',
+      'learn -s "weekly active users"',
+      'call projects-get {}',
+      'call --json insights-list {"limit": 5}',
+      'call feature-flag-get-all {}',
+      'call read-data-schema {"query": {"kind": "events"}}',
+      'call execute-sql {"query": "SELECT 1"}',
+      'call metric-describe {"id": 1}',
+    ])
+      expect(exec(command)).toBeUndefined();
+    for (const command of [
+      'call insight-create {}',
+      'call feature-flag-update {"id": 1}',
+      'call --confirm dashboard-get {}',
+      'call annotation-create {"content": "test"}',
+      'call switch-project {"id": 2}',
+      'call projects-get {}\ncall insight-create {}',
+      '',
+    ])
+      expect(exec(command)).toContain('Read access only');
+    expect(remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers, {})).toContain(
+      'Read access only',
+    );
+  });
+
   it('fetches registry icons only from public addresses, and no more than the size limit', async () => {
     const lookup = async (host: string) =>
       host === 'inside.example' ? [{ address: '10.0.0.5' }] : [{ address: '93.184.216.34' }];

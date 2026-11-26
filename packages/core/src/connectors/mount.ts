@@ -377,7 +377,7 @@ export function mountConnectors(
       }),
     'botharness: connector changes',
   );
-  ctx.tools.guard(({ name, agent }) => {
+  ctx.tools.guard(({ name, agent, arguments: args }) => {
     if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
     const entry = agent === undefined ? undefined : mounted.get(agent);
     if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
@@ -386,10 +386,15 @@ export function mountConnectors(
       [...entry.remote].flatMap(([serverName, mount]) => {
         const connector = access.get(mount.accountId);
         if (connector === undefined || connector.status !== 'active') return [];
-        return [[serverName, { access: connector.access, readOnly: mount.readOnly }] as const];
+        return [
+          [
+            serverName,
+            { access: connector.access, readOnly: mount.readOnly, service: connector.service },
+          ] as const,
+        ];
       }),
     );
-    return remoteMcpToolDenial(name, servers);
+    return remoteMcpToolDenial(name, servers, args);
   });
   ctx.tools.guard(({ name, agent, arguments: args }) => {
     if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return undefined;

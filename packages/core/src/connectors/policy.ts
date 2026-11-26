@@ -45,8 +45,9 @@ export function remoteMcpToolDenial(
   name: string,
   servers: ReadonlyMap<
     string,
-    { access: ConnectorAccess; readOnly: ReadonlySet<string> | undefined }
+    { access: ConnectorAccess; readOnly: ReadonlySet<string> | undefined; service?: string }
   >,
+  args?: unknown,
 ): string | undefined {
   if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
   for (const [serverName, server] of servers) {
@@ -56,10 +57,60 @@ export function remoteMcpToolDenial(
     if (server.readOnly === undefined)
       return 'This App connection is still loading its tool list; try again in a moment.';
     if (server.readOnly.has(name)) return undefined;
-    return `${name.slice(prefix.length)} is not marked read-only by its server, and this Bot has Read access only; ask the Owner for Read and write before trying again.`;
+    const raw = name.slice(prefix.length);
+    const reader = server.service === undefined ? undefined : COMMAND_READERS[server.service];
+    if (reader !== undefined) {
+      if (reader.reads(raw, args)) return undefined;
+      return reader.refusal(raw);
+    }
+    return `${raw} is not marked read-only by its server, and this Bot has Read access only; ask the Owner for Read and write before trying again.`;
   }
   return 'No App connection with this tool is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
 }
+
+const POSTHOG_READ_COMMANDS = new Set(['help', 'learn', 'tools', 'search', 'info', 'schema']);
+const POSTHOG_READ_TOOLS = new Set(['execute-sql']);
+
+function posthogCommand(args: unknown): string | undefined {
+  if (typeof args !== 'object' || args === null) return undefined;
+  const command = (args as { command?: unknown }).command;
+  return typeof command === 'string' ? command.trim() : undefined;
+}
+
+export function posthogReadOnlyCall(raw: string, args: unknown): boolean {
+  if (raw !== 'exec') return false;
+  const command = posthogCommand(args);
+  if (command === undefined || command === '' || /[\r\n]/.test(command)) return false;
+  const [verb, ...rest] = command.split(/\s+/);
+  if (POSTHOG_READ_COMMANDS.has(verb!)) return true;
+  if (verb !== 'call') return false;
+  let tool: string | undefined;
+  for (const part of rest) {
+    if (part === '--confirm') return false;
+    if (part.startsWith('--')) continue;
+    tool = part;
+    break;
+  }
+  if (tool === undefined || !/^[a-z0-9-]+$/.test(tool)) return false;
+  if (POSTHOG_READ_TOOLS.has(tool)) return true;
+  const words = tool.toUpperCase().split('-').filter(Boolean);
+  return words.some((word) => READ_WORDS.has(word)) && !words.some((word) => WRITE_WORDS.has(word));
+}
+
+const COMMAND_READERS: Readonly<
+  Record<
+    string,
+    { reads: (raw: string, args: unknown) => boolean; refusal: (raw: string) => string }
+  >
+> = {
+  mcp_posthog: {
+    reads: posthogReadOnlyCall,
+    refusal: (raw) =>
+      raw === 'exec'
+        ? 'This PostHog command can change data, and this Bot has Read access only; use read commands (search, info, schema, learn, or call a tool that gets, lists, queries or searches), or ask the Owner for Read and write.'
+        : `${raw} is not marked read-only by its server, and this Bot has Read access only; ask the Owner for Read and write before trying again.`,
+  },
+};
 
 const MULTI_EXECUTE = 'COMPOSIO_MULTI_EXECUTE_TOOL';
 const DISCOVERY = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_GET_TOOL_SCHEMAS']);
