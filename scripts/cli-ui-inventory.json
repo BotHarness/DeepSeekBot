@@ -794,14 +794,15 @@
     },
     {
       "id": "ui-projection",
-      "description": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
+      "description": "Authenticated live Channel projection and static avatar/banner/Workspace favicon rendering; content is managed through existing send/profile/workspace-look APIs.",
       "scope": "Client transport / transient state",
       "surfaces": [
         "route:packages/core/src/features/avatars/plugin.ts:BOT_AVATAR_PATH",
         "route:packages/core/src/features/avatars/plugin.ts:BOT_BANNER_PATH",
+        "route:packages/core/src/plugin.ts:WORKSPACE_FAVICON_PATH",
         "route:packages/core/src/features/channels/plugin.ts:CHANNEL_STREAM_PATH"
       ],
-      "exemption": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
+      "exemption": "Authenticated live Channel projection and static avatar/banner/Workspace favicon rendering; content is managed through existing send/profile/workspace-look APIs.",
       "configurable": false
     },
     {

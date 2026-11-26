@@ -309,6 +309,14 @@ export const sessionDetailsRpc = {
     return unwrapAsync(this.methods.sessionNativeArchive({ sessionId }));
   },
 
+  workspaceLook(path: string) {
+    return unwrap(this.methods.workspaceLook({ path }));
+  },
+
+  workspaceLookSet(path: string, look: unknown) {
+    return unwrap(this.methods.workspaceLookSet({ path, look }));
+  },
+
   sessionTranscript(slug: string | null, sessionId: string) {
     return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   },

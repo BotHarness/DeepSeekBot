@@ -259,6 +259,8 @@ export const bridgeMethodInventory = [
   'sessionAnswerQuestion',
   'sessionNativeStop',
   'sessionNativeArchive',
+  'workspaceLook',
+  'workspaceLookSet',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',

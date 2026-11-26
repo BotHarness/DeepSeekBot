@@ -158,6 +158,8 @@ export const INBOX_OPTIONS = {
   workspace: { type: 'string' },
   model: { type: 'string' },
   message: { type: 'string' },
+  symbol: { type: 'string' },
+  monogram: { type: 'boolean' },
 } as const;
 
 export const MESSAGING_OPTIONS = {

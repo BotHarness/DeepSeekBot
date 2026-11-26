@@ -1,3 +1,4 @@
+import type { WorkspaceLooks } from '../workspaces/workspace-looks.js';
 import {
   createHostSessionsMethods,
   type HostSessionBridgeMethods,
@@ -469,6 +470,7 @@ export interface BridgeMethodsDeps
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
   ownership: SessionOwnership;
+  workspaceLooks?: WorkspaceLooks;
   sessionModels?: ReturnType<
     typeof import('../runtime/session-model-choices.js').sessionModelChoices
   >;

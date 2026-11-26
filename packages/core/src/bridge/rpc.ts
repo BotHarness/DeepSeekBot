@@ -526,6 +526,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionAnswerQuestion',
   'sessionNativeStop',
   'sessionNativeArchive',
+  'workspaceLook',
+  'workspaceLookSet',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',
