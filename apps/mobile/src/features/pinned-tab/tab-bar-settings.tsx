@@ -82,7 +82,7 @@ export function TabBarSettings() {
   );
   const copy = t.tabBarSettings;
   return (
-    <SettingsForm testID="tab-bar-settings">
+    <SettingsForm testID="tab-bar-settings" reordering>
       <TabOrderList
         title={copy.order}
         footer={state.sessionsTab ? copy.orderFooter : copy.orderFooterSessions}
