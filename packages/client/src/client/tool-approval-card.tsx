@@ -418,7 +418,7 @@ export function ToolApprovalCard({
           effects,
           origin,
           review,
-          canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
+          scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
           hostAccess,
         ]
   )
