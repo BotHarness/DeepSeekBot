@@ -2156,6 +2156,14 @@
       "sha256": "aaf7004949991ddf95d28438a48f4285220fadcac732f9e292b1e43d210db3d9"
     },
     {
+      "path": "scripts/e2e-mobile-im-pairing-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["im.apps.bot-eligibility", "phone.pairing"],
+      "reason": "Own task Host and Expo Web export with a synthetic Lark provider (no real IM network); Settings IM apps bind, External contacts approve with Role, Role change and reject in browser. Confirm dialogs (unbind, revoke, move) and the native Bot profile row need native acceptance.",
+      "task": 1967,
+      "sha256": "8c512fa2669ad2eb5c1f771aedd11af051da5fbfa5f7268ef9ac958114c76a8a"
+    },
+    {
       "path": "scripts/e2e-mobile-pairing-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
