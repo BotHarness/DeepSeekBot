@@ -599,6 +599,61 @@ describe('Auto approval preset picker on the phone approval card', () => {
     const view = await render(presetCard(connect(fake)));
     expect(view.querySelector('[data-testid="approval-preset"]')).toBeNull();
   });
+
+  const triggers = (view: HTMLElement) => [
+    ...view.querySelectorAll<HTMLButtonElement>('[data-testid="approval-preset-trigger"]'),
+  ];
+
+  it('updates every picker for the Bot when one card switches its preset', async () => {
+    const fake = presetHost('get-work-done');
+    const target = connect(fake);
+    const view = await render(
+      createElement(
+        'div',
+        null,
+        presetCard(target, { key: 'a' }),
+        presetCard(target, { key: 'b' }),
+      ),
+    );
+    const [first, second] = triggers(view);
+    expect(second!.getAttribute('aria-label')).toBe(
+      t.autoApprovalPresetTrigger(t.autoApprovalGetWorkDone),
+    );
+    await press(first!);
+    await press(option(view, '@off'));
+    const [, updated] = triggers(view);
+    expect(updated!.getAttribute('aria-label')).toBe(
+      t.autoApprovalPresetTrigger(t.autoApprovalOff),
+    );
+    expect(
+      fake.calls
+        .filter((call) => call.method === 'botApprovalTemplateSet')
+        .map((call) => call.args),
+    ).toEqual([{ slug: approval.botSlug, template: null }]);
+  });
+
+  it('writes the chosen preset even when the card still shows it as current', async () => {
+    const fake = host();
+    let current: string | null = null;
+    fake.methods.set('approvalTemplates', () => ({ ...templates, selected: current }));
+    fake.methods.set('botApprovalTemplateSet', (args) => {
+      current = args['template'] as string | null;
+      return { bot: fakeBotDetail(approval.botSlug, 'Ada') };
+    });
+    const view = await render(presetCard(connect(fake)));
+    expect(trigger(view)?.getAttribute('aria-label')).toBe(
+      t.autoApprovalPresetTrigger(t.autoApprovalOff),
+    );
+    current = 'cautious';
+    await press(trigger(view)!);
+    expect(option(view, '@off').getAttribute('aria-selected')).toBe('true');
+    await press(option(view, '@off'));
+    expect(
+      fake.calls
+        .filter((call) => call.method === 'botApprovalTemplateSet')
+        .map((call) => call.args),
+    ).toEqual([{ slug: approval.botSlug, template: null }]);
+  });
 });
 
 describe('Tool approval detail in the DM', () => {

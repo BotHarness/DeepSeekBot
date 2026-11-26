@@ -10,6 +10,10 @@ import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import type { ApprovalTemplateView } from './bridge.js';
 import { errorMessage } from './bridge.js';
+import {
+  announceApprovalTemplateChange,
+  onApprovalTemplateChange,
+} from './approval-template-changes.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelMessage } from './store.js';
 
@@ -119,29 +123,42 @@ export function useApprovalTemplates<E extends HTMLElement>(
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const current = useRef(botSlug);
-  current.current = botSlug;
+  const generation = useRef(0);
+  const changed = useRef<() => void>(() => {});
   const mount = useMountedResource<E>(() => {
+    const run = ++generation.current;
     setTemplates([]);
     setSelected(null);
     setLoaded(false);
+    setBusy(false);
     setError(undefined);
-    if (actions.approvalTemplates === undefined) return;
-    void actions
-      .approvalTemplates(botSlug)
-      .then((next) => {
-        if (current.current !== botSlug) return;
-        setTemplates(next.templates);
-        setSelected(next.selected);
-        setGlobalDefault(next.globalDefault);
-        setLoaded(true);
-      })
+    const read = actions.approvalTemplates;
+    if (read === undefined) return;
+    const apply = (next: Awaited<ReturnType<typeof read>>): void => {
+      if (generation.current !== run) return;
+      setTemplates(next.templates);
+      setSelected(next.selected);
+      setGlobalDefault(next.globalDefault);
+      setLoaded(true);
+    };
+    void read(botSlug)
+      .then(apply)
       .catch((cause: unknown) => {
-        if (current.current === botSlug) setError(errorMessage(cause));
+        if (generation.current === run) setError(errorMessage(cause));
       });
+    const listener = (): void => {
+      void read(botSlug).then(apply, () => undefined);
+    };
+    changed.current = listener;
+    const stop = onApprovalTemplateChange(read, botSlug, listener);
+    return () => {
+      stop();
+      if (generation.current === run) generation.current++;
+    };
   }, [actions, botSlug]);
   const choose = async (name: string | null): Promise<boolean> => {
     if (actions.setBotApprovalTemplate === undefined || !loaded || busy) return false;
+    const run = generation.current;
     const previous = selected;
     setSelected(name);
     setBusy(true);
@@ -150,21 +167,23 @@ export function useApprovalTemplates<E extends HTMLElement>(
     try {
       await actions.setBotApprovalTemplate(botSlug, name);
       saved = true;
+      if (actions.approvalTemplates !== undefined)
+        announceApprovalTemplateChange(actions.approvalTemplates, botSlug, changed.current);
       const next = await actions.approvalTemplates?.(botSlug);
-      if (next !== undefined && current.current === botSlug) {
+      if (next !== undefined && generation.current === run) {
         setSelected(next.selected);
         setGlobalDefault(next.globalDefault);
         setTemplates(next.templates);
         setLoaded(true);
       }
     } catch (cause) {
-      if (current.current === botSlug && !(saved && keepReadable)) {
+      if (generation.current === run && !(saved && keepReadable)) {
         setSelected(previous);
         if (!keepReadable) setLoaded(false);
         setError(errorMessage(cause));
       }
     } finally {
-      if (current.current === botSlug) setBusy(false);
+      if (generation.current === run) setBusy(false);
     }
     return saved;
   };

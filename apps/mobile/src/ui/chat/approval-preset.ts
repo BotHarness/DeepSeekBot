@@ -9,6 +9,7 @@ import { templateTitle } from './approval-template-title';
 export interface ApprovalPresetPort {
   load(): Promise<ApprovalTemplates>;
   choose(template: string | null): Promise<void>;
+  subscribe?(listener: () => void): () => void;
   manage?(): void;
 }
 

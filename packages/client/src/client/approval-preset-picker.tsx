@@ -79,7 +79,6 @@ export function ApprovalPresetPicker({
   if (!state.available) return null;
   const settings = manage && canOpenSettingsSection();
   const choose = (selection: string | null): void => {
-    if (selection === state.selected) return;
     void state.choose(selection).then((saved) => {
       if (saved) setSwitched(true);
     });

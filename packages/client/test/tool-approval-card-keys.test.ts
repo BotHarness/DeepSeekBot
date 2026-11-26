@@ -914,4 +914,68 @@ describe('Auto approval preset picker on the approval card', () => {
     } as Partial<BridgeActions>);
     expect(expired.querySelector('[data-approval-preset]')).toBeNull();
   });
+
+  const renderPair = async (shared: ReturnType<typeof presets>) => {
+    const cardActions = {
+      ...actions(),
+      ...(shared as unknown as Partial<BridgeActions>),
+    } as BridgeActions;
+    const second = { ...message(), id: 'request-2' } as ChannelMessage;
+    await act(async () => {
+      root.render(
+        createElement(
+          'div',
+          null,
+          createElement(ToolApprovalCard, {
+            message: message(),
+            actions: cardActions,
+            t: zhTranslate,
+          }),
+          createElement(ToolApprovalCard, {
+            message: second,
+            actions: { ...cardActions },
+            t: zhTranslate,
+          }),
+        ),
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return [...node.querySelectorAll<HTMLElement>('.bh-tool-approval-card')];
+  };
+
+  it('updates every picker for the Bot when one card switches its preset', async () => {
+    const chosen: Array<string | null> = [];
+    const shared = presets('get-work-done', chosen);
+    const [first, second] = await renderPair(shared);
+    expect(trigger(second!)!.textContent).toBe('自动审批 · 把活干完');
+    await openMenu(first!);
+    await act(async () => item('关闭')!.click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(chosen).toEqual([null]);
+    expect(trigger(first!)!.textContent).toBe('自动审批 · 关闭');
+    expect(trigger(second!)!.textContent).toBe('自动审批 · 关闭');
+    expect(second!.querySelector('.bh-request-pill')?.textContent).toBe('需要你确认');
+    expect(decisions).toEqual([]);
+  });
+
+  it('writes the chosen preset even when the card still shows it as current', async () => {
+    const chosen: Array<string | null> = [];
+    const shared = presets(null, chosen);
+    const card = await render(message(), shared as unknown as Partial<BridgeActions>);
+    expect(trigger(card)!.textContent).toBe('自动审批 · 关闭');
+    await shared.setBotApprovalTemplate('ada', 'cautious');
+    chosen.length = 0;
+    await openMenu(card);
+    expect(item('关闭')?.getAttribute('aria-checked')).toBe('true');
+    await act(async () => item('关闭')!.click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(chosen).toEqual([null]);
+    expect(shared.setBotApprovalTemplate).toHaveBeenLastCalledWith('ada', null);
+  });
 });

@@ -28,24 +28,31 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
   const [switched, setSwitched] = useState(false);
   const [error, setError] = useState<string>();
   const [width, setWidth] = useState(0);
-  const live = useRef(false);
+  const generation = useRef(0);
   const mount = useMounted<ViewInstance>(() => {
-    live.current = true;
+    const run = ++generation.current;
     setPresets(undefined);
     setSwitched(false);
+    setBusy(false);
     setError(undefined);
-    port.load().then(
-      (next) => {
-        if (live.current) setPresets(next);
-      },
-      () => undefined,
-    );
+    const read = (): void => {
+      port.load().then(
+        (next) => {
+          if (generation.current === run) setPresets(next);
+        },
+        () => undefined,
+      );
+    };
+    read();
+    const stop = port.subscribe?.(read);
     return () => {
-      live.current = false;
+      stop?.();
+      if (generation.current === run) generation.current++;
     };
   }, [port]);
   const choose = (option: PresetOption) => {
-    if (presets === undefined || busy || option.value === presets.selected) return;
+    if (presets === undefined || busy) return;
+    const run = generation.current;
     const previous = presets;
     const optimistic = { ...presets, selected: option.value };
     setPresets(optimistic);
@@ -54,7 +61,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
     port
       .choose(option.value)
       .then(async () => {
-        if (!live.current) return;
+        if (generation.current !== run) return;
         setSwitched(true);
         const message = t.autoApprovalSwitched(
           presetMenu(optimistic, t.autoApprovalFollowGlobal).name,
@@ -62,15 +69,15 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
         if (Platform.OS === 'android') ToastAndroid.show(message, ToastAndroid.SHORT);
         else AccessibilityInfo.announceForAccessibility(message);
         const next = await port.load().catch(() => undefined);
-        if (next !== undefined && live.current) setPresets(next);
+        if (next !== undefined && generation.current === run) setPresets(next);
       })
       .catch((cause: unknown) => {
-        if (!live.current) return;
+        if (generation.current !== run) return;
         setPresets(previous);
         setError(`${t.settingFailed} ${errorText(cause)}`);
       })
       .finally(() => {
-        if (live.current) setBusy(false);
+        if (generation.current === run) setBusy(false);
       });
   };
   return (
