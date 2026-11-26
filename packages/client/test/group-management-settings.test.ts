@@ -10,7 +10,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 vi.mock('../src/client/group-avatar-crop.js', () => ({ GroupAvatarCropModal: () => null }));
 
+import type { WireTeamMode } from '@botharness/host-protocol/wire';
 import type { BridgeActions } from '../src/client/actions.js';
+import type { BridgeCall } from '../src/client/bridge.js';
 import {
   DisbandGroupDialog,
   GroupManagementSettings,
@@ -116,4 +118,110 @@ it('confirms disbanding with a destructive action and keeps the dialog open on f
   deleteGroupChannel.mockResolvedValueOnce(true);
   await act(async () => buttonNamed(t('members.delete')).click());
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+function memberTeamMode(): WireTeamMode {
+  return {
+    enabled: true,
+    activeMembers: 2,
+    ownerPasswordSet: true,
+    insecureHttpAllowed: false,
+    memberUrls: [],
+    isolation: 'trial',
+    viewer: {
+      kind: 'member',
+      humanId: 'alice',
+      displayName: 'Alice',
+      owner: false,
+      mustChangePassword: false,
+      roleIds: [],
+      permissions: [],
+      models: { all: true },
+    },
+  };
+}
+
+function teamCall(access: { role: string; editDetails: string }): BridgeCall {
+  return vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode') return { ok: true, value: memberTeamMode() };
+    if (method === 'channelGet')
+      return {
+        ok: true,
+        value: {
+          channel: { id: 'g1', type: 'group', name: '设计组', members: [] },
+          role: access.role,
+          policy: { editDetails: access.editDetails },
+          visibility: { kind: 'public' },
+          admins: [],
+        },
+      };
+    return { ok: true, value: [] };
+  });
+}
+
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+it('shows the name and avatar read-only to a member without editDetails', async () => {
+  const actions = {
+    renameChannel: vi.fn(),
+    setGroupAvatar: vi.fn(),
+    teamCall: teamCall({ role: 'member', editDetails: 'admins' }),
+  } as unknown as BridgeActions;
+  await render(
+    createElement(GroupManagementSettings, {
+      actions,
+      t,
+      group: { ...GROUP, avatar: 'data:image/png;base64,AA==' },
+    }),
+  );
+  await settle();
+
+  expect(host.querySelector(`input[aria-label="${t('group.name')}"]`)).toBeNull();
+  expect(host.querySelector('[data-group-name="read-only"]')?.textContent).toBe('设计组');
+  expect(host.textContent).not.toContain(t('group.avatarChoose'));
+  expect(host.textContent).not.toContain(t('group.avatarRemove'));
+  expect(host.textContent).toContain(t('group.detailsAdminsOnly'));
+});
+
+it('keeps the name and avatar editable for a Channel admin', async () => {
+  const actions = {
+    renameChannel: vi.fn(),
+    setGroupAvatar: vi.fn(),
+    teamCall: teamCall({ role: 'admin', editDetails: 'admins' }),
+  } as unknown as BridgeActions;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+
+  expect(nameInput().disabled).toBe(false);
+  expect(buttonNamed(t('group.avatarChoose'))).not.toBeNull();
+  expect(host.textContent).not.toContain(t('group.detailsAdminsOnly'));
+});
+
+it('explains a refused rename, restores the name and turns read-only', async () => {
+  const access = { role: 'member', editDetails: 'everyone' };
+  const renameChannel = vi.fn(async () => {
+    access.editDetails = 'admins';
+    return false;
+  });
+  const actions = {
+    renameChannel,
+    setGroupAvatar: vi.fn(),
+    teamCall: teamCall(access),
+  } as unknown as BridgeActions;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+
+  await typeInto(nameInput(), 'Alice Lobby');
+  await act(async () => {
+    nameInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  await settle();
+
+  expect(renameChannel).toHaveBeenCalledWith('g1', 'Alice Lobby');
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe(t('group.detailsRefused'));
+  expect(host.querySelector('[data-group-name="read-only"]')?.textContent).toBe('设计组');
 });

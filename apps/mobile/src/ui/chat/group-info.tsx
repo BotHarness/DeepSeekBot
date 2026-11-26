@@ -11,6 +11,7 @@ import { errorText } from '@botharness/host-client/bot-settings';
 import {
   GROUP_NAME_MAX,
   memberName,
+  refusedGroupDetails,
   type GroupActions,
   type GroupInfo,
   type GroupMember,
@@ -158,7 +159,7 @@ function RenameSheet({
 }: {
   visible: boolean;
   name: string;
-  onSave(name: string): Promise<boolean>;
+  onSave(name: string): Promise<string | undefined>;
   onClose(): void;
   title?: string;
   fieldLabel?: string;
@@ -169,12 +170,15 @@ function RenameSheet({
   const t = useStrings();
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
   const next = draft.trim();
   const save = async () => {
     setBusy(true);
-    const ok = await onSave(next);
+    setError(undefined);
+    const failure = await onSave(next);
     setBusy(false);
-    if (ok) onClose();
+    if (failure === undefined) onClose();
+    else setError(failure);
   };
   return (
     <Sheet
@@ -200,6 +204,7 @@ function RenameSheet({
             }}
           />
         </View>
+        {error === undefined ? null : <SheetCallout tone="danger">{error}</SheetCallout>}
         <SheetActions>
           <Button label={t.cancel} on="sheet" onPress={onClose} />
           <Button
@@ -232,6 +237,8 @@ export interface GroupProfileProps {
   stopper?: SessionStopper | undefined;
   nickname?: GroupNickname | undefined;
   client?: HostClient | undefined;
+  editDetails: boolean;
+  onDetailsRefused?: (() => void) | undefined;
 }
 
 export interface GroupNickname {
@@ -256,6 +263,8 @@ export function GroupProfilePage({
   stopper,
   nickname,
   client,
+  editDetails,
+  onDetailsRefused,
 }: GroupProfileProps) {
   const t = useStrings();
   const [busy, setBusy] = useState<string | undefined>();
@@ -267,7 +276,28 @@ export function GroupProfilePage({
     setSheet('rename');
   };
   const [work, setWork] = useState<ProfilePart<ProfileAssignment[]> | undefined>();
-  const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
+  const failureText = (failure: unknown): string => {
+    if (!refusedGroupDetails(failure)) return `${t.groupFailed} ${errorText(failure)}`;
+    onDetailsRefused?.();
+    return t.groupDetailsRefused;
+  };
+  const avatar = useAvatarEditor(
+    {
+      pick: pickAvatar,
+      save: async (image) => {
+        try {
+          await actions.setAvatar(image);
+        } catch (failure) {
+          if (refusedGroupDetails(failure)) setError(failureText(failure));
+          throw failure;
+        }
+      },
+    },
+    (failure) =>
+      refusedGroupDetails(failure)
+        ? t.groupDetailsRefused
+        : `${t.avatarSaveFailed} ${errorText(failure)}`,
+  );
   const tabs = profileTabs('group');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
@@ -299,18 +329,22 @@ export function GroupProfilePage({
   }, [loadWork]);
   useProfileFocusEffect(readWork);
 
-  const run = async (key: string, change: () => Promise<void>): Promise<boolean> => {
+  const attempt = async (key: string, change: () => Promise<void>): Promise<string | undefined> => {
     setBusy(key);
-    setError(undefined);
     try {
       await change();
-      return true;
+      return undefined;
     } catch (failure) {
-      setError(`${t.groupFailed} ${errorText(failure)}`);
-      return false;
+      return failureText(failure);
     } finally {
       setBusy(undefined);
     }
+  };
+  const run = async (key: string, change: () => Promise<void>): Promise<boolean> => {
+    setError(undefined);
+    const failure = await attempt(key, change);
+    if (failure !== undefined) setError(failure);
+    return failure === undefined;
   };
 
   const memberActions = (member: GroupMember): MenuAction[] => {
@@ -411,16 +445,24 @@ export function GroupProfilePage({
   const working = workingRows(memberBots, true);
   const settings: ProfileRow[] = [
     node('settings:group', () => (
-      <SettingsSection title={t.groupSettingsSection} on={ON}>
-        <SettingsRow
-          on={ON}
-          testID="group-rename"
-          title={t.groupName}
-          detail={channel.name}
-          accessibilityLabel={`${t.groupRename}, ${channel.name}`}
-          control={{ kind: 'chevron' }}
-          onPress={openRename}
-        />
+      <SettingsSection
+        title={t.groupSettingsSection}
+        on={ON}
+        {...(editDetails ? {} : { footer: t.groupDetailsAdminsOnly })}
+      >
+        {editDetails ? (
+          <SettingsRow
+            on={ON}
+            testID="group-rename"
+            title={t.groupName}
+            detail={channel.name}
+            accessibilityLabel={`${t.groupRename}, ${channel.name}`}
+            control={{ kind: 'chevron' }}
+            onPress={openRename}
+          />
+        ) : (
+          <SettingsRow on={ON} testID="group-name" title={t.groupName} detail={channel.name} />
+        )}
         {nickname === undefined ? null : (
           <SettingsRow
             on={ON}
@@ -440,16 +482,22 @@ export function GroupProfilePage({
         )}
       </SettingsSection>
     )),
-    gap(
-      'settings:avatar',
-      <AvatarSettings
-        editor={avatar}
-        hasAvatar={channel.avatar !== undefined}
-        portrait={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
-        testID="group-avatar-settings"
-        on={ON}
-      />,
-    ),
+    ...(editDetails
+      ? [
+          gap(
+            'settings:avatar',
+            <AvatarSettings
+              editor={avatar}
+              hasAvatar={channel.avatar !== undefined}
+              portrait={
+                <GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />
+              }
+              testID="group-avatar-settings"
+              on={ON}
+            />,
+          ),
+        ]
+      : []),
     ...(onChatBackground === undefined
       ? []
       : [
@@ -526,8 +574,9 @@ export function GroupProfilePage({
         <GroupIdentity
           channel={channel}
           avatar={avatar}
+          editable={editDetails}
           onRename={openRename}
-          error={tab === 'settings' ? undefined : avatar.error}
+          error={tab === 'settings' || !editDetails ? undefined : avatar.error}
         />
       }
       tabs={tabs}
@@ -568,7 +617,7 @@ export function GroupProfilePage({
         key={renameOpened}
         visible={sheet === 'rename'}
         name={channel.name}
-        onSave={(name) => run('rename', () => actions.rename(name))}
+        onSave={(name) => attempt('rename', () => actions.rename(name))}
         onClose={() => setSheet(undefined)}
       />
       {nickname === undefined ? null : (
@@ -581,7 +630,7 @@ export function GroupProfilePage({
           placeholder={nickname.name ?? ''}
           allowEmpty
           testID="group-nickname-field"
-          onSave={(next) => run('nickname', () => nickname.save(next === '' ? null : next))}
+          onSave={(next) => attempt('nickname', () => nickname.save(next === '' ? null : next))}
           onClose={() => setSheet(undefined)}
         />
       )}
@@ -592,28 +641,39 @@ export function GroupProfilePage({
 function GroupIdentity({
   channel,
   avatar,
+  editable,
   onRename,
   error,
 }: {
   channel: GroupInfo['channel'];
+  editable: boolean;
   onRename(): void;
   avatar: ReturnType<typeof useAvatarEditor>;
   error: string | undefined;
 }) {
   const t = useStrings();
+  const mark = (
+    <GroupMark
+      avatar={channel.avatar}
+      size={profileShell.avatar}
+      corner={radius.round}
+      variant="display"
+    />
+  );
   return (
     <ProfileHero
       name={channel.name}
-      editName={{ label: t.groupRename + ' · ' + channel.name, onPress: onRename }}
+      editName={
+        editable ? { label: t.groupRename + ' · ' + channel.name, onPress: onRename } : undefined
+      }
       avatar={
-        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
-          <GroupMark
-            avatar={channel.avatar}
-            size={profileShell.avatar}
-            corner={radius.round}
-            variant="display"
-          />
-        </EditableAvatar>
+        editable ? (
+          <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+            {mark}
+          </EditableAvatar>
+        ) : (
+          mark
+        )
       }
     >
       <Text pointerEvents="none" variant="meta" tone="muted">

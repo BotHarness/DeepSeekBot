@@ -8,6 +8,7 @@ import { Menu } from './appearance-primitives.js';
 import { RemoteHostRows } from './host-tabs.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, type ReactElement, type Dispatch, type SetStateAction } from 'react';
+import { recheckGroupDetails } from './group-details-access.js';
 import {
   isBotModeSortMode,
   type BotModeSortMode,
@@ -608,9 +609,15 @@ export function renderSectionDialogs({
           onCancel={() => {
             setChannelRenameTarget(undefined);
           }}
-          onRename={(name) => {
-            void actions.renameChannel(channelRenameTarget.id, name);
-            setChannelRenameTarget(undefined);
+          onRename={async (name) => {
+            if (await actions.renameChannel(channelRenameTarget.id, name)) {
+              setChannelRenameTarget(undefined);
+              return undefined;
+            }
+            return channelRenameTarget.type === 'group' &&
+              !(await recheckGroupDetails(actions.teamCall, channelRenameTarget.id))
+              ? t('group.detailsRefused')
+              : t('channel.renameFailed');
           }}
         />
       ) : null,
