@@ -54,6 +54,13 @@ contents. The drawer owns the gesture and the motion. While `gesturesEnabled` (a
 Session root), a horizontal drag anywhere on the stack opens it; the panel slides in over the
 stack, which never moves, under the M3 scrim, and a scrim tap or a drag back closes it. The
 drawer is nearly full width (`sessionDrawerWidthDp`: the window minus a 56dp strip).
+
+A swipe that starts on a horizontal scroller (a wide code block or table) which can still scroll
+back toward its leading edge belongs to the scroller: on that touch-down the view searches the
+window for such a scroller under the finger (`scrollsBack`, which mirrors the iOS module) and
+turns the drawer's gestures off until the finger lifts. At the scroller's leading edge the drawer
+takes the swipe, also after the block was scrolled (#5463).
+
 `ModalDrawerSheet` takes no `drawerState`, so its own Back handler doesn't compete with the
 React Native Back callback that JavaScript holds while the drawer is open. `onOpenChange` reports
 each settled value and `onProgress` streams the open fraction in 1% steps, which fades the tab

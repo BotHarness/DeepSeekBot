@@ -1,6 +1,8 @@
 package expo.modules.dismissibledrawer
 
 import android.graphics.Color
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -19,10 +21,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
@@ -92,20 +99,39 @@ fun FunctionalComposableScope.SessionDrawerContent(
       }
   }
 
+  // A swipe that starts on a horizontal scroller which can still scroll back belongs to it: the
+  // drawer stays off until the finger lifts. At the scroller's leading edge the drawer wins (#5463).
+  val yielded = remember { mutableStateOf(false) }
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+  val placed = remember { mutableStateOf(Offset.Zero) }
+
   // Once the drawer moves under the finger, keep React Native from taking the rest of the gesture.
   val host = view
-  val claim = Modifier.pointerInput(drawerState) {
+  val claim = Modifier.pointerInput(drawerState, rtl) {
     awaitEachGesture {
-      awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+      val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+      if (drawerState.currentValue == DrawerValue.Closed && !drawerState.isAnimationRunning) {
+        // The React Native views sit in Compose's interop layer, not under this view: search the
+        // window, from the drawer's place in it.
+        val root = host.rootView
+        val window = IntArray(2).also(root::getLocationOnScreen)
+        val x = window[0] + placed.value.x + down.position.x
+        val y = window[1] + placed.value.y + down.position.y
+        yielded.value = scrollsBack(root, x, y, rtl)
+      }
       val start = drawerState.currentOffset
       var claimed = false
-      do {
-        val event = awaitPointerEvent(PointerEventPass.Final)
-        if (!claimed && movedUnderFinger(start, drawerState.currentOffset)) {
-          claimed = true
-          host.parent?.requestDisallowInterceptTouchEvent(true)
-        }
-      } while (event.changes.any { it.pressed })
+      try {
+        do {
+          val event = awaitPointerEvent(PointerEventPass.Final)
+          if (!claimed && movedUnderFinger(start, drawerState.currentOffset)) {
+            claimed = true
+            host.parent?.requestDisallowInterceptTouchEvent(true)
+          }
+        } while (event.changes.any { it.pressed })
+      } finally {
+        yielded.value = false
+      }
     }
   }
 
@@ -125,8 +151,9 @@ fun FunctionalComposableScope.SessionDrawerContent(
     }
     ModalNavigationDrawer(
       drawerState = drawerState,
-      modifier = claim,
-      gesturesEnabled = props.gesturesEnabled || drawerState.targetValue == DrawerValue.Open,
+      modifier = claim.onGloballyPositioned { placed.value = it.positionInWindow() },
+      gesturesEnabled = !yielded.value &&
+        (props.gesturesEnabled || drawerState.targetValue == DrawerValue.Open),
       scrimColor = DrawerDefaults.scrimColor,
       drawerContent = {
         // No drawerState here: its predictive Back handler would take Back from the React Native
@@ -148,4 +175,18 @@ fun FunctionalComposableScope.SessionDrawerContent(
       }
     }
   }
+}
+
+/**
+ * Whether a horizontal scroller under ([x], [y]) on screen can still scroll toward the leading
+ * edge, so a wide code block or table keeps a swipe it can scroll back. Mirrors `scrollsBack` in
+ * the iOS `SessionDrawerModule.swift`.
+ */
+internal fun scrollsBack(view: View, x: Float, y: Float, rtl: Boolean): Boolean {
+  if (!view.isShown || !screenBounds(view).contains(x, y)) return false
+  if (view.canScrollHorizontally(if (rtl) 1 else -1)) return true
+  if (view is ViewGroup) {
+    for (i in view.childCount - 1 downTo 0) if (scrollsBack(view.getChildAt(i), x, y, rtl)) return true
+  }
+  return false
 }
