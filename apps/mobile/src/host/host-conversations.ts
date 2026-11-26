@@ -193,6 +193,7 @@ export function useConversation(
 export function useChannelConversation(
   client: HostClient | undefined,
   channelId: string | undefined,
+  unlisted = false,
 ): Conversation | undefined {
   const source = channelId === undefined ? detachedSource : (client ?? detachedSource);
   const available = useSyncExternalStore(
@@ -201,10 +202,11 @@ export function useChannelConversation(
       const roster = source.getSnapshot().roster;
       return (
         roster === undefined ||
+        unlisted ||
         roster.channels.some((channel) => channel.id === channelId) ||
         roster.activityChannels?.some((channel) => channel.id === channelId) === true
       );
-    }, [source, channelId]),
+    }, [source, channelId, unlisted]),
   );
   return useMemo(
     () =>

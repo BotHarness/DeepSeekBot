@@ -14,6 +14,7 @@ import { mobileActionScale, mobileIconScale } from './ui-rule-mobile-icon-scale.
 import { mobileLabelIcon } from './ui-rule-mobile-label-icon.mjs';
 import { mobileSheetSurface } from './ui-rule-mobile-sheet.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
+import { desktopXstyleShorthand } from './ui-rule-xstyle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -78,6 +79,10 @@ export const RULES = {
   disabledStyle: {
     help: 'apply a distinct disabled style with :disabled, data-disabled, or aria-disabled',
     section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
+  },
+  xstyleShorthand: {
+    help: 'reset spacing in an xstyle block with longhands (paddingBlock/paddingInline, marginBlock/marginInline); StyleX property specificity lets the primitive’s longhand beat a padding or margin shorthand',
+    section: 'docs/agents/ui-design.md § Request cards',
   },
   catalogue: {
     help: 'record what each export replaces in ds/catalogue.json, remove retired entries and regenerate ds/README.md with pnpm lint:fix',
@@ -314,6 +319,9 @@ export function scan(fix = false) {
         ...copy,
         ...styles,
         ...desktopControls(source, file, ast, walk),
+        ...(source.includes('xstyle=')
+          ? desktopXstyleShorthand(file, ast, walk, { root, parse: parseSource })
+          : []),
         ...desktopComposition(file, ast, walk, catalogueNames),
       ];
     });

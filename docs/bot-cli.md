@@ -562,6 +562,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"delete-role","id":"<role-id>","expectedRevision":2}' | deepseekbot sender-access <bot-id> --input-stdin --confirm
 printf '{"kind":"default-role","roleId":"<role-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
@@ -1459,6 +1460,7 @@ The Host Owner connects outside apps such as Gmail, Google Calendar, Drive, Noti
 
 ```bash
 deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-search crm
 deepseekbot connector-connect gmail --label "Work Gmail"
 deepseekbot connector-refresh
 deepseekbot connector-reconnect <account-id>
@@ -1470,7 +1472,20 @@ deepseekbot connector-remove <account-id> --confirm
 deepseekbot connector-key-clear --confirm
 ```
 
-`connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
+`connector-search [query]` lists the apps you can connect: the featured apps that match come first, then every matching app Composio supports (about 2,000), with `next` as the `--cursor` for the following page. Chinese words match the featured apps only; English words such as `crm` or `email` search all of Composio. Without a key it returns only the featured apps. A Bot's `connector_catalog` uses the same search. `connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
+
+### App connections (remote MCP)
+
+Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to `/botharness/connectors/oauth/callback` on the Host and the account turns `active`. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.
+
+```bash
+deepseekbot connector-mcp-search posthog
+deepseekbot connector-connect mcp_posthog --label "Team PostHog"
+deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label Work
+deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
+```
+
+`connector-connect` takes a `service` from the search, and `connector-mcp-add` takes any https address. Both print a sign-in link when the server needs one. If the browser that signs in cannot reach the Host, copy the address the sign-in page finally opened and pass it to `connector-mcp-finish`. Grants work as for Composio accounts: each granted account appears to the Bot as its own `mcp__app_<service>__` tools, `read` allows only the tools the server marks read-only, and `write` allows all of them.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 
@@ -1729,7 +1744,7 @@ The repository moves to `<absolute-dir>/<bot-id>`; the folder must already exist
 
 ## Home and Tob
 
-`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }] }`; a Team member gets only `tobSlug` and an empty list. The Human Host Owner runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and the Team member CLI receives `remote-access/denied`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
+`deepseekbot bot-grants` lists the Bots that hold an App management grant, with `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }], "editable": true }`; `editable` is true only for the Human Host Owner; a Team member gets only `tobSlug`, an empty list and `editable: false`. The Human Host Owner runs `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off` to turn "Manage the App" or "Manage other Bots" on or off for an active Bot they own; `on` needs `--confirm`. The result is `{botSlug, capabilities, changed, noAppManager}`. The Bot's own Human DM receives a system notice, and its next Human DM turn gets a `[Host timeline]` line instead of a system prompt change. The CLI broker refuses `bot-grant` with `cli-command-refused`, and the Team member CLI receives `remote-access/denied`. See [Tob decisions §11](decisions/tob.md#app-management-grant).
 
 `deepseekbot tob-home` prepares/reuses the local Tob identity, Memory, managed Workspace and DM, returning their IDs and the canonical attention summary. It does not send a message. `deepseekbot home-model-set --provider <id> --model <id>` sets the pinned Default preset’s main model. Bots with independent plans keep their choices.
 
@@ -2661,6 +2676,14 @@ deepseekbot --as bob channels add-member <channel-id> alice
 ```
 
 Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.
+
+### Channel access after a removal
+
+```sh
+deepseekbot --as alice channels access <channel-id>
+```
+
+Returns `{ channelId, state }` for the calling Human. `readable` means the person can open the Channel. `removed` means they were a member, the Group still exists and they lost access, for example after a role revoke or removal by an admin. `unavailable` covers a deleted Channel, one they never joined and an unknown id, so the answer never reveals a Channel the person did not already know. The phone and the Web Client use it to say "You no longer have access" instead of "Group no longer available".
 
 ### Custom HTTP voice request templates
 

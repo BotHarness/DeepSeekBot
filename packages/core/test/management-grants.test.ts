@@ -30,11 +30,15 @@ it('gives a new built-in Tob both grants and lets only the Human Owner change th
   expect(MEMBER_METHODS.has('managementGrantSet')).toBe(false);
   expect(methods(bob).managementGrants({})).toEqual({
     ok: true,
-    value: { tobSlug: home.botSlug, holders: [] },
+    value: { tobSlug: home.botSlug, holders: [], editable: false },
   });
   expect(methods(owner).managementGrants({})).toEqual({
     ok: true,
-    value: { tobSlug: home.botSlug, holders: [{ botSlug: home.botSlug, capabilities: both }] },
+    value: {
+      tobSlug: home.botSlug,
+      holders: [{ botSlug: home.botSlug, capabilities: both }],
+      editable: true,
+    },
   });
   expect(methods(bob).managementGrantSet(on)).toMatchObject(denial);
   expect(methods({ ...owner, caller: 'bot' }).managementGrantSet(on)).toMatchObject(denial);
@@ -114,7 +118,14 @@ it('migrates a Profile with an existing built-in Tob to both grants', () => {
   const home = createTempRoot('management-grant-migration-');
   const old = mountOperationalDatabase({
     dshHome: home,
-    schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
+    schemaPlan: defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.slice(
+        0,
+        BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(
+          (migration) => migration.id === 'bot-management-grants',
+        ),
+      ),
+    ),
   });
   attachOperationalModule(old, 'grant-fixture').transaction((db) => {
     db.prepare(

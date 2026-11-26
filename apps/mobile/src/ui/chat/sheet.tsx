@@ -32,6 +32,7 @@ export function Sheet({
   animationType = 'fade',
   fill = false,
   resizable = false,
+  trailing,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -45,6 +46,7 @@ export function Sheet({
   animationType?: 'none' | 'slide' | 'fade';
   fill?: boolean;
   resizable?: boolean;
+  trailing?: ReactNode;
 }) {
   if (Page !== undefined)
     return visible ? (
@@ -71,6 +73,7 @@ export function Sheet({
           <SheetHeader
             title={title}
             {...(subtitle === undefined ? {} : { subtitle })}
+            {...(trailing === undefined ? {} : { trailing })}
             onClose={onClose}
           />
         )}

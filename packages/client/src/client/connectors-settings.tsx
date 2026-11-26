@@ -4,7 +4,6 @@ import { MaskedEmail } from './account-quota.js';
 import type { BridgeActions } from './actions.js';
 import { ConnectAppDialog } from './app-connections-catalog.js';
 import { errorMessage } from './bridge.js';
-import { BrandLogo } from './ds/brand-logo.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -13,7 +12,7 @@ import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { StatusList, StatusListAction, StatusListRow, type StatusTone } from './ds/status-block.js';
 import type { ConnectorAccess, ConnectorsView } from './features/connectors/bridge.js';
-import { connectorLogo } from './ds/brand-logos.js';
+import { ConnectorLogo } from './features/connectors/logos.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -26,6 +25,10 @@ type Actions = Pick<
   | 'connectorConnect'
   | 'connectorReconnect'
   | 'connectorRefresh'
+  | 'connectorSearch'
+  | 'connectorLogos'
+  | 'connectorMcpSearch'
+  | 'connectorMcpAdd'
   | 'connectorGrantSet'
   | 'connectorAccountRemove'
 >;
@@ -137,13 +140,17 @@ export function ConnectorsSettings({
     if (done) setKeyDraft(undefined);
   };
 
-  const linked = (accountId: string, url: string) => {
+  const linked = (accountId: string, url: string | undefined) => {
+    if (url === undefined) {
+      setNotice(t('connectors.connect.connected'));
+      return;
+    }
     setLinks((current) => ({ ...current, [accountId]: url }));
     setNotice(t('connectors.connect.opened'));
   };
 
-  const opened = (accountId: string, url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const opened = (accountId: string, url: string | undefined) => {
+    if (url !== undefined) window.open(url, '_blank', 'noopener,noreferrer');
     linked(accountId, url);
   };
 
@@ -198,136 +205,134 @@ export function ConnectorsSettings({
       <SettingsSection
         title={t('connectors.accounts.section')}
         action={
-          view.configured && view.accounts.length > 0 ? (
+          view.accounts.length > 0 ? (
             <Button variant="ghost" size="sm" disabled={busy} onClick={() => void refresh()}>
               {t('connectors.accounts.refresh')}
             </Button>
           ) : undefined
         }
       >
-        {view.configured ? (
-          <StatusList data={{ 'data-connectors-accounts': '' }}>
-            {[
-              ...view.accounts.map((account) => {
-                const title =
-                  account.label === account.name
-                    ? account.name
-                    : `${account.name} · ${account.label}`;
-                const signIn = links[account.accountId];
-                const broken =
-                  account.status === 'expired' ||
-                  account.status === 'failed' ||
-                  (account.status === 'pending' && signIn === undefined);
-                return (
-                  <StatusListRow
-                    key={account.accountId}
-                    leading={<BrandLogo src={connectorLogo(account.service)} />}
-                    tone={TONE[account.status]}
-                    title={title}
-                    meta={
-                      <ConnectorMeta
-                        status={account.status}
-                        identity={account.identity}
-                        extra={
-                          account.grants.length > 0
-                            ? t('connectors.accounts.bots', { count: account.grants.length })
-                            : undefined
-                        }
-                        t={t}
-                      />
-                    }
-                    data={{ 'data-connector-account': account.service }}
-                    open={open === account.accountId}
-                    onToggle={() =>
-                      setOpen((current) =>
-                        current === account.accountId ? undefined : account.accountId,
-                      )
-                    }
-                    toggleLabel={t('connectors.accounts.details', { name: title })}
-                    action={
-                      account.status === 'pending' && signIn !== undefined ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(signIn, '_blank', 'noopener,noreferrer')}
-                        >
-                          {t('connectors.accounts.signIn')}
-                        </Button>
-                      ) : broken ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          data-connector-reconnect=""
-                          onClick={() => void reconnect(account.accountId)}
-                        >
-                          {t('connectors.accounts.reconnect')}
-                        </Button>
-                      ) : undefined
-                    }
-                  >
-                    <SettingsSection title={t('connectors.accounts.botsTitle')}>
-                      {account.grants.length === 0 ? (
-                        <Note inset>{t('connectors.accounts.noBots')}</Note>
-                      ) : (
-                        account.grants.map((grant) => (
-                          <SettingsRow
-                            key={grant.botSlug}
-                            title={grant.botName ?? grant.botSlug}
-                            control={
-                              <Select<Choice>
-                                label={t('connectors.accounts.access', {
-                                  name: grant.botName ?? grant.botSlug,
-                                })}
-                                value={grant.access}
-                                options={accessOptions}
-                                disabled={busy}
-                                onChange={(choice) =>
-                                  void setAccess(grant.botSlug, account.accountId, choice)
-                                }
-                              />
-                            }
-                          />
-                        ))
-                      )}
-                    </SettingsSection>
-                    <div data-connector-account-actions="">
-                      {broken ? null : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void reconnect(account.accountId)}
-                        >
-                          {t('connectors.accounts.reconnect')}
-                        </Button>
-                      )}
+        <StatusList data={{ 'data-connectors-accounts': '' }}>
+          {[
+            ...view.accounts.map((account) => {
+              const title =
+                account.label === account.name
+                  ? account.name
+                  : `${account.name} · ${account.label}`;
+              const signIn = links[account.accountId];
+              const broken =
+                account.status === 'expired' ||
+                account.status === 'failed' ||
+                (account.status === 'pending' && signIn === undefined);
+              return (
+                <StatusListRow
+                  key={account.accountId}
+                  leading={
+                    <ConnectorLogo service={account.service} logos={actions.connectorLogos} />
+                  }
+                  tone={TONE[account.status]}
+                  title={title}
+                  meta={
+                    <ConnectorMeta
+                      status={account.status}
+                      identity={account.identity}
+                      extra={
+                        account.grants.length > 0
+                          ? t('connectors.accounts.bots', { count: account.grants.length })
+                          : undefined
+                      }
+                      t={t}
+                    />
+                  }
+                  data={{ 'data-connector-account': account.service }}
+                  open={open === account.accountId}
+                  onToggle={() =>
+                    setOpen((current) =>
+                      current === account.accountId ? undefined : account.accountId,
+                    )
+                  }
+                  toggleLabel={t('connectors.accounts.details', { name: title })}
+                  action={
+                    account.status === 'pending' && signIn !== undefined ? (
                       <Button
-                        variant="ghost"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(signIn, '_blank', 'noopener,noreferrer')}
+                      >
+                        {t('connectors.accounts.signIn')}
+                      </Button>
+                    ) : broken ? (
+                      <Button
+                        variant="outline"
                         size="sm"
                         disabled={busy}
-                        onClick={() => setRemoving(account)}
+                        data-connector-reconnect=""
+                        onClick={() => void reconnect(account.accountId)}
                       >
-                        {t('connectors.accounts.remove')}
+                        {t('connectors.accounts.reconnect')}
                       </Button>
-                    </div>
-                  </StatusListRow>
-                );
-              }),
-              <StatusListAction
-                key="connect"
-                label={t('connectors.accounts.connect')}
-                data={{ 'data-connectors-connect-open': '' }}
-                onClick={() => {
-                  setError(undefined);
-                  setConnecting(true);
-                }}
-              />,
-            ]}
-          </StatusList>
-        ) : (
-          <Note inset>{t('connectors.accounts.empty')}</Note>
-        )}
+                    ) : undefined
+                  }
+                >
+                  <SettingsSection title={t('connectors.accounts.botsTitle')}>
+                    {account.grants.length === 0 ? (
+                      <Note inset>{t('connectors.accounts.noBots')}</Note>
+                    ) : (
+                      account.grants.map((grant) => (
+                        <SettingsRow
+                          key={grant.botSlug}
+                          title={grant.botName ?? grant.botSlug}
+                          control={
+                            <Select<Choice>
+                              label={t('connectors.accounts.access', {
+                                name: grant.botName ?? grant.botSlug,
+                              })}
+                              value={grant.access}
+                              options={accessOptions}
+                              disabled={busy}
+                              onChange={(choice) =>
+                                void setAccess(grant.botSlug, account.accountId, choice)
+                              }
+                            />
+                          }
+                        />
+                      ))
+                    )}
+                  </SettingsSection>
+                  <div data-connector-account-actions="">
+                    {broken ? null : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void reconnect(account.accountId)}
+                      >
+                        {t('connectors.accounts.reconnect')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setRemoving(account)}
+                    >
+                      {t('connectors.accounts.remove')}
+                    </Button>
+                  </div>
+                </StatusListRow>
+              );
+            }),
+            <StatusListAction
+              key="connect"
+              label={t('connectors.accounts.connect')}
+              data={{ 'data-connectors-connect-open': '' }}
+              onClick={() => {
+                setError(undefined);
+                setConnecting(true);
+              }}
+            />,
+          ]}
+        </StatusList>
       </SettingsSection>
       {notice === undefined ? null : <Note>{notice}</Note>}
       {error === undefined ||
@@ -367,6 +372,7 @@ export function ConnectorsSettings({
             <TextField
               label={t('connectors.key.field')}
               hint={t('connectors.key.info')}
+              placeholder="ak_…"
               type="password"
               autoComplete="off"
               monospace
@@ -383,6 +389,7 @@ export function ConnectorsSettings({
           view={view}
           t={t}
           onClose={() => setConnecting(false)}
+          onView={setView}
           onLinked={(accountId, url) => {
             setConnecting(false);
             linked(accountId, url);

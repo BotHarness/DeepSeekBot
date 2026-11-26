@@ -71,6 +71,13 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('delete-role'),
+      id: z.string().uuid(),
+      expectedRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('reassign-role'),
       id: z.string().uuid(),
       expectedRevision: z.number().int().positive(),
@@ -321,10 +328,15 @@ export function externalUserRoles(db: DatabaseSync, botSlug: string): ExternalUs
       .all(botSlug) as { body: string }[]
   ).map((row) => JSON.parse(row.body) as ExternalUserRole);
 }
+export interface SenderAccessReviewer {
+  bindingId: string;
+  actorId: string;
+}
 export function changeSenderAccess(
   db: DatabaseSync,
   botSlug: string,
   raw: SenderAccessInput,
+  reviewer?: SenderAccessReviewer,
 ): void {
   const input = senderAccessInput.parse(raw);
   if (
@@ -388,6 +400,27 @@ export function changeSenderAccess(
     bumpSenderPolicy(db, botSlug);
     return;
   }
+  if (input.kind === 'delete-role') {
+    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
+    if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
+    if (
+      db
+        .prepare(
+          "SELECT 1 FROM messaging_pairings WHERE bot_slug = ? AND status IN ('pending', 'approved') AND json_extract(body, '$.roleId') = ? LIMIT 1",
+        )
+        .get(botSlug, role.id)
+    )
+      throw new MessagingError('role-in-use');
+    db.prepare('DELETE FROM messaging_external_roles WHERE id = ? AND bot_slug = ?').run(
+      role.id,
+      botSlug,
+    );
+    db.prepare(
+      'UPDATE messaging_sender_policies SET default_role_id = NULL WHERE bot_slug = ? AND default_role_id = ?',
+    ).run(botSlug, role.id);
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
   if (input.kind === 'reassign-role') {
     const row = db
       .prepare('SELECT body FROM messaging_pairings WHERE id = ? AND bot_slug = ?')
@@ -407,6 +440,30 @@ export function changeSenderAccess(
     const role = externalUserRoles(db, botSlug).find((item) => item.id === input.roleId);
     if (!role || role.revision !== input.expectedRoleRevision)
       throw new MessagingError('role-stale');
+    if (reviewer) {
+      const permissions = effectivePairingPermissions(
+        db,
+        botSlug,
+        reviewer.bindingId,
+        reviewer.actorId,
+      );
+      if (
+        !permissions.capabilities.includes('review-pairing') ||
+        pairing.bindingId !== reviewer.bindingId ||
+        pairing.actorId === reviewer.actorId
+      )
+        throw new MessagingError('pairing-unauthorized');
+      const delegable = permissions.delegableCapabilities ?? [];
+      const current = externalUserRoles(db, botSlug).find((item) => item.id === pairing.roleId);
+      if (
+        [role, ...(current ? [current] : [])].some((item) =>
+          [...item.capabilities, ...(item.delegableCapabilities ?? [])].some(
+            (cap) => !delegable.includes(cap),
+          ),
+        )
+      )
+        throw new MessagingError('pairing-delegation-denied');
+    }
     const at = new Date().toISOString();
     db.prepare('UPDATE messaging_pairings SET body = ? WHERE id = ? AND bot_slug = ?').run(
       JSON.stringify({
@@ -417,7 +474,8 @@ export function changeSenderAccess(
         revision: pairing.revision + 1,
         reassignedAt: at,
         updatedAt: at,
-        reviewedBy: 'authenticated-web',
+        reviewedBy: reviewer ? 'paired-reviewer' : 'authenticated-web',
+        reviewerActorId: reviewer?.actorId,
       }),
       pairing.id,
       botSlug,

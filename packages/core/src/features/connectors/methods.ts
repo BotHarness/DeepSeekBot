@@ -2,9 +2,11 @@ import { asObject, invalidInput, type BridgeResult } from '../../bridge/method-u
 import {
   ConnectorError,
   type BotConnector,
+  type ConnectorAppSearch,
   type ConnectorService,
   type ConnectorsView,
 } from '../../connectors/service.js';
+import type { McpAppSearch } from '../../connectors/remote.js';
 import type { ConnectorAccountRecord } from '../../connectors/store.js';
 
 export interface ConnectorsBridgeDeps {
@@ -18,11 +20,18 @@ export interface ConnectorsBridgeMethods {
   connectorKeyClear(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
   connectorConnect(
     payload: unknown,
-  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
+  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url?: string }>>;
   connectorReconnect(
     payload: unknown,
-  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
+  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url?: string }>>;
   connectorRefresh(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
+  connectorSearch(payload: unknown): Promise<BridgeResult<ConnectorAppSearch>>;
+  connectorLogos(payload: unknown): Promise<BridgeResult<{ logos: Record<string, string> }>>;
+  connectorMcpSearch(payload: unknown): Promise<BridgeResult<McpAppSearch>>;
+  connectorMcpAdd(
+    payload: unknown,
+  ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url?: string }>>;
+  connectorMcpFinish(payload: unknown): Promise<BridgeResult<{ account: ConnectorAccountRecord }>>;
   connectorGrantSet(
     payload: unknown,
   ): BridgeResult<{ changed: boolean; connectors: BotConnector[] }>;
@@ -118,6 +127,64 @@ export function createConnectorsBridgeMethods(
       return guarded((service) => service.reconnect(accountId));
     },
     connectorRefresh: () => guarded(async (service) => named(await service.refresh())),
+    connectorSearch(payload) {
+      const source = asObject(payload);
+      const query = source['query'] ?? '';
+      const cursor = source['cursor'];
+      if (typeof query !== 'string' || (cursor !== undefined && typeof cursor !== 'string'))
+        return Promise.resolve(invalidInput('query and an optional cursor must be strings'));
+      return guarded((service) => service.searchApps(query, cursor));
+    },
+    connectorLogos(payload) {
+      const services = asObject(payload)['services'];
+      if (
+        !Array.isArray(services) ||
+        services.length > 60 ||
+        services.some((service) => typeof service !== 'string')
+      )
+        return Promise.resolve(invalidInput('services must be up to 60 strings'));
+      return guarded(async (service) => ({ logos: await service.logos(services as string[]) }));
+    },
+    connectorMcpSearch(payload) {
+      const source = asObject(payload);
+      const query = source['query'] ?? '';
+      const cursor = source['cursor'];
+      if (typeof query !== 'string' || (cursor !== undefined && typeof cursor !== 'string'))
+        return Promise.resolve(invalidInput('query and an optional cursor must be strings'));
+      return guarded((service) => service.remote.search(query, cursor));
+    },
+    connectorMcpAdd(payload) {
+      const source = asObject(payload);
+      const url = source['url'];
+      const name = source['name'];
+      const label = source['label'];
+      if (
+        typeof url !== 'string' ||
+        (name !== undefined && typeof name !== 'string') ||
+        (label !== undefined && typeof label !== 'string')
+      )
+        return Promise.resolve(invalidInput('url and an optional name and label are required'));
+      return guarded((service) =>
+        service.remote.add({
+          url,
+          ...(name === undefined ? {} : { name }),
+          ...(label === undefined ? {} : { label }),
+        }),
+      );
+    },
+    connectorMcpFinish(payload) {
+      const url = asObject(payload)['url'];
+      if (typeof url !== 'string') return Promise.resolve(invalidInput('url is required'));
+      return guarded(async (service) => {
+        let params: URLSearchParams;
+        try {
+          params = new URL(url.trim()).searchParams;
+        } catch {
+          throw new ConnectorError('invalid', 'Paste the whole address the sign-in page opened.');
+        }
+        return { account: await service.remote.finish(params) };
+      });
+    },
     connectorGrantSet(payload) {
       if (!isHostOwner()) return forbidden;
       if (deps.connectors === undefined) return missing;

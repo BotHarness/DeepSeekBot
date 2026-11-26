@@ -1,6 +1,7 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
-import type { BotConnector, ConnectorsView } from '../../connectors/service.js';
+import type { BotConnector, ConnectorAppSearch, ConnectorsView } from '../../connectors/service.js';
+import type { McpAppSearch } from '../../connectors/remote.js';
 import type { ConnectorAccess, ConnectorAccountRecord } from '../../connectors/store.js';
 
 export const connectorsRpc = {
@@ -19,16 +20,46 @@ export const connectorsRpc = {
   connectorConnect(
     service: string,
     label?: string,
-  ): Promise<{ account: ConnectorAccountRecord; url: string }> {
+  ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     return unwrapAsync(this.methods.connectorConnect({ service, label }));
   },
 
-  connectorReconnect(accountId: string): Promise<{ account: ConnectorAccountRecord; url: string }> {
+  connectorReconnect(
+    accountId: string,
+  ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     return unwrapAsync(this.methods.connectorReconnect({ accountId }));
   },
 
   connectorRefresh(): Promise<ConnectorsView> {
     return unwrapAsync(this.methods.connectorRefresh({}));
+  },
+
+  connectorSearch(query: string, cursor?: string): Promise<ConnectorAppSearch> {
+    return unwrapAsync(
+      this.methods.connectorSearch(cursor === undefined ? { query } : { query, cursor }),
+    );
+  },
+
+  connectorLogos(services: string[]): Promise<{ logos: Record<string, string> }> {
+    return unwrapAsync(this.methods.connectorLogos({ services }));
+  },
+
+  connectorMcpSearch(query: string, cursor?: string): Promise<McpAppSearch> {
+    return unwrapAsync(
+      this.methods.connectorMcpSearch(cursor === undefined ? { query } : { query, cursor }),
+    );
+  },
+
+  connectorMcpAdd(input: {
+    url: string;
+    name?: string;
+    label?: string;
+  }): Promise<{ account: ConnectorAccountRecord; url?: string }> {
+    return unwrapAsync(this.methods.connectorMcpAdd(input));
+  },
+
+  connectorMcpFinish(url: string): Promise<{ account: ConnectorAccountRecord }> {
+    return unwrapAsync(this.methods.connectorMcpFinish({ url }));
   },
 
   connectorGrantSet(

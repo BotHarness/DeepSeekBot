@@ -8,6 +8,9 @@ import type { SessionModelState } from '@botharness/host-protocol/session-model'
 import type { SettingsRowProps } from '../src/ui/primitives/settings-row-model';
 import type { SheetFrameProps } from '../src/ui/chat/sheet-frame';
 
+vi.mock('../src/host/native-model-catalog', () => ({
+  nativeModelCatalogStore: { read: () => undefined, write: () => {} },
+}));
 vi.mock('react-native', async () => import('./react-native-shim'));
 vi.mock('../src/ui/chat/sheet-frame', () => ({
   SheetFrame: ({ visible, children, resizable }: SheetFrameProps) =>
@@ -18,13 +21,32 @@ vi.mock('../src/ui/chat/sheet-frame', () => ({
     ) : null,
 }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
-  DrawerHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+  DrawerHeader: ({
+    title,
+    onClose,
+    trailing,
+  }: {
+    title: string;
+    onClose?: () => void;
+    trailing?: ReactNode;
+  }) => (
     <h2>
       {title}
       {onClose === undefined ? null : <button aria-label="Close" onClick={onClose} />}
+      {trailing}
     </h2>
   ),
+  HeaderButton: ({
+    label,
+    testID,
+    onPress,
+  }: {
+    label: string;
+    testID?: string;
+    onPress(): void;
+  }) => <button aria-label={label} data-testid={testID} onClick={onPress} />,
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) => children,
   SettingsRow: ({
@@ -61,13 +83,8 @@ vi.mock('../src/ui/primitives/loading-indicator', () => ({
   LoadingIndicator: () => <span role="progressbar" />,
 }));
 
-const {
-  SessionModelChip,
-  SessionModelLogo,
-  SessionModelPicker,
-  useSessionModelControl,
-  useSessionModelMenuLabel,
-} = await import('../src/ui/chat/session-model-composer');
+const { SessionModelLogo, SessionModelPicker, useSessionModelControl, useSessionModelMenuLabel } =
+  await import('../src/ui/chat/session-model-composer');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 notifyManager.setScheduler((run) => run());
@@ -95,6 +112,15 @@ const catalog = {
   ],
 };
 
+const hostIds = new WeakMap<HostCall, string>();
+function hostId(host: HostCall) {
+  const known = hostIds.get(host);
+  if (known !== undefined) return known;
+  const next = `host-${Math.random()}`;
+  hostIds.set(host, next);
+  return next;
+}
+
 let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
 
@@ -105,17 +131,10 @@ beforeEach(() => {
 
 afterEach(() => act(() => root.unmount()));
 
-function ComposerModel({
-  host,
-  width = 390,
-  fresh = false,
-}: {
-  host: HostCall;
-  width?: number;
-  fresh?: boolean;
-}) {
+function ComposerModel({ host, fresh = false }: { host: HostCall; fresh?: boolean }) {
   const control = useSessionModelControl({
     host,
+    hostId: hostId(host),
     slug: 'ada',
     enabled: true,
     sessionId: fresh ? undefined : 'current',
@@ -124,7 +143,7 @@ function ComposerModel({
   });
   return (
     <>
-      <SessionModelChip control={control} width={width} disabled={false} />
+      <SessionModelLogo control={control} disabled={false} />
       <SessionModelPicker control={control} />
     </>
   );
@@ -161,7 +180,9 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
     choice: engine,
   });
   expect(container.querySelector('[role="dialog"]')).toBeNull();
-  expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
+  expect(button('composer-session-model').getAttribute('aria-label')).toContain(
+    'Next turn: Opus 5.5',
+  );
 
   allow = false;
   await act(async () => button('composer-session-model').click());
@@ -175,7 +196,9 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
     'Couldn’t change this session’s model choice.',
   );
   expect(button('session-model-option-engine-0').getAttribute('aria-pressed')).toBe('true');
-  expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
+  expect(button('composer-session-model').getAttribute('aria-label')).toContain(
+    'Next turn: Opus 5.5',
+  );
 });
 
 it('shows the brand at Send icon size while the catalog loads', async () => {
@@ -193,9 +216,9 @@ it('does not reload the Session or catalog for layout-only composer updates', as
     return defaultState;
   });
   const host = { call };
-  await act(async () => root.render(<ComposerModel host={host} width={390} />));
+  await act(async () => root.render(<ComposerModel host={host} />));
   expect(call.mock.calls).toHaveLength(2);
-  await act(async () => root.render(<ComposerModel host={host} width={205} />));
+  await act(async () => root.render(<ComposerModel host={host} />));
   expect(button('composer-session-model').textContent).toBe('');
   expect(call.mock.calls).toHaveLength(2);
 });
@@ -203,6 +226,7 @@ it('does not reload the Session or catalog for layout-only composer updates', as
 function CompactModel({ host }: { host: HostCall }) {
   const control = useSessionModelControl({
     host,
+    hostId: hostId(host),
     slug: 'ada',
     enabled: true,
     sessionId: 'current',
@@ -254,13 +278,10 @@ it('opens on a half-height sheet with skeleton rows while the first catalog load
   expect(button('session-model-option-default')).toBeDefined();
 });
 
-it('shows the cached models at once on the next open and refreshes them in the background', async () => {
-  let pending: Promise<typeof catalog> | undefined;
-  let release: () => void = () => {};
-  const call = vi.fn(async (method: string) => {
-    if (method !== 'modelCatalog') return defaultState;
-    return pending ?? catalog;
-  });
+it('shows the cached models at once on the next open without reloading a fresh catalog', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? catalog : defaultState,
+  );
   await act(async () => root.render(<ComposerModel host={{ call }} />));
   await act(async () => button('composer-session-model').click());
   expect(button('session-model-option-default')).toBeDefined();
@@ -269,14 +290,32 @@ it('shows the cached models at once on the next open and refreshes them in the b
   );
   expect(container.querySelector('[role="dialog"]')).toBeNull();
 
-  pending = new Promise((resolve) => (release = () => resolve(catalog)));
   const before = call.mock.calls.filter(([method]) => method === 'modelCatalog').length;
   await act(async () => button('composer-session-model').click());
   expect(container.querySelector('[data-testid="sheet-skeleton"]')).toBeNull();
   expect(button('session-model-option-model-0').textContent).toContain('API');
+  expect(call.mock.calls.filter(([method]) => method === 'modelCatalog').length).toBe(before);
+});
+
+it('reloads the catalog from the refresh button and keeps the rows while it loads', async () => {
+  let pending: Promise<typeof catalog> | undefined;
+  let release: () => void = () => {};
+  const call = vi.fn(async (method: string) => {
+    if (method !== 'modelCatalog') return defaultState;
+    return pending ?? catalog;
+  });
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const before = call.mock.calls.filter(([method]) => method === 'modelCatalog').length;
+
+  pending = new Promise((resolve) => (release = () => resolve(catalog)));
+  await act(async () => button('session-model-refresh').click());
   expect(call.mock.calls.filter(([method]) => method === 'modelCatalog').length).toBe(before + 1);
-  await act(async () => release());
+  expect(container.querySelector('[data-testid="sheet-skeleton"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-model-refresh"]')).toBeNull();
   expect(button('session-model-option-model-0').textContent).toContain('API');
+  await act(async () => release());
+  expect(button('session-model-refresh')).toBeDefined();
 });
 
 it('keeps the cached models when a background refresh fails', async () => {
@@ -300,7 +339,10 @@ it('names the default model and its brand on "Use Bot default", also before a ne
   );
   await act(async () => root.render(<ComposerModel host={{ call }} fresh />));
   expect(call).toHaveBeenCalledWith('sessionModel', { slug: 'ada' });
-  expect(button('composer-session-model').textContent).toContain('V4.1 Flash');
+  const logo = button('composer-session-model');
+  expect(logo.textContent).toBe('');
+  expect(logo.querySelector('[data-brand]')?.getAttribute('data-brand')).toBe('deepseek');
+  expect(logo.getAttribute('aria-label')).toContain('V4.1 Flash');
   await act(async () => button('composer-session-model').click());
   const row = button('session-model-option-default');
   expect(row.textContent).toContain('Use Bot default');

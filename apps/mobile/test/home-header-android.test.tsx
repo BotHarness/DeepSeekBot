@@ -30,6 +30,7 @@ vi.mock('expo-router', () => ({
   useRouter: () => navigation,
   Stack: { Screen: () => null },
 }));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
@@ -50,6 +51,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
   SettingsIcon: () => null,
 }));
 vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
+vi.mock('../src/ui/shell/list-edge-fades', () => ({ ListEdgeFades: () => null }));
 vi.mock('../src/ui/primitives/system-symbol', () => ({
   SystemSymbol: ({
     name,

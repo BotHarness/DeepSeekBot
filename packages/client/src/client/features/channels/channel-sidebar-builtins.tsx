@@ -4,6 +4,7 @@ import { ASSIGNMENT_SESSION_ICON } from '../../channel-sidebar-icon.js';
 import { useTeamMode } from '../../team-state.js';
 import { memberPage } from '../../member-page.js';
 import { BotAccessEntry } from '../../bot-access-entry.js';
+import { BotManagementEntry } from '../../bot-management-entry.js';
 import type { ConversationStateView } from '../../store.js';
 import { Menu } from '../../appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from '../../channel-personal-settings.js';
@@ -658,6 +659,15 @@ export function createChannelSidebarBuiltins(
       order: 19,
       scope: 'personabot',
       component: BotAccessEntry,
+    },
+    {
+      id: 'bot-management',
+      surface: 'settings',
+      icon: 'user-check',
+      label: t('entry.botManagement'),
+      order: 19.5,
+      scope: 'personabot',
+      component: BotManagementEntry,
     },
     {
       id: 'workspace-grants',
