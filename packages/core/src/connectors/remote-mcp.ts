@@ -32,7 +32,6 @@ export interface RemoteMcpOAuth {
 
 export interface RemoteMcpTool {
   name: string;
-  readOnly: boolean;
 }
 
 export interface RemoteMcpServerInfo {
@@ -270,8 +269,7 @@ export function createRemoteMcpClient(
         let cursor: string | undefined;
         for (let page = 0; page < 20; page += 1) {
           const listed = await client.listTools(cursor === undefined ? {} : { cursor });
-          for (const tool of listed.tools)
-            tools.push({ name: tool.name, readOnly: tool.annotations?.readOnlyHint === true });
+          for (const tool of listed.tools) tools.push({ name: tool.name });
           cursor = listed.nextCursor;
           if (cursor === undefined) break;
         }

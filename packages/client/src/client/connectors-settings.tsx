@@ -172,6 +172,10 @@ export function ConnectorsSettings({
     { value: 'read' as const, label: t('connectors.bot.read') },
     { value: 'write' as const, label: t('connectors.bot.write') },
   ];
+  const useOptions = [
+    { value: 'none' as const, label: t('connectors.bot.none') },
+    { value: 'write' as const, label: t('connectors.bot.use') },
+  ];
 
   const refresh = () =>
     run(async () => {
@@ -224,6 +228,20 @@ export function ConnectorsSettings({
                 account.status === 'expired' ||
                 account.status === 'failed' ||
                 (account.status === 'pending' && signIn === undefined);
+              const shared = account.provider === 'mcp' && account.access !== undefined;
+              const extra = [
+                ...(shared
+                  ? [t(account.access === 'read' ? 'connectors.bot.read' : 'connectors.bot.write')]
+                  : []),
+                ...(account.provider === 'mcp' &&
+                account.access === undefined &&
+                account.grants.some((grant) => grant.access === 'read')
+                  ? [t('connectors.accounts.signInAgain')]
+                  : []),
+                ...(account.grants.length > 0
+                  ? [t('connectors.accounts.bots', { count: account.grants.length })]
+                  : []),
+              ];
               return (
                 <StatusListRow
                   key={account.accountId}
@@ -236,11 +254,7 @@ export function ConnectorsSettings({
                     <ConnectorMeta
                       status={account.status}
                       identity={account.identity}
-                      extra={
-                        account.grants.length > 0
-                          ? t('connectors.accounts.bots', { count: account.grants.length })
-                          : undefined
-                      }
+                      extra={extra.length > 0 ? extra.join(' · ') : undefined}
                       t={t}
                     />
                   }
@@ -287,8 +301,8 @@ export function ConnectorsSettings({
                               label={t('connectors.accounts.access', {
                                 name: grant.botName ?? grant.botSlug,
                               })}
-                              value={grant.access}
-                              options={accessOptions}
+                              value={shared ? 'write' : grant.access}
+                              options={shared ? useOptions : accessOptions}
                               disabled={busy}
                               onChange={(choice) =>
                                 void setAccess(grant.botSlug, account.accountId, choice)
