@@ -170,7 +170,9 @@ export function GroupProfileView({
         <div {...stylex.props(profileStyles.groupHeading)}>
           <h2 {...hooked('bh-profile-view-name', profileStyles.title)}>{channel.name}</h2>
           <span {...stylex.props(profileStyles.caption)}>
-            {t('groupProfile.botCount', { count: channel.members.length })}
+            {t('groupProfile.memberCount', {
+              count: channel.members.length + (channel.humanMembers?.length ?? 0),
+            })}
           </span>
         </div>
       </div>

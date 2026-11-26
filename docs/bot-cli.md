@@ -2664,6 +2664,14 @@ deepseekbot --as bob channels add-member <channel-id> alice
 
 Candidate listing returns up to 100 active people outside the Channel, with `humanId`, `displayName` and nullable `username`. Search matches names and usernames. Both commands enforce the calling Human's `addMembers` right, including Channel owner/admin and `channels.manageAll`; refusal is `permission-required` with `details.permission: 'addMembers'`. Invitations grant access immediately for every visibility and survive role revocation. Browse-and-join memberships depend on allowed roles and leave when that access is revoked. See [M14 runtime notes](architecture/team-mode.md#m14-runtime-invitations-and-membership-basis) for upgrade classification.
 
+### Channel access after a removal
+
+```sh
+deepseekbot --as alice channels access <channel-id>
+```
+
+Returns `{ channelId, state }` for the calling Human. `readable` means the person can open the Channel. `removed` means they were a member, the Group still exists and they lost access, for example after a role revoke or removal by an admin. `unavailable` covers a deleted Channel, one they never joined and an unknown id, so the answer never reveals a Channel the person did not already know. The phone and the Web Client use it to say "You no longer have access" instead of "Group no longer available".
+
 ### Custom HTTP voice request templates
 
 The Host Owner can use `custom` with a secret-free JSON template. Existing `custom` Providers without a template keep the OpenAI-compatible speech/transcription endpoints. Templates support synchronous HTTP only; streaming protocols, request signatures and polling jobs need vendor adapters.

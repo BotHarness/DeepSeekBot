@@ -461,6 +461,7 @@ export const bridgeMethodInventory = [
   'channelChanges',
   'channelChangeCursor',
   'channelListChanges',
+  'channelAccessState',
   'followRoster',
   'followActivity',
   'followChannel',

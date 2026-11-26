@@ -36,7 +36,7 @@ import type { ChannelSendStatus, HumanMessageSearchPage } from '../../channels/s
 import type { ChannelAttachmentRef } from '../../attachments/ref.js';
 import type { ChannelReadPosition } from '../../channels/store.js';
 import type { ChannelTimelinePage, TimelineDirection } from '../../channels/timeline.js';
-import type { ChannelsAdapterMethods } from './methods.js';
+import type { ChannelAccessState, ChannelsAdapterMethods } from './methods.js';
 import type { ChannelsManagementAdapterMethods } from './management-methods.js';
 import type { ChannelsSendAdapterMethods } from './send-methods.js';
 
@@ -69,6 +69,13 @@ export async function channelListChanges(
   epoch?: string,
 ): Promise<ChannelListChanges> {
   return unwrap(await methods.channelListChanges({ sinceSeq, epoch }));
+}
+
+export async function channelAccessState(
+  methods: ChannelsAdapterMethods,
+  channelId: string,
+): Promise<ChannelAccessState> {
+  return unwrap(await methods.channelAccessState({ channelId }));
 }
 
 export function channelDm(
@@ -571,6 +578,10 @@ export const channelManagementRpc = {
 
   async channelListChanges(sinceSeq: number, epoch?: string): Promise<ChannelListChanges> {
     return channelListChanges(this.methods, sinceSeq, epoch);
+  },
+
+  async channelAccessState(channelId: string): Promise<ChannelAccessState> {
+    return channelAccessState(this.methods, channelId);
   },
 
   channelDm(

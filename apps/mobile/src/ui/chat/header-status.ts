@@ -10,7 +10,7 @@ export function headerStatus(
       bots: [] as readonly RosterBot[],
       state: bot.paused ? ('paused' as const) : bot.state,
       at: bot.previewAt,
-      count: 0,
+      count: undefined,
     };
   }
   const active = members.filter((member) => !member.paused && member.state !== 'idle');
@@ -21,6 +21,6 @@ export function headerStatus(
       priority.find((state) => active.some((member) => member.state === state)) ??
       ('idle' as const),
     at: channel?.previewAt,
-    count: channel?.memberCount ?? 0,
+    count: channel?.memberCount,
   };
 }

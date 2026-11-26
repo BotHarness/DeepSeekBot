@@ -2563,6 +2563,14 @@ deepseekbot --as bob channels add-member <channel-id> alice
 
 候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。
 
+### 移除后的 Channel 访问状态
+
+```sh
+deepseekbot --as alice channels access <channel-id>
+```
+
+为调用者返回 `{ channelId, state }`。`readable` 表示可以打开该 Channel；`removed` 表示此人曾是成员、群聊仍然存在但已失去访问，例如角色被撤销或被管理员移出；`unavailable` 包含已删除的 Channel、从未加入的 Channel 和未知 id，因此不会暴露此人原本不知道的 Channel。手机和 Web 客户端据此显示“你已无法访问”，而不是“群聊已不存在”。
+
 ### 自定义 HTTP 语音请求模板
 
 Host Owner 可给 `custom` Provider 提供不含密钥的 JSON 模板。未提供模板的既有 `custom` 配置保持 OpenAI 兼容行为。第一版只支持同步 HTTP；实时协议、签名认证和轮询任务仍需厂商适配。

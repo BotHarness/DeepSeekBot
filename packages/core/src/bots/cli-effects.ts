@@ -667,7 +667,7 @@ function familyEffects(
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':
-      if (action === undefined || ['get', 'roles', 'member-candidates'].includes(action))
+      if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
       if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))
