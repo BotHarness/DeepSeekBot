@@ -1,37 +1,5 @@
 import type { DshSessionEvent } from '../sessions/source.js';
-
-export interface PromptSectionView {
-  name: string;
-  text: string;
-}
-
-export interface BotSystemPromptView {
-  sessionId: string | null;
-  loaded: boolean;
-  effectiveText: string | null;
-  effectiveSource: 'session' | 'log' | 'none';
-  next: { text: string; sections: PromptSectionView[]; contexts: PromptSectionView[] } | null;
-  pending: boolean;
-}
-
-export interface TurnInputMessage {
-  step: number;
-  source: string;
-  at: string;
-  text: string;
-}
-
-export interface TurnInputView {
-  turn: number;
-  startedAt?: string;
-  messages: TurnInputMessage[];
-}
-
-export interface BotTurnInputView {
-  slug: string;
-  sessionId: string;
-  turns: TurnInputView[];
-}
+import type { BotTurnInputView, TurnInputView } from '@botharness/host-protocol/wire';
 
 function object(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
@@ -66,7 +34,7 @@ export function systemPromptFromLog(events: readonly DshSessionEvent[]): string 
 export function summarizeTurnInput(
   events: readonly DshSessionEvent[],
   options: { turns: number },
-): { turns: TurnInputView[] } {
+): Pick<BotTurnInputView, 'turns'> {
   const turns = new Map<number, TurnInputView>();
   const turnOf = (turn: number) => {
     let entry = turns.get(turn);

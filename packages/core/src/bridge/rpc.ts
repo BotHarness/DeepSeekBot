@@ -47,11 +47,6 @@ import {
 } from '../features/messaging/rpc.js';
 import { cloudServiceRpc } from '../features/cloud/rpc.js';
 import { tobRpcMethods, directBotToolRpc } from '../features/tob/rpc.js';
-import {
-  acknowledgementRpc,
-  humanIdentityRpc,
-  humanDisplayNameRpc,
-} from '../features/humans/rpc.js';
 import { diagnosticsRpcMethods, hostDiagnosticsRpc } from '../features/diagnostics/rpc.js';
 import { modelsRpcMethods, modelConfigurationRpc } from '../features/models/rpc.js';
 import {
@@ -63,8 +58,6 @@ import {
   sessionListRpc,
   sessionOwnerRpc,
 } from '../features/sessions/rpc.js';
-import { promptInspectionRpc, promptPresetRpc } from '../features/prompts/rpc.js';
-import { connectorsRpc } from '../features/connectors/rpc.js';
 import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc.js';
 import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
@@ -181,14 +174,12 @@ const legacyRpcMethods = {
   managementGrants: tobRpcMethods.managementGrants,
   managementGrantSet: tobRpcMethods.managementGrantSet,
   onboarding: personabotsRpcMethods.onboarding,
-  ...acknowledgementRpc,
   onboardingModel: personabotsRpcMethods.onboardingModel,
   telemetryEvent: diagnosticsRpcMethods.telemetryEvent,
   modelPlanInherit: modelsRpcMethods.modelPlanInherit,
   modelPlanReset: modelsRpcMethods.modelPlanReset,
   channelRetry: channelsRpcMethods.channelRetry,
   ...botSessionRpc,
-  ...promptInspectionRpc,
   ...sessionControlRpc,
   ...modelConfigurationRpc,
   list: personabotsRpcMethods.list,
@@ -200,8 +191,6 @@ const legacyRpcMethods = {
   ...dataResetRpc,
   ...personaBotDeletionRpc,
   ...approvalTemplateReadRpc,
-  ...promptPresetRpc,
-  ...connectorsRpc,
   ...approvalTemplateWriteRpc,
   ...voiceProviderRpc,
   ...botModeRpc,
@@ -212,9 +201,7 @@ const legacyRpcMethods = {
   ...avatarRpc,
   ...channelManagementRpc,
   ping: diagnosticsRpcMethods.ping,
-  ...humanIdentityRpc,
   composerValidate: channelsRpcMethods.composerValidate,
-  ...humanDisplayNameRpc,
   ...channelDeletionRpc,
   ...profileStorageRpc,
   ...channelHistoryRpc,
@@ -372,8 +359,6 @@ const legacyRemoteMethods = [
   'managementGrants',
   'managementGrantSet',
   'onboarding',
-  'acknowledgements',
-  'acknowledge',
   'onboardingModel',
   'telemetryEvent',
   'modelPlanInherit',
@@ -382,8 +367,6 @@ const legacyRemoteMethods = [
   'botNewSession',
   'botCompact',
   'botContext',
-  'botSystemPrompt',
-  'botTurnInput',
   'channelBotStop',
   'sessionStop',
   'sessionMessageSend',
@@ -448,14 +431,7 @@ const legacyRemoteMethods = [
   'resume',
   'channels',
   'ping',
-  'humanIdentity',
-  'composerIdentity',
   'composerValidate',
-  'humanNameSet',
-  'humanAvatarSet',
-  'humanAvatars',
-  'humanProfileSetupFinish',
-  'channelHumanNameSet',
   'channelDm',
   'channelGet',
   'channelCreate',
@@ -597,28 +573,6 @@ const legacyRemoteMethods = [
   'rosterBatch',
   'developerModeSet',
   'approvalTemplates',
-  'promptParts',
-  'promptPresets',
-  'promptPresetCreate',
-  'promptPresetUpdate',
-  'promptPresetDelete',
-  'connectors',
-  'connectorKeySet',
-  'connectorKeyClear',
-  'connectorConnect',
-  'connectorReconnect',
-  'connectorRefresh',
-  'connectorSearch',
-  'connectorLogos',
-  'connectorMcpSearch',
-  'connectorMcpAdd',
-  'connectorMcpFinish',
-  'connectorGrantSet',
-  'connectorAccountRemove',
-  'botConnectors',
-  'promptGlobalSet',
-  'botPrompt',
-  'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
   'approvalTemplateDeletePreview',

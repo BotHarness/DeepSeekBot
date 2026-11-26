@@ -14,6 +14,7 @@ import type {
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import type * as prompts from '@botharness/host-client/prompt-presets';
+import type { BotSystemPromptView, BotTurnInputView } from '@botharness/host-protocol/wire';
 import {
   loadGenuiView,
   saveGenuiView,
@@ -226,9 +227,7 @@ export interface BridgeActions
   botContext(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/context-window.js').BotContextWindow>;
-  botSystemPrompt(
-    botSlug: string,
-  ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
+  botSystemPrompt(botSlug: string): Promise<BotSystemPromptView>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
   botPromptSet?(
     slug: string,
@@ -238,14 +237,7 @@ export interface BridgeActions
       limits?: Record<string, number | null>;
     },
   ): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
-  botTurnInput(
-    botSlug: string,
-    turns?: number,
-  ): Promise<{
-    slug: string;
-    sessionId: string;
-    turns: import('../../../core/src/runtime/prompt-inspection.js').TurnInputView[];
-  }>;
+  botTurnInput(botSlug: string, turns?: number): Promise<BotTurnInputView>;
   channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
   channelIngests(channelId: string): Promise<ConversationIngestSnapshot>;

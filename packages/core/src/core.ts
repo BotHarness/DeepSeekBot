@@ -46,7 +46,7 @@ import * as activityFeature from './features/activity/plugin.js';
 import * as avatars from './features/avatars/plugin.js';
 import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
-import * as promptPresets from './features/prompts/plugin.js';
+import { openPromptSettings } from './prompts/prompt-settings.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import { createFeatureContributions } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
@@ -392,7 +392,7 @@ function initializeCore(
   startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
-  const prompts = promptPresets.apply({ dshHome, registry, ownership });
+  const prompts = openPromptSettings({ dshHome, registry, ownership });
   const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
     startup,
     operationalDatabase,

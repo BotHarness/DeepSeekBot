@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeTurnInput, systemPromptFromLog } from '../src/runtime/prompt-inspection.js';
+import { summarizeTurnInput, systemPromptFromLog } from '../src/prompts/prompt-inspection.js';
 
 const text = (value: string) => ({ type: 'text', text: value });
 

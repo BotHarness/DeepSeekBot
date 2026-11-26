@@ -9,10 +9,12 @@ import {
   type ChannelRecord,
 } from '../../channels/channel.js';
 import type { ComposerRecoveryIdentity } from '../../bridge/composer-recovery.js';
-import type { BridgeMethodsDeps, ChannelListItem } from '../../bridge/methods.js';
+import type { ChannelListItem } from '../../bridge/methods.js';
+import type { ChannelStore } from '../../channels/store.js';
+import type { ClientAcknowledgements } from '../../onboarding/acknowledgements.js';
 import { asObject, unavailable } from '../../kernel/method-utils.js';
 
-export interface HumansBridgeMethods {
+export type HumansBridgeMethods = {
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
@@ -20,11 +22,25 @@ export interface HumansBridgeMethods {
   humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
   humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
+};
+
+export interface HumansBridgeDeps {
+  channels: Pick<
+    ChannelStore,
+    | 'humanIdentity'
+    | 'setHumanDefaultName'
+    | 'setHumanAvatar'
+    | 'finishHumanProfileSetup'
+    | 'humanAvatars'
+    | 'setHumanNickname'
+    | 'get'
+  >;
+  composerIdentity?(human: HumanContext): ComposerRecoveryIdentity;
 }
 
 export function createHumansBridgeMethods(
   human: HumanContext,
-  deps: BridgeMethodsDeps,
+  deps: HumansBridgeDeps,
   channelView: (channel: ChannelRecord) => ChannelListItem,
 ): HumansBridgeMethods {
   return {
@@ -115,12 +131,16 @@ export function createHumansBridgeMethods(
   };
 }
 
-export interface HumansAdapterMethods {
+export type HumansAdapterMethods = {
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
+};
+
+export interface HumansAdapterDeps {
+  acknowledgements?: Pick<ClientAcknowledgements, 'list' | 'record'>;
 }
 
-export function createHumansAdapterMethods(deps: BridgeMethodsDeps): HumansAdapterMethods {
+export function createHumansAdapterMethods(deps: HumansAdapterDeps): HumansAdapterMethods {
   return {
     acknowledgements() {
       if (deps.acknowledgements === undefined) return unavailable();

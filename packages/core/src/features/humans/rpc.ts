@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { HumansBridgeMethods } from './methods.js';
 import type { HumansAdapterMethods } from './methods.js';
@@ -47,7 +46,7 @@ export function acknowledge(
   return unwrap(methods.acknowledge(value === undefined ? { key } : { key, value }));
 }
 
-export const acknowledgementRpc = {
+export const humansRpc = {
   acknowledgements(): { items: Record<string, string> } {
     return acknowledgements(this.methods);
   },
@@ -55,9 +54,7 @@ export const acknowledgementRpc = {
   acknowledge(key: string, value?: string): { key: string; value: string } {
     return acknowledge(this.methods, key, value);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
 
-export const humanIdentityRpc = {
   humanIdentity() {
     return humanIdentity(this.methods);
   },
@@ -65,9 +62,7 @@ export const humanIdentityRpc = {
   composerIdentity() {
     return composerIdentity(this.methods);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
 
-export const humanDisplayNameRpc = {
   channelHumanNameSet(channelId: string, nickname: string | null) {
     return channelHumanNameSet(this.methods, channelId, nickname);
   },
@@ -87,4 +82,4 @@ export const humanDisplayNameRpc = {
   humanProfileSetupFinish() {
     return humanProfileSetupFinish(this.methods);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: HumansBridgeMethods & HumansAdapterMethods }>;
