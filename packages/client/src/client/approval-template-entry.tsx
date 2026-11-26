@@ -67,10 +67,32 @@ export function globalTemplateTitle(
 ): string | undefined {
   if (globalDefault === undefined) return undefined;
   if (globalDefault === null) return t('autoApproval.off');
-  const template = templates.find((item) => item.name === globalDefault);
+  return namedTemplateTitle(t, templates, globalDefault);
+}
+
+function namedTemplateTitle(
+  t: BotHarnessTranslate,
+  templates: readonly ApprovalTemplateView[],
+  name: string,
+): string {
+  const template = templates.find((item) => item.name === name);
   return template === undefined
-    ? t('autoApproval.templateMissing', { name: globalDefault })
+    ? t('autoApproval.templateMissing', { name })
     : templateTitle(t, template.name, template.title);
+}
+
+export function effectiveTemplateTitle(
+  t: BotHarnessTranslate,
+  state: {
+    readonly templates: readonly ApprovalTemplateView[];
+    readonly selected: string | null;
+    readonly globalDefault: string | null | undefined;
+  },
+): string {
+  const name = state.selected === INHERIT ? state.globalDefault : state.selected;
+  if (name === undefined) return t('autoApproval.preset.followGlobal');
+  if (name === null) return t('autoApproval.none');
+  return namedTemplateTitle(t, state.templates, name);
 }
 
 export function templateChoices(
