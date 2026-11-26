@@ -108,7 +108,12 @@ export function DmCallControl({
           >
             <ChannelSidebarIcon name="monitor" />
           </IconButton>
-          <Tooltip label={soundLabel} side="bottom" portal delayMs={500}>
+          <Tooltip
+            label={hearing ? soundLabel : t('call.soundTip', { name })}
+            side="bottom"
+            portal
+            delayMs={500}
+          >
             <IconButton
               aria-label={soundLabel}
               aria-pressed={hearing}

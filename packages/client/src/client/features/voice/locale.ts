@@ -172,6 +172,8 @@ export const zh = {
   'call.close': '关闭',
   'call.openVoiceSettings': '打开语音设置',
   'call.soundOn': '把你电脑上的声音也共享给 {name}',
+  'call.soundTip':
+    '把你电脑上的声音也共享给 {name}。建议戴耳机，或让 {name} 只听不说，免得它听到自己的回声。',
   'call.soundOff': '停止把电脑声音共享给 {name}',
   'call.soundMissing':
     '没有共享到电脑声音。在弹出的共享窗口里选一个标签页或屏幕，并打开“共享音频”。',
@@ -388,6 +390,8 @@ export const en = {
   'call.close': 'Close',
   'call.openVoiceSettings': 'Open Voice settings',
   'call.soundOn': 'Share your computer’s sound with {name}',
+  'call.soundTip':
+    'Share your computer’s sound with {name}. Wear headphones, or ask {name} to only listen, so it doesn’t hear its own voice.',
   'call.soundOff': 'Stop sharing your computer’s sound with {name}',
   'call.soundMissing':
     'No computer sound was shared. In the share window, pick a tab or screen and turn on “Share audio”.',
