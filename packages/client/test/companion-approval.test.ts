@@ -236,6 +236,7 @@ it.each(['native', 'wrong-target', 'unmounted'] as const)(
           });
         return { ok: true, value: { status: 'pending' } };
       }
+      if (endpoint === 'approvalTemplates') throw new Error('bot-not-found');
       decide();
       return { ok: true, value: { accepted: true } };
     };

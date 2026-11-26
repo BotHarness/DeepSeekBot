@@ -17,6 +17,7 @@ import { SettingsForm, SettingsFormItem } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { LoadFailed, Loading, Notice, errorText } from '../request-parts';
 import { useStrings } from '../strings';
+import { ImPlatformIcon } from './im-platform-icon';
 import { staleChange, useFocusedResource } from './use-resource';
 
 type Strings = ReturnType<typeof useStrings>;
@@ -87,6 +88,11 @@ export function ExternalContactsScreen({
       key={pairing.id}
       on={SHEET_GROUP}
       testID={`pairing-${pairing.id}`}
+      leading={
+        <ImPlatformIcon
+          platform={snapshot.identities?.find((item) => item.id === pairing.bindingId)?.platform}
+        />
+      }
       title={personName(t, pairing)}
       detail={`${pairing.accountName} · ${
         pairing.conversationKind === 'group' ? t.pairingRequest.group : t.pairingRequest.dm
@@ -118,6 +124,7 @@ export function ExternalContactsScreen({
               key={identity.id}
               on={SHEET_GROUP}
               testID={`external-identity-${identity.id}`}
+              leading={<ImPlatformIcon platform={identity.platform} />}
               title={identity.name}
               detail={`${t.imApps.platform(identity.platform)} · ${
                 loaded.checking && identity.reception === undefined

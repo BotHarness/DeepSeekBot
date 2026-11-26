@@ -26,6 +26,24 @@ export {
 } from './groups.js';
 export { behaviorPermissions } from './behavior.js';
 export {
+  blockConversationSource,
+  blockSender,
+  botSourceBlocks,
+  type BotSourceBlockInput,
+  listConversationSourceBlocks,
+  listSenderBlocks,
+  ownerActor,
+  readConversationSourceBlock,
+  senderBlockBindingIds,
+  readSenderBlock,
+  senderBlocked,
+  sourceBlocked,
+  unblockConversationSource,
+  unblockSender,
+  type ConversationSourceBlock,
+  type SenderBlock,
+} from './sender-blocks.js';
+export {
   behaviorConfigurationConflicts,
   resolveBehaviorPermissions,
   withBehaviorPermission,

@@ -251,12 +251,15 @@ final class SessionDrawerView: ExpoView, UIGestureRecognizerDelegate {
     _ gestureRecognizer: UIGestureRecognizer,
     shouldBeRequiredToFailBy other: UIGestureRecognizer
   ) -> Bool {
-    // A vertical list under the drawer waits until the swipe proves vertical, which the drawer
-    // decides on its first movement, so a horizontal swipe never scrolls the list first.
+    // Every scroller under the drawer waits for the drawer to decide on its first movement. A
+    // vertical list then never scrolls on a horizontal swipe. A wide code block or table keeps a
+    // swipe it can still scroll back (`scrollsBack` fails the drawer), but at its leading edge
+    // the drawer wins: left to race, a scroller that had been scrolled once took every later
+    // swipe and only bounced (#5463).
     guard gestureRecognizer === pan, let scroller = other.view as? UIScrollView,
       other === scroller.panGestureRecognizer, scroller.isDescendant(of: self)
     else { return false }
-    return scroller.contentSize.width <= scroller.bounds.width + 1
+    return true
   }
 }
 

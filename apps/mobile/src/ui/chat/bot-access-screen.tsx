@@ -14,7 +14,12 @@ import { errorText, HostAnswerInvalid } from '@botharness/host-client/bot-settin
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import {
+  SettingsFooter,
+  SettingsHeading,
+  SettingsRow,
+  SettingsSection,
+} from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
@@ -154,6 +159,12 @@ export function BotAccessScreen({ client, bot }: { client: HostClient; bot: Rost
           {access.error === '' ? copy.accessRetry : copy.accessFailed(access.error)}
         </Text>
       )}
+      {management.grants?.editable === false ? (
+        <View style={{ gap: space.x2 }} testID="bot-management-owner-only">
+          <SettingsHeading>{copy.management}</SettingsHeading>
+          <SettingsFooter>{copy.managementOwnerOnly}</SettingsFooter>
+        </View>
+      ) : null}
       {management.grants?.editable !== true ? null : (
         <SettingsSection on={SHEET_GROUP} title={copy.management}>
           {MANAGEMENT_CAPABILITIES.map((capability, index) => (

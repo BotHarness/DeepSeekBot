@@ -8,6 +8,7 @@ import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { botOwner } from '../team/bot-access.js';
 import {
+  canManageGrants,
   grantAllManagement,
   holdsManagementGrant,
   managementGrantHolders,
@@ -61,7 +62,10 @@ export interface TobService {
   isTob(slug: string): boolean;
   managementGrants(slug: string): ManagementCapability[];
   holdsManagementGrant(slug: string, capability?: ManagementCapability): boolean;
-  managementGrantHolders(): { botSlug: string; capabilities: ManagementCapability[] }[];
+  managementGrantHolders(
+    ownerHumanId?: string,
+  ): { botSlug: string; capabilities: ManagementCapability[] }[];
+  canManageGrants(human: HumanContext): boolean;
   setManagementGrant(
     human: HumanContext,
     botSlug: string,
@@ -190,10 +194,11 @@ export function createTobService(options: {
     isTob: (slug) => isTob(database, slug),
     managementGrants: (slug) => managementGrants(database, slug),
     holdsManagementGrant: (slug, capability) => holdsManagementGrant(database, slug, capability),
-    managementGrantHolders: () => managementGrantHolders(database),
+    managementGrantHolders: (ownerHumanId) => managementGrantHolders(database, ownerHumanId),
+    canManageGrants: (human) => human.caller !== 'bot' && canManageGrants(database, human.humanId),
     ownerId,
     setManagementGrant(human, botSlug, capability, enabled) {
-      if (human.caller === 'bot' || human.humanId !== ownerId())
+      if (human.caller === 'bot' || !canManageGrants(database, human.humanId))
         throw new TobError('permission-required');
       const bot = registry.get(botSlug);
       if (!bot || botOwner(bot) !== human.humanId) throw new TobError('bot-not-found');
@@ -231,7 +236,7 @@ export function createTobService(options: {
         botSlug,
         capabilities: managementGrants(database, botSlug),
         changed,
-        noAppManager: !managementGrantHolders(database).some((holder) =>
+        noAppManager: !managementGrantHolders(database, human.humanId).some((holder) =>
           holder.capabilities.includes('manage-app'),
         ),
       };

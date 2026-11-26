@@ -80,6 +80,7 @@ Usage:
   tobs send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
   tobs send-status <id> --message-id <Human-message-id>
   tobs tool-approval-status <channel> --message-id <card-id>
+  tobs approval-rule-add <channel> --message-id <card-id> --prefix "git status *"
   tobs tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
   tobs user-question-status <channel> --message-id <card-id>
   tobs user-question-answer <channel> --message-id <card-id> --answer-stdin
@@ -143,7 +144,7 @@ Usage:
   tobs git-status
   tobs git-install
   tobs pairing-list <id>
-  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ...] [--confirm]
+  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ... [--delegable]] [--confirm]
   tobs workspace-options
   tobs grant-create <id> --workspace <workspace-id>
   tobs browser-access-set <id> (--enabled | --disabled)

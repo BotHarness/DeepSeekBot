@@ -7,9 +7,11 @@ import {
 } from '../src/messaging/interactions/role-text.js';
 import { effectivePairingPermissions } from '../src/messaging/permissions/index.js';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { fixture, cleanup } from './messaging-default-traffic-fixtures.js';
+import { pairingReviewInput } from '../src/messaging/pairing.js';
+import { fixture, cleanup, ordinaryRole } from './messaging-default-traffic-fixtures.js';
 import {
   channelMessage,
+  directMessage,
   ids,
   pendingFor,
   reviewerSetup,
@@ -234,4 +236,59 @@ it('the Host refuses an IM reviewer exception outside the delegation even when c
     }),
   );
   expect(attempt(['approve'])).not.toThrow();
+});
+
+async function managementReviewer(fx: Fixture, delegable: boolean) {
+  await ordinaryRole(fx);
+  await fx.receive(directMessage('slack', 'reviewer-manage', reviewer, '/pair'));
+  const management = fx.core.externalMessaging.pairing
+    .list('ada')
+    .find((item) => item.actorId === reviewer && item.purpose !== 'conversation')!;
+  const approved = fx.core.externalMessaging.pairing.review('ada', {
+    kind: 'approve',
+    id: management.id,
+    expectedRevision: management.revision,
+    capabilities: ['review-pairing', 'approve'],
+    ...(delegable ? { delegable: true } : {}),
+  });
+  await fx.settle();
+  return approved;
+}
+
+it('a /pair owner approved with delegation can grant a permission in IM', async () => {
+  const fx = await fixture('slack');
+  const approved = await managementReviewer(fx, true);
+  expect(approved.delegableCapabilities).toEqual(['review-pairing', 'approve']);
+  await pairApplicant(fx);
+
+  await fx.receive(command('grant', reviewer, '/grant @target approve'));
+  expect(effective(fx).capabilities).toContain('approve');
+  expect(fx.replies.at(-1)!.text).toBe('@Ana can now approve. / @Ana 现在拥有「approve」权限。');
+  expect(fx.runs).toHaveLength(0);
+});
+
+it('a /pair owner approved without delegation cannot grant a permission in IM', async () => {
+  const fx = await fixture('slack');
+  const approved = await managementReviewer(fx, false);
+  expect(approved).not.toHaveProperty('delegableCapabilities');
+  await pairApplicant(fx);
+
+  await fx.receive(command('grant', reviewer, '/grant @target approve'));
+  expect(fx.replies.at(-1)!.text).toBe(
+    'You cannot grant or revoke "approve". / 你不能授予或收回「approve」。',
+  );
+  expect(effective(fx).capabilities).not.toContain('approve');
+});
+
+it('refuses delegation on a conversation approval', () => {
+  expect(
+    pairingReviewInput.safeParse({
+      kind: 'approve',
+      id: '00000000-0000-4000-8000-000000000000',
+      expectedRevision: 1,
+      roleId: '00000000-0000-4000-8000-000000000001',
+      expectedRoleRevision: 1,
+      delegable: true,
+    }).success,
+  ).toBe(false);
 });

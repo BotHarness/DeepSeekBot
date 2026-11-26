@@ -667,3 +667,36 @@ export const SENDER_DEFAULT_ROLE_MIGRATION: SchemaMigration = {
     database.exec('ALTER TABLE messaging_sender_policies ADD COLUMN default_role_id TEXT;');
   },
 };
+
+export const SENDER_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'sender-block',
+  module: 'messaging',
+  description: 'Keep one sender of a bound app out of the Bot Inbox without the model',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_sender_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, actor_id)
+    );`);
+  },
+};
+
+export const SOURCE_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'source-block',
+  module: 'messaging',
+  description: 'Keep one conversation of a bound app out of the Bot Inbox except for the Owner',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_source_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
+      conversation_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, conversation_kind, conversation_id)
+    );`);
+  },
+};

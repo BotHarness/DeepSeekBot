@@ -16,6 +16,7 @@ import { SettingsForm, SettingsFormItem } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { LoadFailed, Loading, Notice, errorText } from '../request-parts';
 import { useStrings } from '../strings';
+import { ImPlatformIcon } from './im-platform-icon';
 import { useFocusedResource } from './use-resource';
 
 export function appKey(app: Pick<MessagingApp, 'providerId' | 'ref'>): string {
@@ -71,6 +72,7 @@ export function ImAppsScreen({
               key={appKey(app)}
               on={SHEET_GROUP}
               testID={`im-app-${app.ref}`}
+              leading={<ImPlatformIcon platform={app.platform} />}
               title={app.name}
               detail={appDetail(t, app)}
               control={{
@@ -179,7 +181,12 @@ export function ImAppScreen({
   return (
     <SettingsForm testID="im-app">
       <SettingsSection on={SHEET_GROUP}>
-        <SettingsRow on={SHEET_GROUP} title={app.name} detail={appDetail(t, app)} />
+        <SettingsRow
+          on={SHEET_GROUP}
+          leading={<ImPlatformIcon platform={app.platform} />}
+          title={app.name}
+          detail={appDetail(t, app)}
+        />
       </SettingsSection>
       {failure === undefined ? null : (
         <SettingsFormItem>
@@ -294,6 +301,7 @@ export function BotImBindScreen({
                 key={appKey(app)}
                 on={SHEET_GROUP}
                 testID={`bot-im-bind-${app.ref}`}
+                leading={<ImPlatformIcon platform={app.platform} />}
                 title={app.name}
                 detail={appDetail(t, app)}
                 {...(saving === appKey(app)
