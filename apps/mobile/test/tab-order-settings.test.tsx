@@ -1,14 +1,29 @@
 // @vitest-environment jsdom
-import type { RosterBot, RosterChannel, RosterView } from '@botharness/host-client/client';
+import type {
+  ConnectionState,
+  RosterBot,
+  RosterChannel,
+  RosterView,
+} from '@botharness/host-client/client';
 import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 
-const fixture = vi.hoisted(() => ({
-  roster: undefined as RosterView | undefined,
-  push: vi.fn(),
-  back: vi.fn(),
-}));
+const fixture = vi.hoisted(
+  (): {
+    roster: RosterView | undefined;
+    connection: ConnectionState | undefined;
+    retryNow: ReturnType<typeof vi.fn>;
+    push: ReturnType<typeof vi.fn>;
+    back: ReturnType<typeof vi.fn>;
+  } => ({
+    roster: undefined,
+    connection: undefined,
+    retryNow: vi.fn(),
+    push: vi.fn(),
+    back: vi.fn(),
+  }),
+);
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
@@ -43,10 +58,16 @@ vi.mock('../src/features/pinned-tab/use-pinned-tab', async () => {
   const { usePinnedBinding } = await import('../src/features/pinned-tab/native-pinned-binding');
   const { titleOf } = await import('../src/ui/chat/conversations');
   const usePinnedHost = () => {
+    const connection = fixture.connection;
+    if (connection === undefined) return { hostId: undefined, host: undefined, pinned: undefined };
     const pinned = { hostId: 'h1', roster: fixture.roster };
     return {
       hostId: 'h1',
-      host: { saved: { hostId: 'h1', hostName: 'Studio Mac' } },
+      host: {
+        saved: { hostId: 'h1', hostName: 'Studio Mac' },
+        snapshot: { connection },
+        client: { retryNow: fixture.retryNow },
+      },
       pinned,
     };
   };
@@ -133,7 +154,9 @@ afterEach(() => {
   pinnedBindings.bind('h1', undefined);
   fixture.push.mockReset();
   fixture.back.mockReset();
+  fixture.retryNow.mockReset();
   fixture.roster = undefined;
+  fixture.connection = undefined;
 });
 
 async function mount(node: ReactNode) {
@@ -151,6 +174,7 @@ async function mount(node: ReactNode) {
     host,
     press,
     rows,
+    render: (next: ReactNode) => act(async () => root.render(next)),
     async unmount() {
       await act(async () => root.unmount());
       host.remove();
@@ -170,7 +194,8 @@ it('opens the Tab bar page from Settings', async () => {
 });
 
 it('reorders the visible tabs, keeps hidden Sessions in place and restores the default', async () => {
-  fixture.roster = { bots: [bot('tob', { tob: true })], channels: [] } as unknown as RosterView;
+  fixture.connection = { status: 'connected', route: 'studio' };
+  fixture.roster = { bots: [bot('tob', { tob: true })], channels: [] } satisfies RosterView;
   const view = await mount(<TabBarSettings />);
   try {
     expect(view.rows()).toEqual(['chats', 'pinned', 'activity', 'settings']);
@@ -208,10 +233,11 @@ it('reorders the visible tabs, keeps hidden Sessions in place and restores the d
 });
 
 it('binds the Pinned tab to a chosen conversation and back to the default', async () => {
+  fixture.connection = { status: 'connected', route: 'studio' };
   fixture.roster = {
     bots: [bot('tob', { tob: true }), bot('ada')],
     channels: [channel('launch')],
-  } as unknown as RosterView;
+  } satisfies RosterView;
   const settings = await mount(<TabBarSettings />);
   const picker = await mount(<PinnedConversationSettings />);
   try {
@@ -237,5 +263,47 @@ it('binds the Pinned tab to a chosen conversation and back to the default', asyn
   } finally {
     await picker.unmount();
     await settings.unmount();
+  }
+});
+
+it('offers a roster retry after an unreachable Environment and shows choices once loaded', async () => {
+  fixture.connection = { status: 'connecting', route: 'studio' };
+  const view = await mount(<PinnedConversationSettings />);
+  try {
+    expect(view.host.querySelector('[role="progressbar"]')).not.toBeNull();
+    fixture.connection = { status: 'unreachable', route: 'studio', attempt: 1, reason: 'offline' };
+    await view.render(<PinnedConversationSettings />);
+    expect(view.host.querySelector('[role="progressbar"]')).toBeNull();
+    expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(t.pinnedTab.loadFailed);
+    const retry = view.host.querySelector<HTMLButtonElement>(`button[aria-label="${t.tryAgain}"]`);
+    await act(async () => retry!.click());
+    expect(fixture.retryNow).toHaveBeenCalledOnce();
+    fixture.connection = { status: 'connected', route: 'studio' };
+    fixture.roster = { bots: [bot('tob', { tob: true })], channels: [] };
+    await view.render(<PinnedConversationSettings />);
+    expect(view.host.querySelector('[role="alert"]')).toBeNull();
+    expect(view.host.querySelector('[data-testid="pinned-choice-bot:tob"]')).not.toBeNull();
+  } finally {
+    await view.unmount();
+  }
+});
+
+it('explains when the Environment is missing or has refused access', async () => {
+  const view = await mount(<PinnedConversationSettings />);
+  try {
+    expect(view.host.textContent).toContain(t.tabBarSettings.pinnedFooterNone);
+    expect(view.host.querySelector('[role="progressbar"]')).toBeNull();
+    fixture.connection = {
+      status: 'refused',
+      route: 'studio',
+      code: 'device-revoked',
+      reason: 'revoked',
+    };
+    await view.render(<PinnedConversationSettings />);
+    expect(view.host.textContent).toContain(t.deviceRefusal['device-revoked']);
+    expect(view.host.querySelector('[role="progressbar"]')).toBeNull();
+    expect(view.host.querySelector(`button[aria-label="${t.tryAgain}"]`)).toBeNull();
+  } finally {
+    await view.unmount();
   }
 });

@@ -101,16 +101,19 @@ const names = [
 
 async function withAssets(run: () => Promise<void> | void) {
   const requireAsset = createRequire(import.meta.url);
-  const assets = names.map((name) => requireAsset.resolve('../assets/toolbar/' + name + '.xml'));
-  for (const [index, path] of assets.entries()) {
+  const assets = new Map(
+    names.map((name) => [requireAsset.resolve(`../assets/toolbar/${name}.xml`), name]),
+  );
+  assets.set(requireAsset.resolve('../assets/row-icons/stay.xml'), 'pin');
+  for (const [path, name] of assets) {
     const asset = new Module(path);
-    asset.exports = names[index];
+    asset.exports = name;
     requireAsset.cache[path] = asset;
   }
   try {
     await run();
   } finally {
-    for (const path of assets) delete requireAsset.cache[path];
+    for (const path of assets.keys()) delete requireAsset.cache[path];
   }
 }
 
@@ -210,7 +213,7 @@ it('routes a tap to onPress and a long press to onLongPress', () =>
     }
   }));
 
-it('draws the Pinned avatar as a Compose image in the tab box, never a hosted React Native view', () =>
+it('shows the Pin until both captures are available, then displays the focused or unfocused avatar', () =>
   withAssets(() => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -223,16 +226,20 @@ it('draws the Pinned avatar as a Compose image in the tab box, never a hosted Re
         ),
       );
     const face = () => host.querySelector('[data-testid="navigation-pinned"]')!.firstElementChild;
+    const captured = avatar.icons;
     try {
+      avatar.icons = undefined;
+      render(false);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      render(true);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      avatar.icons = captured;
       render(false);
       expect(face()?.getAttribute('data-avatar')).toBe('file:///plain.png');
       render(true);
       expect(face()?.getAttribute('data-avatar')).toBe('file:///ring.png');
-      avatar.icons = undefined;
-      render(true);
-      expect(face()?.tagName).toBe('DIV');
-      expect(face()?.childElementCount).toBe(0);
     } finally {
+      avatar.icons = captured;
       act(() => root.unmount());
     }
   }));

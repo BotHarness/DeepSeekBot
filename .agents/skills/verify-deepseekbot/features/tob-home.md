@@ -7,6 +7,9 @@
 - `packages/core/src/tob/**`
 - `packages/core/src/bots/cli-tob.ts`
 - `packages/client/src/client/{tob-presentation,tob-requests}.ts`
+- `apps/mobile/src/features/pinned-tab/**`
+- `apps/mobile/src/ui/primitives/tab-order-list*`
+- `apps/mobile/src/ui/shell/tab-slots.ts`
 
 ## Terms
 

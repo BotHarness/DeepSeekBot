@@ -36,6 +36,7 @@ function glyphFor(slot: TabSlot, focused: boolean) {
       ? require('../../../assets/toolbar/activity-filled.xml')
       : require('../../../assets/toolbar/activity.xml');
   if (slot === 'sessions') return require('../../../assets/toolbar/code.xml');
+  if (slot === 'pinned') return require('../../../assets/row-icons/stay.xml');
   return focused
     ? require('../../../assets/toolbar/chats-filled.xml')
     : require('../../../assets/toolbar/chats.xml');
@@ -77,16 +78,12 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       </BadgedBox>
     );
   const face = (entry: NavigationDestination) =>
-    entry.slot === 'pinned' ? (
-      avatar.icons === undefined ? (
-        <Box modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]} />
-      ) : (
-        <Image
-          source={entry.focused ? avatar.icons.selected : avatar.icons.default}
-          contentDescription={null}
-          modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}
-        />
-      )
+    entry.slot === 'pinned' && avatar.icons !== undefined ? (
+      <Image
+        source={entry.focused ? avatar.icons.selected : avatar.icons.default}
+        contentDescription={null}
+        modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}
+      />
     ) : (
       <Icon
         source={glyphFor(entry.slot, entry.focused)}

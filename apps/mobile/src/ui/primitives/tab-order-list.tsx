@@ -118,9 +118,9 @@ function TabOrderRow({
         y: event.translationY,
       };
     })
-    .onEnd(() => {
+    .onEnd((_event, success) => {
       const { to, y } = drag.value;
-      if (to !== index && to !== index + 1) {
+      if (success && to !== index && to !== index + 1) {
         runOnJS(onMove)(index, to);
         return;
       }
