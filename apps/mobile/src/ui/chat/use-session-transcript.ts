@@ -50,6 +50,15 @@ type View = {
   error?: 'unavailable' | 'load';
 };
 
+function withoutDropping(
+  shown: HostSessionPendingInput[] | undefined,
+  reported: HostSessionPendingInput[],
+): HostSessionPendingInput[] {
+  const kept = shown ?? [];
+  const known = new Set(kept.map((item) => item.requestId));
+  return [...kept, ...reported.filter((item) => !known.has(item.requestId))];
+}
+
 export function useSessionTranscript(
   client: HostClient,
   slug: string | null,
@@ -72,6 +81,7 @@ export function useSessionTranscript(
       let durable: SessionTranscript | undefined;
       let pending: HostSessionPendingInput[] | undefined;
       let liveObservations = 0;
+      let transcriptAdoptions = 0;
       let loading = false;
       let again = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -114,8 +124,10 @@ export function useSessionTranscript(
           .then((value) => {
             if (abort.signal.aborted) return;
             durable = value;
-            if (value.pendingInput !== undefined && observed === liveObservations)
+            if (value.pendingInput !== undefined && observed === liveObservations) {
               pending = value.pendingInput;
+              transcriptAdoptions += 1;
+            }
             rememberTranscript(client, slug, id, value);
             publish();
           }, fail)
@@ -134,15 +146,21 @@ export function useSessionTranscript(
       async function follow(after?: number) {
         if (abort.signal.aborted) return;
         try {
+          const adoptedBefore = transcriptAdoptions;
           const next = await sessionLive(host, slug, id, after);
           if (abort.signal.aborted) return;
           const previous = latest;
           latest = next;
+          const reported =
+            next.pendingInput === undefined
+              ? undefined
+              : adoptedBefore === transcriptAdoptions
+                ? next.pendingInput
+                : withoutDropping(pending, next.pendingInput);
           const asked =
-            next.pendingInput !== undefined &&
-            pendingInputKey(next.pendingInput) !== pendingInputKey(pending);
-          if (next.pendingInput !== undefined) {
-            pending = next.pendingInput;
+            reported !== undefined && pendingInputKey(reported) !== pendingInputKey(pending);
+          if (reported !== undefined) {
+            pending = reported;
             liveObservations += 1;
           }
           if (durable !== undefined && next.seq > durable.seq) {
