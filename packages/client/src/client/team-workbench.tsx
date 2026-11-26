@@ -182,7 +182,8 @@ const styles = stylex.create({
     fontWeight: type.titleWeight,
   },
   cardAside: {
-    marginInlineStart: 'auto',
+    flexGrow: 1,
+    textAlign: 'end',
     color: ink.secondary,
     fontSize: type.captionSize,
     lineHeight: type.captionLine,
