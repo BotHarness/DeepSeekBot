@@ -1219,7 +1219,7 @@ Orchestrator 的引擎进程空闲 30 秒后关闭。Assignment 的引擎进程�
 
 `engine use <bot> <engine> --role assignment` 让 Bot 的 Assignment 运行在引擎上，与 Orchestrator 分开选择，所以 Claude Code 上的 Orchestrator 可以把工作交给 DSH 模型，DSH 上的 Orchestrator 也可以交给 Claude Code 或 Codex；`none` 让它们回到 DSH 模型。`selections` 会列出角色，`--fallback` 只属于 Orchestrator。每个引擎 Assignment Session 在其 Workspace Grant 的 `primaryCwd` 中打开，并保留原生会话供下一次请求使用。Claude Code 以 `acceptEdits` 模式运行：Grant 内的编辑直接进行，其他操作（命令、Grant 外的文件）通过常规的工具审批卡片询问 Human；Codex 在以 Grant 为根的 `workspace-write` 沙箱中运行。网关只向 Assignment 提供 `report_to_orchestrator`，不绑定任何 Channel，并拒绝任何 Channel 或目标参数。报告和 DSH Assignment 一样送达 Orchestrator；引擎 Assignment 一轮结束时没有报告，其最终文本会作为标记为未报告的完成报告转发。要调整正在运行的工作，用 `bot-tool <bot-id> send_assignment_request --args-stdin` 传入 `{"session_id":"<assignment-session-id>","mode":"next-step","text":"沿用现有导出格式。"}`。Codex 将请求送入当前轮次。Claude Code，或明确拒绝 steer 的 Codex，会中断当前轮次，在同一个 Session 中用请求内容开始下一轮。Orchestrator 会收到这次工作的一个终态报告。
 
-连接本机 Host 后，`model-preset-create` 和 `model-preset-update` 支持 `--orchestrator-engine codex|claude`，可选 `--orchestrator-engine-account`、`--orchestrator-engine-model` 和 `--orchestrator-engine-effort`。副模型使用对应的 `--assignment-engine`、`--assignment-engine-account`、`--assignment-engine-model` 和 `--assignment-engine-effort`。预设保留相应角色在 DSH 上运行时使用的路由。`model-preset-update --<role>-engine none` 可移除该角色的引擎设置。`model-preset-apply` 在同一 Host 上恢复预设保存的选择，未保存引擎选择的角色切回预设中的 DSH 路由。用 `engine status` 查看应用后的模型及推理强度。
+连接本机 Host 后，`model-preset-create` 和 `model-preset-update` 支持 `--orchestrator-engine codex|claude`，可选 `--orchestrator-engine-account`、`--orchestrator-engine-model` 和 `--orchestrator-engine-effort`。副模型使用对应的 `--assignment-engine`、`--assignment-engine-account`、`--assignment-engine-model` 和 `--assignment-engine-effort`。预设保留相应角色在 DSH 上运行时使用的路由。`model-preset-update --<role>-engine none` 可移除该角色的引擎设置。`model-preset-apply` 让 Bot 实时跟随预设的引擎，Bot 不保存副本，原有的回退偏好保留。用 `engine status` 查看应用后的模型及推理强度。
 
 订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
 
@@ -1299,6 +1299,7 @@ printf '%s' "$PLAN_JSON" | deepseekbot model-plan-set <bot-id> --plan-stdin
 deepseekbot model-plan-customize <bot-id> --orchestrator-provider deepseek --orchestrator-model deepseek-reasoner
 printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id> --plan-stdin
 deepseekbot model-plan-inherit <bot-id>
+deepseekbot model-plan-reset <bot-id> --slot main|sub|all
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
 deepseekbot model-presets --include-usage
 deepseekbot model-preset-sub <preset-id>
@@ -1313,7 +1314,7 @@ deepseekbot model-group-update <group-id> --name Fast [--members-stdin] [--expec
 deepseekbot model-group-delete <group-id> [--expected-revision <group-revision>]
 deepseekbot model-plan-customize <bot-id> --orchestrator-group <group-id>
 deepseekbot home-model-set --provider <provider-id> --model <model-id> [--orchestrator-effort <effort>] [--expected-revision <default-revision>]
-deepseekbot model-preset-apply <bot-id> --preset <preset-id> [--expected-revision <plan-revision>] [--preset-revision <preset-revision>]
+deepseekbot model-preset-apply <bot-id> --preset <preset-id> [--expected-revision <plan-revision>] [--preset-revision <preset-revision>] [--keep-overrides]
 deepseekbot overview-usage --period week
 deepseekbot overview-memory
 deepseekbot activity-overview
@@ -1336,7 +1337,9 @@ deepseekbot group-activity <group-channel>
 
 要同时保存主模型路由与副模型选项，请向 `model-plan-set --plan-stdin` 传入 `{"orchestrator":{...},"sub":{...}}`。也可用 `orchestratorGroupId` 代替 `orchestrator`。对于 `model-preset-create`，用命令行参数指定名称及主模型路由，并通过 `--plan-stdin` 传入 `{"sub":{...}}`。`model-preset-update` 只改副模型选项时，请省略主模型路由参数，这样原有的路由组会保留；只有要设置或替换主模型路由时才加这些参数。传入 `sub` 时请省略旧版 Assignment 字段和参数。
 
-`model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
+`model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator，它成为 Bot 自己的主模型，副模型继续跟随预设。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。
+
+Bot 实时跟随它的模型预设：只保存预设 id 和自己单独设置的位置（`main`、`sub`）。预设改动后，用它的每个 Bot 从下一轮起使用新模型，包括正在运行和自动运行的会话，不需要重启。`model-plan` 显示 `presetId` 和 `overrides`，即 Bot 通过自己的路由或自己的订阅引擎选择单独设置的位置。`model-plan-reset <bot-id> --slot main|sub|all` 去掉这些设置，让它们重新跟随预设。`model-preset-apply` 把 Bot 换到另一个预设并去掉单独设置；加 `--keep-overrides` 保留它们。`model-plan-customize`、`model-plan-sub-set`、`model-plan-assignments-set` 和 `model-plan-set` 只写它们改动的位置。所跟随的预设被删除后，Bot 跟随默认预设。旧版本复制的方案在 Host 启动时转换：与来源预设相同的位置改为跟随，不同的位置保留为 Bot 自己的设置。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 
 ### 路由组
 
@@ -1363,7 +1366,7 @@ printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","
 
 DSH Subagent 从已授权组内的第一个可用 DSH 成员启动。`list_bot_subagent_models` 在 `groups` 中列出这些成员，`bot_subagent` 和 `bot_subagent_fork` 接受组 ID。Subagent 在运行期间保留选中的路由。
 
-在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。Bot 会保留已应用的模型方案。应用预设仍遵循既有 Bot 管理和模型使用权限。
+在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。使用该预设的 Bot 改用默认预设，单独设置的位置保留。应用预设仍遵循既有 Bot 管理和模型使用权限。
 
 用 `deepseekbot model-default` 查看置顶的「默认」预设。升级前对旧 Host 运行 `deepseekbot model-default --migration-dry-run`，可预览迁移且不会写入。升级后返回 `already-migrated`。迁移仅执行一次，回退需恢复升级前的 Profile 备份。
 

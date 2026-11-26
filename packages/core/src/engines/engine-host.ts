@@ -288,7 +288,7 @@ export class EngineHost {
   fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
     return (
       this.#options.local &&
-      this.store.selection(botSlug, role) != null &&
+      this.engineFor(botSlug, role) !== undefined &&
       this.store.fallback(botSlug, role)
     );
   }

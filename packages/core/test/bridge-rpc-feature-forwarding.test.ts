@@ -632,6 +632,7 @@ describe('bridge typert service', () => {
       'presetId',
       'expectedRevision',
       'expectedPresetRevision',
+      'keepOverrides',
     ]);
     expect(parameterNames(service.modelPresetCreate)).toEqual([
       'name',

@@ -286,6 +286,7 @@ export const MEMBER_BOT_METHODS = [
   'botSourcePolicySet',
   'botSourcePolicyReset',
   'modelPlanInherit',
+  'modelPlanReset',
   'botStop',
   'botAttention',
   'botNewSession',
