@@ -131,6 +131,47 @@ describe('native Session attention in Activity', () => {
       );
   });
 
+  it('reports native-only status from native requests alone, never Bot actions', () => {
+    const { query, status } = setup({ entries: [] });
+    status.mockReturnValue({ unreadCount: 2, hasAction: true });
+    expect(query.status(OWNER_HUMAN_CONTEXT, false, 'native').hasAction).toBe(false);
+    expect(query.status(OWNER_HUMAN_CONTEXT, false, 'all').hasAction).toBe(true);
+    expect(query.status(OWNER_HUMAN_CONTEXT, false).hasAction).toBe(true);
+    const withNative = setup();
+    withNative.status.mockReturnValue({ unreadCount: 2, hasAction: false });
+    expect(withNative.query.status(OWNER_HUMAN_CONTEXT, false, 'native').hasAction).toBe(true);
+  });
+
+  it('ends native-only notification discovery before replies and Bot DM replies', () => {
+    const { query } = setup();
+    const dmReplies = vi.fn(() => [botItem('dm-reply', '2026-11-25T10:00:03.000Z')]);
+    const attention = {
+      list: (human: HumanContext, input: Parameters<HumanAttentionQuery['list']>[1]) => {
+        const { nextCursor: _next, ...page } = query.list(human, input);
+        return page;
+      },
+      dmReplies,
+    } as unknown as Pick<HumanAttentionQuery, 'list' | 'dmReplies'>;
+    const walk = (source?: 'native' | 'all') => {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      for (let guard = 0; guard < 10; guard++) {
+        const page = notificationAttentionPage(OWNER_HUMAN_CONTEXT, attention, {
+          ...(source === undefined ? {} : { source }),
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        ids.push(...page.items.map((item) => item.id));
+        cursor = page.nextCursor;
+        if (cursor === undefined) break;
+      }
+      return ids;
+    };
+    expect(walk('native')).toEqual(['native-session:event-1']);
+    expect(dmReplies).not.toHaveBeenCalled();
+    expect(walk('all')).toContain('dm-reply');
+    expect(walk('all')).toContain('native-session:event-1');
+  });
+
   it('drops native requests from Activity while nativeSessionAttention is off', () => {
     const { query, setEnabled } = setup();
     setEnabled(false);

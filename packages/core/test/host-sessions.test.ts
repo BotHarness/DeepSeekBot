@@ -643,6 +643,18 @@ it('applies one needs-you rule to native and Bot Session rows', async () => {
         { sessionId: 'bot-ask', running: false, lastPromptAt: 3, updatedAt: 3 },
         { sessionId: 'bot-error', running: false, lastPromptAt: 2, updatedAt: 2 },
         { sessionId: 'bot-idle', running: false, lastPromptAt: 1, updatedAt: 1 },
+        {
+          sessionId: 'bot-blocked',
+          running: false,
+          lastPromptAt: Date.parse('2026-11-25T10:00:00Z'),
+          updatedAt: 0,
+        },
+        {
+          sessionId: 'bot-resumed',
+          running: false,
+          lastPromptAt: Date.parse('2026-11-25T10:10:00Z'),
+          updatedAt: 0,
+        },
       ],
       read: async () => ({ events: [], seq: 0, running: false }),
       isRoot: async () => true,
@@ -665,10 +677,29 @@ it('applies one needs-you rule to native and Bot Session rows', async () => {
           activity: 'idle',
           latestReport: { state: 'completed', summary: 'Done', at: '2026-11-25' },
         },
+        {
+          sessionId: 'bot-blocked',
+          title: 'Needs a key',
+          activity: 'idle',
+          latestReport: { state: 'blocked', summary: 'Key?', at: '2026-11-25T10:05:00Z' },
+        },
+        {
+          sessionId: 'bot-resumed',
+          title: 'Resumed after an answer',
+          activity: 'idle',
+          latestReport: { state: 'waiting-human', summary: 'Which?', at: '2026-11-25T10:05:00Z' },
+        },
       ],
     },
   } as never);
-  for (const id of ['bot-approve', 'bot-ask', 'bot-error', 'bot-idle'])
+  for (const id of [
+    'bot-approve',
+    'bot-ask',
+    'bot-error',
+    'bot-idle',
+    'bot-blocked',
+    'bot-resumed',
+  ])
     f.ownership.claim({
       sessionId: id,
       botSlug: 'owner-bot',
@@ -676,8 +707,20 @@ it('applies one needs-you rule to native and Bot Session rows', async () => {
       at: '2026-11-25',
     });
   const result = await f.bridge(OWNER_HUMAN_CONTEXT).sessionList({});
+  const rows = result.ok ? result.value.sessions : [];
   expect(
-    result.ok && result.value.sessions.map((row) => [row.sessionId, row.status, row.attention]),
+    rows
+      .filter((row) => row.sessionId === 'bot-blocked' || row.sessionId === 'bot-resumed')
+      .map((row) => [row.sessionId, row.status, row.attention])
+      .sort(([a], [b]) => String(a).localeCompare(String(b))),
+  ).toEqual([
+    ['bot-blocked', 'needs-you', 'question'],
+    ['bot-resumed', 'idle', undefined],
+  ]);
+  expect(
+    rows
+      .filter((row) => row.sessionId !== 'bot-blocked' && row.sessionId !== 'bot-resumed')
+      .map((row) => [row.sessionId, row.status, row.attention]),
   ).toEqual([
     ['approve', 'needs-you', 'approval'],
     ['ask', 'needs-you', 'question'],
