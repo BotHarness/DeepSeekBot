@@ -22,6 +22,7 @@ const fixture = (tests = 'none', mobile = 'false', count = '0') =>
                 mobile,
                 'docs-site': 'false',
                 'android-native': 'false',
+                'private-relay': 'false',
                 count,
                 shards:
                   tests === 'full'
@@ -56,11 +57,13 @@ describe('required CI aggregate', () => {
     }
   });
 
-  it('requires selected mobile, native, docs, smoke and full-test jobs to succeed', () => {
+  it('requires selected mobile, native, relay, docs, smoke and full-test jobs to succeed', () => {
     for (const [output, value, job] of [
       ['mobile', 'true', 'mobile-export'],
       ['android-native', 'true', 'mobile-native'],
+      ['private-relay', 'true', 'private-relay'],
       ['docs-site', 'true', 'docs-site'],
+      ['confinement', 'true', 'confinement'],
       ['tests', 'full', 'test-full'],
     ]) {
       const needs = fixture();
@@ -110,7 +113,7 @@ describe('required CI aggregate', () => {
   });
 
   it('rejects a missing or malformed plan', () => {
-    for (const output of ['tests', 'mobile']) {
+    for (const output of ['tests', 'mobile', 'private-relay']) {
       const needs = fixture();
       delete needs.plan.outputs[output];
       expect(passes(needs)).toBe(false);

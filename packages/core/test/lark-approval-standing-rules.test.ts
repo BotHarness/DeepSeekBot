@@ -431,6 +431,36 @@ it.each(['binding', 'defaults', 'bot'] as const)(
   },
 );
 
+it('renders Host-saved Shell prefixes as text on the existing Lark receipt and refreshes on revoke', async () => {
+  const f = await fixture(true, true);
+  const pending = f.repeat('shell-prefix', 'git status; git log');
+  await vi.waitFor(() => expect(f.cards).toHaveBeenCalled());
+  const delivery = f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core, toolApproval: f.owner });
+  expect(
+    await methods.toolApprovalDecide({
+      channelId: delivery.channelId,
+      messageId: delivery.id,
+      outcome: 'allowed-always-prefix',
+      rule: { kind: 'prefix', patterns: ['git status *', 'git log *'] },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(await pending.answer).toBe('allowed-once');
+  await vi.waitFor(() => {
+    const card = f.cards.mock.calls.at(-1)![2];
+    expect(card.detail).toContain('Allowed Shell prefix / 已允许 Shell 前缀 git status *');
+    expect(card.detail).toContain('Allowed Shell prefix / 已允许 Shell 前缀 git log *');
+    expect(card).not.toHaveProperty('ruleConfirmation');
+  });
+  const rule = f.core.toolRules.list('ada').find((entry) => entry.input === 'git log *')!;
+  expect(methods.toolApprovalRuleRevoke({ slug: 'ada', id: rule.id })).toMatchObject({ ok: true });
+  await vi.waitFor(() =>
+    expect(f.cards.mock.calls.at(-1)![2].detail).toContain(
+      'Revoked Shell prefix / 已撤销 Shell 前缀 git log *',
+    ),
+  );
+});
+
 it('Web revocation updates the saved-rule receipt from the same canonical rule', async () => {
   const f = await savedExact();
   const rule = f.core.toolRules.list('ada')[0]!;

@@ -1,21 +1,13 @@
 import { spawnSync } from 'node:child_process';
 
+import { SECRET_ENV_PATTERN, type ShellReach } from './shell-reach.js';
+
 export type ConfinementEnforcement = 'full' | 'partial' | 'unavailable';
 export interface ConfinementStatus {
   enforcement: ConfinementEnforcement;
   filesystem: boolean;
   network: boolean;
   missing: string[];
-}
-
-export interface ExecutionPlan {
-  readable: string[];
-  writable: string[];
-  hidden: string[];
-  tools?: string[] | undefined;
-  pathEnv?: string | undefined;
-  home: string;
-  resolvConf?: string | undefined;
 }
 
 export const RUNNER_FAILURE_SIGNATURE = 'bh-confine: ';
@@ -90,21 +82,13 @@ printf 'go\n' > "$dir/go"
 wait "$child"
 `;
 
-export const SECRET_ENV_PATTERN =
-  '(^|_)(API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?|COOKIE|AUTH)(_|$)|^DSH_|^DEEPSEEKBOT_HOST$';
-
 export const ENV_SCRUB = String.raw`for name in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | grep -Ei "$1"); do unset "$name" 2>/dev/null; done
 shift
 exec "$@"
 `;
 
-export function secretEnvNames(env: NodeJS.ProcessEnv): string[] {
-  const pattern = new RegExp(SECRET_ENV_PATTERN, 'iu');
-  return Object.keys(env).filter((name) => pattern.test(name));
-}
-
 export function bwrapArgs(
-  plan: ExecutionPlan,
+  plan: ShellReach,
   mode: 'read-only' | 'workspace-write',
   network = false,
 ): string[] {
@@ -125,46 +109,26 @@ export function bwrapArgs(
     '--new-session',
   ];
   for (const path of plan.hidden) args.push('--tmpfs', path);
-  args.push('--tmpfs', '/tmp');
   if (plan.resolvConf !== undefined)
     args.push(
       ...(network
         ? ['--ro-bind-data', '9', plan.resolvConf]
         : ['--ro-bind-try', plan.resolvConf, plan.resolvConf]),
     );
-  for (const path of plan.tools ?? []) args.push('--ro-bind-try', path, path);
+  for (const path of plan.tools) args.push('--ro-bind-try', path, path);
   const writable = new Set(mode === 'workspace-write' ? plan.writable : []);
   for (const path of plan.readable) if (!writable.has(path)) args.push('--ro-bind', path, path);
   for (const path of writable) args.push('--bind', path, path);
   if (mode === 'workspace-write' && !writable.has(plan.home))
     args.push('--bind', plan.home, plan.home);
   else if (!writable.has(plan.home)) args.push('--ro-bind', plan.home, plan.home);
-  if (plan.pathEnv !== undefined) args.push('--setenv', 'PATH', plan.pathEnv);
-  args.push(
-    '--setenv',
-    'HOME',
-    plan.home,
-    '--setenv',
-    'XDG_CACHE_HOME',
-    `${plan.home}/.cache`,
-    '--setenv',
-    'XDG_CONFIG_HOME',
-    `${plan.home}/.config`,
-    '--setenv',
-    'XDG_DATA_HOME',
-    `${plan.home}/.local/share`,
-    '--setenv',
-    'XDG_STATE_HOME',
-    `${plan.home}/.local/state`,
-    '--setenv',
-    'TMPDIR',
-    '/tmp',
-  );
+  for (const name of plan.env.unset) args.push('--unsetenv', name);
+  for (const [name, value] of Object.entries(plan.env.set)) args.push('--setenv', name, value);
   return args;
 }
 
 export function confinedArgv(
-  plan: ExecutionPlan,
+  plan: ShellReach,
   mode: 'read-only' | 'workspace-write',
   argv: readonly string[],
   network: boolean,
@@ -177,7 +141,7 @@ export function confinedArgv(
     '-c',
     ENV_SCRUB,
     'bh-scrub',
-    SECRET_ENV_PATTERN,
+    plan.env.secretPattern,
     ...argv,
   ];
   return network ? ['/bin/sh', '-c', NETWORK_RUNNER, 'bh-confine', NETWORK_RULES, ...inner] : inner;
@@ -203,11 +167,14 @@ export function probeConfinement(
 ): ConfinementStatus {
   if (platform !== 'linux')
     return { enforcement: 'unavailable', filesystem: false, network: false, missing: ['linux'] };
-  const plan: ExecutionPlan = {
+  const plan: ShellReach = {
     readable: [],
     writable: [],
-    hidden: [],
+    hidden: ['/tmp'],
+    tools: [],
     home: '/tmp',
+    env: { set: {}, unset: [], secretPattern: SECRET_ENV_PATTERN },
+    network: 'filtered',
   };
   const filesystem = runs(spawn, confinedArgv(plan, 'read-only', ['/bin/true'], false)).ok;
   if (!filesystem)

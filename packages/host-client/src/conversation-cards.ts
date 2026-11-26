@@ -62,6 +62,7 @@ const OUTCOMES = new Set<string>([
   'allowed-once',
   'allowed-always-tool',
   'allowed-always-exact',
+  'allowed-always-prefix',
   'allowed-always-all',
   'rejected',
 ]);

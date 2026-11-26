@@ -67,6 +67,16 @@ export interface HostSessionListResult {
   nextCursor?: string;
 }
 
+export type HostSessionStatus = 'running' | 'needs-you' | 'idle';
+export type HostSessionAttention = 'approval' | 'question' | 'failed';
+
+export function hostSessionStatus(state: {
+  running: boolean;
+  attention?: HostSessionAttention | undefined;
+}): HostSessionStatus {
+  return state.attention !== undefined ? 'needs-you' : state.running ? 'running' : 'idle';
+}
+
 export type HostSessionListCursor = { epoch: string; seq: number };
 
 export type HostSessionListChanges =
@@ -79,14 +89,36 @@ export type HostSessionListChanges =
       cursor: HostSessionListCursor;
     };
 
+export type WorkspaceLookIcon =
+  | { kind: 'symbol'; id: string }
+  | { kind: 'emoji'; emoji: string }
+  | { kind: 'monogram' };
+
+export interface WorkspaceLook {
+  color?: string;
+  icon?: WorkspaceLookIcon;
+}
+
+export interface HostSessionFolderLook extends WorkspaceLook {
+  favicon?: string;
+}
+
+export interface WorkspaceLookResult {
+  path: string;
+  look: WorkspaceLook | null;
+}
+
 export interface HostSessionRow {
   sessionId: string;
   source: HostSessionSource;
   title?: string;
   folderName?: string;
+  folderLook?: HostSessionFolderLook;
   cwd?: string;
   running: boolean;
   waiting?: true;
+  status?: HostSessionStatus;
+  attention?: HostSessionAttention;
   archived?: true;
   model?: { provider: string; model: string };
   sortedAt?: number;
@@ -104,6 +136,7 @@ export type HostSessionPendingInput =
       toolName: string;
       callId?: string;
       reason?: string;
+      preview?: string;
     }
   | {
       kind: 'question';

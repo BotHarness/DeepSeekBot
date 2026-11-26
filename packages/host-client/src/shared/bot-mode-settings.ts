@@ -44,6 +44,10 @@ export const BOT_MODE_SHOW_BOT_SESSIONS_FIELD = 'showBotSessions';
 
 export const DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS = true;
 
+export const NATIVE_SESSION_ATTENTION_FIELD = 'nativeSessionAttention';
+
+export const DEFAULT_NATIVE_SESSION_ATTENTION = true;
+
 export const BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD = 'showApprovalReviewSessions';
 
 export const DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS = false;
@@ -132,6 +136,7 @@ export interface BotModeSettings {
   developerMode: boolean;
   showBotSessions?: boolean;
   showApprovalReviewSessions?: boolean;
+  nativeSessionAttention?: boolean;
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey?: BotModeSendKey;

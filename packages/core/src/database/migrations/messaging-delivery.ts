@@ -683,3 +683,20 @@ export const SENDER_BLOCK_MIGRATION: SchemaMigration = {
     );`);
   },
 };
+
+export const SOURCE_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'source-block',
+  module: 'messaging',
+  description: 'Keep one conversation of a bound app out of the Bot Inbox except for the Owner',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_source_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      conversation_kind TEXT NOT NULL CHECK (conversation_kind IN ('dm', 'group')),
+      conversation_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, conversation_kind, conversation_id)
+    );`);
+  },
+};

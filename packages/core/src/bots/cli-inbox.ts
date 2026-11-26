@@ -18,6 +18,7 @@ import {
 } from '@botharness/host-client/approval-readers';
 import { stopBot, stopSession } from '@botharness/host-client/bot-control';
 export { INBOX_OPTIONS } from './cli-option-spec.js';
+import { workspaceLookRequest } from './cli-workspace-look.js';
 import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -126,6 +127,15 @@ export const INBOX_COMMANDS = [
     command: 'session-archive',
     description: 'archive an idle native Session (--session, --confirm)',
   },
+  {
+    command: 'workspace-look',
+    description: 'read the colour and icon chosen for a Session folder (--cwd <path>)',
+  },
+  {
+    command: 'workspace-look-set',
+    description:
+      'set a Session folder look (--cwd <path>, --color <id>, one of --symbol <id> | --emoji <e> | --monogram) or --clear it',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -165,6 +175,8 @@ export const INBOX_COMMANDS = [
 ] as const;
 
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
+
+const ACTIVITY_SOURCES = ['all', 'bot', 'native'];
 
 export interface InboxValues {
   since?: string;
@@ -210,6 +222,10 @@ export interface InboxValues {
   message?: string;
   decision?: string;
   'answer-stdin'?: boolean;
+  color?: string;
+  emoji?: string;
+  symbol?: string;
+  monogram?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -343,10 +359,23 @@ export async function runInboxCommand(
       requestMessageId: String(call.args['requestMessageId']),
       workspaceId: String(call.args['workspaceId']),
     });
-  const result =
+  const result = await (
     call.method === 'humanAttention'
-      ? ({ ...(await readHumanAttention(reader, call.args)) } as Record<string, unknown>)
-      : await rpc<Record<string, unknown>>(call.method, call.args);
+      ? readHumanAttention(reader, call.args).then(
+          (page) => ({ ...page }) as Record<string, unknown>,
+        )
+      : rpc<Record<string, unknown>>(call.method, call.args)
+  ).catch((error: unknown) => {
+    if (
+      call.args['source'] !== undefined &&
+      (error as { code?: unknown } | null)?.code === 'gateway/arguments-invalid'
+    )
+      throw new CliLiveError(
+        'host-query-unsupported',
+        'Update the Host to include native Session requests in Activity.',
+      );
+    throw error;
+  });
   if (
     call.method === 'sessionList' &&
     call.args['includeArchived'] === true &&
@@ -360,6 +389,15 @@ export async function runInboxCommand(
     throw new CliLiveError(
       'host-query-unsupported',
       'Update the Host to discover notification attention.',
+    );
+  if (
+    call.method === 'humanAttention' &&
+    call.args['source'] !== undefined &&
+    result['source'] !== call.args['source']
+  )
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to include native Session requests in Activity.',
     );
   if (call.args['dismissed'] === true && result['dismissed'] !== true)
     throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
@@ -408,6 +446,8 @@ function prepare(
         usage('--kind must be auto-rejection.');
       if (values.snoozed === true && values.dismissed === true)
         usage('activity takes --snoozed or --dismissed, not both.');
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -425,13 +465,14 @@ function prepare(
           values.snoozed ||
           values.dismissed
         )
-          usage('--notifications only accepts --limit and --cursor.');
+          usage('--notifications only accepts --limit, --cursor and --source.');
         return {
           method: 'humanAttention',
           args: {
             notifications: true,
             ...(limit === undefined ? {} : { limit }),
             ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+            ...(values.source === undefined ? {} : { source: values.source }),
           },
         };
       }
@@ -454,6 +495,7 @@ function prepare(
           ...(values.snoozed === true ? { snoozed: true } : {}),
           ...(values.dismissed === true ? { dismissed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
+          ...(values.source === undefined ? {} : { source: values.source }),
         },
       };
     }
@@ -465,7 +507,15 @@ function prepare(
     }
     case 'inbox-status':
       positionals(command, rest, 0, '');
-      return { method: 'humanAttentionStatus', args: { messageCounts: true } };
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
+      return {
+        method: 'humanAttentionStatus',
+        args: {
+          messageCounts: true,
+          ...(values.source === undefined ? {} : { source: values.source }),
+        },
+      };
     case 'inbox-dismiss': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {
@@ -663,6 +713,10 @@ function prepare(
         usage('session-answer-question requires --answer-stdin.');
       return { method: 'sessionAnswerQuestion', args: { sessionId, requestId } };
     }
+    case 'workspace-look':
+    case 'workspace-look-set':
+      positionals(command, rest, 0, '');
+      return workspaceLookRequest(command, values);
     case 'session-archive': {
       positionals(command, rest, 0, '');
       confirmed(command, values);

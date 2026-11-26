@@ -15,6 +15,51 @@ const approval: HumanAttentionItem = {
 };
 
 describe('device approval alerts', () => {
+  it('alerts and counts native Session requests, opening their Session', async () => {
+    const snapshots: AlertSnapshot[] = [];
+    const alerts = createDeviceAlerts({
+      recoverySession: 'boot-1',
+      reconcile: async (snapshot) => {
+        snapshots.push(snapshot);
+      },
+      forget: async () => {},
+    });
+    const native = (id: string, input: 'approval' | 'question'): HumanAttentionItem => ({
+      id,
+      kind: 'native-session-input',
+      category: 'action',
+      createdAt: '2026-11-26T00:00:00Z',
+      botSlug: '',
+      summary: 'bash · echo READY',
+      nativeSession: { sessionId: `s-${id}`, sessionTitle: 'Ship it', input },
+    });
+    await alerts.update({
+      hostId: 'studio',
+      connected: true,
+      items: [approval, native('n-1', 'approval'), native('n-2', 'question')],
+      foreground: false,
+      approvalsEnabled: true,
+      botName: () => 'Helper',
+      approvalText: 'Needs your approval',
+      untitledSession: 'Untitled',
+      preferences: { approval: true, question: false, 'private-input': true, reply: true },
+      text: {
+        approval: 'Needs your approval',
+        question: 'Has a question',
+        'private-input': 'Private',
+        reply: 'Reply',
+      },
+    });
+    const [snapshot] = snapshots;
+    expect(snapshot?.pending).toEqual(['approval-1', 'n-1', 'n-2']);
+    expect(snapshot?.items?.map((item) => item.kind)).toContain('native-session-input');
+    expect(snapshot?.alerts.map((alert) => alert.data.itemId)).toEqual(['approval-1', 'n-1']);
+    expect(snapshot?.alerts[1]).toMatchObject({
+      title: 'Ship it',
+      body: 'Needs your approval',
+      data: { kind: 'native-session-input', sessionId: 's-n-1', input: 'approval', botSlug: '' },
+    });
+  });
   it('preserves Host-level opt-out and never rearms a forgotten Host through policy sync', async () => {
     const policies: unknown[] = [];
     const alerts = createDeviceAlerts({

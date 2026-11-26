@@ -9,6 +9,7 @@ import type { PresetOption } from './approval-preset';
 
 export interface ApprovalPresetPickerProps {
   label: string;
+  value: string;
   header: string;
   note: string;
   options: PresetOption[];
@@ -22,6 +23,7 @@ export interface ApprovalPresetPickerProps {
 
 export function ApprovalPresetPicker({
   label,
+  value,
   header,
   note,
   options,
@@ -73,7 +75,7 @@ export function ApprovalPresetPicker({
                 }),
           }}
         >
-          {label}
+          {value}
         </Text>
         <ChevronDownIcon color={theme.color.muted} size={theme.type.meta.size * theme.fontScale} />
       </Pressable>

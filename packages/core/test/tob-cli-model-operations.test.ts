@@ -174,12 +174,14 @@ describe('Tob scoped model and runtime operations', () => {
       developerMode: true,
       showBotSessions: false,
       showApprovalReviewSessions: true,
+      nativeSessionAttention: false,
     };
     const previousValue = {
       assignmentConcurrencyLimit: 8,
       developerMode: false,
       showBotSessions: true,
       showApprovalReviewSessions: false,
+      nativeSessionAttention: true,
     };
     expect(
       await f.run('settings-set', {

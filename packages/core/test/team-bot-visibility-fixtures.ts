@@ -21,7 +21,10 @@ export const alice = humanContext('alice'),
   bob = humanContext('bob'),
   carol = humanContext('carol');
 export function fixture(
-  sessions: Pick<BridgeMethodsDeps, 'nativeSessions' | 'readSessionTitles' | 'sessionLive'> = {},
+  sessions: Pick<
+    BridgeMethodsDeps,
+    'nativeSessions' | 'readSessionTitles' | 'sessionLive' | 'workspaceLooks'
+  > = {},
 ) {
   const root = createTempRoot('m7-visibility-');
   const registry = createTestRegistry({ rootDir: root });

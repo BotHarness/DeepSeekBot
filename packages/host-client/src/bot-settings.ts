@@ -31,6 +31,7 @@ import {
   type ModelPlan,
   type ModelPreset,
   type ModelRoute,
+  type ModelSlot,
 } from './model-plans';
 
 export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
@@ -55,6 +56,8 @@ export interface BotModel {
   revision: number;
   defaultRevision?: number;
   plan?: ModelPlan;
+  presetId?: string;
+  overrides?: ModelSlot[];
   repair?: string;
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
@@ -146,6 +149,8 @@ export async function loadBotModel(
   return {
     revision: state.revision ?? state.plan?.revision ?? 0,
     ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.presetId === undefined ? {} : { presetId: state.presetId }),
+    ...(state.overrides === undefined ? {} : { overrides: state.overrides }),
     ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
     ...(engines === undefined ? {} : { engines }),
     ...(state.repair === undefined ? {} : { repair: state.repair.code }),

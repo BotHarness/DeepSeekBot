@@ -2,6 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
 import {
+  effectiveTemplateTitle,
   templateChoices,
   useApprovalTemplates,
   type TemplateActions,
@@ -155,7 +156,7 @@ export function ApprovalPresetPicker({
                 data-approval-preset-trigger=""
                 onClick={() => setOpen((value) => !value)}
               >
-                <span {...stylex.props(styles.label)}>{text}</span>
+                <span {...stylex.props(styles.label)}>{effectiveTemplateTitle(t, state)}</span>
                 <span {...stylex.props(styles.chevron)} aria-hidden="true">
                   <Icon name="chevron-down" size={12} />
                 </span>

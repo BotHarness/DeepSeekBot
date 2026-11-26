@@ -34,6 +34,7 @@ import type { ApprovalPresetPickerProps } from './approval-preset-picker';
 
 export function ApprovalPresetPicker({
   label,
+  value,
   header,
   note,
   options,
@@ -92,7 +93,7 @@ export function ApprovalPresetPicker({
             ]}
             label={
               <HStack spacing={space.x1}>
-                <Text modifiers={[...caption, lineLimit(1), truncationMode('tail')]}>{label}</Text>
+                <Text modifiers={[...caption, lineLimit(1), truncationMode('tail')]}>{value}</Text>
                 <Image systemName="chevron.down" modifiers={caption} />
               </HStack>
             }

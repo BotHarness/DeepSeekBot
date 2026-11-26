@@ -8,6 +8,7 @@ export interface ConnectorAccountRecord {
   label: string;
   identity?: string;
   status: ConnectorStatus;
+  access?: ConnectorAccess;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +62,7 @@ export interface McpAppSearch {
 
 export interface BotConnector {
   accountId: string;
+  provider?: 'composio' | 'mcp';
   service: string;
   label: string;
   identity?: string;

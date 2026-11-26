@@ -316,6 +316,7 @@ export function createHostBridgeDependencies(
     channels: core.channels,
     attachments: core.attachments,
     ownership: core.ownership,
+    workspaceLooks: core.workspaceLooks,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     ...(core.connectors === undefined ? {} : { connectors: core.connectors }),

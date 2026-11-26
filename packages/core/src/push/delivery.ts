@@ -38,6 +38,7 @@ export interface PushCandidate {
   channelName?: string;
   preview?: string;
   categoryId?: string;
+  session?: { sessionId: string; title?: string };
 }
 
 export interface PushSource {
@@ -65,6 +66,7 @@ export interface PushData {
   test?: true;
   deviceId?: string;
   resolved?: string[];
+  sessionId?: string;
 }
 
 export interface ExpoMessage {
@@ -269,6 +271,8 @@ const LEADS: Record<PushLocale, Record<PushCopyKey, (bot: string | undefined) =>
 };
 
 const SEPARATOR: Record<PushLocale, string> = { en: ': ', zh: '：' };
+
+const SESSION_SENDER: Record<PushLocale, string> = { en: 'Session', zh: '会话' };
 
 const TEST: Record<PushLocale, { title: string; body: (host: string) => string }> = {
   en: { title: 'Notifications are on', body: (host) => `Sent from ${host}.` },
@@ -524,7 +528,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
       const messages: ExpoMessage[] = notify.map((item) => {
-        const sender = item.author?.displayName ?? source.botName(item.botSlug) ?? item.botSlug;
+        const sender =
+          item.session !== undefined
+            ? (item.session.title ?? SESSION_SENDER[localeOf(device.locale)])
+            : (item.author?.displayName ?? source.botName(item.botSlug) ?? item.botSlug);
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
         const drawn = device.platform === 'android' && device.render === 'app';
         const data: PushData = {
@@ -534,7 +541,9 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           kind: item.attentionKind,
           ...(item.author ? { author: item.author } : {}),
           ...(item.approval ? { approval: item.approval } : {}),
-          botSlug: item.botSlug,
+          ...(item.session === undefined
+            ? { botSlug: item.botSlug }
+            : { sessionId: item.session.sessionId }),
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
           sender,

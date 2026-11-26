@@ -74,3 +74,58 @@ describe('Tool approval card with separate status and execution reads', () => {
     }
   });
 });
+
+it('names the person or conversation a block approval covers', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const actions = {
+    toolApprovalStatus: vi.fn(async () => 'pending' as const),
+    toolApprovalExecutionState: vi.fn().mockResolvedValue(undefined),
+    decideToolApproval: vi.fn(),
+  };
+  const card = (input: Record<string, unknown>): ChannelMessage => ({
+    id: 'approval',
+    at: '2026-11-20T00:00:00Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Approve bridge_source_block',
+    toolApprovalRequest: {
+      role: 'orchestrator',
+      sessionId: 'session',
+      callId: 'call',
+      toolName: 'bridge_source_block',
+      cwd: '/qa',
+      input: JSON.stringify(input),
+    },
+  });
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ToolApprovalCard, {
+          message: card({
+            action: 'block',
+            scope: 'conversation',
+            source_event_id: 'event',
+            target_name: '全体',
+            app: 'Slack QA',
+          }),
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    expect(container.textContent).toContain('屏蔽会话「全体」（Slack QA）');
+    await act(async () =>
+      root.render(
+        createElement(ToolApprovalCard, {
+          message: card({ action: 'unblock', block_id: 'id', target_name: 'QA B' }),
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    expect(container.textContent).toContain('取消屏蔽「QA B」');
+  } finally {
+    await act(async () => root.unmount());
+  }
+});

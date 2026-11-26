@@ -192,7 +192,7 @@ it('opens and closes iOS Activity options 20 times as a SwiftUI List sheet', asy
     await press('activity-filter-button');
     expect(
       [...container.querySelectorAll('fieldset')].map((f) => f.getAttribute('data-heading')),
-    ).toEqual(['activitySort', 'activityCategory', null, 'bots', 'channels', null]);
+    ).toEqual(['activitySort', 'activityCategory', null, 'activityFrom', 'bots', 'channels', null]);
     expect(find('Ada')?.dataset.selected).toBe('true');
     expect(find('Ada')?.querySelector('[data-symbol="checkmark"]')).not.toBeNull();
     await press('activitySortOldest');

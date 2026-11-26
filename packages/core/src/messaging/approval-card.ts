@@ -1,3 +1,4 @@
+import type { ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
 import type { PairingCapability } from './pairing.js';
 import type { MessagingApprovalCard } from './provider.js';
 
@@ -27,4 +28,18 @@ export function approvalCardActions(
   const approve = granted.includes('approve');
   if (approve === granted.includes('reject')) return {};
   return { actions: approve ? ['allowed-once'] : ['rejected'] };
+}
+
+export function savedShellPrefixDetails(
+  ids: string[] | undefined,
+  findRule: (id: string) => ToolApprovalRule | undefined,
+): string[] {
+  return (ids ?? []).flatMap((id) => {
+    const rule = findRule(id);
+    if (rule?.kind !== 'prefix') return [];
+    const status = rule.revokedAt
+      ? 'Revoked Shell prefix / 已撤销 Shell 前缀'
+      : 'Allowed Shell prefix / 已允许 Shell 前缀';
+    return [status + ' ' + rule.input];
+  });
 }
