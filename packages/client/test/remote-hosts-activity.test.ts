@@ -237,6 +237,10 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   host.methods.set('humanAttentionDismiss', () => ({ accepted: true }));
   host.calls.length = 0;
   await actions.decideToolApproval('dm-tob', 'same-message', 'allowed-once');
+  await actions.decideToolApproval('dm-tob', 'same-message', 'allowed-always-prefix', {
+    kind: 'prefix',
+    patterns: ['git status *'],
+  });
   await actions.answerUserQuestion('dm-tob', 'same-message', [
     { id: 'q', selected: ['Yes'], custom: '' },
   ]);
@@ -247,6 +251,15 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
     {
       method: 'toolApprovalDecide',
       args: { channelId: 'dm-tob', messageId: 'same-message', outcome: 'allowed-once' },
+    },
+    {
+      method: 'toolApprovalDecide',
+      args: {
+        channelId: 'dm-tob',
+        messageId: 'same-message',
+        outcome: 'allowed-always-prefix',
+        rule: { kind: 'prefix', patterns: ['git status *'] },
+      },
     },
     {
       method: 'userQuestionAnswer',
@@ -266,10 +279,10 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
     },
     { method: 'humanAttentionDismiss', args: { itemId: item.id, sourceKey: 'same-event' } },
   ]);
-  expect(refresh).toHaveBeenCalledTimes(5);
+  expect(refresh).toHaveBeenCalledTimes(6);
   host.methods.set('humanAttentionDismiss', () => ({ accepted: false }));
   await expect(actions.dismissActivityList(item)).rejects.toThrow();
-  expect(refresh).toHaveBeenCalledTimes(5);
+  expect(refresh).toHaveBeenCalledTimes(6);
   await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
     'Request was not accepted',
   );
