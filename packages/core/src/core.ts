@@ -20,7 +20,11 @@ import type { ModelFavoriteStore } from './models/favorites.js';
 import { createMediaVersions } from './attachments/media-versions.js';
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import type { ChannelLiveHub } from './channels/live.js';
-import { attachOperationalModule, mountOperationalDatabase } from './database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  onOperationalDatabaseClose,
+} from './database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import type { RosterStore } from './roster/store.js';
@@ -274,6 +278,7 @@ function initializeCore(
   const nativeAttentionChanged = () => {
     for (const listener of [...nativeAttentionListeners]) listener();
   };
+  onOperationalDatabaseClose(operationalDatabase, workspaceLooks.subscribe(nativeAttentionChanged));
   const onNativeSessionAttention = (listener: () => void) => {
     nativeAttentionListeners.add(listener);
     return () => {
@@ -296,6 +301,7 @@ function initializeCore(
     enabled: () =>
       (nativeAttentionSettings.at(-1)?.read() ?? DEFAULT_NATIVE_SESSION_ATTENTION) !== false,
     owner: (human) => human.caller !== 'bot' && team.isOwner(human),
+    folderLook: (cwd) => workspaceLooks.cached(cwd),
   });
   const spaces = workspacesFeature.apply(operationalDatabase, dshHome, team);
   startup.enter('channel-live', 'initialize');

@@ -63,6 +63,7 @@ vi.mock('../src/ui/shell/last-chat-swipe', () => ({
   ),
 }));
 
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));

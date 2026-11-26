@@ -11,6 +11,9 @@ import type {
   HostSessionRow,
   HostSessionSourceOption,
   HostSessionStatus,
+  HostSessionFolderLook,
+  WorkspaceLook,
+  WorkspaceLookIcon,
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer, QuestionItem, QuestionOption } from '@botharness/host-protocol/wire';
 import { answerRecord, record, some, HostAnswerInvalid, type HostCall } from './host-answer';
@@ -39,6 +42,29 @@ function statusOf(
   };
 }
 
+function folderLookOf(look: Record<string, unknown> | undefined): {
+  folderLook?: HostSessionFolderLook;
+} {
+  if (look === undefined) return {};
+  const icon = record(look['icon']);
+  const parsedIcon: WorkspaceLookIcon | undefined =
+    icon?.['kind'] === 'monogram'
+      ? { kind: 'monogram' }
+      : icon?.['kind'] === 'symbol' && typeof icon['id'] === 'string'
+        ? { kind: 'symbol', id: icon['id'] }
+        : icon?.['kind'] === 'emoji' && typeof icon['emoji'] === 'string'
+          ? { kind: 'emoji', emoji: icon['emoji'] }
+          : undefined;
+  const folderLook: HostSessionFolderLook = {
+    ...(typeof look['color'] === 'string' ? { color: look['color'] } : {}),
+    ...(parsedIcon === undefined ? {} : { icon: parsedIcon }),
+    ...(typeof look['favicon'] === 'string' && look['favicon'].startsWith('/api/')
+      ? { favicon: look['favicon'] }
+      : {}),
+  };
+  return Object.keys(folderLook).length === 0 ? {} : { folderLook };
+}
+
 function sessionRows(values: unknown[]): HostSessionRow[] {
   return values.flatMap((value): HostSessionRow[] => {
     const row = record(value);
@@ -65,6 +91,7 @@ function sessionRows(values: unknown[]): HostSessionRow[] {
       ...(typeof row['sortedAt'] === 'number' ? { sortedAt: row['sortedAt'] } : {}),
       ...(typeof row['createdAt'] === 'number' ? { createdAt: row['createdAt'] } : {}),
       ...modelOf(record(row['model'])),
+      ...folderLookOf(record(row['folderLook'])),
     };
     if (source['kind'] === 'native') return [{ ...base, source: { kind: 'native' } }];
     if (
@@ -237,6 +264,35 @@ export async function stopHostSession(
   return sessionActionReceipt(
     await host.call('sessionNativeStop', { sessionId }),
     'sessionNativeStop',
+  );
+}
+
+function storedLook(value: unknown): WorkspaceLook | null {
+  if (value === null) return null;
+  const parsed = folderLookOf(record(value)).folderLook;
+  if (parsed === undefined) return {};
+  return {
+    ...(parsed.color === undefined ? {} : { color: parsed.color }),
+    ...(parsed.icon === undefined ? {} : { icon: parsed.icon }),
+  };
+}
+
+export async function readWorkspaceLook(
+  host: HostCall,
+  path: string,
+): Promise<WorkspaceLook | null> {
+  return storedLook(
+    answerRecord(await host.call('workspaceLook', { path }), 'workspaceLook')['look'],
+  );
+}
+
+export async function setWorkspaceLook(
+  host: HostCall,
+  path: string,
+  look: WorkspaceLook | null,
+): Promise<WorkspaceLook | null> {
+  return storedLook(
+    answerRecord(await host.call('workspaceLookSet', { path, look }), 'workspaceLookSet')['look'],
   );
 }
 
