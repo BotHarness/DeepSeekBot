@@ -74,12 +74,34 @@ describe('Shell prefix rules', () => {
     '/bin/sh',
     '/bin/BASH',
     "'sh'",
+    'bash -c',
+    'sh script.sh',
+    'env FOO=1',
+    'sudo rm',
+    'xargs rm',
+    'ssh host',
+    'python -c',
+    'python3 -m',
+    'node -e',
+    'node --eval',
+    'docker exec',
+    'docker run',
+    'pnpm exec',
+    'npm x',
+    'uv run',
   ])('rejects a catch-all prefix for %s', (runner) => {
     expect(parseShellPrefix(runner + ' *')).toMatchObject({
       ok: false,
       error: { code: 'unsafe-shell-prefix-runner' },
     });
   });
+
+  it.each(['docker ps', 'node scripts/build.mjs', 'npx prettier', 'python3 manage.py'])(
+    'allows a prefix that names what %s runs',
+    (prefix) => {
+      expect(parseShellPrefix(prefix + ' *')).toMatchObject({ ok: true });
+    },
+  );
 
   it.each(['git status', 'git*', 'git * status', '* git *', 'git **', 'git  *'])(
     'rejects malformed pattern %s',

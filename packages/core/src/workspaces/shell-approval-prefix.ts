@@ -1,18 +1,13 @@
 import { isAbsolute, sep } from 'node:path';
 import type { WireShellApprovalSuggestions } from '@botharness/host-protocol/wire';
 
-const RUNNERS = new Set([
+const OPAQUE_RUNNERS = new Set([
   'sh',
   'bash',
   'zsh',
   'env',
   'sudo',
   'xargs',
-  'npx',
-  'docker',
-  'python',
-  'python3',
-  'node',
   'eval',
   'exec',
   'ssh',
@@ -26,7 +21,31 @@ const RUNNERS = new Set([
   'time',
   'stdbuf',
 ]);
-const PACKAGE_RUNNERS = new Set(['pnpm dlx', 'npm exec', 'yarn dlx']);
+const INTERPRETER_RUNNERS = new Set([
+  'npx',
+  'bunx',
+  'uvx',
+  'docker',
+  'python',
+  'python3',
+  'node',
+  'deno',
+  'perl',
+  'ruby',
+  'php',
+]);
+const INTERPRETER_SUBCOMMANDS = new Set(['docker exec', 'docker run']);
+const PACKAGE_RUNNERS = new Set([
+  'pnpm dlx',
+  'pnpm exec',
+  'npm exec',
+  'npm x',
+  'yarn dlx',
+  'yarn exec',
+  'bun x',
+  'uv run',
+  'pipx run',
+]);
 const SHELL_SYNTAX = new Set([
   '!',
   'if',
@@ -262,9 +281,15 @@ export function parseShellPrefix(pattern: string): Pattern {
     return invalid;
   const words = part.words.map((word) => word.value);
   const runner = executableName(words[0] ?? '');
+  const second = words[1]?.toLowerCase() ?? '';
   if (
-    (words.length === 1 && RUNNERS.has(runner)) ||
-    (words.length === 2 && PACKAGE_RUNNERS.has(runner + ' ' + words[1]?.toLowerCase()))
+    OPAQUE_RUNNERS.has(runner) ||
+    (INTERPRETER_RUNNERS.has(runner) &&
+      (words.length === 1 ||
+        second.startsWith('-') ||
+        second.includes('=') ||
+        INTERPRETER_SUBCOMMANDS.has(runner + ' ' + second))) ||
+    (words.length === 2 && PACKAGE_RUNNERS.has(runner + ' ' + second))
   ) {
     return {
       ok: false,
