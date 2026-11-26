@@ -1,5 +1,4 @@
 import { Pressable } from 'react-native';
-import { capsuleRadius } from '../../ui/design/large-text-fallback';
 import { useDesignTheme } from '../../ui/design/theme';
 import { glassPress, space } from '../../ui/design/tokens';
 import { Text } from '../../ui/primitives/text';
@@ -14,18 +13,28 @@ export function SessionDrawerNewButton({ label, onPress }: { label: string; onPr
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        flex: 1,
+        height: theme.touch,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: space.x2,
         paddingHorizontal: space.x5,
-        borderRadius: capsuleRadius(theme.fontScale),
-        backgroundColor: theme.color.fg,
+        borderRadius: theme.touch / 2,
+        backgroundColor: theme.color.accent,
         opacity: pressed ? glassPress.dim : 1,
       })}
     >
-      <PlusIcon color={theme.color.base} size={theme.type.body.size * theme.fontScale} />
-      <Text strong numberOfLines={1} style={{ color: theme.color.base }}>
+      <PlusIcon
+        color={theme.color.onAccent}
+        size={theme.type.body.size * Math.min(theme.fontScale, 1.4)}
+      />
+      <Text
+        strong
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.4}
+        style={{ flexShrink: 1, color: theme.color.onAccent }}
+      >
         {label}
       </Text>
     </Pressable>

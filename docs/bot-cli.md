@@ -1474,6 +1474,19 @@ deepseekbot connector-key-clear --confirm
 
 `connector-search [query]` lists the apps you can connect: the featured apps that match come first, then every matching app Composio supports (about 2,000), with `next` as the `--cursor` for the following page. Chinese words match the featured apps only; English words such as `crm` or `email` search all of Composio. Without a key it returns only the featured apps. A Bot's `connector_catalog` uses the same search. `connector-reconnect <account-id>` signs an expired or failed account in again: it disconnects the old Composio account, prints a new sign-in link and keeps the account's Bot grants. `connector-connect` prints a sign-in link; open it, sign in to the service, then run `connector-refresh` until the account is `active`. `read` lets a Bot look things up; `write` also lets it send, create or change. A Bot reaches its accounts through `mcp__composio__` tools, and a read-only grant refuses any tool that would change the service. A Bot can also call `connector_catalog` to see what it can use and `connector_request` to ask the Owner for an account on an approval card.
 
+### App connections (remote MCP)
+
+Many services publish a remote MCP server that you connect by signing in, with no Composio key. PostHog, Notion, Linear, Sentry, Atlassian, Stripe, HubSpot, Vercel, Supabase, Figma and Canva are featured, and `connector-mcp-search` also searches the public [MCP Registry](https://registry.modelcontextprotocol.io). The Host finds the server's sign-in through OAuth discovery, registers itself as a client, and opens the sign-in page with PKCE; the page returns to `/botharness/connectors/oauth/callback` on the Host and the account turns `active`. Tokens stay in the Host credential store and the Host refreshes them before they expire; when a refresh fails the account shows as expired and `connector-reconnect` signs it in again. A server that needs no sign-in is active at once.
+
+```bash
+deepseekbot connector-mcp-search posthog
+deepseekbot connector-connect mcp_posthog --label "Team PostHog"
+deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label Work
+deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
+```
+
+`connector-connect` takes a `service` from the search, and `connector-mcp-add` takes any https address. Both print a sign-in link when the server needs one. If the browser that signs in cannot reach the Host, copy the address the sign-in page finally opened and pass it to `connector-mcp-finish`. Grants work as for Composio accounts: each granted account appears to the Bot as its own `mcp__app_<service>__` tools, `read` allows only the tools the server marks read-only, and `write` allows all of them.
+
 ### Marketplace, releases, usage statistics, Git and pairing review
 
 Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
