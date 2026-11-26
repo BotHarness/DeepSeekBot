@@ -107,7 +107,9 @@ export function withNativeSessionAttention(
     },
     status(human, messageCounts, source) {
       const status = query.status(human, messageCounts);
-      if (status.hasAction || (source !== 'all' && source !== 'native')) return status;
+      if (source === 'native')
+        return { ...status, hasAction: native(human, { source }).length > 0 };
+      if (status.hasAction || source !== 'all') return status;
       return { ...status, hasAction: native(human, { source }).length > 0 };
     },
   };

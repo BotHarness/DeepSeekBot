@@ -151,6 +151,26 @@ describe('Human attention', () => {
       { ...native, nativeSession: { input: 'approval' } },
       { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
       { ...native, nativeSession: { ...native.nativeSession, cwd: 7 } },
+      ...[{ reason: 7 }, { callId: 7 }, { preview: 7 }, { toolName: '' }].map((bad) => ({
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          request: { ...native.nativeSession.request, ...bad },
+        },
+      })),
+      ...[
+        [{ id: 'q', question: 7 }],
+        [{ id: 'q', question: 'Which?', options: [{ label: 7 }] }],
+        [{ id: 'q', question: 'Which?', multiSelect: 'yes' }],
+        [{ question: 'Which?' }],
+      ].map((questions) => ({
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          input: 'question',
+          request: { kind: 'question', requestId: 'event-1', questions },
+        },
+      })),
       {
         ...native,
         nativeSession: {

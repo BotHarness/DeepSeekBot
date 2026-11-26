@@ -8,6 +8,7 @@ import {
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { AssignmentReport } from '@botharness/host-protocol/wire';
 import type { AssignmentSummary } from '../assignments/runtime-types.js';
 import { folderName } from './workspace-sessions.js';
 import {
@@ -76,6 +77,18 @@ export function mayKnowSession(
   if (record === undefined || record.parentSessionId !== undefined) return false;
   const bot = deps.registry.getHistorical(record.botSlug);
   return bot !== undefined && deps.team?.bots.privateSessions(human)?.has(bot.slug) !== true;
+}
+
+function currentReport(
+  assignment: Pick<AssignmentSummary, 'activity' | 'latestReport'> | undefined,
+  running: boolean,
+  lastPromptAt: number | null,
+): AssignmentReport['state'] | undefined {
+  const report = assignment?.latestReport;
+  if (report === undefined || running || assignment?.activity === 'working') return undefined;
+  const at = Date.parse(report.at);
+  if (lastPromptAt !== null && Number.isFinite(at) && at < lastPromptAt) return undefined;
+  return report.state;
 }
 
 export async function readVisibleSessionRows(
@@ -162,7 +175,7 @@ export async function readVisibleSessionRows(
     const assignedTitle = assignment?.title;
     const engine = deps.describeEngineSession?.(row.sessionId);
     const running = row.running || (engine !== undefined && engine.state !== 'idle');
-    const report = assignment?.latestReport?.state;
+    const report = currentReport(assignment, running, row.lastPromptAt);
     const attention: HostSessionAttention | undefined =
       row.pendingInput === 'approval' || engine?.state === 'waiting-approval'
         ? 'approval'
