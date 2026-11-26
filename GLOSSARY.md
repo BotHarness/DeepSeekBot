@@ -529,6 +529,14 @@ _Avoid_: install, download, subscribe
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
 
+**Indexed Skill Repository**:
+A public GitHub repository carrying the `tobs-skill` topic, or one an administrator indexed by hand, whose `SKILL.md` folders the Marketplace lists as Marketplace Skills and refreshes on a schedule.
+_Avoid_: skill pack, skill source, plugin repository
+
+**Marketplace Skill**:
+One `SKILL.md` folder of an Indexed Skill Repository, listed at the commit the Marketplace last read, with its scripts and safety-scan findings. Adding it copies the folder into chosen PersonaBots' Memory Repositories as a Project Skill, or into the Host as a Host Skill; later changes upstream never reach the copy.
+_Avoid_: plugin, connector, App connection, extension, Skill install
+
 **Uploaded Bot**:
 A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
 _Avoid_: Listing, Version, SoulSnapshot, publication

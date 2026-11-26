@@ -66,6 +66,7 @@ import {
 import { promptInspectionRpc, promptPresetRpc } from '../features/prompts/rpc.js';
 import { connectorsRpc } from '../features/connectors/rpc.js';
 import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc.js';
+import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
 import { computerServiceRpc } from '../features/computer/rpc.js';
 import { browserServiceRpc } from '../features/browser/rpc.js';
@@ -247,6 +248,7 @@ const rpcMethods = {
   ...rosterSettingsRpc,
   developerModeSet: diagnosticsRpcMethods.developerModeSet,
   ...marketplaceServiceRpc,
+  ...marketplaceSkillRpc,
   ...releaseRpc,
   ...hostDiagnosticsRpc,
   ...takeoverRpc,
@@ -705,6 +707,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'shareDraftDiscard',
   'shareDraftExport',
   'marketplaceInstall',
+  'marketplaceSkillList',
+  'marketplaceSkillDetail',
+  'marketplaceSkillAddCandidates',
+  'marketplaceSkillReview',
+  'marketplaceSkillAdd',
   'releaseInfo',
   'releaseUpdate',
   'releaseInstall',

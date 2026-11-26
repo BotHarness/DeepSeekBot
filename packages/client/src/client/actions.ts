@@ -1,3 +1,7 @@
+import {
+  createMarketplaceSkillActions,
+  type MarketplaceSkillActions,
+} from './features/marketplace/skill-actions.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarEdit,
@@ -168,6 +172,7 @@ export interface BridgeActions
     MemoryActions,
     UsageActions,
     MarketplaceActions,
+    MarketplaceSkillActions,
     MessagingActions,
     TriggerActions,
     SessionActions,
@@ -538,6 +543,7 @@ export function createActions(
     conversationActions.openChannelById,
   );
   const actions: BridgeActions = {
+    ...createMarketplaceSkillActions(invoke),
     ...botModeActions(call),
     teamCall: call,
     ...(folderAccess?.openModelPresets === undefined

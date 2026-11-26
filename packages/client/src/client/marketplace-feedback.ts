@@ -38,6 +38,13 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'listing-not-installable': 'market.error.botNotFound',
   'not-an-uploaded-bot': 'market.error.botNotFound',
   'replace-limit': 'market.error.replaceLimit',
+  'skill-not-found': 'market.error.skillNotFound',
+  'skill-exists': 'market.error.skillExists',
+  'skill-blocked': 'market.error.skillBlocked',
+  'review-expired': 'market.error.reviewExpired',
+  'skill-too-large': 'market.error.skillTooLarge',
+  'skill-files-unavailable': 'market.error.skillFiles',
+  'skill-write-failed': 'market.error.skillWrite',
 };
 
 export type Phase = 'idle' | 'verifying' | 'sending';

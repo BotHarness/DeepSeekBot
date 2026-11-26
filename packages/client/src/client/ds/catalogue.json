@@ -10,6 +10,7 @@
   "chat-chrome.tsx#ComposerTextarea": "raw multiline inputs in the message composer.",
   "checkbox.tsx#Checkbox": "raw checkboxes and one-off checkmark styling.",
   "chip-button.tsx#ChipButton": "hand-styled compact chip actions.",
+  "chip-tabs.tsx#ChipTabs": "tab rows that overflow a narrow Panel, and hand-built scrolling chip navigation.",
   "choice-button.tsx#ChoiceButton": "custom clickable option cards with local selection styles.",
   "dialog.tsx#Dialog": "ad hoc modal overlays and focus traps.",
   "empty-state.tsx#EmptyState": "one-off empty-state layouts with local typography.",
