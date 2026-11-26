@@ -1,5 +1,9 @@
 import { type HumanContext } from '../humans/context.js';
-import type { HumanAttentionPage, HumanAttentionQuery } from './human-attention.js';
+import type {
+  HumanAttentionPage,
+  HumanAttentionQuery,
+  HumanAttentionSource,
+} from './human-attention.js';
 
 type Cursor = {
   section: number;
@@ -10,7 +14,7 @@ type Cursor = {
 export function notificationAttentionPage(
   human: HumanContext,
   attention: Pick<HumanAttentionQuery, 'list' | 'dmReplies'>,
-  input: { limit?: number; cursor?: string },
+  input: { limit?: number; cursor?: string; source?: HumanAttentionSource },
 ): HumanAttentionPage {
   const limit = input.limit ?? 100;
   let cursor: Cursor = { section: 0 };
@@ -38,6 +42,7 @@ export function notificationAttentionPage(
       unreadOnly: true,
       limit,
       ...(cursor.page === undefined ? {} : { cursor: cursor.page }),
+      ...(input.source === undefined ? {} : { source: input.source }),
     });
     return {
       notificationVersion: 1,

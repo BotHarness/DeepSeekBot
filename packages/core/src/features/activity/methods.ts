@@ -552,16 +552,21 @@ export function createActivityBridgeMethods(
           if (
             Object.keys(source).some(
               (key) =>
-                !['notifications', 'limit', 'cursor'].includes(key) && source[key] !== undefined,
+                !['notifications', 'limit', 'cursor', 'source'].includes(key) &&
+                source[key] !== undefined,
             )
           )
             return invalidInput('notification discovery does not accept Activity filters');
           return {
             ok: true,
-            value: notificationAttentionPage(human, deps.humanAttention, {
-              ...(limit === undefined ? {} : { limit: limit as number }),
-              ...(cursor === undefined ? {} : { cursor: cursor as string }),
-            }),
+            value: {
+              ...notificationAttentionPage(human, deps.humanAttention, {
+                ...(limit === undefined ? {} : { limit: limit as number }),
+                ...(cursor === undefined ? {} : { cursor: cursor as string }),
+                ...(sessions === undefined ? {} : { source: sessions }),
+              }),
+              ...(sessions === undefined ? {} : { source: sessions }),
+            },
           };
         }
         return {
