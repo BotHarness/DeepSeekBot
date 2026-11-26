@@ -80,12 +80,14 @@ vi.mock('@expo/ui/swift-ui', () => {
     Button: ({
       children,
       label,
+      systemImage,
       role,
       onPress,
       modifiers,
     }: {
       children?: ReactNode;
       label?: string;
+      systemImage?: string;
       role?: string;
       onPress(): void;
       modifiers?: Modifier[];
@@ -95,6 +97,8 @@ vi.mock('@expo/ui/swift-ui', () => {
         {
           onClick: onPress,
           'data-role': role,
+          'data-label': label,
+          'data-system-image': systemImage,
           'aria-label': modifiers?.find((m) => m.label)?.label ?? label,
           disabled: modifiers?.some((m) => m.disabled) ?? false,
         },
@@ -212,6 +216,8 @@ it('shows skeleton rows while loading and a refresh button that becomes progress
     '[data-placement="primaryAction"] button',
   );
   expect(refresh?.getAttribute('aria-label')).toBe('Refresh models');
+  expect(refresh?.getAttribute('data-system-image')).toBe('arrow.clockwise');
+  expect(refresh?.getAttribute('data-label')).toBe('Refresh models');
   act(() => refresh?.click());
   expect(props.onRefresh).toHaveBeenCalledOnce();
   act(() => root.render(createElement(NativeSessionModelSheet, { ...props, refreshing: true })));
