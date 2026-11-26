@@ -238,23 +238,26 @@ async function main() {
     steps.push('exported the app for web');
   }
 
-  const hostPort = await freePort();
-  let instance = launch(hostPort);
-  installFixture();
-  await stop(instance.pid);
-  instance = launch(hostPort);
-  const hostOrigin = `http://127.0.0.1:${hostPort}`;
-  steps.push('launched an isolated Host with a synthetic IM app (no real IM network)');
-  const state = { hostPort };
-  const proxy = phoneOrigin(state);
-  const proxyPort = await freePort();
-  await new Promise((done) => proxy.listen(proxyPort, '127.0.0.1', done));
-  const origin = `http://127.0.0.1:${proxyPort}`;
-
-  const browser = await loadPuppeteer().launch({ args: ['--no-sandbox'] });
   const console_ = [];
+  let instance;
+  let proxy;
+  let browser;
   let page;
   try {
+    const hostPort = await freePort();
+    instance = launch(hostPort);
+    installFixture();
+    await stop(instance.pid);
+    instance = launch(hostPort);
+    const hostOrigin = `http://127.0.0.1:${hostPort}`;
+    steps.push('launched an isolated Host with a synthetic IM app (no real IM network)');
+    const state = { hostPort };
+    proxy = phoneOrigin(state);
+    const proxyPort = await freePort();
+    await new Promise((done) => proxy.listen(proxyPort, '127.0.0.1', done));
+    const origin = `http://127.0.0.1:${proxyPort}`;
+
+    browser = await loadPuppeteer().launch({ args: ['--no-sandbox'] });
     const displayName = 'Phone IM QA';
     const created = await rpc(hostOrigin, 'create', { displayName, roles: ['research'] });
     const slug = created?.slug ?? created?.bot?.slug;
@@ -460,10 +463,10 @@ async function main() {
     writeFileSync(join(paths.evidence, 'failure.console.txt'), redact(console_.join('\n')));
     throw error;
   } finally {
-    await browser.close();
-    proxy.close();
+    await browser?.close().catch(() => {});
+    proxy?.close();
     if (!keep) {
-      await stop(instance.pid).catch(() => {});
+      if (instance !== undefined) await stop(instance.pid).catch(() => {});
       rmSync(home, { recursive: true, force: true });
     }
   }

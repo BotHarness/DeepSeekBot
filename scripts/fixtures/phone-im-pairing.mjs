@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDshImProvider } from '../../packages/core/dist/index.mjs';
 
@@ -88,6 +88,11 @@ export function apply(ctx, config) {
     );
     return { messageId: id };
   };
+  const respond = (body) => {
+    const target = resolve(directory, 'response.json');
+    writeFileSync(`${target}.tmp`, JSON.stringify(body));
+    renameSync(`${target}.tmp`, target);
+  };
   let busy = false;
   let lastRequest;
   const poll = async () => {
@@ -98,19 +103,9 @@ export function apply(ctx, config) {
     lastRequest = content;
     busy = true;
     try {
-      writeFileSync(
-        resolve(directory, 'response.json'),
-        JSON.stringify({
-          ok: true,
-          id: JSON.parse(content).id,
-          value: await execute(JSON.parse(content)),
-        }),
-      );
+      respond({ ok: true, id: JSON.parse(content).id, value: await execute(JSON.parse(content)) });
     } catch (error) {
-      writeFileSync(
-        resolve(directory, 'response.json'),
-        JSON.stringify({ ok: false, id: JSON.parse(content).id, error: error.message }),
-      );
+      respond({ ok: false, id: JSON.parse(content).id, error: error.message });
     } finally {
       busy = false;
     }

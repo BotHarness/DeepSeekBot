@@ -250,6 +250,54 @@ describe('IM apps', () => {
     expect(state.status === 'ready' && state.value.apps[0]?.boundBotSlug).toBe('pilot');
   });
 
+  it('rereads the Bot after a refused unbind so a retry sends the new revision', async () => {
+    const bound = { ...app, boundBotSlug: 'scout', bindingId: BINDING_ID };
+    let revision = 4;
+    const sent: number[] = [];
+    const { host } = fakeHost({
+      messagingSnapshot: () =>
+        snapshot({
+          identities: [{ id: BINDING_ID, revision, name: 'Reception QA app', enabled: true }],
+        }),
+      messagingApps: () => ({ apps: [], setups: [] }),
+      messagingIdentity: (args) => {
+        const expected = (args['input'] as { expectedRevision: number }).expectedRevision;
+        sent.push(expected);
+        if (expected !== revision) throw Object.assign(new Error('identity-changed'), {});
+        return { identity: { id: BINDING_ID, revision: revision + 1, enabled: false } };
+      },
+    });
+    await externalContacts(host, 'scout').load();
+    revision = 6;
+    await expect(unbindApp(host, bound)).rejects.toThrow('identity-changed');
+    await unbindApp(host, bound);
+    expect(sent).toEqual([4, 6]);
+  });
+
+  it('drops a first read that started before a change and reads again', async () => {
+    let answers = [snapshot(), snapshot({ identities: [] })];
+    let release: () => void = () => {};
+    const { host } = fakeHost({
+      messagingSnapshot: async () => {
+        const [next, ...rest] = answers;
+        answers = rest;
+        if (rest.length === 1)
+          await new Promise<void>((done) => {
+            release = done;
+          });
+        return next;
+      },
+    });
+    const contacts = externalContacts(host, 'scout');
+    const loading = contacts.load();
+    contacts.patch((value) => value);
+    void contacts.load();
+    release();
+    await loading;
+    const state = contacts.get();
+    expect(state.status === 'ready' && state.value.identities).toEqual([]);
+  });
+
   it('refuses to unbind an app that is not bound', async () => {
     const { host } = fakeHost({});
     await expect(unbindApp(host, app)).rejects.toThrow('not-bound');

@@ -88,8 +88,8 @@ function resource<T extends { checks?: 'pending' | 'complete' }>(
       return running;
     },
     patch(change) {
-      if (state.status !== 'ready') return;
       sequence += 1;
+      if (state.status !== 'ready') return;
       publish({ ...state, value: change(state.value) });
     },
   };
@@ -131,7 +131,7 @@ export function externalContacts(host: HostCall, slug: string): Resource<Messagi
 function refreshBot(host: HostCall, slug: string | undefined): void {
   if (slug === undefined) return;
   const found = owner(host).bots.get(slug);
-  if (found !== undefined && found.get().status !== 'loading') void found.load();
+  if (found !== undefined) void found.load();
 }
 
 function sameApp(a: MessagingApp, b: MessagingApp): boolean {
@@ -165,7 +165,12 @@ export async function unbindApp(host: HostCall, app: MessagingApp): Promise<void
   const id = app.bindingId;
   if (slug === undefined || id === undefined) throw new Error('not-bound');
   const expectedRevision = await identityRevision(host, app);
-  await changeMessagingIdentity(host, slug, { kind: 'unbind', id, expectedRevision });
+  try {
+    await changeMessagingIdentity(host, slug, { kind: 'unbind', id, expectedRevision });
+  } catch (error) {
+    await externalContacts(host, slug).load();
+    throw error;
+  }
   placeApp(host, app, {});
   externalContacts(host, slug).patch((value) =>
     value.identities === undefined

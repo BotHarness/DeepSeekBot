@@ -111,7 +111,13 @@ export async function readMessagingSnapshot(
         !answer['identities'].every((item: unknown) =>
           validReceptionRecovery(record(item)?.['recovery']),
         ))) ||
-    (answer['pairings'] !== undefined && !Array.isArray(answer['pairings'])) ||
+    (answer['pairings'] !== undefined &&
+      (!Array.isArray(answer['pairings']) ||
+        !answer['pairings'].every(
+          (item) =>
+            typeof record(item)?.['id'] === 'string' &&
+            typeof record(item)?.['status'] === 'string',
+        ))) ||
     (answer['roles'] !== undefined && !Array.isArray(answer['roles'])) ||
     !Array.isArray(answer['intents']) ||
     (answer['setup'] !== undefined && !validLarkSetupSnapshot(answer['setup'])) ||

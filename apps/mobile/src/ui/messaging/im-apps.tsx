@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 
 import type { RosterBot } from '@botharness/host-client/client';
@@ -7,6 +7,7 @@ import {
   bindApp,
   messagingApps,
   unbindApp,
+  type Loaded,
   type MessagingApp,
 } from '../../host/messaging-settings';
 import { SHEET_GROUP } from '../chat/sheet';
@@ -149,7 +150,7 @@ export function ImAppScreen({
     }
   };
   const choose = async (bot: RosterBot) => {
-    if (app.boundBotSlug === bot.slug) return;
+    if (saving !== undefined || app.boundBotSlug === bot.slug) return;
     if (
       app.boundBotSlug !== undefined &&
       !(await confirmAppDialog(
@@ -163,7 +164,7 @@ export function ImAppScreen({
   };
   const unbind = async () => {
     const bound = app.boundBotSlug;
-    if (bound === undefined) return;
+    if (saving !== undefined || bound === undefined) return;
     if (
       !(await confirmAppDialog(
         t.imApps.unbindTitle(app.name),
@@ -185,6 +186,7 @@ export function ImAppScreen({
           <Notice tone="danger">{failure}</Notice>
         </SettingsFormItem>
       )}
+      <RefreshFailed loaded={loaded} onRetry={() => void source.load()} />
       {bindable(app) || app.boundBotSlug !== undefined ? (
         <SettingsSection on={SHEET_GROUP} title={t.imApps.boundTo} footer={t.imApps.boundToHint}>
           {choices.map((bot) => (
@@ -199,7 +201,7 @@ export function ImAppScreen({
                 : bot.slug === app.boundBotSlug
                   ? { control: { kind: 'check' as const } }
                   : {})}
-              onPress={bindable(app) ? () => void choose(bot) : undefined}
+              onPress={bindable(app) && saving === undefined ? () => void choose(bot) : undefined}
             />
           ))}
         </SettingsSection>
@@ -216,7 +218,7 @@ export function ImAppScreen({
             title={t.imApps.unbind}
             tone="danger"
             {...(saving === 'unbind' ? { control: { kind: 'busy' as const } } : {})}
-            onPress={() => void unbind()}
+            onPress={saving === undefined ? () => void unbind() : undefined}
           />
         </SettingsSection>
       )}
@@ -239,6 +241,7 @@ export function BotImBindScreen({
   const source = useMemo(() => messagingApps(host), [host]);
   const loaded = useFocusedResource(source);
   const botName = useBotName(bots);
+  const navigation = useNavigation();
   const [saving, setSaving] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const choose = async (app: MessagingApp) => {
@@ -256,7 +259,7 @@ export function BotImBindScreen({
     setFailure(undefined);
     try {
       await bindApp(host, app, bot.slug);
-      onDone();
+      if (navigation.isFocused()) onDone();
     } catch (error) {
       setFailure(`${t.imApps.failed} ${errorText(error)}`);
     } finally {
@@ -304,7 +307,7 @@ export function BotImBindScreen({
                             : botName(app.boundBotSlug),
                       },
                     })}
-                onPress={() => void choose(app)}
+                onPress={saving === undefined ? () => void choose(app) : undefined}
               />
             ))
           )}
@@ -315,6 +318,17 @@ export function BotImBindScreen({
           <Notice tone="danger">{failure}</Notice>
         </SettingsFormItem>
       )}
+      <RefreshFailed loaded={loaded} onRetry={() => void source.load()} />
     </SettingsForm>
+  );
+}
+
+function RefreshFailed({ loaded, onRetry }: { loaded: Loaded<unknown>; onRetry: () => void }) {
+  const t = useStrings();
+  if (loaded.status !== 'ready' || loaded.error === undefined) return null;
+  return (
+    <SettingsFormItem>
+      <LoadFailed error={`${t.imApps.loadFailed} ${errorText(loaded.error)}`} onRetry={onRetry} />
+    </SettingsFormItem>
   );
 }

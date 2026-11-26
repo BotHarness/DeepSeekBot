@@ -306,7 +306,11 @@ export function PairingScreen({ host, bot, id }: { host: HostCall; bot: RosterBo
               on={SHEET_GROUP}
               testID={`pairing-role-${role.id}`}
               title={role.name}
-              detail={role.behavior}
+              detail={
+                role.capabilities.length === 0
+                  ? role.behavior
+                  : `${role.behavior}\n${role.capabilities.map(copy.capability).join(' · ')}`
+              }
               selected={role.id === roleId}
               {...(saving === `role:${role.id}`
                 ? { control: { kind: 'busy' as const } }
