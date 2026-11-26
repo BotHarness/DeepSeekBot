@@ -573,6 +573,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.live.publishResourceChanged('sessions'),
   );
   ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
+  const stopTeamSessionWatch = team?.onAccessChanged(() => sessionListChanges.changedAll());
+  if (stopTeamSessionWatch !== undefined)
+    ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
