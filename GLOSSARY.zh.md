@@ -528,6 +528,14 @@ _避免使用_：install、download、subscribe
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
 
+**Indexed Skill Repository**：
+带有 `tobs-skill` topic 的公开 GitHub 仓库，或由管理员手动收录的仓库；Marketplace 把其中每个 `SKILL.md` 文件夹列为 Marketplace Skill，并定期刷新。
+_避免使用_：skill pack、skill source、plugin repository
+
+**Marketplace Skill**：
+Indexed Skill Repository 中的一个 `SKILL.md` 文件夹，以 Marketplace 最近读取的 commit 上架，附带其脚本和安全扫描结果。添加时把该文件夹复制到所选 PersonaBot 的 Memory Repository 作为 Project Skill，或复制到 Host 作为 Host Skill；上游之后的改动不会影响这份副本。
+_避免使用_：plugin、connector、应用连接、extension、Skill install
+
 **Uploaded Bot**：
 已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
 _避免使用_：Listing、Version、SoulSnapshot、publication
