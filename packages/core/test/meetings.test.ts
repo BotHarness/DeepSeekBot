@@ -230,10 +230,10 @@ describe('meeting store', () => {
       callId: 'call-1',
       dispatcher,
     });
-    for (let index = 1; index <= 4_001; index += 1)
+    for (let index = 1; index <= 4_401; index += 1)
       store.hear(meeting.id, { body: `line ${index}` });
     store.end(meeting.id, 'left', 'owner-stopped');
-    expect(pendingMeetingRows(store, port)).toHaveLength(21);
+    expect(pendingMeetingRows(store, port)).toHaveLength(23);
     const harvest = createInboxHarvest({
       database: port,
       messagingEvents: { collectExternalRows: () => undefined },
@@ -241,10 +241,25 @@ describe('meeting store', () => {
     const { units } = harvest.collectInbox('ada');
     expect(units).toHaveLength(1);
     expect(units[0]!.meeting).toMatchObject({ ended: 'owner-stopped', missed: true });
-    expect(units[0]!.meeting?.lines[0]!.body).not.toBe('line 1');
+    expect(units[0]!.meeting?.lines[0]!.seq).toBe(601);
     expect(inboxLine(units[0]!)).toContain(
-      'Read the full transcript with meeting_transcript first.',
+      'Read the full transcript with meeting_transcript first, calling again with after while more is true, so the recap covers lines you have not read (before line 601).',
     );
+
+    const commands = bindMeetingCommands({
+      meetings: {} as Parameters<typeof bindMeetingCommands>[0]['meetings'],
+      store,
+      bot: { slug: 'ada' },
+      markSideEffect: () => undefined,
+    });
+    const read: number[] = [];
+    let page = commands.transcript({ meetingId: meeting.id });
+    read.push(...page.lines.map((line) => line.seq));
+    while (page.more) {
+      page = commands.transcript({ meetingId: meeting.id, after: read.at(-1)! });
+      read.push(...page.lines.map((line) => line.seq));
+    }
+    expect(read).toEqual(Array.from({ length: 4_401 }, (_, index) => index + 1));
 
     const short = store.create({
       botSlug: 'bea',

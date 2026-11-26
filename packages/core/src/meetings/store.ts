@@ -52,6 +52,7 @@ export interface MeetingSpeechFacts {
 export const MEETING_LIVE_STATES: readonly MeetingState[] = ['in-meeting'];
 const TOPICS = ['meetings', 'source-event', 'bot-inbox'] as const;
 const PENDING_LINES = 200;
+export const TRANSCRIPT_PAGE = 500;
 
 interface AttendanceRow {
   attendance_id: string;
@@ -98,7 +99,7 @@ export interface MeetingStore {
     state: 'left' | 'failed',
     reason: MeetingEndReason,
   ): { readonly admitted: boolean; readonly wake: boolean } | undefined;
-  lines(id: string, after?: number): MeetingLine[];
+  lines(id: string, after?: number, limit?: number): MeetingLine[];
   failInterrupted(): InterruptedMeeting[];
 }
 
@@ -285,14 +286,14 @@ export function createMeetingStore(options: {
           : admit(db, current, undefined, reason);
       }, TOPICS);
     },
-    lines(id, after = 0) {
+    lines(id, after = 0, limit = TRANSCRIPT_PAGE) {
       return database.read((db) =>
         (
           db
             .prepare(
-              'SELECT seq, at, author, speaker, body FROM meeting_lines WHERE attendance_id = ? AND seq > ? ORDER BY seq LIMIT 500',
+              'SELECT seq, at, author, speaker, body FROM meeting_lines WHERE attendance_id = ? AND seq > ? ORDER BY seq LIMIT ?',
             )
-            .all(id, after) as unknown as Array<{
+            .all(id, after, limit) as unknown as Array<{
             seq: number;
             at: string;
             author: MeetingLine['author'];

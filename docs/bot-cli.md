@@ -796,7 +796,7 @@ deepseekbot meeting-status <id>
 deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
 ```
 
-`call-simulate --as-meeting` plays a WAV (or an audio-only `--script`) as meeting sound without a window, waits until every heard sentence is transcribed, hangs up and prints the usual report; the transcript is then readable with `meeting-transcript`. `meeting-leave` stops listening and ends the call (`not-in-meeting` when there is none). Listening also stops after 4 hours.
+`call-simulate --as-meeting` plays a WAV (or an audio-only `--script`) as meeting sound without a window, waits until every heard sentence is transcribed, hangs up and prints the usual report; the transcript is then readable with `meeting-transcript`, 500 lines at a time: when the result says `more`, call again with `--after` set to the last `seq`. `meeting-leave` stops listening and ends the call (`not-in-meeting` when there is none). Listening also stops after 4 hours.
 
 ### Browser and Computer: observation, packages, transfer and logs
 

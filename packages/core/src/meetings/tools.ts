@@ -57,7 +57,7 @@ export function registerMeetingTools(
     defineTool({
       name: 'meeting_transcript',
       description:
-        'Read the transcript of a meeting you attended, by meeting id, or of your latest meeting. Pass after to read only lines after that seq.',
+        'Read the transcript of a meeting you attended, by meeting id, or of your latest meeting. Returns up to 500 lines; when more is true, call again with after set to the last seq you got.',
       parameters: {
         meeting_id: { type: 'string', description: 'Meeting id; defaults to your latest meeting.' },
         after: { type: 'integer', description: 'Return only lines after this seq.' },

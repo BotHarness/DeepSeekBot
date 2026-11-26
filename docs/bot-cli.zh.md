@@ -744,7 +744,7 @@ deepseekbot meeting-status <id>
 deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
 ```
 
-`call-simulate --as-meeting` 不用窗口，把 WAV（或只含音频的 `--script`）当作会议声音播放，等每句话都转写完后挂断并输出通常的报告，之后可用 `meeting-transcript` 读取转写。`meeting-leave` 停止听会并结束通话（没有在听时返回 `not-in-meeting`）。听会满 4 小时也会自动停止。
+`call-simulate --as-meeting` 不用窗口，把 WAV（或只含音频的 `--script`）当作会议声音播放，等每句话都转写完后挂断并输出通常的报告，之后可用 `meeting-transcript` 读取转写，每次最多 500 行：结果里 `more` 为真时，用 `--after` 加上最后一行的 `seq` 继续读。`meeting-leave` 停止听会并结束通话（没有在听时返回 `not-in-meeting`）。听会满 4 小时也会自动停止。
 
 ### Local Computer 视频
 
