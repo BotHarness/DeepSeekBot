@@ -426,8 +426,9 @@ export function createPersonaBotDeletions(options: {
     get,
     async confirm(slug, token, eraseMemory) {
       const reviewed = preview(slug);
-      if (reviewed.token !== token || reviewed.deletion !== undefined)
-        throw new Error('Deletion scope changed; reopen confirmation');
+      if (reviewed.deletion !== undefined)
+        throw new Error('Deletion was already accepted; retry it instead of confirming again');
+      if (reviewed.token !== token) throw new Error('Deletion scope changed; reopen confirmation');
       if (eraseMemory && !reviewed.eraseAvailable) throw new Error(reviewed.refusal);
       const state: PersonaBotDeletion = {
         slug,
