@@ -4,7 +4,7 @@ section: Added
 
 ## en
 
-- In Team mode, the Owner can let a member turn "Manage the App" and "Manage other Bots" on for the member's own Bots through the new Owner-only permission "Turn on management for own Bots". A member Bot's CLI acts as that member: it can create Bots, handle Share Drafts and edit the member's other Bots' profiles and Memory, and its grant stops counting as soon as the Owner withdraws the permission ([#5461](https://github.com/BotHarness/DeepSeekBot/issues/5461)).
+- In Team mode, the Owner can let a member turn "Manage the App" and "Manage other Bots" on for the member's own Bots through the new Owner-only permission "Turn on management for own Bots". A member Bot's CLI acts as that member: it can create Bots, handle Share Drafts and edit the member's other Bots' PersonaBot Profiles and Memory, and its grant stops counting as soon as the Owner withdraws the permission ([#5461](https://github.com/BotHarness/DeepSeekBot/issues/5461)).
 
 ## zh
 
