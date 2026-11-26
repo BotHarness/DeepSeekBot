@@ -1,3 +1,7 @@
+import type {
+  ShellPrefixApproval,
+  WireShellApprovalSuggestions,
+} from '@botharness/host-protocol/wire';
 import { toRemoteError } from '../../bridge/rpc-result.js';
 import { TeamError } from '../../team/service.js';
 import { type HumanContext } from '../../humans/context.js';
@@ -166,6 +170,7 @@ export function toolApprovalStatus(
   messageId: string,
 ): {
   approval?: ApprovalCard;
+  shellSuggestions?: WireShellApprovalSuggestions;
   status: 'pending' | 'expired' | 'stopped';
   execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
 } {
@@ -180,10 +185,12 @@ export function toolApprovalDecide(
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected',
+  rule?: ShellPrefixApproval,
 ): Promise<{ accepted: boolean }> {
-  return unwrapAsync(methods.toolApprovalDecide({ channelId, messageId, outcome }));
+  return unwrapAsync(methods.toolApprovalDecide({ channelId, messageId, outcome, rule }));
 }
 
 export function toolAutoRejectionOverride(
@@ -451,6 +458,7 @@ export const toolApprovalRpc = {
     messageId: string,
   ): {
     approval?: ApprovalCard;
+    shellSuggestions?: WireShellApprovalSuggestions;
     status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
@@ -464,10 +472,12 @@ export const toolApprovalRpc = {
       | 'allowed-once'
       | 'allowed-always-tool'
       | 'allowed-always-exact'
+      | 'allowed-always-prefix'
       | 'allowed-always-all'
       | 'rejected',
+    rule?: ShellPrefixApproval,
   ): Promise<{ accepted: boolean }> {
-    return toolApprovalDecide(this.methods, channelId, messageId, outcome);
+    return toolApprovalDecide(this.methods, channelId, messageId, outcome, rule);
   },
 
   toolAutoRejectionOverride(

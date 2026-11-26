@@ -427,7 +427,8 @@ export const zh = {
     '它可以在你和它的私信里查看和修改你其他 Bot 的资料和 Memory。',
   'botManagement.approval': '写操作跟随它的审批模板，删除这类操作总会先问你。',
   'botManagement.turnOn': '打开',
-  'botManagement.ownerOnly': '只有 App 的 Owner 可以修改管理权限。',
+  'botManagement.ownerOnly':
+    '只有 App 的 Owner，或经 Owner 授权的成员，可以修改自己 Bot 的管理权限。',
   'botManagement.noAppManager': '现在没有 Bot 能管理 App。你仍然可以自己在设置里修改。',
   'botAccess.who': '谁可以使用',
   'botAccess.change': '修改',
@@ -906,7 +907,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botManagement.approval':
     'Writes follow its Approval Template, and steps like deleting always ask you first.',
   'botManagement.turnOn': 'Turn on',
-  'botManagement.ownerOnly': 'Only the App Owner can change management access.',
+  'botManagement.ownerOnly':
+    'Only the App Owner, or a member the Owner authorized, can change management access for their own Bots.',
   'botManagement.noAppManager':
     'No Bot can manage the App now. You can still change things yourself in Settings.',
   'botAccess.who': 'Who can use it',

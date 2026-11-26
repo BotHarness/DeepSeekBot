@@ -762,5 +762,13 @@
   {
     "id": "sender-block",
     "sha256": "6038e99514650fd293e152f4c762f10765a7321c66edc1a5c79d025dc1420f9c"
+  },
+  {
+    "id": "shell-prefix-tool-rule",
+    "sha256": "5e6de29688067eefc270b7e31808afc7d16dac03c4ee45d01a77f2c35b96a0a0"
+  },
+  {
+    "id": "source-block",
+    "sha256": "a6ede706bb8c3bc5f73c78ef02c7c6f8a620a3ad7036629b3f4b58df3df775c6"
   }
 ]

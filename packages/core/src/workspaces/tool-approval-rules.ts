@@ -1,8 +1,18 @@
 import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
+import {
+  matchesShellPrefix,
+  MAX_SHELL_PREFIX_PATTERNS,
+  parseShellApprovalCommand,
+  parseShellPrefix,
+  shellApprovalInput,
+  shellExactOptions,
+  shellPrefixScope,
+} from './shell-approval-prefix.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { parseToolApprovalActor, type ToolApprovalActor } from './tool-approval-actor.js';
 
-export type ToolRuleKind = 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+export type ToolRuleKind = 'exact' | 'tool' | 'all-opaque' | 'secret-cli' | 'prefix';
 
 export function secretCliKind(input: string): string | undefined {
   let args: unknown;
@@ -70,21 +80,47 @@ function record(row: RuleRow): ToolApprovalRule {
     ...(externalCreator ? { externalCreator } : {}),
   };
 }
+type RuleMatch = Pick<ToolApprovalRule, 'botSlug' | 'role' | 'scopeKey' | 'toolName' | 'input'> & {
+  externalDecision?: 'operation' | 'web-only' | 'each-use';
+  explicitOnly?: boolean;
+};
+type RuleInput = Pick<
+  ToolApprovalRule,
+  'botSlug' | 'role' | 'scopeKey' | 'kind' | 'toolName' | 'input' | 'externalCreator'
+>;
+
+function insertRule(db: DatabaseSync, row: ToolApprovalRule, active: boolean): void {
+  db.prepare(
+    `INSERT INTO tool_approval_rules
+       (id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, external_creator)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    row.botSlug,
+    row.role,
+    row.scopeKey,
+    row.kind,
+    row.toolName,
+    row.input,
+    row.createdAt,
+    active ? 1 : 0,
+    row.externalCreator ? JSON.stringify(row.externalCreator) : null,
+  );
+}
+
+function newRule(input: RuleInput): ToolApprovalRule {
+  return { ...input, id: randomUUID(), createdAt: new Date().toISOString(), autoApprovedCount: 0 };
+}
+
 export interface ToolApprovalRuleStore {
   list(botSlug: string): ToolApprovalRule[];
-  match(
-    input: Pick<ToolApprovalRule, 'botSlug' | 'role' | 'scopeKey' | 'toolName' | 'input'> & {
-      externalDecision?: 'operation' | 'web-only' | 'each-use';
-      explicitOnly?: boolean;
-    },
-  ): ToolApprovalRule | undefined;
+  match(input: RuleMatch): ToolApprovalRule | undefined;
+  matchPrefix(input: RuleMatch & { cwd: string }): ToolApprovalRule[] | undefined;
   recordAutoApproval(botSlug: string, id: string): void;
-  createPending(
-    input: Pick<
-      ToolApprovalRule,
-      'botSlug' | 'role' | 'scopeKey' | 'kind' | 'toolName' | 'input' | 'externalCreator'
-    >,
-  ): ToolApprovalRule;
+  createPending(input: RuleInput): ToolApprovalRule;
+  preparePrefixes(
+    input: Pick<RuleInput, 'botSlug' | 'role' | 'scopeKey' | 'toolName'> & { patterns: string[] },
+  ): { rules: ToolApprovalRule[]; commit(connection: DatabaseSync): void };
   activate(botSlug: string, id: string): void;
   revoke(botSlug: string, id: string): ToolApprovalRule | undefined;
   reconcileExternal(botSlug: string): void;
@@ -151,6 +187,54 @@ export function createToolApprovalRuleStore(
       }
       return undefined;
     },
+    matchPrefix(input) {
+      if (input.explicitOnly || input.externalDecision === 'each-use') return undefined;
+      const args = shellApprovalInput(input.toolName, input.input);
+      const scope = shellPrefixScope(input.scopeKey, input.cwd, args);
+      if (!args || !scope) return undefined;
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `SELECT * FROM tool_approval_rules
+           WHERE bot_slug = ? AND role = ? AND tool_name = ? AND active = 1 AND revoked_at IS NULL
+             AND ((scope_key = ? AND kind = 'prefix') OR (scope_key = ? AND kind = 'exact'))
+           ORDER BY created_at DESC, id`,
+          )
+          .all(input.botSlug, input.role, input.toolName, scope, input.scopeKey),
+      ) as unknown as RuleRow[];
+      if (!rows.some((row) => row.kind === 'prefix')) return undefined;
+      const parts = parseShellApprovalCommand(args.command);
+      if (!parts) return undefined;
+      const options = shellExactOptions(args);
+      const prefixes: { rule: ToolApprovalRule; pattern: ReturnType<typeof parseShellPrefix> }[] =
+        [];
+      const exact = new Map<string, ToolApprovalRule>();
+      for (const row of rows) {
+        const rule = record(row);
+        if (!authorized(rule)) {
+          store.revoke(rule.botSlug, rule.id);
+          continue;
+        }
+        if (rule.externalCreator && input.externalDecision === 'web-only') continue;
+        if (rule.kind === 'prefix') {
+          prefixes.push({ rule, pattern: parseShellPrefix(rule.input) });
+        } else {
+          const saved = shellApprovalInput(rule.toolName, rule.input);
+          if (saved && shellExactOptions(saved) === options && !exact.has(saved.command.trim()))
+            exact.set(saved.command.trim(), rule);
+        }
+      }
+      const matched = new Map<string, ToolApprovalRule>();
+      for (const part of parts) {
+        const rule =
+          prefixes.find(({ pattern }) => matchesShellPrefix(part, pattern))?.rule ??
+          exact.get(part.text);
+        if (!rule) return undefined;
+        matched.set(rule.id, rule);
+      }
+      const rules = [...matched.values()];
+      return rules.some((rule) => rule.kind === 'prefix') ? rules : undefined;
+    },
     recordAutoApproval(botSlug, id) {
       database.transaction(
         (connection) => {
@@ -166,36 +250,32 @@ export function createToolApprovalRuleStore(
     createPending(input) {
       if (input.externalCreator && !parseToolApprovalActor(input.externalCreator))
         throw new Error('External tool approval rule creator is invalid');
-      const row: ToolApprovalRule = {
-        ...input,
-        id: randomUUID(),
-        createdAt: new Date().toISOString(),
-        autoApprovedCount: 0,
-      };
+      if (input.kind === 'prefix')
+        throw new Error('Shell prefixes require a pending Shell decision');
+      const row = newRule(input);
       if (!authorized(row)) throw new Error('External tool approval rule creator is unavailable');
       database.transaction(
-        (connection) => {
-          connection
-            .prepare(
-              `INSERT INTO tool_approval_rules
-           (id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, external_creator)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-            )
-            .run(
-              row.id,
-              row.botSlug,
-              row.role,
-              row.scopeKey,
-              row.kind,
-              row.toolName,
-              row.input,
-              row.createdAt,
-              row.externalCreator ? JSON.stringify(row.externalCreator) : null,
-            );
-        },
+        (connection) => insertRule(connection, row, false),
         ['tool-approval-rules'],
       );
       return row;
+    },
+    preparePrefixes({ patterns, ...scope }) {
+      if (
+        patterns.length === 0 ||
+        patterns.length > MAX_SHELL_PREFIX_PATTERNS ||
+        patterns.some((pattern) => !parseShellPrefix(pattern).ok)
+      )
+        throw new Error('Invalid Shell prefix rules');
+      const rules = [...new Set(patterns)].map((input) =>
+        newRule({ ...scope, kind: 'prefix', input }),
+      );
+      return {
+        rules,
+        commit(connection) {
+          for (const rule of rules) insertRule(connection, rule, true);
+        },
+      };
     },
     activate(botSlug, id) {
       const row = database.read((db) =>

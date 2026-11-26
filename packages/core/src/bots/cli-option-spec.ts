@@ -403,6 +403,7 @@ export const LIVE_OPTIONS = {
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
+  prefix: { type: 'string', multiple: true },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },

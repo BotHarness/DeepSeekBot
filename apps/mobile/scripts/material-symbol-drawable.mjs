@@ -46,6 +46,7 @@ const ICONS = {
   drawer: 'menu_open',
   stacked: 'stacks',
   newSession: 'edit_square',
+  newFolder: 'create_new_folder',
   list: 'list',
   stay: 'keep',
   check: 'check',

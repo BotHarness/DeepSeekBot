@@ -296,6 +296,7 @@ describe('DSH Bot Agent adapter', () => {
         'bridge_share',
         'bridge_group_policy_list',
         'bridge_group_policy_set',
+        'bridge_source_block',
         'bridge_thread_policy_list',
         'bridge_thread_policy_set',
         'bridge_context',
