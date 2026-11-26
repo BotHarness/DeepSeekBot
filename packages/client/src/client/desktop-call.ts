@@ -159,7 +159,7 @@ export function createDesktopCall(
   const listeners = new Set<() => void>();
   let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
   let sessionMedia: (CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>) | undefined;
-  let pending: { cancelled: boolean } | undefined;
+  let pending: { cancelled: boolean; sound: Promise<MeetingSound> | undefined } | undefined;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
@@ -198,7 +198,7 @@ export function createDesktopCall(
       const meeting = startOptions?.meeting === true;
       const sound = meeting ? meetingSound() : undefined;
       sound?.catch(() => undefined);
-      const attempt = { cancelled: false };
+      const attempt = { cancelled: false, sound };
       pending = attempt;
       session?.dispose();
       session = undefined;
@@ -219,10 +219,7 @@ export function createDesktopCall(
         verdict = callReadinessVerdict({ code: 'unreachable', error: '' });
       }
       if (pending === attempt) pending = undefined;
-      if (attempt.cancelled) {
-        void sound?.then((owned) => owned.release()).catch(() => undefined);
-        return;
-      }
+      if (attempt.cancelled) return;
       if (!verdict.dial) {
         void sound?.then((owned) => owned.release()).catch(() => undefined);
         set({
@@ -273,6 +270,7 @@ export function createDesktopCall(
     async hangup(options) {
       if (pending !== undefined) {
         pending.cancelled = true;
+        void pending.sound?.then((owned) => owned.release()).catch(() => undefined);
         pending = undefined;
         set({ checking: false });
       }

@@ -63,44 +63,58 @@ describe('bringing a Bot to a meeting', () => {
     await vi.waitFor(() => expect(released).toBe(1));
   });
 
-  it('cancels a meeting start and releases the share when the Owner hangs up while the Host is checked', async () => {
-    let answer: () => void = () => undefined;
-    let released = 0;
-    let mediaMade = 0;
-    const call = createDesktopCall({
-      post: () =>
-        new Promise((resolve) => {
-          answer = () =>
-            resolve({
-              ok: true,
-              readiness: {
-                slug: 'mira',
-                ready: true,
-                missing: [],
-                asrProviderId: 'asr',
-                ttsProviderId: null,
-                media: 'ready',
-                activeCallId: null,
-                callElsewhere: false,
-              },
-            });
-        }),
-      media: () => {
-        mediaMade += 1;
-        return unusedMedia;
-      },
-      meetingSound: async () =>
-        sound(() => {
-          released += 1;
-        }),
-    });
-    const starting = call.start('mira', undefined, { meeting: true });
-    await vi.waitFor(() => expect(call.snapshot().checking).toBe(true));
-    await call.hangup();
-    expect(call.snapshot().checking).toBe(false);
-    answer();
-    await starting;
-    expect(mediaMade).toBe(0);
-    await vi.waitFor(() => expect(released).toBe(1));
-  });
+  it.each(['resolved', 'late'] as const)(
+    'cancels a meeting start and releases a %s share as soon as the Owner hangs up while the Host is checked',
+    async (timing) => {
+      let answer: () => void = () => undefined;
+      let grant: () => void = () => undefined;
+      let released = 0;
+      let mediaMade = 0;
+      const owned = sound(() => {
+        released += 1;
+      });
+      const call = createDesktopCall({
+        post: () =>
+          new Promise((resolve) => {
+            answer = () =>
+              resolve({
+                ok: true,
+                readiness: {
+                  slug: 'mira',
+                  ready: true,
+                  missing: [],
+                  asrProviderId: 'asr',
+                  ttsProviderId: null,
+                  media: 'ready',
+                  activeCallId: null,
+                  callElsewhere: false,
+                },
+              });
+          }),
+        media: () => {
+          mediaMade += 1;
+          return unusedMedia;
+        },
+        meetingSound: () =>
+          timing === 'resolved'
+            ? Promise.resolve(owned)
+            : new Promise((resolve) => {
+                grant = () => resolve(owned);
+              }),
+      });
+      const starting = call.start('mira', undefined, { meeting: true });
+      await vi.waitFor(() => expect(call.snapshot().checking).toBe(true));
+      await call.hangup();
+      expect(call.snapshot().checking).toBe(false);
+      if (timing === 'late') {
+        expect(released).toBe(0);
+        grant();
+      }
+      await vi.waitFor(() => expect(released).toBe(1));
+      answer();
+      await starting;
+      expect(mediaMade).toBe(0);
+      expect(released).toBe(1);
+    },
+  );
 });
