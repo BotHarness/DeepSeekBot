@@ -30,6 +30,7 @@ export interface HostAdminValues {
   reason?: string;
   decision?: string;
   capability?: string[];
+  delegable?: boolean;
   role?: string[];
   'avatar-tag'?: string[];
   'from-bot'?: string;
@@ -295,10 +296,15 @@ const POSITIONAL_NAMES: Record<number, string> = {
 interface PairingReview {
   kind: 'approve' | 'reject' | 'revoke';
   capabilities?: PairingCapability[];
+  delegable?: boolean;
   roleId?: string;
 }
 
-function validate(command: HostAdminCommand, rest: string[], values: HostAdminValues) {
+function validate(
+  command: HostAdminCommand,
+  rest: string[],
+  values: HostAdminValues,
+): PairingReview | undefined {
   const expected = POSITIONALS[command];
   if (rest.length !== expected || rest.some((value) => !value.trim()))
     usage(
@@ -445,6 +451,8 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   for (const capability of capabilities)
     if (!(pairingCapabilities as readonly string[]).includes(capability))
       usage(`--capability must be one of ${pairingCapabilities.join(', ')}.`);
+  if (values.delegable === true && (kind !== 'approve' || capabilities.length === 0))
+    usage('--delegable only applies to --decision approve with --capability.');
   if (kind !== 'approve') {
     if (roles.length > 0 || capabilities.length > 0)
       usage('--role and --capability only apply to --decision approve.');
@@ -460,6 +468,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     : ({
         kind,
         capabilities: [...new Set(capabilities)] as PairingCapability[],
+        ...(values.delegable === true ? { delegable: true } : {}),
       } satisfies PairingReview);
 }
 
@@ -493,6 +502,7 @@ function pairingSummary(value: unknown) {
     'conversationId',
     'conversationKind',
     'capabilities',
+    'delegableCapabilities',
     'roleId',
     'revision',
     'createdAt',
@@ -890,6 +900,7 @@ export async function runHostAdminCommand(
             id: pairingId,
             expectedRevision: pairing['revision'],
             ...(review?.capabilities === undefined ? {} : { capabilities: review.capabilities }),
+            ...(review?.delegable === true ? { delegable: true } : {}),
             ...(role === undefined
               ? {}
               : { roleId: role['id'], expectedRoleRevision: role['revision'] }),
