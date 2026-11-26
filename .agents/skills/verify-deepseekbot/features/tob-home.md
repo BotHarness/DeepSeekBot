@@ -148,9 +148,9 @@ A fresh Profile whose journey tutorial is `not-started` opens a six-step dialog 
 
 Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qualify this entry. Pair only a dedicated QA Host. Read the roster's Tob identity through the CLI and compare it with the Pinned tab's conversation. No model reply is required to verify navigation. Tob Mode and the Tob entry bar are retired (#5198): Chats shows no Composer-shaped bar, and `tob-entry-bar` must be absent.
 
-- With no binding, `navigation-pinned` opens Tob's DM of the selected computer (All/cloud filters use the most recent paired computer), with its avatar as the tab icon.
+- With no binding, `navigation-pinned` opens Tob's DM of the selected Environment (All/cloud filters use the most recently used computer Environment), with its avatar as the tab icon.
 - Settings → Tab bar (`settings-tab-bar`): drag a row by its handle (iOS uses the system List reorder control; Android the Material drag handle) and confirm the tab bar follows at once without remounting the tabs; the accessibility Move up/Move down actions do the same. Sessions appears in the list only while its switch is on. Reset restores Chats, Pinned, Activity, Sessions, Settings.
-- Pinned conversation (`settings-pinned-conversation`): pick another Bot DM or Channel; the tab's avatar, badge and screen follow. Pick Default to return to Tob. Each computer keeps its own choice.
+- Pinned conversation (`settings-pinned-conversation`): pick another Bot DM or Channel; the tab's avatar, badge and screen follow. Pick Default to return to Tob. Each Environment keeps its own choice.
 - Pulling down on Chats only refreshes. Record light/dark, large text and the accessible names. Keep physical/Simulator/Android and source SHA results separate.
 
 Retain the first failure with native screenshot/AX/video and exact source/binary identity, then restore preferences, remove only this run's temporary pairing, revoke its Host key and stop owned resources. The full device matrix is tracked in #3090 and #3093.
