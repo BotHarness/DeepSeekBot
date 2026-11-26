@@ -44,6 +44,8 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 Reserve [shared device QA](../../docs/agents/device-qa.md) before starting a Simulator, Metro, a build or a Host. Follow [mobile app verification](../../docs/agents/device-qa.md#mobile-app-verification-and-read-only-diagnostics) for native drives, regression flows, read-only diagnostics and cloud sessions. Keep [local QA evidence](../../docs/agents/qa-evidence.md).
 
+**Reuse compatible Android Debug APKs.** For shared Android QA, use `scripts/android-qa.mjs build` to check the APK cache before compiling. Load JavaScript-only changes through Metro from the current worktree. When native inputs change, obtain a compatible APK through the same command. Keep the APK build commit and Metro source commit in the batch evidence. Follow the [Android QA build workflow](../../docs/agents/android-device-qa.md#machine-configuration-and-builds).
+
 Core controls carry a stable `testID` so flows and agents survive copy changes and the zh/en switch: `composer-input`, `composer-send`, `composer-attach`, `settings-button`, `approval-allow-once` / `approval-always-allow` / `approval-deny`, and `conversation-row-<key>` (`bot:<slug>`, `channel:<id>`, `cloud:<channelId>`). A new interactive control that a flow or agent will drive gets a kebab-case `testID` as well as its accessibility label; the label stays the user-facing contract and is never replaced by the `testID`.
 
 ## Profiling
