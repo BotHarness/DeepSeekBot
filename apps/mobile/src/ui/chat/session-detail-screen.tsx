@@ -57,7 +57,6 @@ import {
 import { Composer } from './composer';
 import { ConversationTopBar } from './conversation-top-bar';
 import {
-  SessionModelChip,
   SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
@@ -726,16 +725,7 @@ function SessionComposer({
         blocksSend: model.visible || model.saving !== undefined,
         stopping: busy !== undefined || !online,
         onStop,
-        render: (width) => (
-          <SessionModelChip
-            control={model}
-            width={width}
-            disabled={!online || busy !== undefined}
-          />
-        ),
-        renderCompact: () => (
-          <SessionModelLogo control={model} disabled={!online || busy !== undefined} />
-        ),
+        model: <SessionModelLogo control={model} disabled={!online || busy !== undefined} />,
       }}
     />
   );
