@@ -51,7 +51,7 @@ export function createHostBridgeDependencies(
     core: BotHarnessCore;
     featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
-    skills: { catalog: SkillCatalog };
+    skills: { catalog: SkillCatalog; reconcileBotMode(): void };
     release: ReturnType<typeof releaseFeature.apply>['release'];
     diagnosticEvents: DiagnosticEvents;
     liveAgent: ReturnType<typeof sessionsFeature.mountIdleCompaction>['liveAgent'];
