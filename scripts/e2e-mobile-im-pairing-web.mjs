@@ -223,27 +223,28 @@ function loadPuppeteer() {
 
 async function main() {
   mkdirSync(paths.evidence, { recursive: true });
-  mkdirSync(control, { recursive: true });
-  if (!skipExport || !existsSync(join(dist, 'index.html'))) {
-    const exported = spawnSync('pnpm', ['--filter', '@botharness/mobile', 'export:web'], {
-      cwd: root,
-      encoding: 'utf8',
-      env: { ...process.env, EXPO_OFFLINE: '1', BOTHARNESS_MOBILE_WEB_PREVIEW: '1' },
-      timeout: 600_000,
-      maxBuffer: 16 * 1024 * 1024,
-      shell: false,
-      windowsHide: true,
-    });
-    if (exported.status !== 0) throw new Error(`export:web failed: ${exported.stderr.slice(-800)}`);
-    steps.push('exported the app for web');
-  }
-
   const console_ = [];
   let instance;
   let proxy;
   let browser;
   let page;
   try {
+    mkdirSync(control, { recursive: true });
+    if (!skipExport || !existsSync(join(dist, 'index.html'))) {
+      const exported = spawnSync('pnpm', ['--filter', '@botharness/mobile', 'export:web'], {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, EXPO_OFFLINE: '1', BOTHARNESS_MOBILE_WEB_PREVIEW: '1' },
+        timeout: 600_000,
+        maxBuffer: 16 * 1024 * 1024,
+        shell: false,
+        windowsHide: true,
+      });
+      if (exported.status !== 0)
+        throw new Error(`export:web failed: ${exported.stderr.slice(-800)}`);
+      steps.push('exported the app for web');
+    }
+
     const hostPort = await freePort();
     instance = launch(hostPort);
     installFixture();
