@@ -365,6 +365,11 @@ export function AppCatalog({
           onChange={switchSource}
         />
       )}
+      {source !== 'apps' ? null : keys !== undefined && onView !== undefined ? (
+        <ComposioKey view={view} t={t} keys={keys} onView={onView} />
+      ) : locked ? (
+        <Note inset>{t('connectors.accounts.empty')}</Note>
+      ) : null}
       <SearchField
         label={
           source === 'mcp' ? t('connectors.catalog.searchMcp') : t('connectors.catalog.search')
@@ -373,11 +378,6 @@ export function AppCatalog({
         onChange={change}
       />
       {source === 'mcp' ? <Note inset>{t('connectors.catalog.mcpAbout')}</Note> : null}
-      {source !== 'apps' ? null : keys !== undefined && onView !== undefined ? (
-        <ComposioKey view={view} t={t} keys={keys} onView={onView} />
-      ) : locked ? (
-        <Note inset>{t('connectors.accounts.empty')}</Note>
-      ) : null}
       {failed ? (
         <Note inset>
           {source === 'mcp' ? t('connectors.catalog.mcpOffline') : t('connectors.catalog.offline')}
