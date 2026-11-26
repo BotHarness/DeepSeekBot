@@ -374,14 +374,17 @@ export function createRoleText(options: {
         const others = before.permissionSources.filter((source) => source.kind !== 'person');
         const otherAllows = others.some((source) => source.allow.includes(capability));
         const otherDenies = others.some((source) => source.deny.includes(capability));
-        const has = before.capabilities.includes(capability);
         if (action === 'grant' && otherDenies) return 'denied-by-group' as const;
-        if ((action === 'grant') === has) return 'unchanged' as const;
         const exceptions = person.permissionExceptions;
-        const allow = (exceptions?.allow ?? []).filter(managed).filter((cap) => cap !== capability);
-        const deny = (exceptions?.deny ?? []).filter(managed).filter((cap) => cap !== capability);
+        const currentAllow = (exceptions?.allow ?? []).filter(managed);
+        const currentDeny = (exceptions?.deny ?? []).filter(managed);
+        const allow = currentAllow.filter((cap) => cap !== capability);
+        const deny = currentDeny.filter((cap) => cap !== capability);
         if (action === 'grant' && !otherAllows) allow.push(capability);
         if (action === 'revoke' && otherAllows) deny.push(capability);
+        const same = (a: readonly string[], b: readonly string[]) =>
+          a.length === b.length && a.every((cap) => b.includes(cap));
+        if (same(allow, currentAllow) && same(deny, currentDeny)) return 'unchanged' as const;
         changeSenderAccess(
           db,
           binding.botSlug,

@@ -127,6 +127,62 @@ it('revoking a permission the Role grants adds a personal deny, and granting rem
   expect(fx.runs).toHaveLength(0);
 });
 
+it('a revoke under a group Deny still holds after the group Deny is removed', async () => {
+  const fx = await fixture('slack');
+  await reviewerSetup(fx, 'slack', ['review-pairing'], ['approve']);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const colleague = (await fx.core.externalMessaging.snapshot('ada')).roles!.find(
+    (role) => role.name === 'Colleague',
+  )!;
+  await methods.senderAccess({
+    slug: 'ada',
+    input: {
+      kind: 'edit-role',
+      id: colleague.id,
+      expectedRevision: colleague.revision,
+      name: colleague.name,
+      behavior: colleague.behavior,
+      capabilities: ['approve'],
+    },
+  });
+  await pairApplicant(fx);
+  const person = pendingFor(fx, applicant);
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: {
+        kind: 'create-group',
+        bindingId: person.bindingId,
+        name: 'Hold',
+        allow: [],
+        deny: ['approve'],
+        memberIds: [person.id],
+      },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(effective(fx).capabilities).not.toContain('approve');
+
+  await fx.receive(command('grant', reviewer, '/grant @target approve'));
+  expect(pendingFor(fx, applicant).permissionExceptions?.allow ?? []).toEqual([]);
+
+  await fx.receive(command('revoke', reviewer, '/revoke @target approve'));
+  expect(pendingFor(fx, applicant).permissionExceptions).toMatchObject({ deny: ['approve'] });
+  await fx.receive(command('again', reviewer, '/revoke @target approve'));
+  expect(fx.replies.at(-1)!.text).toContain('already');
+
+  const hold = (await fx.core.externalMessaging.snapshot('ada')).permissionGroups!.find(
+    (group) => group.name === 'Hold',
+  )!;
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: { kind: 'delete-group', id: hold.id, expectedRevision: hold.revision },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(effective(fx).capabilities).not.toContain('approve');
+  expect(fx.runs).toHaveLength(0);
+});
+
 it('refuses outside the delegation, for oneself, for unknown names and for non-reviewers', async () => {
   const fx = await fixture('slack');
   await reviewerSetup(fx, 'slack', ['review-pairing'], ['approve']);
