@@ -523,6 +523,7 @@ describe('M2 private Bot boundaries', () => {
     if (!visible.ok) throw new Error('member-group-read-refused');
     expect(Object.keys(visible.value).sort()).toEqual([
       'admins',
+      'canEditDetails',
       'canPost',
       'channel',
       'policy',
@@ -548,6 +549,7 @@ describe('M2 private Bot boundaries', () => {
     if (!after.ok) throw new Error('member-group-read-refused');
     expect(Object.keys(after.value).sort()).toEqual([
       'admins',
+      'canEditDetails',
       'canPost',
       'channel',
       'policy',

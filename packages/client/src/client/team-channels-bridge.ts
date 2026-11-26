@@ -49,6 +49,7 @@ export interface ChannelAccess {
   readonly admins: readonly { humanId: string; displayName: string }[];
   readonly policyRevision?: string;
   readonly canPost?: boolean;
+  readonly canEditDetails?: boolean;
 }
 
 export interface DirectoryEntry {
@@ -125,6 +126,7 @@ export function parseChannelAccess(value: unknown): ChannelAccess | undefined {
     policy: parsePolicy(row['policy']),
     admins,
     ...(typeof row.canPost === 'boolean' ? { canPost: row.canPost } : {}),
+    ...(typeof row.canEditDetails === 'boolean' ? { canEditDetails: row.canEditDetails } : {}),
     ...(typeof revision === 'string' && revision.length > 0 ? { policyRevision: revision } : {}),
   };
 }

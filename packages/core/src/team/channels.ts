@@ -20,7 +20,7 @@ import {
 } from './channel-contract.js';
 
 const settingsSchema = z.object({
-  owner: z.string(),
+  owner: z.string().nullable(),
   visibility: z.string().transform((v) => channelVisibilitySchema.parse(JSON.parse(v))),
   policy: z.string().transform((v) => channelPolicySchema.parse(JSON.parse(v))),
 });
@@ -116,7 +116,7 @@ export class TeamChannels {
   role(human: HumanContext, channelId: string): 'owner' | 'admin' | 'member' {
     return this.roleForOwner(human, channelId, this.settings(channelId).owner);
   }
-  private roleForOwner(human: HumanContext, channelId: string, owner: string) {
+  private roleForOwner(human: HumanContext, channelId: string, owner: string | null) {
     if (owner === human.humanId) return 'owner';
     return this.db.read((db) =>
       db
@@ -229,6 +229,7 @@ export class TeamChannels {
       role: this.roleForOwner(human, channelId, settings.owner),
       policy: settings.policy,
       canPost: this.allowsGroupAction(human, channelId, 'post', settings),
+      canEditDetails: this.allowsGroupAction(human, channelId, 'editDetails', settings),
       policyRevision: policyRevision(settings.policy),
       visibility: settings.visibility,
       admins,

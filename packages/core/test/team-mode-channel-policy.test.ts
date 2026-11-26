@@ -1,3 +1,5 @@
+import { TeamError } from '../src/team/error.js';
+import { host, run } from './cli-team-fixtures.js';
 import { mergeChannelAction } from '../src/team/host-permissions.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -161,6 +163,7 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         role: 'member',
         policy: allAdmins,
         canPost: false,
+        canEditDetails: false,
         policyRevision: expect.any(String),
         visibility: { kind: 'private' },
         admins: [],
@@ -909,7 +912,7 @@ it('enforces Role post denials through RPC while Channel admins can send', async
       channelId: group.id,
       policy: {
         ...DEFAULT_CHANNEL_POLICY,
-        overrides: [{ roleId: 'member', actions: { post: 'deny' } }],
+        overrides: [{ roleId: 'member', actions: { post: 'deny', editDetails: 'allow' } }],
       },
     }),
   ).toMatchObject({ ok: true });
@@ -918,6 +921,38 @@ it('enforces Role post denials through RPC while Channel admins can send', async
     ok: false,
     error: { code: 'channel-post-restricted' },
   });
+  expect(await f.methods(f.human).channelGet({ channelId: group.id })).toMatchObject({
+    ok: true,
+    value: { canPost: false, canEditDetails: true },
+  });
+  expect(
+    await f.methods(f.human).channelDescriptionSet({
+      channelId: group.id,
+      description: 'Selected members can edit the details.',
+    }),
+  ).toMatchObject({ ok: true });
+  const cli = await host(undefined, undefined, undefined, undefined, async (input) => {
+    try {
+      const value = await f.team.asMember(input.username, (peer) => {
+        f.team.assertCall(peer.principal, input.method);
+        return f.gateway.invoke({ ...input, peer });
+      });
+      return { ok: true, value };
+    } catch (error) {
+      const failure =
+        error instanceof TeamError
+          ? { code: error.code, message: error.code, details: error.details }
+          : f.gateway.wireStream.failure(error);
+      return { ok: false, error: failure };
+    }
+  });
+  const send = () =>
+    run(cli.url, ['channels', 'send', group.id, '--body-stdin', '--as', 'bob'], post.body);
+  expect(await send()).toMatchObject({
+    status: 1,
+    output: { error: { code: 'channel-post-restricted' } },
+  });
   f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+  expect(await send()).toMatchObject({ status: 0 });
   expect(await f.methods(f.human).channelSend(post)).toMatchObject({ ok: true });
 }, 60_000);

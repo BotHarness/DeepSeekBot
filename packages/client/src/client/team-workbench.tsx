@@ -2,7 +2,7 @@ import { readChannels } from '@botharness/host-client/channel-management';
 import { ChannelAccessSettings } from './channel-access-settings.js';
 import { Select } from './ds/select.js';
 import { loadChannelAccess, type ChannelVisibility } from './team-channels-bridge.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { bridgeHost, type BridgeCall } from './bridge.js';
@@ -683,6 +683,7 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
   const [selected, setSelected] = useState<string>();
   const [filter, setFilter] = useState<ChannelVisibility['kind'] | 'all'>('all');
   const [tab, setTab] = useState<'members' | 'permissions'>('members');
+  const tabId = useId();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -739,7 +740,8 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
           <header {...stylex.props(styles.head)}>
             <h2 {...stylex.props(styles.heading)}>{active.name}</h2>
             <SegmentedControl
-              id="team-channel-tab"
+              id={tabId}
+              controlsPanel
               label={active.name}
               value={tab}
               options={[
@@ -749,29 +751,31 @@ function WorkbenchChannels({ call, t }: { call: BridgeCall; t: BotHarnessTransla
               onChange={setTab}
             />
           </header>
-          {tab === 'permissions' ? (
-            <ChannelAccessSettings
-              key={active.id}
-              channelId={active.id}
-              call={call}
-              t={t}
-              humans={active.humanMembers ?? []}
-              permissionsOnly
-            />
-          ) : (
-            <section {...stylex.props(styles.card)}>
-              {active.humanMembers?.map((human) => (
-                <div key={human.humanId} {...stylex.props(styles.row)}>
-                  {human.displayName}
-                </div>
-              ))}
-              {active.members.map((bot) => (
-                <div key={bot} {...stylex.props(styles.row)}>
-                  {bot}
-                </div>
-              ))}
-            </section>
-          )}
+          <div role="tabpanel" id={`${tabId}-${tab}-panel`} aria-labelledby={`${tabId}-${tab}`}>
+            {tab === 'permissions' ? (
+              <ChannelAccessSettings
+                key={active.id}
+                channelId={active.id}
+                call={call}
+                t={t}
+                humans={active.humanMembers ?? []}
+                permissionsOnly
+              />
+            ) : (
+              <section {...stylex.props(styles.card)}>
+                {active.humanMembers?.map((human) => (
+                  <div key={human.humanId} {...stylex.props(styles.row)}>
+                    {human.displayName}
+                  </div>
+                ))}
+                {active.members.map((bot) => (
+                  <div key={bot} {...stylex.props(styles.row)}>
+                    {bot}
+                  </div>
+                ))}
+              </section>
+            )}
+          </div>
         </div>
       )}
     </>
