@@ -166,8 +166,11 @@ export function useDockPanels(
   };
 
   const reportOpen = (target: DockviewApi): void => {
+    const side = simpleRef.current.sideColumn;
     const ids = isSimple()
-      ? simpleViewIds(simpleRef.current.sideColumn).filter((id) => target.getPanel(id))
+      ? (side !== null && isWorkbench(side) ? [side] : simpleViewIds(side)).filter((id) =>
+          target.getPanel(id),
+        )
       : target.panels.map((panel) => panel.id);
     if (isSimple()) {
       registry?.reportOpen([...ids.filter((id) => id !== WORKSPACE_RAIL), ...columnOpenIds(ids)]);

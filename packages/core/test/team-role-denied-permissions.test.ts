@@ -117,6 +117,17 @@ describe('Host Role denials', () => {
     ).toEqual(['roles.manage']);
   });
 
+  it('keeps a delegated role manager from deleting a role that denies above their ceiling', () => {
+    const f = fixture();
+    const managers = f.team.roles.create(owner, 'Managers', ['roles.manage']).role;
+    f.team.roles.set(owner, bob.humanId, ['member', managers.roleId]);
+    const lockout = f.team.roles.create(owner, 'Lockout', [], undefined, undefined, [
+      'audit.view',
+    ]).role;
+    expect(() => f.team.roles.delete(bob, lockout.roleId)).toThrow('permission-not-grantable');
+    expect(f.team.roles.delete(owner, lockout.roleId)).toBeNull();
+  });
+
   it('withdraws management grant authority when another role denies bots.manageGrants', () => {
     const f = fixture();
     const stewards = f.team.roles.create(owner, 'Stewards', ['bots.manageGrants']).role;

@@ -1,8 +1,9 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeCall } from './bridge.js';
 import type { DockPanel } from './dock-panels.js';
+import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { NavGroupHeading, NavItem } from './ds/nav-item.js';
 import { Note } from './ds/note.js';
@@ -404,6 +405,8 @@ export function TeamWorkbench({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const inspection = useRef(0);
 
   const refresh = async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -450,11 +453,11 @@ export function TeamWorkbench({
       setRoles((current) =>
         current.map((item) => (item.roleId === updated.roleId ? updated : item)),
       );
-      if (inspected !== undefined)
-        setInspected({
-          member: inspected.member,
-          result: await loadMemberPermissions(call, inspected.member.humanId),
-        });
+      if (inspected !== undefined) {
+        const request = inspection.current;
+        const result = await loadMemberPermissions(call, inspected.member.humanId);
+        if (request === inspection.current) setInspected({ member: inspected.member, result });
+      }
     } catch (failure) {
       setError(teamErrorText(t, failure));
     } finally {
@@ -462,16 +465,26 @@ export function TeamWorkbench({
     }
   };
 
+  const clearInspection = (): void => {
+    inspection.current++;
+    setInspected(undefined);
+  };
+
   const inspect = async (member: TeamMember): Promise<void> => {
+    const request = ++inspection.current;
     setError(undefined);
     try {
-      setInspected({
-        member,
-        result: await loadMemberPermissions(call, member.humanId),
-      });
+      const result = await loadMemberPermissions(call, member.humanId);
+      if (request === inspection.current) setInspected({ member, result });
     } catch (failure) {
-      setError(teamErrorText(t, failure));
+      if (request === inspection.current) setError(teamErrorText(t, failure));
     }
+  };
+
+  const retry = async (): Promise<void> => {
+    setRetrying(true);
+    await refresh();
+    setRetrying(false);
   };
 
   const nav = (
@@ -484,7 +497,7 @@ export function TeamWorkbench({
         current
         trailing={String(roles.length)}
         data={{ 'data-team-nav': 'roles' }}
-        onSelect={() => setInspected(undefined)}
+        onSelect={clearInspection}
       />
     </nav>
   );
@@ -494,7 +507,20 @@ export function TeamWorkbench({
       <div ref={mount} {...stylex.props(styles.root)} data-team-workbench="">
         {nav}
         <div {...stylex.props(styles.column)}>
-          {loadFailed ? <Note tone="danger">{t('team.error.load')}</Note> : null}
+          {loadFailed ? (
+            <Note tone="danger">
+              {t('team.error.load')}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={retrying}
+                data-team-retry=""
+                onClick={() => void retry()}
+              >
+                {t('team.workbench.retry')}
+              </Button>
+            </Note>
+          ) : null}
           {view !== undefined ? <Note>{t('team.workbench.noAccess')}</Note> : null}
         </div>
       </div>
@@ -523,7 +549,7 @@ export function TeamWorkbench({
               data={{ 'data-team-role': item.roleId }}
               onSelect={() => {
                 setSelected(item.roleId);
-                setInspected(undefined);
+                clearInspection();
               }}
             />
           </div>

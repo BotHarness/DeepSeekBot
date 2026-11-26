@@ -51,8 +51,8 @@ export function canManageGrants(database: OperationalDatabaseModulePort, humanId
   return database.read(
     (db) =>
       db
-        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('?1')}`)
-        .get(humanId) !== undefined,
+        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('$humanId')}`)
+        .get({ $humanId: humanId }) !== undefined,
   );
 }
 

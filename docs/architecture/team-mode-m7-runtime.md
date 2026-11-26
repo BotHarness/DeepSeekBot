@@ -132,7 +132,8 @@ bot-tool <slug> speaker_policy --args-stdin
 
 Role policy stdin is `[{topic,text,effect:'allow'|'deny'}]`. `roleCreate`/`roleUpdate` accept the
 same optional `policy`; their returned roles include `policy` and `policyRevision`. Hard
-permissions remain the union across roles. Topic tags are admin-set. Resolution reuses the
+permissions are the union of what the roles allow minus anything a role denies; the Owner holds
+every permission. Topic tags are admin-set. Resolution reuses the
 existing Behavior permission evaluator with topic identity; Deny wins and every Allow/Deny role
 pair is returned for assignment UI review. Policy is advisory and never grants resource access.
 
