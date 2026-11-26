@@ -223,7 +223,7 @@ it('binds the Pinned tab to a chosen conversation and back to the default', asyn
         .filter((node) => node.querySelector('[data-symbol="checkmark"]') !== null)
         .map((node) => node.getAttribute('data-testid'));
     expect(checked()).toEqual(['pinned-choice-default']);
-    expect(picker.host.textContent).toContain(t.tabBarSettings.defaultDetail('Tob'));
+    expect(picker.host.textContent).toContain(t.tabBarSettings.defaultDetail);
     await picker.press('pinned-choice-channel:launch');
     expect(pinnedBindings.binding('h1')).toEqual({ kind: 'channel', id: 'launch' });
     expect(fixture.back).toHaveBeenCalledTimes(1);

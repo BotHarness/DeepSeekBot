@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Platform, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withSpring,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import type { LayerName } from '../design/layers';
@@ -34,8 +36,15 @@ export function TabOrderList({
 }: TabOrderListProps) {
   const theme = useDesignTheme();
   const [heights, setHeights] = useState<Record<string, number>>({});
-  const rowHeights = items.map((item) => heights[item.key] ?? theme.touch);
   const gap = android ? androidSettings.segmentGap : 0;
+  const spaced = items.map((item) => (heights[item.key] ?? theme.touch) + gap);
+  const drag = useSharedValue<Drag>(idle);
+  const signature = items.map((item) => item.key).join(',');
+  const shown = useRef(signature);
+  if (shown.current !== signature) {
+    shown.current = signature;
+    drag.value = idle;
+  }
   return (
     <View style={{ gap: android ? androidSettings.sectionGap : space.x2 }}>
       <SettingsHeading>{title}</SettingsHeading>
@@ -49,8 +58,8 @@ export function TabOrderList({
             item={item}
             index={index}
             count={items.length}
-            heights={rowHeights}
-            gap={gap}
+            spaced={spaced}
+            drag={drag}
             on={on}
             copy={copy}
             onLayout={(event) => {
@@ -68,12 +77,16 @@ export function TabOrderList({
   );
 }
 
+type Drag = { from: number; to: number; y: number };
+
+const idle: Drag = { from: -1, to: -1, y: 0 };
+
 function TabOrderRow({
   item,
   index,
   count,
-  heights,
-  gap,
+  spaced,
+  drag,
   on,
   copy,
   onLayout,
@@ -82,8 +95,8 @@ function TabOrderRow({
   item: TabOrderItem;
   index: number;
   count: number;
-  heights: readonly number[];
-  gap: number;
+  spaced: readonly number[];
+  drag: SharedValue<Drag>;
   on: LayerName;
   copy: TabOrderListProps['copy'];
   onLayout(event: LayoutChangeEvent): void;
@@ -92,32 +105,45 @@ function TabOrderRow({
   const theme = useDesignTheme();
   const layer = useSheetGroupFill(on);
   const reduced = useSystemReducedMotion();
-  const offset = useSharedValue(0);
-  const lifted = useSharedValue(0);
-  const spaced = heights.map((height) => height + gap);
-  const commit = (translation: number) => {
-    const destination = dropIndex(spaced, index, translation);
-    if (destination !== index && destination !== index + 1) onMove(index, destination);
-  };
+  const settle = useSharedValue(0);
   const pan = Gesture.Pan()
     .onStart(() => {
-      lifted.value = 1;
+      settle.value = 0;
+      drag.value = { from: index, to: index, y: 0 };
     })
     .onUpdate((event) => {
-      offset.value = event.translationY;
+      drag.value = {
+        from: index,
+        to: dropIndex(spaced, index, event.translationY),
+        y: event.translationY,
+      };
     })
-    .onEnd((event) => {
-      runOnJS(commit)(event.translationY);
-    })
-    .onFinalize(() => {
-      lifted.value = 0;
-      offset.value = reduced ? 0 : withSpring(0, spring.release);
+    .onEnd(() => {
+      const { to, y } = drag.value;
+      if (to !== index && to !== index + 1) {
+        runOnJS(onMove)(index, to);
+        return;
+      }
+      drag.value = idle;
+      settle.value = y;
+      settle.value = reduced ? 0 : withSpring(0, spring.release);
     });
-  const moving = useAnimatedStyle(() => ({
-    transform: [{ translateY: offset.value }],
-    zIndex: lifted.value,
-    backgroundColor: lifted.value === 1 ? layer.pressed : layer.fill,
-  }));
+  const shift = useDerivedValue(() => {
+    const { from, to } = drag.value;
+    if (from < 0 || from === index) return 0;
+    const height = spaced[from] ?? 0;
+    const next = from < index && to > index ? -height : from > index && to <= index ? height : 0;
+    return reduced ? next : withSpring(next, spring.release);
+  });
+  const moving = useAnimatedStyle(() => {
+    const lifted = drag.value.from === index;
+    const resting = drag.value.from < 0;
+    return {
+      transform: [{ translateY: lifted ? drag.value.y : resting ? settle.value : shift.value }],
+      zIndex: lifted ? 1 : 0,
+      backgroundColor: lifted ? layer.pressed : layer.fill,
+    };
+  });
   const actions = [
     ...(index > 0 ? [{ name: 'up', label: copy.moveUp(item.label) }] : []),
     ...(index < count - 1 ? [{ name: 'down', label: copy.moveDown(item.label) }] : []),

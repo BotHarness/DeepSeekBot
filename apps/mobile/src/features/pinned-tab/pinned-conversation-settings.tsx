@@ -68,11 +68,7 @@ export function PinnedConversationSettings() {
               <SettingsRow
                 on={SHEET_GROUP}
                 title={isDefault ? t.tabBarSettings.defaultChoice : titleOf(item as Conversation)}
-                detail={
-                  isDefault && conversation !== undefined
-                    ? t.tabBarSettings.defaultDetail(titleOf(conversation))
-                    : undefined
-                }
+                detail={isDefault ? t.tabBarSettings.defaultDetail : undefined}
                 leading={<PinnedAvatar conversation={conversation} size={size} selected={false} />}
                 selected={selected}
                 {...(selected ? { control: { kind: 'check' } as const } : {})}
