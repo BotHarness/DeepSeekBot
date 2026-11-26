@@ -7,12 +7,12 @@ import { schedulePrompt } from './prompt.js';
 import { schedulesServiceRpc } from './rpc.js';
 import { nativeScheduleToolRefusal, registerScheduleTools } from './tools.js';
 
-interface SchedulesBridgeContext {
+export interface SchedulesBridgeContext {
   human: HumanContext;
   deps: Parameters<typeof createSchedulesBridgeMethods>[1];
 }
 
-interface SchedulesAgentContext {
+export interface SchedulesAgentContext {
   currentRun: Parameters<typeof registerScheduleTools>[0];
   promptText(): PromptText;
 }

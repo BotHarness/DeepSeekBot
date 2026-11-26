@@ -760,7 +760,7 @@ export function registerBridge(
   privateInputs?: PrivateInputs,
   live?: BridgeLive,
   team?: TeamService,
-  features = featureContributions,
+  features: RegisteredFeatures = featureContributions,
 ): BotharnessBridgeService {
   if (features === featureContributions)
     return new BotharnessBridgeService(ctx, methods, privateInputs, live, team);

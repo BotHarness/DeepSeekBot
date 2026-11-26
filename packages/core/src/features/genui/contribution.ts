@@ -6,12 +6,12 @@ import { GENUI_AUTHORING_SECTION } from './prompt.js';
 import { genuiServiceRpc } from './rpc.js';
 import { registerGenuiTools } from './tools.js';
 
-interface GenuiBridgeContext {
+export interface GenuiBridgeContext {
   human: HumanContext;
   deps: Parameters<typeof createGenuiBridgeMethods>[1];
 }
 
-interface GenuiAgentContext {
+export interface GenuiAgentContext {
   agentContext: Pick<Context, 'get'>;
   botSlug: string;
 }
