@@ -28,6 +28,18 @@ export function dshHostSessions(
     'since' | 'cursor' | 'touchedAt' | 'firstTouchedAt' | 'changed'
   >,
 ): NativeSessions {
+  const failed = new Set<string>();
+  ctx.on('api-session/error', (sessionId) => {
+    failed.add(sessionId);
+    changes?.changed(true, sessionId);
+  });
+  ctx.on('api-session/status', (sessionId, running) => {
+    if (running) failed.delete(sessionId);
+  });
+  ctx.on('api-session/removed', (sessionId) => {
+    failed.delete(sessionId);
+  });
+
   function controller() {
     const service = ctx.get('sessionController');
     if (service === undefined) throw new Error('DSH Session Controller unavailable');
@@ -58,7 +70,12 @@ export function dshHostSessions(
     return {
       sessionId: previous.sessionId,
       ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-      ...(running && (state?.pendingInput.length ?? 0) > 0 ? { waiting: true as const } : {}),
+      ...(running && state !== undefined && state.pendingInput.length > 0
+        ? {
+            waiting: true as const,
+            pendingInput: state.pendingInput.includes('approval') ? 'approval' : 'question',
+          }
+        : {}),
       ...(previous.cwd === undefined ? {} : { cwd: previous.cwd }),
       ...(previous.parentSessionId === undefined
         ? {}
@@ -74,8 +91,24 @@ export function dshHostSessions(
   async function list(): Promise<readonly DshSessionListRow[]> {
     const read = await rows();
     const archived = new Set<string>(ctx.get('workspaceRegistry')?.archivedSessionIds);
-    if (archived.size === 0) return read;
-    return read.map((row) => (archived.has(row.sessionId) ? { ...row, archived: true } : row));
+    const held = new Map<string, 'approval' | 'question'>();
+    for (const entry of input?.attention() ?? [])
+      if (held.get(entry.sessionId) !== 'approval') held.set(entry.sessionId, entry.input);
+    if (archived.size === 0 && held.size === 0 && failed.size === 0) return read;
+    return read.map((row) => {
+      const pending =
+        row.pendingInput === 'approval'
+          ? 'approval'
+          : (held.get(row.sessionId) ?? row.pendingInput);
+      const failing = !row.running && failed.has(row.sessionId);
+      if (!archived.has(row.sessionId) && pending === row.pendingInput && !failing) return row;
+      return {
+        ...row,
+        ...(archived.has(row.sessionId) ? { archived: true as const } : {}),
+        ...(pending === undefined ? {} : { waiting: true as const, pendingInput: pending }),
+        ...(failing ? { failed: true as const } : {}),
+      };
+    });
   }
 
   async function readRows(): Promise<readonly DshSessionListRow[]> {
@@ -101,19 +134,25 @@ export function dshHostSessions(
     subagents = new Set(
       items.filter((row) => row.origin === 'subagent').map((row) => row.sessionId),
     );
-    const waiting = new Set(
+    const waiting = new Map<string, 'approval' | 'question'>(
       (
         await Promise.all(
           roots
             .filter((row) => row.running)
             .map((row) =>
               service.state({ sessionId: row.sessionId }, signal).then(
-                (state) => (state.pendingInput.length > 0 ? row.sessionId : undefined),
+                (state) =>
+                  state.pendingInput.length === 0
+                    ? undefined
+                    : ([
+                        row.sessionId,
+                        state.pendingInput.includes('approval') ? 'approval' : 'question',
+                      ] as const),
                 () => undefined,
               ),
             ),
         )
-      ).filter((id) => id !== undefined),
+      ).filter((entry) => entry !== undefined),
     );
     return roots.map((row) => {
       const { sessionId, cwd, parentSessionId, running, updatedAt } = row;
@@ -122,7 +161,9 @@ export function dshHostSessions(
       return {
         sessionId,
         ...(model == null ? {} : { model: { provider: model.provider, model: model.model } }),
-        ...(waiting.has(sessionId) ? { waiting: true as const } : {}),
+        ...(waiting.has(sessionId)
+          ? { waiting: true as const, pendingInput: waiting.get(sessionId)! }
+          : {}),
         ...(cwd === undefined ? {} : { cwd }),
         ...(parentSessionId === undefined ? {} : { parentSessionId }),
         ...(typeof metadata?.title === 'string' ? { title: metadata.title } : {}),

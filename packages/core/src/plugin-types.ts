@@ -91,6 +91,11 @@ export interface BotHarnessCore {
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
   configureBotHopLimit(read: () => number): () => void;
+  configureNativeSessionAttention(read: () => boolean): () => void;
+  contributeNativeSessionAttention(
+    source: import('./features/activity/native-session-attention.js').NativeSessionAttentionSource,
+  ): () => void;
+  onNativeSessionAttention(listener: () => void): () => void;
 
   hostTools: Set<string>;
 

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MethodRefused } from '../src/client-errors';
 import { HostAnswerInvalid } from '../src/host-answer';
 import {
+  botAttentionItems,
   dismissHumanAttention,
   readHumanAssignmentContext,
   readHumanAttention,
@@ -117,6 +119,103 @@ describe('Human attention', () => {
     await expect(readHumanAttention(host({ items: [], ...change }), {})).rejects.toBeInstanceOf(
       HostAnswerInvalid,
     );
+  });
+
+  it('reads native Session requests without a Bot and rejects malformed ones', async () => {
+    const native = {
+      id: 'native-session:event-1',
+      category: 'action',
+      kind: 'native-session-input',
+      createdAt: at,
+      botSlug: '',
+      summary: 'bash',
+      requestId: 'event-1',
+      nativeSession: {
+        sessionId: 'native-1',
+        input: 'approval',
+        sessionTitle: 'Ship it',
+        folderName: 'site',
+        cwd: '/work/site',
+        request: { kind: 'approval', requestId: 'event-1', toolName: 'bash', reason: 'Deploy' },
+      },
+    };
+    const page = { items: [item, native], source: 'all' };
+    const read = await readHumanAttention(host(page), { source: 'all' });
+    expect(read).toEqual(page);
+    expect(botAttentionItems(read.items)).toEqual([item]);
+    for (const bad of [
+      { ...native, botSlug: 'tea' },
+      { ...native, category: 'info' },
+      { ...native, requestId: undefined },
+      { ...native, nativeSession: { sessionId: 'native-1', input: 'other' } },
+      { ...native, nativeSession: { input: 'approval' } },
+      { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
+      { ...native, nativeSession: { ...native.nativeSession, cwd: 7 } },
+      { ...native, unreadCount: 'bad' },
+      { ...native, isUnread: 'yes' },
+      { ...native, snoozedUntil: 7 },
+      ...[{ reason: 7 }, { callId: 7 }, { preview: 7 }, { toolName: '' }].map((bad) => ({
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          request: { ...native.nativeSession.request, ...bad },
+        },
+      })),
+      ...[
+        [{ id: 'q', question: 7 }],
+        [{ id: 'q', question: 'Which?', options: [{ label: 7 }] }],
+        [{ id: 'q', question: 'Which?', multiSelect: 'yes' }],
+        [{ question: 'Which?' }],
+      ].map((questions) => ({
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          input: 'question',
+          request: { kind: 'question', requestId: 'event-1', questions },
+        },
+      })),
+      {
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          request: { kind: 'approval', requestId: 'other', toolName: 'bash' },
+        },
+      },
+      {
+        ...native,
+        nativeSession: {
+          ...native.nativeSession,
+          request: { kind: 'question', requestId: 'event-1', questions: [] },
+        },
+      },
+      { ...item, nativeSession: native.nativeSession },
+    ])
+      await expect(readHumanAttention(host({ items: [bad] }), {})).rejects.toBeInstanceOf(
+        HostAnswerInvalid,
+      );
+    await expect(
+      readHumanAttention(host({ items: [], source: 'everything' }), {}),
+    ).rejects.toBeInstanceOf(HostAnswerInvalid);
+  });
+
+  it('retries without source when an older Host gateway refuses the argument', async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(new MethodRefused('gateway/arguments-invalid', 'unexpected "source"'))
+      .mockResolvedValueOnce({ items: [item] });
+    await expect(
+      readHumanAttention({ call }, { category: 'action', source: 'all' }),
+    ).resolves.toEqual({ items: [item] });
+    expect(call.mock.calls).toEqual([
+      ['humanAttention', { category: 'action', source: 'all' }],
+      ['humanAttention', { category: 'action' }],
+    ]);
+    const refused = vi.fn().mockRejectedValue(new MethodRefused('remote-access/denied', 'no'));
+    await expect(readHumanAttention({ call: refused }, { source: 'all' })).rejects.toThrow('no');
+    expect(refused).toHaveBeenCalledTimes(1);
+    const old = vi.fn().mockRejectedValue(new MethodRefused('gateway/arguments-invalid', 'x'));
+    await expect(readHumanAttention({ call: old }, { category: 'action' })).rejects.toThrow('x');
+    expect(old).toHaveBeenCalledTimes(1);
   });
 
   it('requires both counts and a boolean continuation on the dismissal receipt', async () => {

@@ -13,6 +13,12 @@ export const en = {
   wantsToRun: (bot: string, tool: string) => `${bot} wants to run ${tool}`,
   asks: (bot: string) => `${bot} asks`,
   workingFolder: 'Working folder',
+  inputLabels: {
+    command: 'Command',
+    input: 'Input',
+    reason: 'Reason',
+    description: 'Description',
+  } as Record<string, string>,
   arguments: 'Arguments',
   allowOnce: 'Allow once',
   reject: 'Reject',
@@ -163,6 +169,10 @@ export const zh: typeof en = {
   wantsToRun: (bot: string, tool: string) => `${bot} 想要运行 ${tool}`,
   asks: (bot: string) => `${bot} 问你`,
   workingFolder: '工作目录',
+  inputLabels: { command: '命令', input: '输入', reason: '原因', description: '说明' } as Record<
+    string,
+    string
+  >,
   arguments: '参数',
   allowOnce: '允许这次',
   reject: '拒绝',

@@ -496,6 +496,14 @@ export function createActivityBridgeMethods(
       const snoozed = source['snoozed'];
       const dismissed = source['dismissed'];
       const kind = source['kind'];
+      const sessions = source['source'];
+      if (
+        sessions !== undefined &&
+        sessions !== 'all' &&
+        sessions !== 'bot' &&
+        sessions !== 'native'
+      )
+        return invalidInput('source must be all, bot or native');
       if (snoozed !== undefined && typeof snoozed !== 'boolean')
         return invalidInput('snoozed must be a boolean');
       if (dismissed !== undefined && typeof dismissed !== 'boolean')
@@ -544,16 +552,21 @@ export function createActivityBridgeMethods(
           if (
             Object.keys(source).some(
               (key) =>
-                !['notifications', 'limit', 'cursor'].includes(key) && source[key] !== undefined,
+                !['notifications', 'limit', 'cursor', 'source'].includes(key) &&
+                source[key] !== undefined,
             )
           )
             return invalidInput('notification discovery does not accept Activity filters');
           return {
             ok: true,
-            value: notificationAttentionPage(human, deps.humanAttention, {
-              ...(limit === undefined ? {} : { limit: limit as number }),
-              ...(cursor === undefined ? {} : { cursor: cursor as string }),
-            }),
+            value: {
+              ...notificationAttentionPage(human, deps.humanAttention, {
+                ...(limit === undefined ? {} : { limit: limit as number }),
+                ...(cursor === undefined ? {} : { cursor: cursor as string }),
+                ...(sessions === undefined ? {} : { source: sessions }),
+              }),
+              ...(sessions === undefined ? {} : { source: sessions }),
+            },
           };
         }
         return {
@@ -573,8 +586,10 @@ export function createActivityBridgeMethods(
               ...(snoozed === true ? { snoozed: true } : {}),
               ...(dismissed === true ? { dismissed: true } : {}),
               ...(kind === undefined ? {} : { kind }),
+              ...(sessions === undefined ? {} : { source: sessions }),
             }) ?? { items: [] }),
             ...(source['queryVersion'] === 1 ? { queryVersion: 1 } : {}),
+            ...(sessions === undefined ? {} : { source: sessions }),
             ...(dismissed === true ? { dismissed: true } : {}),
           },
         };
@@ -586,10 +601,18 @@ export function createActivityBridgeMethods(
       const requested = asObject(payload)['messageCounts'];
       if (requested !== undefined && typeof requested !== 'boolean')
         return invalidInput('messageCounts must be boolean');
+      const sessions = asObject(payload)['source'];
+      if (
+        sessions !== undefined &&
+        sessions !== 'all' &&
+        sessions !== 'bot' &&
+        sessions !== 'native'
+      )
+        return invalidInput('source must be all, bot or native');
       try {
         return {
           ok: true,
-          value: deps.humanAttention?.status(human, requested === true) ?? {
+          value: deps.humanAttention?.status(human, requested === true, sessions) ?? {
             unreadCount: 0,
             hasAction: false,
             ...(requested === true ? { messageCounts: { replies: 0, other: 0 } } : {}),

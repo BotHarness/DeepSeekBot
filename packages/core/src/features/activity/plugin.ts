@@ -63,7 +63,12 @@ export function apply(
 export function createPush(
   core: Pick<
     BotHarnessCore,
-    'humanAttention' | 'registry' | 'channels' | 'operationalDatabase' | 'states'
+    | 'humanAttention'
+    | 'registry'
+    | 'channels'
+    | 'operationalDatabase'
+    | 'states'
+    | 'onNativeSessionAttention'
   >,
   presence: Presence,
 ): DevicePushOptions {
@@ -81,7 +86,9 @@ export function createPush(
         if (event.cause === 'attention-changed') changed();
       });
       const offPresence = presence.subscribe(changed);
+      const offNative = core.onNativeSessionAttention(changed);
       return () => {
+        offNative();
         offDatabase();
         offActivity();
         offPresence();

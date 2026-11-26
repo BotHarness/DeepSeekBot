@@ -15,5 +15,6 @@ export type {
   HumanAttentionPage,
   HumanAttentionQuery,
   HumanAttentionSort,
+  HumanAttentionSource,
   HumanAttentionStatus,
 } from '../features/activity/human-attention-types.js';

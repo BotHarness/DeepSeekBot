@@ -244,11 +244,12 @@
     },
     {
       "id": "tob-runtime-settings",
-      "description": "#2088 reuses native Settings for exactly four live fields: assignmentConcurrencyLimit, developerMode, showBotSessions and showApprovalReviewSessions. Scoped Tob writes add source/approval/revision guards; no new settings owner.",
+      "description": "#2088 reuses native Settings for exactly five live fields: assignmentConcurrencyLimit, developerMode, showBotSessions, showApprovalReviewSessions and nativeSessionAttention (#4937). Scoped Tob writes add source/approval/revision guards; no new settings owner.",
       "scope": "Host / protected Tob Human DM",
       "surfaces": [
         "field:packages/host-client/src/shared/bot-mode-settings.ts:assignmentConcurrencyLimit",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:developerMode",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:nativeSessionAttention",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showApprovalReviewSessions",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showBotSessions",
         "setting:packages/client/src/client/assignment-concurrency-setting.tsx:{t('assignmentLimit.title')}",
