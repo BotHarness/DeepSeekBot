@@ -27,10 +27,8 @@ it('adds the pending tool call preview to a native approval', () => {
       : undefined;
   expect(withPreview('native-1', card, lookup)).toEqual({ ...card, preview: 'echo READY' });
   expect(withPreview('native-2', card, lookup)).toEqual(card);
-  expect(withPreview('native-1', { ...card, callId: undefined }, lookup)).toEqual({
-    ...card,
-    callId: undefined,
-  });
+  const { callId: _callId, ...uncalled } = card;
+  expect(withPreview('native-1', uncalled, lookup)).toEqual(uncalled);
   const long = withPreview('native-1', card, () => ({
     arguments: JSON.stringify({ command: 'x'.repeat(3000) }),
   }));
