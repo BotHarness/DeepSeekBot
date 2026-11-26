@@ -1,7 +1,7 @@
 {
   "upward": {
     "packages/core/src/bots/bot-create-cli.ts": {
-      "bots -> features": 10
+      "bots -> features": 11
     },
     "packages/core/src/bots/cli-bot-modes.ts": {
       "bots -> runtime": 1
@@ -217,6 +217,9 @@
     "packages/core/src/features/models/preset-sub-methods.ts": {
       "features -> bridge": 1
     },
+    "packages/core/src/features/models/routing.ts": {
+      "features -> bridge": 1
+    },
     "packages/core/src/features/models/rpc.ts": {
       "features -> bridge": 1
     },
@@ -316,6 +319,9 @@
     "packages/core/src/messaging/dsh-im.ts": {
       "messaging -> features": 2
     },
+    "packages/core/src/messaging/member-admission.ts": {
+      "messaging -> runtime": 1
+    },
     "packages/core/src/messaging/outbound.ts": {
       "messaging -> runtime": 1
     },
@@ -331,8 +337,17 @@
     "packages/core/src/runtime/bot-runtime-features.ts": {
       "runtime -> features": 28
     },
+    "packages/core/src/runtime/bot-runtime-lifecycle.ts": {
+      "runtime -> features": 1
+    },
+    "packages/core/src/runtime/bot-runtime-state.ts": {
+      "runtime -> features": 2
+    },
+    "packages/core/src/runtime/bot-runtime-types.ts": {
+      "runtime -> features": 3
+    },
     "packages/core/src/runtime/bot-runtime.ts": {
-      "runtime -> features": 10
+      "runtime -> features": 12
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-assignment.ts": {
       "runtime -> features": 3
@@ -498,6 +513,9 @@
     "packages/core/src/bots/zip-import.ts": {
       "bots -> marketplace": 1
     },
+    "packages/core/src/channels/activity-today.ts": {
+      "channels -> humans": 1
+    },
     "packages/core/src/channels/all-bot-mention.ts": {
       "channels -> bots": 1
     },
@@ -529,7 +547,11 @@
       "channels -> humans": 1
     },
     "packages/core/src/channels/management.ts": {
-      "channels -> bots": 1
+      "channels -> bots": 1,
+      "channels -> humans": 1
+    },
+    "packages/core/src/channels/mark-all-read.ts": {
+      "channels -> humans": 1
     },
     "packages/core/src/channels/runtime-access.ts": {
       "channels -> humans": 1,
@@ -543,6 +565,7 @@
       "channels -> team": 1
     },
     "packages/core/src/channels/runtime-membership.ts": {
+      "channels -> bots": 1,
       "channels -> team": 1
     },
     "packages/core/src/channels/send-review.ts": {

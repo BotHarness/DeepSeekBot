@@ -86,6 +86,13 @@ export function unclassifiedCoreDirectory(name) {
     : `${CORE_SOURCE}/${name}: no Host core layer assigned; add the directory to CORE_LAYER_ORDER in scripts/core-layer-order.mjs`;
 }
 
+export function unclassifiedCoreTopLevelFile(name) {
+  if (!isCoreRuntimeFile(`${CORE_SOURCE}/${name}`)) return undefined;
+  return layers.has(name)
+    ? undefined
+    : `${CORE_SOURCE}/${name}: no Host core layer assigned; add the file to CORE_LAYER_ORDER in scripts/core-layer-order.mjs`;
+}
+
 export function isCoreRuntimeFile(file) {
   return (
     file.startsWith(`${CORE_SOURCE}/`) && sourceExtension.test(file) && !nonRuntimeSource.test(file)
@@ -141,7 +148,7 @@ export function describeCoreLayerGrowth(section, { rule, message }) {
   const source = layer(from);
   const target = layer(to);
   if (section === 'upward') {
-    return `Host core upward import (${source.name} tier ${source.tier} -> ${target.name} tier ${target.tier}): ${message}; move the dependency to a lower layer or use a type-only import if only the type is needed`;
+    return `Host core upward import (${source.name} tier ${source.tier} -> ${target.name} tier ${target.tier}): ${message}; move the dependency to a lower layer or use \`import type\` if only types are needed`;
   }
   const pair = [from, to].sort().join(' <-> ');
   return `Host core mutual peer cycle (${source.name} tier ${source.tier}, ${pair}): ${message}; remove a runtime dependency in one direction`;

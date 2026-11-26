@@ -202,9 +202,12 @@ describe('Host core internal layers', () => {
   it.each([
     upward,
     "import {} from '../runtime/start.js';",
+    "import { type B, type C } from '../runtime/start.js';",
     "import start from '../runtime/start.js';",
     "import * as startup from '../runtime/start.js';",
     "import { type Options, start } from '../runtime/start.js';",
+    "export {} from '../runtime/start.js';",
+    "export { type E } from '../runtime/start.js';",
     "export { type Options, start } from '../runtime/start.js';",
     "export * from '../runtime/start.js';",
     "export * as startup from '../runtime/start.js';",
@@ -229,9 +232,7 @@ describe('Host core internal layers', () => {
         database,
         `
         import type { A } from '../runtime/start.js';
-        import { type B, type C } from '../runtime/start.js';
         export type { D } from '../runtime/start.js';
-        export { type E } from '../runtime/start.js';
         export type * from '../runtime/start.js';
         type F = import('../runtime/start.js').F;
         import type G = require('../runtime/start.js');
@@ -283,18 +284,23 @@ describe('Host core internal layers', () => {
     });
   });
 
-  it('requires an explicit layer assignment even for an empty new directory', () => {
-    withCoreFixture({ [database]: '' }, (root) => {
+  it('requires an explicit layer assignment for new directories and top-level runtime files', () => {
+    withCoreFixture({ [database]: '' }, (root, write) => {
       mkdirSync(join(root, core, 'new-module'));
+      write(`${core}/util.ts`, '');
+      write(`${core}/util.test.ts`, '');
       expect(checkPackageBoundaries(root)).toEqual([
         expect.stringContaining(
           `${core}/new-module: no Host core layer assigned; add the directory to CORE_LAYER_ORDER`,
+        ),
+        expect.stringContaining(
+          `${core}/util.ts: no Host core layer assigned; add the file to CORE_LAYER_ORDER`,
         ),
       ]);
     });
   });
 
-  it('initializes from base source and rejects growth even when a baseline is edited by hand', () => {
+  it('initializes from base source, rejects hand-edited growth, and lets --update resync stale local baselines', () => {
     withCoreFixture(
       { [database]: upward, [runtime]: '' },
       (root, write) => {
@@ -312,7 +318,6 @@ describe('Host core internal layers', () => {
           expect.stringContaining(`${coreLayerBaseline}: Host core upward import`),
         ]);
 
-        rmSync(join(root, coreLayerBaseline));
         write(database, upward);
         expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
         expect(JSON.parse(readFileSync(join(root, coreLayerBaseline), 'utf8'))).toEqual({

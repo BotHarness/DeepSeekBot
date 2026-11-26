@@ -12,6 +12,7 @@ import {
   describeCoreLayerGrowth,
   isCoreRuntimeFile,
   unclassifiedCoreDirectory,
+  unclassifiedCoreTopLevelFile,
 } from './core-layer-order.mjs';
 
 const cliAdapter = /^packages\/core\/src\/bots\/cli-[^/]+\.[cm]?[jt]s$/u;
@@ -23,16 +24,9 @@ const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
 function isRuntimeImport(node) {
   switch (node.type) {
     case 'ImportDeclaration':
-      return (
-        node.importKind !== 'type' &&
-        (node.specifiers.length === 0 ||
-          node.specifiers.some(({ importKind }) => importKind !== 'type'))
-      );
+      return node.importKind !== 'type';
     case 'ExportNamedDeclaration':
-      return (
-        node.exportKind !== 'type' &&
-        node.specifiers.some(({ exportKind }) => exportKind !== 'type')
-      );
+      return Boolean(node.source) && node.exportKind !== 'type';
     case 'ExportAllDeclaration':
       return node.exportKind !== 'type';
     case 'TSImportEqualsDeclaration':
@@ -258,21 +252,25 @@ function checkCoreLayerBaseline(root, current, errors, update) {
   }
   for (const section of Object.keys(current)) {
     const actual = countsByRule(current[section]);
-    const allowed = countsByRule((local ?? base)[section]);
+    const cap = update && base ? base : (local ?? base);
+    const allowed = countsByRule(cap[section]);
     const { grown, shrunk } = compareBaselineCounts(actual, allowed);
     errors.push(...grown.map((entry) => describeCoreLayerGrowth(section, entry)));
     if (!update) {
       errors.push(
         ...shrunk.map((message) => `${message}; shrink ${CORE_LAYER_BASELINE} with ${updateHint}`),
       );
-    }
-    if (base && local) {
-      const { grown: baselineGrowth } = compareBaselineCounts(allowed, countsByRule(base[section]));
-      errors.push(
-        ...baselineGrowth.map(
-          (entry) => `${CORE_LAYER_BASELINE}: ${describeCoreLayerGrowth(section, entry)}`,
-        ),
-      );
+      if (base && local) {
+        const { grown: baselineGrowth } = compareBaselineCounts(
+          allowed,
+          countsByRule(base[section]),
+        );
+        errors.push(
+          ...baselineGrowth.map(
+            (entry) => `${CORE_LAYER_BASELINE}: ${describeCoreLayerGrowth(section, entry)}`,
+          ),
+        );
+      }
     }
   }
 }
@@ -301,9 +299,14 @@ export function checkPackageBoundaries(root, { update = false } = {}) {
   }
   const coreRoot = resolve(root, CORE_SOURCE);
   if (existsSync(coreRoot)) {
-    for (const entry of readdirSync(coreRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const error = unclassifiedCoreDirectory(entry.name);
+    for (const entry of readdirSync(coreRoot, { withFileTypes: true }).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    )) {
+      const error = entry.isDirectory()
+        ? unclassifiedCoreDirectory(entry.name)
+        : entry.isFile()
+          ? unclassifiedCoreTopLevelFile(entry.name)
+          : undefined;
       if (error) errors.push(error);
     }
   }
