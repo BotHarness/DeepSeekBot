@@ -15,11 +15,37 @@ import {
   type RemoteMcpOAuth,
   type RemoteMcpTool,
 } from './remote-mcp.js';
-import type { ConnectorAccountRecord, ConnectorMcpServerRecord, ConnectorStore } from './store.js';
+import type {
+  ConnectorAccess,
+  ConnectorAccountRecord,
+  ConnectorMcpServerRecord,
+  ConnectorStore,
+} from './store.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
 export class RemoteMcpError extends ConnectorError {}
+
+const READ_SCOPE = /(^|[:._/-])(read|readonly|view)($|[:._/-])/i;
+const WRITE_SCOPE =
+  /(^|[:._/-])(write|admin|manage|modify|edit|create|delete|send|full)($|[:._/-])/i;
+const NEUTRAL_SCOPES: ReadonlySet<string> = new Set([
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  'introspection',
+]);
+
+export function grantedAccess(scope: string | undefined): ConnectorAccess {
+  const scopes = (scope ?? '')
+    .split(/\s+/)
+    .filter((item) => item !== '' && !NEUTRAL_SCOPES.has(item));
+  return scopes.length > 0 &&
+    scopes.every((item) => READ_SCOPE.test(item) && !WRITE_SCOPE.test(item))
+    ? 'read'
+    : 'write';
+}
 
 export interface FeaturedMcpServer {
   service: string;
@@ -379,6 +405,7 @@ export class RemoteMcpConnectors {
         service,
         label,
         externalId: randomUUID(),
+        access: 'write',
       });
       const active = this.#store.updateAccount(account.accountId, { status: 'active' })!;
       this.#log('mcp-added', { service, auth: 'none' });
@@ -407,7 +434,7 @@ export class RemoteMcpConnectors {
     const oauth = await this.#client.discover(server.url);
     if (oauth === undefined) {
       await this.#inspect(server.url);
-      const active = this.#store.updateAccount(accountId, { status: 'active' })!;
+      const active = this.#store.updateAccount(accountId, { status: 'active', access: 'write' })!;
       this.#changed();
       return { account: active };
     }
@@ -465,6 +492,7 @@ export class RemoteMcpConnectors {
       throw new RemoteMcpError('upstream', 'The server refused the sign-in code; try again.');
     }
     if (!current()) throw stale();
+    const access = grantedAccess(tokens.scope);
     const auth = this.#stored(login.oauth, login.client, tokens);
     await this.#native().modifyRecord(authKey(login.accountId), async () => ({
       kind: 'grant',
@@ -481,8 +509,12 @@ export class RemoteMcpConnectors {
     this.#attempts.delete(login.accountId);
     if (tools === undefined) this.#tools.delete(login.accountId);
     else this.#tools.set(login.accountId, { at: Date.now(), tools: Promise.resolve(tools) });
-    const active = this.#store.updateAccount(login.accountId, { status: 'active' })!;
-    this.#log('mcp-signed-in', { service: account.service, tools: tools?.length ?? 0 });
+    const active = this.#store.updateAccount(login.accountId, { status: 'active', access })!;
+    this.#log('mcp-signed-in', {
+      service: account.service,
+      access,
+      tools: tools?.length ?? 0,
+    });
     this.#changed();
     return active;
   }
@@ -571,10 +603,32 @@ export class RemoteMcpConnectors {
       try {
         const tokens = await this.#client.refresh(auth.oauth!, auth.client!, auth.refreshToken!);
         const next = this.#stored(auth.oauth!, auth.client!, tokens, auth.refreshToken);
-        await this.#native().modifyRecord(authKey(accountId), async () => ({
-          kind: 'grant',
-          payload: next as unknown as Record<string, unknown>,
-        }));
+        let newer: StoredAuth | undefined;
+        await this.#native().modifyRecord(authKey(accountId), async (current) => {
+          const stored =
+            current?.kind === 'grant' ? storedAuthSchema.safeParse(current.payload) : undefined;
+          if (
+            stored?.success === true &&
+            stored.data.refreshToken === auth.refreshToken &&
+            stored.data.accessToken === auth.accessToken
+          )
+            return { kind: 'grant', payload: next as unknown as Record<string, unknown> };
+          newer =
+            stored?.success === true ? (stored.data as StoredAuth) : { accessToken: undefined };
+          return current;
+        });
+        if (newer !== undefined) {
+          this.#log('mcp-refresh-superseded');
+          return newer;
+        }
+        const held = this.#store.account(accountId);
+        if (held?.access !== undefined && typeof tokens.scope === 'string') {
+          const updated = this.#store.updateAccount(accountId, {
+            status: held.status,
+            access: grantedAccess(tokens.scope),
+          });
+          if (updated?.revision !== held.revision) this.#changed();
+        }
         this.#log('mcp-refreshed');
         return next;
       } catch (error) {
@@ -582,6 +636,17 @@ export class RemoteMcpConnectors {
           error: error instanceof Error ? error.name : 'unknown',
         });
         if (error instanceof OAuthError && REJECTED.has(error.code)) {
+          const record = await this.#native().readRecord(authKey(accountId));
+          const stored =
+            record?.kind === 'grant' ? storedAuthSchema.safeParse(record.payload) : undefined;
+          if (
+            stored?.success === true &&
+            (stored.data.refreshToken !== auth.refreshToken ||
+              stored.data.accessToken !== auth.accessToken)
+          ) {
+            this.#log('mcp-refresh-superseded');
+            return stored.data as StoredAuth;
+          }
           this.#expire(accountId);
           return { ...auth, accessToken: undefined };
         }

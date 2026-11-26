@@ -90,6 +90,10 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
     { value: 'read' as const, label: t('connectors.bot.read') },
     { value: 'write' as const, label: t('connectors.bot.write') },
   ];
+  const useOptions = [
+    { value: 'none' as const, label: t('connectors.bot.none') },
+    { value: 'write' as const, label: t('connectors.bot.use') },
+  ];
   return (
     <div ref={mount} data-bot-connectors="">
       {load.view.accounts.length === 0 ? (
@@ -107,14 +111,37 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
               }
               meta={
                 <span className="bh-card-meta-line">
-                  <ConnectorMeta status={account.status} identity={account.identity} t={t} />
+                  <ConnectorMeta
+                    status={account.status}
+                    identity={account.identity}
+                    extra={
+                      account.access !== undefined
+                        ? t(
+                            account.access === 'read'
+                              ? 'connectors.bot.read'
+                              : 'connectors.bot.write',
+                          )
+                        : undefined
+                    }
+                    t={t}
+                  />
                 </span>
               }
               trailing={
                 <Select<Choice>
                   label={t('connectors.bot.title')}
-                  value={load.access[account.accountId] ?? 'none'}
-                  options={options}
+                  value={
+                    load.access[account.accountId] === undefined
+                      ? 'none'
+                      : account.provider === 'mcp' && account.access !== undefined
+                        ? 'write'
+                        : load.access[account.accountId]!
+                  }
+                  options={
+                    account.provider === 'mcp' && account.access !== undefined
+                      ? useOptions
+                      : options
+                  }
                   disabled={busy !== undefined}
                   onChange={(choice) => void change(account.accountId, choice)}
                 />
