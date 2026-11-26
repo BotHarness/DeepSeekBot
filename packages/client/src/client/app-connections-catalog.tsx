@@ -15,13 +15,8 @@ import { FieldStack, SearchField, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SegmentedControl } from './ds/segmented.js';
-import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
-import type {
-  ConnectorAccess,
-  ConnectorApp,
-  ConnectorsView,
-} from './features/connectors/bridge.js';
+import type { ConnectorApp, ConnectorsView } from './features/connectors/bridge.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -472,7 +467,6 @@ export function ConnectAppDialog({
 }): ReactElement {
   const [picked, setPicked] = useState(initial);
   const [label, setLabel] = useState('');
-  const [access, setAccess] = useState<ConnectorAccess>('write');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
@@ -501,12 +495,10 @@ export function ConnectAppDialog({
       </FormDialog>
     );
 
-  const mcp = picked.url !== undefined || picked.service.startsWith('mcp_');
   const submit = async () => {
     if (busy) return;
     const trimmed = label.trim();
     const named = trimmed === '' ? undefined : trimmed;
-    const signIn = mcp ? { access } : {};
     const start =
       picked.url !== undefined
         ? actions.connectorMcpAdd === undefined
@@ -515,11 +507,10 @@ export function ConnectAppDialog({
               actions.connectorMcpAdd!({
                 url: picked.url!,
                 ...(named === undefined ? {} : { label: named }),
-                ...signIn,
               })
         : actions.connectorConnect === undefined
           ? undefined
-          : () => actions.connectorConnect!(picked.service, named, signIn.access);
+          : () => actions.connectorConnect!(picked.service, named);
     if (start === undefined) return;
     setBusy(true);
     setError(undefined);
@@ -528,11 +519,7 @@ export function ConnectAppDialog({
       if (linked.url !== undefined) window.open(linked.url, '_blank', 'noopener,noreferrer');
       onLinked(linked.account.accountId, linked.url);
     } catch (failure) {
-      setError(
-        failure instanceof BridgeCallError && failure.code === 'connector-read-only-unsupported'
-          ? t('connectors.connect.readOnlyUnsupported')
-          : t('connectors.error', { message: errorMessage(failure) }),
-      );
+      setError(t('connectors.error', { message: errorMessage(failure) }));
     } finally {
       setBusy(false);
     }
@@ -567,28 +554,6 @@ export function ConnectAppDialog({
           value={label}
           onChange={setLabel}
         />
-        {mcp ? (
-          <SettingsRow
-            title={t('connectors.connect.access')}
-            description={t('connectors.connect.accessHint')}
-            control={
-              <Select<ConnectorAccess>
-                label={t('connectors.connect.access')}
-                value={access}
-                options={[
-                  { value: 'read', label: t('connectors.bot.read') },
-                  { value: 'write', label: t('connectors.bot.write') },
-                ]}
-                disabled={busy}
-                onChange={(choice) => {
-                  setAccess(choice);
-                  setError(undefined);
-                }}
-              />
-            }
-            data={{ 'data-connect-access': '' }}
-          />
-        ) : null}
       </FieldStack>
     </FormDialog>
   );

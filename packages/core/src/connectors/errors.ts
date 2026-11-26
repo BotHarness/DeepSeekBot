@@ -3,8 +3,7 @@ export type ConnectorErrorCode =
   | 'invalid'
   | 'not-found'
   | 'credential-unavailable'
-  | 'upstream'
-  | 'read-only-unsupported';
+  | 'upstream';
 
 export class ConnectorError extends Error {
   constructor(

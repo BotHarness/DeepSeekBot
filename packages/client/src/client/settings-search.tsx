@@ -132,8 +132,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'connectors.composio.savedTitle',
     'connectors.accounts.section',
     'connectors.accounts.botsTitle',
-    'connectors.accounts.signInAccess',
-    'connectors.connect.access',
   ],
   voice: [
     'voice.default.title',
@@ -275,8 +273,6 @@ export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
   'connectors.composio.savedTitle': 'connectors.composio.savedBody',
-  'connectors.accounts.signInAccess': 'connectors.accounts.signInAccessHint',
-  'connectors.connect.access': 'connectors.connect.accessHint',
   'profile.section.chat': 'profile.section.chatHint',
   'accountProfile.tobsTitle': 'accountProfile.description',
   'routingGroups.new': 'routingGroups.empty',

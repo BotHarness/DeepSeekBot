@@ -14,7 +14,7 @@ import {
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from '../src/connectors/policy.js';
-import { readOnlyScope } from '../src/connectors/remote.js';
+import { grantedAccess } from '../src/connectors/remote.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';
@@ -185,21 +185,19 @@ describe('remote MCP App connections', () => {
     }
   });
 
-  it('signs in read-only with read scopes and lets the server enforce it for every Bot', async () => {
-    const { client, calls } = fakeMcp();
+  it('asks for every scope and records the access the service granted', async () => {
+    let granted = 'openid profile insight:read annotation:read';
+    const { client, calls } = fakeMcp({
+      exchange: async () => ({ access_token: 'access-1', token_type: 'Bearer', scope: granted }),
+    });
     const { owner, store, service } = setup(client);
     try {
-      const started = await service.connect({
-        service: 'mcp_posthog',
-        label: 'Reader',
-        access: 'read',
-      });
-      expect(started.account.access).toBe('read');
+      const started = await service.connect({ service: 'mcp_posthog', label: 'Reader' });
       expect(calls).toContainEqual([
         'authorize',
         'client-1',
         'http://127.0.0.1:7777/botharness/connectors/oauth/callback',
-        'openid profile insight:read annotation:read',
+        OAUTH.scope,
       ]);
       const finished = await service.remote.finish(
         new URLSearchParams({ state: stateOf(started.url!), code: 'code-1' }),
@@ -210,61 +208,18 @@ describe('remote MCP App connections', () => {
         { accountId: finished.accountId, access: 'read' },
       ]);
 
-      const widened = await service.reconnect(finished.accountId, 'write');
-      expect(calls.at(-1)?.[3]).toBe(OAUTH.scope);
-      expect(store.account(finished.accountId)?.access).toBe('read');
+      granted = OAUTH.scope;
+      const again = await service.reconnect(finished.accountId);
       await service.remote.finish(
-        new URLSearchParams({ state: stateOf(widened.url!), code: 'code-2' }),
+        new URLSearchParams({ state: stateOf(again.url!), code: 'code-2' }),
       );
       expect(store.account(finished.accountId)).toMatchObject({
         status: 'active',
         access: 'write',
       });
       expect(service.forBot('tob')).toMatchObject([{ access: 'write' }]);
-      await expect(service.connect({ service: 'gmail', access: 'read' })).rejects.toMatchObject({
-        code: 'invalid',
-      });
     } finally {
       owner.close();
-    }
-  });
-
-  it('refuses a read-only sign-in the server cannot or does not honour', async () => {
-    const { client } = fakeMcp({
-      discover: async (url) =>
-        url === POSTHOG ? { ...OAUTH, scope: 'mcp offline_access' } : undefined,
-    });
-    const { owner, store, service } = setup(client);
-    try {
-      await expect(
-        service.connect({ service: 'mcp_posthog', access: 'read' }),
-      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
-      await expect(
-        service.remote.add({ url: 'https://open.example.com/mcp', access: 'read' }),
-      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
-      expect(store.accounts()).toEqual([]);
-    } finally {
-      owner.close();
-    }
-    const widening = fakeMcp({
-      exchange: async () => ({
-        access_token: 'access-1',
-        token_type: 'Bearer',
-        scope: 'openid insight:read insight:write',
-      }),
-    });
-    const next = setup(widening.client);
-    try {
-      const started = await next.service.connect({ service: 'mcp_posthog', access: 'read' });
-      await expect(
-        next.service.remote.finish(
-          new URLSearchParams({ state: stateOf(started.url!), code: 'code-1' }),
-        ),
-      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
-      expect(next.store.account(started.account.accountId)?.status).toBe('failed');
-      expect([...next.credentials.records.keys()].join()).not.toContain(started.account.accountId);
-    } finally {
-      next.owner.close();
     }
   });
 
@@ -381,7 +336,7 @@ describe('remote MCP App connections', () => {
     }
   });
 
-  it('keeps a newer sign-in and a Read token when a refresh races or widens', async () => {
+  it('keeps a newer sign-in when a refresh races, and records the access a refresh grants', async () => {
     let release: (() => void) | undefined;
     let scope: string | undefined;
     const { client } = fakeMcp({
@@ -390,6 +345,7 @@ describe('remote MCP App connections', () => {
         token_type: 'Bearer',
         refresh_token: `refresh-${input.code}`,
         expires_in: 60,
+        scope: 'openid insight:read',
       }),
       refresh: async () => {
         await new Promise<void>((resolve) => {
@@ -407,29 +363,28 @@ describe('remote MCP App connections', () => {
     try {
       const started = await service.connect({ service: 'mcp_posthog' });
       const { accountId } = await service.remote.finish(
-        new URLSearchParams({ state: stateOf(started.url!), code: 'w' }),
+        new URLSearchParams({ state: stateOf(started.url!), code: 'a' }),
       );
       const racing = service.remote.connection(accountId);
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const narrowed = await service.reconnect(accountId, 'read');
-      await service.remote.finish(
-        new URLSearchParams({ state: stateOf(narrowed.url!), code: 'r' }),
-      );
+      const again = await service.reconnect(accountId);
+      await service.remote.finish(new URLSearchParams({ state: stateOf(again.url!), code: 'b' }));
       release!();
-      expect((await racing)?.headers['Authorization']).toBe('Bearer access-r');
+      expect((await racing)?.headers['Authorization']).toBe('Bearer access-b');
+      expect(store.account(accountId)?.access).toBe('read');
 
       scope = 'openid insight:read insight:write';
       const widening = service.remote.connection(accountId);
       await new Promise((resolve) => setTimeout(resolve, 0));
       release!();
-      expect(await widening).toBeUndefined();
-      expect(store.account(accountId)?.status).toBe('expired');
+      expect((await widening)?.headers['Authorization']).toBe('Bearer access-refreshed');
+      expect(store.account(accountId)).toMatchObject({ status: 'active', access: 'write' });
     } finally {
       owner.close();
     }
   });
 
-  it('keeps a Read grant on an account signed in before Read-only sign-in existed', async () => {
+  it('keeps a Read grant on an account signed in before Tobs recorded granted access', async () => {
     const { client } = fakeMcp();
     const { owner, store, service } = setup(client);
     try {
@@ -540,21 +495,14 @@ describe('remote MCP App connections', () => {
           },
         );
       await run('connector-mcp-search', ['analytics'], { cursor: 'p2' });
-      await run('connector-mcp-add', [POSTHOG], { name: 'PostHog', label: 'Work', access: 'read' });
+      await run('connector-mcp-add', [POSTHOG], { name: 'PostHog', label: 'Work' });
       await run('connector-mcp-finish', ['http://localhost/cb?state=s&code=c']);
-      await run('connector-connect', ['mcp_posthog'], { access: 'write' });
-      await run('connector-reconnect', ['acc-1'], { access: 'read' });
       expect(sent).toEqual([
         ['connectorMcpSearch', { query: 'analytics', cursor: 'p2' }],
-        ['connectorMcpAdd', { url: POSTHOG, name: 'PostHog', label: 'Work', access: 'read' }],
+        ['connectorMcpAdd', { url: POSTHOG, name: 'PostHog', label: 'Work' }],
         ['connectorMcpFinish', { url: 'http://localhost/cb?state=s&code=c' }],
-        ['connectorConnect', { service: 'mcp_posthog', access: 'write' }],
-        ['connectorReconnect', { accountId: 'acc-1', access: 'read' }],
       ]);
       await expect(run('connector-mcp-add', [])).rejects.toMatchObject({ code: 'usage' });
-      await expect(run('connector-mcp-add', [POSTHOG], { access: 'none' })).rejects.toMatchObject({
-        code: 'usage',
-      });
     } finally {
       owner.close();
     }
@@ -593,19 +541,15 @@ describe('remote MCP tool policy', () => {
     expect(remoteMcpToolDenial('mcp__composio__X', servers)).toBeUndefined();
   });
 
-  it('keeps only read and sign-in scopes for a read-only sign-in', () => {
-    expect(readOnlyScope(OAUTH.scope)).toBe('openid profile insight:read annotation:read');
-    expect(readOnlyScope('read write')).toBe('read');
-    expect(readOnlyScope('read:user write:org repo')).toBe('read:user');
-    expect(
-      readOnlyScope(
-        'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
-      ),
-    ).toBe('https://www.googleapis.com/auth/gmail.readonly');
-    expect(readOnlyScope('projects:read_write offline_access')).toBeUndefined();
-    expect(readOnlyScope('repo user')).toBeUndefined();
-    expect(readOnlyScope('openid profile')).toBeUndefined();
-    expect(readOnlyScope(undefined)).toBeUndefined();
+  it('reads Read only when every granted scope is a read scope', () => {
+    expect(grantedAccess('openid profile insight:read annotation:read introspection')).toBe('read');
+    expect(grantedAccess(OAUTH.scope)).toBe('write');
+    expect(grantedAccess('read:user')).toBe('read');
+    expect(grantedAccess('https://www.googleapis.com/auth/gmail.readonly')).toBe('read');
+    expect(grantedAccess('projects:read_write offline_access')).toBe('write');
+    expect(grantedAccess('repo user')).toBe('write');
+    expect(grantedAccess('openid profile')).toBe('write');
+    expect(grantedAccess(undefined)).toBe('write');
   });
 
   it('fetches registry icons only from public addresses, and no more than the size limit', async () => {

@@ -1480,13 +1480,12 @@ Many services publish a remote MCP server that you connect by signing in, with n
 
 ```bash
 deepseekbot connector-mcp-search posthog
-deepseekbot connector-connect mcp_posthog --label "Team PostHog" --access read
-deepseekbot connector-reconnect <account-id> --access write
+deepseekbot connector-connect mcp_posthog --label "Team PostHog"
 deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label Work
 deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
 ```
 
-`connector-connect` takes a `service` from the search, and `connector-mcp-add` takes any https address. Both print a sign-in link when the server needs one. If the browser that signs in cannot reach the Host, copy the address the sign-in page finally opened and pass it to `connector-mcp-finish`. `--access read` signs in read-only: the Host asks the server only for its read scopes (such as `insight:read`, plus `openid`, `profile`, `email` and `offline_access`), so the server itself refuses changes. `--access write`, the default, asks for every scope the server offers. A server that does not separate read and write scopes, or needs no sign-in, cannot be limited to read and is refused with `connector-read-only-unsupported`; so is a sign-in where the server grants a write scope anyway. `connector-reconnect --access` changes it with a new sign-in. A Bot granted the account gets all its `mcp__app_<service>__` tools, and the account's sign-in decides what they may do; the Host does not filter MCP tools by read or write, so the `--access` of `connector-grant` only says whether the Bot may use the account. An account signed in before Read-only sign-in existed keeps each Bot's grant: a `read` grant refuses its tools until the Owner signs it in again with `--access read`.
+`connector-connect` takes a `service` from the search, and `connector-mcp-add` takes any https address. Both print a sign-in link when the server needs one. If the browser that signs in cannot reach the Host, copy the address the sign-in page finally opened and pass it to `connector-mcp-finish`. The Host asks for every scope the server offers, and you choose what to allow on the service's own consent page. The Host then records what the server actually granted and shows the account as Read when every granted scope is a read scope (such as `insight:read`; `openid`, `profile`, `email`, `offline_access` and `introspection` do not count), and as Read and write otherwise. To change it, sign in again with `connector-reconnect`. A Bot granted the account gets all its `mcp__app_<service>__` tools, and the server enforces what they may do; the Host does not filter MCP tools by read or write, so the `--access` of `connector-grant` only says whether the Bot may use the account. An account signed in before the Host recorded granted access keeps each Bot's grant: a `read` grant refuses its tools until the Owner signs it in again.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 

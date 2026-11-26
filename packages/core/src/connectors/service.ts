@@ -71,8 +71,6 @@ interface Config {
 }
 
 const CONFIG_KEY = credentialKey('botharness-connectors', 'composio');
-const COMPOSIO_ACCESS =
-  'Composio accounts are signed in with full access; choose Read or Read and write for each Bot instead.';
 const LABEL = /^[\p{L}\p{N}][\p{L}\p{N} ._@+-]{0,63}$/u;
 const SLUG = /^[a-z0-9][a-z0-9_]{0,63}$/;
 
@@ -361,11 +359,9 @@ export class ConnectorService {
   async connect(input: {
     service: string;
     label?: string;
-    access?: ConnectorAccess;
   }): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     const service = input.service.trim().toLowerCase();
-    if (service.startsWith('mcp_')) return this.remote.connect(service, input.label, input.access);
-    if (input.access !== undefined) throw new ConnectorError('invalid', COMPOSIO_ACCESS);
+    if (service.startsWith('mcp_')) return this.remote.connect(service, input.label);
     if (!SLUG.test(service)) throw new ConnectorError('invalid', 'The service name is invalid.');
     const label = (input.label ?? defaultLabel(this.appName(service))).trim();
     if (!LABEL.test(label)) throw new ConnectorError('invalid', 'The account label is invalid.');
@@ -389,15 +385,11 @@ export class ConnectorService {
     return { account, url: link.url };
   }
 
-  async reconnect(
-    accountId: string,
-    access?: ConnectorAccess,
-  ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
+  async reconnect(accountId: string): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     const current = this.#store.account(accountId);
     if (current === undefined)
       throw new ConnectorError('not-found', 'The App connection does not exist.');
-    if (current.provider === 'mcp') return this.remote.reconnect(accountId, access);
-    if (access !== undefined) throw new ConnectorError('invalid', COMPOSIO_ACCESS);
+    if (current.provider === 'mcp') return this.remote.reconnect(accountId);
     const config = await this.#requireConfig();
     await this.#upstream(() => this.#client.removeAccount(config.apiKey, current.externalId));
     const link = await this.#upstream(() =>
