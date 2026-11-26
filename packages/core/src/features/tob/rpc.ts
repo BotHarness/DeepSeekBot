@@ -49,6 +49,19 @@ export function botToolRun(
 }
 
 export const tobRpcMethods = {
+  managementGrants(slug?: string) {
+    return unwrap(this.methods.managementGrants(slug === undefined ? {} : { slug }));
+  },
+
+  managementGrantSet(
+    slug: string,
+    capability: 'manage-app' | 'manage-bots',
+    enabled: boolean,
+    confirm: boolean,
+  ) {
+    return unwrap(this.methods.managementGrantSet({ slug, capability, enabled, confirm }));
+  },
+
   tobHome() {
     return tobHome(this.methods);
   },

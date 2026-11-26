@@ -98,7 +98,16 @@ export interface TelemetryEventSpec {
   properties: Readonly<Record<string, TelemetryPropertySpec>>;
 }
 
-const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
+const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'import', 'start'] as const;
+const IMPORT_SOURCES = [
+  'claude-code',
+  'codex',
+  'claude',
+  'chatgpt',
+  'grok',
+  'cursor',
+  'other',
+] as const;
 const INTRO_PERSONAS = ['engineer', 'creator', 'operator', 'learner'] as const;
 const INTRO_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
 const INTRO_PERSONA_DETAILS = [
@@ -317,6 +326,17 @@ export const TELEMETRY_EVENTS = {
     description: 'A PersonaBot was created (blank, Git, Zip or Marketplace).',
     properties: {},
   },
+  'bot_library:sessions_import': {
+    origin: 'host',
+    description:
+      'A PersonaBot was created from existing sessions; says which products the sessions came from.',
+    properties: {
+      has_deepseek: 'boolean',
+      has_claude_code: 'boolean',
+      has_codex: 'boolean',
+      added_workspace: 'boolean',
+    },
+  },
   'bot_library:bot_archive': {
     origin: 'host',
     description: 'A PersonaBot was paused (archived).',
@@ -391,7 +411,16 @@ export const TELEMETRY_EVENTS = {
     origin: 'client',
     description: 'The intro finished with a chosen starter.',
     properties: {
-      starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own', 'persona', 'interview'],
+      starter: [
+        'botPrompt',
+        'firstRequest',
+        'exampleRequest',
+        'own',
+        'persona',
+        'interview',
+        'import',
+      ],
+      product: ['deepseek', 'claude-code', 'codex'],
       persona: INTRO_PERSONAS,
       feature: INTRO_FEATURES,
       is_engineer: 'boolean',
@@ -401,6 +430,12 @@ export const TELEMETRY_EVENTS = {
       has_detail: 'boolean',
       ...SURFACE,
     },
+  },
+  'onboarding:import_source_select': {
+    origin: 'client',
+    description:
+      'An AI tool the Human has used before was picked on the intro import step; detected says whether its sessions were found on this computer.',
+    properties: { source: IMPORT_SOURCES, detected: 'boolean', ...SURFACE },
   },
   'onboarding:persona_select': {
     origin: 'client',

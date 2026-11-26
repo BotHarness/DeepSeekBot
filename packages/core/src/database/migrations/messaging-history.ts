@@ -350,3 +350,46 @@ export const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+const managementNoticeOf = (payload: string) =>
+  `CASE WHEN json_valid(${payload}) THEN coalesce(json_type(${payload}, '$.managementGrant') = 'object' OR ${noticeOf(payload)}, 0) ELSE 0 END`;
+
+export const BOT_MANAGEMENT_GRANTS_MIGRATION: SchemaMigration = {
+  id: 'bot-management-grants',
+  module: 'tob',
+  description: 'Persist App management grants per Bot and give the built-in Tob both',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_management_grants (
+        bot_slug TEXT NOT NULL REFERENCES persona_bots(slug) ON DELETE CASCADE,
+        capability TEXT NOT NULL CHECK (capability IN ('manage-app', 'manage-bots')),
+        granted_at TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, capability)
+      ) STRICT, WITHOUT ROWID;
+      CREATE INDEX source_events_management_grant
+        ON source_events (channel_id)
+        WHERE source_kind = 'system-message' AND json_type(payload_json, '$.managementGrant') IS NOT NULL;
+      DROP TRIGGER channel_placements_notice_insert;
+      DROP TRIGGER channel_placements_notice_update;
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT ${managementNoticeOf('payload_json')} FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = ${managementNoticeOf('NEW.payload_json')}
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+      INSERT INTO bot_management_grants (bot_slug, capability, granted_at)
+        SELECT t.bot_slug, c.capability, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        FROM tob_identity t
+        JOIN team_settings s ON s.owner_human_id = t.human_id
+        JOIN persona_bots b ON b.slug = t.bot_slug
+        CROSS JOIN (SELECT 'manage-app' AS capability UNION ALL SELECT 'manage-bots') c;
+    `);
+  },
+};

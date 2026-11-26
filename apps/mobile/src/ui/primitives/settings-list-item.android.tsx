@@ -24,6 +24,7 @@ import { settingsColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator, space } from '../design/tokens';
 import { ROW_ICON_SOURCES } from './row-icon-source.android';
+import { useSheetGroupFill } from './sheet-group-fill';
 import {
   settingsRowLabel,
   valueBelowTitle,
@@ -88,7 +89,8 @@ export function SettingsListItem(props: SettingsRowProps) {
   const theme = useDesignTheme();
   const oneLine = singleLine && !theme.largeText;
   const colors = settingsColors(theme, on);
-  const fill = selected === true ? colors.selected : theme.layer[on].fill;
+  const group = useSheetGroupFill(on);
+  const fill = selected === true ? colors.selected : group.fill;
   const control: SettingsRowControl | undefined =
     props.control ?? (disclosure && trailing === undefined ? { kind: 'chevron' } : undefined);
   const below = valueBelowTitle(control, theme.fontScale > 1) ? control : undefined;

@@ -340,6 +340,73 @@ describe('bot sidebar rows', () => {
     expect(profileAction).toHaveBeenCalledOnce();
   });
 
+  it('offers Rename on a Group only when the viewer may edit its details', async () => {
+    const channelGet = (role: string) => ({
+      ok: true as const,
+      value: {
+        channel: { id: 'g1', type: 'group', name: 'Lobby', members: [] },
+        role,
+        policy: { editDetails: 'admins' },
+      },
+    });
+    const viewer = {
+      kind: 'member' as const,
+      humanId: 'alice',
+      displayName: 'Alice',
+      owner: false,
+      mustChangePassword: false,
+      roleIds: [],
+      permissions: [],
+      models: { all: true as const },
+    };
+    const teamMode = {
+      ok: true as const,
+      value: {
+        enabled: true,
+        activeMembers: 2,
+        ownerPasswordSet: true,
+        insecureHttpAllowed: false,
+        memberUrls: [],
+        isolation: 'trial',
+        viewer,
+      },
+    };
+    const renameIds = async (role: string) => {
+      const call = vi.fn(async (method: string) =>
+        method === 'teamMode' ? teamMode : channelGet(role),
+      );
+      isolateTeamIdentity(call);
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(ChannelMoveMenu, {
+              menu: { channelId: 'g1', x: 0, y: 0 },
+              sections: [],
+              currentSectionId: undefined,
+              t: zhTranslate,
+              groupDetailsCall: call,
+              onRename: vi.fn(),
+              onPick: vi.fn(),
+              onClose: vi.fn(),
+            }),
+          ),
+        );
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        return captured.menus.at(-1)!.items.map((item) => item.id);
+      } finally {
+        await act(() => root.unmount());
+        host.remove();
+      }
+    };
+    expect(await renameIds('member')).not.toContain('rename');
+    expect(await renameIds('admin')).toContain('rename');
+  });
+
   it('opens the shared model picker from a Bot DM row', async () => {
     const actions = stubActions();
     const route = { provider: 'deepseek', model: 'flash' };

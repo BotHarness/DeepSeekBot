@@ -4,6 +4,7 @@
     "channelAllBotPreview": "UI-only: Web composer preview of who an @all mention would wake",
     "channelReadPosition": "UI-only: Web unread divider position for one viewer",
     "composerIdentity": "UI-only: names the identity the Web composer shows; send already posts as the Host owner",
+    "connectorLogos": "UI-only: the Host fetches public App connection logos so the Web Client can show them without loading third-party images; connector-search lists the same apps by name",
     "composerValidate": "UI-only: pre-send check for the Web composer's attachments and reply target; send runs the same Host checks",
     "messageAttachmentTarget": "UI-only: resolves a local file path so the Web UI can open or reveal an attachment in the OS",
     "workspaceFileTarget": "UI-only: resolves a Workspace folder path so the Web UI can open it in the OS; grants lists the paths"
@@ -16,8 +17,6 @@
     "call_frame": "Returns a call keyframe to the calling model as image input; deepseekbot call-frame reads the same original from the Host call owner.",
     "channel_read_image": "Returns the image to the calling model as input; with no model there is nothing to receive it. channel_read and channel_attachment_save cover the file.",
     "list_subagent_models": "Reads the delegation routes of the calling Agent's Subagent tools and is registered only on a running Agent.",
-    "memory_continue_from_commit": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",
-    "memory_switch_branch": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",
     "report_to_orchestrator": "Assignment-turn tool whose report identity is the running Assignment Turn.",
     "secret_mcp_disconnect": "Stops MCP servers attached to the calling Agent; bound to a running Agent.",
     "subagent": "DSH native Subagent spawned from the calling Agent; there is no parent Agent outside a Bot turn.",

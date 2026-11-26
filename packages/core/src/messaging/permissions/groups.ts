@@ -4,9 +4,11 @@ import { z } from 'zod';
 import type { PairingCapability, PairingRequest } from '../pairing.js';
 import type { ExternalUserRole } from './senders.js';
 import { platformPeople } from './people.js';
+import { resolveGrants } from '../../authorization/grants.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
+import { ownerActor, readSenderBlock } from './sender-blocks.js';
 import {
   behaviorPermissions,
   resolveBehaviorPermissions,
@@ -253,6 +255,7 @@ export function effectivePairingPermissions(
   botSlug: string,
   bindingId: string,
   actorId: string,
+  options: { includeBlocked?: boolean } = {},
 ): EffectivePermissions {
   const empty: EffectivePermissions = {
     capabilities: [],
@@ -264,7 +267,10 @@ export function effectivePairingPermissions(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    !platformPeople(binding.platform)
+    !platformPeople(binding.platform) ||
+    (!options.includeBlocked &&
+      readSenderBlock(db, botSlug, binding.fingerprint, actorId) &&
+      !ownerActor(db, botSlug, binding.fingerprint, actorId))
   )
     return empty;
   const pairings = (
@@ -283,6 +289,7 @@ export function effectivePairingPermissions(
       revision: p.revision,
       allow: p.capabilities,
       deny: [],
+      delegateAllow: p.delegableCapabilities ?? [],
     }));
   const person = platformPeople(binding.platform)?.roles
     ? pairings.find((p) => p.purpose === 'conversation')
@@ -332,20 +339,13 @@ export function effectivePairingPermissions(
         });
     }
   }
-  const deniedCapabilities = [...new Set(permissionSources.flatMap((source) => source.deny))];
-  const deniedDelegableCapabilities = [
-    ...new Set(permissionSources.flatMap((source) => source.delegateDeny ?? [])),
-  ];
+  const resolved = resolveGrants<PairingCapability, PermissionSource>(permissionSources);
   return {
     ...(currentBehavior.length ? { behaviorPermissions: currentBehavior } : {}),
-    capabilities: [...new Set(permissionSources.flatMap((source) => source.allow))].filter(
-      (cap) => !deniedCapabilities.includes(cap),
-    ),
-    deniedCapabilities,
-    delegableCapabilities: [
-      ...new Set(permissionSources.flatMap((source) => source.delegateAllow ?? [])),
-    ].filter((cap) => !deniedDelegableCapabilities.includes(cap)),
-    deniedDelegableCapabilities,
+    capabilities: resolved.granted,
+    deniedCapabilities: resolved.denied,
+    delegableCapabilities: resolved.delegable,
+    deniedDelegableCapabilities: resolved.deniedDelegable,
     permissionSources,
   };
 }

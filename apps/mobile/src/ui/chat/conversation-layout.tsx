@@ -14,6 +14,8 @@ import { backgroundImageUri } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
 import { MAX_PICKED, fromClipboardImage } from '../../host/pick-files';
 import { ConversationTopBar } from './conversation-top-bar';
+import type { HistoryChrome } from './history-chrome-context';
+import type { useOverlaySettle } from '../primitives/composer-drop';
 import { ChatBackdrop } from './chat-backdrop';
 import {
   ChatTimelineFrame,
@@ -70,6 +72,8 @@ import { RequestCard } from './conversation-request-card';
 
 export function renderConversation({
   focused,
+  islandFloor,
+  overlaySettle,
   presentation,
   t,
   theme,
@@ -112,7 +116,11 @@ export function renderConversation({
   profile,
   header,
   notice,
+  history,
 }: {
+  islandFloor: number;
+  overlaySettle: ReturnType<typeof useOverlaySettle>;
+  history: HistoryChrome;
   focused: boolean;
   presentation: ConversationPresentation | undefined;
   t: ReturnType<typeof useStrings>;
@@ -260,6 +268,7 @@ export function renderConversation({
     connectionLabel,
     missing,
     missingGroup,
+    groupGone,
     backToChats,
     profileTravel,
     canGoBack,
@@ -323,6 +332,7 @@ export function renderConversation({
                   ...chatStackOptions(theme.color.base),
                   ...(ios
                     ? {
+                        headerShown: !history.hiddenNow,
                         title: '',
                         headerTitle: glassHeader ? () => nativeHeaderRow : '',
                         headerBackVisible: canGoBack && !headerIslands && !glassHeader,
@@ -549,11 +559,13 @@ export function renderConversation({
                         paddingBottom: insets.bottom,
                       }}
                     >
-                      <GroupUnavailable onBack={backToChats} />
+                      <GroupUnavailable onBack={backToChats} reason={groupGone} />
                     </View>
                   ) : (
                     renderConversationTimeline({
                       t,
+                      islandFloor,
+                      overlaySettle,
                       paging,
                       focus,
                       focusRequest,
@@ -575,6 +587,7 @@ export function renderConversation({
                       focusJump,
                       rowRendering,
                       profile,
+                      history,
                     })
                   )}
                 </ChatTimelineFrame>

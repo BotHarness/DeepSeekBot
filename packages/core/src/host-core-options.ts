@@ -111,6 +111,7 @@ export function createHostCoreOptions(
     erasePrivateAccounts: async (slug) => {
       await deps.privateInputs?.mcpServers?.erase(slug);
       await deps.privateInputs?.eraseBot(slug);
+      await deps.core.connectors?.eraseBot(slug);
     },
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),

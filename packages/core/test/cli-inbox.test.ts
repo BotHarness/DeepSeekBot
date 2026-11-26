@@ -129,6 +129,35 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
   });
 
+  it('pages the Session list with --limit and --cursor', async () => {
+    const live = await host(echo);
+    const argv = ['session-list', '--limit', '50', '--cursor', '[10,20,"s-1"]'];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: { limit: 50, cursor: '[10,20,"s-1"]' } },
+    ]);
+    for (const limit of ['0', '201', '2.5'])
+      expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
+  });
+
+  it('reads the Session change cursor, then the changes since it', async () => {
+    const live = await host(echo);
+    expect((await invoke(['session-list-changes'], live.url)).code).toBe(0);
+    expect(
+      (await invoke(['session-list-changes', '--since', '12', '--epoch', 'e1'], live.url)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionListChanges', args: {} },
+      { method: 'sessionListChanges', args: { sinceSeq: 12, epoch: 'e1' } },
+    ]);
+    for (const argv of [
+      ['session-list-changes', '--since', '-1'],
+      ['session-list-changes', '--since', 'x'],
+      ['session-list-changes', '--epoch', 'e1'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -557,6 +586,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       method: 'sessionModel',
       args: { choice: null },
     });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
+    });
   });
 
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {
@@ -762,15 +795,41 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('adds Shell prefix rules through the existing approval decision RPC', async () => {
+    const live = await host((method, args) => {
+      if (method === 'toolApprovalDecide') return { ok: true, value: { accepted: true } };
+      return echo(method, args);
+    });
+    const argv = ['approval-rule-add', 'dm-ada', '--message-id', 'card'];
+    expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    const result = await invoke(
+      [...argv, '--prefix', 'git status *', '--prefix', 'git log *'],
+      live.url,
+    );
+    expect(result.json).toEqual({ accepted: true });
+    expect(live.calls).toEqual([
+      {
+        method: 'toolApprovalDecide',
+        args: {
+          channelId: 'dm-ada',
+          messageId: 'card',
+          outcome: 'allowed-always-prefix',
+          rule: { kind: 'prefix', patterns: ['git status *', 'git log *'] },
+        },
+      },
+    ]);
+    expect(cliEffects(argv)).toMatchObject({ authority: 'management' });
+  });
+
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
     const rule = {
       id: 'r1',
       botSlug: 'ada',
       role: 'orchestrator',
       scopeKey: 'host',
-      kind: 'exact',
+      kind: 'prefix',
       toolName: 'bash',
-      input: 'pwd',
+      input: 'git status *',
       createdAt: '2026-11-20T00:00:00Z',
       autoApprovedCount: 0,
     };

@@ -24,7 +24,7 @@ import { radius, space } from '../design/tokens';
 import { confirmAppDialog } from '../primitives/app-dialog';
 import { Button } from '../primitives/button';
 import { Chip } from '../primitives/chip';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { SearchField } from '../primitives/search-field';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { SystemSymbol } from '../primitives/system-symbol';
@@ -278,9 +278,7 @@ export function VoiceCatalogList({
   };
   return (
     <View ref={mount} testID={testID} style={{ flexShrink: 1 }}>
-      <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-        <DrawerHeader title={title} onBack={onBack} />
-      </View>
+      <SheetHeader title={title} onBack={onBack} />
       <SearchField
         testID={`${testID}-search`}
         value={search}

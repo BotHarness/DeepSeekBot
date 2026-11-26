@@ -485,7 +485,6 @@ export function createBotRuntimeFeatures(
     speakerInput: (...args) => orchestratorServices.speakerInput(...args),
     steerSettlements,
     team,
-    tob,
     tobCliRequests,
     turnSources,
     warn,
@@ -509,7 +508,6 @@ export function createBotRuntimeFeatures(
     requireMembership,
     stoppedTurns,
     team,
-    tob,
     turnSources,
     warn,
   });
@@ -539,7 +537,6 @@ export function createBotRuntimeFeatures(
     requireMembership,
     requireTurnAccess,
     team,
-    tob,
     turnSources,
     voiceMessages,
   });
@@ -859,6 +856,7 @@ export function createBotRuntimeFeatures(
     database,
     externalMessaging,
     grants,
+    workspaceSessions: options.workspaceSessions,
     inboxHistory,
     inboxTriage,
     memory,
@@ -868,7 +866,6 @@ export function createBotRuntimeFeatures(
     schedules,
     sourcePolicy,
     team,
-    tob,
   });
   const turnFailures = createTurnFailures({
     channels,

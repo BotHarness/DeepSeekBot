@@ -82,6 +82,8 @@ export const CLI_EFFECTS = {
   'bot-appearance-set': { effects: write, brokerRead: false },
   'bot-access': { effects: management, brokerRead: true },
   'bot-attention': { effects: read, brokerRead: true },
+  'bot-grant': { effects: management, brokerRead: false },
+  'bot-grants': { effects: read, brokerRead: true },
   'bot-avatar-set': { effects: write, brokerRead: false },
   'bot-banner-set': { effects: write, brokerRead: false },
   'bot-compact': { effects: write, brokerRead: false },
@@ -100,6 +102,7 @@ export const CLI_EFFECTS = {
   loadouts: { effects: read, brokerRead: true },
   'bot-new-session': { effects: write, brokerRead: false },
   'bot-primary-color-set': { effects: write, brokerRead: false },
+  'bot-connectors': { effects: read, brokerRead: true },
   'bot-prompt': { effects: read, brokerRead: true },
   'bot-prompt-set': { effects: write, brokerRead: false },
   'bot-session-usage': { effects: read, brokerRead: true },
@@ -206,6 +209,7 @@ export const CLI_EFFECTS = {
   'computer-open-permission-settings': { effects: write, brokerRead: false },
   'computer-start': { effects: write, brokerRead: false },
   'computer-status': { effects: read, brokerRead: true },
+  'computer-unlock-status': { effects: read, brokerRead: true },
   'computer-stop': { effects: write, brokerRead: false },
   'computer-takeover': { effects: write, brokerRead: false },
   'computer-tool': { effects: opaque, brokerRead: false },
@@ -225,6 +229,18 @@ export const CLI_EFFECTS = {
   'connection-clients': { effects: read, brokerRead: true },
   'connection-host': { effects: write, brokerRead: false },
   'connection-hosts': { effects: write, brokerRead: false },
+  'connector-connect': { effects: externalManagement, brokerRead: false },
+  'connector-grant': { effects: management, brokerRead: false },
+  'connector-key-clear': { effects: destructiveSecretManagement, brokerRead: false },
+  'connector-key-set': { effects: externalSecretManagement, brokerRead: false },
+  'connector-reconnect': { effects: externalManagement, brokerRead: false },
+  'connector-refresh': { effects: externalWrite, brokerRead: false },
+  'connector-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-add': { effects: externalManagement, brokerRead: false },
+  'connector-mcp-finish': { effects: externalSecretManagement, brokerRead: false },
+  'connector-remove': { effects: externalIrreversibleManagement, brokerRead: false },
+  connectors: { effects: read, brokerRead: true },
   create: { effects: external, brokerRead: false },
   'create-status': { effects: read, brokerRead: false },
   'data-reset-confirm': { effects: destructive, brokerRead: false },
@@ -501,6 +517,8 @@ export const CLI_EFFECTS = {
   'session-progress': { effects: read, brokerRead: true },
   'session-model': { effects: write, brokerRead: false },
   'session-list': { effects: read, brokerRead: true },
+  'session-list-changes': { effects: read, brokerRead: true },
+  'session-import-list': { effects: read, brokerRead: false },
   'session-create': { effects: destructive, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
   'session-live': { effects: read, brokerRead: true },
@@ -547,6 +565,7 @@ export const CLI_EFFECTS = {
   'todo-tools': { effects: read, brokerRead: true },
   'todo-update': { effects: write, brokerRead: false },
   todos: { effects: read, brokerRead: true },
+  'approval-rule-add': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-decide': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-history': { effects: read, brokerRead: true },
   'tool-approval-rule-revoke': { effects: externalIrreversibleManagement, brokerRead: false },
@@ -652,7 +671,7 @@ function familyEffects(
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':
-      if (action === undefined || ['get', 'roles', 'member-candidates'].includes(action))
+      if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
       if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))

@@ -2,7 +2,13 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
-import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-channel';
+import {
+  canDisbandGroup,
+  groupActions,
+  groupInfo,
+  loadGroupAssignments,
+} from '../../host/group-channel';
+import { readGroupDetailsEditable } from '@botharness/host-client/group-details';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { followConnection } from '../../host/follow-connection';
@@ -74,13 +80,31 @@ export function GroupProfileScreen({
       unfollow();
     };
   }, [sourceChanged, client, id, scope]);
+  const owner = canDisbandGroup(saved);
+  const [details, setDetails] = useState<Scoped<boolean>>();
+  const [detailsRead, setDetailsRead] = useState(0);
+  const editDetails = owner || (details?.scope === scope && details.value);
+  const detailsMount = useMounted<ViewInstance>(() => {
+    let live = true;
+    if (owner || sourceChanged || client === undefined || id === undefined) return;
+    const unfollow = followConnection(client, () =>
+      readGroupDetailsEditable(client, id).then((value) => {
+        if (live) setDetails({ scope, value });
+      }),
+    );
+    return () => {
+      live = false;
+      unfollow();
+    };
+  }, [owner, sourceChanged, client, id, scope, detailsRead]);
   const humanMount = human.mount;
   const profileMount = useCallback(
     (node: ViewInstance | null) => {
       nicknameMount(node);
       humanMount(node);
+      detailsMount(node);
     },
-    [nicknameMount, humanMount],
+    [nicknameMount, humanMount, detailsMount],
   );
   const loadWork = useCallback(
     () =>
@@ -131,7 +155,9 @@ export function GroupProfileScreen({
             params: { slug, hostId: saved?.hostId },
           })
         }
-        onDisbanded={() => router.dismissAll()}
+        editDetails={editDetails}
+        onDetailsRefused={() => setDetailsRead((count) => count + 1)}
+        {...(owner ? { onDisbanded: () => router.dismissAll() } : {})}
         {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
         onOpenAssignment={(assignment) => {
           if (assignment.botSlug === undefined) return;

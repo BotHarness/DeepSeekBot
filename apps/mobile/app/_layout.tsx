@@ -37,6 +37,7 @@ import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { WindowSafeAreaProvider } from '../src/ui/shell/window-insets';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -94,6 +95,8 @@ function RootNavigator() {
     ['model-preset', undefined],
     ['routing-group', undefined],
     ['prompts', t.prompts.title],
+    ['im-apps', t.imApps.title],
+    ['im-app', t.imApps.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
@@ -124,7 +127,7 @@ function RootNavigator() {
               </SafeAreaView>
             ) : null}
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
-              <SafeAreaProvider>
+              <WindowSafeAreaProvider>
                 <Stack
                   screenOptions={{
                     orientation: 'portrait',
@@ -327,7 +330,7 @@ function RootNavigator() {
                     }}
                   />
                 </Stack>
-              </SafeAreaProvider>
+              </WindowSafeAreaProvider>
             </View>
             <CallSessionHost />
             <BotCreationNotice />

@@ -1,3 +1,4 @@
+import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { defaultSpaceMemoryPath } from '../../workspaces/space-memory.js';
@@ -465,6 +466,15 @@ export function createRuntime(
     orchestratorCwd,
   } = deps;
   return createBotRuntime({
+    ...(options.nativeSessions === undefined
+      ? {}
+      : {
+          workspaceSessions: createWorkspaceSessionReader(
+            options.nativeSessions,
+            ownership,
+            options.externalSessions,
+          ),
+        }),
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     inheritedModelPlan: () => {
@@ -650,9 +660,7 @@ export function createHostAgentAdapter(
     onOrchestratorFileSetup: tobFeature.createOrchestratorFileSetup(ctx, deps),
     onAssignmentShellSetup: tobFeature.createAssignmentShellSetup(ctx, deps),
     assignmentReportFooter: (sessionId) =>
-      deps.core.tob.isTob(deps.core.ownership.resolve(sessionId)?.botSlug ?? '')
-        ? deps.tobOperations.tobMemoryLeases.reportFooter(sessionId)
-        : undefined,
+      deps.tobOperations.tobMemoryLeases.reportFooter(sessionId),
     authorizeBorrow: (agent, role) => {
       const denial = borrowedAgentDenial(deps.core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);

@@ -74,7 +74,7 @@ export const INBOX_COMMANDS = [
   {
     command: 'session-model',
     description:
-      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice',
+      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice; without --session, show a new Session’s default',
   },
   {
     command: 'session-transcript',
@@ -94,7 +94,18 @@ export const INBOX_COMMANDS = [
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   {
     command: 'session-list',
-    description: 'list accessible root Sessions (--search, --sort, --source, --include-archived)',
+    description:
+      'list accessible root Sessions (--search, --sort, --source, --include-archived; --limit and --cursor page it)',
+  },
+  {
+    command: 'session-import-list',
+    description:
+      'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
+  },
+  {
+    command: 'session-list-changes',
+    description:
+      'list the root Sessions that changed since a change cursor (--since <seq> --epoch <e>), or the current cursor',
   },
   {
     command: 'session-create',
@@ -156,6 +167,8 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  since?: string;
+  epoch?: string;
   set?: string;
   notifications?: boolean;
   category?: string;
@@ -582,7 +595,12 @@ function prepare(
         Math.min(rest.length, 1),
         'at most one bot id',
       );
-      const sessionId = required(values.session, 'session', command);
+      const sessionId = values.session;
+      if (sessionId === undefined) {
+        if (slug === null || values.set !== undefined || values.clear === true)
+          usage('session-model needs --session, except to read a Bot’s default for a new Session.');
+        return { method: 'sessionModel', args: { slug } };
+      }
       if (values.set !== undefined && values.clear === true)
         usage('session-model accepts one of --set and --clear.');
       if (values.clear === true)
@@ -599,6 +617,10 @@ function prepare(
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
+    case 'session-import-list': {
+      positionals(command, rest, 0, '');
+      return { method: 'externalSessions', args: {} };
+    }
     case 'session-list': {
       positionals(command, rest, 0, '');
       const { search, sort, source } = values;
@@ -606,9 +628,14 @@ function prepare(
         usage('session-list --sort must be last-human-turn, created, or last-activity.');
       if (source !== undefined && !isHostSessionFilter(source))
         usage('session-list --source must be all, native, or bot:<slug>.');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200))
+        usage('session-list --limit must be an integer from 1 to 200.');
       return {
         method: 'sessionList',
         args: {
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(search === undefined ? {} : { search }),
           ...(sort === undefined ? {} : { sort }),
           ...(source === undefined ? {} : { source }),
@@ -642,6 +669,21 @@ function prepare(
       return {
         method: 'sessionNativeArchive',
         args: { sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-list-changes': {
+      positionals(command, rest, 0, '');
+      const sinceSeq = values.since === undefined ? undefined : Number(values.since);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || sinceSeq < 0))
+        usage('session-list-changes --since must be a whole number of 0 or more.');
+      if (values.epoch !== undefined && sinceSeq === undefined)
+        usage('session-list-changes --epoch needs --since.');
+      return {
+        method: 'sessionListChanges',
+        args: {
+          ...(sinceSeq === undefined ? {} : { sinceSeq }),
+          ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
+        },
       };
     }
     case 'session-create': {

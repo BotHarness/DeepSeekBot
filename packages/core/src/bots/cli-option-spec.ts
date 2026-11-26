@@ -110,6 +110,7 @@ export const HOST_ADMIN_OPTIONS = {
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
+  delegable: { type: 'boolean' },
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },
@@ -236,6 +237,13 @@ export const PROMPT_PRESET_OPTIONS = {
   'parts-stdin': { type: 'boolean' },
   'prompt-limit': { type: 'string', multiple: true },
   'expected-revision': { type: 'string' },
+  confirm: { type: 'boolean' },
+} as const;
+
+export const CONNECTOR_OPTIONS = {
+  'key-stdin': { type: 'boolean' },
+  label: { type: 'string' },
+  access: { type: 'string' },
   confirm: { type: 'boolean' },
 } as const;
 
@@ -373,6 +381,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
+  ...CONNECTOR_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
   ...CALL_OPTIONS,
@@ -394,6 +403,7 @@ export const LIVE_OPTIONS = {
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
+  prefix: { type: 'string', multiple: true },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },
@@ -451,6 +461,8 @@ export const BOT_CLI_OPTIONS = {
   'from-zip': { type: 'string' },
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
+  'from-sessions': { type: 'string' },
+  'add-workspaces': { type: 'boolean' },
   'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },

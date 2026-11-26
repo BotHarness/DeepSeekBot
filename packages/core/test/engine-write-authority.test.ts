@@ -21,7 +21,7 @@ const WORKSPACE_WRITE = {
   excludeSlashTmp: true,
 };
 
-const READ_TOOLS = ['Read', 'Glob', 'Grep'];
+const READ_TOOLS = ['Read', 'Glob', 'Grep', 'Agent'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'];
 
 type Mode = 'read-only' | 'workspace-write' | 'danger-full-access';

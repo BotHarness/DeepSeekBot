@@ -8,7 +8,7 @@ import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useMemo, useSyncExternalStore } from 'react';
-import { refreshMemberPermissions } from './member-permissions';
+import { markMemberClient, refreshMemberPermissions } from './member-permissions';
 import { HostScope } from './host-scope';
 import { AppState, Platform } from 'react-native';
 import {
@@ -349,7 +349,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
-  if (saved.member !== undefined) clientSelves.set(client, saved.member.humanId);
+  if (saved.member !== undefined) {
+    clientSelves.set(client, saved.member.humanId);
+    markMemberClient(client);
+  }
   warmHostConversations(saved.hostId);
   const inbox = createInbox(client, {
     notifications: localAlerts,
@@ -420,7 +423,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           }
         })
         .catch(() => undefined);
-      if (saved.member !== undefined) void refreshMemberPermissions(client).catch(() => undefined);
+      void refreshMemberPermissions(client).catch(() => undefined);
       void pushSession.retryFailed(saved);
       void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(

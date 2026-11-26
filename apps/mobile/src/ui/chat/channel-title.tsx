@@ -45,6 +45,7 @@ export function ChannelTitle({
   const avatarSize = MARK * contentScale;
   const headerStatus = useHeaderStatus(undefined, channel, bots);
   const name = channel?.name ?? fallback;
+  const subtitle = connectionLabel ?? headerStatus.label;
   const members = channel === undefined || person ? undefined : t.members(channel.memberCount);
   const chip = (press: () => void) => (
     <HeaderTitleButton
@@ -94,19 +95,21 @@ export function ChannelTitle({
         >
           {name}
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          <HeaderBotStack bots={headerStatus.bots} size={theme.type.meta.line * contentScale} />
-          <Text
-            {...barLabelProps}
-            variant="meta"
-            tone="muted"
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            {connectionLabel ?? headerStatus.label}
-          </Text>
-        </View>
+        {subtitle === undefined && headerStatus.bots.length === 0 ? null : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+            <HeaderBotStack bots={headerStatus.bots} size={theme.type.meta.line * contentScale} />
+            <Text
+              {...barLabelProps}
+              variant="meta"
+              tone="muted"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={{ flex: 1, minWidth: 0 }}
+            >
+              {subtitle}
+            </Text>
+          </View>
+        )}
       </View>
       <ConnectionProgress active={connectionLabel !== undefined} />
     </HeaderTitleButton>

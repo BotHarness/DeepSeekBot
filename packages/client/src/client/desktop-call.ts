@@ -327,6 +327,7 @@ export type DesktopCallNoticeKey =
   | 'call.missing.mediaHelper'
   | 'call.missing.mediaUnavailable'
   | 'call.missing.localVoiceOff'
+  | 'call.missing.callsFull'
   | 'call.elsewhere'
   | 'call.unreachable'
   | 'call.connectOnly'
@@ -348,6 +349,7 @@ const NOTICE: Record<CallNotice, DesktopCallNoticeKey> = {
   'missing.media-helper-missing': 'call.missing.mediaHelper',
   'missing.media-unavailable': 'call.missing.mediaUnavailable',
   'missing.local-voice-off': 'call.missing.localVoiceOff',
+  'missing.calls-full': 'call.missing.callsFull',
   elsewhere: 'call.elsewhere',
   unreachable: 'call.unreachable',
   'connect-only': 'call.connectOnly',

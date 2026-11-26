@@ -57,7 +57,6 @@ import {
 import { Composer } from './composer';
 import { ConversationTopBar } from './conversation-top-bar';
 import {
-  SessionModelChip,
   SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
@@ -224,14 +223,15 @@ export function SessionDetailScreen() {
       });
     }, [inSessions, sessionId, hostId, openedOn, source, slug, title]),
   );
-  return client === undefined || !matchingHost || sessionId === undefined ? (
+  return client === undefined || saved == null || !matchingHost || sessionId === undefined ? (
     <SessionNotice title={title ?? t.title}>
       <SheetNote>{t.unavailable}</SheetNote>
     </SessionNotice>
   ) : (
     <SessionTarget
-      key={`${saved?.hostId}:${saved?.deviceId}:${source}:${slug}:${sessionId}`}
+      key={`${saved.hostId}:${saved.deviceId}:${source}:${slug}:${sessionId}`}
       client={client}
+      hostId={saved.hostId}
       slug={source === 'native' ? null : slug}
       id={sessionId}
       title={title}
@@ -242,12 +242,14 @@ export function SessionDetailScreen() {
 
 function SessionTarget({
   client,
+  hostId,
   slug,
   id,
   title,
   fresh,
 }: {
   client: HostClient;
+  hostId: string;
   slug: string | null | undefined;
   id: string;
   title: string | undefined;
@@ -290,6 +292,7 @@ function SessionTarget({
   return (
     <SessionDetailBody
       client={client}
+      hostId={hostId}
       slug={resolved}
       id={id}
       title={title}
@@ -306,6 +309,7 @@ type SessionCommand =
 
 export function SessionDetailBody({
   client,
+  hostId,
   slug,
   id,
   title,
@@ -313,6 +317,7 @@ export function SessionDetailBody({
   online,
 }: {
   client: HostClient;
+  hostId: string;
   slug: string | null;
   id: string;
   title?: string | undefined;
@@ -328,6 +333,7 @@ export function SessionDetailBody({
     slug,
     sessionId: id,
     host: client,
+    hostId,
     enabled: online && role !== undefined,
     running: view.running,
     target: transcript?.currentTarget,
@@ -719,16 +725,7 @@ function SessionComposer({
         blocksSend: model.visible || model.saving !== undefined,
         stopping: busy !== undefined || !online,
         onStop,
-        render: (width) => (
-          <SessionModelChip
-            control={model}
-            width={width}
-            disabled={!online || busy !== undefined}
-          />
-        ),
-        renderCompact: () => (
-          <SessionModelLogo control={model} disabled={!online || busy !== undefined} />
-        ),
+        model: <SessionModelLogo control={model} disabled={!online || busy !== undefined} />,
       }}
     />
   );

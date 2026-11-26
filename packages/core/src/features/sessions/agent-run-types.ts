@@ -62,7 +62,11 @@ export interface OrchestratorAgentRun {
   ):
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
-  tobCli?: boolean;
+  holdsManagementGrant?: () => boolean;
+  workspaceSessions?: {
+    list(): Promise<import('./workspace-sessions.js').WorkspaceSessionSummary[]>;
+    read(sessionId: string): Promise<string>;
+  };
   tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
   triage?: OrchestratorInboxTriage;
@@ -80,6 +84,11 @@ export interface OrchestratorAgentRun {
   externalMessaging?: {
     connected(): boolean;
     senderPermissions?(sourceEventId: string): SenderPermissions;
+    sourceBlocks?(
+      input: import('../../messaging/permissions/index.js').BotSourceBlockInput & {
+        sourceEventId?: string;
+      },
+    ): ReturnType<OutboundMessaging['sourceBlocks']>;
     directory?(query: MessagingDirectoryQuery): MessagingDirectoryPage;
     targets?(): Promise<
       Array<{
@@ -182,10 +191,6 @@ export interface OrchestratorAgentRun {
     create(input: BotScheduleInput): BotSchedule;
     update(id: string, change: BotScheduleChange): BotSchedule;
     remove(id: string): boolean;
-  };
-  memory?: {
-    switchBranch(branch: string): { from: string; to: string; head: string };
-    continueFromCommit(sha: string, branch: string): { from: string; to: string; head: string };
   };
 }
 

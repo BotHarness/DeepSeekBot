@@ -11,6 +11,7 @@ Usage:
   tobs create --name <name> --from-git <url | owner/repo> [...]
   tobs create [--name <name>] --from-zip <file> [...]
   tobs create [--name <name>] --from-dir <directory> [...]
+  tobs create --name <name> --from-sessions <session-id,...> --host <url> [--persona <text>] [...]
   tobs bot-import-preview --from-git <url | owner/repo> --host <url>
   tobs create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
   tobs list [--home <dsh-home>]
@@ -79,6 +80,7 @@ Usage:
   tobs send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
   tobs send-status <id> --message-id <Human-message-id>
   tobs tool-approval-status <channel> --message-id <card-id>
+  tobs approval-rule-add <channel> --message-id <card-id> --prefix "git status *"
   tobs tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
   tobs user-question-status <channel> --message-id <card-id>
   tobs user-question-answer <channel> --message-id <card-id> --answer-stdin
@@ -142,7 +144,7 @@ Usage:
   tobs git-status
   tobs git-install
   tobs pairing-list <id>
-  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ...] [--confirm]
+  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ... [--delegable]] [--confirm]
   tobs workspace-options
   tobs grant-create <id> --workspace <workspace-id>
   tobs browser-access-set <id> (--enabled | --disabled)
@@ -300,6 +302,13 @@ Sources (exactly one per create):
   --from-zip   import a bot bundle zip (same shape as the bot-zip export)
   --from-dir   import a bot bundle directory (same shape as the bot-zip export;
                a .git subtree is skipped as files but packed as history)
+  --from-sessions  blank Bot seeded from up to 50 Session IDs on a live Host:
+               DeepSeek Sessions (session-list --source native) or Claude Code
+               and Codex sessions (session-import-list, ids like
+               claude-code:<id>); grants each Session's Workspace and sends a
+               first DM asking the Bot to read them with workspace_sessions;
+               --add-workspaces adds a session folder no Workspace contains;
+               repeat with the same --operation-key to recover
 
 Machine contract:
   stdout carries exactly one JSON document. Success exits 0 with the bot id,

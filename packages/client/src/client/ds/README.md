@@ -4,8 +4,11 @@ Generated from exported components and [catalogue.json](catalogue.json) by `pnpm
 
 - [ActionButton](action-button.tsx) replaces hand-styled action buttons in cards and callouts.
 - [ActionGroup](action-button.tsx) replaces ad hoc spacing and wrapping for related actions.
+- [BrandLogo](brand-logo.tsx) replaces hand-sized third-party app logos and their light tiles.
 - [Button](button.tsx) replaces styled native buttons and DSH buttons in feature code.
 - [Callout](callout.tsx) replaces one-off informational and warning blocks.
+- [CatalogCard](catalog-grid.tsx) replaces one-off catalog tiles with logo, name, summary, state and a primary action.
+- [CatalogGrid](catalog-grid.tsx) replaces hand-built multi-column grids of browsable catalog items.
 - [Checkbox](checkbox.tsx) replaces raw checkboxes and one-off checkmark styling.
 - [ChipButton](chip-button.tsx) replaces hand-styled compact chip actions.
 - [ChoiceButton](choice-button.tsx) replaces custom clickable option cards with local selection styles.

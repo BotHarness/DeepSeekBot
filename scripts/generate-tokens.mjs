@@ -490,6 +490,7 @@ export function siteColors(source = readResolver()) {
       const onSolid = resolve(`palette.neutral.${light ? 100 : 7}`);
       const brand = reach(resolve('palette.brand'), [surface, onSolid], 4.6, light);
       const hover = mix(brand, resolve(`palette.neutral.${light ? 0 : 100}`), 0.9);
+      const vivid = resolve('palette.brand-vivid');
       const accents = contexts(source, 'accent').map((name) => [
         `accent-${name}`,
         resolve(`palette.accent.${name}`),
@@ -508,6 +509,7 @@ export function siteColors(source = readResolver()) {
         Object.fromEntries([
           ['brand', brand],
           ['brand-hover', hover],
+          ['brand-vivid', vivid],
           ['on-solid', onSolid],
           ...accents,
           ...statuses,

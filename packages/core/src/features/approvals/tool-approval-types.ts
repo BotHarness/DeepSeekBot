@@ -56,6 +56,7 @@ export interface ToolApprovalNotice extends ToolApprovalRequestCard {
   groupName?: string;
   messageId: string;
   expiresAt: string;
+  savedPrefixRuleIds?: string[];
 }
 
 export interface ToolApprovalDecision {
@@ -66,6 +67,7 @@ export interface ToolApprovalDecision {
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected';
 }
@@ -94,6 +96,7 @@ export type TrackedCall = ToolApprovalRequestCard &
     agent: Agent;
     scopeKey: string;
     automatic?: boolean;
+    automaticPrefix?: boolean;
     requireExplicitApproval?: boolean;
     humanReviewed?: boolean;
     reviewerApproved?: boolean;

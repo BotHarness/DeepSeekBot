@@ -13,6 +13,7 @@ export type {
   SenderPolicy,
 } from './senders.js';
 export type { ExternalPermissionGroup, PermissionChoices } from './groups.js';
+export type { ConversationSourceBlock, SenderBlock } from './sender-blocks.js';
 export type { GroupReceptionInput, GroupReceptionPolicy } from './group-reception.js';
 export type {
   ThreadReceptionInput,

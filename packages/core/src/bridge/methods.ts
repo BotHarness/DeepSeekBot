@@ -3,11 +3,12 @@ import {
   type HostSessionBridgeMethods,
   type NativeSessions,
 } from '../features/sessions/host-sessions.js';
+import { createSessionBotMethods } from '../features/sessions/session-bot-methods.js';
 import {
   createPersonaBotsBridgeMethods,
   type PersonaBotsBridgeMethods,
-  detail,
 } from '../features/personabots/methods.js';
+import { createBotDetails } from '../features/personabots/bot-details.js';
 import { createHumansBridgeMethods, type HumansBridgeMethods } from '../features/humans/methods.js';
 import {
   createTeamBridgeMethods,
@@ -106,8 +107,7 @@ import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import type { TeamService } from '../team/service.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { type HumanContext, type HumanId } from '../humans/context.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext, type HumanId } from '../humans/context.js';
 import {
   createVoiceBridgeMethods,
   type VoiceBridgeMethods,
@@ -179,6 +179,11 @@ import {
 } from '../features/channels/methods.js';
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
 import { createUsageAdapterMethods, type UsageAdapterMethods } from '../features/usage/methods.js';
+import {
+  createConnectorsBridgeMethods,
+  type ConnectorsBridgeDeps,
+  type ConnectorsBridgeMethods,
+} from '../features/connectors/methods.js';
 import {
   createTakeoverAdapterMethods,
   type TakeoverAdapterMethods,
@@ -399,10 +404,12 @@ export interface BridgeMethods
     HumansAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
+    ReturnType<typeof createSessionBotMethods>,
     WorkspacesAdapterMethods,
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
     UsageAdapterMethods,
+    ConnectorsBridgeMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -434,6 +441,7 @@ export interface BridgeMethodsDeps
     ApprovalsBridgeDeps,
     WorkspacesBridgeDeps,
     AssignmentsBridgeDeps,
+    ConnectorsBridgeDeps,
     MemoryBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
@@ -480,6 +488,7 @@ export interface BridgeMethodsDeps
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   nativeSessions?: NativeSessions;
+  externalSessions?: import('../features/sessions/external-sessions.js').ExternalSessionReader;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -612,21 +621,7 @@ function buildBridgeMethods(
   };
   const messagingCall = createMessagingCall(deps);
   const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
-  const runnerOf = (slug: string) => {
-    const orchestratorRunner = deps.orchestratorRunner?.(slug);
-    return orchestratorRunner === undefined ? {} : { orchestratorRunner };
-  };
-  const detailOf = (record: PersonaBotRecord): { bot: PersonaBotDetail } => ({
-    bot: {
-      ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
-      ...runnerOf(record.slug),
-      ownerHumanId: botOwner(record),
-      owner: botOwner(record) === human.humanId,
-      ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
-        ? { sessions: {} }
-        : {}),
-    },
-  });
+  const { runnerOf, detailOf } = createBotDetails(human, deps);
 
   const dmMemory = createDmMemoryReader(deps);
 
@@ -699,6 +694,9 @@ function buildBridgeMethods(
     globalRegistry,
     channelSkillBots,
   );
+  const sessionBots = createSessionBotMethods(human, deps, isHostOwner, detailOf, (payload) =>
+    channelsSendAdapterMethods.channelSend(payload),
+  );
   const channelsManagementAdapterMethods = createChannelsManagementAdapterMethods(
     human,
     deps,
@@ -725,6 +723,7 @@ function buildBridgeMethods(
       isHostOwner,
       log: deps.voiceLog,
     }),
+    ...createConnectorsBridgeMethods(deps, isHostOwner),
     ...createBotModeBridgeMethods({
       modes: deps.botModes,
       registry: deps.registry,
@@ -765,8 +764,7 @@ function buildBridgeMethods(
     messagingRevoke: messagingMethods.messagingRevoke,
     messagingConversation: messagingMethods.messagingConversation,
     messagingSend: messagingMethods.messagingSend,
-    tobCli: tobAdapterMethods.tobCli,
-    tobHome: tobAdapterMethods.tobHome,
+    ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     acknowledgements: humansAdapterMethods.acknowledgements,
     acknowledge: humansAdapterMethods.acknowledge,
@@ -804,6 +802,8 @@ function buildBridgeMethods(
     botImportLookup: personabotsMethods.botImportLookup,
     botImportPreview: personabotsMethods.botImportPreview,
     createFromGit: personabotsMethods.createFromGit,
+    createFromSessions: sessionBots.createFromSessions,
+    externalSessions: sessionBots.externalSessions,
     ...marketplaceReads,
     releaseInfo: releaseAdapterMethods.releaseInfo,
     releaseUpdate: releaseAdapterMethods.releaseUpdate,
@@ -851,6 +851,7 @@ function buildBridgeMethods(
     channelHumanNameSet: humansMethods.channelHumanNameSet,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
+    channelAccessState: channelsAdapterMethods.channelAccessState,
     channelDm: channelsAdapterMethods.channelDm,
     channelGet: channelsAdapterMethods.channelGet,
     channelCreate: channelsManagementAdapterMethods.channelCreate,
@@ -949,8 +950,6 @@ function buildBridgeMethods(
     userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     botToolTrace: sessionsMethods.botToolTrace,
     botTurnInput: promptsAdapterMethods.botTurnInput,
-    botTools: tobAdapterMethods.botTools,
-    botToolRun: tobAdapterMethods.botToolRun,
     sessions: sessionsMethods.sessions,
     sessionArchiveSet: sessionsMethods.sessionArchiveSet,
     memoryMove: memoryMethods.memoryMove,

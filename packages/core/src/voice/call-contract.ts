@@ -23,6 +23,7 @@ export const VOICE_CALL_LIMITS = {
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
   perfSampleMs: 5_000,
+  maxCalls: 3,
 } as const;
 
 export interface VoiceCallBargeIn {
@@ -296,7 +297,8 @@ export type VoiceCallMissing =
   | 'media-unsupported'
   | 'media-helper-missing'
   | 'media-unavailable'
-  | 'local-voice-off';
+  | 'local-voice-off'
+  | 'calls-full';
 
 export interface VoiceCallReadiness {
   readonly slug: string;
@@ -357,6 +359,7 @@ export type VoiceCallRefusal =
   | 'media-helper-missing'
   | 'media-failed'
   | 'call-active'
+  | 'calls-full'
   | 'call-not-found'
   | 'call-ended'
   | 'signal-failed'
