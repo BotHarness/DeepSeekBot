@@ -78,7 +78,6 @@ import {
   type MarketplaceBridgeMethods,
   type MarketplaceBridgeDeps,
 } from '../features/marketplace/methods.js';
-import { createGenuiBridgeMethods, type GenuiBridgeMethods } from '../features/genui/methods.js';
 import {
   createAvatarsBridgeMethods,
   type AvatarsBridgeMethods,
@@ -90,10 +89,10 @@ import {
   type SkillsBridgeDeps,
 } from '../features/skills/methods.js';
 import {
-  createSchedulesBridgeMethods,
-  type SchedulesBridgeMethods,
-  type SchedulesBridgeDeps,
-} from '../features/schedules/methods.js';
+  contributedBridgeMethods,
+  mergeFeatureMethods,
+  type ContributedBridgeDeps,
+} from '../feature-contributions.js';
 import { asObject, invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import {
   createPromptBridgeMethods,
@@ -370,15 +369,14 @@ export type ChannelListChanges =
 
 export interface BridgeMethods
   extends
+    ReturnType<typeof contributedBridgeMethods>,
     TeamBridgeMethods,
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     EngineSelectionBridgeMethods,
     PromptBridgeMethods,
-    SchedulesBridgeMethods,
     SkillsBridgeMethods,
     AvatarsBridgeMethods,
-    GenuiBridgeMethods,
     MarketplaceBridgeMethods,
     ModelsBridgeMethods,
     ComputerBridgeMethods,
@@ -431,7 +429,7 @@ export interface BridgeMethods
 export interface BridgeMethodsDeps
   extends
     PromptBridgeDeps,
-    SchedulesBridgeDeps,
+    ContributedBridgeDeps,
     SkillsBridgeDeps,
     AvatarsBridgeDeps,
     MarketplaceBridgeDeps,
@@ -627,10 +625,8 @@ function buildBridgeMethods(
 
   const dmMemory = createDmMemoryReader(deps);
 
-  const schedulesMethods = createSchedulesBridgeMethods(human, deps);
   const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
   const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
-  const genuiMethods = createGenuiBridgeMethods(human, deps);
   const { marketplaceZip, marketplaceReads, marketplaceSharing } = createMarketplaceBridgeMethods(
     human,
     deps,
@@ -714,7 +710,7 @@ function buildBridgeMethods(
     listedChannels,
     listItem,
   );
-  const methods: BridgeMethods = {
+  const methods: Omit<BridgeMethods, keyof ReturnType<typeof contributedBridgeMethods>> = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
     ...createEngineAccountBridge(human, deps),
@@ -892,7 +888,6 @@ function buildBridgeMethods(
     ...skillsMethods,
     channelAllBotPreview: channelsAdapterMethods.channelAllBotPreview,
     channelSendStatus: channelsAdapterMethods.channelSendStatus,
-    ...genuiMethods,
     channelSend: channelsSendAdapterMethods.channelSend,
     botAttention: activityMethods.botAttention,
     takeoverList: takeoverAdapterMethods.takeoverList,
@@ -900,7 +895,6 @@ function buildBridgeMethods(
     takeoverRequest: takeoverAdapterMethods.takeoverRequest,
     takeoverComplete: takeoverAdapterMethods.takeoverComplete,
     takeoverCancel: takeoverAdapterMethods.takeoverCancel,
-    ...schedulesMethods,
     botSourcePolicies: activityMethods.botSourcePolicies,
     botSourcePolicySet: activityMethods.botSourcePolicySet,
     botSourcePolicyReset: activityMethods.botSourcePolicyReset,
@@ -995,5 +989,11 @@ function buildBridgeMethods(
     rosterBatch: personabotsMethods.rosterBatch,
     developerModeSet: diagnosticsAdapterMethods.developerModeSet,
   };
-  return authorizeChannelBridgeMethods(methods, human, deps, globalRegistry, isHostOwner);
+  return authorizeChannelBridgeMethods(
+    mergeFeatureMethods([methods, contributedBridgeMethods(human, deps)]),
+    human,
+    deps,
+    globalRegistry,
+    isHostOwner,
+  );
 }

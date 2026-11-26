@@ -9,8 +9,7 @@ import {
 } from './native-agent-compat.js';
 import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import { replyReminderText } from '../features/messaging/prompt.js';
-import { GENUI_AUTHORING_SECTION } from '../features/genui/prompt.js';
-import { nativeScheduleToolRefusal } from '../features/schedules/tools.js';
+import { agentFeatureContext } from './agent-feature-context.js';
 import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
@@ -676,10 +675,10 @@ export async function orchestratorHandle(
     };
     const disposePresentation = await installAgentNativeTools(agentCtx, agent);
     if (borrowed) borrowedDisposers.push(disposePresentation);
-    const disposeNativeSchedules = agentCtx.tools.guard(({ name }) =>
-      nativeScheduleToolRefusal(name),
-    );
-    if (borrowed) borrowedDisposers.push(disposeNativeSchedules);
+    orchestratorTools(adapter, run, agentCtx, registerTool, registerBridgeTool, (refuse) => {
+      const dispose = agentCtx.tools.guard(({ name }) => refuse(name));
+      if (borrowed) borrowedDisposers.push(dispose);
+    });
     const disposePurgeFence = agentCtx.tools.guard(() => {
       try {
         adapter.runs.get(run.sessionId)?.run.requireContent?.();
@@ -698,11 +697,22 @@ export async function orchestratorHandle(
       return undefined;
     });
     if (borrowed) borrowedDisposers.push(disposeSendStreak);
+    const featureContext = agentFeatureContext(adapter, run, agentCtx);
+    const featurePrompts = adapter.featureContributions.flatMap(
+      (feature) => feature.promptSections?.(featureContext) ?? [],
+    );
+    const roleSections = featurePrompts
+      .filter((section) => section.placement === 'role')
+      .map((section) => section.text);
     const disposeRolePrompt = agentCtx.systemPrompt.section({
       name: 'botharness:orchestrator-role',
       order: ROLE_PROMPT_ORDER,
       text: () =>
-        orchestratorPromptSections(adapter.promptText(run.sessionId), managerPromptNow()).role,
+        orchestratorPromptSections(
+          adapter.promptText(run.sessionId),
+          managerPromptNow(),
+          roleSections,
+        ).role,
     });
     if (borrowed) borrowedDisposers.push(disposeRolePrompt);
     const disposeReplyPrompt = agentCtx.systemPrompt.section({
@@ -711,9 +721,15 @@ export async function orchestratorHandle(
       text: () => orchestratorPromptSections(adapter.promptText(run.sessionId)).replyDelivery,
     });
     if (borrowed) borrowedDisposers.push(disposeReplyPrompt);
-    const disposeGenuiPrompt = agentCtx.systemPrompt.section({ ...GENUI_AUTHORING_SECTION });
-    if (borrowed) borrowedDisposers.push(disposeGenuiPrompt);
-    orchestratorTools(adapter, run, agentCtx, registerTool, registerBridgeTool);
+    for (const section of featurePrompts) {
+      if (section.placement !== 'system') continue;
+      const dispose = agentCtx.systemPrompt.section({
+        name: section.name,
+        order: section.order,
+        text: section.text,
+      });
+      if (borrowed) borrowedDisposers.push(dispose);
+    }
     let bridgeDisposers: Array<() => void> | undefined;
     const listBridgeTools = (connected: boolean) => {
       if (connected === (bridgeDisposers !== undefined)) return;

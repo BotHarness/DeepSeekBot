@@ -5,6 +5,7 @@ import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/primitives/resource-image', () => ({ ResourceImage: () => null }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));

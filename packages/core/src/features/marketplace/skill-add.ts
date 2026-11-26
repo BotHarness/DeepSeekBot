@@ -13,7 +13,7 @@ import {
 } from '@botharness/host-protocol/marketplace-skill';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
-import { asObject, invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { asObject, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { commitMemoryPathsAsync } from '../../memory/git.js';

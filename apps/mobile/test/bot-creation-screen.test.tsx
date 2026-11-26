@@ -313,33 +313,22 @@ vi.mock('../src/ui/primitives/keyboard-form-frame', () => ({
     ),
 }));
 vi.mock('react-native-reanimated', () => ({ useReducedMotion: () => false }));
-vi.mock('../src/ui/shell/creation-avatar', () => ({
-  CreationAvatar: ({
-    onChange,
-  }: {
-    onChange(avatar: { kind: 'generated'; seed: string } | { kind: 'photo'; image: string }): void;
-  }) =>
-    createElement(
-      'div',
-      null,
+vi.mock('../src/ui/shell/creation-avatar', () => {
+  const choice = (id: string, onClick: () => void) =>
+    createElement('button', { 'data-testid': 'create-bot-avatar-' + id, onClick }, id);
+  return {
+    CreationAvatar: (props: { onChange(avatar: unknown): void; children?: ReactNode }) =>
       createElement(
-        'button',
-        {
-          'data-testid': 'create-bot-avatar-pixel',
-          onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
-        },
-        'pixel',
+        'div',
+        null,
+        props.children,
+        choice('pixel', () => props.onChange({ kind: 'generated', seed: 'seed-1' })),
+        choice('photo', () =>
+          props.onChange({ kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }),
+        ),
       ),
-      createElement(
-        'button',
-        {
-          'data-testid': 'create-bot-avatar-photo',
-          onClick: () => onChange({ kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }),
-        },
-        'photo',
-      ),
-    ),
-}));
+  };
+});
 
 vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) =>

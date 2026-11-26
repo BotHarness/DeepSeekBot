@@ -267,7 +267,7 @@ internal fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
  * top-left corner, so a row flipped by the inverted chat list reported its bottom edge as its top
  * and hid the reply-swipe owner inside it.
  */
-private fun screenBounds(view: View): RectF {
+internal fun screenBounds(view: View): RectF {
   val matrix = Matrix()
   var node = view
   while (true) {

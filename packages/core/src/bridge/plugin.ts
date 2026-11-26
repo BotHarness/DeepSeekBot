@@ -46,6 +46,7 @@ export function createHostBridgeDependencies(
   ctx: Context,
   deps: {
     core: BotHarnessCore;
+    featureContributions: NonNullable<BridgeMethodsDeps['featureContributions']>;
     team: BotHarnessCore['team'];
     skills: ReturnType<typeof skillsFeature.apply>;
     release: ReturnType<typeof releaseFeature.apply>['release'];
@@ -384,6 +385,7 @@ export function createHostBridgeDependencies(
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    featureContributions: deps.featureContributions,
     takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,

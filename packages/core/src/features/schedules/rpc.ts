@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type {
   BotSchedule,
@@ -123,4 +122,4 @@ export const schedulesServiceRpc = {
   schedulePreview(trigger: BotScheduleTrigger): { occurrences: string[] } {
     return schedulePreview(this.methods, trigger);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: SchedulesBridgeMethods }>;

@@ -9,6 +9,7 @@ class DismissibleDrawerModule : Module() {
     Name("DismissibleDrawer")
 
     Function("hasModalSessionDrawer") { true }
+    Function("hasSessionDrawerContentGate") { true }
 
     ExpoUIView<DismissibleDrawerProps>("DismissibleDrawerView") {
       val onOpenChange by Event<DrawerOpenChange>()
@@ -29,6 +30,11 @@ class DismissibleDrawerModule : Module() {
           onProgress = { progress -> onProgress(SessionDrawerProgress(progress)) },
         )
       }
+    }
+
+    View(SessionDrawerContentGate::class) {
+      Prop("drawerSwipeEnabled") { view: SessionDrawerContentGate, value: Boolean -> view.drawerSwipeEnabled = value }
+      Prop("rtl") { view: SessionDrawerContentGate, value: Boolean -> view.rtl = value }
     }
   }
 }

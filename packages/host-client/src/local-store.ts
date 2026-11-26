@@ -121,6 +121,8 @@ export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
     seq integer,
     sources text not null
   );`,
+  `delete from sessions;
+  delete from session_list_state;`,
 ];
 
 const reader = (connection: SqlConnection): SqlReader => ({
