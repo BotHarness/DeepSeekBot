@@ -1,5 +1,5 @@
 import type { SchemaMigration } from '../schema.js';
-import { deriveAssignmentTitle } from '../../runtime/assignment-title.js';
+import { deriveAssignmentTitle } from '../historical-migration-snapshots.js';
 
 export const ASSIGNMENT_DIRECTORY_MIGRATION: SchemaMigration = {
   id: 'assignment-directory',

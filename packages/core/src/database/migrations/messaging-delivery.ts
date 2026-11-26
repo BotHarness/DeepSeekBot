@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { OperationalDatabaseError } from '../owner.js';
+import { OperationalDatabaseError } from '../owner-errors.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const MESSAGING_OUTBOUND_MIGRATION: SchemaMigration = {

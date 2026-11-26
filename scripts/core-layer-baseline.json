@@ -15,18 +15,6 @@
     "packages/core/src/credentials/secret-mcp.ts": {
       "credentials -> runtime": 1
     },
-    "packages/core/src/database/migrations/assignments.ts": {
-      "database -> runtime": 1
-    },
-    "packages/core/src/database/migrations/messaging-channels.ts": {
-      "database -> humans": 1
-    },
-    "packages/core/src/database/migrations/model-presets.ts": {
-      "database -> models": 1
-    },
-    "packages/core/src/database/migrations/team.ts": {
-      "database -> team": 2
-    },
     "packages/core/src/devices/bot-connect-bridge.ts": {
       "devices -> runtime": 1
     },
