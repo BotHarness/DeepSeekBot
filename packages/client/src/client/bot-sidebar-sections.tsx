@@ -610,12 +610,15 @@ export function renderSectionDialogs({
             setChannelRenameTarget(undefined);
           }}
           onRename={async (name) => {
-            if (await actions.renameChannel(channelRenameTarget.id, name)) {
-              setChannelRenameTarget(undefined);
+            const target = channelRenameTarget;
+            if (await actions.renameChannel(target.id, name)) {
+              setChannelRenameTarget((current) =>
+                current?.id === target.id ? undefined : current,
+              );
               return undefined;
             }
-            return channelRenameTarget.type === 'group' &&
-              !(await recheckGroupDetails(actions.teamCall, channelRenameTarget.id))
+            return target.type === 'group' &&
+              !(await recheckGroupDetails(actions.teamCall, target.id))
               ? t('group.detailsRefused')
               : t('channel.renameFailed');
           }}

@@ -74,7 +74,8 @@ export function useGroupDetailsEditable(
       if (call === undefined || viewer === undefined || !needsRead) return () => {};
       const current = entry(call, channelId);
       current.listeners.add(listener);
-      if (current.value === undefined) void load(call, channelId, viewer);
+      if (current.value === undefined || current.listeners.size === 1)
+        void load(call, channelId, viewer);
       return () => current.listeners.delete(listener);
     },
     [call, channelId, needsRead, viewer?.owner, viewer?.teamEnabled, viewer?.permissions],

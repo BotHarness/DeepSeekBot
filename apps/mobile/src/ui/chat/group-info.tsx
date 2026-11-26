@@ -576,7 +576,9 @@ export function GroupProfilePage({
           avatar={avatar}
           editable={editDetails}
           onRename={openRename}
-          error={tab === 'settings' || !editDetails ? undefined : avatar.error}
+          error={
+            tab === 'settings' || (tab === 'members' && !editDetails) ? undefined : avatar.error
+          }
         />
       }
       tabs={tabs}

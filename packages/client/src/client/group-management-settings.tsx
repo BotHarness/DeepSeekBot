@@ -79,7 +79,7 @@ export function GroupManagementSettings({
       if (ok) setError(undefined);
       else {
         const allowed = await recheckGroupDetails(actions.teamCall, group.id);
-        setNameState({ source: group.name, draft: group.name });
+        if (!allowed) setNameState({ source: group.name, draft: group.name });
         setError(allowed ? 'failed' : 'refused');
       }
       return ok;

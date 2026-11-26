@@ -225,3 +225,41 @@ it('explains a refused rename, restores the name and turns read-only', async () 
   expect(host.querySelector('[role="alert"]')?.textContent).toBe(t('group.detailsRefused'));
   expect(host.querySelector('[data-group-name="read-only"]')?.textContent).toBe('设计组');
 });
+
+it('keeps the typed name after a save that fails for another reason', async () => {
+  const actions = {
+    renameChannel: vi.fn(async () => false),
+    setGroupAvatar: vi.fn(),
+    teamCall: teamCall({ role: 'member', editDetails: 'everyone' }),
+  } as unknown as BridgeActions;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+
+  await typeInto(nameInput(), 'Alice Lobby');
+  await act(async () => {
+    nameInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  await settle();
+
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+  expect(nameInput().value).toBe('Alice Lobby');
+});
+
+it('reads access again when the settings reopen after an admin allows everyone', async () => {
+  const access = { role: 'member', editDetails: 'admins' };
+  const actions = {
+    renameChannel: vi.fn(),
+    setGroupAvatar: vi.fn(),
+    teamCall: teamCall(access),
+  } as unknown as BridgeActions;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+  expect(host.querySelector('[data-group-name="read-only"]')).not.toBeNull();
+
+  await act(async () => root.render(createElement('div')));
+  access.editDetails = 'everyone';
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+
+  expect(nameInput().disabled).toBe(false);
+});
