@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
+import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
@@ -13,9 +14,17 @@ import {
 import { askCallNotifications } from './call-presence.js';
 import { openSettingsSection } from './environment-settings-source.js';
 import { IconButton } from './ds/icon-button.js';
+import { color } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useVoiceRipple } from './voice-ripple.js';
+
+const styles = stylex.create({
+  on: {
+    color: { default: color.accent, ':hover': color.accent },
+    backgroundColor: { default: color.selected, ':hover': color.selected },
+  },
+});
 
 export function DmCallControl({
   slug,
@@ -101,6 +110,7 @@ export function DmCallControl({
             <IconButton
               aria-label={soundLabel}
               aria-pressed={hearing}
+              xstyle={hearing ? styles.on : undefined}
               aria-busy={snapshot.sound === 'starting'}
               disabled={snapshot.state.status !== 'live' || snapshot.sound === 'starting'}
               onClick={() => void call.computerSound(!hearing)}
