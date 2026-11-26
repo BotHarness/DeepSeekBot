@@ -4,12 +4,14 @@ import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
 import type { BotHarnessCore } from '../plugin-types.js';
-import { CONNECTOR_CATALOG, catalogEntry, matchesCatalog } from './catalog.js';
+import { CONNECTOR_CATALOG, matchesCatalog } from './catalog.js';
 import { CONNECTOR_MCP_SERVER, CONNECTOR_TOOL_PREFIX, connectorToolDenial } from './policy.js';
-import { ConnectorError, type ConnectorService } from './service.js';
+import { ConnectorError, type ConnectorApp, type ConnectorService } from './service.js';
 import type { ConnectorAccess } from './store.js';
 
 type Fiber = ReturnType<Context['plugin']>;
+
+const CATALOG_LIMIT = 15;
 
 interface Mounted {
   botSlug: string;
@@ -36,24 +38,28 @@ export function connectorAccessMap(
 }
 
 export function connectorCatalogFor(
-  service: Pick<ConnectorService, 'forBot' | 'available'>,
+  service: Pick<ConnectorService, 'forBot' | 'available' | 'appName'>,
   botSlug: string,
   configured: boolean,
   query?: string,
+  apps?: readonly ConnectorApp[],
 ) {
   const granted = service.forBot(botSlug);
   const grantedIds = new Set(granted.map((connector) => connector.accountId));
   const requestable = service
     .available()
     .filter((account) => !grantedIds.has(account.accountId) && account.status === 'active');
-  const catalog = CONNECTOR_CATALOG.filter((entry) => matchesCatalog(entry, query));
+  const catalog = (apps ?? CONNECTOR_CATALOG.filter((entry) => matchesCatalog(entry, query))).slice(
+    0,
+    CATALOG_LIMIT,
+  );
   const usable = granted.some((connector) => connector.status === 'active');
   return {
     configured,
     granted: granted.map((connector) => ({
       account_id: connector.accountId,
       service: connector.service,
-      name: catalogEntry(connector.service)?.name ?? connector.service,
+      name: service.appName(connector.service),
       label: connector.label,
       ...(connector.identity === undefined ? {} : { identity: connector.identity }),
       status: connector.status,
@@ -62,7 +68,7 @@ export function connectorCatalogFor(
     requestable: requestable.map((account) => ({
       account_id: account.accountId,
       service: account.service,
-      name: catalogEntry(account.service)?.name ?? account.service,
+      name: service.appName(account.service),
       label: account.label,
     })),
     catalog: catalog.map((entry) => ({
@@ -146,7 +152,7 @@ export function mountConnectors(
           defineTool({
             name: 'connector_catalog',
             description:
-              'List the apps (App connections such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to narrow the list. It returns what to do next.',
+              'List the apps (App connections such as Gmail, Google Calendar, Drive, Notion, Slack, GitHub) you can use for the user, the Host accounts you could ask for, and the services the Owner could connect. Call it whenever the user asks what you can do, or asks for something in an outside app ("check my email", "我明天有什么会") before saying you cannot. Pass query with the user\'s words to search every app Composio supports (about 2,000); English words such as "email" or "crm" match best. It returns what to do next.',
             parameters: {
               query: {
                 type: 'string',
@@ -160,8 +166,9 @@ export function mountConnectors(
             execute: async (args, call) => {
               if (!live(call)) throw new Error('connector_catalog: this conversation ended');
               const configured = (await service.view()).configured;
+              const found = await service.searchApps(args.query ?? '').catch(() => undefined);
               return JSON.stringify(
-                connectorCatalogFor(service, info.botSlug, configured, args.query),
+                connectorCatalogFor(service, info.botSlug, configured, args.query, found?.apps),
               );
             },
           }),

@@ -89,7 +89,7 @@ describe('Bot onboarding through the public Host bridge', () => {
     });
     await withCore(async (core) => {
       const first = await core.onboarding.enter();
-      expect(() => core.deletions.preview(first.defaultBotSlug!)).toThrow('protected-bot');
+      expect(core.deletions.preview(first.defaultBotSlug!)).toMatchObject({ lastAppManager: true });
       await core.onboarding.enter();
       expect(core.registry.list()).toHaveLength(1);
     });

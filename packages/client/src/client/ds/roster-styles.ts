@@ -17,7 +17,8 @@ export const rosterStyles = stylex.create({
     position: 'relative',
     width: size.rowMedium,
     height: size.rowMedium,
-    padding: 0,
+    paddingBlock: 0,
+    paddingInline: 0,
     borderRadius: style.radiusNavSelected,
   },
   railIcon: {

@@ -76,6 +76,8 @@ export const zh = {
   'connectors.catalog.connected': '已连接 {count} 个账号',
   'connectors.catalog.available': '可连接',
   'connectors.catalog.connect': '连接',
+  'connectors.catalog.offline': '暂时连不上 Composio，只显示常用应用。',
+  'connectors.catalog.more': '加载更多',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -163,5 +165,7 @@ export const en = {
   'connectors.catalog.connected': 'Connected: {count}',
   'connectors.catalog.available': 'Available',
   'connectors.catalog.connect': 'Connect',
+  'connectors.catalog.offline': 'Composio is unreachable; showing featured apps only.',
+  'connectors.catalog.more': 'Load more',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

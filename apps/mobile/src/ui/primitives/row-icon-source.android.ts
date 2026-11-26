@@ -31,6 +31,7 @@ export const ROW_ICON_SOURCES: Record<
   haptics: require('../../../assets/row-icons/haptics.xml'),
   delivery: require('../../../assets/row-icons/delivery.xml'),
   sessions: require('../../../assets/toolbar/sessions.xml'),
+  scrollBars: require('../../../assets/row-icons/scrollBars.xml'),
   sendJump: require('../../../assets/row-icons/sendJump.xml'),
   messageDisplay: require('../../../assets/row-icons/messageDisplay.xml'),
   streaming: require('../../../assets/row-icons/streaming.xml'),

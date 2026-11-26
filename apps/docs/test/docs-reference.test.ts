@@ -128,6 +128,7 @@ describe("generated developer reference", () => {
       { name: "llm/adapters-updated", direction: "consumes", operation: "on" },
       { name: "session/event", direction: "consumes", operation: "on" },
       { name: "session/event", direction: "consumes", operation: "on" },
+      { name: "session/event", direction: "consumes", operation: "on" },
       { name: "settings/document-updated", direction: "consumes", operation: "on" },
       { name: "settings/document-updated", direction: "consumes", operation: "on" },
       { name: "skills/change", direction: "consumes", operation: "on" },

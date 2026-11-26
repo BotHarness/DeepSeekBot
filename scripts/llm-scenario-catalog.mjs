@@ -439,6 +439,7 @@ export const SCENARIOS = [
       const flagged = started.files.find((file) => file.path === secret);
       if (!flagged || flagged.flags.length === 0) throw new Error('planted secret was not flagged');
       const tob = await ctx.tob();
+      const sentAt = new Date().toISOString();
       await ctx.humanSend(
         tob,
         `帮我把「${CAST.atlas.displayName}」分享出去：逐个检查它的分享草稿，看起来涉及隐私的内容问我保留、改写还是删掉。（Bot ID：${slug}）`,
@@ -449,7 +450,8 @@ export const SCENARIOS = [
         async () => {
           for (const message of ctx.messages(tob)) {
             const request = message.userQuestionRequest;
-            if (request === undefined || answered.has(message.id)) continue;
+            if (request === undefined || answered.has(message.id) || String(message.at) < sentAt)
+              continue;
             answered.add(message.id);
             const answers = request.questions.map((question) => {
               const text = `${question.header ?? ''} ${question.question} ${question.detail ?? ''}`;
@@ -488,6 +490,84 @@ export const SCENARIOS = [
       if (git('rev-parse', 'HEAD').trim() !== head || git('status', '--porcelain').trim() !== '')
         throw new Error('source Memory repository changed');
       ctx.note({ draft: draft.summary });
+    },
+  },
+  {
+    id: 'tob-report-problem',
+    summary:
+      'Tob, which holds the App management grant, runs deepseekbot doctor before it diagnoses a problem the Human reports, and reports from that output in its Human DM (#5193).',
+    areas: [
+      'packages/core/src/tob/',
+      'packages/core/src/bots/cli-doctor.ts',
+      'packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.ts',
+      'scripts/e2e-llm-scenarios.mjs',
+    ],
+    bots: [],
+    async run(ctx) {
+      const tob = await ctx.tob();
+      const { botSlug } = await ctx.host('tobHome', {});
+      const baseline = await ctx.toolCalls(botSlug);
+      if (baseline.incomplete) throw new Error('could not read the earlier tool-call history');
+      const earlier = new Set(baseline.map((call) => call.callId));
+      const sentAt = new Date().toISOString();
+      await ctx.humanSend(
+        tob,
+        '更新之后我的 Bot 回复变得特别慢，有时候一直卡着不动。帮我看看是怎么回事？',
+      );
+      const ranDoctor = (call) =>
+        /(^|[;&|\s])deepseekbot\s+doctor\b/u.test(String(call.arguments?.command ?? '')) ||
+        call.arguments?.argv?.[0] === 'doctor';
+      const doctorReported = (call) =>
+        ranDoctor(call) &&
+        call.hasResult &&
+        !call.isError &&
+        /"checks"|\bchecks?\b/u.test(call.result);
+      const sent = (call) => call.name === 'bot_send_message' && call.hasResult && !call.isError;
+      const reportsAfter = (doctor, call) =>
+        call.sessionId === doctor.sessionId && call.order > doctor.resultOrder;
+      const committedReport = (call) =>
+        typeof call.arguments?.body === 'string' &&
+        ctx
+          .messages(tob)
+          .some(
+            (message) =>
+              message.author?.kind === 'bot' &&
+              message.author.slug === botSlug &&
+              String(message.at) >= sentAt &&
+              message.body.includes(call.arguments.body.trim().slice(0, 60)),
+          );
+      const calls = await ctx.waitFor(
+        'Tob runs doctor and reports from it in its Human DM',
+        async () => {
+          const current = (await ctx.toolCalls(botSlug)).filter(
+            (call) => !earlier.has(call.callId),
+          );
+          const doctor = current.find(doctorReported);
+          return doctor !== undefined &&
+            current.some(
+              (call) => sent(call) && reportsAfter(doctor, call) && committedReport(call),
+            )
+            ? current
+            : undefined;
+        },
+      );
+      const doctor = calls.find(doctorReported);
+      ctx.note({
+        calls: calls.map((call) => ({ name: call.name, arguments: call.arguments })),
+        report: calls.find(
+          (call) => sent(call) && reportsAfter(doctor, call) && committedReport(call),
+        )?.arguments,
+      });
+      if (
+        calls
+          .filter((call) => call.sessionId === doctor.sessionId && call.order < doctor.order)
+          .some(
+            (call) =>
+              call.name === 'bot_send_message' &&
+              /原因是|是因为|caused by/iu.test(JSON.stringify(call.arguments)),
+          )
+      )
+        throw new Error('Tob named a cause before it ran doctor');
     },
   },
   {

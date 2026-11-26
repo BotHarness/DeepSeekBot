@@ -423,7 +423,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
           }
         })
         .catch(() => undefined);
-      if (saved.member !== undefined) void refreshMemberPermissions(client).catch(() => undefined);
+      void refreshMemberPermissions(client).catch(() => undefined);
       void pushSession.retryFailed(saved);
       void notificationPreferences.retry(saved).catch(() => undefined);
       catchUpHostConversations(

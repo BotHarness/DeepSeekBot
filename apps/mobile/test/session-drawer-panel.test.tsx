@@ -26,7 +26,9 @@ vi.mock('react-native-keyboard-controller', () => ({
     </div>
   ),
 }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('expo-router', () => ({
+  router: navigation,
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
@@ -260,6 +262,14 @@ it('floats the header and footer over the list when the native edge bars exist',
   } finally {
     edge.on = false;
   }
+});
+
+it('opens the environment sheet from the environment chip', async () => {
+  const { view } = await render();
+  const chip = view.querySelector<HTMLElement>('[data-testid="session-drawer-environment"]')!;
+  expect(chip.getAttribute('role')).toBe('button');
+  await act(async () => chip.click());
+  expect(navigation.push).toHaveBeenCalledWith('/environment');
 });
 
 it('hides New Session from a member', async () => {

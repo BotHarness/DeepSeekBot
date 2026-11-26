@@ -299,7 +299,7 @@ describe('reviewed pending Group decisions', () => {
     expect(f.joinDecided).not.toHaveBeenCalled();
   });
 
-  it('reports unknown targets, protects acceptance of Tob and preserves Human protected-decline cleanup', () => {
+  it('reports unknown targets and lets the Human decline a pending request', () => {
     const f = pendingJoin();
     expect(() =>
       f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, { channelId: f.id, invitationId: 'missing' }),
@@ -318,13 +318,6 @@ describe('reviewed pending Group decisions', () => {
       requesterBotSlug: 'tob',
       requesterBotCreatedAt: tob.record.createdAt,
     });
-    expect(() =>
-      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
-        channelId: f.id,
-        requestId: request.id,
-        accept: true,
-      }),
-    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
     const declined = f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       requestId: request.id,

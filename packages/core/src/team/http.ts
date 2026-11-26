@@ -62,11 +62,6 @@ interface StreamLifetime {
   unwatchSocket?: (() => void) | undefined;
 }
 
-interface StreamSocket {
-  responses: Set<ServerResponse>;
-  disconnects: Set<() => void>;
-}
-
 function header(request: IncomingMessage, key: string): string | undefined {
   const value = request.headers[key];
   return Array.isArray(value) ? value[0] : value;
@@ -158,25 +153,18 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
     }
   >();
   const pending = new Map<string, StreamLifetime>();
-  const socketStreams = new WeakMap<Socket, StreamSocket>();
-  const watchSocket = (socket: Socket, response: ServerResponse, disconnect: () => void) => {
-    let watched = socketStreams.get(socket);
-    if (!watched) {
-      const entry: StreamSocket = { responses: new Set(), disconnects: new Set() };
-      socketStreams.set(socket, entry);
+  const socketStreams = new WeakMap<Socket, Set<() => void>>();
+  const watchSocket = (socket: Socket, disconnect: () => void) => {
+    let disconnects = socketStreams.get(socket);
+    if (!disconnects) {
+      const listeners = new Set<() => void>();
+      socketStreams.set(socket, listeners);
       socket.once('close', (hadError) => {
-        if ((hadError || socket.readableEnded) && entry.responses.size === 0)
-          for (const listener of entry.disconnects) listener();
-        entry.disconnects.clear();
-        entry.responses.clear();
+        if (hadError || socket.readableEnded) for (const listener of listeners) listener();
+        listeners.clear();
       });
-      watched = entry;
+      disconnects = listeners;
     }
-    const { responses, disconnects } = watched;
-    responses.add(response);
-    response.once('finish', () => {
-      responses.delete(response);
-    });
     disconnects.add(disconnect);
     return () => {
       disconnects.delete(disconnect);
@@ -261,7 +249,7 @@ export function createTeamHttp(options: TeamHttpOptions): TeamHttp {
       });
       lifetime.unwatchSocket?.();
       lifetime.unwatchSocket = response.shouldKeepAlive
-        ? watchSocket(request.socket, response, disconnect)
+        ? watchSocket(request.socket, disconnect)
         : undefined;
     };
     if (command.op === 'stream-open') {

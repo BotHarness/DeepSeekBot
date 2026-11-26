@@ -6,7 +6,7 @@ import type { HostClient } from '@botharness/host-client/client';
 
 const BOT_CREATION = ['bots.createPrivate', 'bots.createPublic'];
 
-type CreationPermissions = { bots: boolean; channels: boolean; folders: boolean };
+type CreationPermissions = { bots: boolean; channels: boolean; people: boolean; folders: boolean };
 
 const creation = new WeakMap<HostClient, CreationPermissions>();
 const members = new WeakSet<HostClient>();
@@ -23,17 +23,20 @@ export function markMemberClient(client: HostClient): void {
 
 export async function refreshMemberPermissions(client: HostClient): Promise<void> {
   const {
-    viewer: { permissions },
+    enabled,
+    viewer: { permissions, owner },
   } = await readTeamMode(client);
   const next = {
-    bots: BOT_CREATION.some((permission) => permissions.includes(permission)),
-    channels: permissions.includes('channels.create'),
-    folders: permissions.includes(CREATE_FOLDER_PERMISSION),
+    bots: owner || BOT_CREATION.some((permission) => permissions.includes(permission)),
+    channels: owner || permissions.includes('channels.create'),
+    people: enabled && (owner || permissions.includes('dm.humans')),
+    folders: owner || permissions.includes(CREATE_FOLDER_PERMISSION),
   };
   const previous = creation.get(client);
   if (
     previous?.bots === next.bots &&
     previous.channels === next.channels &&
+    previous.people === next.people &&
     previous.folders === next.folders
   )
     return;

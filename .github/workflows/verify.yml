@@ -36,7 +36,7 @@ env:
 jobs:
   plan:
     name: plan tests and run small selections
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
@@ -418,7 +418,7 @@ jobs:
     name: test (shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'full'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false
@@ -443,7 +443,7 @@ jobs:
     name: test (affected shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '4'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false

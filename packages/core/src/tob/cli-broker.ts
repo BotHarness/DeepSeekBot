@@ -329,10 +329,12 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
             write: {
               ...(options.capabilities
                 ? {
-                    rule: 'Read the current target and pass its observed revision; follow each command usage. Settings patches also require exact previous values for patched fields.',
+                    rule: 'Read the current target before every write and pass its observed revision; follow each command usage. Never run a write to explore. After a stale refusal, read again and prepare a new proposal; after a denial, stop; after an uncertain outcome, read before retrying. Settings patches also require exact previous values for patched fields.',
+                    humanDecision:
+                      "Writes follow your Approval Template; a write that needs review, and deletion, Memory restore, credential and pairing commands, wait for the Human on an approval card. You never approve, dismiss or decide a pending request on the Human's behalf.",
                     maintenance:
                       'Installation and restart require --confirm plus a fresh Human decision. Never retry an uncertain maintenance write automatically.',
-                    cli: 'Any other deepseekbot command also works. Commands that only read run at once; every other command waits for the Human to approve the exact command on an approval card. The Host chooses the target, so --host, --token-file and --home are refused. Paths are read on the Host from your current folder.',
+                    cli: 'Any other deepseekbot command also works. Commands that only read run at once; every other command follows your Approval Template, and when it asks, the Human approves the exact command on an approval card. The Host chooses the target, so --host, --token-file and --home are refused. Paths are read on the Host from your current folder.',
                   }
                 : { required: ['ns', 'patch', 'expectedRevision', 'previousValue'] }),
               approval: 'existing-host-policy',
