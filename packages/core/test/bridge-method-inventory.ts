@@ -5,6 +5,7 @@ export const bridgeMethodInventory = [
   'reachableBots',
   'botProactiveOptOut',
   'roleConflicts',
+  'memberPermissions',
   'speakerPolicy',
   'privateObjects',
   'privateContentOpen',

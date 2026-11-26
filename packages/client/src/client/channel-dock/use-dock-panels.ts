@@ -241,10 +241,15 @@ export function useDockPanels(
     }
   };
 
+  const isWorkbench = (panelId: string | null): boolean =>
+    panelId !== null &&
+    (known.current.get(panelId) ?? registry?.panels().find((item) => item.id === panelId))
+      ?.presentation === 'workbench';
+
   const fitSideColumn = (target: DockviewApi): void => {
     const side = simpleRef.current.sideColumn;
     const group = side === null ? undefined : target.getPanel(side)?.group;
-    if (!isSimple() || !group?.api.isVisible || target.width <= 0) return;
+    if (!isSimple() || isWorkbench(side) || !group?.api.isVisible || target.width <= 0) return;
     if (target.width === sideSizedAt.current) return;
     sideSizedAt.current = target.width;
     group.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
@@ -253,7 +258,8 @@ export function useDockPanels(
   const captureSideWidth = (target: DockviewApi): void => {
     const side = simpleRef.current.sideColumn;
     const group = side === null ? undefined : target.getPanel(side)?.group;
-    if (!isSimple() || sideSizedAt.current === 0 || !group?.api.isVisible) return;
+    if (!isSimple() || isWorkbench(side) || sideSizedAt.current === 0 || !group?.api.isVisible)
+      return;
     if (target.width <= 0 || group.api.width <= 0) return;
     simpleRef.current = {
       ...simpleRef.current,
@@ -339,14 +345,15 @@ export function useDockPanels(
         );
     }
     if (id === WORKSPACE_CHANNELS && target.getPanel(WORKSPACE_CHANNELS) === undefined) id = null;
-    const shown = simpleViewIds(id);
+    const workbench = isWorkbench(id);
+    const shown = workbench && id !== null ? [id] : simpleViewIds(id);
     for (const group of target.groups) {
       const visible = group.panels.some(
         (panel) => panel.id === WORKSPACE_RAIL || shown.includes(panel.id),
       );
       if (group.api.isVisible !== visible) group.api.setVisible(visible);
     }
-    const side = id === null ? undefined : target.getPanel(id)?.group;
+    const side = id === null || workbench ? undefined : target.getPanel(id)?.group;
     sideSizedAt.current = side === undefined ? 0 : target.width;
     if (side && target.width > 0)
       side.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });

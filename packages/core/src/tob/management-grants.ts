@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { resolveGrants } from '../authorization/grants.js';
+import { roleGrantsPermissionSql } from '../team/host-permissions.js';
+import type { HostPermission } from '../team/permissions.js';
 
 export const MANAGEMENT_CAPABILITIES = ['manage-app', 'manage-bots'] as const;
 export type ManagementCapability = (typeof MANAGEMENT_CAPABILITIES)[number];
@@ -12,14 +14,13 @@ export function isManagementCapability(value: unknown): value is ManagementCapab
 
 const GrantRow = z.object({ botSlug: z.string().min(1), capability: z.string() });
 
-export const MANAGE_GRANTS_PERMISSION = 'bots.manageGrants';
+export const MANAGE_GRANTS_PERMISSION = 'bots.manageGrants' satisfies HostPermission;
 
 const AUTHORIZED_HUMAN_SQL = (
   human: string,
 ) => `(${human} = s.owner_human_id OR (s.enabled = 1 AND EXISTS (
-    SELECT 1 FROM humans h JOIN human_roles m ON m.human_id = h.human_id
-    JOIN host_roles r ON r.role_id = m.role_id, json_each(r.permissions_json) p
-    WHERE h.human_id = ${human} AND h.status = 'active' AND p.value = '${MANAGE_GRANTS_PERMISSION}')))`;
+    SELECT 1 FROM humans h WHERE h.human_id = ${human} AND h.status = 'active')
+    AND ${roleGrantsPermissionSql(human, MANAGE_GRANTS_PERMISSION)}))`;
 
 const GRANT_HOLDERS_SQL = `
   SELECT g.bot_slug AS botSlug, g.capability FROM bot_management_grants g
@@ -50,8 +51,8 @@ export function canManageGrants(database: OperationalDatabaseModulePort, humanId
   return database.read(
     (db) =>
       db
-        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('?')}`)
-        .get(humanId, humanId) !== undefined,
+        .prepare(`SELECT 1 AS ok FROM team_settings s WHERE ${AUTHORIZED_HUMAN_SQL('?1')}`)
+        .get(humanId) !== undefined,
   );
 }
 

@@ -40,7 +40,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | create --name --permissions [--models] [--model-providers] [--engine-accounts] | update <roleId> [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
+      'list | catalog | effective [<username>] | conflicts <username> | create --name --permissions [--deny] [--models] [--model-providers] [--engine-accounts] | update <roleId> [--permissions] [--deny] [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -86,6 +86,7 @@ type TeamValues = {
   username?: string;
   name?: string;
   permissions?: string;
+  deny?: string;
   set?: string;
   revoke?: string;
   member?: string[];
@@ -313,12 +314,15 @@ export async function runTeamCommand(
             };
     if (action === 'conflicts' && argument && rest.length === 2)
       return rpc('roleConflicts', { username: argument });
+    if (action === 'effective' && rest.length <= 2)
+      return rpc('memberPermissions', argument === undefined ? {} : { username: argument });
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
     if (action === 'catalog' && rest.length === 1) return rpc('permissionCatalog', {});
     if (action === 'create' && rest.length === 1 && values.name && values.permissions !== undefined)
       return rpc('roleCreate', {
         name: values.name,
         permissions: ids(values.permissions),
+        ...(values.deny === undefined ? {} : { denied: ids(values.deny) }),
         ...(values['policy-stdin']
           ? { policy: secretJson(rolePolicySchema, await secret(io)) }
           : {}),
@@ -330,6 +334,7 @@ export async function runTeamCommand(
       rest.length === 2 &&
       (values.name !== undefined ||
         values.permissions !== undefined ||
+        values.deny !== undefined ||
         models !== undefined ||
         values['policy-stdin'])
     )
@@ -341,6 +346,7 @@ export async function runTeamCommand(
         ...(models === undefined ? {} : { models }),
         ...(values.name === undefined ? {} : { name: values.name }),
         ...(values.permissions === undefined ? {} : { permissions: ids(values.permissions) }),
+        ...(values.deny === undefined ? {} : { denied: ids(values.deny) }),
       });
     if (action === 'delete' && argument && rest.length === 2) {
       if (!values.confirm) throw new CliLiveError('confirm-required', 'confirm-required');

@@ -300,6 +300,7 @@ export const TEAM_OPTIONS = {
   'token-stdin': { type: 'boolean' },
   'sign-out-others': { type: 'string' },
   permissions: { type: 'string' },
+  deny: { type: 'string' },
   set: { type: 'string' },
   revoke: { type: 'string' },
   'role-ids': { type: 'string' },

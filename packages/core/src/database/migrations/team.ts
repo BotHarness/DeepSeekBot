@@ -435,3 +435,14 @@ export const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const ROLE_DENIED_PERMISSIONS_MIGRATION: SchemaMigration = {
+  id: 'role-denied-permissions',
+  module: 'team',
+  description: 'Host Roles can explicitly deny Host Permissions; any deny wins across roles',
+  migrate(database) {
+    database.exec(
+      `ALTER TABLE host_roles ADD COLUMN denied_permissions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(denied_permissions_json))`,
+    );
+  },
+};

@@ -271,6 +271,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'reachableBots',
   'botProactiveOptOut',
   'roleConflicts',
+  'memberPermissions',
   'speakerPolicy',
   'privateObjects',
   'privateContentOpen',

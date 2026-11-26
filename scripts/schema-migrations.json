@@ -762,5 +762,9 @@
   {
     "id": "sender-block",
     "sha256": "6038e99514650fd293e152f4c762f10765a7321c66edc1a5c79d025dc1420f9c"
+  },
+  {
+    "id": "role-denied-permissions",
+    "sha256": "9e0587401ed5997f39383fb34181edd14e5f7d705a46b6e922b0e53da0af9075"
   }
 ]

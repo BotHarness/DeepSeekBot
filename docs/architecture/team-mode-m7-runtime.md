@@ -96,6 +96,7 @@ Errors use `{ ok:false, error:{ code, message:code, details? } }` at the bridge 
 | `reachableBots`      | `{}`                                                          | `[{slug,displayName,avatar?,visibility,principalDisplayName}]`; metadata only                                              |
 | `botProactiveOptOut` | `{slug,optOut}`                                               | `null`; calling Human's own preference                                                                                     |
 | `roleConflicts`      | `{humanId}` or CLI `{username}`                               | `[{topic,allowRole:{roleId,name},denyRole:{roleId,name}}]`                                                                 |
+| `memberPermissions`  | `{humanId?}` or CLI `{username?}`                             | `{humanId,owner,active,permissions:[{id,state,sources:[{roleId,name,builtin,effect}]}]}`; own or member/role manager       |
 | `speakerPolicy`      | `{humanId?,topic?}`                                           | `{humanId,displayName,roles,resolved}`; own policy or member/role manager                                                  |
 
 Visibility is `{kind:'private'}` or `{kind:'public',audience}`. Audience is M6's

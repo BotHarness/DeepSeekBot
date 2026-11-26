@@ -39,6 +39,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'reachableBots',
   'botProactiveOptOut',
   'roleConflicts',
+  'memberPermissions',
   'speakerPolicy',
   'botTools',
   'privateObjects',
