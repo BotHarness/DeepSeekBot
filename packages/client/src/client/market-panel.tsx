@@ -13,6 +13,7 @@ import { SegmentedControl } from './ds/segmented.js';
 import { space } from './ds/tokens.stylex.js';
 import { MarketAvatars } from './market-avatars.js';
 import { MarketAppConnections } from './app-connections-catalog.js';
+import { MarketSkills } from './market-skills.js';
 import { joinClass } from './ds/class-name.js';
 import { useTeamMode } from './team-state.js';
 import { IconButton } from './ds/icon-button.js';
@@ -66,7 +67,7 @@ export function openMarketplaceAvatarPublish(
   registry.open(MARKET_PANEL);
 }
 
-type MarketSection = 'bots' | 'avatars' | 'apps';
+type MarketSection = 'bots' | 'skills' | 'avatars' | 'apps';
 type MarketNavigationState = {
   section: MarketSection;
   dialog: 'upload' | 'mine' | undefined;
@@ -243,6 +244,7 @@ function MarketPanelView({
         value={section}
         options={[
           { value: 'bots', label: t('market.avatar.bots') },
+          { value: 'skills', label: t('market.skills') },
           { value: 'avatars', label: t('market.avatar.title') },
           { value: 'apps', label: t('botSettings.section.connectors') },
         ]}
@@ -268,6 +270,19 @@ function MarketPanelView({
             onClosePublish={() => navigation.open(undefined)}
           />
         )}
+      </div>
+      <div
+        {...stylex.props(styles.panel, styles.apps)}
+        id="bh-market-section-skills-panel"
+        aria-labelledby="bh-market-section-skills"
+        role="tabpanel"
+        hidden={section !== 'skills'}
+      >
+        {section === 'skills' ? (
+          <div className="bh-market-panel">
+            <MarketSkills actions={actions} t={t} />
+          </div>
+        ) : null}
       </div>
       <div
         {...stylex.props(styles.panel, styles.apps)}
