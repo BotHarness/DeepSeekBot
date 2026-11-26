@@ -14,6 +14,7 @@ export interface SessionModelSheetRow {
   tag?: string | undefined;
   disabled?: boolean | undefined;
   accessible: string;
+  testID?: string | undefined;
 }
 
 export interface SessionModelSheetProps {
@@ -40,6 +41,16 @@ export interface SessionModelSheetProps {
   onRefresh(): void;
   onFilter(key: string | undefined): void;
   onChoose(key: string): void;
+  selected?: readonly string[] | undefined;
+  confirm?: { label: string; disabled: boolean; onPress(): void } | undefined;
+  effort?: ModelSheetEffort | undefined;
+}
+
+export interface ModelSheetEffort {
+  title: string;
+  options: { id: string; label: string }[];
+  current: string;
+  onChoose(id: string): void;
 }
 
 export const NativeSessionModelSheet: ComponentType<SessionModelSheetProps> | undefined = undefined;

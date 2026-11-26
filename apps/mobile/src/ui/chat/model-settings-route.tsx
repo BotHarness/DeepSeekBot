@@ -8,6 +8,7 @@ import {
 import { useHostSession } from '../../host/host-session';
 import { useStrings } from '../strings';
 import { ModelsView } from './model-settings-screen';
+import { ModelSlotsView } from './model-slots-screen';
 import { SubChoicePicker } from './sub-choice-picker';
 import { SheetNote } from './sheet';
 
@@ -70,6 +71,14 @@ export function ModelSettingsScreen({
       />
     );
   }
+  if (!pick && scope.kind !== 'global')
+    return (
+      <ModelSlotsView
+        key={`${saved?.hostId}:${modelScopeKey(scope)}`}
+        client={client}
+        scope={scope}
+      />
+    );
   const picker =
     pick && (field === 'orchestrator' || field === 'orchestrator-effort') ? field : undefined;
   return (

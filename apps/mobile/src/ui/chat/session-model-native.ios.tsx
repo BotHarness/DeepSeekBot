@@ -124,6 +124,7 @@ function FilterStrip({
     key: string;
     brand: ModelBrand | undefined;
     sub: boolean;
+    group?: boolean;
     picked: boolean;
     accessible?: string;
     onPress?: () => void;
@@ -184,6 +185,7 @@ function FilterStrip({
                   <ModelFilterGlyph
                     brand={chip.brand}
                     sub={chip.sub}
+                    group={chip.group === true}
                     size={theme.type.title.line}
                   />
                 )}
@@ -220,12 +222,34 @@ export function NativeSessionModelSheet({
   onRefresh,
   onFilter,
   onChoose,
+  selected,
+  confirm,
+  effort,
 }: SessionModelSheetProps) {
+  const checked = (key: string) =>
+    selected === undefined ? current === key : selected.includes(key);
   const theme = useDesignTheme();
   const [shown, setShown] = useState(visible);
   const [detent, setDetent] = useState<'medium' | 'large'>('medium');
   if (visible && !shown) setShown(true);
   if (!shown) return null;
+  const anchor = (ids: readonly string[]) =>
+    ids.includes('presets') ? 'presets' : ids.includes('default') ? 'default' : undefined;
+  const stripAfter = anchor(sections.map((section) => section.id));
+  const skeletonStripAfter = anchor(skeleton.map((section) => section.id));
+  const skeletonStrip = (
+    <Section key="filters">
+      <FilterStrip
+        label={filterLabel}
+        chips={Array.from({ length: FILTER_SKELETON_CHIPS }, (_, key) => ({
+          key: String(key),
+          brand: undefined,
+          sub: false,
+          picked: false,
+        }))}
+      />
+    </Section>
+  );
   const strip =
     filters.length === 0 ? null : (
       <Section key="filters">
@@ -235,6 +259,7 @@ export function NativeSessionModelSheet({
             key: entry.key,
             brand: entry.brand,
             sub: entry.source === 'sub',
+            group: entry.source === 'group',
             picked: entry.key === filter,
             accessible: entry.accessible,
             onPress: () => onFilter(entry.key === filter ? undefined : entry.key),
@@ -285,6 +310,46 @@ export function NativeSessionModelSheet({
                     </Text>
                   </Section>
                 )}
+                {effort === undefined || loading || effort.options.length === 0 ? null : (
+                  <Section key="effort" title={effort.title}>
+                    <ScrollView
+                      axes="horizontal"
+                      showsIndicators={false}
+                      modifiers={[
+                        listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+                        listRowBackground('transparent'),
+                        listRowSeparator('hidden'),
+                      ]}
+                    >
+                      <HStack spacing={space.x2} modifiers={[padding({ horizontal: space.x5 })]}>
+                        {effort.options.map((option) => (
+                          <Button
+                            key={option.id || 'default'}
+                            label={option.label}
+                            onPress={() => effort.onChoose(option.id)}
+                            modifiers={[
+                              buttonStyle(
+                                option.id === effort.current
+                                  ? Number(Platform.Version) >= 26
+                                    ? 'glassProminent'
+                                    : 'borderedProminent'
+                                  : Number(Platform.Version) >= 26
+                                    ? 'glass'
+                                    : 'bordered',
+                              ),
+                              disabled(saving !== undefined),
+                              accessibilityAddTraits(
+                                option.id === effort.current ? ['isSelected'] : [],
+                              ),
+                            ]}
+                          />
+                        ))}
+                      </HStack>
+                    </ScrollView>
+                  </Section>
+                )}
+                {loading && skeletonStripAfter === undefined ? skeletonStrip : null}
+                {!loading && stripAfter === undefined ? strip : null}
                 {loading
                   ? skeleton.flatMap((section) => [
                       <Section
@@ -312,21 +377,7 @@ export function NativeSessionModelSheet({
                           </Button>
                         ))}
                       </Section>,
-                      ...(section.id === 'default'
-                        ? [
-                            <Section key="filters">
-                              <FilterStrip
-                                label={filterLabel}
-                                chips={Array.from({ length: FILTER_SKELETON_CHIPS }, (_, key) => ({
-                                  key: String(key),
-                                  brand: undefined,
-                                  sub: false,
-                                  picked: false,
-                                }))}
-                              />
-                            </Section>,
-                          ]
-                        : []),
+                      ...(section.id === skeletonStripAfter ? [skeletonStrip] : []),
                     ])
                   : sections.flatMap((section) => [
                       <Section
@@ -351,7 +402,7 @@ export function NativeSessionModelSheet({
                               trailing={
                                 saving === item.key
                                   ? 'saving'
-                                  : current === item.key
+                                  : checked(item.key)
                                     ? 'check'
                                     : 'none'
                               }
@@ -359,7 +410,7 @@ export function NativeSessionModelSheet({
                           </Button>
                         ))}
                       </Section>,
-                      ...(section.id === 'default' && strip !== null ? [strip] : []),
+                      ...(section.id === stripAfter && strip !== null ? [strip] : []),
                     ])}
               </List>
               <Toolbar.Content>
@@ -380,6 +431,18 @@ export function NativeSessionModelSheet({
                     </Button>
                   )}
                 </ToolbarItem>
+                {confirm === undefined ? null : (
+                  <ToolbarItem placement="confirmationAction">
+                    <Button
+                      label={confirm.label}
+                      onPress={confirm.onPress}
+                      modifiers={[
+                        disabled(confirm.disabled || saving !== undefined),
+                        ...(Number(Platform.Version) >= 26 ? [buttonStyle('glassProminent')] : []),
+                      ]}
+                    />
+                  </ToolbarItem>
+                )}
                 <ToolbarItem placement="primaryAction">
                   {refreshing ? (
                     <ProgressView modifiers={[accessibilityLabel(refreshingLabel)]} />
