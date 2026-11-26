@@ -548,6 +548,11 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
+        {hostAccess === undefined || summary.command === undefined ? null : (
+          <div {...hooked('bh-tool-approval-host-access', styles.caption, styles.warning)}>
+            {hostAccess}
+          </div>
+        )}
         {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
           <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
         )}
