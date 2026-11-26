@@ -18,6 +18,7 @@ import type {
 import type { QuestionAnswer, QuestionItem } from '@botharness/host-protocol/wire';
 import { z } from 'zod';
 import { validQuestionAnswer } from '../../channels/user-questions.js';
+import { toolInputPreview } from '../../runtime/tool-input-preview.js';
 import type { NativeSessionAttentionEntry } from '../activity/native-session-attention.js';
 import { folderName } from './workspace-sessions.js';
 
@@ -153,10 +154,37 @@ function continued(view: UserQuestionProjectionView | undefined): HostSessionPen
 
 type EventOutcome = { kind: 'next' } | { kind: 'result'; value: unknown };
 
+export type NativeToolCall = (
+  sessionId: string,
+  callId: string,
+) => { arguments: unknown } | undefined;
+
+const PREVIEW_MAX = 2000;
+
+export function withPreview(
+  sessionId: string,
+  card: HostSessionPendingInput,
+  toolCall: NativeToolCall | undefined,
+): HostSessionPendingInput {
+  if (card.kind !== 'approval' || card.callId === undefined || card.preview !== undefined)
+    return card;
+  const call = toolCall?.(sessionId, card.callId);
+  if (call === undefined) return card;
+  const args =
+    typeof call.arguments === 'string' ? call.arguments : JSON.stringify(call.arguments ?? {});
+  const text = toolInputPreview(args).trim();
+  if (text === '') return card;
+  return {
+    ...card,
+    preview: text.length <= PREVIEW_MAX ? text : `${text.slice(0, PREVIEW_MAX - 1).trimEnd()}…`,
+  };
+}
+
 export function dshHostSessionInput(
   ctx: Context,
   isUnowned: (sessionId: string) => boolean,
   changed: (sessionId: string) => void,
+  toolCall?: NativeToolCall,
 ) {
   const pending = new Map<string, Pending>();
   const submitting = new Set<string>();
@@ -259,7 +287,9 @@ export function dshHostSessionInput(
   });
 
   const active = (id: string) =>
-    [...pending.values()].filter((entry) => entry.sessionId === id).map((entry) => entry.card);
+    [...pending.values()]
+      .filter((entry) => entry.sessionId === id)
+      .map((entry) => withPreview(id, entry.card, toolCall));
   const liveQuestions = (id: string) => {
     const agent = ctx.agents.get(SessionId(id));
     return agent === undefined
@@ -300,8 +330,9 @@ export function dshHostSessionInput(
 
   return {
     attention(): NativeSessionAttentionEntry[] {
-      return [...pending.values()].flatMap(({ sessionId, card, createdAt }) => {
+      return [...pending.values()].flatMap(({ sessionId, card: held, createdAt }) => {
         if (!isUnowned(sessionId)) return [];
+        const card = withPreview(sessionId, held, toolCall);
         const sessionTitle = title(sessionId);
         const sessionFolder = folder(sessionId);
         return [
@@ -311,7 +342,7 @@ export function dshHostSessionInput(
             input: card.kind,
             summary:
               card.kind === 'approval'
-                ? [card.toolName, card.reason].filter(Boolean).join(' · ')
+                ? [card.toolName, card.preview ?? card.reason].filter(Boolean).join(' · ')
                 : card.questions.map((item) => item.question).join(' · '),
             createdAt: createdAt ?? new Date(0).toISOString(),
             ...(sessionTitle === undefined ? {} : { sessionTitle }),

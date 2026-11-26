@@ -578,6 +578,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       sessionLive.observe(id, { type: 'native-input' });
       sessionListChanges.changed(true, id);
     },
+    (sessionId, callId) => {
+      const events = dshSessions.get(sessionId)?.snapshotEvents() ?? [];
+      for (let index = events.length - 1; index >= 0; index -= 1) {
+        const event = events[index]!;
+        if (event.type !== 'tool/call') continue;
+        const data = event.data as { callId?: unknown; arguments?: unknown } | null;
+        if (data?.callId === callId) return { arguments: data.arguments };
+      }
+      return undefined;
+    },
   );
   ctx.effect(
     () =>

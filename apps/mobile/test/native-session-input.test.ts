@@ -1,3 +1,4 @@
+import { approvalCommand, readableInput } from '@botharness/host-client/requests';
 import { describe, expect, it, vi } from 'vitest';
 import { MethodRefused } from '@botharness/host-client/client';
 import type { SavedHost } from '@botharness/host-client/hosts';
@@ -101,10 +102,27 @@ describe('approval request', () => {
     expect(request).toMatchObject({
       toolName: 'bash',
       cwd: '/work',
-      input: 'ls -la',
       allowAlways: false,
       status: 'pending',
     });
+    expect(approvalCommand(request.toolName, request.input)).toBe('ls -la');
+  });
+
+  it('shows the Host preview as the command and keeps the DSH reason under Details', () => {
+    const request = nativeApprovalRequest(
+      { ...approval, preview: 'echo READY', reason: 'escalate sandbox to danger-full-access' },
+      {},
+    );
+    expect(approvalCommand(request.toolName, request.input)).toBe('echo READY');
+    expect(readableInput(request.input)).toEqual([
+      { label: 'command', value: 'echo READY' },
+      { label: 'reason', value: 'escalate sandbox to danger-full-access' },
+    ]);
+    const other = nativeApprovalRequest(
+      { ...approval, toolName: 'write_file', preview: 'notes/plan.md' },
+      {},
+    );
+    expect(readableInput(other.input)).toEqual([{ label: 'input', value: 'notes/plan.md' }]);
   });
 
   it('falls back to the DSH reason when the tool row is not in the transcript yet', () => {
