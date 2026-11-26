@@ -693,7 +693,6 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       );
     },
     setPaused(slug, paused) {
-      if (paused && isTob(port, slug)) throw new TobError('protected-bot');
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const archiving = paused && record.paused !== true;

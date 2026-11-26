@@ -11,6 +11,7 @@ export {
   trustedSenderReference,
   type ExternalUserRole,
   type SenderAccessInput,
+  type SenderAccessReviewer,
   type SenderAdmission,
   type SenderPermissions,
   type SenderPolicy,

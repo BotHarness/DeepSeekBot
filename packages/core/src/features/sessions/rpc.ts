@@ -353,6 +353,10 @@ export const sessionListRpc = {
     );
   },
 
+  sessionListChanges(sinceSeq?: number, epoch?: string) {
+    return unwrapAsync(this.methods.sessionListChanges({ sinceSeq, epoch }));
+  },
+
   sessionCreate(
     cwd?: string,
     workspaceId?: string,

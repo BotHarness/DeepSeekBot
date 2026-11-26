@@ -1,7 +1,7 @@
+import { useQuery } from '@tanstack/react-query';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, Pressable, SectionList } from 'react-native';
+import { Keyboard, Pressable, SectionList, View } from 'react-native';
 import type { HostCall } from '@botharness/host-client/host-answer';
-import { loadSessionModelCatalog } from '@botharness/host-client/model-catalog';
 import { sessionModel } from '@botharness/host-client/session-model';
 import { turnTargetLabel } from '@botharness/host-client/turn-target';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
@@ -12,34 +12,36 @@ import type {
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
+import { modelCatalogCache, sessionModelQueries, stateQuery } from '../../host/session-model-query';
+
 import { space } from '../design/tokens';
 import { capsuleRadius } from '../design/large-text-fallback';
 import { pressTint, useDesignTheme } from '../design/theme';
+import { HeaderButton } from '../primitives/drawer-header';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
+import { RefreshIcon } from '../shell/icons';
 import { composerControl } from './composer-chrome';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
-import { sessionModelKey, sessionModelLabel } from './session-model-label';
+import { NativeSessionModelSheet } from './session-model-native';
+import { sessionDefaultModel, sessionModelKey, sessionModelLabel } from './session-model-label';
 import {
   SHEET_GROUP,
   Sheet,
   SheetCallout,
   SheetFailed,
   SheetHeading,
-  SheetLoading,
+  SheetSkeleton,
   SheetNote,
 } from './sheet';
-
-type Catalog = Awaited<ReturnType<typeof loadSessionModelCatalog>>;
-type Result<T> =
-  | { host: HostCall; attempt: number; value: T }
-  | { host: HostCall; attempt: number; failed: true };
 
 export interface ComposerSessionModel {
   slug: string | null;
   sessionId: string | undefined;
   host: HostCall;
+  hostId: string;
   enabled: boolean;
   running: boolean;
   target?: TurnTarget | undefined;
@@ -47,85 +49,65 @@ export interface ComposerSessionModel {
 
 export function useSessionModelControl({
   host,
+  hostId,
   slug,
   sessionId,
   enabled,
   running,
   target,
 }: ComposerSessionModel) {
-  const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState<Result<SessionModelState>>();
   const [draft, setDraft] = useState<SessionModelState>({ override: null, default: null });
-  const [catalogResult, setCatalog] = useState<Result<Catalog>>();
   const [saving, setSaving] = useState<string>();
   const [refused, setRefused] = useState(false);
   const writing = useRef(false);
+  const catalogOptions = modelCatalogCache.query(host, hostId);
+  const stateOptions = stateQuery(host, slug, sessionId);
+  const catalogResult = useQuery({ ...catalogOptions, enabled }, sessionModelQueries);
+  const saved = useQuery(
+    {
+      ...stateOptions,
+      enabled: enabled && (sessionId !== undefined || slug !== null) && saving === undefined,
+    },
+    sessionModelQueries,
+  );
   const state =
-    sessionId === undefined
-      ? draft
-      : saved?.host === host && 'value' in saved
-        ? saved.value
-        : undefined;
-  const catalog =
-    catalogResult?.host === host && 'value' in catalogResult ? catalogResult.value : undefined;
+    sessionId === undefined ? { ...draft, default: saved.data?.default ?? null } : saved.data;
+  const catalog = catalogResult.data;
   const visible = enabled && open;
   const failed =
-    (saved?.host === host && saved.attempt === attempt && 'failed' in saved) ||
-    (catalogResult?.host === host &&
-      catalogResult.attempt === attempt &&
-      'failed' in catalogResult);
-  const ready =
-    state !== undefined &&
-    catalog !== undefined &&
-    (sessionId === undefined || saved?.attempt === attempt) &&
-    catalogResult?.attempt === attempt;
+    (sessionId !== undefined && saved.data === undefined && saved.isError) ||
+    (catalog === undefined && catalogResult.isError);
+  const ready = state !== undefined && catalog !== undefined;
+  const refreshing = catalogResult.isFetching;
+  const stateKey = JSON.stringify(stateOptions.queryKey);
 
   useLayoutEffect(() => {
-    if (!enabled || saving !== undefined || sessionId === undefined) return;
-    let active = true;
-    void sessionModel(host, slug, sessionId).then(
-      (value) => {
-        if (active) setSaved({ host, attempt, value });
-      },
-      () => {
-        if (active) setSaved({ host, attempt, failed: true });
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [host, slug, sessionId, enabled, running, attempt, saving]);
-
-  useLayoutEffect(() => {
-    if (!enabled) return;
-    let active = true;
-    void loadSessionModelCatalog(host).then(
-      (value) => {
-        if (active) setCatalog({ host, attempt, value });
-      },
-      () => {
-        if (active) setCatalog({ host, attempt, failed: true });
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [host, enabled, attempt]);
+    if (!enabled || (sessionId === undefined && slug === null)) return;
+    void sessionModelQueries.invalidateQueries({ queryKey: JSON.parse(stateKey) });
+  }, [enabled, running, sessionId, slug, stateKey]);
 
   useLayoutEffect(() => {
     if (!enabled) setOpen(false);
   }, [enabled]);
 
+  function reloadState() {
+    if (sessionId !== undefined || slug !== null)
+      void sessionModelQueries.invalidateQueries({ queryKey: stateOptions.queryKey });
+  }
+
   function retry() {
     setRefused(false);
-    setAttempt((value) => value + 1);
+    void modelCatalogCache.refresh(host, hostId).catch(() => {});
+    reloadState();
   }
 
   function show() {
     Keyboard.dismiss();
     setOpen(true);
-    retry();
+    setRefused(false);
+    void modelCatalogCache.revalidate(host, hostId);
+    reloadState();
   }
 
   function close() {
@@ -144,7 +126,7 @@ export function useSessionModelControl({
     setRefused(false);
     try {
       const value = await sessionModel(host, slug, sessionId, choice);
-      setSaved({ host, attempt, value });
+      sessionModelQueries.setQueryData(stateOptions.queryKey, value);
       setOpen(false);
     } catch {
       setRefused(true);
@@ -164,6 +146,8 @@ export function useSessionModelControl({
     ready,
     refused,
     retry,
+    refresh: retry,
+    refreshing,
     show,
     close,
     choose,
@@ -299,10 +283,16 @@ export function SessionModelPicker({ control }: { control: Control }) {
     failed,
     refused,
     saving,
+    refreshing,
     close,
     retry,
+    refresh,
     choose,
   } = control;
+  const defaultModel = useMemo(
+    () => sessionDefaultModel(state?.default ?? null, catalog),
+    [catalog, state?.default],
+  );
   const sections = useMemo(() => {
     if (!visible || catalog === undefined) return [];
     return [
@@ -311,7 +301,8 @@ export function SessionModelPicker({ control }: { control: Control }) {
         data: [
           {
             choice: null,
-            name: fresh ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+            name: fresh && native ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+            ...defaultModel,
           },
         ],
       },
@@ -368,15 +359,83 @@ export function SessionModelPicker({ control }: { control: Control }) {
         ),
       },
     ];
-  }, [catalog, copy, fresh, native, t.routingGroup.engines, visible]);
+  }, [catalog, copy, defaultModel, fresh, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
   const summary = useSessionModelSummary(control, Infinity);
+  if (NativeSessionModelSheet !== undefined) {
+    const choices = new Map(
+      sections
+        .flatMap((section) => section.data)
+        .map((item) => [sessionModelKey(item.choice), item]),
+    );
+    return (
+      <NativeSessionModelSheet
+        visible={visible}
+        title={copy.choice}
+        closeLabel={t.close}
+        note={
+          ready && summary.pending && summary.name !== undefined
+            ? `${summary.name} · ${copy.nextTurnNote}`
+            : refused
+              ? copy.saveFailed
+              : undefined
+        }
+        failure={failed ? copy.loadFailed : undefined}
+        retryLabel={t.retry}
+        loading={!failed && !ready}
+        refreshLabel={copy.refresh}
+        refreshingLabel={copy.refreshing}
+        refreshing={refreshing && ready}
+        onRefresh={refresh}
+        current={current}
+        saving={saving}
+        savingLabel={copy.saving}
+        sections={sections.map((section) => ({
+          title: section.title,
+          data: section.data.map((item) => ({
+            key: sessionModelKey(item.choice),
+            name: item.name,
+            brand: item.brand,
+            detail: item.detail,
+            tag: item.tag,
+            disabled: item.disabled,
+            accessible: copy.accessible(
+              [item.name, item.tag, item.detail].filter((part) => part !== undefined),
+            ),
+          })),
+        }))}
+        onClose={close}
+        onRetry={retry}
+        onChoose={(key) => {
+          const item = choices.get(key);
+          if (item !== undefined) void choose(item.choice);
+        }}
+      />
+    );
+  }
   return (
-    <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close}>
+    <Sheet
+      visible={visible}
+      label={copy.choice}
+      title={copy.choice}
+      onClose={close}
+      resizable
+      trailing={
+        refreshing && ready ? (
+          <View style={{ width: theme.touch, height: theme.touch, justifyContent: 'center' }}>
+            <LoadingIndicator accessibilityLabel={copy.refreshing} />
+          </View>
+        ) : (
+          <HeaderButton label={copy.refresh} testID="session-model-refresh" onPress={refresh}>
+            <RefreshIcon color={theme.color.fg} size={theme.type.title.line} />
+          </HeaderButton>
+        )
+      }
+    >
       {failed ? (
         <SheetFailed message={copy.loadFailed} on={SHEET_GROUP} onRetry={retry} />
       ) : !ready ? (
-        <SheetLoading />
+        <SheetSkeleton />
       ) : (
         <>
           {refused ? <SheetCallout tone="danger">{copy.saveFailed}</SheetCallout> : null}
@@ -385,7 +444,8 @@ export function SessionModelPicker({ control }: { control: Control }) {
           ) : null}
           <SectionList<Option>
             nestedScrollEnabled
-            style={{ flexShrink: 1 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: space.x5 }}
             sections={sections}
             keyExtractor={(item) => sessionModelKey(item.choice)}
             stickySectionHeadersEnabled={false}

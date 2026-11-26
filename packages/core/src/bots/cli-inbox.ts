@@ -74,7 +74,7 @@ export const INBOX_COMMANDS = [
   {
     command: 'session-model',
     description:
-      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice',
+      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice; without --session, show a new Session’s default',
   },
   {
     command: 'session-transcript',
@@ -101,6 +101,11 @@ export const INBOX_COMMANDS = [
     command: 'session-import-list',
     description:
       'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
+  },
+  {
+    command: 'session-list-changes',
+    description:
+      'list the root Sessions that changed since a change cursor (--since <seq> --epoch <e>), or the current cursor',
   },
   {
     command: 'session-create',
@@ -164,6 +169,8 @@ export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 const ACTIVITY_SOURCES = ['all', 'bot', 'native'];
 
 export interface InboxValues {
+  since?: string;
+  epoch?: string;
   set?: string;
   notifications?: boolean;
   category?: string;
@@ -624,7 +631,12 @@ function prepare(
         Math.min(rest.length, 1),
         'at most one bot id',
       );
-      const sessionId = required(values.session, 'session', command);
+      const sessionId = values.session;
+      if (sessionId === undefined) {
+        if (slug === null || values.set !== undefined || values.clear === true)
+          usage('session-model needs --session, except to read a Bot’s default for a new Session.');
+        return { method: 'sessionModel', args: { slug } };
+      }
       if (values.set !== undefined && values.clear === true)
         usage('session-model accepts one of --set and --clear.');
       if (values.clear === true)
@@ -693,6 +705,21 @@ function prepare(
       return {
         method: 'sessionNativeArchive',
         args: { sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-list-changes': {
+      positionals(command, rest, 0, '');
+      const sinceSeq = values.since === undefined ? undefined : Number(values.since);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || sinceSeq < 0))
+        usage('session-list-changes --since must be a whole number of 0 or more.');
+      if (values.epoch !== undefined && sinceSeq === undefined)
+        usage('session-list-changes --epoch needs --since.');
+      return {
+        method: 'sessionListChanges',
+        args: {
+          ...(sinceSeq === undefined ? {} : { sinceSeq }),
+          ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
+        },
       };
     }
     case 'session-create': {

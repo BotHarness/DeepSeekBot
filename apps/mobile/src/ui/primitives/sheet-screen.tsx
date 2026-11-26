@@ -7,6 +7,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { SheetGrabber } from './sheet-grabber';
+import { SystemSheet } from './system-sheet';
 
 export function sheetScreenOptions(theme: DesignTheme, full = false) {
   return {
@@ -14,7 +15,9 @@ export function sheetScreenOptions(theme: DesignTheme, full = false) {
     presentation: 'formSheet' as const,
     sheetAllowedDetents: full || Platform.OS === 'android' ? [1] : [0.75, 1],
     sheetGrabberVisible: true,
-    contentStyle: { backgroundColor: theme.overlay.fill },
+    contentStyle: {
+      backgroundColor: Platform.OS === 'ios' ? 'transparent' : theme.overlay.fill,
+    },
     ...(Platform.OS === 'android' ? { sheetCornerRadius: radius.xl } : {}),
   };
 }
@@ -37,7 +40,7 @@ export function SheetScreen({
       ref={onMount}
       collapsable={false}
       onAccessibilityEscape={close}
-      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
+      style={{ flex: 1, backgroundColor: Platform.OS === 'ios' ? undefined : theme.overlay.fill }}
     >
       {Platform.OS === 'android' ? (
         <Pressable
@@ -55,7 +58,7 @@ export function SheetScreen({
           <SheetGrabber />
         </Pressable>
       ) : null}
-      {children}
+      <SystemSheet value={Platform.OS === 'ios'}>{children}</SystemSheet>
     </View>
   );
 }

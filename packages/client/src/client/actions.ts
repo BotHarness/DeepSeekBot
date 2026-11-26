@@ -117,6 +117,7 @@ import { createTelemetryActions } from './actions-telemetry.js';
 import { createHomeActions, type HomeActions } from './actions-home.js';
 import { createModelActions, type ModelActions } from './actions-models.js';
 import { createPromptActions, type PromptActions } from './actions-prompts.js';
+import { createConnectorActions, type ConnectorActions } from './features/connectors/bridge.js';
 import { createWorkspaceActions, type WorkspaceActions } from './actions-workspace.js';
 import { createApprovalActions, type ApprovalActions } from './actions-approvals.js';
 import { createVoiceActions, type VoiceActions } from './actions-voice.js';
@@ -155,6 +156,7 @@ export interface BridgeActions
     HomeActions,
     ModelActions,
     PromptActions,
+    ConnectorActions,
     WorkspaceActions,
     ApprovalActions,
     VoiceActions,
@@ -598,6 +600,7 @@ export function createActions(
     inheritModel: modelsActions.inheritModel,
     ...createTelemetryActions(invoke),
     ...createPromptActions(invoke, host),
+    ...createConnectorActions(invoke),
     newBotSession: sessionsActions.actions.newBotSession,
     retryMessage: composerActions.actions.retryMessage,
     compactBot: sessionsActions.actions.compactBot,

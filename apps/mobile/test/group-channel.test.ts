@@ -5,7 +5,12 @@ import {
   type HostClient,
   type HostSnapshot,
 } from '@botharness/host-client/client';
-import { groupActions, groupInfo, loadGroupAssignments } from '../src/host/group-channel';
+import {
+  canDisbandGroup,
+  groupActions,
+  groupInfo,
+  loadGroupAssignments,
+} from '../src/host/group-channel';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -196,5 +201,33 @@ describe('Group Channel info', () => {
     expect(fake.calls.find((call) => call.method === 'channelAssignments')?.args).toEqual({
       channelId,
     });
+  });
+});
+
+describe('canDisbandGroup', () => {
+  const saved = {
+    hostId: 'host-1',
+    hostName: 'Studio',
+    routes: [ROUTE],
+    deviceId: 'device-1',
+    credential: 'token',
+  };
+
+  it('lets the Owner disband a group and never a Team member', () => {
+    expect(canDisbandGroup(saved)).toBe(true);
+    expect(
+      canDisbandGroup({
+        ...saved,
+        member: {
+          humanId: 'human-alice',
+          displayName: 'Alice',
+          username: 'alice',
+          fingerprint: 'fp',
+          mustChangePassword: false,
+        },
+      }),
+    ).toBe(false);
+    expect(canDisbandGroup(undefined)).toBe(false);
+    expect(canDisbandGroup(null)).toBe(false);
   });
 });

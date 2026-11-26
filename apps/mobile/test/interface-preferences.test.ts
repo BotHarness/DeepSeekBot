@@ -173,6 +173,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      hideBarsOnScroll: false,
       tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
@@ -243,6 +244,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      hideBarsOnScroll: false,
       tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
@@ -318,4 +320,16 @@ it('remembers the Hide Bot Sessions choice on the phone', async () => {
   const restarted = createInterfacePreferences();
   await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
   expect(restarted.getSnapshot().hideBotSessions).toBe(true);
+});
+
+it('keeps bars on screen while scrolling until the phone opts in', async () => {
+  const writes: unknown[] = [];
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => undefined, write: (value) => writes.push(value) });
+  expect(preferences.getSnapshot().hideBarsOnScroll).toBe(false);
+  preferences.setHideBarsOnScroll(true);
+  expect(writes.at(-1)).toMatchObject({ hideBarsOnScroll: true });
+  const restarted = createInterfacePreferences();
+  await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
+  expect(restarted.getSnapshot().hideBarsOnScroll).toBe(true);
 });

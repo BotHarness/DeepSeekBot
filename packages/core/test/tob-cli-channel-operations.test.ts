@@ -28,7 +28,6 @@ function fixture() {
     management: core.channelManagement,
     channels: core.channels,
     registry: core.registry,
-    isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   const run = async (
     command: string,
@@ -226,12 +225,8 @@ describe('scoped Channel operations through the canonical owner', () => {
     expect(effect).toHaveBeenCalledOnce();
   });
 
-  it('refuses protected, archived, removed or injected targets before any effect', async () => {
+  it('refuses archived, removed or injected targets before any effect', async () => {
     const f = fixture();
-    const home = await f.core.tob.ensure();
-    await expect(
-      f.run('group-create', { ...createArgs(), members: [home.botSlug] }),
-    ).rejects.toMatchObject({ code: 'protected-bot' });
     f.core.registry.setPaused('writer', true);
     await expect(
       f.run('group-create', { ...createArgs(), members: ['writer'] }),

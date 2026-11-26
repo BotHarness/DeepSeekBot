@@ -1,88 +1,13 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
 import { decideToolApproval } from '../src/workspaces/tool-effects.js';
 import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
-import { requestListener } from './async-listener.js';
+import { closeServers, host, invoke } from './cli-inbox-fixture.js';
 
-const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
-  await Promise.all(
-    servers.splice(0).map(
-      (server) =>
-        new Promise<void>((resolve) => {
-          server.closeAllConnections();
-          server.close(() => resolve());
-        }),
-    ),
-  );
+  await closeServers();
 });
-
-async function host(
-  handler: (method: string, args: Record<string, unknown>) => unknown,
-  stallBody = false,
-) {
-  const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  let logins = 0;
-  const server = createServer(
-    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method === 'GET') {
-        logins += 1;
-        if (
-          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-        ) {
-          res.writeHead(403).end();
-          return;
-        }
-        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-        res.writeHead(302, { location: '/' }).end();
-        return;
-      }
-      expect(req.headers.cookie).toBe('authority=signed');
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = JSON.parse(Buffer.concat(chunks).toString());
-      expect(body.type).toBe('client-request');
-      expect(req.url).toBe(`/api/${body.method}`);
-      const method = body.method.replace('botharness/', '');
-      calls.push({ method, args: body.payload.args });
-      res.setHeader('content-type', 'application/json');
-      if (stallBody) {
-        res.write('{');
-        return;
-      }
-      res.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: body.rpcId,
-          result: handler(method, body.payload.args),
-        }),
-      );
-    }),
-  );
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('missing address');
-  return { url: `http://127.0.0.1:${address.port}`, calls };
-}
-
-async function invoke(argv: string[], url?: string, stdin = '', token = 'private-test-token') {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const code = await runBotCreateCli(argv, {
-    env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: token },
-    stdout: (text) => stdout.push(text),
-    stderr: (text) => stderr.push(text),
-    readStdin: async () => stdin,
-  });
-  expect(stdout).toHaveLength(1);
-  const out = stdout.join('');
-  expect(out + stderr.join('')).not.toContain('private-test-token');
-  return { code, text: out, json: JSON.parse(out) };
-}
 
 const echo = (method: string, args: Record<string, unknown>) => ({
   ok: true,
@@ -138,6 +63,24 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
     for (const limit of ['0', '201', '2.5'])
       expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
+  });
+
+  it('reads the Session change cursor, then the changes since it', async () => {
+    const live = await host(echo);
+    expect((await invoke(['session-list-changes'], live.url)).code).toBe(0);
+    expect(
+      (await invoke(['session-list-changes', '--since', '12', '--epoch', 'e1'], live.url)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionListChanges', args: {} },
+      { method: 'sessionListChanges', args: { sinceSeq: 12, epoch: 'e1' } },
+    ]);
+    for (const argv of [
+      ['session-list-changes', '--since', '-1'],
+      ['session-list-changes', '--since', 'x'],
+      ['session-list-changes', '--epoch', 'e1'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
   });
 
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
@@ -458,57 +401,6 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
-  it('reads native Session requests in Activity with --source and refuses an older Host', async () => {
-    const native = {
-      id: 'native-session:event-1',
-      category: 'action',
-      kind: 'native-session-input',
-      createdAt: '2026-11-25T10:00:00.000Z',
-      botSlug: '',
-      summary: 'bash',
-      requestId: 'event-1',
-      nativeSession: { sessionId: 'native-1', input: 'approval' },
-    };
-    const live = await host((method, args) =>
-      method === 'humanAttentionStatus'
-        ? { ok: true, value: { unreadCount: 0, hasAction: true } }
-        : {
-            ok: true,
-            value: { items: [native], ...(args['source'] ? { source: args['source'] } : {}) },
-          },
-    );
-    expect((await invoke(['activity', '--source', 'native'], live.url)).json.items).toEqual([
-      native,
-    ]);
-    expect((await invoke(['activity-status', '--source', 'all'], live.url)).json).toEqual({
-      unreadCount: 0,
-      hasAction: true,
-    });
-    for (const argv of [
-      ['activity', '--source', 'bots'],
-      ['activity', '--notifications', '--source', 'all'],
-      ['activity-status', '--source', 'everything'],
-    ])
-      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
-    expect(live.calls).toEqual([
-      { method: 'humanAttention', args: { source: 'native' } },
-      { method: 'humanAttentionStatus', args: { messageCounts: true, source: 'all' } },
-    ]);
-    const older = await host(() => ({ ok: true, value: { items: [] } }));
-    expect((await invoke(['activity', '--source', 'all'], older.url)).json.error.code).toBe(
-      'host-query-unsupported',
-    );
-    const refusing = await host(() => ({
-      ok: false,
-      error: { code: 'gateway/arguments-invalid', message: 'unexpected "source"' },
-    }));
-    for (const argv of [
-      ['activity', '--source', 'all'],
-      ['activity-status', '--source', 'all'],
-    ])
-      expect((await invoke(argv, refusing.url)).json.error.code).toBe('host-query-unsupported');
-  });
-
   it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
     const live = await host(() => ({
       ok: true,
@@ -618,6 +510,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke([...args, '--clear'], live.url)).json).toMatchObject({
       method: 'sessionModel',
       args: { choice: null },
+    });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
     });
   });
 

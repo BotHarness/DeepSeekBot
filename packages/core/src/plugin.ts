@@ -38,6 +38,9 @@ import { resolveDshHome } from './im/config-store.js';
 import type { ChannelToolApproval } from './workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import { mountConnectors } from './connectors/mount.js';
+import { ConnectorService } from './connectors/service.js';
+import { createConnectorStore } from './connectors/store.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import type { DshSessionStore } from './sessions/source.js';
 import type { PersonaBotActivityEvent } from './state/bot-state.js';
@@ -280,12 +283,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     get agentAdapter() {
       return agentAdapter;
     },
-    get team() {
-      return team;
-    },
-    get invocationBridgeMethods() {
-      return invocationBridgeMethods;
-    },
     get tobSettingsOperations() {
       return tobSettingsOperations;
     },
@@ -370,6 +367,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     'botharness: purge ledger and operational database',
   );
+  ctx.inject(['workspaceRegistry'], (workspaceCtx) => {
+    if (core.operationalDatabase.mode !== 'ready') return;
+    void core.tob.ensure().catch(() => {
+      workspaceCtx.logger.warn('Could not initialize the built-in Tob');
+    });
+  });
   const storage = profileStorage.mountStorage(ctx, core, dshHome);
   let connectAccount: ConnectAccount | undefined;
   let voiceCalls: VoiceCalls | undefined;
@@ -383,6 +386,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (topics.includes('host-relationships'))
           core.live.publishResourceChanged('relationships');
         if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
+        if (topics.includes('management-grants')) core.live.publishRosterCommitted();
         if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
       }),
     'botharness: live resource changes',
@@ -441,6 +445,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  if (core.operationalDatabase.mode === 'ready') {
+    const connectors = new ConnectorService({
+      store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
+      credentials: () => ctx.get('credentials'),
+      log: (phase, fields) => ctx.logger.info('connectors %j', { phase, ...fields }),
+    });
+    core.connectors = connectors;
+    mountConnectors(ctx, core, connectors);
+  }
   teamFeature.mountConfinement(ctx, core, dshHome);
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);
@@ -561,7 +574,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const nativeSessionInput = dshHostSessionInput(
     ctx,
     (id) => core.ownership.resolve(id) === undefined,
-    (id) => sessionLive.observe(id, { type: 'native-input' }),
+    (id) => {
+      sessionLive.observe(id, { type: 'native-input' });
+      sessionListChanges.changed(true, id);
+    },
   );
   ctx.effect(
     () =>
@@ -570,14 +586,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         subscribe: nativeSessionInput.subscribe,
       }),
     'botharness: native Session attention',
-  );
-  ctx.effect(
-    () => nativeSessionInput.subscribe(() => sessionListChanges.changed()),
-    'botharness: native Session requests change the Session list',
-  );
-  ctx.effect(
-    () => ctx.on('api-session/error', () => sessionListChanges.changed()),
-    'botharness: native Session failures change the Session list',
   );
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,

@@ -463,3 +463,15 @@ it('opens a selected Host privacy pane only with explicit confirmation', async (
     },
   ]);
 });
+
+it('reads the Mac unlock capability and lock state without accepting a credential', async () => {
+  const live = await host(() => ({
+    json: { unlock: { code: 'ready', locked: true, offer: 'discarded' } },
+  }));
+  const answer = await invoke(['computer-unlock-status'], live.url);
+  expect(answer.json).toEqual({ code: 'ready', locked: true });
+  expect((await invoke(['computer-unlock-status', '--args-stdin'], live.url)).code).toBe(2);
+  expect(live.calls.map(({ method, path }) => [method, path])).toEqual([
+    ['GET', '/api/computer/status'],
+  ]);
+});

@@ -1,32 +1,38 @@
-# ADR Format
+# Decision Format
 
-ADRs live in `docs/adr/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
+Decisions live as sections of topic documents in `docs/decisions/<topic>.md`, one document per area (for example `sessions.md`, `workspaces.md`, `tob.md`). There is no `docs/adr/` directory and no numbered ADR file: `pnpm lint` (`scripts/check-no-adr-files.mjs`) refuses any file there. Former numbered ADRs survive as section anchors such as `docs/decisions/persistence.md#adr-0041`.
 
-Create the `docs/adr/` directory lazily: only when the first ADR is needed.
+Add a new section to the matching topic document, or amend the section the decision changes. If no topic fits, create a new `docs/decisions/<topic>.md` with the same header shape as its siblings.
 
 ## Template
 
 ```md
-# {Short title of the decision}
+## N. {The decision, stated as a rule}
 
-{1-3 sentences: what's the context, what did we decide, and why.}
+<a id="{descriptive-anchor}"></a>
+_New in #{issue}._ (or _Amends section M._)
+
+{The current decision in present tense, written as rules. Include the concrete limits, names and owners a reader needs.}
+
+Why: {the reasons a reader cannot get from the code: the context and the trade-off.}
+
+Enforced by: {the real test files that hold the rule}.
 ```
 
-That's it. An ADR can be a single paragraph. The value is in recording *that* a decision was made and *why*, not in filling out sections.
+Keep it short. A section can be one rule paragraph plus its Why and Enforced by lines. History stays in Git and the PR, not in the document.
 
-## Optional sections
+## Optional content
 
-Only include these when they add genuine value. Most ADRs won't need them.
+Only include these when they add genuine value:
 
-- **Status** frontmatter (`proposed | accepted | deprecated | superseded by ADR-NNNN`): useful when decisions are revisited
-- **Considered Options**: only when the rejected alternatives are worth remembering
-- **Consequences**: only when non-obvious downstream effects need to be called out
+- **Rejected alternatives**, inside the Why paragraph or as a short list, when the rejection is non-obvious.
+- **Proposed** in the heading, with the tracking issue, for a decision that has not shipped yet. Say so in the Enforced by line too.
 
-## Numbering
+## Anchors
 
-Scan `docs/adr/` for the highest existing number and increment by one.
+Use a descriptive anchor (`tob-memory-lease`) for a new section. Keep every existing `adr-NNNN` anchor when you move or rewrite a section, because other documents and the changelog link to them. Link to a decision by its anchor: `[Workspace decisions](../decisions/workspaces.md#adr-0356)`.
 
-## When to offer an ADR
+## When to record a decision
 
 All three of these must be true:
 

@@ -1,22 +1,22 @@
 import type { ReactNode } from 'react';
-import { FlatList, Modal, Platform, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, Pressable, View } from 'react-native';
 
 import {
   INBOX_SECTIONS,
   type InboxSection,
   type InboxSetAside,
 } from '@botharness/host-client/inbox';
-import { Sheet } from '../chat/sheet';
+import { SHEET_GROUP, Sheet } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
-import { androidSettings, edge, radius, space } from '../design/tokens';
-import { CheckmarkRow } from '../primitives/checkmark-row';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { androidSettings, space } from '../design/tokens';
+import { SheetHeader } from '../primitives/sheet-header';
 import { RadioMark } from '../primitives/radio-mark';
 import { segmentCorners } from '../design/segment-corners';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
 import { useStrings, t } from '../strings';
+import { useSheetGroupFill } from '../primitives/sheet-group-fill';
+import { SystemListSheet, type SystemListSection } from '../primitives/system-list-sheet';
 
 export type ActivitySection = 'all' | InboxSection | InboxSetAside;
 export type ActivityFilter = {
@@ -82,11 +82,123 @@ type Props = {
   onClose(): void;
 };
 
-type Choice = { key: string; label: string; selected: boolean; choose(): void };
+type ActivityChoice = { key: string; label: string; selected: boolean; choose(): void };
+type ActivityChoiceGroup = { key: string; label: string; choices: ActivityChoice[] };
 type Row =
   | { kind: 'heading'; key: string; label: string }
-  | { kind: 'choice'; first: boolean; last: boolean; choice: Choice; key: string }
+  | { kind: 'choice'; first: boolean; last: boolean; choice: ActivityChoice; key: string }
   | { kind: 'unread'; key: string };
+
+type Strings = ReturnType<typeof useStrings>;
+
+export function activityChoiceGroups(
+  {
+    bots,
+    channels,
+    filter,
+    sort,
+    onFilter,
+    onSort,
+  }: Pick<Props, 'bots' | 'channels' | 'filter' | 'sort' | 'onFilter' | 'onSort'>,
+  t: Strings,
+): ActivityChoiceGroup[] {
+  return [
+    {
+      key: 'sort',
+      label: t.activitySort,
+      choices: [
+        {
+          key: 'default',
+          label: t.activitySortDefault,
+          selected: sort === 'default',
+          choose: () => onSort('default'),
+        },
+        {
+          key: 'newest',
+          label: t.activitySortNewest,
+          selected: sort === 'newest',
+          choose: () => onSort('newest'),
+        },
+        {
+          key: 'oldest',
+          label: t.activitySortOldest,
+          selected: sort === 'oldest',
+          choose: () => onSort('oldest'),
+        },
+      ],
+    },
+    {
+      key: 'category',
+      label: t.activityCategory,
+      choices: ACTIVITY_SECTIONS.map((section) => ({
+        key: `section:${section}`,
+        label: sectionLabel(section),
+        selected: filter.section === section,
+        choose: () => onFilter({ ...filter, section }),
+      })),
+    },
+    {
+      key: 'source',
+      label: t.activityFrom,
+      choices: [
+        {
+          key: 'source:all',
+          label: t.filterAll,
+          selected: filter.source === undefined,
+          choose: () => onFilter(withActivitySource(filter, undefined)),
+        },
+        {
+          key: 'source:bot',
+          label: t.bots,
+          selected: filter.source === 'bot',
+          choose: () => onFilter(withActivitySource(filter, 'bot')),
+        },
+        {
+          key: 'source:native',
+          label: t.hostSessions.title,
+          selected: filter.source === 'native',
+          choose: () => onFilter(withActivitySource(filter, 'native')),
+        },
+      ],
+    },
+    {
+      key: 'bots',
+      label: t.bots,
+      choices: [
+        {
+          key: 'bot:all',
+          label: t.filterAllBots,
+          selected: filter.bot === undefined,
+          choose: () => onFilter({ ...filter, bot: undefined }),
+        },
+        ...bots.map((bot) => ({
+          key: `bot:${bot.slug}`,
+          label: bot.name,
+          selected: filter.bot === bot.slug,
+          choose: () => onFilter(withActivityBot(filter, bot.slug)),
+        })),
+      ],
+    },
+    {
+      key: 'channels',
+      label: t.channels,
+      choices: [
+        {
+          key: 'channel:all',
+          label: t.activityAllChannels,
+          selected: filter.channel === undefined,
+          choose: () => onFilter({ ...filter, channel: undefined }),
+        },
+        ...channels.map((channel) => ({
+          key: `channel:${channel.id}`,
+          label: channel.name,
+          selected: filter.channel === channel.id,
+          choose: () => onFilter(withActivityChannel(filter, channel.id)),
+        })),
+      ],
+    },
+  ];
+}
 
 function TextAction({
   label,
@@ -129,9 +241,8 @@ export function ActivityFilterContent({
 }: Omit<Props, 'visible'>) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
-  const ios = Platform.OS === 'ios';
-  const group = (key: string, label: string, choices: Choice[]): Row[] => [
+  const group = useSheetGroupFill(SHEET_GROUP);
+  const rowsOf = ({ key, label, choices }: ActivityChoiceGroup): Row[] => [
     { kind: 'heading', key, label },
     ...choices.map((choice, index) => ({
       kind: 'choice' as const,
@@ -141,116 +252,21 @@ export function ActivityFilterContent({
       last: index === choices.length - 1,
     })),
   ];
+  const [sortGroup, categoryGroup, ...restGroups] = activityChoiceGroups(
+    { bots, channels, filter, sort, onFilter, onSort },
+    t,
+  );
   const rows: Row[] = [
-    ...group('sort', t.activitySort, [
-      {
-        key: 'default',
-        label: t.activitySortDefault,
-        selected: sort === 'default',
-        choose: () => onSort('default'),
-      },
-      {
-        key: 'newest',
-        label: t.activitySortNewest,
-        selected: sort === 'newest',
-        choose: () => onSort('newest'),
-      },
-      {
-        key: 'oldest',
-        label: t.activitySortOldest,
-        selected: sort === 'oldest',
-        choose: () => onSort('oldest'),
-      },
-    ]),
-    ...group(
-      'category',
-      t.activityCategory,
-      ACTIVITY_SECTIONS.map((section) => ({
-        key: `section:${section}`,
-        label: sectionLabel(section),
-        selected: filter.section === section,
-        choose: () => onFilter({ ...filter, section }),
-      })),
-    ),
+    ...(sortGroup === undefined ? [] : rowsOf(sortGroup)),
+    ...(categoryGroup === undefined ? [] : rowsOf(categoryGroup)),
     { kind: 'unread', key: 'unread' },
-    ...group('source', t.activityFrom, [
-      {
-        key: 'source:all',
-        label: t.filterAll,
-        selected: filter.source === undefined,
-        choose: () => onFilter(withActivitySource(filter, undefined)),
-      },
-      {
-        key: 'source:bot',
-        label: t.bots,
-        selected: filter.source === 'bot',
-        choose: () => onFilter(withActivitySource(filter, 'bot')),
-      },
-      {
-        key: 'source:native',
-        label: t.hostSessions.title,
-        selected: filter.source === 'native',
-        choose: () => onFilter(withActivitySource(filter, 'native')),
-      },
-    ]),
-    ...group('bots', t.bots, [
-      {
-        key: 'bot:all',
-        label: t.filterAllBots,
-        selected: filter.bot === undefined,
-        choose: () => onFilter({ ...filter, bot: undefined }),
-      },
-      ...bots.map((bot) => ({
-        key: `bot:${bot.slug}`,
-        label: bot.name,
-        selected: filter.bot === bot.slug,
-        choose: () => onFilter(withActivityBot(filter, bot.slug)),
-      })),
-    ]),
-    ...group('channels', t.channels, [
-      {
-        key: 'channel:all',
-        label: t.activityAllChannels,
-        selected: filter.channel === undefined,
-        choose: () => onFilter({ ...filter, channel: undefined }),
-      },
-      ...channels.map((channel) => ({
-        key: `channel:${channel.id}`,
-        label: channel.name,
-        selected: filter.channel === channel.id,
-        choose: () => onFilter(withActivityChannel(filter, channel.id)),
-      })),
-    ]),
+    ...restGroups.flatMap(rowsOf),
   ];
   const content = (
     <>
-      {ios ? (
-        <View
-          style={{
-            alignSelf: 'center',
-            width: space.x6 + space.x3,
-            height: space.x2,
-            borderRadius: radius.round,
-            backgroundColor: theme.layer.canvas.selected,
-            marginTop: space.x3,
-            marginBottom: space.x3,
-          }}
-        />
-      ) : null}
-      {!ios ? (
-        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-          <DrawerHeader title={t.activityOptions} onClose={onClose} />
-        </View>
-      ) : null}
+      <SheetHeader title={t.activityOptions} onClose={onClose} />
       <FlatList
         nestedScrollEnabled
-        ListHeaderComponent={
-          ios ? (
-            <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-              <DrawerHeader title={t.activityOptions} onClose={onClose} />
-            </View>
-          ) : undefined
-        }
         data={rows}
         keyExtractor={(row) => row.key}
         keyboardShouldPersistTaps="handled"
@@ -282,42 +298,20 @@ export function ActivityFilterContent({
                   marginHorizontal: space.x5,
                   paddingHorizontal: space.x5,
                   paddingVertical: space.x3,
-                  borderRadius: ios ? radius.md : androidSettings.listRadius,
-                  backgroundColor: theme.layer.raised.fill,
+                  borderRadius: androidSettings.listRadius,
+                  backgroundColor: group.fill,
                 }}
               >
                 <Text style={{ flex: 1 }}>{t.activityUnreadOnly}</Text>
                 <Toggle
                   label={t.activityUnreadOnly}
                   value={filter.unreadOnly === true}
-                  on="raised"
+                  on={SHEET_GROUP}
                   onChange={(unreadOnly) => onFilter({ ...filter, unreadOnly })}
                 />
               </View>
             );
           const { choice, first, last } = item;
-          if (ios)
-            return (
-              <View
-                style={{
-                  marginHorizontal: space.x5,
-                  borderTopLeftRadius: first ? radius.md : 0,
-                  borderTopRightRadius: first ? radius.md : 0,
-                  borderBottomLeftRadius: last ? radius.md : 0,
-                  borderBottomRightRadius: last ? radius.md : 0,
-                  borderBottomWidth: last ? 0 : edge.hairline,
-                  borderBottomColor: theme.layer.raised.divider,
-                  backgroundColor: theme.layer.raised.fill,
-                  overflow: 'hidden',
-                }}
-              >
-                <CheckmarkRow
-                  label={choice.label}
-                  selected={choice.selected}
-                  onPress={choice.choose}
-                />
-              </View>
-            );
           return (
             <Pressable
               accessibilityRole="radio"
@@ -335,7 +329,7 @@ export function ActivityFilterContent({
                 ...segmentCorners(first, last),
                 marginTop: first ? 0 : androidSettings.segmentGap,
                 overflow: 'hidden',
-                backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                backgroundColor: pressed ? group.pressed : group.fill,
               })}
             >
               <RadioMark selected={choice.selected} />
@@ -360,41 +354,11 @@ export function ActivityFilterContent({
       />
     </>
   );
-  return (
-    <View
-      style={{
-        flex: 1,
-        flexShrink: 1,
-        paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
-        backgroundColor: ios ? theme.layer.sheet.fill : theme.overlay.fill,
-      }}
-    >
-      {content}
-    </View>
-  );
+  return <View style={{ flex: 1, flexShrink: 1 }}>{content}</View>;
 }
 
 function OptionsSurface({ children, onClose }: { children: ReactNode; onClose(): void }) {
   const t = useStrings();
-  if (Platform.OS === 'ios')
-    return (
-      <Modal
-        visible
-        animationType="slide"
-        presentationStyle="pageSheet"
-        allowSwipeDismissal
-        onRequestClose={onClose}
-      >
-        <View
-          accessibilityViewIsModal
-          accessibilityLabel={t.activityOptions}
-          onAccessibilityEscape={onClose}
-          style={{ flex: 1 }}
-        >
-          {children}
-        </View>
-      </Modal>
-    );
   return (
     <Sheet visible label={t.activityOptions} onClose={onClose}>
       {children}
@@ -402,7 +366,64 @@ function OptionsSurface({ children, onClose }: { children: ReactNode; onClose():
   );
 }
 
+function systemSections(props: Props, t: Strings): SystemListSection[] {
+  const section = ({ key, label, choices }: ActivityChoiceGroup): SystemListSection => ({
+    key,
+    title: label,
+    rows: choices.map((choice) => ({
+      kind: 'choice',
+      key: choice.key,
+      label: choice.label,
+      selected: choice.selected,
+      onPress: choice.choose,
+    })),
+  });
+  const [sortGroup, categoryGroup, ...restGroups] = activityChoiceGroups(props, t).map(section);
+  return [
+    ...(sortGroup === undefined ? [] : [sortGroup]),
+    ...(categoryGroup === undefined ? [] : [categoryGroup]),
+    {
+      key: 'unread',
+      rows: [
+        {
+          kind: 'toggle',
+          key: 'unread',
+          label: t.activityUnreadOnly,
+          value: props.filter.unreadOnly === true,
+          onChange: (unreadOnly) => props.onFilter({ ...props.filter, unreadOnly }),
+        },
+      ],
+    },
+    ...restGroups,
+    {
+      key: 'reset',
+      rows: [
+        {
+          kind: 'action',
+          key: 'reset',
+          label: t.activityReset,
+          onPress: () => {
+            props.onFilter(DEFAULT_ACTIVITY);
+            props.onSort('default');
+          },
+        },
+      ],
+    },
+  ];
+}
+
 export function ActivityFilters(props: Props) {
+  const t = useStrings();
+  if (SystemListSheet !== undefined)
+    return (
+      <SystemListSheet
+        visible={props.visible}
+        title={t.activityOptions}
+        closeLabel={t.close}
+        sections={systemSections(props, t)}
+        onClose={props.onClose}
+      />
+    );
   return props.visible ? (
     <OptionsSurface onClose={props.onClose}>
       <ActivityFilterContent {...props} />

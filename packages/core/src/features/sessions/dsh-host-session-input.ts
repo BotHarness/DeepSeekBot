@@ -19,7 +19,7 @@ import type { QuestionAnswer, QuestionItem } from '@botharness/host-protocol/wir
 import { z } from 'zod';
 import { validQuestionAnswer } from '../../channels/user-questions.js';
 import type { NativeSessionAttentionEntry } from '../activity/native-session-attention.js';
-import { sessionFolderName } from './session-folder-name.js';
+import { folderName } from './workspace-sessions.js';
 
 const question = z.object({
   id: z.string(),
@@ -295,7 +295,7 @@ export function dshHostSessionInput(
 
   const folder = (id: string): string | undefined => {
     const cwd = ctx.agents.get(SessionId(id))?.session.header?.cwd;
-    return typeof cwd === 'string' && cwd !== '' ? sessionFolderName(cwd) : undefined;
+    return typeof cwd === 'string' && cwd !== '' ? folderName(cwd) : undefined;
   };
 
   return {
@@ -303,7 +303,7 @@ export function dshHostSessionInput(
       return [...pending.values()].flatMap(({ sessionId, card, createdAt }) => {
         if (!isUnowned(sessionId)) return [];
         const sessionTitle = title(sessionId);
-        const folderName = folder(sessionId);
+        const sessionFolder = folder(sessionId);
         return [
           {
             sessionId,
@@ -315,7 +315,7 @@ export function dshHostSessionInput(
                 : card.questions.map((item) => item.question).join(' · '),
             createdAt: createdAt ?? new Date(0).toISOString(),
             ...(sessionTitle === undefined ? {} : { sessionTitle }),
-            ...(folderName === undefined ? {} : { folderName }),
+            ...(sessionFolder === undefined ? {} : { folderName: sessionFolder }),
             request: card,
           },
         ];

@@ -295,12 +295,8 @@ describe('current Git working tree is Memory', () => {
       git(root, 'branch', 'history', 'origin/history');
       addSource('switch-history');
       memory.prepareTurn('atlas', 'session-atlas');
-      const switched = memory.switchBranch({
-        botSlug: 'atlas',
-        sessionId: 'session-atlas',
-        branch: 'history',
-      });
-      expect(switched.head).toBe(external.historyHead);
+      git(root, 'switch', 'history');
+      expect(git(root, 'rev-parse', 'HEAD')).toBe(external.historyHead);
       expect(readFileSync(join(root, 'history.md'), 'utf8')).toBe('Older branch memory\n');
       expect(memory.readAccepted('atlas', 'history.md')?.body).toBe('Older branch memory\n');
       expect(memory.snapshot('atlas').head).toBe(external.historyHead);
@@ -814,12 +810,7 @@ describe('worktree delta for out-of-band Memory changes', () => {
       });
       addSource('switch-back');
       expect(memory.prepareTurn('atlas', 'session-atlas')).toBeUndefined();
-      const switched = memory.switchBranch({
-        botSlug: 'atlas',
-        sessionId: 'session-atlas',
-        branch: 'main',
-      });
-      expect(switched.to).toBe('main');
+      git(root, 'switch', 'main');
       memory.reconcileTurn({
         botSlug: 'atlas',
         sessionId: 'session-atlas',

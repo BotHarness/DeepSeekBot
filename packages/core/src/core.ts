@@ -332,6 +332,7 @@ function initializeCore(
     spaces,
     options,
   });
+  team.onOwnerTransferred(() => tob.onOwnerChanged());
   startup.enter('bot-creation', 'initialize');
   const creations = personabotsFeature.apply({ operationalDatabase, registry, channels, options });
   startup.enter('bot-import', 'initialize');
@@ -341,7 +342,6 @@ function initializeCore(
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
     channels,
     registry,
-    isProtectedBot: (slug) => tob.isTob(slug),
     autoAcceptGroupInvitations: () =>
       (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
     onInvitation: (dmId, invitationId) => runtime?.admitGroupInvitation(dmId, invitationId),

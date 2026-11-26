@@ -62,7 +62,7 @@ export interface OrchestratorAgentRun {
   ):
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
-  tobCli?: boolean;
+  holdsManagementGrant?: () => boolean;
   workspaceSessions?: {
     list(): Promise<import('./workspace-sessions.js').WorkspaceSessionSummary[]>;
     read(sessionId: string): Promise<string>;
@@ -186,10 +186,6 @@ export interface OrchestratorAgentRun {
     create(input: BotScheduleInput): BotSchedule;
     update(id: string, change: BotScheduleChange): BotSchedule;
     remove(id: string): boolean;
-  };
-  memory?: {
-    switchBranch(branch: string): { from: string; to: string; head: string };
-    continueFromCommit(sha: string, branch: string): { from: string; to: string; head: string };
   };
 }
 

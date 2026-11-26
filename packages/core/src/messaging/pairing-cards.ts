@@ -20,7 +20,7 @@ import {
   type MessagingApprovalAck,
 } from './provider.js';
 
-const reviewCards = (platform: string) =>
+export const reviewCards = (platform: string) =>
   !!platformPeople(platform)?.roles &&
   isMessagingPlatform(platform) &&
   !!messagingPlatform(platform).features.cards;

@@ -50,6 +50,11 @@ export const zh = {
   'pairing.behavior': '自然语言行为权限',
   'pairing.ordinary': '普通聊天 · 无管理能力',
   'pairing.editRole': '编辑角色',
+  'pairing.defaultRole': '默认批准角色',
+  'pairing.defaultRoleHelp':
+    '审核人在 IM 里只回复「同意」时，配对申请会获得这个角色。审核人只能分配自己权限范围内的角色。',
+  'pairing.setDefaultRole': '设为默认批准角色',
+  'pairing.clearDefaultRole': '取消默认',
   'pairing.saveRole': '保存角色',
   'pairing.cancelRole': '取消编辑',
   'pairing.reassignRole': '分配所选角色',
@@ -376,6 +381,11 @@ export const en = {
   'pairing.behavior': 'Behavior permissions',
   'pairing.ordinary': 'Ordinary chat · no management capabilities',
   'pairing.editRole': 'Edit role',
+  'pairing.defaultRole': 'Default approval role',
+  'pairing.defaultRoleHelp':
+    'When a reviewer replies only "approve" in IM, the pairing request gets this role. A reviewer can only assign roles within their own permissions.',
+  'pairing.setDefaultRole': 'Use as default approval role',
+  'pairing.clearDefaultRole': 'Stop using as default',
   'pairing.saveRole': 'Save role',
   'pairing.cancelRole': 'Cancel editing',
   'pairing.reassignRole': 'Assign selected role',

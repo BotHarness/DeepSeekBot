@@ -36,7 +36,7 @@ env:
 jobs:
   plan:
     name: plan tests and run small selections
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
@@ -287,7 +287,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :expo-ui-teardown:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
       - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
       - name: Retain Android unit-test failure reports
@@ -418,7 +418,7 @@ jobs:
     name: test (shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'full'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false
@@ -443,7 +443,7 @@ jobs:
     name: test (affected shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '4'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false

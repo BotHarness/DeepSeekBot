@@ -221,6 +221,4 @@ export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
   'channel_read_image',
   'call_frame',
   'channel_attachment_open',
-  'memory_switch_branch',
-  'memory_continue_from_commit',
 ]);

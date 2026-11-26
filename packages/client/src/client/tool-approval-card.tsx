@@ -548,6 +548,11 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
+        {hostAccess === undefined || summary.command === undefined ? null : (
+          <div {...hooked('bh-tool-approval-host-access', styles.caption, styles.warning)}>
+            {hostAccess}
+          </div>
+        )}
         {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
           <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
         )}
@@ -592,7 +597,6 @@ export function ToolApprovalCard({
       {effectiveDecision !== undefined || actionable ? (
         <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
           <ActionButton
-            icon="check"
             pill
             tone="primary"
             size={size}
@@ -604,7 +608,6 @@ export function ToolApprovalCard({
             {t('approval.allowOnce')}
           </ActionButton>
           <ActionButton
-            icon="shield-check"
             pill
 
             size={size}
@@ -616,7 +619,6 @@ export function ToolApprovalCard({
             {t('approval.allowAlways')}
           </ActionButton>
           <ActionButton
-            icon="x"
             pill
 
             size={size}

@@ -10,7 +10,7 @@ import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { afterEach, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { createPrivateTunnel, createTunnelOrigin } from '../src/devices/private-tunnel.js';
-import { ADDRESS_PENDING_LIMIT } from '../src/devices/address-slots.js';
+import { OPEN_ROUTE_PENDING_LIMIT } from '../src/devices/admission-slots.js';
 import {
   DEVICE_NOISE_PEER_HEADER,
   DEVICE_ROUTE_HEADER,
@@ -31,12 +31,14 @@ const custom = 'https://team.example.test';
 
 async function addressHost(
   credentials: ReturnType<typeof memoryCredentials> = memoryCredentials(),
-  options: { addressDeadlineMs?: number; reprobeMs?: number } = {},
+  options: { admissionDeadlineMs?: number; reprobeMs?: number } = {},
 ) {
   const f = await enabledFixture();
   const host = await memberDeviceHost(
     f,
-    options.addressDeadlineMs === undefined ? {} : { addressDeadlineMs: options.addressDeadlineMs },
+    options.admissionDeadlineMs === undefined
+      ? {}
+      : { admissionDeadlineMs: options.admissionDeadlineMs },
   );
   const hostPort = Number(new URL(host.origin).port);
   const cloudflared = fakeCloudflared();
@@ -488,7 +490,7 @@ it('closes the route in memory when turning sign-in by address off cannot be sav
 it('caps channels opened by address without limiting token-admitted channels', async () => {
   const { tunnel, socket } = await addressRoute();
   await tunnel.setAddressSignIn('custom', true);
-  const sockets = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
+  const sockets = Array.from({ length: OPEN_ROUTE_PENDING_LIMIT }, () => socket(custom));
   expect(await Promise.all(sockets.map((entry) => entry.opened))).toEqual(sockets.map(() => true));
   expect(await socket(custom).opened).toBe(false);
   const token = tunnel.admissions()[0]!.token;
@@ -501,17 +503,15 @@ it('caps channels opened by address without limiting token-admitted channels', a
   for (const entry of [...sockets, byToken]) entry.ws.close();
 });
 
-it('closes a channel opened by address that never admits a device before the deadline', async () => {
-  const { tunnel, socket } = await addressRoute({ addressDeadlineMs: 200 });
+it('closes channels that never admit a device before the deadline, by address or by token', async () => {
+  const { tunnel, socket } = await addressRoute({ admissionDeadlineMs: 200 });
   await tunnel.setAddressSignIn('custom', true);
   const token = tunnel.admissions()[0]!.token;
   const byAddress = socket(custom);
   const byToken = socket(custom, { authorization: `Bearer ${token}` });
   expect(await byAddress.opened).toBe(true);
   expect(await byToken.opened).toBe(true);
-  await once(byAddress.ws, 'close');
-  expect(byToken.ws.readyState).toBe(WebSocket.OPEN);
-  byToken.ws.close();
+  await Promise.all([once(byAddress.ws, 'close'), once(byToken.ws, 'close')]);
 });
 
 it('rate-limits the address route under its own key so other loopback routes keep signing in', async () => {
@@ -558,9 +558,9 @@ it('never counts channels admitted by address against the unadmitted cap', async
     deviceKey: member.value.encryption.deviceKey,
   };
   const members = [];
-  for (let index = 0; index < ADDRESS_PENDING_LIMIT + 1; index++)
+  for (let index = 0; index < OPEN_ROUTE_PENDING_LIMIT + 1; index++)
     members.push(await admitted(custom, saved));
-  const pending = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
+  const pending = Array.from({ length: OPEN_ROUTE_PENDING_LIMIT }, () => socket(custom));
   expect(await Promise.all(pending.map((entry) => entry.opened))).toEqual(pending.map(() => true));
   expect(await socket(custom).opened).toBe(false);
   for (const entry of members) expect(entry.ws.readyState).toBe(WebSocket.OPEN);
@@ -574,7 +574,7 @@ it('never counts channels admitted by address against the unadmitted cap', async
 });
 
 it('keeps an Owner pairing channel opened by address while it waits for approval', async () => {
-  const { f, tunnel, noise, socket } = await addressRoute({ addressDeadlineMs: 200 });
+  const { f, tunnel, noise, socket } = await addressRoute({ admissionDeadlineMs: 200 });
   await tunnel.setAddressSignIn('custom', true);
   const offer = f.pairing.createOffer();
   const peer = noise(custom);
@@ -583,7 +583,7 @@ it('keeps an Owner pairing channel opened by address while it waits for approval
   expect(await peer.next()).toEqual({ type: 'pair-pending', receipt: offer.receipt });
   await new Promise((resolve) => setTimeout(resolve, 400));
   expect(peer.ws.readyState).toBe(WebSocket.OPEN);
-  const others = Array.from({ length: ADDRESS_PENDING_LIMIT }, () => socket(custom));
+  const others = Array.from({ length: OPEN_ROUTE_PENDING_LIMIT }, () => socket(custom));
   expect(await Promise.all(others.map((entry) => entry.opened))).toEqual(others.map(() => true));
   f.pairing.approveKey(offer.receipt, peer.publicKey);
   expect(await peer.next()).toMatchObject({ type: 'paired' });
@@ -621,7 +621,7 @@ it('keeps one channel opened by address waiting on each pairing code', async () 
 });
 
 it('lets unadmitted address channels expire once password sign-in becomes unavailable', async () => {
-  const { f, tunnel, socket, discover } = await addressRoute({ addressDeadlineMs: 200 });
+  const { f, tunnel, socket, discover } = await addressRoute({ admissionDeadlineMs: 200 });
   await tunnel.setAddressSignIn('custom', true);
   const open = socket(custom);
   expect(await open.opened).toBe(true);

@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { expect, it, vi } from 'vitest';
 import { dshHostSessions } from '../src/features/sessions/dsh-host-sessions.js';
+import { createSessionListChanges } from '../src/features/sessions/session-list-changes.js';
 import type { DshSessionStore } from '../src/sessions/source.js';
 
 it('marks a running Session waiting for the Human and carries its last model', async () => {
@@ -92,23 +93,28 @@ it('serves live needs-you state over the cached Session rows', async () => {
       { sessionId: 'broke', running: false, updatedAt: 1 },
     ],
   }));
-  const state = vi.fn(async () => ({
+  const state = vi.fn(async ({ sessionId }: { sessionId: string }) => ({
     cursor: 1,
     active: true,
-    running: true,
+    running: sessionId === 'native',
     queue: [],
     pendingInput: [],
   }));
+  const projections = vi.fn(async () => ({ values: {} }));
   const handlers = new Map<string, (...args: unknown[]) => void>();
   const ctx = {
-    get: (name: string) => (name === 'sessionController' ? { list, state } : undefined),
+    get: (name: string) =>
+      name === 'sessionController' ? { list, state, projections } : undefined,
     on: (name: string, handler: (...args: unknown[]) => void) => handlers.set(name, handler),
   };
   let held: { sessionId: string; input: 'approval' | 'question' }[] = [];
   const input = { attention: () => held } as never;
-  const sessions = dshHostSessions(ctx as never as Context, {} as DshSessionStore, input, {
-    version: 0,
-  });
+  const sessions = dshHostSessions(
+    ctx as never as Context,
+    {} as DshSessionStore,
+    input,
+    createSessionListChanges(() => {}),
+  );
   const pick = async () =>
     (await sessions.list()).map(({ sessionId, waiting, pendingInput, failed }) => ({
       sessionId,
