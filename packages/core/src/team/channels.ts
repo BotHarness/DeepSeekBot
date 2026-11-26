@@ -230,7 +230,7 @@ export class TeamChannels {
       },
       ['channels', 'team'],
     );
-    this.changed(true);
+    this.changed(visibility.kind !== 'public');
     return null;
   }
   private memberId(reference: string): string {
