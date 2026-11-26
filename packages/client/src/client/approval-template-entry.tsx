@@ -124,6 +124,7 @@ export function useApprovalTemplates<E extends HTMLElement>(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const generation = useRef(0);
+  const reads = useRef(0);
   const changed = useRef<() => void>(() => {});
   const mount = useMountedResource<E>(() => {
     const run = ++generation.current;
@@ -134,20 +135,33 @@ export function useApprovalTemplates<E extends HTMLElement>(
     setError(undefined);
     const read = actions.approvalTemplates;
     if (read === undefined) return;
+    const latest = (): (() => boolean) => {
+      const seq = ++reads.current;
+      return () => generation.current === run && reads.current === seq;
+    };
     const apply = (next: Awaited<ReturnType<typeof read>>): void => {
-      if (generation.current !== run) return;
       setTemplates(next.templates);
       setSelected(next.selected);
       setGlobalDefault(next.globalDefault);
       setLoaded(true);
     };
-    void read(botSlug)
-      .then(apply)
-      .catch((cause: unknown) => {
-        if (generation.current === run) setError(errorMessage(cause));
-      });
+    const first = latest();
+    void read(botSlug).then(
+      (next) => {
+        if (first()) apply(next);
+      },
+      (cause: unknown) => {
+        if (first()) setError(errorMessage(cause));
+      },
+    );
     const listener = (): void => {
-      void read(botSlug).then(apply, () => undefined);
+      const current = latest();
+      void read(botSlug).then(
+        (next) => {
+          if (current()) apply(next);
+        },
+        () => undefined,
+      );
     };
     changed.current = listener;
     const stop = onApprovalTemplateChange(read, botSlug, listener);
@@ -159,6 +173,8 @@ export function useApprovalTemplates<E extends HTMLElement>(
   const choose = async (name: string | null): Promise<boolean> => {
     if (actions.setBotApprovalTemplate === undefined || !loaded || busy) return false;
     const run = generation.current;
+    const self = changed.current;
+    let seq = ++reads.current;
     const previous = selected;
     setSelected(name);
     setBusy(true);
@@ -168,9 +184,10 @@ export function useApprovalTemplates<E extends HTMLElement>(
       await actions.setBotApprovalTemplate(botSlug, name);
       saved = true;
       if (actions.approvalTemplates !== undefined)
-        announceApprovalTemplateChange(actions.approvalTemplates, botSlug, changed.current);
+        announceApprovalTemplateChange(actions.approvalTemplates, botSlug, self);
+      seq = ++reads.current;
       const next = await actions.approvalTemplates?.(botSlug);
-      if (next !== undefined && generation.current === run) {
+      if (next !== undefined && generation.current === run && reads.current === seq) {
         setSelected(next.selected);
         setGlobalDefault(next.globalDefault);
         setTemplates(next.templates);
@@ -178,7 +195,7 @@ export function useApprovalTemplates<E extends HTMLElement>(
       }
     } catch (cause) {
       if (generation.current === run && !(saved && keepReadable)) {
-        setSelected(previous);
+        if (reads.current === seq) setSelected(previous);
         if (!keepReadable) setLoaded(false);
         setError(errorMessage(cause));
       }

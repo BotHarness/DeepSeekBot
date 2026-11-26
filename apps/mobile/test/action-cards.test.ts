@@ -632,6 +632,29 @@ describe('Auto approval preset picker on the phone approval card', () => {
     ).toEqual([{ slug: approval.botSlug, template: null }]);
   });
 
+  it('writes a pick of the shown preset while a refresh is still pending', async () => {
+    const listeners: Array<() => void> = [];
+    let hold = false;
+    const choose = vi.fn(async () => {});
+    const preset = {
+      load: vi.fn(() =>
+        hold ? new Promise<never>(() => {}) : Promise.resolve({ ...templates, selected: null }),
+      ),
+      choose,
+      subscribe: (listener: () => void) => {
+        listeners.push(listener);
+        return () => {};
+      },
+    };
+    const view = await render(presetCard(connect(host()), { preset }));
+    hold = true;
+    act(() => listeners.forEach((listener) => listener()));
+    await press(trigger(view)!);
+    expect(option(view, '@off').getAttribute('aria-selected')).toBe('true');
+    await press(option(view, '@off'));
+    expect(choose).toHaveBeenCalledWith(null);
+  });
+
   it('writes the chosen preset even when the card still shows it as current', async () => {
     const fake = host();
     let current: string | null = null;

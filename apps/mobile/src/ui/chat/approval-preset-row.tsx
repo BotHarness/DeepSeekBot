@@ -29,6 +29,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
   const [error, setError] = useState<string>();
   const [width, setWidth] = useState(0);
   const generation = useRef(0);
+  const reads = useRef(0);
   const mount = useMounted<ViewInstance>(() => {
     const run = ++generation.current;
     setPresets(undefined);
@@ -36,9 +37,10 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
     setBusy(false);
     setError(undefined);
     const read = (): void => {
+      const seq = ++reads.current;
       port.load().then(
         (next) => {
-          if (generation.current === run) setPresets(next);
+          if (generation.current === run && reads.current === seq) setPresets(next);
         },
         () => undefined,
       );
@@ -53,6 +55,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
   const choose = (option: PresetOption) => {
     if (presets === undefined || busy) return;
     const run = generation.current;
+    let seq = ++reads.current;
     const previous = presets;
     const optimistic = { ...presets, selected: option.value };
     setPresets(optimistic);
@@ -68,12 +71,14 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
         );
         if (Platform.OS === 'android') ToastAndroid.show(message, ToastAndroid.SHORT);
         else AccessibilityInfo.announceForAccessibility(message);
+        seq = ++reads.current;
         const next = await port.load().catch(() => undefined);
-        if (next !== undefined && generation.current === run) setPresets(next);
+        if (next !== undefined && generation.current === run && reads.current === seq)
+          setPresets(next);
       })
       .catch((cause: unknown) => {
         if (generation.current !== run) return;
-        setPresets(previous);
+        if (reads.current === seq) setPresets(previous);
         setError(`${t.settingFailed} ${errorText(cause)}`);
       })
       .finally(() => {

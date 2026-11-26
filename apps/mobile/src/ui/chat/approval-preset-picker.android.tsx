@@ -63,7 +63,7 @@ export function ApprovalPresetPicker({
                   icon: blank,
                   onPress: () => {
                     setOpen(false);
-                    if (!option.selected) onSelect(option);
+                    onSelect(option);
                   },
                 }))}
               />

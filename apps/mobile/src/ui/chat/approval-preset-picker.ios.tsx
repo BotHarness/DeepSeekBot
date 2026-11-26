@@ -47,6 +47,7 @@ export function ApprovalPresetPicker({
   const theme = useDesignTheme();
   const caption = [font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)];
   const [tagWidth, setTagWidth] = useState(0);
+  const [revision, setRevision] = useState(0);
   const reserve = Math.max(0, (maxWidth ?? 0) - (next === undefined ? 0 : tagWidth + space.x3));
   return (
     <View style={{ width: '100%' }}>
@@ -99,12 +100,13 @@ export function ApprovalPresetPicker({
             <Section title={header}>
               {options.map((option) => (
                 <Toggle
-                  key={option.key}
+                  key={`${option.key}:${revision}`}
                   testID={`approval-preset-option-${option.key}`}
                   isOn={option.selected}
                   modifiers={[disabledModifier(option.disabled === true)]}
                   onIsOnChange={() => {
-                    if (!option.selected) onSelect(option);
+                    setRevision((value) => value + 1);
+                    onSelect(option);
                   }}
                 >
                   <Text>{option.title}</Text>
