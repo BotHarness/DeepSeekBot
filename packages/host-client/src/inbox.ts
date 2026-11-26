@@ -145,6 +145,7 @@ export function createInbox(
         if (stopped || client.getSnapshot().connection.status !== 'connected') return undefined;
         const page = await readHumanAttention(client, {
           notifications: true,
+          ...(options.source ? { source: options.source } : {}),
           limit: 100,
           ...(cursor === undefined ? {} : { cursor }),
         });
