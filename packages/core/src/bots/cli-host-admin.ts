@@ -63,7 +63,7 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'bot-grants',
     description:
-      'list the Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id',
+      'list your Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id; --bot <id> also says whether you can switch that Bot',
   },
   {
     command: 'bot-grant',
@@ -348,7 +348,11 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('--tag only applies to marketplace-avatar-list.');
   if (command === 'marketplace-avatar-apply' && !values.bot?.trim())
     usage('marketplace-avatar-apply needs --bot <bot>.');
-  if (values.bot !== undefined && command !== 'marketplace-avatar-apply')
+  if (
+    values.bot !== undefined &&
+    command !== 'marketplace-avatar-apply' &&
+    command !== 'bot-grants'
+  )
     usage('--bot only applies to marketplace-avatar-apply.');
   if (values.version !== undefined && command !== 'acknowledge')
     usage('--version only applies to acknowledge release-notes-seen.');
@@ -560,7 +564,7 @@ export async function runHostAdminCommand(
         ...(values.version === undefined ? {} : { value: values.version }),
       });
     case 'bot-grants':
-      return rpc('managementGrants', {});
+      return rpc('managementGrants', values.bot?.trim() ? { slug: values.bot.trim() } : {});
     case 'bot-grant':
       return rpc('managementGrantSet', {
         slug: target,

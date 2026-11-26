@@ -93,7 +93,8 @@ describe('Team mode Host Permission ceiling', () => {
           } else if (
             !memberHoldsIt ||
             requested === 'privateContent.view' ||
-            requested === 'modelSources.manage'
+            requested === 'modelSources.manage' ||
+            requested === 'bots.manageGrants'
           ) {
             expect(create).toThrow(expect.objectContaining({ code: 'permission-not-grantable' }));
           } else {
