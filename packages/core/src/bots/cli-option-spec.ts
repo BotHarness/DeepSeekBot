@@ -2,6 +2,8 @@ export const SKILL_OPTIONS = {
   skill: { type: 'string', multiple: true },
   owner: { type: 'string' },
   confirm: { type: 'boolean' },
+  global: { type: 'boolean' },
+  'on-conflict': { type: 'string' },
 } as const;
 
 export const APPROVAL_REVIEWER_OPTIONS = {

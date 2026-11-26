@@ -547,6 +547,9 @@ export const CLI_EFFECTS = {
   'skills-list': { effects: read, brokerRead: true },
   'skills-memory': { effects: memoryRead, brokerRead: true },
   'skills-show': { effects: read, brokerRead: true },
+  'skills-add': { effects: externalWrite, brokerRead: false },
+  'marketplace-skill-list': { effects: externalRead, brokerRead: true },
+  'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
   'skills-remove': { effects: memoryWrite, brokerRead: false },
   'speaker-policy': { effects: read, brokerRead: true },
   'takeover-cancel': { effects: write, brokerRead: false },
@@ -730,6 +733,8 @@ function familyEffects(
         : values.owner?.startsWith('workspace:')
           ? { ...read, reach: 'workspace' }
           : read;
+    case 'skills-add':
+      return values.confirm ? externalWrite : externalRead;
     case 'computer-video':
       return action === 'input' ? external : write;
     case 'approval-template':

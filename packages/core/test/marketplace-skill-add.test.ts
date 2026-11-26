@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { createMarket, fakeRepository } from '../../market/test/market-harness.js';
 import { DISCOVERY_CRON } from '../../market/src/worker.js';
+import { runSkillCommand } from '../src/bots/cli-skills.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createInstallReceipts } from '../src/marketplace/install-receipts.js';
@@ -250,4 +251,51 @@ it('blocks a Skill whose fetched files fail the local scan', async () => {
   expect(
     await bridge.marketplaceSkillAdd({ id, reviewId: review.reviewId, bots: ['first'] }),
   ).toMatchObject({ ok: false, error: { code: 'skill-blocked' } });
+});
+
+it('drives search, show, review and add through the CLI', async () => {
+  const market = createMarket();
+  publishSkill(market, { 'SKILL.md': SKILL_MD });
+  const id = await listedId(market);
+  const host = makeHost(market);
+  host.bot('first');
+  const bridge = host.methods(owner) as unknown as Record<string, (payload: unknown) => unknown>;
+  const calls: string[] = [];
+  const rpc = async (method: string, payload: Record<string, unknown>) => {
+    calls.push(method);
+    return value(
+      (await bridge[method]!(payload)) as
+        | { ok: true; value: unknown }
+        | { ok: false; error: unknown },
+    );
+  };
+  const connect = async () => rpc;
+  expect(
+    await runSkillCommand('marketplace-skill-list', [], { query: 'tidy' }, connect),
+  ).toMatchObject({ skills: [{ id, name: 'tidy-notes' }] });
+  expect(await runSkillCommand('marketplace-skill-detail', [id], {}, connect)).toMatchObject({
+    content: SKILL_MD,
+  });
+  await expect(runSkillCommand('skills-add', [id], {}, connect)).rejects.toThrow(/--global/);
+  expect(await runSkillCommand('skills-add', [id], { bot: 'first' }, connect)).toMatchObject({
+    review: { verdict: 'clean' },
+    candidates: { bots: [{ slug: 'first' }] },
+  });
+  expect(
+    existsSync(join(host.core.registry.memoryDirFor('first')!, '.agents/skills/tidy-notes')),
+  ).toBe(false);
+  expect(
+    await runSkillCommand(
+      'skills-add',
+      [id],
+      { bot: 'first', global: true, confirm: true },
+      connect,
+    ),
+  ).toMatchObject({
+    added: [
+      { target: 'first', name: 'tidy-notes' },
+      { target: 'global', name: 'tidy-notes' },
+    ],
+  });
+  expect(calls.at(-1)).toBe('marketplaceSkillAdd');
 });
