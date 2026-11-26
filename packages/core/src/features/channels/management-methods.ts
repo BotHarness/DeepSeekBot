@@ -6,7 +6,7 @@ import {
   unknownBot,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { ChannelManagementError, type ChannelManagementResult } from '../../channels/management.js';
 import { type GroupDisbandResult } from '../../purge/contracts.js';
 import type { GroupMemberWakePolicy } from '../../channels/channel.js';

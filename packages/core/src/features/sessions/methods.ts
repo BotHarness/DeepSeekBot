@@ -14,9 +14,9 @@ import {
   unknownBot,
   unknownChannel,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import { sessionTarget } from '../../bridge/session-target.js';
+import { sessionTarget } from '../../kernel/session-target.js';
 import { type HumanContext } from '../../humans/context.js';
 import { SessionRecoveryError } from '../../runtime/session-recovery.js';
 import type { BotContextWindow } from '../../runtime/context-window.js';

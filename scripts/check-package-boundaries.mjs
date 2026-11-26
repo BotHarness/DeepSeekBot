@@ -20,6 +20,7 @@ const permissionsModule = 'packages/core/src/messaging/permissions/';
 const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlite-store\.)/u;
 
 const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
+const KERNEL_SOURCE = `${CORE_SOURCE}/kernel/`;
 
 function isRuntimeImport(node) {
   switch (node.type) {
@@ -84,6 +85,18 @@ function inspectPackageBoundaries(file, source, workspaces) {
     const relativeTarget = staticSpecifier?.startsWith('.')
       ? posix.normalize(posix.join(posix.dirname(file), staticSpecifier))
       : undefined;
+    if (staticSpecifier && file.startsWith(KERNEL_SOURCE)) {
+      const kernelTarget = relativeTarget ?? staticSpecifier;
+      if (
+        kernelTarget === CORE_SOURCE ||
+        (kernelTarget.startsWith(`${CORE_SOURCE}/`) && !kernelTarget.startsWith(KERNEL_SOURCE)) ||
+        kernelTarget === '@botharness/core' ||
+        kernelTarget.startsWith('@botharness/core/')
+      )
+        errors.push(
+          `${file}:${input.loc.start.line}: Kernel must not depend on another Host core module (${staticSpecifier})`,
+        );
+    }
     if (coreRuntimeFile && relativeTarget && isRuntimeImport(node)) {
       const direction = coreLayerImport(file, relativeTarget);
       if (direction) coreImports.set(direction, (coreImports.get(direction) ?? 0) + 1);

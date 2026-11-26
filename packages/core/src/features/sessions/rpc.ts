@@ -1,7 +1,7 @@
 import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';

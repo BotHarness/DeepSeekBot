@@ -1,4 +1,4 @@
-import { asSlug, invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { asSlug, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
 import {
   senderAccessInput,

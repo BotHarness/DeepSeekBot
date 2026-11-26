@@ -9,13 +9,13 @@ import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BridgeLive } from '../../bridge/rpc.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import type {
   ChannelJournalPage,
   ChannelChanges,
   ChannelChangeCursor,
 } from '../../channels/timeline.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { GenuiMessageReply } from '../../channels/genui.js';
 import type { ChannelManagementResult } from '../../channels/management.js';
 import type { ChannelHistoryItem, GroupDisbandResult, PurgeSource } from '../../purge/contracts.js';

@@ -1,4 +1,4 @@
-import { asObject, asSlug, invalidInput, unknownBot } from '../../bridge/method-utils.js';
+import { asObject, asSlug, invalidInput, unknownBot } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import { linkedPresetId, ownsModelSlot } from '../../models/bot-model-engines.js';

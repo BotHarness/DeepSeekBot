@@ -67,6 +67,34 @@ describe('workspace dependency boundaries', () => {
     ).toEqual([]);
   });
   it.each([
+    "import { createBridgeMethods } from '../bridge/methods.js';",
+    "import type { BotMetadataResult } from '../team/bot-administration.js';",
+    "type AllBotPreview = import('../channels/all-bot-mention.js').AllBotPreview;",
+    "export type { HumanContext } from '../humans/context.js';",
+    'const bridge = import(`../bridge/rpc.js`);',
+    "import type { HostCore } from '@botharness/core';",
+    "export * from '@botharness/core/src/bridge/methods.js';",
+    "export * from '..';",
+  ])('rejects Kernel dependencies on other Host core modules: %s', (source) => {
+    expect(
+      packageBoundaryErrors('packages/core/src/kernel/results.ts', source, workspaces),
+    ).toEqual([expect.stringContaining('Kernel must not depend on another Host core module')]);
+  });
+  it('allows Kernel dependencies on its own files, protocols and Node built-ins', () => {
+    expect(
+      packageBoundaryErrors(
+        'packages/core/src/kernel/rpc-result.ts',
+        [
+          "import type { BridgeResult } from './method-utils.js';",
+          "import { RemoteError } from '@deepseek-ai/dsh-typert-protocol';",
+          "import { isEngineId } from '@botharness/host-protocol/subscription-engine';",
+          "import { isDeepStrictEqual } from 'node:util';",
+        ].join('\n'),
+        workspaces,
+      ),
+    ).toEqual([]);
+  });
+  it.each([
     "import '../database/owner.js';",
     "export * from '@botharness/core/src/database/schema-plan.js';",
     "const store = import('../channels/sqlite-store.js');",

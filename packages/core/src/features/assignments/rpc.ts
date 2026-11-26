@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { AssignmentTimelineLane } from '../../runtime/assignment-timeline.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { HumanAssignmentContext } from '../../runtime/assignment-human-context.js';

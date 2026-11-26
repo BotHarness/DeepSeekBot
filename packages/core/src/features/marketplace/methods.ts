@@ -7,7 +7,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import {
   isMarketplaceAvatarRanking,
   parseMarketplaceAvatarEdit,
