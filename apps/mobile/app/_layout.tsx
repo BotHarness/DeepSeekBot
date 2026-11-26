@@ -156,10 +156,6 @@ function RootNavigator() {
                   />
                   <Stack.Screen name="create-channel" options={sheetScreenOptions(design)} />
                   <Stack.Screen
-                    name="create-bot-avatar"
-                    options={Platform.OS === 'ios' ? { presentation: 'modal' } : {}}
-                  />
-                  <Stack.Screen
                     name="bot/[slug]"
                     options={({ route }) => ({
                       title: t.profile,
