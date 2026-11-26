@@ -23,6 +23,8 @@ import {
   createTelemetryService,
   installedDshVersion,
   telemetryDecision,
+  type TelemetryService,
+  type TelemetryStatus,
 } from '../../telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from '../../telemetry/daily-usage.js';
 import { startModelUsage, startTokenUsage } from '../../telemetry/token-usage.js';
@@ -31,6 +33,7 @@ import {
   createActiveDay,
   readHumanMessageCounts,
   startActiveDayWatch,
+  type ActiveDay,
 } from '../../telemetry/active-day.js';
 import {
   createClientIssueReporter,
@@ -40,6 +43,13 @@ import { deliverPendingExceptions, installExceptionCapture } from '../../telemet
 import { attachOperationalModule } from '../../database/owner.js';
 import type { DshSessionEvent, DshSessionStore } from '../../sessions/source.js';
 import type { BotHarnessCore, BotHarnessConfig } from '../../plugin.js';
+
+export interface HostTelemetry {
+  telemetry: TelemetryService;
+  telemetryDir: string;
+  telemetryState: TelemetryStatus;
+  activeDay: ActiveDay;
+}
 
 export function apply(
   ctx: Context,
@@ -179,7 +189,7 @@ export function mountTelemetry(
   config: Pick<BotHarnessConfig, 'telemetry'>,
   release: ReturnType<typeof installedRelease>,
   publishClientIssues: (reporter: ClientIssueReporter) => void,
-) {
+): HostTelemetry {
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');
   const telemetry = createTelemetryService({
@@ -215,7 +225,7 @@ export function mountTelemetry(
 export function mountTelemetryWatches(
   ctx: Context,
   core: Pick<BotHarnessCore, 'operationalDatabase' | 'usage'>,
-  { telemetry, telemetryDir, telemetryState, activeDay }: ReturnType<typeof mountTelemetry>,
+  { telemetry, telemetryDir, telemetryState, activeDay }: HostTelemetry,
 ) {
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
     const usageDatabase = attachOperationalModule(core.operationalDatabase, 'telemetry');
@@ -262,7 +272,7 @@ export function mountTelemetryWatches(
 export function createTurnTelemetry(
   ctx: Context,
   core: Pick<BotHarnessCore, 'ownership'>,
-  telemetry: ReturnType<typeof createTelemetryService>,
+  telemetry: Pick<TelemetryService, 'enabled' | 'capture'>,
   liveAgent: (sessionId: string) => Agent | undefined,
 ) {
   const botTurnTelemetry = createBotTurnTelemetry({

@@ -4,6 +4,9 @@ import { createComputerContribution } from './features/computer/contribution.js'
 import { createConnectorsContribution } from './features/connectors/contribution.js';
 import { createHumansContribution } from './features/humans/contribution.js';
 import { createPromptsContribution } from './features/prompts/contribution.js';
+import { createCloudContribution } from './features/cloud/contribution.js';
+import { createDiagnosticsContribution } from './features/diagnostics/contribution.js';
+import { createUsageContribution } from './features/usage/contribution.js';
 import {
   createGenuiContribution,
   type GenuiContributionOptions,
@@ -23,6 +26,9 @@ export function createFeatureContributions(options?: {
     createConnectorsContribution(),
     createHumansContribution(),
     createPromptsContribution(),
+    createCloudContribution(),
+    createDiagnosticsContribution(),
+    createUsageContribution(),
   ] as const;
 }
 
@@ -34,6 +40,19 @@ type Intersection<T> = (T extends unknown ? (value: T) => void : never) extends 
 ) => void
   ? Result
   : never;
+
+type HostHooks = Partial<
+  Intersection<Extract<RegisteredFeatures[number], { host: object }>['host']>
+>;
+
+export function forEachHostFeature(
+  features: RegisteredFeatures,
+  visit: (hooks: HostHooks) => void,
+) {
+  for (const feature of features) {
+    if ('host' in feature) visit(feature.host);
+  }
+}
 
 export function mergeFeatureMethods<T extends object>(tables: readonly T[]): Intersection<T> {
   const methods = {};

@@ -45,9 +45,7 @@ import {
   messagingPolicyRpc,
   messagingConnectionRpc,
 } from '../features/messaging/rpc.js';
-import { cloudServiceRpc } from '../features/cloud/rpc.js';
 import { tobRpcMethods, directBotToolRpc } from '../features/tob/rpc.js';
-import { diagnosticsRpcMethods, hostDiagnosticsRpc } from '../features/diagnostics/rpc.js';
 import { modelsRpcMethods, modelConfigurationRpc } from '../features/models/rpc.js';
 import {
   sessionsRpcMethods,
@@ -71,7 +69,6 @@ import {
 } from '../features/assignments/rpc.js';
 import { workspacesRpcMethods, workspaceGrantRpc } from '../features/workspaces/rpc.js';
 import { memoryRpcMethods, memoryServiceRpc } from '../features/memory/rpc.js';
-import { usageRpcMethods, overviewUsageRpc } from '../features/usage/rpc.js';
 import { releaseRpc } from '../features/release/rpc.js';
 import { takeoverRpc } from '../features/takeover/rpc.js';
 import {
@@ -168,14 +165,12 @@ const legacyRpcMethods = {
   ...channelMessagingRpc,
   ...externalApprovalRpc,
   ...messagingPolicyRpc,
-  ...cloudServiceRpc,
   ...messagingConnectionRpc,
   tobHome: tobRpcMethods.tobHome,
   managementGrants: tobRpcMethods.managementGrants,
   managementGrantSet: tobRpcMethods.managementGrantSet,
   onboarding: personabotsRpcMethods.onboarding,
   onboardingModel: personabotsRpcMethods.onboardingModel,
-  telemetryEvent: diagnosticsRpcMethods.telemetryEvent,
   modelPlanInherit: modelsRpcMethods.modelPlanInherit,
   modelPlanReset: modelsRpcMethods.modelPlanReset,
   channelRetry: channelsRpcMethods.channelRetry,
@@ -200,7 +195,6 @@ const legacyRpcMethods = {
   standingLimitsSet: personabotsRpcMethods.standingLimitsSet,
   ...avatarRpc,
   ...channelManagementRpc,
-  ping: diagnosticsRpcMethods.ping,
   composerValidate: channelsRpcMethods.composerValidate,
   ...channelDeletionRpc,
   ...profileStorageRpc,
@@ -226,16 +220,12 @@ const legacyRpcMethods = {
   memoryMove: memoryRpcMethods.memoryMove,
   ...sessionOwnerRpc,
   ...memoryServiceRpc,
-  ...overviewUsageRpc,
   profileActivity: activityRpcMethods.profileActivity,
-  profileSessionUsage: usageRpcMethods.profileSessionUsage,
   groupProfileActivity: activityRpcMethods.groupProfileActivity,
   ...rosterSettingsRpc,
-  developerModeSet: diagnosticsRpcMethods.developerModeSet,
   ...marketplaceServiceRpc,
   ...marketplaceSkillRpc,
   ...releaseRpc,
-  ...hostDiagnosticsRpc,
   ...takeoverRpc,
 };
 
@@ -341,8 +331,6 @@ const legacyRemoteMethods = [
   'failureAlertsRetry',
   'pairingReview',
   'senderAccess',
-  'cloudConnections',
-  'cloudWork',
   'messagingApps',
   'messagingSnapshot',
   'messagingTargets',
@@ -360,7 +348,6 @@ const legacyRemoteMethods = [
   'managementGrantSet',
   'onboarding',
   'onboardingModel',
-  'telemetryEvent',
   'modelPlanInherit',
   'modelPlanReset',
   'channelRetry',
@@ -430,7 +417,6 @@ const legacyRemoteMethods = [
   'pause',
   'resume',
   'channels',
-  'ping',
   'composerValidate',
   'channelDm',
   'channelGet',
@@ -555,10 +541,7 @@ const legacyRemoteMethods = [
   'memoryVersions',
   'memoryRepair',
   'profileActivity',
-  'profileSessionUsage',
   'overviewMemory',
-  'overviewUsage',
-  'profileUsage',
   'groupProfileActivity',
   'rosterGet',
   'sectionCreate',
@@ -571,7 +554,6 @@ const legacyRemoteMethods = [
   'hiddenSet',
   'channelMuteSet',
   'rosterBatch',
-  'developerModeSet',
   'approvalTemplates',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
@@ -668,10 +650,6 @@ const legacyRemoteMethods = [
   'pluginRestart',
   'updateRun',
   'updateCancel',
-  'telemetryStatus',
-  'telemetrySet',
-  'gitStatus',
-  'gitInstall',
   'takeoverList',
   'takeoverStatus',
   'takeoverRequest',

@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { UsageOverviewPeriod } from '../../usage/overview.js';
 import type { OverviewUsage } from '../../bridge/methods.js';
@@ -29,13 +28,11 @@ export async function profileSessionUsage(
   return unwrap(await methods.profileSessionUsage({ channelId }));
 }
 
-export const usageRpcMethods = {
+export const usageRpc = {
   async profileSessionUsage(channelId: string): Promise<ProfileSessionUsage> {
     return profileSessionUsage(this.methods, channelId);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
 
-export const overviewUsageRpc = {
   overviewUsage(period: UsageOverviewPeriod, after?: string): OverviewUsage {
     return overviewUsage(this.methods, period, after);
   },
@@ -43,4 +40,4 @@ export const overviewUsageRpc = {
   profileUsage(channelId: string, filter: UsageFilter): UsageQueryResult {
     return profileUsage(this.methods, channelId, filter);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: UsageAdapterMethods }>;

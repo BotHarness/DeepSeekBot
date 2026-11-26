@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { TelemetryStatus } from '../../telemetry/service.js';
 import type { GitStatus } from '../../memory/managed-git.js';
@@ -42,7 +41,7 @@ export function telemetrySet(
   return unwrap(methods.telemetrySet({ enabled }));
 }
 
-export const diagnosticsRpcMethods = {
+export const diagnosticsRpc = {
   telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
     return telemetryEvent(this.methods, event, properties);
   },
@@ -54,9 +53,7 @@ export const diagnosticsRpcMethods = {
   developerModeSet(enabled: boolean): { accepted: boolean } {
     return developerModeSet(this.methods, enabled);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
 
-export const hostDiagnosticsRpc = {
   telemetryStatus(): TelemetryStatus {
     return telemetryStatus(this.methods);
   },
@@ -72,4 +69,4 @@ export const hostDiagnosticsRpc = {
   telemetrySet(enabled: boolean): TelemetryStatus {
     return telemetrySet(this.methods, enabled);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: DiagnosticsAdapterMethods }>;

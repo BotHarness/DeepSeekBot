@@ -10,13 +10,18 @@ export interface FeatureToolRegistrar {
   guard(refuse: (name: string) => string | undefined): void;
 }
 
-export interface FeatureContribution<BridgeContext = never, AgentContext = never> {
+export interface FeatureContribution<
+  BridgeContext = never,
+  AgentContext = never,
+  HostHooks = never,
+> {
   readonly id: string;
   readonly bridgeMethods?: (
     context: BridgeContext,
   ) => Readonly<Record<string, (payload: unknown) => unknown>>;
   readonly rpc?: Readonly<Record<string, (...args: never[]) => unknown>>;
   readonly runtime?: (host: RuntimeHost) => void;
+  readonly host?: HostHooks;
   readonly promptSections?: (context: AgentContext) => readonly FeaturePromptSection[];
   readonly tools?: (context: AgentContext, registrar: FeatureToolRegistrar) => void;
 }

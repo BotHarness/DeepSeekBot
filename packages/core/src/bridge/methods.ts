@@ -15,7 +15,6 @@ import {
   type TeamBridgeMethods,
   createTeamBridge,
 } from '../features/team/methods.js';
-import { createCloudBridgeMethods, type CloudBridgeMethods } from '../features/cloud/methods.js';
 import {
   createActivityBridgeMethods,
   type ActivityBridgeMethods,
@@ -162,7 +161,6 @@ import {
   authorizeChannelBridgeMethods,
 } from '../features/channels/methods.js';
 import { createTobAdapterMethods, type TobAdapterMethods } from '../features/tob/methods.js';
-import { createUsageAdapterMethods, type UsageAdapterMethods } from '../features/usage/methods.js';
 import {
   createTakeoverAdapterMethods,
   type TakeoverAdapterMethods,
@@ -179,10 +177,6 @@ import {
   createReleaseAdapterMethods,
   type ReleaseAdapterMethods,
 } from '../features/release/methods.js';
-import {
-  createDiagnosticsAdapterMethods,
-  type DiagnosticsAdapterMethods,
-} from '../features/diagnostics/methods.js';
 import {
   createProfileStorageAdapterMethods,
   type ProfileStorageAdapterMethods,
@@ -357,7 +351,6 @@ export interface BridgeMethods
     MemoryBridgeMethods,
     MessagingBridgeMethods,
     ActivityBridgeMethods,
-    CloudBridgeMethods,
     PersonaBotsBridgeMethods,
     ChannelsAdapterMethods,
     ChannelsManagementAdapterMethods,
@@ -365,14 +358,12 @@ export interface BridgeMethods
     ChannelsSendAdapterMethods,
     ChannelFilesAdapterMethods,
     ProfileStorageAdapterMethods,
-    DiagnosticsAdapterMethods,
     ReleaseAdapterMethods,
     Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
     HostSessionBridgeMethods,
     ReturnType<typeof createSessionBotMethods>,
     WorkspacesAdapterMethods,
     TakeoverAdapterMethods,
-    UsageAdapterMethods,
     TobAdapterMethods {
   sessionMessageSend(
     payload: unknown,
@@ -613,7 +604,6 @@ function buildBridgeMethods(
   const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
   const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
-  const cloudMethods = createCloudBridgeMethods(deps);
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const messagingMethods = createMessagingBridgeMethods(deps, messagingCall);
   const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
@@ -630,14 +620,12 @@ function buildBridgeMethods(
     modelRouting,
   );
   const tobAdapterMethods = createTobAdapterMethods(human, deps, isHostOwner);
-  const usageAdapterMethods = createUsageAdapterMethods(deps, isHostOwner, dmMemory);
   const takeoverAdapterMethods = createTakeoverAdapterMethods(human, deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
   const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const { sessionTranscript, sessionModel, sessionSend, ...hostSessionMethods } = hostSessions;
   const releaseAdapterMethods = createReleaseAdapterMethods(deps);
-  const diagnosticsAdapterMethods = createDiagnosticsAdapterMethods(deps);
   const profileStorageAdapterMethods = createProfileStorageAdapterMethods(human, deps);
   const channelFilesAdapterMethods = createChannelFilesAdapterMethods(deps);
   const channelsSendAdapterMethods = createChannelsSendAdapterMethods(
@@ -701,8 +689,6 @@ function buildBridgeMethods(
     messagingIdentity: messagingMethods.messagingIdentity,
     messagingDefaults: messagingMethods.messagingDefaults,
     messagingDefaultsSet: messagingMethods.messagingDefaultsSet,
-    cloudWork: cloudMethods.cloudWork,
-    cloudConnections: cloudMethods.cloudConnections,
     messagingApps: messagingMethods.messagingApps,
     messagingSnapshot: messagingMethods.messagingSnapshot,
     messagingReachable: messagingMethods.messagingReachable,
@@ -718,7 +704,6 @@ function buildBridgeMethods(
     ...tobAdapterMethods,
     onboarding: personabotsMethods.onboarding,
     ...modelInheritance,
-    telemetryEvent: diagnosticsAdapterMethods.telemetryEvent,
     onboardingModel: personabotsMethods.onboardingModel,
     channelRetry: channelsAdapterMethods.channelRetry,
     botNewSession: sessionsMethods.botNewSession,
@@ -762,10 +747,6 @@ function buildBridgeMethods(
     pluginRestart: releaseAdapterMethods.pluginRestart,
     updateRun: releaseAdapterMethods.updateRun,
     updateCancel: releaseAdapterMethods.updateCancel,
-    telemetryStatus: diagnosticsAdapterMethods.telemetryStatus,
-    gitStatus: diagnosticsAdapterMethods.gitStatus,
-    gitInstall: diagnosticsAdapterMethods.gitInstall,
-    telemetrySet: diagnosticsAdapterMethods.telemetrySet,
     ...marketplaceSharing,
     update: personabotsMethods.update,
     pause: personabotsMethods.pause,
@@ -785,7 +766,6 @@ function buildBridgeMethods(
     compactionThresholdSet: sessionsMethods.compactionThresholdSet,
     standingLimitsSet: personabotsMethods.standingLimitsSet,
     ...avatarsMethods,
-    ping: diagnosticsAdapterMethods.ping,
     composerValidate: channelsAdapterMethods.composerValidate,
     channels: channelsAdapterMethods.channels,
     channelListChanges: channelsAdapterMethods.channelListChanges,
@@ -910,9 +890,6 @@ function buildBridgeMethods(
     memoryRepair: memoryMethods.memoryRepair,
     overviewMemory: memoryMethods.overviewMemory,
     usageByMember: teamMethods.usageByMember,
-    overviewUsage: usageAdapterMethods.overviewUsage,
-    profileUsage: usageAdapterMethods.profileUsage,
-    profileSessionUsage: usageAdapterMethods.profileSessionUsage,
     profileActivity: activityMethods.profileActivity,
     groupProfileActivity: activityMethods.groupProfileActivity,
     rosterGet: personabotsMethods.rosterGet,
@@ -926,12 +903,18 @@ function buildBridgeMethods(
     hiddenSet: personabotsMethods.hiddenSet,
     channelMuteSet: personabotsMethods.channelMuteSet,
     rosterBatch: personabotsMethods.rosterBatch,
-    developerModeSet: diagnosticsAdapterMethods.developerModeSet,
   };
   return authorizeChannelBridgeMethods(
     mergeFeatureMethods([
       methods,
-      contributedBridgeMethods(deps, { human, detailOf, channelView, globalRegistry, isHostOwner }),
+      contributedBridgeMethods(deps, {
+        human,
+        detailOf,
+        channelView,
+        globalRegistry,
+        isHostOwner,
+        dmMemory,
+      }),
     ]),
     human,
     deps,
