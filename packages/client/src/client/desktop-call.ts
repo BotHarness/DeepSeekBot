@@ -157,6 +157,7 @@ export function createDesktopCall(
   let sessionMedia: DesktopCallMedia | undefined;
   let soundWatch: (() => void) | undefined;
   let heldFor: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
+  let heldMuted = true;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
@@ -255,6 +256,7 @@ export function createDesktopCall(
       await owned.client.open(slug);
     },
     async mute(muted) {
+      if (heldFor !== undefined && heldFor === session) heldMuted = muted;
       if (current.sound === 'on' && sessionMedia !== undefined) {
         sessionMedia.mute(muted);
         set({ micMuted: muted });
@@ -283,15 +285,17 @@ export function createDesktopCall(
         set({ sound: shared ? 'on' : 'off', ...(shared && hostMuted ? { micMuted: true } : {}) });
         if (shared && hostMuted) {
           heldFor = owner;
+          heldMuted = true;
           await owner?.client.mute(false);
           if (heldFor === owner) heldFor = undefined;
           if (session !== owner) return;
           const state = current.state;
           const refused = state.status === 'live' && state.call.muted;
           if (refused || current.sound !== 'on') {
-            owned.mute(true);
+            const keepMuted = refused || heldMuted;
+            owned.mute(keepMuted);
             if (refused) await owned.computerSound?.(false);
-            await owner?.client.mute(true);
+            if (keepMuted) await owner?.client.mute(true);
             if (session === owner) set({ sound: 'off', micMuted: false });
             return;
           }

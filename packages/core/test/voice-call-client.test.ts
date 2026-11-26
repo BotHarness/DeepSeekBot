@@ -392,6 +392,7 @@ function scriptedHost() {
   let endReason: VoiceCallView['endReason'];
   let heartbeat: VoiceCallResult | undefined;
   let signalGate: Promise<void> | undefined;
+  let muteGate: Promise<void> | undefined;
   const view = (): VoiceCallView => ({
     callId: 'call-0000000000000001',
     slug: 'mira',
@@ -410,6 +411,11 @@ function scriptedHost() {
   const post: CallPost = async (body) => {
     posts.push(body);
     if (body['kind'] === 'signal' && signalGate !== undefined) await signalGate;
+    if (body['kind'] === 'mute' && muteGate !== undefined) {
+      const wait = muteGate;
+      muteGate = undefined;
+      await wait;
+    }
     if (body['kind'] === 'heartbeat' && heartbeat !== undefined) return heartbeat;
     if (body['kind'] === 'hangup') phase = 'ended';
     return { ok: true, call: view() } as VoiceCallResult;
@@ -453,6 +459,9 @@ function scriptedHost() {
     },
     holdSignal(wait: Promise<void>) {
       signalGate = wait;
+    },
+    holdMute(wait: Promise<void>) {
+      muteGate = wait;
     },
   };
 }
@@ -499,6 +508,28 @@ describe('call client edges', () => {
       expect(host.kinds().filter((kind) => kind === 'hangup').length).toBeGreaterThan(0);
       expect(host.kinds().at(-1)).toBe('hangup');
     }
+  });
+
+  it('sends mute changes to the Host in the order the Owner made them', async () => {
+    const host = scriptedHost();
+    await host.client.open('mira');
+    let release: () => void = () => undefined;
+    host.holdMute(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const first = host.client.mute(true);
+    const second = host.client.mute(false);
+    await flush();
+    const mutes = () => host.posts.filter((body) => body['kind'] === 'mute');
+    expect(mutes()).toEqual([expect.objectContaining({ muted: true })]);
+    release();
+    await Promise.all([first, second]);
+    expect(mutes()).toEqual([
+      expect.objectContaining({ muted: true }),
+      expect.objectContaining({ muted: false }),
+    ]);
   });
 
   it('sends mute, visual and frame for the live call only', async () => {
