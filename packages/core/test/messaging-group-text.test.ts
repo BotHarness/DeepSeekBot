@@ -162,5 +162,22 @@ it('the Host refuses an IM reviewer group edit beyond one membership change', as
     expect.objectContaining({ cause: expect.objectContaining({ code }) });
   expect(attempt({ name: 'Renamed' })).toThrow(refused('pairing-unauthorized'));
   expect(attempt({ allow: ['approve', 'reject'] })).toThrow(refused('pairing-unauthorized'));
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  await methods.senderAccess({
+    slug: 'ada',
+    input: {
+      kind: 'create-group',
+      bindingId: person.bindingId,
+      name: 'Both',
+      allow: ['approve', 'reject'],
+      deny: [],
+      memberIds: [],
+    },
+  });
+  const both = await group(fx, 'Both');
+  expect(both.revision).toBe(approvers.revision);
+  expect(attempt({ name: 'Both', allow: ['approve', 'approve'] }, both.id)).toThrow(
+    refused('pairing-unauthorized'),
+  );
   expect(attempt({})).not.toThrow();
 });

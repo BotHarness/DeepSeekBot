@@ -386,7 +386,10 @@ function assertReviewerMembership(
   if (!group || group.revision !== input.expectedRevision)
     throw new MessagingError('permission-group-stale');
   const same = (left: readonly string[] = [], right: readonly string[] = []) =>
-    left.length === right.length && left.every((item) => right.includes(item));
+    new Set(left).size === left.length &&
+    new Set(right).size === right.length &&
+    left.length === right.length &&
+    left.every((item) => right.includes(item));
   const kept = (next: readonly string[] | undefined, current: readonly string[] | undefined) =>
     next === undefined || same(next, current);
   const added = input.memberIds.filter((id) => !group.memberIds.includes(id));
