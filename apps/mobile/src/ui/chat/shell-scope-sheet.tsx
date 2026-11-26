@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import type { ShellPrefixApproval } from '@botharness/host-protocol/wire';
 import { customShellRule } from '@botharness/host-client/shared/shell-approval-scope';
@@ -8,7 +8,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
-import { TextField } from '../primitives/text-field';
+import { TextField, type TextFieldHandle } from '../primitives/text-field';
 import { errorText } from '../request-parts';
 import { useStrings } from '../strings';
 import { Sheet, SheetActions } from './sheet';
@@ -35,6 +35,13 @@ export function ShellScopeSheet({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const firstField = useRef<TextFieldHandle>(null);
+  const initialFocusScheduled = useRef(false);
+  function focusOnLayout() {
+    if (initialFocusScheduled.current) return;
+    initialFocusScheduled.current = true;
+    requestAnimationFrame(() => firstField.current?.focus());
+  }
   const compound = drafts.length > 1;
   const save = async () => {
     if (pending.current) return;
@@ -69,7 +76,11 @@ export function ShellScopeSheet({
       <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
           {drafts.map((draft, index) => (
-            <View key={index} style={{ gap: space.x2 }}>
+            <View
+              key={index}
+              style={{ gap: space.x2 }}
+              onLayout={Platform.OS === 'android' && index === 0 ? focusOnLayout : undefined}
+            >
               {compound ? (
                 <Text
                   variant="meta"
@@ -81,6 +92,7 @@ export function ShellScopeSheet({
                 </Text>
               ) : null}
               <TextField
+                ref={index === 0 ? firstField : null}
                 testID={`shell-scope-prefix-${index}`}
                 accessibilityLabel={compound ? choice.commands[index] : copy.customLabel}
                 value={draft}
@@ -92,7 +104,7 @@ export function ShellScopeSheet({
                 editable={!busy}
                 invalid={problem?.index === index}
                 {...(problem?.index === index ? { supportingText: problem.text } : {})}
-                autoFocus={index === 0}
+                autoFocus={Platform.OS !== 'android' && index === 0}
                 autoCapitalize="none"
                 autoCorrect={false}
                 spellCheck={false}
