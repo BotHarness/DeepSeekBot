@@ -562,7 +562,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     releaseService,
   });
   const folders = workspacesFeature.mountFolders(ctx);
-  const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
+  const {
+    marketplaceClient,
+    marketplaceUploads,
+    shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
+  } = marketplace.apply(ctx, {
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     dshHome,
     registry: core.registry,
@@ -622,6 +628,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,

@@ -508,6 +508,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'marketplaceAvatarList' || method === 'marketplaceAvatarDetail')
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });
+        else if (method.startsWith('marketplaceSkill'))
+          expect(['marketplace-unavailable', 'invalid-input']).toContain(code);
         else if (method === 'usageByMember')
           expect(error).toMatchObject({
             code: 'permission-required',
@@ -527,7 +529,10 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       } finally {
         abort.abort();
       }
-      if (method === 'marketplaceAvatarApplyCandidates') {
+      if (
+        method === 'marketplaceAvatarApplyCandidates' ||
+        method === 'marketplaceSkillAddCandidates'
+      ) {
         expect(result).toMatchObject({ bots: expect.any(Array) });
         expect(result).not.toMatchObject({
           bots: expect.arrayContaining([expect.objectContaining({ slug: 'owner-secret-bot' })]),

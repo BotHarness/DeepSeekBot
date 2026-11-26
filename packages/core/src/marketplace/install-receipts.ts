@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { MarketplaceClient } from './client.js';
+import type { MarketplaceSkillSource } from './skill-source.js';
 
 export const MARKETPLACE_HOST_FILE = 'marketplace-host.json';
 const HOST_ID = /^[A-Za-z0-9_-]{22,128}$/u;
@@ -28,17 +29,19 @@ export function ensureMarketplaceHostId(
 export interface InstallReceipts {
   send(listingId: string): Promise<void>;
   sendAvatar?(avatarId: string, personaBotId: string): Promise<void>;
+  sendSkill?(skillId: string, target: string): Promise<void>;
 }
 
 export function createInstallReceipts(deps: {
   client: MarketplaceClient;
   dataDir: string;
+  skills?: Pick<MarketplaceSkillSource, 'receipt'>;
   log?: (event: Record<string, string | number | boolean>) => void;
 }): InstallReceipts {
   let hostId: string | undefined;
   const send = async (
     module: string,
-    report: (id: string) => ReturnType<MarketplaceClient['avatarApplyReceipt']>,
+    report: (id: string) => ReturnType<MarketplaceSkillSource['receipt']>,
   ) => {
     const started = performance.now();
     try {
@@ -62,6 +65,15 @@ export function createInstallReceipts(deps: {
           .update(JSON.stringify([id, personaBotId]))
           .digest('hex');
         return deps.client.avatarApplyReceipt(avatarId, botHash);
+      }),
+    sendSkill: (skillId, target) =>
+      send('marketplace-skill-receipt', (id) => {
+        const targetHash = createHash('sha256')
+          .update(JSON.stringify([id, target]))
+          .digest('hex');
+        return deps.skills === undefined
+          ? Promise.resolve({ ok: false, code: 'marketplace-unavailable' })
+          : deps.skills.receipt(skillId, targetHash);
       }),
   };
 }

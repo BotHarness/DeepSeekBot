@@ -115,6 +115,17 @@ export function frontmatterBlock(text: string): { lines: string[]; end: number }
   return end === -1 ? undefined : { lines: lines.slice(1, end), end };
 }
 
+export function renameSkill(text: string, name: string): string {
+  const block = frontmatterBlock(text);
+  if (block === undefined) return text;
+  const lines = block.lines.map((line) => (/^name:/u.test(line) ? `name: ${name}` : line));
+  const body = text
+    .replace(/^\uFEFF/u, '')
+    .split(/\r?\n/u)
+    .slice(block.end + 1);
+  return ['---', ...lines, '---', ...body].join('\n');
+}
+
 export function parseSkillFrontmatter(text: string): SkillFrontmatter | undefined {
   const block = frontmatterBlock(text);
   if (block === undefined) return undefined;
@@ -144,7 +155,7 @@ export function parseSkillFrontmatter(text: string): SkillFrontmatter | undefine
   return { name, description };
 }
 
-export function withSkillSource(text: string, source: string, hash: string): string {
+export function withSkillMetadata(text: string, entries: Record<string, string>): string {
   const block = frontmatterBlock(text);
   if (block === undefined) return text;
   const kept: string[] = [];
@@ -155,14 +166,16 @@ export function withSkillSource(text: string, source: string, hash: string): str
       kept.push(line);
       continue;
     }
-    if (skipping && /^\s+tobs-(?:source|hash):/u.test(line)) continue;
+    if (skipping && /^\s+tobs-[a-z]+:/u.test(line)) continue;
     if (skipping && !/^\s/u.test(line)) skipping = false;
     kept.push(line);
   }
   const at = kept.findIndex((line) => /^metadata:\s*$/u.test(line));
-  const entries = [`  tobs-source: ${JSON.stringify(source)}`, `  tobs-hash: ${hash}`];
-  if (at === -1) kept.push('metadata:', ...entries);
-  else kept.splice(at + 1, 0, ...entries);
+  const lines = Object.entries(entries).map(
+    ([key, value]) => `  tobs-${key}: ${JSON.stringify(value)}`,
+  );
+  if (at === -1) kept.push('metadata:', ...lines);
+  else kept.splice(at + 1, 0, ...lines);
   const body = text
     .replace(/^﻿/u, '')
     .split(/\r?\n/u)

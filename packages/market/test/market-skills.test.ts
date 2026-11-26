@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { DISCOVERY_CRON } from '../src/worker.js';
-import { parseSkillFrontmatter, scanSkillFiles, withSkillSource } from '../src/skill-scan.js';
+import {
+  parseSkillFrontmatter,
+  renameSkill,
+  scanSkillFiles,
+  withSkillMetadata,
+} from '../src/skill-scan.js';
 import { TEST_ADMIN_TOKEN, createMarket, fakeRepository, post } from './market-harness.js';
 
 type Market = ReturnType<typeof createMarket>;
@@ -244,13 +249,18 @@ describe('Skill scanning', () => {
 
   it('writes source metadata into the frontmatter', () => {
     expect(
-      withSkillSource(
-        '---\nname: a\nmetadata:\n  tobs-hash: old\n  team: x\n---\nbody',
-        'carol/skills',
-        'h1',
-      ),
+      withSkillMetadata('---\nname: a\nmetadata:\n  tobs-hash: old\n  team: x\n---\nbody', {
+        source: 'carol/skills',
+        hash: 'h1',
+      }),
     ).toBe(
-      '---\nname: a\nmetadata:\n  tobs-source: "carol/skills"\n  tobs-hash: h1\n  team: x\n---\nbody',
+      '---\nname: a\nmetadata:\n  tobs-source: "carol/skills"\n  tobs-hash: "h1"\n  team: x\n---\nbody',
+    );
+  });
+
+  it('renames the skill in its frontmatter only', () => {
+    expect(renameSkill('---\nname: a\ndescription: x\n---\nname: keep', 'a-2')).toBe(
+      '---\nname: a-2\ndescription: x\n---\nname: keep',
     );
   });
 });
