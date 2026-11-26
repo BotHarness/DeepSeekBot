@@ -520,6 +520,8 @@ export async function runTeamCommand(
       return rpc('channelRoleDirectory', { channelId: argument });
     if (action === 'get' && argument && rest.length === 2)
       return rpc('channelGet', { channelId: argument });
+    if (action === 'access' && argument && rest.length === 2)
+      return rpc('channelAccessState', { channelId: argument });
     if (action === 'visibility' && argument && rest.length === 3) {
       const value = rest[2]!;
       const parsed = channelVisibilitySchema.safeParse(

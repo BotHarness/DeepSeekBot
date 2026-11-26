@@ -122,6 +122,7 @@ export async function readVisibleSessionRows(
       running: row.running,
       lastPromptAt: row.lastPromptAt,
       updatedAt: row.updatedAt,
+      ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
     };
     if (record === undefined) {
       if (owner && (source === 'all' || source === 'native')) {
@@ -139,12 +140,18 @@ export async function readVisibleSessionRows(
     }
     const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
     if (bot === undefined || privateSessions?.has(bot.slug)) continue;
-    if (withSources && !sources.has(`bot:${bot.slug}`))
-      sources.set(`bot:${bot.slug}`, {
-        kind: 'bot',
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-      });
+    const avatar = bot.avatar?.startsWith('data:image/')
+      ? botAvatarUrl(bot.slug, bot.avatar)
+      : bot.avatar;
+    const identity = {
+      kind: 'bot' as const,
+      botSlug: bot.slug,
+      displayName: bot.displayName,
+      ...(avatar === undefined ? {} : { avatar }),
+      ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
+      ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
+    };
+    if (withSources && !sources.has(`bot:${bot.slug}`)) sources.set(`bot:${bot.slug}`, identity);
     if (source !== 'all' && source !== `bot:${bot.slug}`) continue;
     if (!seenBots.has(bot.slug)) {
       seenBots.add(bot.slug);
@@ -167,9 +174,6 @@ export async function readVisibleSessionRows(
           : assignment?.activity === 'error' || report === 'failed'
             ? 'failed'
             : undefined;
-    const avatar = bot.avatar?.startsWith('data:image/')
-      ? botAvatarUrl(bot.slug, bot.avatar)
-      : bot.avatar;
     sessions.push({
       ...base,
       ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
@@ -179,14 +183,7 @@ export async function readVisibleSessionRows(
         : {}),
       status: hostSessionStatus({ running, attention }),
       ...(attention === undefined ? {} : { attention }),
-      source: {
-        kind: 'bot',
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-        ...(avatar === undefined ? {} : { avatar }),
-        ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-        ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-      },
+      source: identity,
     });
   }
   return { sessions, sources: [...sources.values()], roots, children };

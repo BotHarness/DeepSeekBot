@@ -29,18 +29,21 @@ it('offers Join in All and reserves Invite for the selected eligible cloud works
     bot: true,
     join: true,
     invite: undefined,
+    person: undefined,
   });
   expect(chatsCreationActions(computerEnvironmentKey('mac'), targets)).toEqual({
     group: true,
     bot: true,
     join: false,
     invite: undefined,
+    person: undefined,
   });
   expect(chatsCreationActions(scope, targets)).toEqual({
     group: true,
     bot: false,
     join: false,
     invite: expect.objectContaining({ kind: 'cloud', workspace }),
+    person: undefined,
   });
 });
 
@@ -53,6 +56,7 @@ it.each([
     bot: false,
     join: false,
     invite: undefined,
+    person: undefined,
   });
 });
 
@@ -85,3 +89,20 @@ it('hides both cloud actions without cloud support', () => {
     feature.cloud = true;
   }
 });
+
+it.each([true, false])(
+  'offers Message a person on the Host only when the viewer can message people (%s)',
+  (peopleDm) => {
+    const targets = creationTargets(computer, [workspace]).map((target) =>
+      target.kind === 'computer'
+        ? { ...target, botCreation: false, channelCreation: false, peopleDm }
+        : target,
+    );
+    const person = peopleDm
+      ? expect.objectContaining({ kind: 'computer', hostId: 'mac' })
+      : undefined;
+    expect(chatsCreationActions('all', targets).person).toEqual(person);
+    expect(chatsCreationActions(computerEnvironmentKey('mac'), targets).person).toEqual(person);
+    expect(chatsCreationActions(scope, targets).person).toBeUndefined();
+  },
+);

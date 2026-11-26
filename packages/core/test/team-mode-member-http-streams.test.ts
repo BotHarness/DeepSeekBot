@@ -29,7 +29,7 @@ async function signedInMember() {
     );
   const next = (id: number, signal?: AbortSignal, dispatcher?: Client) =>
     post({ op: 'stream-next', id }, signal, dispatcher);
-  return { gateway: fixture.gateway, origin: http.origin, open, next };
+  return { gateway: fixture.gateway, origin: http.origin, post, open, next };
 }
 
 describe('member HTTP stream disconnection', () => {
@@ -59,6 +59,53 @@ describe('member HTTP stream disconnection', () => {
     expect(await (await open(18)).json()).toEqual({});
     expect(await (await next(18)).json()).toEqual({ value: 'baseline' });
     await vi.waitFor(() => expect(stopped).toHaveBeenCalledTimes(17));
+  });
+
+  it('frees the session control slot when a socket closes during another stream’s poll', async () => {
+    const { gateway, origin, post, open, next } = await signedInMember();
+    const polling = deferred<AbortSignal>();
+    vi.spyOn(gateway.wireStream, 'open').mockImplementation(
+      async function (endpoint, _payload, _uplink, _peer, signal) {
+        return (async function* () {
+          if (endpoint === 'session/control') yield 'session-baseline';
+          else {
+            polling.resolve(signal);
+            if (!signal.aborted) await once(signal, 'abort');
+          }
+        })();
+      },
+    );
+
+    const socket = new Client(origin);
+    const openControl = (id: number, dispatcher?: Client) =>
+      post(
+        { op: 'stream-open', id, endpoint: 'session/control', payload: { args: {} } },
+        undefined,
+        dispatcher,
+      );
+    try {
+      expect(await (await openControl(1, socket)).json()).toEqual({});
+      expect(await (await next(1, undefined, socket)).json()).toEqual({
+        value: 'session-baseline',
+      });
+      expect(await (await open(2, undefined, socket)).json()).toEqual({});
+      const interrupted = expect(next(2, undefined, socket)).rejects.toMatchObject({
+        name: 'TypeError',
+      });
+      const signal = await polling.promise;
+      await socket.destroy();
+      await interrupted;
+      await vi.waitFor(() => expect(signal.aborted).toBe(true));
+    } finally {
+      await socket.destroy();
+    }
+
+    for (let id = 3; id <= 17; id += 1) expect(await (await open(id)).json()).toEqual({});
+    const replacement = await openControl(18);
+    expect(replacement.status).toBe(200);
+    expect(await replacement.json()).toEqual({});
+    expect(await (await next(1)).json()).toEqual({ code: 'stream-not-found' });
+    expect((await openControl(19)).status).toBe(429);
   });
 
   it('stops every open stream when the member HTTP surface closes', async () => {
@@ -106,7 +153,7 @@ describe('member HTTP stream disconnection', () => {
   });
 
   it('releases an abandoned poll while another stream under the same grant keeps working', async () => {
-    const { gateway, open, next } = await signedInMember();
+    const { gateway, origin, open, next } = await signedInMember();
     const polling = deferred<void>();
     const stopped = vi.fn();
     vi.spyOn(gateway.wireStream, 'open')
@@ -127,17 +174,24 @@ describe('member HTTP stream disconnection', () => {
         })(),
       );
 
-    expect(await (await open(1)).json()).toEqual({});
-    expect(await (await open(2)).json()).toEqual({});
-    expect(await (await next(1)).json()).toEqual({ value: 'baseline' });
-    const controller = new AbortController();
-    const result = expect(next(1, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
-    await polling.promise;
-    controller.abort();
-    await result;
-    await vi.waitFor(() => expect(stopped).toHaveBeenCalledOnce());
-    expect(await (await next(1)).json()).toEqual({ code: 'stream-not-found' });
-    expect(await (await next(2)).json()).toEqual({ value: 'other-page' });
+    const otherPage = new Client(origin);
+    try {
+      expect(await (await open(1)).json()).toEqual({});
+      expect(await (await open(2, undefined, otherPage)).json()).toEqual({});
+      expect(await (await next(1)).json()).toEqual({ value: 'baseline' });
+      const controller = new AbortController();
+      const result = expect(next(1, controller.signal)).rejects.toMatchObject({
+        name: 'AbortError',
+      });
+      await polling.promise;
+      controller.abort();
+      await result;
+      await vi.waitFor(() => expect(stopped).toHaveBeenCalledOnce());
+      expect(await (await next(1)).json()).toEqual({ code: 'stream-not-found' });
+      expect(await (await next(2, undefined, otherPage)).json()).toEqual({ value: 'other-page' });
+    } finally {
+      await otherPage.destroy();
+    }
   });
 
   it('releases a disconnected opening before the Gateway returns its iterator', async () => {

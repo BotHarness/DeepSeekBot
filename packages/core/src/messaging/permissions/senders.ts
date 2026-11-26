@@ -71,6 +71,13 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('delete-role'),
+      id: z.string().uuid(),
+      expectedRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('reassign-role'),
       id: z.string().uuid(),
       expectedRevision: z.number().int().positive(),
@@ -325,6 +332,45 @@ export interface SenderAccessReviewer {
   bindingId: string;
   actorId: string;
 }
+function assertReviewerExceptions(
+  db: DatabaseSync,
+  botSlug: string,
+  input: SenderAccessInput,
+  reviewer: SenderAccessReviewer,
+): void {
+  if (input.kind !== 'person-permissions') throw new MessagingError('pairing-unauthorized');
+  const row = db
+    .prepare('SELECT body FROM messaging_pairings WHERE id = ? AND bot_slug = ?')
+    .get(input.id, botSlug) as { body: string } | undefined;
+  if (!row) throw new MessagingError('pairing-stale');
+  const pairing = JSON.parse(row.body) as PairingRequest;
+  const permissions = effectivePairingPermissions(
+    db,
+    botSlug,
+    reviewer.bindingId,
+    reviewer.actorId,
+  );
+  if (
+    !permissions.capabilities.includes('review-pairing') ||
+    pairing.bindingId !== reviewer.bindingId ||
+    pairing.actorId === reviewer.actorId
+  )
+    throw new MessagingError('pairing-unauthorized');
+  const before = pairing.permissionExceptions;
+  const changed = (left: readonly string[] = [], right: readonly string[] = []) => [
+    ...left.filter((cap) => !right.includes(cap)),
+    ...right.filter((cap) => !left.includes(cap)),
+  ];
+  const delegable = permissions.delegableCapabilities ?? [];
+  if (
+    changed(before?.delegateAllow, input.delegateAllow ?? before?.delegateAllow).length ||
+    changed(before?.delegateDeny, input.delegateDeny ?? before?.delegateDeny).length ||
+    [...changed(before?.allow, input.allow), ...changed(before?.deny, input.deny)].some(
+      (cap) => !delegable.includes(cap as PairingCapability),
+    )
+  )
+    throw new MessagingError('pairing-delegation-denied');
+}
 export function changeSenderAccess(
   db: DatabaseSync,
   botSlug: string,
@@ -347,6 +393,7 @@ export function changeSenderAccess(
     input.kind === 'delete-group' ||
     input.kind === 'person-permissions'
   ) {
+    if (reviewer) assertReviewerExceptions(db, botSlug, input, reviewer);
     changePermissionGroups(db, botSlug, input);
     bumpSenderPolicy(db, botSlug);
     return;
@@ -390,6 +437,27 @@ export function changeSenderAccess(
       next.id,
       botSlug,
     );
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
+  if (input.kind === 'delete-role') {
+    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
+    if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
+    if (
+      db
+        .prepare(
+          "SELECT 1 FROM messaging_pairings WHERE bot_slug = ? AND status IN ('pending', 'approved') AND json_extract(body, '$.roleId') = ? LIMIT 1",
+        )
+        .get(botSlug, role.id)
+    )
+      throw new MessagingError('role-in-use');
+    db.prepare('DELETE FROM messaging_external_roles WHERE id = ? AND bot_slug = ?').run(
+      role.id,
+      botSlug,
+    );
+    db.prepare(
+      'UPDATE messaging_sender_policies SET default_role_id = NULL WHERE bot_slug = ? AND default_role_id = ?',
+    ).run(botSlug, role.id);
     bumpSenderPolicy(db, botSlug);
     return;
   }

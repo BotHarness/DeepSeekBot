@@ -13,6 +13,10 @@ export function chatsCreationActions(scope: string, targets: readonly CreationTa
       cloudAvailable && actions.includes('invite')
         ? targetsFor('invite', scope, targets)[0]
         : undefined,
+    person: targetsFor('person', scope, targets).find(
+      (target): target is Extract<CreationTarget, { kind: 'computer' }> =>
+        target.kind === 'computer',
+    ),
   };
 }
 

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { headerLabelScaleCeiling } from '../src/ui/design/capped-text';
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createHostClient } from '@botharness/host-client/client';
 import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
@@ -84,6 +85,8 @@ vi.mock('react-native-keyboard-controller', async () => import('./keyboard-contr
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 
 vi.mock('react-native', mockReactNative);
+
+vi.mock('../src/ui/shell/message-person-sheet', () => ({ MessagePersonSheet: () => null }));
 
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
@@ -864,7 +867,7 @@ describe('Search in the Chats header', () => {
 
 describe('Selected view header accessibility', () => {
   it.each(['all', 'computer', 'cloud'] as const)(
-    'announces the full %s view and scales its icon with live system text size',
+    'announces the full %s view and scales its icon with live system text size up to the header ceiling',
     async (kind) => {
       const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
       const accessibilityLabel =
@@ -897,7 +900,9 @@ describe('Selected view header accessibility', () => {
         push.mockClear();
         await act(async () => (button as HTMLElement).click());
         expect(push).toHaveBeenCalledWith('/environment');
-        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        const size =
+          resolveTheme('light', {}, 'ios').type.title.line *
+          Math.min(fontScale, headerLabelScaleCeiling);
         if (kind === 'computer') {
           expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
             String(size),

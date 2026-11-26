@@ -141,3 +141,32 @@ it('serves live needs-you state over the cached Session rows', async () => {
   });
   expect(list).toHaveBeenCalledTimes(1);
 });
+
+it('reads Session creation times from the headers once per Host run and dates newer Sessions by their first event', async () => {
+  let items = [{ sessionId: 'old', running: false, updatedAt: 50 }];
+  const listSessions = vi.fn(async () => [{ header: { id: 'old', createdAt: 5 } }]);
+  const controller = { list: async () => ({ items }), state: vi.fn() };
+  const query = { listSessions };
+  const ctx = {
+    get: (name: string) =>
+      name === 'sessionController' ? controller : name === 'sessionQuery' ? query : undefined,
+    on: () => undefined,
+  };
+  const journal = createSessionListChanges(() => undefined, { epoch: 'run' });
+  const sessions = dshHostSessions(
+    ctx as never as Context,
+    { get: () => undefined } as unknown as DshSessionStore,
+    undefined,
+    journal,
+  );
+  expect((await sessions.list()).map((r) => [r.sessionId, r.createdAt])).toEqual([['old', 5]]);
+
+  items = [...items, { sessionId: 'new', running: false, updatedAt: 90 }];
+  journal.changed(false, 'new', 80);
+  journal.changed(false, 'new', 85);
+  expect((await sessions.list()).map((r) => [r.sessionId, r.createdAt])).toEqual([
+    ['old', 5],
+    ['new', 80],
+  ]);
+  expect(listSessions).toHaveBeenCalledTimes(1);
+});

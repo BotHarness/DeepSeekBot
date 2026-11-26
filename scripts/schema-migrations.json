@@ -754,5 +754,9 @@
   {
     "id": "bot-management-grants",
     "sha256": "63437bdd59b8ed905577534d32987ae8f5cf58ea60db90a546c183e35efe3caf"
+  },
+  {
+    "id": "connector-remote-mcp",
+    "sha256": "4897d986659a9c3f523737c7efb0ce62b8845f98fb9f85a75b1545a6f9ee2d82"
   }
 ]

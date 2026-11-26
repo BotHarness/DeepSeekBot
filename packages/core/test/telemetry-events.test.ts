@@ -193,7 +193,7 @@ describe('PersonaBot lifecycle telemetry', () => {
       await core.deletions.confirm('ada', preview.token, false);
       await core.deletions.retry('ada');
       await expect(core.deletions.confirm('ada', preview.token, false)).rejects.toThrow(
-        'scope changed',
+        'already accepted',
       );
       const events = (await r.events()).filter((event) => event.event !== 'bot_library:bot_create');
       expect(events.map((event) => event.event)).toEqual(['bot_library:bot_delete']);

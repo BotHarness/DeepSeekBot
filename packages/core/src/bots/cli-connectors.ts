@@ -10,6 +10,7 @@ export interface ConnectorValues {
   access?: string;
   confirm?: boolean;
   cursor?: string;
+  name?: string;
 }
 
 export const CONNECTOR_COMMANDS = [
@@ -44,6 +45,21 @@ export const CONNECTOR_COMMANDS = [
     command: 'connector-search',
     description:
       'search every app Composio can connect, featured apps first; Chinese words match the featured apps only (--cursor for the next page)',
+  },
+  {
+    command: 'connector-mcp-search',
+    description:
+      'search remote MCP servers that connect by signing in (featured first, then the MCP Registry); no Composio key needed (--cursor for the next page)',
+  },
+  {
+    command: 'connector-mcp-add',
+    description:
+      'connect a remote MCP server by its https address and print the sign-in link when it needs one (--name, --label)',
+  },
+  {
+    command: 'connector-mcp-finish',
+    description:
+      'finish a remote MCP sign-in by pasting the address the sign-in page opened, when that page could not reach this Host',
   },
   {
     command: 'connector-grant',
@@ -122,6 +138,31 @@ export async function runConnectorCommand(
       query,
       ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
     });
+  }
+  if (command === 'connector-mcp-search') {
+    if (rest.length > 1)
+      usage('connector-mcp-search takes at most one query; quote several words.');
+    return (await connect())('connectorMcpSearch', {
+      query: (rest[0] ?? '').trim(),
+      ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+    });
+  }
+  if (command === 'connector-mcp-add') {
+    const [url] = positionals(
+      command,
+      rest,
+      1,
+      'one https address, for example https://mcp.posthog.com/mcp',
+    );
+    return (await connect())('connectorMcpAdd', {
+      url,
+      ...(values.name === undefined ? {} : { name: values.name }),
+      ...(values.label === undefined ? {} : { label: values.label }),
+    });
+  }
+  if (command === 'connector-mcp-finish') {
+    const [url] = positionals(command, rest, 1, 'the whole address the sign-in page opened');
+    return (await connect())('connectorMcpFinish', { url });
   }
   if (command === 'connector-grant') {
     const [slug, accountId] = positionals(command, rest, 2, 'a bot id and an account id');

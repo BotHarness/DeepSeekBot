@@ -164,6 +164,7 @@ function commandList(zh: boolean): string {
           '/new（/新会话）- 让下一条消息开启新会话',
           '/compact（/压缩）- 立即压缩当前会话的上下文',
           '/role（/角色）- 列出可分配的角色；/role @某人 <角色> 修改已配对成员的角色',
+          '/grant（/授予）、/revoke（/收回）@某人 <权限> - 单独授予或收回批准、拒绝等权限',
         ]
       : [
           '/commands - list every command',
@@ -175,6 +176,7 @@ function commandList(zh: boolean): string {
           '/new - start a fresh session on the next message',
           '/compact - compact the current session context now',
           "/role - list the Roles you can assign; /role @name <role> changes a paired person's Role",
+          '/grant, /revoke @name <permission> - grant or take away one permission such as approve',
         ]
   ).join('\n');
 }

@@ -90,7 +90,13 @@ function shape(status: Shown, color: string, cut: string): ReactElement {
   }
 }
 
-export function RowStatusGlyph({ status }: { status: RowStatus }) {
+export function RowStatusGlyph({
+  status,
+  size = rowGlyph.size,
+}: {
+  status: RowStatus;
+  size?: number;
+}) {
   const t = useStrings();
   const theme = useTheme();
   const canvas = useDesignTheme().layer.canvas.fill;
@@ -120,9 +126,9 @@ export function RowStatusGlyph({ status }: { status: RowStatus }) {
       testID={`row-status-${status}`}
       accessibilityRole="image"
       accessibilityLabel={t.rowStatus[status]}
-      style={[{ width: rowGlyph.size, height: rowGlyph.size, flexShrink: 0 }, rotation]}
+      style={[{ width: size, height: size, flexShrink: 0 }, rotation]}
     >
-      <Svg ref={mount} width={rowGlyph.size} height={rowGlyph.size} viewBox="0 0 16 16">
+      <Svg ref={mount} width={size} height={size} viewBox="0 0 16 16">
         {shape(status, colorOf(theme, status), canvas)}
       </Svg>
     </Animated.View>
