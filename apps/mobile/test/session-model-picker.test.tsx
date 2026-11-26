@@ -8,6 +8,56 @@ import type { SessionModelState } from '@botharness/host-protocol/session-model'
 import type { SettingsRowProps } from '../src/ui/primitives/settings-row-model';
 import type { SheetFrameProps } from '../src/ui/chat/sheet-frame';
 
+vi.mock('../src/ui/primitives/preference-row', async () => {
+  const { useState } = await import('react');
+  return {
+    PreferenceRow: ({
+      testID,
+      title,
+      value,
+      options,
+      onChange,
+    }: {
+      testID: string;
+      title: string;
+      value: string;
+      options: { value: string; label: string }[];
+      onChange(value: string): void;
+    }) => {
+      const [open, setOpen] = useState(false);
+      return (
+        <div>
+          <button data-testid={testID} onClick={() => setOpen(!open)}>
+            {title}
+            {options.find((option) => option.value === value)?.label}
+          </button>
+          {open
+            ? options.map((option) => (
+                <button
+                  key={option.value}
+                  data-testid={`${testID}-${option.value}`}
+                  onClick={() => {
+                    setOpen(false);
+                    onChange(option.value);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))
+            : null}
+        </div>
+      );
+    },
+  };
+});
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: ({ name }: { name: string | { ios?: string; android?: string } }) => (
+    <i
+      data-symbol-ios={typeof name === 'string' ? name : name.ios}
+      data-symbol-android={typeof name === 'string' ? undefined : name.android}
+    />
+  ),
+}));
 vi.mock('../src/host/native-model-catalog', () => ({
   nativeModelCatalogStore: { read: () => undefined, write: () => {} },
 }));
@@ -396,4 +446,68 @@ it('names the Default preset model on a new native Session and filters by provid
   expect(button('session-model-option-default')).toBeDefined();
   await act(async () => button('session-model-filter-api:claude').click());
   expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
+});
+
+it('chooses the reasoning effort for the selected model and keeps the sheet open', async () => {
+  let saved: SessionModelState = { ...defaultState, override: engine };
+  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+    if (method === 'modelCatalog')
+      return {
+        ...catalog,
+        routingGroupEngines: [
+          {
+            ...catalog.routingGroupEngines[0],
+            models: [
+              {
+                id: engine.model,
+                name: 'Claude Opus 5.5',
+                defaultEffort: 'high',
+                efforts: [
+                  { id: 'high', name: 'High' },
+                  { id: 'max', name: 'Max' },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+    if (method === 'sessionModel' && args !== undefined && 'choice' in args)
+      saved = { ...saved, override: args['choice'] as SessionModelState['override'] };
+    return saved;
+  });
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  expect(button('session-model-effort').textContent).toContain('High');
+  await act(async () => button('session-model-effort').click());
+  await act(async () => button('session-model-effort-max').click());
+  expect(call).toHaveBeenCalledWith('sessionModel', {
+    slug: 'ada',
+    sessionId: 'current',
+    choice: { ...engine, effort: 'max' },
+  });
+  expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+  expect(button('session-model-effort').textContent).toContain('Max');
+  await act(async () => button('session-model-effort').click());
+  expect(button('session-model-effort-').textContent).toBe('Model default · High');
+  await act(async () => button('session-model-effort-').click());
+  const { effort: _effort, ...bare } = engine;
+  expect(call).toHaveBeenCalledWith('sessionModel', {
+    slug: 'ada',
+    sessionId: 'current',
+    choice: bare,
+  });
+});
+
+it('marks a subscription provider chip with a plug badge', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? catalog : defaultState,
+  );
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const badge = button('session-model-filter-sub:claude').querySelector('[data-symbol-ios]');
+  expect(badge?.getAttribute('data-symbol-ios')).toBe('powerplug.portrait.fill');
+  expect(badge?.getAttribute('data-symbol-android')).toBe('power');
+  expect(
+    container.querySelector('[data-testid^="session-model-filter-api:"] [data-symbol-ios]'),
+  ).toBeNull();
 });

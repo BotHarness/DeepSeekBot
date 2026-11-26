@@ -7,6 +7,7 @@ import {
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import { TeamError } from '../../team/error.js';
+import { ownsBot } from '../../team/bot-access.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';
 import { TobError, type ManagementGrantChange, type TobHome } from '../../tob/service.js';
 import { isManagementCapability, type ManagementCapability } from '../../tob/management-grants.js';
@@ -63,25 +64,30 @@ export function createTobAdapterMethods(
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {
-    managementGrants() {
+    managementGrants(payload) {
       if (!deps.tob) return unavailable();
       const tobSlug = deps.tob.slug();
+      const slug = asSlug(payload);
+      const authorized = deps.tob.canManageGrants(human);
+      const bot = slug === undefined ? undefined : deps.registry.get(slug);
       return {
         ok: true,
         value: {
           ...(tobSlug === undefined ? {} : { tobSlug }),
-          holders: isHostOwner() ? deps.tob.managementGrantHolders() : [],
-          editable: isHostOwner() && human.caller !== 'bot',
+          holders:
+            isHostOwner() || authorized ? deps.tob.managementGrantHolders(human.humanId) : [],
+          editable: authorized && (slug === undefined || ownsBot(human, bot)),
         },
       };
     },
     managementGrantSet(payload) {
-      if (!isHostOwner() || human.caller === 'bot')
+      if (!deps.tob?.canManageGrants(human))
         return {
           ok: false,
           error: {
             code: 'permission-required',
-            message: 'Only the Human Host Owner can change App management grants.',
+            message:
+              'Only the Owner, or a member the Owner authorized, can change management grants for their own Bots.',
           },
         };
       const slug = asSlug(payload);

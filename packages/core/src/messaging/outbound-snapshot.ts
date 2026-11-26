@@ -4,6 +4,9 @@ import type { FailureAlerts } from './failure-alerts.js';
 import type { ApprovalMessaging } from './approval-messaging.js';
 import {
   externalPermissionGroups,
+  listConversationSourceBlocks,
+  listSenderBlocks,
+  senderBlockBindingIds,
   behaviorPermissions,
   externalUserRoles,
   platformPeople,
@@ -499,6 +502,16 @@ export function createOutboundSnapshot(context: {
         }
       }
       const qqIdentities = identities.filter((identity) => identity.platform === 'qq');
+      const currentBlockBinding = <T extends { fingerprint: string; bindingId: string }>(
+        block: T,
+      ): T => {
+        const current =
+          identities.find(
+            (identity) =>
+              identity.fingerprint === block.fingerprint && identity.enabled && !identity.revokedAt,
+          ) ?? identities.find((identity) => identity.fingerprint === block.fingerprint);
+        return current ? { ...block, bindingId: current.id } : block;
+      };
       const observedAt = now();
       const observations =
         context.closed || mode === 'saved'
@@ -545,6 +558,22 @@ export function createOutboundSnapshot(context: {
         identities,
         roles: database.read((db) => externalUserRoles(db, botSlug)),
         permissionGroups: database.read((db) => externalPermissionGroups(db, botSlug)),
+        senderBlocks: database
+          .read((db) =>
+            listSenderBlocks(db, botSlug).map((block) => ({
+              ...block,
+              bindingIds: senderBlockBindingIds(db, botSlug, block.fingerprint),
+            })),
+          )
+          .map(currentBlockBinding),
+        conversationBlocks: database
+          .read((db) =>
+            listConversationSourceBlocks(db, botSlug).map((block) => ({
+              ...block,
+              bindingIds: senderBlockBindingIds(db, botSlug, block.fingerprint),
+            })),
+          )
+          .map(currentBlockBinding),
         behaviorPermissions: database.read((db) => behaviorPermissions(db, botSlug)),
         senderPolicy: database.read((db) => readSenderPolicy(db, botSlug)),
         pairings: pairing.list(botSlug),

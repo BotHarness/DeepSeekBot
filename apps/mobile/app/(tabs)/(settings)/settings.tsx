@@ -80,7 +80,10 @@ export default function SettingsScreen() {
           onModelProviders: () => router.push('/settings/model-providers'),
           onModels: () => router.push('/settings/models'),
           ...(saved != null && saved.member === undefined
-            ? { onVoice: () => router.push('/settings/voice') }
+            ? {
+                onVoice: () => router.push('/settings/voice'),
+                onImApps: () => router.push('/settings/im-apps'),
+              }
             : {}),
           onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,

@@ -651,6 +651,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     senderAccess: outboundConversations.senderAccess,
     toolRuleCreatorAuthorized: outboundConversations.toolRuleCreatorAuthorized,
     senderPermissions: outboundConversations.senderPermissions,
+    sourceBlocks: outboundConversations.sourceBlocks,
     directory: outboundConversations.directory,
     reviewPairing: outboundConversations.reviewPairing,
     defaults: outboundBinding.defaults,

@@ -49,6 +49,7 @@ import { AvatarSlot, CONVERSATION_AVATAR, CONVERSATION_RING } from '../chat/avat
 import { shortTime } from '../chat/conversations';
 import { SourceName } from '../chat/source-name';
 import { ApprovalCard } from '../chat/approval-card';
+import { approvalPresetPort } from '../chat/approval-preset-port';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
@@ -332,6 +333,7 @@ function Post({
           return decideApproval(client, stableRef, outcome);
         },
       },
+      preset: approvalPresetPort(client, botSlug, false),
       question: {
         load: () => loadQuestion(client, stableRef),
         answer: (answer: Parameters<typeof answerQuestion>[2]) => {
@@ -419,7 +421,7 @@ function Post({
             />
           )
         ) : item.kind === 'tool-approval' ? (
-          <ApprovalCard port={ports.approval} wide onSettled={settled} />
+          <ApprovalCard port={ports.approval} preset={ports.preset} wide onSettled={settled} />
         ) : (
           <QuestionCard port={ports.question} botName={name} wide onSettled={settled} />
         )}

@@ -84,6 +84,11 @@ export interface OrchestratorAgentRun {
   externalMessaging?: {
     connected(): boolean;
     senderPermissions?(sourceEventId: string): SenderPermissions;
+    sourceBlocks?(
+      input: import('../../messaging/permissions/index.js').BotSourceBlockInput & {
+        sourceEventId?: string;
+      },
+    ): ReturnType<OutboundMessaging['sourceBlocks']>;
     directory?(query: MessagingDirectoryQuery): MessagingDirectoryPage;
     targets?(): Promise<
       Array<{

@@ -204,7 +204,7 @@ describe('Tool approval card layout', () => {
     const card = await render(message(), {
       toolApprovalStatus: async () => 'stopped',
       toolApprovalState: async () => ({ status: 'stopped' }),
-    } as Partial<BridgeActions>);
+    } satisfies Partial<BridgeActions>);
     const done = card.querySelector('.bh-request-done');
     expect(done?.getAttribute('data-state')).toBe('stopped');
     expect(done?.textContent).toBe('终端 · 会话已停止');

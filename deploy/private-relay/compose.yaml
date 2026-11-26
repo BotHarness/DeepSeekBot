@@ -1,34 +1,20 @@
 services:
   relay:
     build: .
+    image: tobs-relay:local
     restart: unless-stopped
+    ports:
+      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}80:8080'
+      - '${RELAY_BIND_ADDRESS:+${RELAY_BIND_ADDRESS}:}443:8443'
     volumes:
       - relay-data:/data
       - ./hosts:/run/relay-hosts:ro
     environment:
-      RELAY_BOOTSTRAP: ${RELAY_BOOTSTRAP:?Run setup.mjs to create the private setup key}
-    networks:
-      - private
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?Run tobs-relay setup first}
+      RELAY_BOOTSTRAP: ${RELAY_BOOTSTRAP:?Run tobs-relay setup first}
+      RELAY_HOST_KEYS_FILE: /run/relay-hosts/keys
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-  https:
-    image: caddy:2.10.2-alpine
-    restart: unless-stopped
-    environment:
-      RELAY_DOMAIN: ${RELAY_DOMAIN:?Set the public DNS name that points to this server}
-    ports:
-      - '80:80'
-      - '443:443'
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    networks:
-      - private
 volumes:
   relay-data:
-  caddy-data:
-  caddy-config:
-networks:
-  private:

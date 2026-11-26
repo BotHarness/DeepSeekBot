@@ -24,6 +24,8 @@ import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './act
 import type { CardLineTone } from './card-line';
 import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
+import type { ApprovalPresetPort } from './approval-preset';
+import { ApprovalPresetRow } from './approval-preset-row';
 
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
@@ -110,6 +112,7 @@ interface ApprovalCardProps {
   group?: BubbleGroup;
   wide?: boolean;
   alwaysAllow?: boolean;
+  preset?: ApprovalPresetPort;
   onSettled?(result: DecisionResult): void;
 }
 
@@ -128,6 +131,7 @@ function ApprovalCardContent({
   focused = false,
   wide = false,
   alwaysAllow = true,
+  preset,
   onSettled,
 }: ApprovalCardProps) {
   const t = useStrings();
@@ -386,6 +390,7 @@ function ApprovalCardContent({
             onPress={() => void decide('rejected')}
           />
         </CardButtons>
+        {actionable && preset !== undefined ? <ApprovalPresetRow port={preset} /> : null}
       </ActionCard>
     </View>
   );

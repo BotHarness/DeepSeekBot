@@ -68,7 +68,11 @@ export function PairingTable<Row extends { id: string }>({
         onChange={(event) => table.setGlobalFilter(event.target.value)}
       />
       <div className="bh-pairing-table-scroll">
-        <table className="bh-pairing-table" aria-label={label}>
+        <table
+          className="bh-pairing-table"
+          aria-label={label}
+          data-selectable={select ? '' : undefined}
+        >
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>

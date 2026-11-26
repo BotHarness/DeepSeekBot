@@ -659,6 +659,7 @@ export type ToolApprovalOutcome =
   | 'allowed-once'
   | 'allowed-always-tool'
   | 'allowed-always-exact'
+  | 'allowed-always-prefix'
   | 'allowed-always-all'
   | 'rejected';
 
@@ -852,7 +853,7 @@ export interface WireApprovalRule {
   botSlug: string;
   role: 'orchestrator' | 'assignment';
   scopeKey: string;
-  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+  kind: 'exact' | 'prefix' | 'tool' | 'all-opaque' | 'secret-cli';
   toolName: string;
   input: string;
   createdAt: string;
@@ -888,8 +889,22 @@ export type WireToolApprovalExecution =
   | 'settled'
   | 'needs-repair';
 
+export interface WireShellApprovalSuggestions {
+  exact: string;
+  compound: boolean;
+  unparseable: boolean;
+  subcommands: {
+    exact: string;
+    oneWordPrefix?: string;
+    twoWordPrefix?: string;
+  }[];
+}
+
+export type ShellPrefixApproval = { kind: 'prefix'; patterns: string[] };
+
 export interface WireToolApprovalState {
   status: ToolApprovalStatus;
+  shellSuggestions?: WireShellApprovalSuggestions;
   expiresAt?: string;
   execution?: WireToolApprovalExecution;
   approval?: WireApprovalCard;
