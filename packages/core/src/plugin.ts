@@ -452,7 +452,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     diagnosticEvents,
   );
   if (core.operationalDatabase.mode === 'ready') {
-    const callback = connectorCallback();
+    const callback = connectorCallback(core.team.publicOrigins);
     const connectors = new ConnectorService({
       store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
       credentials: () => ctx.get('credentials'),

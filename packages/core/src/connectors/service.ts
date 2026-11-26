@@ -121,7 +121,7 @@ export class ConnectorService {
     credentials: () => Credentials | undefined;
     client?: ComposioClient;
     mcpClient?: RemoteMcpClient;
-    redirectUri?: () => string | undefined;
+    redirectUri?: () => string | undefined | Promise<string | undefined>;
     log?: (phase: string, fields?: Record<string, string | number>) => void;
   }) {
     this.#store = options.store;
