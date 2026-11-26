@@ -7,6 +7,9 @@
 - `apps/mobile/src/ui/chat/chat-timeline-chrome.tsx`
 - `apps/mobile/src/ui/chat/{session-model-label,use-session-transcript,session-navigation}.ts`
 - `apps/mobile/src/host/session-detail.ts`
+- `apps/mobile/src/features/sessions/native-session-input.ts`
+- `apps/mobile/src/features/sessions/native-session-input-cards.tsx`
+- `apps/mobile/src/ui/chat/{approval-card,question-card}.tsx`
 - `packages/host-client/src/session-{detail,model,links}.ts`
 - `packages/host-client/src/host-sessions.ts`
 - `packages/core/src/features/sessions/dsh-host-session-input.ts`
@@ -22,7 +25,7 @@
 
 ## Sub-features
 
-Bot profile Session rows, Session chips inside Bot messages, and the Group Assignment entry all open one Session detail page. The transcript shows messages, activity, live updates, and model switches. The Session navigation bar menu (the iOS navigation bar or the Android top app bar) offers Stop while a Session is running and Archive or Unarchive for eligible Assignments. The navigation bar and composer open the same next-turn Model Choice picker.
+Bot profile Session rows, Session chips inside Bot messages, and the Group Assignment entry all open one Session detail page. The transcript shows messages, activity, live updates, and model switches. The Session navigation bar menu (the iOS navigation bar or the Android top app bar) offers Stop while a Session is running and Archive or Unarchive for eligible Assignments. For a Host Owner, a native Session also offers Stop while running and Archive (with a confirmation) while idle, and shows the approval and question cards it is waiting on above the composer; a Team member never sees these controls. The navigation bar and composer open the same next-turn Model Choice picker.
 
 ## How to get to it (user POV)
 
@@ -37,7 +40,7 @@ Open a native DSH Session and send a prompt. Open **Model Choice**, select a rou
 Use the assigned device in `docs/agents/device-qa.md` and a paired isolated Host with a working model. Use `deepseekbot bot-sessions`, `session-transcript`, and `session-model` to read the same canonical state. Compare a DM with a short draft to the base. Open a current Orchestrator, send a marked follow-up with the keyboard open, and verify it reaches the selected Session. Open a linked Assignment and verify its details, follow-up, and Stop. Open `composer-session-model`, save an allowed choice during an active Turn, and verify the pending label and the subsequent Turn's recorded model. Check English and Chinese, both themes, and default and large text: the Session composer matches the Bot Conversation composer (attachment button on the left, one line that grows to several), plus one icon-only model button beside Send that shows the current model's brand, also for the default model. Open a long transcript, scroll away from the latest row, and compare its edges with the Bot Conversation screen on the same device. Tap **Jump to latest**, then open and dismiss the keyboard with an unsent draft.
 
 
-For native Host actions, use the OpenCode Go model on a fresh named isolated Host and drive the CLI. Submit a harmless tool call that asks DSH for approval. Read the card from `session-transcript --session <id>` or `session-live --session <id>`, answer its `requestId` with `session-answer-approval`, then read the same Session until the tool result and model reply are committed. Use `session-answer-question --answer-stdin` on a pending question, `session-stop --session <id>` on an active Turn, and `session-archive --session <id> --confirm` on an idle Session. Compare default inventory and `session-list --include-archived`. M15 C6 exercises the Team member boundary for all four actions.
+For native Host actions, use the OpenCode Go model on a fresh named isolated Host and drive the CLI. Submit a harmless tool call that asks DSH for approval. Read the card from `session-transcript --session <id>` or `session-live --session <id>`, answer its `requestId` with `session-answer-approval`, then read the same Session until the tool result and model reply are committed. Use `session-answer-question --answer-stdin` on a pending question, `session-stop --session <id>` on an active Turn, and `session-archive --session <id> --confirm` on an idle Session. Compare default inventory and `session-list --include-archived`. M15 C6 exercises the Team member boundary for all four actions. For the phone checks, start a separate Session with a new pending approval and question rather than reusing the CLI Session, whose requests are already answered and which is archived. Open it on the phone: the approval card shows Allow once and Reject (no Always allow); tapping one removes the card and the Turn continues. A pending question card answers with one tap on an option, or Submit for multi-part questions. Archive last: **Archive** in the Session options asks for confirmation, returns to the Sessions list and the Session is gone from it.
 
 ## Observable proof
 

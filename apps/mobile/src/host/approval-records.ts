@@ -10,6 +10,7 @@ export type ApprovalOutcome =
   | 'allowed-once'
   | 'allowed-always-tool'
   | 'allowed-always-exact'
+  | 'allowed-always-prefix'
   | 'allowed-always-all'
   | 'rejected';
 
@@ -47,6 +48,7 @@ const OUTCOMES: readonly string[] = [
   'allowed-once',
   'allowed-always-tool',
   'allowed-always-exact',
+  'allowed-always-prefix',
   'allowed-always-all',
   'rejected',
 ];

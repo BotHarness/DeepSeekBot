@@ -21,6 +21,7 @@ export interface ApprovalReviewResult extends ApprovalReview {
 
 export interface ApprovalReviewRequest {
   botSlug: string;
+  standingShellPrefix?: true;
   template: { name: string; text: string; version?: string };
   call: {
     toolName: string;
@@ -184,7 +185,7 @@ Rules:
 - A secret tool call (secret_cli, secret_mcp_connect) shows the program, its arguments, the account and the names of the secret placeholders. You never see the secret values, and you do not need them.
 - A device Authorization (Computer or Browser) lets this Session use that device until the Human revokes it, not just for the one action shown.
 - Always ask guidance takes precedence over Always allow guidance; free text supplements both. Legacy Reject guidance means ask the Human.
-- Answer "allow" only when the template clearly allows the call and no boundary conflicts. Otherwise answer "ask-human", including forbidden calls, missing coverage and uncertainty. Never reject a call or save a rule.
+- Answer "allow" only when the template clearly allows the call or a trusted standing Shell prefix approval is indicated, and no boundary conflicts. A standing prefix never overrides Always ask. Otherwise answer "ask-human", including forbidden calls, missing coverage and uncertainty. Never reject a call or save a rule.
 
 Reply with exactly one JSON object and nothing else:
 {"outcome": "allow" | "ask-human", "reason": "<one short sentence for the Human>"}`;
@@ -195,6 +196,11 @@ export function reviewerUserPrompt(request: Omit<ApprovalReviewRequest, 'signal'
     `<approval-template name="${request.template.name}" version="${request.template.version ?? 'unversioned'}">`,
     approvalTemplateReviewerText(request.template.text),
     '</approval-template>',
+    ...(request.standingShellPrefix
+      ? [
+          'The Human has saved a standing Shell prefix approval that covers this call. Check the template for any requirement to ask the Human.',
+        ]
+      : []),
     '',
     '<pending-call>',
     JSON.stringify(
