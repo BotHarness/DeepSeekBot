@@ -192,6 +192,7 @@ export function createWorkspaceLooks(options: {
   const find = options.find ?? findWorkspaceFavicon;
   const cache = new Map<string, { at: number; favicon: WorkspaceFavicon | undefined }>();
   const issued = new Map<string, WorkspaceFavicon>();
+  const discoveries = new Map<string, { started: number; applied: number; pending: number }>();
   const listeners = new Set<() => void>();
   const notify = () => {
     for (const listener of listeners) listener();
@@ -211,16 +212,26 @@ export function createWorkspaceLooks(options: {
       time - hit.at < (hit.favicon === undefined ? NEGATIVE_TTL : POSITIVE_TTL)
     )
       return hit.favicon;
-    const favicon = await find(path).catch(() => undefined);
-    if (!cache.has(path) && cache.size >= CACHE_CAPACITY)
-      cache.delete(cache.keys().next().value as string);
-    cache.set(path, { at: time, favicon });
-    const key = workspaceKey(path);
-    const previous = issued.get(key);
-    if (favicon === undefined) issued.delete(key);
-    else issued.set(key, favicon);
-    if (previous?.version !== favicon?.version) notify();
-    return favicon;
+    const discovery = discoveries.get(path) ?? { started: 0, applied: 0, pending: 0 };
+    discoveries.set(path, discovery);
+    const order = ++discovery.started;
+    discovery.pending++;
+    try {
+      const favicon = await find(path).catch(() => undefined);
+      const key = workspaceKey(path);
+      const previous = issued.get(key);
+      if (order < discovery.applied) return previous;
+      discovery.applied = order;
+      if (!cache.has(path) && cache.size >= CACHE_CAPACITY)
+        cache.delete(cache.keys().next().value as string);
+      cache.set(path, { at: time, favicon });
+      if (favicon === undefined) issued.delete(key);
+      else issued.set(key, favicon);
+      if (previous?.version !== favicon?.version) notify();
+      return favicon;
+    } finally {
+      if (--discovery.pending === 0) discoveries.delete(path);
+    }
   };
   return {
     get: stored,
