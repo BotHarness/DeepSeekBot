@@ -1,8 +1,15 @@
+import { mergeChannelAction } from '../src/team/host-permissions.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { DatabaseSync } from 'node:sqlite';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import {
+  CHANNEL_ACTIONS,
+  channelPolicySchema,
+  DEFAULT_CHANNEL_POLICY,
+  type ChannelPolicy,
+} from '../src/team/channel-contract.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { enabledFixture, cleanup } from './team-mode-fixtures.js';
 
@@ -134,13 +141,17 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
     });
     const group = f.channels.createGroup(owner, { name: 'Policy', members: [] });
     f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
-    const allAdmins = {
-      addMembers: 'admins',
-      post: 'admins',
-      mentionAll: 'admins',
-      addBots: 'admins',
-      editDetails: 'admins',
-    } as const;
+    const allAdmins: ChannelPolicy = {
+      version: 1 as const,
+      everyone: {
+        addMembers: 'deny',
+        post: 'deny',
+        mentionAll: 'deny',
+        addBots: 'deny',
+        editDetails: 'deny',
+      },
+      overrides: [],
+    };
     f.team.channelAccess.policySet(owner, group.id, allAdmins);
     const methods = f.methods(f.human);
     expect(methods.channelGet({ channelId: group.id })).toEqual({
@@ -149,6 +160,7 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         channel: expect.any(Object),
         role: 'member',
         policy: allAdmins,
+        canPost: false,
         policyRevision: expect.any(String),
         visibility: { kind: 'private' },
         admins: [],
@@ -173,7 +185,10 @@ describe('M4 Channel audience and policy', { timeout: 60_000 }, () => {
         },
       });
     }
-    f.team.channelAccess.policySet(owner, group.id, { ...allAdmins, post: 'everyone' });
+    f.team.channelAccess.policySet(owner, group.id, {
+      ...allAdmins,
+      everyone: { ...allAdmins.everyone, post: 'allow' },
+    });
     expect(
       await methods.channelSend({
         channelId: group.id,
@@ -620,13 +635,17 @@ describe('M4 Channel admin delegation ceiling', { timeout: 60_000 }, () => {
 });
 
 describe('M4 review regressions', { timeout: 60_000 }, () => {
-  const restrictedPolicy = {
-    addMembers: 'admins',
-    post: 'admins',
-    mentionAll: 'admins',
-    addBots: 'admins',
-    editDetails: 'admins',
-  } as const;
+  const restrictedPolicy: ChannelPolicy = {
+    version: 1 as const,
+    everyone: {
+      addMembers: 'deny',
+      post: 'deny',
+      mentionAll: 'deny',
+      addBots: 'deny',
+      editDetails: 'deny',
+    },
+    overrides: [],
+  };
 
   it('retains joined Channel owners/admins while hiding an ordinary member after role loss', async () => {
     const f = await enabledFixture();
@@ -739,7 +758,10 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       db.prepare("UPDATE humans SET status = 'suspended' WHERE human_id = ?").run(actor.humanId),
     );
     expect(() =>
-      f.team.channelAccess.policySet(actor, group.id, { ...restrictedPolicy, post: 'everyone' }),
+      f.team.channelAccess.policySet(actor, group.id, {
+        ...restrictedPolicy,
+        everyone: { ...restrictedPolicy.everyone, post: 'allow' },
+      }),
     ).toThrow('permission-required');
     expect(f.team.channelAccess.view(f.human, group.id).policy).toEqual(restrictedPolicy);
   });
@@ -756,12 +778,8 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
       if (kind === 'admin') f.team.roles.set(owner, actor.humanId, ['admin']);
       f.team.channelAccess.policySet(human, group.id, restrictedPolicy);
       expect(f.team.channelAccess.view(actor, group.id).role).toBe('member');
-      for (const key of Object.keys(restrictedPolicy)) {
-        const parsed = z
-          .enum(['addMembers', 'post', 'mentionAll', 'addBots', 'editDetails'])
-          .parse(key);
-        expect(() => f.team.channelAccess.requirePolicy(actor, group.id, parsed)).not.toThrow();
-      }
+      for (const action of CHANNEL_ACTIONS)
+        expect(() => f.team.channelAccess.requirePolicy(actor, group.id, action)).not.toThrow();
       expect(
         await f.methods(actor).channelSend({ channelId: group.id, body: 'admin-policy-bypass' }),
       ).toMatchObject({ ok: true });
@@ -825,3 +843,81 @@ describe('M4 review regressions', { timeout: 60_000 }, () => {
     }
   });
 });
+
+it('merges matching Role overrides before falling back to the default', () => {
+  const policy: ChannelPolicy = {
+    ...DEFAULT_CHANNEL_POLICY,
+    overrides: [
+      { roleId: 'allow', actions: { post: 'allow', addBots: 'allow' } },
+      { roleId: 'deny', actions: { post: 'deny' } },
+      { roleId: 'inherit', actions: { post: 'inherit' } },
+    ],
+  };
+  expect(mergeChannelAction(policy, new Set(['allow', 'deny']), 'post')).toBe(false);
+  expect(mergeChannelAction(policy, new Set(['allow', 'inherit']), 'addBots')).toBe(true);
+  expect(mergeChannelAction(policy, new Set(['inherit']), 'post')).toBe(true);
+  expect(mergeChannelAction(policy, new Set(['inherit']), 'addBots')).toBe(false);
+});
+
+it('keeps all five legacy action decisions across every policy combination', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(
+      'CREATE TABLE channel_records(channel_id INTEGER PRIMARY KEY, policy_json TEXT NOT NULL)',
+    );
+    const insert = db.prepare('INSERT INTO channel_records VALUES (?, ?)');
+    for (let mask = 0; mask < 2 ** CHANNEL_ACTIONS.length; mask++) {
+      insert.run(
+        mask,
+        JSON.stringify(
+          Object.fromEntries(
+            CHANNEL_ACTIONS.map((action, bit) => [
+              action,
+              (mask & (1 << bit)) === 0 ? 'admins' : 'everyone',
+            ]),
+          ),
+        ),
+      );
+    }
+    const migration = BOT_HARNESS_SCHEMA_PLAN.migrations.find(
+      ({ id }) => id === 'channel-permission-table',
+    );
+    if (migration === undefined) throw new Error('missing migration');
+    migration.migrate(db);
+    const read = db.prepare(
+      'SELECT permission_table_json FROM channel_records WHERE channel_id = ?',
+    );
+    for (let mask = 0; mask < 2 ** CHANNEL_ACTIONS.length; mask++) {
+      const row = z.object({ permission_table_json: z.string() }).parse(read.get(mask));
+      const policy = channelPolicySchema.parse(JSON.parse(row.permission_table_json));
+      for (const [bit, action] of CHANNEL_ACTIONS.entries())
+        expect(mergeChannelAction(policy, new Set(['member']), action)).toBe(
+          (mask & (1 << bit)) !== 0,
+        );
+    }
+  } finally {
+    db.close();
+  }
+});
+
+it('enforces Role post denials through RPC while Channel admins can send', async () => {
+  const f = await enabledFixture();
+  const group = f.channels.createGroup(owner, { name: 'Announcements', members: [] });
+  f.team.channelAccess.addMember(owner, group.id, f.human.humanId);
+  expect(
+    await f.methods(owner).channelPolicySet({
+      channelId: group.id,
+      policy: {
+        ...DEFAULT_CHANNEL_POLICY,
+        overrides: [{ roleId: 'member', actions: { post: 'deny' } }],
+      },
+    }),
+  ).toMatchObject({ ok: true });
+  const post = { channelId: group.id, body: 'Announcement' };
+  expect(await f.methods(f.human).channelSend(post)).toMatchObject({
+    ok: false,
+    error: { code: 'channel-post-restricted' },
+  });
+  f.team.channelAccess.adminsSet(owner, group.id, [f.human.humanId]);
+  expect(await f.methods(f.human).channelSend(post)).toMatchObject({ ok: true });
+}, 60_000);

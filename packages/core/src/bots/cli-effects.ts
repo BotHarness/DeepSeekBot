@@ -677,8 +677,14 @@ function familyEffects(
       if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
-      if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))
-        return management;
+      if (action === 'policy')
+        return values['policy-stdin'] ||
+          ['post', 'add-members', 'mention-all', 'add-bots', 'edit-details'].some(
+            (flag) => flag in values,
+          )
+          ? management
+          : read;
+      if (['visibility', 'admins', 'add-member', 'set-public'].includes(action)) return management;
       if (['description'].includes(action)) return write;
       return undefined;
     case 'devices':

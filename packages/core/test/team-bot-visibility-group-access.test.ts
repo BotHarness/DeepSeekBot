@@ -155,7 +155,7 @@ describe('M7 Bot principal and participant authority', () => {
     f.team.channelAccess.addMember(owner, group.id, alice.humanId);
     f.team.channelAccess.policySet(owner, group.id, {
       ...f.team.channelAccess.view(owner, group.id).policy,
-      post: 'admins',
+      everyone: { ...f.team.channelAccess.view(owner, group.id).policy.everyone, post: 'deny' },
     });
     await f.channels.appendMessage(alice, group.id, post('authorized', 'bot'));
     f.team.roles.set(owner, alice.humanId, ['member']);

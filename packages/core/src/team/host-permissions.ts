@@ -1,3 +1,4 @@
+import { CHANNEL_ACTIONS, type ChannelAction, type ChannelPolicy } from './channel-contract.js';
 import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { resolveGrants } from '../authorization/grants.js';
@@ -139,4 +140,37 @@ export function hostPermissionHolderSql(human: string, permission: HostPermissio
     OR ((SELECT holder_settings.enabled FROM team_settings holder_settings) = 1
       AND EXISTS (SELECT 1 FROM humans holder WHERE holder.human_id = ${human} AND holder.status = 'active')
       AND ${roleGrantsPermissionSql(human, permission)}))`;
+}
+
+export function mergeChannelAction(
+  policy: ChannelPolicy,
+  roleIds: ReadonlySet<string>,
+  action: ChannelAction,
+): boolean {
+  const effects = policy.overrides.filter((row) => roleIds.has(row.roleId));
+  const { granted, denied } = resolveGrants(
+    effects.map(({ actions }) => ({
+      allow: actions[action] === 'allow' ? [action] : [],
+      deny: actions[action] === 'deny' ? [action] : [],
+    })),
+    CHANNEL_ACTIONS,
+  );
+  return (
+    !denied.includes(action) && (granted.includes(action) || policy.everyone[action] === 'allow')
+  );
+}
+
+export function resolveChannelAction(
+  database: OperationalDatabaseModulePort,
+  humanId: string,
+  policy: ChannelPolicy,
+  action: ChannelAction,
+): boolean {
+  if (policy.overrides.length === 0) return policy.everyone[action] === 'allow';
+  const roles = database.read((db) =>
+    z
+      .array(z.object({ role_id: z.string() }))
+      .parse(db.prepare('SELECT role_id FROM human_roles WHERE human_id = ?').all(humanId)),
+  );
+  return mergeChannelAction(policy, new Set(roles.map((role) => role.role_id)), action);
 }

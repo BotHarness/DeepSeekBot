@@ -24,13 +24,13 @@ describe('Team Channel access client', () => {
       parseChannelAccess({
         role: 'admin',
         visibility: { kind: 'roles', roleIds: ['r1', 2] },
-        policy: { post: 'admins', addBots: 'nobody' },
+        policy: { ...DEFAULT_POLICY, everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' } },
         admins: [{ humanId: 'h1', displayName: 'Bob' }, { displayName: 'x' }],
       }),
     ).toEqual({
       role: 'admin',
       visibility: { kind: 'roles', roleIds: ['r1'] },
-      policy: { ...DEFAULT_POLICY, post: 'admins' },
+      policy: { ...DEFAULT_POLICY, everyone: { ...DEFAULT_POLICY.everyone, post: 'deny' } },
       admins: [{ humanId: 'h1', displayName: 'Bob' }],
     });
     expect(parseChannelAccess({ role: 'member' })?.visibility).toEqual({ kind: 'private' });
@@ -68,9 +68,9 @@ describe('Team Channel access client', () => {
   });
 
   it('restricts the composer only for plain members of an announcement Channel', () => {
-    const base = parseChannelAccess({ role: 'member', policy: { post: 'admins' } });
+    const base = parseChannelAccess({ role: 'member', canPost: false });
     expect(postRestricted(base)).toBe(true);
-    expect(postRestricted(base && { ...base, role: 'admin' })).toBe(false);
+    expect(postRestricted(base && { ...base, role: 'admin', canPost: true })).toBe(false);
     expect(postRestricted(parseChannelAccess({ role: 'member' }))).toBe(false);
     expect(postRestricted(undefined)).toBe(false);
   });
