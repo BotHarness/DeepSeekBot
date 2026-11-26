@@ -61,9 +61,26 @@ const ERROR_KEYS = {
   'shell-prefix-mismatch': 'approval.scope.mismatch',
 } as const satisfies Record<ShellPrefixErrorCode, string>;
 
+function hostRefusalMessage(cause: unknown): string | undefined {
+  for (let error: unknown = cause, depth = 0; depth < 3; depth++) {
+    if (typeof error !== 'object' || error === null) return undefined;
+    if (
+      'code' in error &&
+      typeof error.code === 'string' &&
+      'message' in error &&
+      typeof error.message === 'string' &&
+      error.message !== ''
+    )
+      return error.message;
+    error = 'cause' in error ? error.cause : undefined;
+  }
+  return undefined;
+}
+
 export function shellScopeErrorText(cause: unknown, t: BotHarnessTranslate): string {
   const code = shellPrefixErrorCode(cause);
-  return code === undefined ? errorMessage(cause) : t(ERROR_KEYS[code]);
+  if (code !== undefined) return t(ERROR_KEYS[code]);
+  return hostRefusalMessage(cause) ?? errorMessage(cause);
 }
 
 function startsWith(pattern: string, t: BotHarnessTranslate): ReactNode {

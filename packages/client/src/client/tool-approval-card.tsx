@@ -28,7 +28,7 @@ import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 import { ApprovalPresetPicker } from './approval-preset-picker.js';
 import type { TemplateActions } from './approval-template-entry.js';
-import { useShellScopeMenu } from './shell-approval-scope-menu.js';
+import { shellScopeErrorText, useShellScopeMenu } from './shell-approval-scope-menu.js';
 import type {
   ShellPrefixApproval,
   WireShellApprovalSuggestions,
@@ -318,7 +318,14 @@ export function ToolApprovalCard({
               if (latest === 'pending' && report !== undefined) {
                 setError(undefined);
                 report(cause);
-              } else setError(latest === 'pending' ? errorMessage(cause) : undefined);
+              } else
+                setError(
+                  latest !== 'pending'
+                    ? undefined
+                    : rule === undefined
+                      ? errorMessage(cause)
+                      : shellScopeErrorText(cause, t),
+                );
             },
             () => {
               if (!mounted.current) return;

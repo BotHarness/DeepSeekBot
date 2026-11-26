@@ -8,7 +8,10 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
-import { SHELL_SCOPE_LONG_PRESS_MS } from '../src/client/shell-approval-scope-menu.js';
+import {
+  SHELL_SCOPE_LONG_PRESS_MS,
+  shellScopeErrorText,
+} from '../src/client/shell-approval-scope-menu.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -117,6 +120,24 @@ afterEach(() => {
   act(() => root.unmount());
   node.remove();
   vi.useRealTimers();
+});
+
+describe('Shell scope refusal text', () => {
+  it('localizes known Host codes and keeps the Host message for unknown ones behind a wrapper', () => {
+    const known = new Error('Host unavailable', {
+      cause: Object.assign(new Error('raw'), { code: 'unsafe-shell-prefix-runner' }),
+    });
+    expect(shellScopeErrorText(known, zhTranslate)).toBe(
+      zhTranslate('approval.scope.unsafeRunner'),
+    );
+    const unknown = new Error('Host unavailable', {
+      cause: Object.assign(new Error('Prefix too long for this Host.'), {
+        code: 'prefix-too-long',
+      }),
+    });
+    expect(shellScopeErrorText(unknown, zhTranslate)).toBe('Prefix too long for this Host.');
+    expect(shellScopeErrorText(new Error('plain'), zhTranslate)).toBe('plain');
+  });
 });
 
 describe('Shell Always allow scope menu', () => {
