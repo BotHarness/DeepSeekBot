@@ -1,4 +1,9 @@
-import { parseSkillDocument, type SkillDocument } from '../../core/src/skills/skill-document.js';
+import {
+  parseSkillDocument,
+  renameSkillDocument,
+  withSkillDocumentMetadata,
+  type SkillDocument,
+} from '../../core/src/skills/skill-document.js';
 import { uploadFileKind } from './upload-files.js';
 
 export const SKILL_TOPIC = 'tobs-skill';
@@ -78,9 +83,13 @@ export function scanSkillFiles(files: readonly { path: string; text: string | nu
     if (file.text === null) continue;
     const lines = file.text.split(/\r?\n/u);
     for (const [index, line] of lines.entries()) {
+      const wrapped = `${line} ${lines[index + 1] ?? ''}`;
       for (const rule of RULES) {
-        if (findings.length >= MAX_FINDINGS) break;
-        if (rule.pattern.test(line))
+        if (rule.severity === 'warning' && findings.length >= MAX_FINDINGS) continue;
+        const own = rule.pattern.test(line);
+        const across =
+          !own && rule.pattern.test(wrapped) && !rule.pattern.test(lines[index + 1] ?? '');
+        if (own || across)
           findings.push({
             kind: rule.kind,
             path: file.path,
@@ -98,22 +107,8 @@ export function scanSkillFiles(files: readonly { path: string; text: string | nu
   return { verdict, findings, scripts: scripts.sort() };
 }
 
-export function frontmatterBlock(text: string): { lines: string[]; end: number } | undefined {
-  const lines = text.replace(/^﻿/u, '').split(/\r?\n/u);
-  if (lines[0]?.trim() !== '---') return undefined;
-  const end = lines.findIndex((line, index) => index > 0 && line.trim() === '---');
-  return end === -1 ? undefined : { lines: lines.slice(1, end), end };
-}
-
 export function renameSkill(text: string, name: string): string {
-  const block = frontmatterBlock(text);
-  if (block === undefined) return text;
-  const lines = block.lines.map((line) => (/^name:/u.test(line) ? `name: ${name}` : line));
-  const body = text
-    .replace(/^\uFEFF/u, '')
-    .split(/\r?\n/u)
-    .slice(block.end + 1);
-  return ['---', ...lines, '---', ...body].join('\n');
+  return renameSkillDocument(text, name);
 }
 
 export function parseSkillFrontmatter(text: string): SkillFrontmatter | undefined {
@@ -130,29 +125,5 @@ export function parseSkillFrontmatter(text: string): SkillFrontmatter | undefine
 }
 
 export function withSkillMetadata(text: string, entries: Record<string, string>): string {
-  const block = frontmatterBlock(text);
-  if (block === undefined) return text;
-  const kept: string[] = [];
-  let skipping = false;
-  for (const line of block.lines) {
-    if (/^metadata:\s*$/u.test(line)) {
-      skipping = true;
-      kept.push(line);
-      continue;
-    }
-    if (skipping && /^\s+tobs-[a-z]+:/u.test(line)) continue;
-    if (skipping && !/^\s/u.test(line)) skipping = false;
-    kept.push(line);
-  }
-  const at = kept.findIndex((line) => /^metadata:\s*$/u.test(line));
-  const lines = Object.entries(entries).map(
-    ([key, value]) => `  tobs-${key}: ${JSON.stringify(value)}`,
-  );
-  if (at === -1) kept.push('metadata:', ...lines);
-  else kept.splice(at + 1, 0, ...lines);
-  const body = text
-    .replace(/^﻿/u, '')
-    .split(/\r?\n/u)
-    .slice(block.end + 1);
-  return ['---', ...kept, '---', ...body].join('\n');
+  return withSkillDocumentMetadata(text, entries);
 }

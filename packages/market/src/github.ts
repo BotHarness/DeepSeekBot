@@ -37,6 +37,7 @@ export interface RepositoryNode extends GitHubRepository {
 export interface TopicSearchPage {
   totalCount: number;
   repositories: GitHubRepository[];
+  incomplete?: boolean;
 }
 
 export interface CreatedRange {
@@ -81,6 +82,7 @@ function parseTree(value: unknown): GitHubTree | undefined {
     .map(record)
     .filter((item) => item?.['type'] === 'blob')
     .flatMap((item) => {
+      if (item?.['mode'] === '120000') return [];
       const path = text(item?.['path']);
       const size = item?.['size'];
       return path === undefined ? [] : [{ path, size: typeof size === 'number' ? size : 0 }];
@@ -177,7 +179,7 @@ function parseSearchPage(value: unknown): TopicSearchPage | undefined {
   if (typeof totalCount !== 'number' || !Array.isArray(items)) return undefined;
   const repositories = items.map(parseRepository);
   if (!repositories.every((item): item is GitHubRepository => item !== undefined)) return undefined;
-  return { totalCount, repositories };
+  return { totalCount, repositories, incomplete: source?.['incomplete_results'] === true };
 }
 
 const NODES_QUERY = `query($ids: [ID!]!) {

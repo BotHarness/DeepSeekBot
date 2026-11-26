@@ -18,6 +18,7 @@ export interface SkillValues {
   global?: boolean;
   cursor?: string;
   'on-conflict'?: string;
+  review?: string;
 }
 
 export const SKILL_COMMANDS = [
@@ -162,23 +163,21 @@ async function addSkill(
     usage('skills-add takes <id> and --bot <slug>[,<slug>...] or --global.');
   if (onConflict !== undefined && onConflict !== 'replace' && onConflict !== 'rename')
     usage('--on-conflict takes replace or rename.');
+  if (values.confirm === true && values.review === undefined)
+    usage('skills-add --confirm takes --review <review-id> from the preview the Human saw.');
   const rpc = await connect();
-  const review = (await rpc('marketplaceSkillReview', { id: rest[0] })) as {
-    reviewId: string;
-    verdict: string;
-    conflicts: { bots: string[]; global: boolean };
-  };
   if (values.confirm !== true) {
+    const review = await rpc('marketplaceSkillReview', { id: rest[0] });
     const candidates = await rpc('marketplaceSkillAddCandidates', {});
     return {
       review,
       candidates,
-      next: 'Show the scripts and findings to the Human, then repeat with --confirm to add.',
+      next: 'Show the scripts and findings to the Human, then repeat with --review <reviewId> --confirm to add exactly this review.',
     };
   }
   return rpc('marketplaceSkillAdd', {
     id: rest[0],
-    reviewId: review.reviewId,
+    reviewId: values.review,
     ...(bots.length === 0 ? {} : { bots }),
     ...(values.global === true ? { global: true } : {}),
     ...(onConflict === undefined ? {} : { onConflict }),

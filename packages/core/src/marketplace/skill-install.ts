@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type {
@@ -99,10 +99,45 @@ export function skillExists(skillsDir: string, name: string): boolean {
   return existsSync(skillFolder(skillsDir, name));
 }
 
+function isAlreadyThere(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EEXIST';
+}
+
+async function publish(temporary: string, target: string, replace: boolean): Promise<void> {
+  if (!replace) {
+    try {
+      await mkdir(target);
+    } catch (error) {
+      if (isAlreadyThere(error)) throw new SkillStageError('skill-exists');
+      throw error;
+    }
+    try {
+      for (const entry of await readdir(temporary))
+        await rename(join(temporary, entry), join(target, entry));
+    } catch (error) {
+      await rm(target, { recursive: true, force: true });
+      throw error;
+    }
+    await rm(temporary, { recursive: true, force: true });
+    return;
+  }
+  const backup = `${temporary}.previous`;
+  const hadPrevious = existsSync(target);
+  if (hadPrevious) await rename(target, backup);
+  try {
+    await rename(temporary, target);
+  } catch (error) {
+    if (hadPrevious) await rename(backup, target);
+    throw error;
+  }
+  if (hadPrevious) await rm(backup, { recursive: true, force: true });
+}
+
 export async function writeSkill(
   staged: StagedSkill,
   skillsDir: string,
   name: string,
+  options: { replace: boolean },
 ): Promise<string> {
   const target = skillFolder(skillsDir, name);
   const temporary = join(skillsDir, `.${name}.${randomUUID()}.tmp`);
@@ -126,8 +161,7 @@ export async function writeSkill(
         await writeFile(file, bytes);
       }
     }
-    await rm(target, { recursive: true, force: true });
-    await rename(temporary, target);
+    await publish(temporary, target, options.replace);
   } catch (error) {
     await rm(temporary, { recursive: true, force: true });
     throw error;

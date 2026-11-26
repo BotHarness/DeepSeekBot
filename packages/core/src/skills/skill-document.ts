@@ -1,4 +1,4 @@
-import { parse } from 'yaml';
+import { isMap, isScalar, parse, parseDocument, type Document } from 'yaml';
 
 export interface SkillDocument {
   name: string;
@@ -52,4 +52,37 @@ export function parseSkillDocument(raw: string): SkillDocument | undefined {
       modelInvocable: disableModelInvocation !== true,
     },
   };
+}
+
+const FRONTMATTER = /^---\r?\n([\s\S]*?)^---\r?$(?:\n|$)/mu;
+
+function editFrontmatter(text: string, edit: (document: Document) => void): string {
+  const source = text.replace(/^﻿/u, '');
+  const match = FRONTMATTER.exec(source);
+  if (match?.index !== 0) return text;
+  const document = parseDocument(match[1]!, { uniqueKeys: false });
+  if (document.errors.length > 0 || !isMap(document.contents)) return text;
+  edit(document);
+  return `---\n${document.toString()}---\n${source.slice(match[0].length)}`;
+}
+
+export function renameSkillDocument(text: string, name: string): string {
+  return editFrontmatter(text, (document) => document.set('name', name));
+}
+
+export function withSkillDocumentMetadata(text: string, entries: Record<string, string>): string {
+  return editFrontmatter(text, (document) => {
+    const metadata = document.get('metadata', true);
+    const map = isMap(metadata) ? metadata : document.createNode({});
+    for (const item of [...map.items])
+      if (isScalar(item.key) && String(item.key.value).startsWith('tobs-')) map.delete(item.key);
+    const fresh = Object.entries(entries).map(([key, value]) =>
+      document.createPair(`tobs-${key}`, value),
+    );
+    map.items.unshift(...fresh);
+    for (const pair of fresh) {
+      if (isScalar(pair.value)) pair.value.type = 'QUOTE_DOUBLE';
+    }
+    document.set('metadata', map);
+  });
 }

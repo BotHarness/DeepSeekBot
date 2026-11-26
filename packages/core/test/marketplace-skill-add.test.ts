@@ -9,6 +9,7 @@ import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createInstallReceipts } from '../src/marketplace/install-receipts.js';
 import { createMarketplaceClient } from '../src/marketplace/client.js';
+import { SkillStageError, stageSkill, writeSkill } from '../src/marketplace/skill-install.js';
 import { createMarketplaceSkillSource } from '../src/marketplace/skill-source.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
@@ -277,10 +278,16 @@ it('drives search, show, review and add through the CLI', async () => {
     content: SKILL_MD,
   });
   await expect(runSkillCommand('skills-add', [id], {}, connect)).rejects.toThrow(/--global/);
-  expect(await runSkillCommand('skills-add', [id], { bot: 'first' }, connect)).toMatchObject({
+  const preview = (await runSkillCommand('skills-add', [id], { bot: 'first' }, connect)) as {
+    review: { reviewId: string };
+  };
+  expect(preview).toMatchObject({
     review: { verdict: 'clean' },
     candidates: { bots: [{ slug: 'first' }] },
   });
+  await expect(
+    runSkillCommand('skills-add', [id], { bot: 'first', confirm: true }, connect),
+  ).rejects.toThrow(/--review/);
   expect(
     existsSync(join(host.core.registry.memoryDirFor('first')!, '.agents/skills/tidy-notes')),
   ).toBe(false);
@@ -288,7 +295,7 @@ it('drives search, show, review and add through the CLI', async () => {
     await runSkillCommand(
       'skills-add',
       [id],
-      { bot: 'first', global: true, confirm: true },
+      { bot: 'first', global: true, confirm: true, review: preview.review.reviewId },
       connect,
     ),
   ).toMatchObject({
@@ -298,4 +305,39 @@ it('drives search, show, review and add through the CLI', async () => {
     ],
   });
   expect(calls.at(-1)).toBe('marketplaceSkillAdd');
+});
+
+it('refuses to write over a Skill folder unless replacing, and keeps it on failure', async () => {
+  const skillsDir = createTempRoot('market-skill-write-');
+  const staged = stageSkill(
+    {
+      id: 'a'.repeat(24),
+      name: 'tidy-notes',
+      description: 'Keep meeting notes tidy.',
+      owner: 'carol',
+      repo: 'skills',
+      fullName: 'carol/skills',
+      path: 'tidy-notes',
+      htmlUrl: 'https://github.com/carol/skills/tree/main/tidy-notes',
+      commitSha: 'b'.repeat(40),
+      stars: 0,
+      installs: 0,
+      scripts: [],
+      scan: 'clean',
+      findings: [],
+      fileCount: 1,
+      size: SKILL_MD.length,
+      official: false,
+      pushedAt: '2026-11-01T00:00:00Z',
+    },
+    new Map([['SKILL.md', new TextEncoder().encode(SKILL_MD)]]),
+  );
+  mkdirSync(join(skillsDir, 'tidy-notes'));
+  writeFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'mine');
+  await expect(writeSkill(staged, skillsDir, 'tidy-notes', { replace: false })).rejects.toEqual(
+    new SkillStageError('skill-exists'),
+  );
+  expect(readFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'utf8')).toBe('mine');
+  await writeSkill(staged, skillsDir, 'tidy-notes', { replace: true });
+  expect(readFileSync(join(skillsDir, 'tidy-notes', 'SKILL.md'), 'utf8')).toContain('tobs-source');
 });

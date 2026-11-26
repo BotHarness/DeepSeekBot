@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 
 import {
   MARKETPLACE_SKILL_ID,
@@ -216,7 +217,13 @@ export function createMarketplaceSkillMethods(
       const missing = targets.find((entry) => entry.target === undefined);
       if (missing !== undefined)
         return failure('bot-not-found', `Bot unavailable: ${missing.slug}`);
-      const plan: { target: string; skillsDir: string; memoryDir?: string; name: string }[] = [];
+      const plan: {
+        target: string;
+        skillsDir: string;
+        memoryDir?: string;
+        name: string;
+        replace: boolean;
+      }[] = [];
       for (const { slug, target } of targets) {
         const { memoryDir, skillsDir } = target!;
         const taken = await botHasSkill(memoryDir, skillsDir, staged.name);
@@ -230,7 +237,13 @@ export function createMarketplaceSkillMethods(
                 (candidate) => names.has(candidate) || skillExists(skillsDir, candidate),
               )
             : staged.name;
-        plan.push({ target: slug, skillsDir, memoryDir, name });
+        plan.push({
+          target: slug,
+          skillsDir,
+          memoryDir,
+          name,
+          replace: taken && onConflict === 'replace',
+        });
       }
       if (global === true) {
         const taken = skillExists(host.hostSkillsDir, staged.name);
@@ -239,6 +252,7 @@ export function createMarketplaceSkillMethods(
         plan.push({
           target: 'global',
           skillsDir: host.hostSkillsDir,
+          replace: taken && onConflict === 'replace',
           name:
             taken && onConflict === 'rename'
               ? freeSkillName(staged.name, (candidate) =>
@@ -249,8 +263,12 @@ export function createMarketplaceSkillMethods(
       }
       const added: MarketplaceSkillAddResult['added'] = [];
       for (const step of plan) {
+        let written: string | undefined;
         try {
-          const path = await writeSkill(staged, step.skillsDir, step.name);
+          const path = await writeSkill(staged, step.skillsDir, step.name, {
+            replace: step.replace,
+          });
+          written = step.replace ? undefined : path;
           if (step.memoryDir !== undefined) {
             const relative = `.agents/skills/${step.name}`;
             await commitMemoryPathsAsync(
@@ -266,6 +284,13 @@ export function createMarketplaceSkillMethods(
           }
           host.receipt(staged.skill.id, step.target);
         } catch (error) {
+          if (error instanceof SkillStageError && error.code === 'skill-exists')
+            return failure(
+              'skill-exists',
+              `${step.target} already has a Skill named ${step.name}; added ${added.length} target(s) first`,
+            );
+          if (written !== undefined && step.memoryDir !== undefined)
+            await rm(written, { recursive: true, force: true }).catch(() => undefined);
           deps.warn?.(
             JSON.stringify({
               module: 'marketplace-skill',

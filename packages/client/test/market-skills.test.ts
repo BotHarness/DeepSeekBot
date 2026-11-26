@@ -129,6 +129,11 @@ it('reviews, picks Bots and global, renames on conflict and reports where it was
   await act(async () => checkbox(t('market.skills.botTaken', { name: 'Ada' })).click());
   await act(async () => checkbox(t('market.skills.global')).click());
   expect(document.body.textContent).toContain(t('market.skills.rename'));
+  actions.marketplaceSkillDetail.mockResolvedValue({
+    skill: { ...skill, installs: 3 },
+    content: '',
+    files: review.files,
+  });
   await act(async () => buttonNamed(t('market.skills.add')).click());
   expect(actions.marketplaceSkillAdd).toHaveBeenCalledWith(
     skill.id,
@@ -143,7 +148,7 @@ it('reviews, picks Bots and global, renames on conflict and reports where it was
     }),
   );
   expect(host.querySelector('[data-market-skill="tidy-notes"]')?.textContent).toContain(
-    t('market.skills.installs', { count: 4 }),
+    t('market.skills.installs', { count: 3 }),
   );
 });
 

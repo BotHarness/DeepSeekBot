@@ -150,10 +150,6 @@ export function toMarketplaceSkill(row: SkillRow): MarketplaceSkill {
   };
 }
 
-function searchTerm(q: string): string {
-  return `%${q.toLowerCase().replace(/[\\%_]/gu, (match) => `\\${match}`)}%`;
-}
-
 export function createMarketSkills(deps: {
   db: D1Database;
   github: GitHubClient;
@@ -181,16 +177,25 @@ export function createMarketSkills(deps: {
         .all<{ id: string }>()
     ).results.length;
 
-  const indexSkill = async (
-    repository: GitHubRepository,
-    locator: RepositoryLocator,
-    sha: string,
-    folder: string,
-    blobs: readonly GitHubTreeBlob[],
-    existing: SkillRow | undefined,
-    curated: boolean,
-  ): Promise<'listed' | 'rejected' | 'skipped'> => {
-    const id = await skillId(repository.nodeId, folder);
+  const indexSkill = async ({
+    id,
+    repository,
+    locator,
+    sha,
+    folder,
+    blobs,
+    existing,
+    curated,
+  }: {
+    id: string;
+    repository: GitHubRepository;
+    locator: RepositoryLocator;
+    sha: string;
+    folder: string;
+    blobs: readonly GitHubTreeBlob[];
+    existing: SkillRow | undefined;
+    curated: boolean;
+  }): Promise<'listed' | 'rejected' | 'skipped' | 'retry'> => {
     const files = blobs
       .filter((blob) => within(folder, blob.path))
       .map((blob) => ({ path: relativeTo(folder, blob.path), size: blob.size }))
@@ -201,17 +206,26 @@ export function createMarketSkills(deps: {
     if (existing !== undefined && existing.commit_sha === sha) {
       await db
         .prepare(
-          `UPDATE marketplace_skills SET stars = ?, pushed_at = ?, curated = MAX(curated, ?), last_refreshed_at = ?,
+          `UPDATE marketplace_skills SET owner = ?, repo = ?, stars = ?, pushed_at = ?, curated = MAX(curated, ?),
+             last_refreshed_at = ?,
              visibility = CASE WHEN visibility = 'hidden_missing' AND scan != 'blocked' THEN 'listed' ELSE visibility END
            WHERE id = ?`,
         )
-        .bind(repository.stars, repository.pushedAt, curated ? 1 : 0, stamp(), id)
+        .bind(
+          repository.owner,
+          repository.name,
+          repository.stars,
+          repository.pushedAt,
+          curated ? 1 : 0,
+          stamp(),
+          id,
+        )
         .run();
       return existing.scan === 'blocked' ? 'rejected' : 'listed';
     }
     const content = await github.fileAt(locator, at('SKILL.md'), sha);
-    if (!content.ok || content.value === null || content.value.length > MAX_SKILL_MD_CHARS)
-      return 'skipped';
+    if (!content.ok) return 'retry';
+    if (content.value === null || content.value.length > MAX_SKILL_MD_CHARS) return 'skipped';
     const skillMd = content.value;
     const frontmatter = parseSkillFrontmatter(skillMd);
     if (frontmatter === undefined) return 'skipped';
@@ -227,20 +241,16 @@ export function createMarketSkills(deps: {
       ) {
         budget -= 1;
         const read = await github.fileAt(locator, at(file.path), sha);
-        scanned.push({ path: file.path, text: read.ok ? read.value : null });
+        if (!read.ok) return 'retry';
+        scanned.push({ path: file.path, text: read.value });
       } else {
         scanned.push({ path: file.path, text: null });
       }
     }
     const scan = scanSkillFiles(scanned);
-    const visibility =
-      existing?.visibility === 'blocked'
-        ? 'blocked'
-        : scan.verdict === 'blocked'
-          ? 'rejected'
-          : 'listed';
+    const visibility = scan.verdict === 'blocked' ? 'rejected' : 'listed';
     const now = stamp();
-    await db
+    const written = await db
       .prepare(
         `INSERT INTO marketplace_skills (${COLUMNS}, first_seen_at, last_refreshed_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
@@ -250,7 +260,9 @@ export function createMarketSkills(deps: {
            scripts = excluded.scripts, scan = excluded.scan, findings = excluded.findings,
            commit_sha = excluded.commit_sha, stars = excluded.stars, pushed_at = excluded.pushed_at,
            curated = MAX(marketplace_skills.curated, excluded.curated),
-           visibility = excluded.visibility, last_refreshed_at = excluded.last_refreshed_at`,
+           visibility = CASE WHEN marketplace_skills.visibility = 'blocked' THEN 'blocked' ELSE excluded.visibility END,
+           last_refreshed_at = excluded.last_refreshed_at
+         RETURNING visibility`,
       )
       .bind(
         id,
@@ -273,8 +285,8 @@ export function createMarketSkills(deps: {
         now,
         now,
       )
-      .run();
-    return visibility === 'listed' ? 'listed' : 'rejected';
+      .first<{ visibility: string }>();
+    return written?.visibility === 'listed' ? 'listed' : 'rejected';
   };
 
   const indexRepository = async (
@@ -305,7 +317,7 @@ export function createMarketSkills(deps: {
       return report;
     }
     const tree = await github.tree(locator, head.value.sha);
-    if (!tree.ok) return report;
+    if (!tree.ok || tree.value.truncated) return report;
     const folders = tree.value.blobs
       .filter((blob) => blob.path === 'SKILL.md' || blob.path.endsWith('/SKILL.md'))
       .map((blob) => folderOf(blob.path))
@@ -315,15 +327,21 @@ export function createMarketSkills(deps: {
     const seen = new Set<string>();
     for (const folder of folders) {
       const id = await skillId(repository.nodeId, folder);
-      const outcome = await indexSkill(
+      const outcome = await indexSkill({
+        id,
         repository,
         locator,
-        head.value.sha,
+        sha: head.value.sha,
         folder,
-        tree.value.blobs,
-        existing.find((row) => row.id === id),
-        options.curated,
-      );
+        blobs: tree.value.blobs,
+        existing: existing.find((row) => row.id === id),
+        curated: options.curated,
+      });
+      if (outcome === 'retry') {
+        seen.add(id);
+        report.skipped += 1;
+        continue;
+      }
       if (outcome === 'skipped') {
         report.skipped += 1;
         continue;
@@ -387,6 +405,7 @@ export function createMarketSkills(deps: {
         if (!result.ok) break;
         for (const repository of result.value.repositories)
           found.set(repository.nodeId, repository);
+        if (result.value.incomplete === true) break;
         if (result.value.repositories.length === 0 || found.size >= result.value.totalCount) {
           complete = true;
           break;
@@ -439,13 +458,13 @@ export function createMarketSkills(deps: {
       const filter =
         q === undefined || q.length === 0
           ? ''
-          : `AND (lower(name) LIKE ?1 ESCAPE '\\' OR lower(description) LIKE ?1 ESCAPE '\\' OR lower(owner || '/' || repo) LIKE ?1 ESCAPE '\\')`;
+          : `AND (instr(lower(name), ?1) > 0 OR instr(lower(description), ?1) > 0 OR instr(lower(owner || '/' || repo), ?1) > 0)`;
       const statement = db.prepare(
         `SELECT ${COLUMNS} FROM marketplace_skills WHERE visibility = 'listed' ${filter}
          ORDER BY installs DESC, stars DESC, name ASC, id ASC LIMIT ${limit + 1} OFFSET ${offset}`,
       );
       const rows = (
-        await (filter === '' ? statement : statement.bind(searchTerm(q ?? ''))).all<SkillRow>()
+        await (filter === '' ? statement : statement.bind((q ?? '').toLowerCase())).all<SkillRow>()
       ).results;
       return {
         skills: rows.slice(0, limit).map(toMarketplaceSkill),
@@ -475,14 +494,15 @@ export function createMarketSkills(deps: {
       id: string,
       blocked: boolean,
     ): Promise<{ id: string; name: string; visibility: string } | undefined> {
-      const row = await find(id);
-      if (row === undefined) return undefined;
-      const visibility = blocked ? 'blocked' : row.scan === 'blocked' ? 'rejected' : 'listed';
-      await db
-        .prepare(`UPDATE marketplace_skills SET visibility = ? WHERE id = ?`)
-        .bind(visibility, id)
-        .run();
-      return { id, name: row.name, visibility };
+      const row = await db
+        .prepare(
+          `UPDATE marketplace_skills
+           SET visibility = CASE WHEN ?1 = 1 THEN 'blocked' WHEN scan = 'blocked' THEN 'rejected' ELSE 'hidden_missing' END
+           WHERE id = ?2 RETURNING name, visibility`,
+        )
+        .bind(blocked ? 1 : 0, id)
+        .first<{ name: string; visibility: string }>();
+      return row === null ? undefined : { id, name: row.name, visibility: row.visibility };
     },
   };
 }

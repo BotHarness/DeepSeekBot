@@ -79,10 +79,8 @@ export async function handleSkillRoute(
     if (typeof targetHash !== 'string' || !TARGET_HASH.test(targetHash))
       return failure(400, 'invalid-receipt');
     const { protection } = deps;
-    if (
-      protection !== undefined &&
-      !(await protection.allow(await protection.source(request), 'install'))
-    )
+    if (protection === undefined) return failure(503, 'receipts-unavailable');
+    if (!(await protection.allow(await protection.source(request), 'install')))
       return failure(429, 'rate-limited', { 'retry-after': '3600' });
     const result = await skills.receipt(installId, targetHash);
     return result === undefined ? failure(404, 'skill-not-found') : json(202, result);

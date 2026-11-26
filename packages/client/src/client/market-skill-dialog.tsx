@@ -229,7 +229,7 @@ export function MarketSkillDialog({
   actions: MarketSkillActions;
   t: BotHarnessTranslate;
   onClose(): void;
-  onAdded(targets: number): void;
+  onAdded(): void;
 }): ReactElement {
   const [step, setStep] = useState<Step>('detail');
   const [detail, setDetail] = useState<MarketplaceSkillDetail>();
@@ -278,6 +278,7 @@ export function MarketSkillDialog({
 
   const submit = async () => {
     if (step === 'detail') {
+      setReadError(undefined);
       setStep('add');
       return;
     }
@@ -298,7 +299,7 @@ export function MarketSkillDialog({
       );
       setResult(added);
       setStep('done');
-      onAdded(added.added.length);
+      onAdded();
     } catch (error) {
       setWriteError(error);
     } finally {

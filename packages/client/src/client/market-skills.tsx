@@ -101,21 +101,27 @@ export function MarketSkills({
           if (latest.current !== request) return;
           setPage({ ...page, skills: [...page.skills, ...result.skills], next: result.nextCursor });
         },
-        (failure: unknown) => setError(failure),
+        (failure: unknown) => {
+          if (latest.current === request) setError(failure);
+        },
       )
       .finally(() => setMore(false));
   };
 
-  const added = (skill: MarketplaceSkill, targets: number) =>
-    setPage((current) =>
-      current === undefined
-        ? current
-        : {
-            ...current,
-            skills: current.skills.map((item) =>
-              item.id === skill.id ? { ...item, installs: item.installs + targets } : item,
-            ),
-          },
+  const added = (skill: MarketplaceSkill) =>
+    void actions.marketplaceSkillDetail(skill.id).then(
+      (detail) =>
+        setPage((current) =>
+          current === undefined
+            ? current
+            : {
+                ...current,
+                skills: current.skills.map((item) =>
+                  item.id === skill.id ? { ...item, installs: detail.skill.installs } : item,
+                ),
+              },
+        ),
+      () => undefined,
     );
 
   return (
@@ -153,7 +159,10 @@ export function MarketSkills({
           ))}
         </CatalogGrid>
       )}
-      {page?.next === null || page === undefined || error !== undefined ? null : (
+      {page?.next === null ||
+      page === undefined ||
+      page.query !== query ||
+      error !== undefined ? null : (
         <Button variant="outline" size="sm" disabled={more} onClick={loadMore} xstyle={styles.more}>
           {t('market.skills.more')}
         </Button>
@@ -167,7 +176,7 @@ export function MarketSkills({
           actions={actions}
           t={t}
           onClose={() => setOpen(undefined)}
-          onAdded={(count) => added(open, count)}
+          onAdded={() => added(open)}
         />
       )}
     </div>
