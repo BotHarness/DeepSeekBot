@@ -23,7 +23,7 @@ import { SystemSymbol } from './system-symbol';
 export type MaterialMenuItem = {
   key: string;
   label: string;
-  icon: ReactElement;
+  icon?: ReactElement | undefined;
   onPress(): void;
   disabled?: boolean;
   destructive?: boolean;
@@ -49,7 +49,7 @@ export function MaterialMenuGroup({
           shape: Shapes.RoundedCorner(materialMenu.containerRadius),
         }),
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
-        background(colors.surfaceContainerLow),
+        background(theme.scheme === 'dark' ? colors.surfaceContainerHigh : colors.surfaceContainer),
         paddingAll(materialMenu.groupPadding),
         testID('action-menu-group'),
       ]}
@@ -114,7 +114,7 @@ export function MaterialMenuGroup({
               ),
             ]}
           >
-            <RNHostView matchContents>{item.icon}</RNHostView>
+            {item.icon === undefined ? null : <RNHostView matchContents>{item.icon}</RNHostView>}
             <Text
               color={
                 item.disabled

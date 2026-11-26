@@ -1,9 +1,9 @@
-import { createChannelAccess } from '../channels/runtime-access.js';
+import { createChannelAccess } from './runtime-access.js';
 import { createRuntimeInputs } from '../features/approvals/runtime-inputs.js';
 import { createDirectTools } from '../features/sessions/direct-tools.js';
 import { createTobCliRuntime } from '../features/tob/cli-runtime.js';
 import { createGroupDigest } from './group-digest.js';
-import { createChannelAdmission } from '../channels/runtime-admission.js';
+import { createChannelAdmission } from './runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import { createOrchestratorCancellation } from './orchestrator-cancellation.js';
@@ -30,7 +30,11 @@ import { createRuntimeAdmissions } from '../features/activity/runtime-admissions
 import { createRuntimeAdmissionRecovery } from '../features/activity/runtime-admission-recovery.js';
 import { createOrchestratorTurns } from '../features/sessions/runtime-orchestrator-turns.js';
 import { createOrchestratorSessions } from '../features/sessions/runtime-orchestrator-sessions.js';
-import { createOrchestratorServices } from '../features/sessions/runtime-orchestrator-services.js';
+import {
+  channelToolFeatures,
+  createOrchestratorServices,
+  voiceAdmissionNotes,
+} from '../features/sessions/runtime-orchestrator-services.js';
 import { createTurnFailures } from '../features/sessions/runtime-turn-failures.js';
 import { createRuntimeBotCreation } from '../features/personabots/runtime-creation.js';
 import type { BotRuntime, BotRuntimeOptions } from './bot-runtime-types.js';
@@ -44,8 +48,8 @@ import { pickSessionGroup } from '../features/models/runtime-session-group.js';
 import { createRuntimeMemoryChanges } from '../features/memory/runtime-changes.js';
 import { createRuntimeBotContacts } from '../features/personabots/runtime-contacts.js';
 import { createNativeOrchestratorStep } from '../features/sessions/native-orchestrator-step.js';
-import { createRuntimeMembership } from '../channels/runtime-membership.js';
-import { createRuntimeQuotes } from '../channels/runtime-quotes.js';
+import { createRuntimeMembership } from './runtime-membership.js';
+import { createRuntimeQuotes } from './runtime-quotes.js';
 
 type RuntimeInstancePorts = Pick<
   Required<BotRuntime>,
@@ -445,6 +449,7 @@ export function createBotRuntimeFeatures(
     scheduling,
   });
   const channelAdmission = createChannelAdmission({
+    voiceNotes: voiceAdmissionNotes,
     acceptTurnSources: (...args) => admissions.acceptTurnSources(...args),
     activeMemoryEvents,
     activeTurns,
@@ -485,7 +490,6 @@ export function createBotRuntimeFeatures(
     speakerInput: (...args) => orchestratorServices.speakerInput(...args),
     steerSettlements,
     team,
-    tob,
     tobCliRequests,
     turnSources,
     warn,
@@ -509,11 +513,11 @@ export function createBotRuntimeFeatures(
     requireMembership,
     stoppedTurns,
     team,
-    tob,
     turnSources,
     warn,
   });
   const channelAccess = createChannelAccess({
+    channelToolFeatures,
     admitGroupInvitation: (...args) => runtime.admitGroupInvitation(...args),
     admitGroupJoinDecision: (...args) => runtime.admitGroupJoinDecision(...args),
     admitGroupJoinRequest: (...args) => runtime.admitGroupJoinRequest(...args),
@@ -539,7 +543,6 @@ export function createBotRuntimeFeatures(
     requireMembership,
     requireTurnAccess,
     team,
-    tob,
     turnSources,
     voiceMessages,
   });
@@ -859,6 +862,7 @@ export function createBotRuntimeFeatures(
     database,
     externalMessaging,
     grants,
+    workspaceSessions: options.workspaceSessions,
     inboxHistory,
     inboxTriage,
     memory,
@@ -868,7 +872,6 @@ export function createBotRuntimeFeatures(
     schedules,
     sourcePolicy,
     team,
-    tob,
   });
   const turnFailures = createTurnFailures({
     channels,

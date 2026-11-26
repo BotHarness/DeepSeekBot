@@ -65,6 +65,7 @@ import {
   formatAudit,
   ownsComputerTool,
 } from './tool/provider.js';
+import { createComputerUnlockOwner, macComputerUnlockConfigured } from './unlock-owner.js';
 import { ViewerProxy, proxyUpgrade, viewerUpgradePaths } from './viewer.js';
 
 export const name = 'botharness-computer';
@@ -252,6 +253,15 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     scales: () => false,
     waitMs: 1_000,
   });
+  const unlockEnabled = () =>
+    macComputerUnlockConfigured && target() === 'local' && runtime.isRunning();
+  const unlock: ReturnType<typeof createComputerUnlockOwner> = createComputerUnlockOwner({
+    enabled: unlockEnabled,
+    runUnlock: (operation, signal) => localVideo.runUnlock(operation, signal),
+    audit: (device, result) =>
+      diagnostics.record('computer-unlock', JSON.stringify({ device, result })),
+  });
+  service.unlock = unlock;
   const localVideo = createLocalVideoOwner({
     pause: createComputerPauseStore(join(resolveDshHome(), 'botharness', 'computer-pause.json')),
     driver,
@@ -263,6 +273,11 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     unavailable: runtime.unavailable,
     supported: migratedLocal,
     pauseRecovery: () => target() === 'local',
+    ...(macComputerUnlockConfigured
+      ? {
+          sessionUnlocked: async () => !unlockEnabled() || (await unlock.status()).locked === false,
+        }
+      : {}),
     driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
     ...(process.platform === 'darwin'
       ? { scrollMotion: createMacScroll((detail) => diagnostics.record('lifecycle', detail)) }
@@ -276,6 +291,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.effect(
     () => async () => {
       service.localVideo = undefined;
+      service.unlock = undefined;
       service.callMedia = undefined;
       await localVideo.dispose();
     },

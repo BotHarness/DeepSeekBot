@@ -31,6 +31,7 @@ import {
   type ModelPlan,
   type ModelPreset,
   type ModelRoute,
+  type ModelSlot,
 } from './model-plans';
 
 export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
@@ -55,6 +56,8 @@ export interface BotModel {
   revision: number;
   defaultRevision?: number;
   plan?: ModelPlan;
+  presetId?: string;
+  overrides?: ModelSlot[];
   repair?: string;
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
@@ -146,6 +149,8 @@ export async function loadBotModel(
   return {
     revision: state.revision ?? state.plan?.revision ?? 0,
     ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.presetId === undefined ? {} : { presetId: state.presetId }),
+    ...(state.overrides === undefined ? {} : { overrides: state.overrides }),
     ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
     ...(engines === undefined ? {} : { engines }),
     ...(state.repair === undefined ? {} : { repair: state.repair.code }),
@@ -383,6 +388,20 @@ function option(value: unknown): WorkspaceOption | undefined {
   const row = record(value);
   if (!text(row?.['id']) || !text(row['path']) || !text(row['title'])) return undefined;
   return { id: row['id'], path: row['path'], title: row['title'] };
+}
+
+export interface CreateHostFolderInput {
+  parent: string;
+  name: string;
+}
+
+export async function createHostFolder(
+  client: HostCall,
+  { parent, name }: CreateHostFolderInput,
+): Promise<WorkspaceOption> {
+  const workspace = option(await client.call('folderCreate', { parent, name }));
+  if (!workspace) throw new HostAnswerInvalid('The computer did not return the registered folder.');
+  return workspace;
 }
 
 export async function loadWorkspaceOptions(client: HostCall): Promise<WorkspaceOption[]> {

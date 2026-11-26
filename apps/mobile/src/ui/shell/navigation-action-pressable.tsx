@@ -10,6 +10,7 @@ export type NavigationActionProps = {
   size: number;
   label: string;
   close?: boolean;
+  search?: boolean;
   ref?: Ref<ComponentRef<typeof Pressable>>;
   disabled?: boolean;
   expanded?: boolean;

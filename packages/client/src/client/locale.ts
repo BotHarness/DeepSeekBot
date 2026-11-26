@@ -24,6 +24,7 @@ import * as personabotsProfileLocaleCopy from './features/personabots/profile-lo
 import * as privateInputCopy from './features/private-input/locale.js';
 import * as profileStorageCopy from './features/profile-storage/locale.js';
 import * as promptsCopy from './features/prompts/locale.js';
+import * as connectorsCopy from './features/connectors/locale.js';
 import * as releaseCopy from './features/release/locale.js';
 import * as schedulesCopy from './features/schedules/locale.js';
 import * as sessionsCopy from './features/sessions/locale.js';
@@ -71,6 +72,7 @@ export const zh = {
   ...privateInputCopy.zh,
   ...profileStorageCopy.zh,
   ...promptsCopy.zh,
+  ...connectorsCopy.zh,
   ...releaseCopy.zh,
   ...schedulesCopy.zh,
   ...sessionsCopy.zh,
@@ -84,7 +86,7 @@ export const zh = {
   ...workspacesCopy.zh,
   'home.starters': '快捷提问',
   'home.greeting': '你好，我是托布',
-  'home.description': '你的本地总管。了解 Bot 的状态，或告诉我你想调整什么。',
+  'home.description': '你在这里的第一个 Bot。了解 Bot 的状态，或告诉我你想调整什么。',
   'settings.search': '搜索设置',
   'settings.back': '返回设置列表',
   'settings.results': '搜索结果',
@@ -237,6 +239,7 @@ export const en = {
   ...privateInputCopy.en,
   ...profileStorageCopy.en,
   ...promptsCopy.en,
+  ...connectorsCopy.en,
   ...releaseCopy.en,
   ...schedulesCopy.en,
   ...sessionsCopy.en,
@@ -251,7 +254,7 @@ export const en = {
   'home.starters': 'Suggested questions',
   'home.greeting': 'Hello, I’m Tob',
   'home.description':
-    'Your local steward. Check on your Bots or tell me what you’d like to change.',
+    'Your first Bot here. Check on your Bots or tell me what you’d like to change.',
   'settings.search': 'Search settings',
   'settings.back': 'Back to settings list',
   'settings.results': 'Search results',

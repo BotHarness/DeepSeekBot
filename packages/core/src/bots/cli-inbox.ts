@@ -1,5 +1,9 @@
 import { sessionModelChoice } from '@botharness/host-protocol/session-model';
-import { isHostSessionFilter, isHostSessionSort } from '@botharness/host-protocol/host-sessions';
+import {
+  isHostSessionApprovalDecision,
+  isHostSessionFilter,
+  isHostSessionSort,
+} from '@botharness/host-protocol/host-sessions';
 import {
   readHumanAttention,
   dismissHumanAttention,
@@ -14,6 +18,7 @@ import {
 } from '@botharness/host-client/approval-readers';
 import { stopBot, stopSession } from '@botharness/host-client/bot-control';
 export { INBOX_OPTIONS } from './cli-option-spec.js';
+import { workspaceLookRequest } from './cli-workspace-look.js';
 import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -70,7 +75,7 @@ export const INBOX_COMMANDS = [
   {
     command: 'session-model',
     description:
-      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice',
+      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice; without --session, show a new Session’s default',
   },
   {
     command: 'session-transcript',
@@ -90,19 +95,52 @@ export const INBOX_COMMANDS = [
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   {
     command: 'session-list',
-    description: 'list accessible root Sessions on the Host (--search, --sort, --source)',
+    description:
+      'list accessible root Sessions (--search, --sort, --source, --include-archived; --limit and --cursor page it)',
+  },
+  {
+    command: 'session-import-list',
+    description:
+      'list Claude Code and Codex sessions found on the Host that create --from-sessions can import',
+  },
+  {
+    command: 'session-list-changes',
+    description:
+      'list the root Sessions that changed since a change cursor (--since <seq> --epoch <e>), or the current cursor',
   },
   {
     command: 'session-create',
     description:
       'start a native Session in a folder (--cwd <path> or --workspace <id>) with its first --message; --session retries a blank one',
   },
+  {
+    command: 'session-answer-approval',
+    description:
+      'answer a native Session approval once or reject it (--session, --request, --decision)',
+  },
+  {
+    command: 'session-answer-question',
+    description:
+      'answer a native Session question with JSON from stdin (--session, --request, --answer-stdin)',
+  },
+  {
+    command: 'session-archive',
+    description: 'archive an idle native Session (--session, --confirm)',
+  },
+  {
+    command: 'workspace-look',
+    description: 'read the colour and icon chosen for a Session folder (--cwd <path>)',
+  },
+  {
+    command: 'workspace-look-set',
+    description:
+      'set a Session folder look (--cwd <path>, --color <id>, one of --symbol <id> | --emoji <e> | --monogram) or --clear it',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
     command: 'session-stop',
-    description:
-      "stop one of a Bot's running Sessions (its Orchestrator or one Assignment); its other Sessions keep running",
+    description: "stop a native Session (--session), or one of a Bot's running Sessions",
   },
   {
     command: 'session-send',
@@ -138,7 +176,11 @@ export const INBOX_COMMANDS = [
 
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
+const ACTIVITY_SOURCES = ['all', 'bot', 'native'];
+
 export interface InboxValues {
+  since?: string;
+  epoch?: string;
   set?: string;
   notifications?: boolean;
   category?: string;
@@ -178,6 +220,12 @@ export interface InboxValues {
   cwd?: string;
   model?: string;
   message?: string;
+  decision?: string;
+  'answer-stdin'?: boolean;
+  color?: string;
+  emoji?: string;
+  symbol?: string;
+  monogram?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -236,11 +284,20 @@ export async function runInboxCommand(
   rest: string[],
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
+  readStdin?: () => Promise<string>,
 ): Promise<unknown> {
   const command = inboxCommandName(name);
   if (command === 'inbox-watch' && values.notifications)
     usage('Use activity --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
+  if (call.method === 'sessionAnswerQuestion') {
+    try {
+      const answer: unknown = JSON.parse(await (readStdin?.() ?? Promise.resolve('')));
+      call.args['answer'] = answer;
+    } catch {
+      usage('Question answers must be valid JSON on stdin.');
+    }
+  }
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > 60)
@@ -302,14 +359,45 @@ export async function runInboxCommand(
       requestMessageId: String(call.args['requestMessageId']),
       workspaceId: String(call.args['workspaceId']),
     });
-  const result =
+  const result = await (
     call.method === 'humanAttention'
-      ? ({ ...(await readHumanAttention(reader, call.args)) } as Record<string, unknown>)
-      : await rpc<Record<string, unknown>>(call.method, call.args);
+      ? readHumanAttention(reader, call.args).then(
+          (page) => ({ ...page }) as Record<string, unknown>,
+        )
+      : rpc<Record<string, unknown>>(call.method, call.args)
+  ).catch((error: unknown) => {
+    if (
+      call.args['source'] !== undefined &&
+      (error as { code?: unknown } | null)?.code === 'gateway/arguments-invalid'
+    )
+      throw new CliLiveError(
+        'host-query-unsupported',
+        'Update the Host to include native Session requests in Activity.',
+      );
+    throw error;
+  });
+  if (
+    call.method === 'sessionList' &&
+    call.args['includeArchived'] === true &&
+    result['includeArchived'] !== true
+  )
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to include archived Sessions.',
+    );
   if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
       'Update the Host to discover notification attention.',
+    );
+  if (
+    call.method === 'humanAttention' &&
+    call.args['source'] !== undefined &&
+    result['source'] !== call.args['source']
+  )
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to include native Session requests in Activity.',
     );
   if (call.args['dismissed'] === true && result['dismissed'] !== true)
     throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
@@ -358,6 +446,8 @@ function prepare(
         usage('--kind must be auto-rejection.');
       if (values.snoozed === true && values.dismissed === true)
         usage('activity takes --snoozed or --dismissed, not both.');
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -375,13 +465,14 @@ function prepare(
           values.snoozed ||
           values.dismissed
         )
-          usage('--notifications only accepts --limit and --cursor.');
+          usage('--notifications only accepts --limit, --cursor and --source.');
         return {
           method: 'humanAttention',
           args: {
             notifications: true,
             ...(limit === undefined ? {} : { limit }),
             ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+            ...(values.source === undefined ? {} : { source: values.source }),
           },
         };
       }
@@ -404,6 +495,7 @@ function prepare(
           ...(values.snoozed === true ? { snoozed: true } : {}),
           ...(values.dismissed === true ? { dismissed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
+          ...(values.source === undefined ? {} : { source: values.source }),
         },
       };
     }
@@ -415,7 +507,15 @@ function prepare(
     }
     case 'inbox-status':
       positionals(command, rest, 0, '');
-      return { method: 'humanAttentionStatus', args: { messageCounts: true } };
+      if (values.source !== undefined && !ACTIVITY_SOURCES.includes(values.source))
+        usage('--source must be all, bot or native.');
+      return {
+        method: 'humanAttentionStatus',
+        args: {
+          messageCounts: true,
+          ...(values.source === undefined ? {} : { source: values.source }),
+        },
+      };
     case 'inbox-dismiss': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {
@@ -545,7 +645,12 @@ function prepare(
         Math.min(rest.length, 1),
         'at most one bot id',
       );
-      const sessionId = required(values.session, 'session', command);
+      const sessionId = values.session;
+      if (sessionId === undefined) {
+        if (slug === null || values.set !== undefined || values.clear === true)
+          usage('session-model needs --session, except to read a Bot’s default for a new Session.');
+        return { method: 'sessionModel', args: { slug } };
+      }
       if (values.set !== undefined && values.clear === true)
         usage('session-model accepts one of --set and --clear.');
       if (values.clear === true)
@@ -562,6 +667,10 @@ function prepare(
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
+    case 'session-import-list': {
+      positionals(command, rest, 0, '');
+      return { method: 'externalSessions', args: {} };
+    }
     case 'session-list': {
       positionals(command, rest, 0, '');
       const { search, sort, source } = values;
@@ -569,15 +678,65 @@ function prepare(
         usage('session-list --sort must be last-human-turn, created, or last-activity.');
       if (source !== undefined && !isHostSessionFilter(source))
         usage('session-list --source must be all, native, or bot:<slug>.');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200))
+        usage('session-list --limit must be an integer from 1 to 200.');
       return {
         method: 'sessionList',
         args: {
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(search === undefined ? {} : { search }),
           ...(sort === undefined ? {} : { sort }),
           ...(source === undefined ? {} : { source }),
+          ...(values['include-archived'] === true ? { includeArchived: true } : {}),
           ...(search === undefined && sort === undefined && source === undefined
             ? {}
             : { queryVersion: 1 }),
+        },
+      };
+    }
+    case 'session-answer-approval':
+    case 'session-answer-question': {
+      positionals(command, rest, 0, '');
+      const sessionId = required(values.session, 'session', command);
+      const requestId = required(values.request, 'request', command);
+      if (command === 'session-answer-approval') {
+        if (!isHostSessionApprovalDecision(values.decision))
+          usage('--decision must be allowed-once or rejected.');
+        return {
+          method: 'sessionAnswerApproval',
+          args: { sessionId, requestId, decision: values.decision },
+        };
+      }
+      if (values['answer-stdin'] !== true)
+        usage('session-answer-question requires --answer-stdin.');
+      return { method: 'sessionAnswerQuestion', args: { sessionId, requestId } };
+    }
+    case 'workspace-look':
+    case 'workspace-look-set':
+      positionals(command, rest, 0, '');
+      return workspaceLookRequest(command, values);
+    case 'session-archive': {
+      positionals(command, rest, 0, '');
+      confirmed(command, values);
+      return {
+        method: 'sessionNativeArchive',
+        args: { sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-list-changes': {
+      positionals(command, rest, 0, '');
+      const sinceSeq = values.since === undefined ? undefined : Number(values.since);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || sinceSeq < 0))
+        usage('session-list-changes --since must be a whole number of 0 or more.');
+      if (values.epoch !== undefined && sinceSeq === undefined)
+        usage('session-list-changes --epoch needs --since.');
+      return {
+        method: 'sessionListChanges',
+        args: {
+          ...(sinceSeq === undefined ? {} : { sinceSeq }),
+          ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
         },
       };
     }
@@ -686,6 +845,15 @@ function prepare(
       return { method: 'sessionOwner', args: { sessionId } };
     }
     case 'session-stop': {
+      if (values.session !== undefined) {
+        positionals(command, rest, 0, '');
+        if (values.activity !== undefined || values.channel !== undefined)
+          usage('Native session-stop uses --session without --activity or --channel.');
+        return {
+          method: 'sessionNativeStop',
+          args: { sessionId: required(values.session, 'session', command) },
+        };
+      }
       const activityId =
         values.activity === undefined ? undefined : required(values.activity, 'activity', command);
       const [botSlug, sessionId] = positionals(

@@ -78,42 +78,8 @@ export function createAcceptedHumanEdits({
     expectedHead: string | null,
   ) => MemoryAcceptedCommit[];
   acceptedHead: (botSlug: string, branch: string) => string | null;
-}): Pick<MemoryAcceptance, 'switchBranch' | 'restoreHuman' | 'saveHuman' | 'restoreCommitHuman'> {
+}): Pick<MemoryAcceptance, 'restoreHuman' | 'saveHuman' | 'restoreCommitHuman'> {
   return {
-    switchBranch(input) {
-      assertIdle(input.botSlug);
-      requireOwned(input.botSlug, input.sessionId);
-      const flight = inFlight.get(input.botSlug);
-      if (flight?.sessionId !== input.sessionId) {
-        throw new MemoryAcceptError('memory-conflict', 'Memory turn was not prepared');
-      }
-      const branch = input.branch.trim();
-      if (branch.length === 0 || branch.length > 255 || branch !== input.branch) {
-        throw new MemoryAcceptError('memory-invalid', 'Invalid Memory branch name');
-      }
-      const root = repository(registry, input.botSlug);
-      const from = branchOf(root);
-      if (from !== flight.branch) {
-        throw new MemoryAcceptError('memory-conflict', 'Memory branch changed during turn');
-      }
-      try {
-        run(root, ['check-ref-format', '--branch', branch]);
-        run(root, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]);
-      } catch {
-        throw new MemoryAcceptError('memory-invalid', 'Memory branch does not exist');
-      }
-
-      const targetHead = output(root, ['rev-parse', '--verify', `refs/heads/${branch}`]);
-      if (from !== branch) {
-        try {
-          run(root, ['switch', branch]);
-        } catch {
-          throw new MemoryAcceptError('memory-conflict', 'Git could not switch Memory branch');
-        }
-      }
-      inFlight.set(input.botSlug, { sessionId: input.sessionId, branch });
-      return { from, to: branch, head: targetHead };
-    },
     restoreHuman(human: HumanContext, input) {
       assertIdle(input.botSlug);
       if (inFlight.has(input.botSlug) || pendingRepair(input.botSlug) !== undefined)

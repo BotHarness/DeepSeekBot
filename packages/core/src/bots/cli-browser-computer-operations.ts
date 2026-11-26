@@ -1,5 +1,6 @@
 import { linkSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
+import { parseComputerUnlockReply } from '../../../computer/src/unlock-contract.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { connectLiveHost, record } from './cli-live-host.js';
@@ -13,6 +14,7 @@ export const DEVICE_COMMANDS = [
   'browser-stop',
   'computer-start',
   'computer-status',
+  'computer-unlock-status',
   'computer-stop',
   'browser-tools',
   'browser-tool',
@@ -53,6 +55,8 @@ export async function runDeviceCommand(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'computer-unlock-status' && values['args-stdin'] === true)
+    usage('computer-unlock-status does not accept input.');
   const direct = command === 'browser-tool' || command === 'computer-tool';
   const video = command === 'computer-video';
   const computer = (command.startsWith('computer-') && !direct) || command === 'browser-tools';
@@ -257,6 +261,11 @@ export async function runDeviceCommand(
       ...(values.target === undefined ? {} : { target: values.target }),
     });
   if (command === 'computer-status') return json('/api/computer/status');
+  if (command === 'computer-unlock-status') {
+    const status = record(await json('/api/computer/status'));
+    const { code, locked } = parseComputerUnlockReply(status['unlock']);
+    return { code, ...(locked === undefined ? {} : { locked }) };
+  }
   if (command === 'computer-stop') return json('/api/computer/stop', { authorize: true });
   if (command === 'computer-takeover')
     return json('/api/computer/takeover', { active: values.enabled === true });

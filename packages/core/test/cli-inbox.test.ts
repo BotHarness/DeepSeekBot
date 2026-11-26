@@ -1,88 +1,13 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
 import { decideToolApproval } from '../src/workspaces/tool-effects.js';
 import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
-import { requestListener } from './async-listener.js';
+import { closeServers, host, invoke } from './cli-inbox-fixture.js';
 
-const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
-  await Promise.all(
-    servers.splice(0).map(
-      (server) =>
-        new Promise<void>((resolve) => {
-          server.closeAllConnections();
-          server.close(() => resolve());
-        }),
-    ),
-  );
+  await closeServers();
 });
-
-async function host(
-  handler: (method: string, args: Record<string, unknown>) => unknown,
-  stallBody = false,
-) {
-  const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  let logins = 0;
-  const server = createServer(
-    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method === 'GET') {
-        logins += 1;
-        if (
-          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-        ) {
-          res.writeHead(403).end();
-          return;
-        }
-        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-        res.writeHead(302, { location: '/' }).end();
-        return;
-      }
-      expect(req.headers.cookie).toBe('authority=signed');
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = JSON.parse(Buffer.concat(chunks).toString());
-      expect(body.type).toBe('client-request');
-      expect(req.url).toBe(`/api/${body.method}`);
-      const method = body.method.replace('botharness/', '');
-      calls.push({ method, args: body.payload.args });
-      res.setHeader('content-type', 'application/json');
-      if (stallBody) {
-        res.write('{');
-        return;
-      }
-      res.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: body.rpcId,
-          result: handler(method, body.payload.args),
-        }),
-      );
-    }),
-  );
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('missing address');
-  return { url: `http://127.0.0.1:${address.port}`, calls };
-}
-
-async function invoke(argv: string[], url?: string, stdin = '', token = 'private-test-token') {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const code = await runBotCreateCli(argv, {
-    env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: token },
-    stdout: (text) => stdout.push(text),
-    stderr: (text) => stderr.push(text),
-    readStdin: async () => stdin,
-  });
-  expect(stdout).toHaveLength(1);
-  const out = stdout.join('');
-  expect(out + stderr.join('')).not.toContain('private-test-token');
-  return { code, text: out, json: JSON.parse(out) };
-}
 
 const echo = (method: string, args: Record<string, unknown>) => ({
   ok: true,
@@ -129,6 +54,35 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
   });
 
+  it('pages the Session list with --limit and --cursor', async () => {
+    const live = await host(echo);
+    const argv = ['session-list', '--limit', '50', '--cursor', '[10,20,"s-1"]'];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: { limit: 50, cursor: '[10,20,"s-1"]' } },
+    ]);
+    for (const limit of ['0', '201', '2.5'])
+      expect((await invoke(['session-list', '--limit', limit], live.url)).text).toContain('usage');
+  });
+
+  it('reads the Session change cursor, then the changes since it', async () => {
+    const live = await host(echo);
+    expect((await invoke(['session-list-changes'], live.url)).code).toBe(0);
+    expect(
+      (await invoke(['session-list-changes', '--since', '12', '--epoch', 'e1'], live.url)).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'sessionListChanges', args: {} },
+      { method: 'sessionListChanges', args: { sinceSeq: 12, epoch: 'e1' } },
+    ]);
+    for (const argv of [
+      ['session-list-changes', '--since', '-1'],
+      ['session-list-changes', '--since', 'x'],
+      ['session-list-changes', '--epoch', 'e1'],
+    ])
+      expect((await invoke(argv, live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -147,6 +101,50 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
         method: 'sessionMessageSend',
         args: { botSlug: null, sessionId: 'native-1', text: '  Continue from here.  ' },
       },
+    ]);
+  });
+
+  it('maps native Session actions and archived inventory to the authenticated Host', async () => {
+    const live = await host((method, args) =>
+      method === 'sessionList'
+        ? { ok: true, value: { sessions: [], includeArchived: true } }
+        : echo(method, args),
+    );
+    const target = ['--session', 'native-1'];
+    const request = ['--request', 'request-1'];
+    const answer = { answers: [{ id: 'style', selected: ['Compact'] }] };
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'rejected'],
+      ['session-answer-question', ...target, ...request, '--answer-stdin'],
+      ['session-stop', ...target],
+      ['session-archive', ...target, '--confirm'],
+      ['session-list', '--include-archived'],
+    ]) {
+      const result = await invoke(argv, live.url, JSON.stringify(answer));
+      expect(result.code, `${argv[0]}: ${result.text}`).toBe(0);
+    }
+
+    for (const argv of [
+      ['session-answer-approval', ...target, ...request, '--decision', 'always'],
+      ['session-answer-question', ...target, ...request],
+      ['session-archive', ...target],
+      ['session-stop', ...target, '--channel', 'dm-1'],
+    ])
+      expect((await invoke(argv, live.url)).code).toBe(2);
+
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionAnswerApproval',
+        args: { sessionId: 'native-1', requestId: 'request-1', decision: 'rejected' },
+      },
+      {
+        method: 'sessionAnswerQuestion',
+        args: { sessionId: 'native-1', requestId: 'request-1', answer },
+      },
+      { method: 'sessionNativeStop', args: { sessionId: 'native-1' } },
+      { method: 'sessionNativeArchive', args: { sessionId: 'native-1' } },
+      { method: 'sessionList', args: { includeArchived: true } },
     ]);
   });
 
@@ -513,6 +511,10 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       method: 'sessionModel',
       args: { choice: null },
     });
+    expect((await invoke(['session-model', 'ada'], live.url)).json).toEqual({
+      method: 'sessionModel',
+      args: { slug: 'ada' },
+    });
   });
 
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {
@@ -718,15 +720,41 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('adds Shell prefix rules through the existing approval decision RPC', async () => {
+    const live = await host((method, args) => {
+      if (method === 'toolApprovalDecide') return { ok: true, value: { accepted: true } };
+      return echo(method, args);
+    });
+    const argv = ['approval-rule-add', 'dm-ada', '--message-id', 'card'];
+    expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    const result = await invoke(
+      [...argv, '--prefix', 'git status *', '--prefix', 'git log *'],
+      live.url,
+    );
+    expect(result.json).toEqual({ accepted: true });
+    expect(live.calls).toEqual([
+      {
+        method: 'toolApprovalDecide',
+        args: {
+          channelId: 'dm-ada',
+          messageId: 'card',
+          outcome: 'allowed-always-prefix',
+          rule: { kind: 'prefix', patterns: ['git status *', 'git log *'] },
+        },
+      },
+    ]);
+    expect(cliEffects(argv)).toMatchObject({ authority: 'management' });
+  });
+
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
     const rule = {
       id: 'r1',
       botSlug: 'ada',
       role: 'orchestrator',
       scopeKey: 'host',
-      kind: 'exact',
+      kind: 'prefix',
       toolName: 'bash',
-      input: 'pwd',
+      input: 'git status *',
       createdAt: '2026-11-20T00:00:00Z',
       autoApprovedCount: 0,
     };

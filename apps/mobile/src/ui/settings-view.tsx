@@ -7,6 +7,7 @@ import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { UsageCard } from './shell/usage-card';
 import {
   AppearanceSetting,
+  HideBarsSetting,
   InterfaceSaveNotice,
   LanguageSetting,
   SessionNavigationSettings,
@@ -22,6 +23,7 @@ export interface SettingsActions {
   onModelProviders(): void;
   onModels(): void;
   onVoice?: (() => void) | undefined;
+  onImApps?: (() => void) | undefined;
   onPrompts(): void;
   onCopyVersion(text: string): void;
 }
@@ -40,6 +42,8 @@ export function SettingsView({
   chatBackground,
   hapticFeedback,
   deliveryReceipts,
+  tabBar,
+  sessionRequests,
 }: {
   environment?: ReactNode;
   environmentFooter?: string | undefined;
@@ -54,6 +58,8 @@ export function SettingsView({
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
   deliveryReceipts?: ReactNode;
+  tabBar?: ReactNode;
+  sessionRequests?: ReactNode;
 }) {
   const t = useStrings();
   const [versionCopied, setVersionCopied] = useState(false);
@@ -97,6 +103,17 @@ export function SettingsView({
           disclosure
           onPress={actions.onModels}
         />
+        {actions.onImApps === undefined ? null : (
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.imApps.title}
+            icon="messageDisplay"
+            detail={t.imApps.rowHint}
+            disclosure
+            testID="settings-im-apps"
+            onPress={actions.onImApps}
+          />
+        )}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.prompts.title}
@@ -130,6 +147,8 @@ export function SettingsView({
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         <SessionsTabSetting on={SHEET_GROUP} />
+        {tabBar}
+        <HideBarsSetting on={SHEET_GROUP} />
         {messageDisplay}
         {sendJump}
         <SettingsRow
@@ -145,6 +164,7 @@ export function SettingsView({
         {deliveryReceipts}
       </SettingsSection>
       <SessionNavigationSettings on={SHEET_GROUP} />
+      {sessionRequests}
       <InterfaceSaveNotice />
       <SettingsSection title={t.about} on={SHEET_GROUP}>
         <SettingsRow

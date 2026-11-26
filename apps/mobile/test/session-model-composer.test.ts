@@ -57,33 +57,25 @@ describe('Session composer Model Choice', () => {
   });
 
   it('shows only the brand while resolving the display name', () => {
-    expect(sessionModelLabel({ state, width: 390, strings: en.sessionModel })).toEqual({
+    expect(sessionModelLabel({ state, strings: en.sessionModel })).toEqual({
       brand: 'claude',
       accessible: 'Model choice',
+      pending: false,
     });
   });
 
-  it('uses the short name and localized effort, then hides effort before the name', () => {
-    const base = { state, catalog, strings: zh.sessionModel };
-    expect(sessionModelLabel({ ...base, width: 390 })).toMatchObject({
+  it('uses the short name and localized effort', () => {
+    expect(sessionModelLabel({ state, catalog, strings: zh.sessionModel })).toEqual({
       brand: 'claude',
       name: 'Opus 5.5',
       effort: '高',
       accessible: '模型选择，Opus 5.5，高',
-    });
-    expect(sessionModelLabel({ ...base, width: 270 })).toEqual({
-      brand: 'claude',
-      name: 'Opus 5.5',
-      accessible: '模型选择，Opus 5.5，高',
-    });
-    expect(sessionModelLabel({ ...base, width: 205 })).toEqual({
-      brand: 'claude',
-      accessible: '模型选择，Opus 5.5，高',
+      pending: false,
     });
   });
 
   it('shows next Turn only when an active Turn captured a different choice', () => {
-    const pending = { state: { ...state, active: null }, catalog, width: 390 };
+    const pending = { state: { ...state, active: null }, catalog };
     expect(sessionModelLabel({ ...pending, strings: en.sessionModel }).name).toBe(
       'Next turn: Opus 5.5',
     );

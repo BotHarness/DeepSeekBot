@@ -1,6 +1,9 @@
-import { z } from 'zod';
-import { DEFAULT_CHANNEL_POLICY } from '../../team/channel-contract.js';
-import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../../team/permissions.js';
+import {
+  ADMIN_PERMISSIONS,
+  DEFAULT_CHANNEL_POLICY,
+  MEMBER_PERMISSIONS,
+  z,
+} from '../historical-migration-snapshots.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
@@ -433,5 +436,16 @@ export const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
       CREATE INDEX channel_human_add_receipts_channel ON channel_human_add_receipts(channel_id);
       CREATE INDEX channel_human_add_receipts_target ON channel_human_add_receipts(target_human_id);
     `);
+  },
+};
+
+export const ROLE_DENIED_PERMISSIONS_MIGRATION: SchemaMigration = {
+  id: 'role-denied-permissions',
+  module: 'team',
+  description: 'Host Roles can explicitly deny Host Permissions; any deny wins across roles',
+  migrate(database) {
+    database.exec(
+      `ALTER TABLE host_roles ADD COLUMN denied_permissions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(denied_permissions_json))`,
+    );
   },
 };

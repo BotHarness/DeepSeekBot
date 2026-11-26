@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 
 function provider(platform: 'slack' | 'discord' | 'feishu', capabilities: string[]) {
-  const calls: { text: string; mentionUserIds?: string[] }[] = [];
+  const calls: { text: string; mentionUserIds?: string[]; standalone?: true }[] = [];
+  let describeFails = false;
   const service: DshImOutboundService = {
     contractVersion: 1,
     replyContextVersion: 1,
@@ -10,21 +11,24 @@ function provider(platform: 'slack' | 'discord' | 'feishu', capabilities: string
     replyFenceVersion: 1,
     listBots: async () => [{ botId: 'app', channel: platform }],
     listTargets: async () => [],
-    describeBot: async (botId) => ({
-      version: 1,
-      botId,
-      channel: platform,
-      connected: true,
-      account: { fingerprint: 'c'.repeat(64), name: 'Own identity' },
-      capabilities: [
-        'exclusive-text-consumer',
-        'reply-text-checked',
-        'reply-context-checked',
-        'reply-receipt-checked',
-        'reply-fence-checked',
-        ...capabilities,
-      ],
-    }),
+    describeBot: async (botId) => {
+      if (describeFails) throw Object.assign(new Error('offline'), { code: 'provider-offline' });
+      return {
+        version: 1,
+        botId,
+        channel: platform,
+        connected: true,
+        account: { fingerprint: 'c'.repeat(64), name: 'Own identity' },
+        capabilities: [
+          'exclusive-text-consumer',
+          'reply-text-checked',
+          'reply-context-checked',
+          'reply-receipt-checked',
+          'reply-fence-checked',
+          ...capabilities,
+        ],
+      };
+    },
     sendChecked: async () => ({ sent: true }),
     consumeInbound: async () => () => {},
     qualifyReplyChecked: async (_id, route) => route,
@@ -32,6 +36,7 @@ function provider(platform: 'slack' | 'discord' | 'feishu', capabilities: string
       calls.push({
         text,
         ...(options.mentionUserIds ? { mentionUserIds: options.mentionUserIds } : {}),
+        ...(options.standalone ? { standalone: options.standalone } : {}),
       });
       return {
         sent: true,
@@ -40,15 +45,22 @@ function provider(platform: 'slack' | 'discord' | 'feishu', capabilities: string
     },
   };
   const value = createDshImProvider(service, platform)!;
-  const reply = (text: string) =>
+  const reply = (text: string, standalone?: true) =>
     value.reply!({
+      ...(standalone ? { standalone } : {}),
       accountRef: 'app',
       fingerprint: 'c'.repeat(64),
       route: { messageId: 'm1', conversationId: 'C1', actorId: 'U1', threadId: 'm1', rootId: 'm1' },
       text,
       signal: new AbortController().signal,
     });
-  return { calls, reply };
+  return {
+    calls,
+    reply,
+    failDescribe: () => {
+      describeFails = true;
+    },
+  };
 }
 
 it('sends leading mentions as checked mention ids when the provider supports them', async () => {
@@ -70,4 +82,19 @@ it('falls back to @name text without the capability and leaves Lark markup alone
   const lark = provider('feishu', ['reply-mention-checked']);
   await lark.reply('<at user_id="ou_1">Ada</at> done');
   expect(lark.calls).toEqual([{ text: '<at user_id="ou_1">Ada</at> done' }]);
+});
+
+it('asks for a standalone message only when the provider supports it', async () => {
+  const discord = provider('discord', ['reply-standalone-checked']);
+  await discord.reply('approval', true);
+  await discord.reply('reply');
+  expect(discord.calls).toEqual([{ text: 'approval', standalone: true }, { text: 'reply' }]);
+  const older = provider('discord', []);
+  await older.reply('approval', true);
+  expect(older.calls).toEqual([{ text: 'approval' }]);
+  older.failDescribe();
+  await expect(older.reply('approval', true)).rejects.toMatchObject({
+    disposition: 'not-started',
+  });
+  expect(older.calls).toHaveLength(1);
 });

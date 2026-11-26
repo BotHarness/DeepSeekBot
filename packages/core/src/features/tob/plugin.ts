@@ -1,7 +1,5 @@
-import { createMemberTobOperations } from '../../tob/member-operations.js';
-import { botOwner, privateBotRegistry } from '../../team/bot-access.js';
-import { privateBotCreations } from '../../bots/creation.js';
-import { humanContext } from '../../humans/context.js';
+import { botOwner } from '../../team/bot-access.js';
+import { humanContext, type HumanContext } from '../../humans/context.js';
 import { TOB_CHANNEL_CAPABILITIES } from '../../tob/cli-channel-operations.js';
 import { TOB_BOT_CREATE_CAPABILITIES } from '../../tob/cli-bot-create.js';
 import { TOB_BOT_PROFILE_CAPABILITIES } from '../../tob/cli-bot-profile-operations.js';
@@ -10,9 +8,16 @@ import {
   TOB_MEMORY_EDIT_CAPABILITIES,
 } from '../../tob/cli-memory-edit-operations.js';
 import { TOB_DIAGNOSTIC_CAPABILITIES } from '../../tob/cli-diagnostic-operations.js';
-import { authorizeTobBotTargets, TOB_HOST_CLI_CAPABILITY } from '../../tob/cli-host-commands.js';
+import {
+  authorizeTobBotTargets,
+  TobCliCommandError,
+  TOB_HOST_CLI_CAPABILITY,
+} from '../../tob/cli-host-commands.js';
+import type { ManagementCapability } from '../../tob/management-grants.js';
+import { managementCapabilitiesFor, managementCapabilityList } from './management-scope.js';
 import { TOB_SHARE_DRAFT_CAPABILITIES } from '../../tob/cli-share-draft-operations.js';
 import { TobError } from '../../tob/service.js';
+import { managerShellAuthority } from './cli-runtime.js';
 import { TOB_MODEL_CAPABILITIES } from '../../tob/cli-model-operations.js';
 import { TOB_MAINTENANCE_CAPABILITIES } from '../../tob/cli-maintenance-operations.js';
 import { installTobCliShell } from '../../tob/cli-shell.js';
@@ -39,6 +44,7 @@ import type * as voice from '../voice/plugin.js';
 import { ModelFreeTobCliInvocation } from '../../tob/cli-invocation.js';
 import { createTobChannelOperations } from '../../tob/cli-channel-operations.js';
 import { createTobBotCreationOperations } from '../../tob/cli-bot-create.js';
+import { privateBotCreations } from '../../bots/creation.js';
 import { createTobBotProfileOperations } from '../../tob/cli-bot-profile-operations.js';
 import { createTobDiagnosticOperations } from '../../tob/cli-diagnostic-operations.js';
 import {
@@ -65,9 +71,34 @@ import { attachOperationalModule } from '../../database/owner.js';
 import type * as skillsFeature from '../skills/plugin.js';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
 import type * as diagnosticsFeature from '../diagnostics/plugin.js';
-import type { InvocationBridgeMethods } from '../../bridge/rpc.js';
 
 type CoreOptions = NonNullable<Parameters<typeof createCore>[0]>;
+
+const OWNER_BOT_CAPABILITIES = [
+  ...TOB_MODEL_CAPABILITIES,
+  ...TOB_MAINTENANCE_CAPABILITIES,
+  ...TOB_BOT_CREATE_CAPABILITIES,
+  ...TOB_BOT_PROFILE_CAPABILITIES,
+  ...TOB_MEMORY_EDIT_CAPABILITIES,
+  ...TOB_SHARE_DRAFT_CAPABILITIES,
+  ...TOB_DIAGNOSTIC_CAPABILITIES,
+  ...TOB_CHANNEL_CAPABILITIES,
+  ...TOB_VOICE_CAPABILITIES,
+  ...TOB_MEMORY_LEASE_CAPABILITIES,
+  TOB_HOST_CLI_CAPABILITY,
+];
+
+export const MEMBER_BOT_CAPABILITIES = [
+  ...TOB_BOT_CREATE_CAPABILITIES,
+  ...TOB_BOT_PROFILE_CAPABILITIES.filter(
+    (entry) =>
+      !['pause', 'resume'].includes(entry.command) && !entry.command.startsWith('bot-delete-'),
+  ),
+  ...TOB_MEMORY_EDIT_CAPABILITIES,
+  ...TOB_SHARE_DRAFT_CAPABILITIES,
+];
+
+const MEMBER_BOT_COMMANDS = new Set(MEMBER_BOT_CAPABILITIES.map((entry) => entry.command));
 
 export function apply({
   operationalDatabase,
@@ -150,11 +181,13 @@ export function mountOperations(
   >,
   {
     bridgeMethods,
+    bridgeFor,
     diagnosticEvents,
     hostDiagnosticEnvironment,
     readWebServices,
   }: {
     bridgeMethods: ReturnType<ReturnType<typeof createBridgeMethodsForHumans>>;
+    bridgeFor: ReturnType<typeof createBridgeMethodsForHumans>;
     diagnosticEvents: ReturnType<typeof diagnosticsFeature.apply>['diagnosticEvents'];
     readWebServices(ctx: Context): {
       connection: { authenticatedUrl(baseUrl: string): string };
@@ -174,13 +207,13 @@ export function mountOperations(
     registry: core.registry,
     human: () => core.team.ownerContext(),
     bridge: () => bridgeMethods,
-    isProtectedBot: (slug) => core.tob.isTob(slug),
+    isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
   });
   const tobMemoryEditOperations = createTobMemoryEditOperations({
     registry: core.registry,
     memory: () => core.memory,
     human: () => core.team.ownerContext(),
-    isProtectedBot: (slug) => core.tob.isTob(slug),
+    isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
   });
   const tobShareDraftOperations = createTobShareDraftOperations({
     bridge: () => bridgeMethods,
@@ -216,7 +249,7 @@ export function mountOperations(
         registry: core.registry,
         channels: core.channels,
         human: core.team.ownerContext(),
-        isTob: (slug) => core.tob.isTob(slug),
+        holdsManagementGrant: (slug) => core.tob.holdsManagementGrant(slug),
       }),
     run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
   });
@@ -224,16 +257,42 @@ export function mountOperations(
     management: core.channelManagement,
     channels: core.channels,
     registry: core.registry,
-    isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   const tobMemoryLeases = createTobMemoryLeases({
     database: attachOperationalModule(core.operationalDatabase, 'tob'),
     registry: core.registry,
     ownership: core.ownership,
     memory: () => core.memory,
-    isTob: (slug) => core.tob.isTob(slug),
+    canManageBots: (slug) => core.tob.holdsManagementGrant(slug, 'manage-bots'),
   });
+  const memberOperations = (human: HumanContext) => {
+    const bridge = bridgeFor(human);
+    const creation = createTobBotCreationOperations({
+      registry: core.registry,
+      creations: privateBotCreations(core.creations, human, () => core.team.isOwner(human)),
+      bridge,
+    });
+    const profile = createTobBotProfileOperations({
+      registry: core.registry,
+      human: () => human,
+      bridge: () => bridge,
+      isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
+    });
+    const memoryEdit = createTobMemoryEditOperations({
+      registry: core.registry,
+      memory: () => core.memory,
+      human: () => human,
+      isProtectedBot: (slug) => core.tob.holdsManagementGrant(slug),
+    });
+    const shareDraft = createTobShareDraftOperations({ bridge: () => bridge });
+    return async (command: string, args: Record<string, unknown>) =>
+      (await creation(command, args)) ??
+      (await profile(command, args)) ??
+      (await memoryEdit(command, args)) ??
+      (await shareDraft(command, args));
+  };
   return {
+    memberOperations,
     tobMemoryLeases,
     tobBotCreationOperations,
     tobBotProfileOperations,
@@ -251,10 +310,8 @@ export function createCliInvocation() {
 
 export interface TobShellDependencies {
   readonly core: BotHarnessCore;
-  readonly team: BotHarnessCore['team'];
   tobCliInvocation: ReturnType<typeof createCliInvocation>;
   readonly agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
-  readonly invocationBridgeMethods: InvocationBridgeMethods;
   readonly tobSettingsOperations: ReturnType<typeof mountSettingsOperations>;
 
   readonly tobOperations: ReturnType<typeof mountOperations>;
@@ -277,8 +334,9 @@ export function createOrchestratorFileSetup(
         installTobCliShell(shellCtx, shell, {
           nativeCli: {
             available: () =>
-              deps.core.tob.isTob(deps.core.ownership.resolve(agent.session.id)?.botSlug ?? '') &&
-              deps.agentAdapter.ownsModelFreeTobTurn(agent),
+              deps.core.tob.holdsManagementGrant(
+                deps.core.ownership.resolve(agent.session.id)?.botSlug ?? '',
+              ) && deps.agentAdapter.ownsModelFreeTobTurn(agent),
             register: (definition) =>
               deps.tobCliInvocation.register(agent, definition, () => {
                 if (!deps.core.runtime.captureTobCliAuthority)
@@ -289,56 +347,30 @@ export function createOrchestratorFileSetup(
           },
           capture: (execution) => {
             const actor = execution.agent;
-            if (
-              !actor ||
-              !deps.core.tob.isTob(deps.core.ownership.resolve(actor.session.id)?.botSlug ?? '')
-            )
-              return undefined;
-
-            const steward = deps.core.registry.get(
-              deps.core.ownership.resolve(actor.session.id)!.botSlug,
-            );
-            if (!steward) return undefined;
-            const human = humanContext(botOwner(steward));
-            const memberTob = !deps.core.team.isOwner(human);
-            const memberOperations = memberTob
-              ? createMemberTobOperations({
-                  human,
-                  memory: () => deps.core.memory,
-                  bridge: deps.invocationBridgeMethods(human),
-                  registry: privateBotRegistry(deps.core.registry, human),
-                  creations: privateBotCreations(deps.core.creations, human),
-                  isProtectedBot: (slug) => deps.core.tob.isTob(slug),
-                })
-              : undefined;
-            const requireOwner = () => {
-              if (!deps.core.team.isOwner(human)) throw new TobError('permission-required');
+            const slug = actor && deps.core.ownership.resolve(actor.session.id)?.botSlug;
+            if (!actor || !slug || !deps.core.tob.holdsManagementGrant(slug)) return undefined;
+            const manager = deps.core.registry.get(slug);
+            if (!manager) return undefined;
+            const human = humanContext(botOwner(manager));
+            const ownerBot = deps.core.team.isOwner(human);
+            const memberOperations = ownerBot
+              ? undefined
+              : deps.tobOperations.memberOperations(human);
+            const requireGrant = (capability: ManagementCapability) => {
+              if (!deps.core.tob.holdsManagementGrant(slug, capability))
+                throw new TobCliCommandError(
+                  `${capability}-required`,
+                  capability === 'manage-app'
+                    ? 'This Bot cannot manage the App. The Human can turn on "Manage the App" for it in Bot settings.'
+                    : 'This Bot cannot manage other Bots. The Human can turn on "Manage other Bots" for it in Bot settings.',
+                );
             };
-            const source = (() => {
-              try {
-                const authority = deps.core.runtime.captureTobCliAuthority?.(actor.session.id);
-                if (!authority) throw new TobError('tob-authority-required');
-                return {
-                  authorize: authority,
-                  beginWrite: authority.beginWrite,
-                  sources: (): readonly string[] => authority.sources,
-                };
-              } catch (error) {
-                const refuse = () => {
-                  throw error;
-                };
-                return { authorize: refuse, beginWrite: refuse, sources: refuse };
-              }
-            })();
+            const source = managerShellAuthority(() =>
+              deps.core.runtime.captureTobCliAuthority?.(actor.session.id),
+            );
             const requireAuthority = (requireOrigin: () => void) => {
               if (execution.signal.aborted) throw new TobError('agent-context-expired');
               requireOrigin();
-              if (
-                memberTob &&
-                (!deps.team.mode(human).enabled ||
-                  deps.team.member(human.humanId)?.status !== 'active')
-              )
-                throw new TobError('permission-required');
               const denial = grantExecutionDenial(
                 deps.core,
                 actor.session,
@@ -350,7 +382,11 @@ export function createOrchestratorFileSetup(
             const started = Date.now();
             return {
               signal: execution.signal,
-              authorize: () => requireAuthority(source.authorize),
+              authorize: () => {
+                requireAuthority(source);
+                if (!deps.core.tob.holdsManagementGrant(slug))
+                  throw new TobError('tob-authority-required');
+              },
               beginWrite: () => {
                 const scope = source.beginWrite();
                 return { ...scope, authorize: () => requireAuthority(scope.authorize) };
@@ -363,16 +399,39 @@ export function createOrchestratorFileSetup(
                     human,
                   });
                 checkTargets();
+                const required = managementCapabilitiesFor(command, args, slug, deps.core);
+                required.forEach(requireGrant);
+                if (memberOperations) {
+                  if (!MEMBER_BOT_COMMANDS.has(command))
+                    throw new TobCliCommandError(
+                      'owner-bot-required',
+                      'This command is only available to Bots of the Owner.',
+                    );
+                  const prepared = await memberOperations(command, args);
+                  return prepared
+                    ? {
+                        ...prepared,
+                        run: (guard, beforeEffect) => {
+                          const recheck = () => {
+                            guard();
+                            required.forEach(requireGrant);
+                            checkTargets();
+                          };
+                          recheck();
+                          return prepared.run(recheck, beforeEffect);
+                        },
+                      }
+                    : prepared;
+                }
                 const lease = createTobMemoryLeaseOperations({
                   leases: () => deps.tobOperations.tobMemoryLeases,
-                  tobSlug: () => steward.slug,
+                  tobSlug: () => manager.slug,
                   sources: () => {
-                    requireAuthority(source.authorize);
-                    return source.sources();
+                    requireAuthority(source);
+                    return source.sources;
                   },
                 })(command, args, signal);
                 if (lease) return lease;
-                if (memberOperations) return memberOperations(command, args, signal);
                 const prepared =
                   (await deps.tobSettingsOperations.tobModelOperations(command, args)) ??
                   (await deps.tobSettingsOperations.tobMaintenanceOperations(command, args)) ??
@@ -387,6 +446,7 @@ export function createOrchestratorFileSetup(
                 if (!prepared) return prepared;
                 const scopedGuard = (guard: () => void) => () => {
                   guard();
+                  required.forEach(requireGrant);
                   checkTargets();
                 };
                 if (!['create', 'group-create'].includes(command))
@@ -408,35 +468,13 @@ export function createOrchestratorFileSetup(
                   },
                 };
               },
-              capabilities: memberTob
-                ? [
-                    ...TOB_BOT_CREATE_CAPABILITIES,
-                    ...TOB_BOT_PROFILE_CAPABILITIES,
-                    ...TOB_MEMORY_LEASE_CAPABILITIES,
-                    ...TOB_MEMORY_EDIT_CAPABILITIES,
-                    TOB_HOST_CLI_CAPABILITY,
-                  ]
-                : [
-                    ...TOB_MODEL_CAPABILITIES,
-                    ...TOB_MAINTENANCE_CAPABILITIES,
-                    ...TOB_BOT_CREATE_CAPABILITIES,
-                    ...TOB_BOT_PROFILE_CAPABILITIES,
-                    ...TOB_MEMORY_EDIT_CAPABILITIES,
-                    ...TOB_SHARE_DRAFT_CAPABILITIES,
-                    ...TOB_DIAGNOSTIC_CAPABILITIES,
-                    ...TOB_CHANNEL_CAPABILITIES,
-                    ...TOB_VOICE_CAPABILITIES,
-                    ...TOB_MEMORY_LEASE_CAPABILITIES,
-                    TOB_HOST_CLI_CAPABILITY,
-                  ],
-              readSetting: () => {
-                requireOwner();
-                return deps.core.tob.readSetting();
-              },
-              writeSetting: (value, revision, guard) => {
-                requireOwner();
-                return deps.core.tob.writeSetting(value, revision, guard);
-              },
+              capabilities: managementCapabilityList(
+                deps.core.tob.managementGrants(slug),
+                ownerBot ? OWNER_BOT_CAPABILITIES : MEMBER_BOT_CAPABILITIES,
+              ),
+              readSetting: () => deps.core.tob.readSetting(),
+              writeSetting: (value, revision, guard) =>
+                deps.core.tob.writeSetting(value, revision, guard),
               approve: (operation, signal, scope) =>
                 approveTobCliOperation({
                   execution,
@@ -468,7 +506,11 @@ export function createAssignmentShellSetup(
 ): NonNullable<Parameters<typeof createDshBotAgentAdapter>[0]['onAssignmentShellSetup']> {
   return async (agentCtx, agent) => {
     const owner = deps.core.ownership.resolve(agent.session.id);
-    if (owner?.rootRole !== 'assignment' || !deps.core.tob.isTob(owner.botSlug)) return undefined;
+    if (
+      owner?.rootRole !== 'assignment' ||
+      !deps.core.tob.holdsManagementGrant(owner.botSlug, 'manage-bots')
+    )
+      return undefined;
     const assignmentSessionId = agent.session.id;
     const leases = () => deps.tobOperations.tobMemoryLeases;
     return installAssignmentShell(
@@ -483,7 +525,10 @@ export function createAssignmentShellSetup(
             const authorize = () => {
               if (execution.signal.aborted) throw new TobError('agent-context-expired');
               const current = deps.core.ownership.resolve(assignmentSessionId);
-              if (current?.rootRole !== 'assignment' || !deps.core.tob.isTob(current.botSlug))
+              if (
+                current?.rootRole !== 'assignment' ||
+                !deps.core.tob.holdsManagementGrant(current.botSlug, 'manage-bots')
+              )
                 throw new TobError('tob-authority-required');
               if (!leases().active(assignmentSessionId)) throw new TobError('lease-unavailable');
             };

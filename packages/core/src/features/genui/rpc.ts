@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { GenuiDocumentState } from '../../channels/genui-document.js';
 import type { GenuiPrivateView, GenuiViewState } from '../../channels/genui.js';
 import type { GenuiBridgeMethods } from './methods.js';

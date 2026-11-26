@@ -1,6 +1,10 @@
-import { asSlug, invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { asSlug, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import { pairingReviewInput, type PairingRequest } from '../../messaging/pairing.js';
-import { senderAccessInput } from '../../messaging/sender-access.js';
+import {
+  senderAccessInput,
+  threadReceptionInput,
+  groupReceptionInput,
+} from '../../messaging/permissions/index.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -12,8 +16,6 @@ import {
   type MessagingDefaults,
 } from '../../messaging/defaults.js';
 import type { MessagingIdentity } from '../../messaging/identity.js';
-import { threadReceptionInput } from '../../messaging/thread-policy.js';
-import { groupReceptionInput } from '../../messaging/group-policy.js';
 import type { ExternalSource } from '../../messaging/inbound.js';
 import type { SourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type {
@@ -112,6 +114,9 @@ export interface MessagingBridgeMethods {
   messagingPostConversation(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
   messagingPostRequest(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent | null }>>;
   messagingPostLimit(payload: unknown): Promise<BridgeResult<{ identity: MessagingIdentity }>>;
+  messagingGroupInteractions(
+    payload: unknown,
+  ): Promise<BridgeResult<{ identity: MessagingIdentity }>>;
   messagingTargets(payload: unknown): Promise<BridgeResult<{ targets: MessagingTarget[] }>>;
   messagingAuthorize(payload: unknown): Promise<BridgeResult<{ grant: MessagingGrant }>>;
   messagingRevoke(payload: unknown): Promise<BridgeResult<{ revoked: true }>>;
@@ -477,6 +482,26 @@ export function createMessagingBridgeMethods(
           input.data.expectedRevision,
           input.data.limit,
         ),
+      }));
+    },
+    messagingGroupInteractions(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1),
+          bindingId: z.string().uuid(),
+          expectedRevision: z.number().int().positive(),
+          enabled: z.boolean().nullable(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid group interactions'));
+      return messagingCall(async (service) => ({
+        identity: await service.setGroupInteractions({
+          botSlug: input.data.slug,
+          bindingId: input.data.bindingId,
+          expectedRevision: input.data.expectedRevision,
+          enabled: input.data.enabled,
+        }),
       }));
     },
     messagingTargets(payload) {

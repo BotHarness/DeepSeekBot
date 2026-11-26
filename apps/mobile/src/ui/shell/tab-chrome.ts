@@ -9,6 +9,7 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scrollChrome, tabChrome } from '../design/tokens';
+import { useHideBarsOnScroll } from '../interface-preferences';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 
 export type TabChrome = {
@@ -53,7 +54,8 @@ export function useChromeHidden(hidden: SharedValue<number> | undefined): boolea
   return state;
 }
 
-export function useHideChromeOnScroll(enabled: boolean) {
+export function useHideChromeOnScroll(allowed: boolean) {
+  const enabled = useHideBarsOnScroll() && allowed;
   const chrome = useTabChrome();
   const reduced = useSystemReducedMotion();
   const state = useSharedValue<ChromeScroll>(chromeShown);

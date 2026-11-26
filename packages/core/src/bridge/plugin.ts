@@ -75,6 +75,7 @@ export function createHostBridgeDependencies(
     modelReadiness: ReturnType<typeof models.createCatalog>['modelReadiness'];
     sessionLive: SessionLiveStreams;
     nativeSessions: NativeSessions;
+    externalSessions: import('../features/sessions/external-sessions.js').ExternalSessionReader;
     takeovers: ReturnType<typeof createCoreTakeoverHandoffs>;
     folders: ReturnType<typeof workspacesFeature.mountFolders>;
     mountedToolApproval: ReturnType<typeof approvalsFeature.mount>['toolApproval'];
@@ -82,6 +83,8 @@ export function createHostBridgeDependencies(
     marketplaceClient: ReturnType<typeof marketplace.apply>['marketplaceClient'];
     marketplaceUploads: ReturnType<typeof marketplace.apply>['marketplaceUploads'];
     shareDrafts: ReturnType<typeof marketplace.apply>['shareDrafts'];
+    marketplaceSkillSource: ReturnType<typeof marketplace.apply>['marketplaceSkillSource'];
+    hostSkillsDir: string;
     dshHome: string;
     reviewing: Set<string>;
     telemetryDir: string;
@@ -130,6 +133,8 @@ export function createHostBridgeDependencies(
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,
@@ -142,6 +147,12 @@ export function createHostBridgeDependencies(
     developerMode,
   } = deps;
   const { botModeSettings, productBotMode, installedBotModes, botModeOf } = botModes;
+  const marketplaceReceipts = marketplace.createReceipts(
+    ctx,
+    marketplaceClient,
+    telemetryDir,
+    marketplaceSkillSource,
+  );
   return {
     team,
     skills: skills.catalog,
@@ -315,10 +326,21 @@ export function createHostBridgeDependencies(
     channels: core.channels,
     attachments: core.attachments,
     ownership: core.ownership,
+    workspaceLooks: core.workspaceLooks,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    ...(core.connectors === undefined ? {} : { connectors: core.connectors }),
     sessionLive,
     nativeSessions: deps.nativeSessions,
+    externalSessions: deps.externalSessions,
+    async registerWorkspace(path) {
+      const registry = ctx.get('workspaceRegistry') as unknown as
+        | { create: NonNullable<BridgeMethodsDeps['registerWorkspace']> }
+        | undefined;
+      if (!registry) throw new Error('Workspace Registry is unavailable');
+      const { id, path: registeredPath, title } = await registry.create(path);
+      return { id, path: registeredPath, title };
+    },
     sessionModels: sessionModelChoices(
       attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
     ),
@@ -384,7 +406,13 @@ export function createHostBridgeDependencies(
       marketplaceUploads,
     }),
     shareDrafts,
-    marketplaceReceipts: marketplace.createReceipts(ctx, marketplaceClient, telemetryDir),
+    marketplaceReceipts,
+    marketplaceSkills: {
+      source: marketplaceSkillSource,
+      hostSkillsDir,
+      receipt: (skillId: string, target: string) =>
+        void marketplaceReceipts.sendSkill?.(skillId, target).catch(() => undefined),
+    },
     release: releaseService,
     plugins: pluginUpdates,
     updates: updateRuns,

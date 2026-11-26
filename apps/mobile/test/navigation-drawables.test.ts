@@ -10,15 +10,14 @@ const drawables = [
 ].map((match) => match[1]!);
 
 describe('Android tab drawables', () => {
-  it('cover an outline and a filled icon for every tab', () => {
+  it('cover an outline and a filled icon for every glyph tab, and one code glyph for Sessions', () => {
     expect(new Set(drawables)).toEqual(
       new Set([
         'chats.xml',
         'chats-filled.xml',
         'activity.xml',
         'activity-filled.xml',
-        'sessions.xml',
-        'sessions-filled.xml',
+        'code.xml',
         'settings.xml',
         'settings-outline.xml',
       ]),

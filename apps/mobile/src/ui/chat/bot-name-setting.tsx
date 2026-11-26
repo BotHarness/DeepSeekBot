@@ -73,14 +73,14 @@ export function RenameBotSheet({
           )}
         </View>
         <SheetActions>
-          <Button label={t.cancel} disabled={busy} on="canvas" onPress={onClose} />
+          <Button label={t.cancel} disabled={busy} on="sheet" onPress={onClose} />
           <Button
             testID="bot-name-save"
             label={t.botNameSave}
             busy={busy}
             disabled={next === '' || next === name}
             tone="primary"
-            on="canvas"
+            on="sheet"
             onPress={() => void save()}
           />
         </SheetActions>

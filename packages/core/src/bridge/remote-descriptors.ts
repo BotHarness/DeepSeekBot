@@ -5,6 +5,9 @@ const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-method
 const botSessionResources = Object.freeze({
   session: () => undefined,
 } satisfies TypertResourceReaders<readonly unknown[]>);
+const botWorkspaceGrantResources = Object.freeze({
+  workspace: () => undefined,
+} satisfies TypertResourceReaders<readonly unknown[]>);
 
 interface RemoteMethodDescriptor {
   readonly version: 1;
@@ -24,6 +27,9 @@ export function markRemoteMethods(prototype: object, methods: readonly string[])
         method,
         invocation: Object.freeze({ kind: 'direct' }),
         ...(MEMBER_BOT_SESSION_ID_METHODS.has(method) ? { resources: botSessionResources } : {}),
+        ...(method === 'grantCreate' || method === 'grantRequestApprove'
+          ? { resources: botWorkspaceGrantResources }
+          : {}),
       }),
     ),
   };

@@ -186,14 +186,16 @@ export function createFakeGitHub(): {
   const search = (url: URL): Response => {
     const query = url.searchParams.get('q') ?? '';
     searches.push(query);
+    const topic = /topic:(\S+)/u.exec(query)?.[1] ?? 'botharness-bot';
     const range = /created:(\S+)\.\.(\S+)/u.exec(query);
     const from = Date.parse(range?.[1] ?? '');
     const to = Date.parse(range?.[2] ?? '');
     const page = Number(url.searchParams.get('page') ?? '1');
     const perPage = Number(url.searchParams.get('per_page') ?? '30');
     const matches = [...repositories.values()]
-      .filter((repository) => !repository.private && repository.topics.includes('botharness-bot'))
+      .filter((repository) => !repository.private && repository.topics.includes(topic))
       .filter((repository) => {
+        if (range === null) return true;
         const created = Date.parse(repository.createdAt);
         return created >= from && created <= to;
       })
@@ -224,9 +226,10 @@ export function createFakeGitHub(): {
         data: { nodes: variables.ids.map((id) => graph(byId.get(id))) },
       });
     }
-    const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.*))?)?$/u.exec(
-      url.pathname,
-    );
+    const match =
+      /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents|git\/trees)(?:\/(.*))?)?$/u.exec(
+        url.pathname,
+      );
     const repository =
       match === null ? undefined : repositories.get(`${match[1]}/${match[2]}`.toLowerCase());
     if (match === null || repository === undefined || repository.private) {
@@ -256,6 +259,16 @@ export function createFakeGitHub(): {
       return match[4] !== '.botharness/bot.json' || repository.descriptor === null
         ? respond(404, { message: 'Not Found' })
         : new Response(repository.descriptor, { status: 200 });
+    }
+    if (match[3] === 'git/trees') {
+      return respond(200, {
+        truncated: false,
+        tree: Object.entries(repository.files ?? {}).map(([path, content]) => ({
+          path,
+          type: 'blob',
+          size: new TextEncoder().encode(content).byteLength,
+        })),
+      });
     }
     if (match[3] === 'commits') {
       return repository.head === undefined

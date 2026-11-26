@@ -28,11 +28,13 @@ export function TabNativeHeader({
   leading,
   search,
   items,
+  glass = false,
 }: {
   title: string;
   leading: ReactElement | null;
   search?: TabHeaderSearch | undefined;
   items?: NativeStackHeaderItem[] | undefined;
+  glass?: boolean;
 }) {
   const theme = useDesignTheme();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -57,14 +59,25 @@ export function TabNativeHeader({
     headerShown: true,
     headerBackVisible: false,
     headerLargeTitleEnabled: false,
-    headerTransparent: false,
-    headerStyle: { backgroundColor: theme.color.base },
-    headerLargeStyle: {},
+    headerTransparent: true,
+    headerShadowVisible: false,
+    headerStyle: glass ? {} : { backgroundColor: theme.color.base },
+    headerLargeStyle: glass ? {} : { backgroundColor: theme.color.base },
+    ...(glass
+      ? {
+          scrollEdgeEffects: {
+            top: 'soft',
+            bottom: 'soft',
+            left: 'hidden',
+            right: 'hidden',
+          } as const,
+        }
+      : {}),
     headerUserInterfaceStyle: theme.scheme,
     unstable_headerLeftItems: () =>
       leading == null || searchOpen
         ? []
-        : [{ type: 'custom', element: leading, hidesSharedBackground: true }],
+        : [{ type: 'custom', element: leading, hidesSharedBackground: !glass }],
     unstable_headerRightItems: () =>
       searchOpen
         ? []

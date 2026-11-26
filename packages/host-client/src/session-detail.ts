@@ -10,6 +10,8 @@ import {
   type TurnModelSwitch,
   type TurnTarget,
 } from '@botharness/host-protocol/turn-target';
+import type { HostSessionPendingInput } from '@botharness/host-protocol/host-sessions';
+import { hostSessionPendingInput } from './host-sessions';
 import { record as asRecord, type HostCall } from './host-answer';
 
 type SessionOwner = {
@@ -248,7 +250,9 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
 }
 
 export interface SessionTranscript {
+  pendingInput?: HostSessionPendingInput[];
   role: 'orchestrator' | 'assignment' | 'native';
+  parentSessionId?: string;
   displayTitle?: string;
   titleFallback?: boolean;
   cwd?: string;
@@ -275,6 +279,7 @@ export function parseSessionEngine(value: unknown): SessionEngine | undefined {
 }
 
 export interface SessionLiveSnapshot {
+  pendingInput?: HostSessionPendingInput[];
   revision: number;
   seq: number;
   items: SessionTranscriptItem[];
@@ -417,9 +422,13 @@ export async function sessionTranscript(
     throw new Error('invalid sessionTranscript response');
   const engine = parseSessionEngine(value['engine']);
   const currentTarget = value['currentTarget'];
+  const pendingInput = slug === null ? hostSessionPendingInput(value['pendingInput']) : undefined;
   return {
     role:
       value['role'] === 'native' || value['role'] === 'orchestrator' ? value['role'] : 'assignment',
+    ...(typeof value['parentSessionId'] === 'string' && value['parentSessionId'] !== ''
+      ? { parentSessionId: value['parentSessionId'] }
+      : {}),
     ...(typeof value['displayTitle'] === 'string' && value['displayTitle'].trim() !== ''
       ? { displayTitle: value['displayTitle'] }
       : {}),
@@ -431,6 +440,7 @@ export async function sessionTranscript(
     seq: finite(value['seq']) ?? 0,
     ...(engine === undefined ? {} : { engine }),
     ...(isTurnTarget(currentTarget) ? { currentTarget } : {}),
+    ...(pendingInput === undefined ? {} : { pendingInput }),
   };
 }
 
@@ -446,7 +456,9 @@ export async function sessionLive(
   const items = value?.['items'];
   if (value === undefined || !Array.isArray(items) || typeof value['revision'] !== 'number')
     throw new Error('invalid sessionLive response');
+  const pendingInput = slug === null ? hostSessionPendingInput(value['pendingInput']) : undefined;
   return {
+    ...(pendingInput === undefined ? {} : { pendingInput }),
     revision: value['revision'],
     seq: finite(value['seq']) ?? 0,
     items: parseItems(items).map((item) =>

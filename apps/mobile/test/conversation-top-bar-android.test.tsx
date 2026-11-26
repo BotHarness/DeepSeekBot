@@ -164,6 +164,22 @@ describe('Android Conversation screen top app bar at large text', () => {
   });
 });
 
+describe('Android Conversation screen top app bar leading action', () => {
+  it('drops Back for a tab-root conversation and keeps it elsewhere', () => {
+    const markup = (leading?: 'back' | 'none') =>
+      renderToStaticMarkup(
+        <ConversationTopBar
+          title={TITLE}
+          onBack={() => {}}
+          onProfile={() => {}}
+          {...(leading === undefined ? {} : { leading })}
+        />,
+      );
+    expect(markup()).toContain('chat-back');
+    expect(markup('none')).not.toContain('chat-back');
+  });
+});
+
 describe('Android Session header', () => {
   it('opens the Session menu from the name capsule, with the full name on top and no ⋯ button', () => {
     device.fontScale = 1;
@@ -227,7 +243,7 @@ describe('Android Session header', () => {
     const place = view.querySelector('[data-test-id="session-header-place"]');
     expect(place?.textContent).toBe('app-5187');
     expect(view.querySelector('[data-node="MaterialMenuGroup"]')?.getAttribute('data-header')).toBe(
-      `${TITLE}\nStudio Mac\n/srv/worktrees/app-5187`,
+      `${TITLE}\nStudio Mac\n/\u200bsrv/\u200bworktrees/\u200bapp-\u200b5187`,
     );
   });
 });

@@ -9,7 +9,9 @@ import {
   partitionFiles,
   runSelected,
   selectAffected,
+  selectFull,
   SHARD_THRESHOLD,
+  UNRECORDED_SECONDS,
 } from '../ci-affected.mjs';
 import { DOCS_SITE_TEST, ROOT, SHARDS } from '../ci-plan.mjs';
 
@@ -50,6 +52,21 @@ describe('affected test partitioning', () => {
     },
   );
 
+  it('balances shards by recorded duration rather than file count', () => {
+    const seconds = { 'slow.test.ts': 90, 'mid.test.ts': 50, 'other.test.ts': 40 };
+    const quick = Array.from({ length: 10 }, (_, index) => `quick/${index}.test.ts`);
+    const result = partitionFiles([...Object.keys(seconds), ...quick], { seconds, shards: 2 });
+    const load = result.matrix.include.map((shard) =>
+      shard.files.reduce((sum, file) => sum + (seconds[file] ?? UNRECORDED_SECONDS), 0),
+    );
+    expect(result.matrix.include[0].files).toContain('slow.test.ts');
+    expect(result.matrix.include[1].files).toEqual(
+      expect.arrayContaining(['mid.test.ts', 'other.test.ts']),
+    );
+    expect(Math.abs(load[0] - load[1])).toBeLessThanOrEqual(UNRECORDED_SECONDS * quick.length);
+    for (const shard of result.matrix.include) expect(shard.files).toEqual([...shard.files].sort());
+  });
+
   it('deduplicates selection before counting and assigning shards', () => {
     expect(partitionFiles([testFile, testFile])).toEqual({
       count: 1,
@@ -83,7 +100,7 @@ describe('affected test selection', () => {
         related: ['packages/core/src/shared.ts'],
         watch: false,
         run: true,
-        exclude: [DOCS_SITE_TEST],
+        project: ['!docs-site'],
       }),
     );
     expect(result.matrix.include[0].files).toEqual([otherFile, testFile].sort());
@@ -118,6 +135,21 @@ describe('affected test selection', () => {
     await expect(selectAffected([testFile], { create })).rejects.toThrow(
       'invalid test module path',
     );
+    expect(runner.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('full test selection', () => {
+  it('splits every test except the docs-site test into the full shard count', async () => {
+    const { runner, create } = runnerFor([otherFile, testFile, DOCS_SITE_TEST]);
+    const result = await selectFull({ create });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ project: ['!docs-site'] }));
+    expect(result.count).toBe(2);
+    expect(result.matrix.include).toHaveLength(SHARDS);
+    expect(result.matrix.include.flatMap((shard) => shard.files).sort()).toEqual(
+      [otherFile, testFile].sort(),
+    );
+    expect(runner.runTestSpecifications).not.toHaveBeenCalled();
     expect(runner.close).toHaveBeenCalledOnce();
   });
 });

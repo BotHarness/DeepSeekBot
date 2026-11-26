@@ -1,27 +1,30 @@
+import type { BotSourceBlockInput, botSourceBlocks } from './permissions/index.js';
 import type { ReceptionRecovery } from './receiver-recovery.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import type { FailureAlerts, FailureAlertSnapshot } from './failure-alerts.js';
 import type { ApprovalMessaging, ApprovalMessagingSnapshot } from './approval-messaging.js';
-import type { ExternalPermissionGroup } from './permission-groups.js';
-import type { BehaviorPermission } from './behavior-permissions.js';
-import type { QuestionDelivery, QuestionMessaging } from './question-messaging.js';
-import type { MessagingDirectoryQuery, MessagingDirectoryPage } from './directory.js';
-import type { BotPairing, PairingRequest, PairingReviewInput } from './pairing.js';
 import type {
+  ExternalPermissionGroup,
+  BehaviorPermission,
+  SenderBlock,
+  ConversationSourceBlock,
   SenderPermissions,
   SenderAccessInput,
   SenderPolicy,
   ExternalUserRole,
-} from './sender-access.js';
+  ThreadReceptionView,
+  GroupReceptionPolicy,
+} from './permissions/index.js';
+import type { QuestionDelivery, QuestionMessaging } from './question-messaging.js';
+import type { MessagingDirectoryQuery, MessagingDirectoryPage } from './directory.js';
+import type { BotPairing, PairingRequest, PairingReviewInput } from './pairing.js';
 import type {
   MessagingIdentity,
   MessagingIdentityView,
   MessagingIdentityInput,
 } from './identity.js';
-import type { ThreadReceptionView } from './thread-policy.js';
 import type { ReceptionInterval } from './reception-history.js';
 import type { MessagingDefaults, MessagingDefaultsInput } from './defaults.js';
-import type { GroupReceptionPolicy } from './group-policy.js';
 import type {
   BlockedConversation,
   HeldConversation,
@@ -143,6 +146,8 @@ export interface MessagingSnapshot {
   checks?: 'pending' | 'complete';
   questions?: QuestionDelivery[];
   permissionGroups?: ExternalPermissionGroup[];
+  senderBlocks?: SenderBlock[];
+  conversationBlocks?: ConversationSourceBlock[];
   behaviorPermissions?: BehaviorPermission[];
   senderPolicy?: SenderPolicy;
   roles?: ExternalUserRole[];
@@ -201,6 +206,10 @@ export interface OutboundMessaging {
   senderAccess(botSlug: string, input: SenderAccessInput): void;
   toolRuleCreatorAuthorized(botSlug: string, creator: ToolApprovalActor): boolean;
   senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;
+  sourceBlocks(
+    botSlug: string,
+    input: BotSourceBlockInput & { sourceEventId?: string },
+  ): ReturnType<typeof botSourceBlocks>;
   directory(botSlug: string, query: MessagingDirectoryQuery): MessagingDirectoryPage;
   reviewPairing(botSlug: string, input: PairingReviewInput): Promise<PairingRequest>;
   inbound: InboundMessaging;
@@ -265,6 +274,12 @@ export interface OutboundMessaging {
     expectedRevision: number,
     limit: number | null,
   ): Promise<MessagingIdentity>;
+  setGroupInteractions(input: {
+    botSlug: string;
+    bindingId: string;
+    expectedRevision: number;
+    enabled: boolean | null;
+  }): Promise<MessagingIdentity>;
   postConversation(
     botSlug: string,
     bindingId: string,

@@ -79,6 +79,7 @@ export function createDesktopProvisioningHandlers({
       return json({
         target: target(),
         platform: process.platform,
+        unlock: (await service.unlock?.status()) ?? { code: 'unavailable' },
         provider: service.providerName ?? null,
         probe,
         status,

@@ -35,6 +35,7 @@ const CODES = [
   'media-helper-missing',
   'media-failed',
   'call-active',
+  'calls-full',
   'call-not-found',
   'call-ended',
   'signal-failed',

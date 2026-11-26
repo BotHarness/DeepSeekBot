@@ -102,6 +102,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createTeamWorkbenchPanel } from './team-workbench.js';
 import { createEnvironmentPanel, openEnvironmentJoin } from './environment-panel.js';
 import { mountHostSettingsOpener } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
@@ -133,6 +134,7 @@ import { WindowCompanions } from './window-companions.js';
 import { WindowCompanionsView } from './window-companions-view.js';
 
 import { mountClientLive } from './client-live.js';
+import { registerNativeSessionModelSwitch } from './native-session-model-switch.js';
 import { panelInfoOf, registerClientPanels } from './client-panel-registration.js';
 import { registerClientSettings } from './client-settings-registration.js';
 import { installStyles } from './install-client-styles.js';
@@ -151,6 +153,7 @@ export const inject = [
   'theme',
   'sessions',
   'uiWorkspace',
+  'uiConversation',
   'workspaces',
   'remote',
   'remote.session',
@@ -349,7 +352,7 @@ export function apply(ctx: ClientContext): void {
   const botSettings = new BotSettings(() =>
     openEnvironmentJoin(dockPanels, () => ctx.layout.selectPanel(PANEL_ID)),
   );
-  ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
+  ctx.effect(() => mountHostSettingsOpener(botSettings));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
   ctx.effect(
@@ -614,6 +617,7 @@ export function apply(ctx: ClientContext): void {
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
+        ...(member ? [] : [dockPanels.register(createTeamWorkbenchPanel(call, t))]),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
@@ -834,6 +838,7 @@ export function apply(ctx: ClientContext): void {
     updateRuns,
   });
 
+  registerNativeSessionModelSwitch(ctx, actions);
   registerClientPanels(ctx, {
     panelId: PANEL_ID,
     t,

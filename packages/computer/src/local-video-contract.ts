@@ -193,6 +193,7 @@ export interface LocalVideoOwner {
     signal?: AbortSignal,
   ): Promise<LocalVideoState>;
   runBotOperation<T>(operation: () => Promise<T>): Promise<T>;
+  runUnlock<T>(operation: (signal: AbortSignal) => Promise<T>, signal: AbortSignal): Promise<T>;
   isPaused(): boolean;
   controlEpoch(): number;
   pauseUnavailable(): Promise<void>;

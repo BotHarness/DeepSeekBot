@@ -43,7 +43,7 @@ function Glass({ cornerRadius }: { cornerRadius?: number }) {
           modifiers={[
             foregroundStyle('transparent'),
             glassEffect({
-              glass: { variant: 'regular', tint: theme.color.surface },
+              glass: { variant: 'regular' },
               shape: 'circle',
             }),
             accessibilityHidden(),
@@ -55,7 +55,7 @@ function Glass({ cornerRadius }: { cornerRadius?: number }) {
           modifiers={[
             foregroundStyle('transparent'),
             glassEffect({
-              glass: { variant: 'regular', tint: theme.color.surface },
+              glass: { variant: 'regular' },
               shape: 'roundedRectangle',
               cornerRadius,
             }),

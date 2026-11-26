@@ -11,11 +11,37 @@ import {
 } from '../../workspaces/approval-reviewer.js';
 import type { ToolAutoApproval, TrackedCall } from './tool-approval-types.js';
 
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
+  );
+}
+
+function canonicalInput(input: string): string {
+  try {
+    return JSON.stringify(canonical(JSON.parse(input)));
+  } catch {
+    return input;
+  }
+}
+
+export function approvalOverrideKey(call: {
+  sessionId: string;
+  toolName: string;
+  input: string;
+}): string {
+  return JSON.stringify([call.sessionId, call.toolName, canonicalInput(call.input)]);
+}
+
 export async function reviewToolApproval(
   tracked: TrackedCall,
   template: { name: string; text: string },
   channelId: string,
-  options: { signal: AbortSignal | undefined; includeSessionHistory: boolean },
+  options: { signal: AbortSignal | undefined; includeSessionHistory: boolean; prefixRule: boolean },
   dependencies: {
     autoApproval: ToolAutoApproval | undefined;
     attention: { warn(message: string): void } | undefined;
@@ -105,6 +131,7 @@ export async function reviewToolApproval(
   try {
     review = await auto.review({
       botSlug: tracked.botSlug,
+      ...(options.prefixRule ? { standingShellPrefix: true } : {}),
       template: { ...template, version: templateVersion },
       call: {
         toolName: tracked.toolName,
@@ -169,6 +196,10 @@ export async function reviewToolApproval(
     await recordReview('ask-human', review.reason);
     log('ask-human');
     return undefined;
+  }
+  if (options.prefixRule) {
+    log(review.outcome);
+    return 'allowed-once';
   }
   if (!(await recordReview('allowed', review.reason))) {
     log(review.outcome, 'record-unavailable');

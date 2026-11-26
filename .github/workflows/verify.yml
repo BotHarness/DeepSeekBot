@@ -36,7 +36,7 @@ env:
 jobs:
   plan:
     name: plan tests and run small selections
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
@@ -48,7 +48,9 @@ jobs:
       android-native: ${{ steps.plan.outputs.android-native }}
       perf: ${{ steps.plan.outputs.perf }}
       ui-visual: ${{ steps.plan.outputs.ui-visual }}
+      confinement: ${{ steps.plan.outputs.confinement }}
       mobile: ${{ steps.plan.outputs.mobile }}
+      private-relay: ${{ steps.plan.outputs.private-relay }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
       shards: ${{ steps.select.outputs.shards }}
@@ -74,12 +76,18 @@ jobs:
       - id: plan
         run: node scripts/ci-plan.mjs --github --changes "$RUNNER_TEMP/changes.tsv"
       - id: select
-        if: steps.plan.outputs.tests == 'affected'
+        if: steps.plan.outputs.tests == 'affected' || steps.plan.outputs.tests == 'full'
         env:
           RELATED: ${{ steps.plan.outputs.related }}
-        run: node scripts/ci-affected.mjs --select
+          TESTS: ${{ steps.plan.outputs.tests }}
+        run: |
+          if [ "$TESTS" = full ]; then
+            node scripts/ci-affected.mjs --select-full
+          else
+            node scripts/ci-affected.mjs --select
+          fi
       - name: Run small affected selection
-        if: steps.select.outputs.shards == '1'
+        if: steps.plan.outputs.tests == 'affected' && steps.select.outputs.shards == '1'
         timeout-minutes: 15
         run: exec node scripts/ci-with-deadline.mjs 885 1 node scripts/ci-affected.mjs --run
         env:
@@ -177,6 +185,48 @@ jobs:
       - name: Report kernel out-of-memory kills
         if: failure() || cancelled()
         run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
+
+  private-relay:
+    name: Go private relay and wire conformance
+    needs: plan
+    if: needs.plan.outputs.private-relay == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deploy/private-relay
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: deploy/private-relay/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: go test -race ./...
+      - run: docker build -t tobs-relay:ci .
+      - run: npm ci --ignore-scripts
+      - name: Check the container against the Node conformance client
+        run: |
+          work=$(mktemp -d)
+          volume=$(docker volume create)
+          trap 'docker rm -f tobs-relay-ci >/dev/null 2>&1 || true; docker volume rm "$volume" >/dev/null; rm -rf "$work"' EXIT
+          config=(-v "$volume:/data" tobs-relay:ci)
+          docker run --rm "${config[@]}" setup relay.example.test
+          docker run --rm "${config[@]}" add-host conformance-a
+          docker run --rm "${config[@]}" add-host conformance-b
+          docker run -d --name tobs-relay-ci --read-only --cap-drop ALL \
+            -e RELAY_TLS=off -e RELAY_LISTEN=:8080 -p 127.0.0.1::8080 "${config[@]}"
+          for attempt in {1..20}; do
+            if docker exec tobs-relay-ci /tobs-relay health; then break; fi
+            sleep 1
+          done
+          docker exec tobs-relay-ci /tobs-relay health
+          docker cp tobs-relay-ci:/data/host-conformance-a.secret "$work/a.secret"
+          docker cp tobs-relay-ci:/data/host-conformance-b.secret "$work/b.secret"
+          node conformance.mjs --origin "http://$(docker port tobs-relay-ci 8080/tcp)" \
+            --key-a-file "$work/a.secret" --key-b-file "$work/b.secret"
 
   mobile-export:
     name: mobile verification (iOS and Android)
@@ -281,7 +331,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :expo-ui-teardown:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
       - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
       - name: Retain Android unit-test failure reports
@@ -412,12 +462,11 @@ jobs:
     name: test (shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'full'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -430,15 +479,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Run Vitest shard
         timeout-minutes: 15
-        run: >-
-          exec node scripts/ci-with-deadline.mjs 885 1 pnpm vitest run
-          --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: exec node scripts/ci-with-deadline.mjs 885 1 node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(matrix.files) }}
 
   test-affected:
     name: test (affected shard ${{ matrix.shard }})
     needs: plan
-    if: needs.plan.outputs.shards == '3'
-    runs-on: ubuntu-latest
+    if: needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '4'
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 17
     strategy:
       fail-fast: false
@@ -530,6 +579,41 @@ jobs:
           name: ui-visual
           path: .humanlayer/ui-visual/*.png
           if-no-files-found: ignore
+
+  confinement:
+    name: member Shell confinement under bwrap
+    needs: plan
+    if: needs.plan.outputs.confinement == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the sandbox tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends bubblewrap slirp4netns nftables
+      - name: Let bwrap and unshare create user namespaces under AppArmor
+        run: |
+          [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] || exit 0
+          allow() {
+            printf 'abi <abi/4.0>,\nprofile %s %s flags=(unconfined) {\n  userns,\n}\n' "$1" "$2" |
+              sudo tee "/etc/apparmor.d/$1" >/dev/null
+            sudo apparmor_parser -r "/etc/apparmor.d/$1"
+          }
+          allow botharness-ci-unshare "$(command -v unshare)"
+          bwrap --ro-bind / / --unshare-user true 2>/dev/null || allow botharness-ci-bwrap "$(command -v bwrap)"
+      - name: Run the confinement tests with real bwrap
+        env:
+          BOTHARNESS_REQUIRE_CONFINEMENT: '1'
+        run: pnpm exec vitest run packages/core/test/member-confinement.test.ts packages/core/test/shell-reach.test.ts
 
   perf-budget:
     name: timeline performance budget
@@ -638,6 +722,7 @@ jobs:
       [
         plan,
         static,
+        private-relay,
         mobile-export,
         mobile-native,
         mobile-native-ios,
@@ -647,6 +732,7 @@ jobs:
         e2e-smoke,
         perf-budget,
         ui-visual,
+        confinement,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -660,6 +746,7 @@ jobs:
           const needs = JSON.parse(process.env.NEEDS);
           const plan = needs.plan.outputs;
           const required = ['plan', 'static'];
+          if (plan['private-relay'] === 'true') required.push('private-relay');
           if (process.env.IOS_HARDWARE_SEND_TESTS === 'true') required.push('mobile-native-ios');
           if (plan.mobile === 'true') required.push('mobile-export');
           if (plan['android-native'] === 'true') required.push('mobile-native');
@@ -667,17 +754,22 @@ jobs:
           if (plan.tests !== 'none') required.push('e2e-smoke');
           if (plan.perf === 'true') required.push('perf-budget');
           if (plan['ui-visual'] === 'true') required.push('ui-visual');
-          if (plan.tests === 'full') required.push('test-full');
+          if (plan.confinement === 'true') required.push('confinement');
+          if (plan.tests === 'full') {
+            if (plan.shards !== '4') throw new Error('Invalid full test shards');
+            required.push('test-full');
+          }
           if (plan.tests === 'affected') {
             const count = plan.count;
             const shards = plan.shards;
             if (!/^\d+$/.test(count ?? '')) throw new Error('Missing affected test count');
-            if (!['0', '1', '3'].includes(shards) ||
+            if (!['0', '1', '4'].includes(shards) ||
                 (Number(count) === 0) !== (shards === '0')) throw new Error('Invalid affected test shards');
-            if (shards === '3') required.push('test-affected');
+            if (shards === '4') required.push('test-affected');
           }
           if (!['none', 'affected', 'full'].includes(plan.tests) ||
-              !['true', 'false'].includes(plan.mobile)) throw new Error('Invalid CI plan');
+              !['true', 'false'].includes(plan.mobile) ||
+              !['true', 'false'].includes(plan['private-relay'])) throw new Error('Invalid CI plan');
           const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
           const missing = required.filter((name) => needs[name]?.result !== 'success');
           if (failed.length || missing.length) {

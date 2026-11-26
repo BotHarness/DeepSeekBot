@@ -6,7 +6,7 @@ import {
   type GroupMemberPickerResult,
   type GroupMembersAddResult,
 } from '@botharness/host-protocol/group-members';
-import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { isValidSlug } from '../../bots/slug.js';
@@ -36,11 +36,11 @@ export interface GroupMemberMethods {
 
 export function createGroupMemberMethods({
   human,
-  deps: { channels, registry, team, tob, warn },
+  deps: { channels, registry, team, warn },
   invite,
 }: {
   human: HumanContext;
-  deps: Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'team' | 'tob' | 'warn'>;
+  deps: Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'team' | 'warn'>;
   invite: ChannelsManagementAdapterMethods['channelGroupInvite'];
 }): GroupMemberMethods {
   const can = (channelId: string, policy: 'addBots' | 'addMembers') => {
@@ -131,7 +131,6 @@ export function createGroupMemberMethods({
         for (const bot of registry.list()) {
           if (
             bot.paused ||
-            tob?.isTob(bot.slug) ||
             members.has(bot.slug) ||
             pending.has(bot.slug) ||
             (!bot.displayName.toLowerCase().includes(match) && !bot.slug.includes(match))

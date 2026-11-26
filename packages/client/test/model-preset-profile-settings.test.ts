@@ -198,10 +198,12 @@ describe('Model Presets Settings', () => {
 
     await act(async () => buttonNamed('Delete preset “First”').click());
     expect(dialog().textContent).toContain('Ada');
-    expect(dialog().textContent).toContain('keep their applied model settings');
+    expect(dialog().textContent).toContain(
+      'switch to the Default preset and keep their own model settings',
+    );
     expect(call.mock.calls.some(([method]) => method === 'modelPresetDelete')).toBe(false);
     await act(async () => buttonNamed('Delete', dialog()).click());
     expect(owner.core.modelPresets.get(owner.first.id)).toBeUndefined();
-    expect(owner.core.registry.get('ada')?.modelPlan?.sourcePresetId).toBe(owner.first.id);
+    expect(owner.core.registry.get('ada')?.modelPlan?.sourcePresetId).not.toBe(owner.first.id);
   });
 });

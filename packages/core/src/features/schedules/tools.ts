@@ -43,37 +43,32 @@ export function registerScheduleTools(
     once_in_minutes: {
       type: 'integer',
       description:
-        'Run once N minutes from now (positive integer); requires the Human’s explicit time_zone. The Host computes the deadline and rounds up to the next whole minute, never earlier than requested. Turns itself off after firing. Prefer this for relative reminders.',
+        'Run once N minutes from now; needs the Human’s time_zone. Preferred for relative reminders.',
     },
     every_minutes: {
       type: 'integer',
-      description: 'Repeat every N minutes (1 or more; 60 = hourly, 1440 = every 24 hours).',
+      description: 'Repeat every N minutes (60 = hourly).',
     },
     daily_time: {
       type: 'string',
-      description:
-        'Local time HH:MM (24-hour). Alone it repeats every day; with weekdays it repeats on those days each week.',
+      description: 'Local HH:MM, daily; weekly with weekdays.',
     },
     weekdays: {
       type: 'array',
       items: { type: 'integer' },
-      description:
-        'ISO weekdays for a weekly schedule, Monday 1 through Sunday 7. Needs daily_time.',
+      description: 'ISO weekdays, Monday 1 to Sunday 7; needs daily_time.',
     },
     once_at: {
       type: 'string',
-      description:
-        'Run once at this local date and time, YYYY-MM-DD HH:MM; the schedule turns itself off after it fires.',
+      description: 'Run once at local YYYY-MM-DD HH:MM.',
     },
     cron: {
       type: 'string',
-      description:
-        'Five-field cron expression (minute hour day-of-month month day-of-week), for example "0 9 * * 1-5". Use only when the other forms cannot express the cadence.',
+      description: 'Five-field cron; only when the other forms cannot express the cadence.',
     },
     time_zone: {
       type: 'string',
-      description:
-        "IANA time zone, for example Asia/Shanghai. Required explicitly with once_in_minutes; daily_time, once_at and cron otherwise default to the Host's time zone.",
+      description: "IANA time zone; required with once_in_minutes, otherwise the Host's.",
     },
   } as const;
   const scheduleTriggerOf = (
@@ -142,7 +137,7 @@ export function registerScheduleTools(
   registerTool(
     defineTool({
       name: 'bot_schedule_list',
-      description: `List this PersonaBot's Bot Schedules (the 定时任务 the Human also sees in the Channel sidebar): id, title, prompt, trigger, enabled, creator (human or personabot), locked, nextRunAt and lastFiring, plus currentTime (ISO UTC from the Host clock, for calculating relative reminders). Locked schedules are read-only to you. At most ${BOT_SCHEDULE_ENABLED_LIMIT} can be enabled at once.`,
+      description: `List your Bot Schedules with currentTime (ISO UTC). Locked ones are read-only. At most ${BOT_SCHEDULE_ENABLED_LIMIT} can be enabled.`,
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -161,18 +156,17 @@ export function registerScheduleTools(
   registerTool(
     defineTool({
       name: 'bot_schedule_create',
-      description: `Create a one-time or recurring Bot Schedule for this PersonaBot, for a reminder or recurring task the Human asks for. Each firing arrives in your Bot Inbox as a due scheduled task and wakes you; the Human sees it in the Channel sidebar marked as created by you. Pass exactly one cadence: every_minutes, daily_time (plus weekdays for weekly), once_at, once_in_minutes, or cron. Fails with limit-reached when ${BOT_SCHEDULE_ENABLED_LIMIT} schedules are already enabled.`,
+      description: `Create a one-time or recurring Bot Schedule for a reminder or task the Human asks for; each firing wakes you through your Inbox. Pass exactly one cadence. Fails with limit-reached at ${BOT_SCHEDULE_ENABLED_LIMIT} enabled schedules.`,
       parameters: {
         title: {
           type: 'string',
           required: true,
-          description: 'Short name shown in the sidebar, at most 120 characters.',
+          description: 'Short name, at most 120 characters.',
         },
         prompt: {
           type: 'string',
           required: true,
-          description:
-            'What to do at each firing, written as an instruction to yourself, at most 4000 characters.',
+          description: 'Instruction to yourself for each firing, at most 4000 characters.',
         },
         ...scheduleTriggerArgs,
         enabled: { type: 'boolean', description: 'Defaults to true.' },
@@ -204,7 +198,7 @@ export function registerScheduleTools(
     defineTool({
       name: 'bot_schedule_update',
       description:
-        'Change one of your Bot Schedules: title, prompt, cadence (every_minutes, daily_time with optional weekdays, once_at, once_in_minutes or cron) or enabled (false pauses it). Pass only the fields to change. Works on Human-created schedules too unless the Human locked it; a locked schedule returns error code locked, so tell the Human instead of retrying.',
+        'Change a Bot Schedule; pass only the fields to change (enabled false pauses it). Error locked means the Human locked it: tell them, do not retry.',
       parameters: {
         id: {
           type: 'string',
@@ -237,8 +231,7 @@ export function registerScheduleTools(
   registerTool(
     defineTool({
       name: 'bot_schedule_delete',
-      description:
-        'Delete one of your Bot Schedules and its firing history. A schedule the Human locked returns error code locked. Returns deleted=false when the id does not exist.',
+      description: 'Delete a Bot Schedule and its history. Error locked means the Human locked it.',
       parameters: {
         id: {
           type: 'string',

@@ -1,10 +1,11 @@
+import { messagingPlatformIds } from './platforms/types.js';
 import type { ChannelRecord } from '../channels/channel.js';
 import { defaultGroupWakePolicy, type BotSourcePolicy } from '../runtime/source-policy.js';
 import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import { MessagingError } from './provider.js';
 
-export const messagingDefaultsPlatform = z.enum(['feishu', 'slack', 'discord', 'weixin', 'qq']);
+export const messagingDefaultsPlatform = z.enum(messagingPlatformIds);
 export type MessagingDefaultsPlatform = z.infer<typeof messagingDefaultsPlatform>;
 
 export const messagingDefaultsInput = z
@@ -18,6 +19,7 @@ export const messagingDefaultsInput = z
     identityEnabled: z.boolean(),
     typingEnabled: z.boolean().optional(),
     newConversations: z.enum(['auto', 'ask']).optional(),
+    groupInteractions: z.boolean().optional(),
   })
   .strict()
   .refine(
@@ -74,6 +76,9 @@ export function commitMessagingDefaults(
   const value = {
     ...preferences,
     newConversations: preferences.newConversations ?? prior.newConversations ?? 'auto',
+    ...((preferences.groupInteractions ?? prior.groupInteractions) === undefined
+      ? {}
+      : { groupInteractions: preferences.groupInteractions ?? prior.groupInteractions }),
     ...(parsed.platform === 'weixin'
       ? { typingEnabled: preferences.typingEnabled ?? prior.typingEnabled ?? true }
       : {}),

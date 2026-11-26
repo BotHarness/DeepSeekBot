@@ -1,13 +1,11 @@
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
-import { readHostSessionList } from '@botharness/host-client/host-sessions';
 import {
   HOST_SESSION_SORTS,
   type HostSessionFilter,
-  type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
-import { sessionReadHost } from '../../host/session-detail';
 import {
   interfacePreferences,
   useHideBotSessions,
@@ -15,7 +13,26 @@ import {
 } from '../../ui/interface-preferences';
 import type { SessionOptionGroup } from '../../ui/shell/host-session-options';
 import { useStrings } from '../../ui/strings';
-import { mergeSessionRows, mergeSessionSources, type SessionQueryRow } from './session-query-model';
+import {
+  nextSessionCursors,
+  readSessionListPage,
+  sessionListKey,
+  sessionListPartlyFailed,
+  sessionListRows,
+  sessionListSources,
+  sessionQueries,
+  type SessionCursors,
+} from './session-list-query';
+import {
+  localSessionKey,
+  localSessionRows,
+  localTitleMatches,
+  mergeSearchRows,
+  localSessionSources,
+  readLocalSessionLists,
+  readStoredSessionLists,
+  storedSessionKey,
+} from './session-list-local';
 
 export type SessionQueryHost = { hostId: string; hostName: string; client: HostClient };
 
@@ -39,25 +56,55 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
   const [chosenSource, setSource] = useState<HostSessionFilter>('all');
   const source: HostSessionFilter =
     hideBots && chosenSource.startsWith('bot:') ? 'all' : chosenSource;
-  const [sources, setSources] = useState<HostSessionSourceOption[]>();
   const [draft, setDraft] = useState('');
   const [debounced, setDebounced] = useState('');
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pendingSearch = useRef('');
-  const [result, setResult] = useState<{
-    search: string;
-    source: HostSessionFilter;
-    rows: SessionQueryRow[];
-  }>();
   const search = draft.trim();
   const searchReady = search === '' || search === debounced;
-  const read = result?.search === search && result.source === source ? result.rows : undefined;
-  const rows = hideBots ? read?.filter((row) => row.source.kind !== 'bot') : read;
-  const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [pullRefreshing, setPullRefreshing] = useState(false);
-  const flight = useRef<AbortController>(undefined);
   const online = useOnline(hosts);
+  const options = { sort, source, search };
+  const hostIds = hosts.map((host) => host.hostId);
+  const local = search === '';
+  const reachable = active && online && searchReady && hosts.length > 0;
+  const synced = useQuery(
+    {
+      queryKey: localSessionKey(hostIds),
+      queryFn: ({ signal }) => readLocalSessionLists(hosts, signal),
+      enabled: active && online && hosts.length > 0,
+    },
+    sessionQueries,
+  );
+  const stored = useQuery(
+    {
+      queryKey: storedSessionKey(hostIds),
+      queryFn: () => readStoredSessionLists(hosts),
+      enabled: hosts.length > 0,
+      staleTime: Infinity,
+    },
+    sessionQueries,
+  );
+  const list = useInfiniteQuery(
+    {
+      queryKey: sessionListKey(hostIds, options),
+      queryFn: ({ pageParam, signal }) => readSessionListPage(hosts, options, pageParam, signal),
+      initialPageParam: undefined as SessionCursors | undefined,
+      getNextPageParam: nextSessionCursors,
+      enabled: reachable && !local,
+    },
+    sessionQueries,
+  );
+  const localLists = synced.data ?? stored.data;
+  const localRows = localSessionRows(localLists, hosts, source, sort);
+  const read = local
+    ? localRows
+    : mergeSearchRows(localTitleMatches(localRows, search), sessionListRows(list.data, hosts));
+  const rows = hideBots ? read?.filter((row) => row.source.kind !== 'bot') : read;
+  const sources = localSessionSources(localLists) ?? sessionListSources(list.data);
+  const failed = local
+    ? synced.isError || (synced.data?.failed ?? 0) > 0
+    : list.isError || sessionListPartlyFailed(list.data);
+  const [pulling, setPulling] = useState(false);
 
   const changeSearch = (text: string, immediate = false) => {
     setDraft(text);
@@ -74,68 +121,25 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     }, []),
   );
 
+  const enabled = active && online && searchReady;
+  const refetch = local ? synced.refetch : list.refetch;
   const refresh = useCallback(
     (origin?: 'pull') => {
-      if (!active || !online || !searchReady) return;
-      if (origin === 'pull') setPullRefreshing(true);
-      if (flight.current !== undefined) return;
-      const abort = new AbortController();
-      flight.current = abort;
-      setFailed(false);
-      setBusy(true);
-      void Promise.allSettled(
-        hosts.map(async (host) => ({
-          host,
-          value: await readHostSessionList(sessionReadHost(host.client, abort.signal), {
-            search,
-            sort,
-            source,
-          }),
-        })),
-      )
-        .then((settled) => {
-          if (abort.signal.aborted) return;
-          const read = settled.flatMap((entry) =>
-            entry.status === 'fulfilled' ? [entry.value] : [],
-          );
-          if (read.length === 0) {
-            setFailed(true);
-            return;
-          }
-          setFailed(read.length < settled.length);
-          setResult({
-            search,
-            source,
-            rows: mergeSessionRows(
-              read.map(({ host, value }) => ({
-                hostId: host.hostId,
-                hostName: host.hostName,
-                rows: value.sessions,
-              })),
-            ),
-          });
-          setSources(mergeSessionSources(read.map(({ value }) => value.sources ?? [])));
-        })
-        .finally(() => {
-          if (flight.current !== abort) return;
-          flight.current = undefined;
-          setBusy(false);
-          setPullRefreshing(false);
-        });
+      if (!enabled) return;
+      if (origin === 'pull') setPulling(true);
+      void refetch({ cancelRefetch: false }).finally(() => setPulling(false));
     },
-    [active, hosts, online, search, searchReady, sort, source],
+    [enabled, refetch],
   );
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => {
-        flight.current?.abort();
-        flight.current = undefined;
-        setBusy(false);
-        setPullRefreshing(false);
-      };
     }, [refresh]),
   );
+  const loadMore = () => {
+    if (enabled && !local && list.hasNextPage && !list.isFetchingNextPage)
+      void list.fetchNextPage();
+  };
 
   const groups: SessionOptionGroup[] = [
     {
@@ -193,9 +197,12 @@ export function useSessionQuery(hosts: readonly SessionQueryHost[], active = tru
     searchReady,
     rows,
     failed,
-    busy,
+    busy: local ? synced.isFetching : list.isFetching,
     online,
-    pullRefreshing,
+    pullRefreshing: pulling && (local ? synced.isFetching : list.isFetching),
+    hasMore: !local && list.hasNextPage,
+    loadingMore: !local && list.isFetchingNextPage,
+    loadMore,
     groups,
     canQuery: online && sources !== undefined,
     optionsActive: sort !== 'last-human-turn' || source !== 'all' || hideBots,

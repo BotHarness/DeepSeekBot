@@ -22,7 +22,7 @@ import { SHEET_GROUP, Sheet, SheetActions, SheetCallout } from '../chat/sheet';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Loading } from '../request-parts';
 import { useStrings } from '../strings';
@@ -105,14 +105,12 @@ export function VoiceTemplateSheet({
   return (
     <Sheet visible label={t.template.edit} onClose={close} avoidKeyboard fill>
       <View ref={mount} testID="voice-template-edit" style={{ flexShrink: 1 }}>
-        <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-          <DrawerHeader
-            {...(Platform.OS === 'android'
-              ? { title: t.template.edit, subtitle: service.name }
-              : { title: t.template.editTitle(service.name) })}
-            onClose={close}
-          />
-        </View>
+        <SheetHeader
+          {...(Platform.OS === 'android'
+            ? { title: t.template.edit, subtitle: service.name }
+            : { title: t.template.editTitle(service.name) })}
+          onClose={close}
+        />
         <KeyboardFormScroll nestedScrollEnabled>
           {draft === undefined ? (
             error === undefined ? (

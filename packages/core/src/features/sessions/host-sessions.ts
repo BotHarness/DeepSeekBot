@@ -3,16 +3,24 @@ import {
   type SessionModelChoice,
   type SessionModelState,
 } from '@botharness/host-protocol/session-model';
-import { posix, win32 } from 'node:path';
 import {
+  HOST_SESSION_PAGE_MAX,
   HOST_SESSION_SEARCH_MAX,
+  isHostSessionApprovalDecision,
   isHostSessionFilter,
   isHostSessionSort,
+  type HostSessionActionReceipt,
+  type HostSessionApprovalDecision,
+  type HostSessionListChanges,
   type HostSessionListResult,
+  type HostSessionPendingInput,
   type HostSessionRow,
   type HostSessionSort,
   type HostSessionSourceOption,
+  type WorkspaceLookResult,
 } from '@botharness/host-protocol/host-sessions';
+import type { QuestionAnswer } from '@botharness/host-protocol/wire';
+import { z } from 'zod';
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import {
@@ -21,8 +29,9 @@ import {
   invalidInput,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
-import { botAvatarUrl } from '../../bots/avatar-http.js';
+} from '../../kernel/method-utils.js';
+import { normalizeWorkspaceLook } from '../../workspaces/workspace-looks.js';
+import { isAbsolute } from 'node:path';
 import type { HumanContext } from '../../humans/context.js';
 import {
   sessionDisplayTitle,
@@ -31,6 +40,14 @@ import {
 } from '../../runtime/session-transcript.js';
 import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
+import {
+  compareSessionKeys,
+  decodeSessionCursor,
+  sessionPage,
+  sessionPageLimit,
+} from './session-list-page.js';
+import { fillSessionTitles, mayKnowSession, readVisibleSessionRows } from './session-list-rows.js';
+import type { SessionListChangeSet } from './session-list-changes.js';
 
 export interface DshSessionListRow {
   sessionId: string;
@@ -38,10 +55,14 @@ export interface DshSessionListRow {
   parentSessionId?: string;
   title?: string;
   running: boolean;
+  archived?: boolean;
   waiting?: true;
+  pendingInput?: 'approval' | 'question';
+  failed?: true;
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export interface NativeSessions {
@@ -62,11 +83,28 @@ export interface NativeSessions {
     running: boolean;
     title?: string;
     cwd?: string;
+    pendingInput?: readonly HostSessionPendingInput[];
   }>;
   model?(
     sessionId: string,
     choice: Extract<SessionModelChoice, { kind: 'model' }> | null | undefined,
   ): Promise<SessionModelState>;
+  pendingInput?(sessionId: string): Promise<readonly HostSessionPendingInput[]>;
+  answerApproval?(
+    sessionId: string,
+    requestId: string,
+    decision: HostSessionApprovalDecision,
+  ): Promise<boolean>;
+  answerQuestion?(
+    sessionId: string,
+    requestId: string,
+    answer: QuestionAnswer,
+    allowed?: () => boolean,
+  ): Promise<boolean>;
+  stop?(sessionId: string): Promise<void>;
+  archive?(sessionId: string): Promise<void>;
+  listChanges?(request: { sinceSeq?: number; epoch?: string }): SessionListChangeSet;
+  markChanged?(sessionId: string): void;
   send(sessionId: string, text: string): Promise<{ requestId: string }>;
   create?(
     target: ({ cwd: string } | { workspaceId: string }) & { sessionId?: string },
@@ -93,6 +131,31 @@ const missing = {
   ok: false,
   error: { code: 'not-found', message: 'Unknown root Session' },
 } satisfies BridgeResult<never>;
+const inputNotPending = {
+  ok: false,
+  error: { code: 'session-input-not-pending', message: 'The Session request is no longer pending' },
+} satisfies BridgeResult<never>;
+
+const questionAnswer = z
+  .object({
+    answers: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          selected: z.array(z.string()),
+          custom: z.string().optional(),
+        }),
+      )
+      .min(1),
+  })
+  .transform(({ answers }): QuestionAnswer => ({
+    answers: answers.map(({ id, selected, custom }) => ({
+      id,
+      selected,
+      ...(custom === undefined ? {} : { custom }),
+    })),
+  }));
+
 const unavailable = {
   ok: false,
   error: { code: 'unavailable', message: 'Host Sessions are unavailable' },
@@ -104,11 +167,6 @@ function dshFailure(cause: unknown): BridgeResult<never> {
   const code: string = failure.code;
   if (code === 'session/not-found') return missing;
   return { ok: false, error: { code, message: failure.message } };
-}
-
-function folderName(cwd: string): string {
-  const path = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
-  return path.basename(cwd) || path.parse(cwd).root;
 }
 
 function isNativeTranscriptEvent(event: DshSessionEvent): boolean {
@@ -136,7 +194,9 @@ export function createHostSessionsMethods(
     const service = deps.nativeSessions;
     if (service === undefined) return unavailable;
     try {
-      if (!(await service.isRoot(id)) || deps.ownership.resolve(id) !== undefined) return missing;
+      const root = await service.isRoot(id);
+      if (!nativeAllowed()) return denied;
+      if (!root || deps.ownership.resolve(id) !== undefined) return missing;
       return await run(service, id);
     } catch (cause) {
       return dshFailure(cause);
@@ -153,7 +213,22 @@ export function createHostSessionsMethods(
 
   return {
     async sessionList(payload: unknown): Promise<BridgeResult<HostSessionListResult>> {
-      const { search, sort = 'last-human-turn', source = 'all', queryVersion } = asObject(payload);
+      const {
+        search,
+        sort = 'last-human-turn',
+        source = 'all',
+        queryVersion,
+        includeArchived = false,
+        limit: requestedLimit,
+        cursor: requestedCursor,
+      } = asObject(payload);
+      if (typeof includeArchived !== 'boolean')
+        return invalidInput('includeArchived must be a boolean');
+      const limit = sessionPageLimit(requestedLimit);
+      if (limit === 'invalid')
+        return invalidInput(`limit must be a whole number from 1 to ${HOST_SESSION_PAGE_MAX}`);
+      const after = decodeSessionCursor(requestedCursor);
+      if (after === 'invalid') return invalidInput('Unknown Session list cursor');
       if (!isHostSessionSort(sort)) return invalidInput('Unknown Session sort order');
       if (!isHostSessionFilter(source)) return invalidInput('Unknown Session source filter');
       if (queryVersion !== undefined && queryVersion !== 1)
@@ -168,78 +243,14 @@ export function createHostSessionsMethods(
       const query = search === undefined ? '' : normalizeSessionSearch(search);
       const service = deps.nativeSessions;
       if (service === undefined) return unavailable;
-      const rows = await service.list().catch(() => undefined);
-      if (rows === undefined) return unavailable;
-      const owner = nativeAllowed();
-      const privateSessions = owner ? undefined : deps.team?.bots.privateSessions(human);
-      const ownership = new Map(deps.ownership.list().map((record) => [record.sessionId, record]));
-      let sessions: HostSessionRow[] = [];
-      const sources = new Map<string, HostSessionSourceOption>();
-      if (owner) sources.set('native', { kind: 'native' });
-      const assignments = new Map<string, string>();
-      const seenBots = new Set<string>();
-      for (const row of rows) {
-        const record = ownership.get(row.sessionId);
-        if (row.parentSessionId !== undefined || record?.parentSessionId !== undefined) continue;
-        const cwd = row.cwd ?? record?.cwdReference;
-        const base = {
-          sessionId: row.sessionId,
-          ...(row.title === undefined ? {} : { title: row.title }),
-          ...(cwd === undefined ? {} : { folderName: folderName(cwd) }),
-          ...(row.waiting === true ? { waiting: true as const } : {}),
-          ...(row.model === undefined ? {} : { model: row.model }),
-          running: row.running,
-          lastPromptAt: row.lastPromptAt,
-          updatedAt: row.updatedAt,
-        };
-        if (record === undefined) {
-          if (owner && (source === 'all' || source === 'native'))
-            sessions.push({ ...base, source: { kind: 'native' } });
-          continue;
-        }
-        const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
-        if (bot === undefined || privateSessions?.has(bot.slug)) continue;
-        if (queryVersion === 1 && !sources.has(`bot:${bot.slug}`))
-          sources.set(`bot:${bot.slug}`, {
-            kind: 'bot',
-            botSlug: bot.slug,
-            displayName: bot.displayName,
-          });
-        if (source !== 'all' && source !== `bot:${bot.slug}`) continue;
-        if (!seenBots.has(bot.slug)) {
-          seenBots.add(bot.slug);
-          for (const assignment of deps.runtime?.listAssignments(bot.slug) ?? [])
-            assignments.set(assignment.sessionId, assignment.title);
-        }
-        const assignedTitle = assignments.get(row.sessionId);
-        const engine = deps.describeEngineSession?.(row.sessionId);
-        const avatar = bot.avatar?.startsWith('data:image/')
-          ? botAvatarUrl(bot.slug, bot.avatar)
-          : bot.avatar;
-        sessions.push({
-          ...base,
-          ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
-          running: row.running || (engine !== undefined && engine.state !== 'idle'),
-          ...(row.waiting === true || engine?.state === 'waiting-approval'
-            ? { waiting: true as const }
-            : {}),
-          source: {
-            kind: 'bot',
-            botSlug: bot.slug,
-            displayName: bot.displayName,
-            ...(avatar === undefined ? {} : { avatar }),
-            ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-            ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-          },
-        });
-      }
-      const titles = await deps.readSessionTitles?.(
-        sessions.filter((row) => row.title === undefined).map((row) => row.sessionId),
+      const read = await readVisibleSessionRows(
+        { human, deps, globalRegistry, owner: nativeAllowed() },
+        { source, includeArchived, withSources: queryVersion === 1 },
       );
-      for (const row of sessions) {
-        const title = titles?.get(row.sessionId);
-        if (title !== undefined) row.title = title;
-      }
+      if (read === undefined) return unavailable;
+      let sessions = read.sessions;
+      const fillTitles = (rows: readonly HostSessionRow[]) => fillSessionTitles(deps, rows);
+      if (query) await fillTitles(sessions);
       let sortTimes: ReadonlyMap<string, number> | undefined;
       try {
         if (query && sessions.length > 0) {
@@ -278,54 +289,133 @@ export function createHostSessionsMethods(
       }
       const clock = (row: HostSessionRow) =>
         sortTimes === undefined ? (row.lastPromptAt ?? -1) : (sortTimes.get(row.sessionId) ?? -1);
-      sessions.sort(
-        (a, b) =>
-          clock(b) - clock(a) ||
-          b.updatedAt - a.updatedAt ||
-          a.sessionId.localeCompare(b.sessionId),
-      );
-      if (queryVersion === 1) for (const row of sessions) row.sortedAt = clock(row);
+      const key = (row: HostSessionRow) => ({
+        clock: clock(row),
+        updatedAt: row.updatedAt,
+        sessionId: row.sessionId,
+      });
+      sessions.sort((a, b) => compareSessionKeys(key(a), key(b)));
+      const page = sessionPage(sessions, key, after, limit);
+      if (!query) await fillTitles(page.rows);
+      if (queryVersion === 1) for (const row of page.rows) row.sortedAt = clock(row);
       return {
         ok: true,
         value: {
-          sessions,
-          ...(queryVersion === 1 ? { queryVersion, sources: [...sources.values()] } : {}),
+          sessions: page.rows,
+          ...(includeArchived ? { includeArchived: true as const } : {}),
+          ...(queryVersion === 1 ? { queryVersion, sources: read.sources } : {}),
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
         },
       };
     },
-    sessionTranscript(payload: unknown) {
-      return native<{ sessionId: string; role: 'native' } & SessionTranscript>(
-        payload,
-        async (service, id) => {
-          const snapshot = await service.read(id);
-          const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
-          const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
-          const fallbackTitle =
-            recorded === undefined
-              ? snapshot.title === undefined
-              : titleSourceKind(recorded.data) === 'fallback';
-          return {
-            ok: true,
-            value: {
-              ...summarizeSessionTranscript({
-                sessionId: id,
-                events: snapshot.events.filter(isNativeTranscriptEvent),
-              }),
-              sessionId: id,
-              role: 'native',
-              ...(title === undefined ? {} : { displayTitle: title }),
-              ...(fallbackTitle ? { titleFallback: true } : {}),
-              ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
-              running: snapshot.running,
-              seq: snapshot.seq,
-            },
-          };
-        },
-      );
+    async sessionListChanges(payload: unknown): Promise<BridgeResult<HostSessionListChanges>> {
+      const { sinceSeq, epoch } = asObject(payload);
+      if (sinceSeq !== undefined && (!Number.isSafeInteger(sinceSeq) || (sinceSeq as number) < 0))
+        return invalidInput('sinceSeq must be a nonnegative integer');
+      if (epoch !== undefined && typeof epoch !== 'string')
+        return invalidInput('epoch must be a string');
+      const service = deps.nativeSessions;
+      if (service?.listChanges === undefined) return unavailable;
+      const changes = service.listChanges({
+        ...(sinceSeq === undefined ? {} : { sinceSeq: sinceSeq as number }),
+        ...(epoch === undefined ? {} : { epoch }),
+      });
+      if (changes.reset === true) return { ok: true, value: changes };
+      const scope = { human, deps, globalRegistry, owner: nativeAllowed() };
+      const read = await readVisibleSessionRows(scope, {
+        source: 'all',
+        includeArchived: true,
+        withSources: true,
+      });
+      if (read === undefined) return unavailable;
+      const visible = new Map(read.sessions.map((row) => [row.sessionId, row]));
+      const sessions: HostSessionRow[] = [];
+      const removed: string[] = [];
+      for (const id of changes.sessionIds) {
+        const row = visible.get(id);
+        if (row !== undefined) sessions.push(row);
+        else if (read.children.has(id)) continue;
+        else if (read.roots.has(id)) {
+          if (mayKnowSession(scope, id))
+            return { ok: true, value: { reset: true, cursor: changes.cursor } };
+        } else if (mayKnowSession(scope, id)) removed.push(id);
+      }
+      await fillSessionTitles(deps, sessions, { wait: false });
+      return {
+        ok: true,
+        value: { sessions, removed, sources: read.sources, cursor: changes.cursor },
+      };
     },
-    async sessionLive(
-      payload: unknown,
-    ): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>> {
+    workspaceLook(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const path = asNonBlank(asObject(payload), 'path');
+      if (path === undefined) return invalidInput('path is required');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      return { ok: true, value: { path, look: deps.workspaceLooks.get(path) ?? null } };
+    },
+    workspaceLookSet(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const input = asObject(payload);
+      const path = asNonBlank(input, 'path');
+      if (path === undefined || !isAbsolute(path))
+        return invalidInput('path must be an absolute folder path');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      if (input['look'] === null) {
+        deps.workspaceLooks.clear(path);
+        return { ok: true, value: { path, look: null } };
+      }
+      const look = normalizeWorkspaceLook(input['look']);
+      if (look === undefined)
+        return invalidInput(
+          'look needs a known color, and an icon that is a known symbol, one emoji or the monogram',
+        );
+      return { ok: true, value: { path, look: deps.workspaceLooks.set(path, look) } };
+    },
+    sessionTranscript(payload: unknown) {
+      return native<
+        {
+          sessionId: string;
+          role: 'native';
+          pendingInput?: readonly HostSessionPendingInput[];
+        } & SessionTranscript
+      >(payload, async (service, id) => {
+        const snapshot = await service.read(id);
+        const pendingInput = snapshot.pendingInput ?? (await service.pendingInput?.(id));
+        if (!nativeAllowed()) return denied;
+        if (deps.ownership.resolve(id) !== undefined) return missing;
+        const title = snapshot.title ?? sessionDisplayTitle(snapshot.events);
+        const recorded = snapshot.events.findLast((event) => event.type === 'session/title');
+        const fallbackTitle =
+          recorded === undefined
+            ? snapshot.title === undefined
+            : titleSourceKind(recorded.data) === 'fallback';
+        return {
+          ok: true,
+          value: {
+            ...summarizeSessionTranscript({
+              sessionId: id,
+              events: snapshot.events.filter(isNativeTranscriptEvent),
+            }),
+            sessionId: id,
+            role: 'native',
+            ...(title === undefined ? {} : { displayTitle: title }),
+            ...(fallbackTitle ? { titleFallback: true } : {}),
+            ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
+            running: snapshot.running,
+            seq: snapshot.seq,
+            ...(pendingInput === undefined ? {} : { pendingInput }),
+          },
+        };
+      });
+    },
+    async sessionLive(payload: unknown): Promise<
+      BridgeResult<
+        {
+          sessionId: string;
+          pendingInput?: readonly HostSessionPendingInput[];
+        } & SessionLiveSnapshot
+      >
+    > {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
       const sessionId = asNonBlank(source, 'sessionId');
@@ -333,15 +423,22 @@ export function createHostSessionsMethods(
       if (after !== undefined && (typeof after !== 'number' || !Number.isSafeInteger(after)))
         return invalidInput('after must be an integer');
       if (source['slug'] === null)
-        return native(payload, (_service, id) => snapshot(id, after, true));
+        return native(payload, async (service, id) => {
+          const current = await snapshot(id, after, true);
+          if (!current.ok || service.pendingInput === undefined) return current;
+          const pendingInput = await service.pendingInput(id);
+          if (!nativeAllowed()) return denied;
+          if (deps.ownership.resolve(id) !== undefined) return missing;
+          return { ok: true, value: { ...current.value, pendingInput } };
+        });
       if (slug === undefined) return invalidInput('slug is required');
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
       const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+      if (owner?.botSlug !== slug)
         return {
           ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+          error: { code: 'not-found', message: `unknown Session: ${sessionId}` },
         };
       return snapshot(sessionId, after, false);
     },
@@ -413,6 +510,46 @@ export function createHostSessionsMethods(
         };
       }
     },
+    sessionAnswerApproval(payload: unknown) {
+      return native<HostSessionActionReceipt>(payload, async (service, id) => {
+        if (service.answerApproval === undefined) return unavailable;
+        const source = asObject(payload);
+        const requestId = asNonBlank(source, 'requestId');
+        const { decision } = source;
+        if (requestId === undefined || !isHostSessionApprovalDecision(decision))
+          return invalidInput('requestId and a once-or-reject decision are required');
+        return (await service.answerApproval(id, requestId, decision))
+          ? { ok: true, value: { sessionId: id, accepted: true } }
+          : inputNotPending;
+      });
+    },
+    sessionAnswerQuestion(payload: unknown) {
+      return native<HostSessionActionReceipt>(payload, async (service, id) => {
+        if (service.answerQuestion === undefined) return unavailable;
+        const source = asObject(payload);
+        const requestId = asNonBlank(source, 'requestId');
+        const parsed = questionAnswer.safeParse(source['answer']);
+        if (requestId === undefined || !parsed.success)
+          return invalidInput('requestId and a structured question answer are required');
+        return (await service.answerQuestion(id, requestId, parsed.data, nativeAllowed))
+          ? { ok: true, value: { sessionId: id, accepted: true } }
+          : inputNotPending;
+      });
+    },
+    sessionNativeStop(payload: unknown) {
+      return native(payload, async (service, id) => {
+        if (service.stop === undefined) return unavailable;
+        await service.stop(id);
+        return { ok: true, value: { sessionId: id, accepted: true as const } };
+      });
+    },
+    sessionNativeArchive(payload: unknown) {
+      return native(payload, async (service, id) => {
+        if (service.archive === undefined) return unavailable;
+        await service.archive(id);
+        return { ok: true, value: { sessionId: id, accepted: true as const } };
+      });
+    },
     sessionSend(payload: unknown) {
       return native(payload, async (service, id) => {
         const { text } = asObject(payload);
@@ -423,3 +560,8 @@ export function createHostSessionsMethods(
     },
   };
 }
+
+export type HostSessionBridgeMethods = Omit<
+  ReturnType<typeof createHostSessionsMethods>,
+  'sessionModel' | 'sessionSend' | 'sessionTranscript'
+>;

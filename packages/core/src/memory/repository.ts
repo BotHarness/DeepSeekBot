@@ -55,7 +55,7 @@ export function ensureMemoryRepository(options: {
   }
 
   try {
-    if (createMemoryGit(memoryDir).head().length === 0) {
+    if (created || createMemoryGit(memoryDir).head().length === 0) {
       commitMemoryRepositorySeed(memoryDir);
     }
   } catch (error) {

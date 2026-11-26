@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { TextInput } from './system-text';
 
+import { capsuleRadius } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { ActivitySearchIcon } from '../shell/icons';
@@ -18,6 +19,7 @@ export type SearchFieldProps = {
   value: string;
   inset: number;
   floating?: boolean;
+  capsule?: boolean;
   placeholder: string;
   onChangeText(text: string): void;
   onClose?(): void;
@@ -34,10 +36,12 @@ export function SearchField({
   value,
   inset,
   floating = false,
+  capsule = false,
   placeholder,
   onChangeText,
 }: SearchFieldProps) {
   const theme = useDesignTheme();
+  const bare = floating || capsule;
   return (
     <View
       style={{
@@ -45,8 +49,8 @@ export function SearchField({
         alignItems: 'center',
         gap: space.x3,
         marginHorizontal: inset,
-        marginTop: floating ? 0 : space.x5,
-        marginBottom: floating ? 0 : space.x3,
+        marginTop: bare ? 0 : space.x5,
+        marginBottom: bare ? 0 : space.x3,
       }}
     >
       <View
@@ -57,11 +61,15 @@ export function SearchField({
           alignItems: 'center',
           gap: space.x3,
           paddingLeft: space.x4,
-          borderRadius: floating ? radius.round : radius.md,
-          backgroundColor: floating ? 'transparent' : theme.layer.raised.fill,
+          borderRadius: capsule
+            ? capsuleRadius(theme.fontScale)
+            : floating
+              ? radius.round
+              : radius.md,
+          backgroundColor: floating && !capsule ? 'transparent' : theme.layer.raised.fill,
         }}
       >
-        {floating ? <DrawerMaterial /> : null}
+        {floating && !capsule ? <DrawerMaterial /> : null}
         <ActivitySearchIcon
           color={theme.color.subtle}
           size={theme.type.body.size * theme.fontScale}

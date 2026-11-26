@@ -3,7 +3,7 @@ import {
   asObject,
   invalidInput,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { GenuiError, type GenuiPrivateView } from '../../channels/genui.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { HumanContext } from '../../humans/context.js';

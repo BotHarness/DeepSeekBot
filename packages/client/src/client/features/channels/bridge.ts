@@ -253,6 +253,15 @@ export async function loadChannels(
   });
 }
 
+export async function loadChannel(
+  call: BridgeCall,
+  channelId: string,
+  signal?: AbortSignal,
+): Promise<ChannelSummary | undefined> {
+  const { channel } = await channels.readChannel(bridgeHost(call, signal), channelId);
+  return parseChannelRecord(channel);
+}
+
 export async function validateComposerDraft(
   call: BridgeCall,
   channelId: string,

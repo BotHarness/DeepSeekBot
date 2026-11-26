@@ -93,3 +93,29 @@ In every mode, Human input is recorded as a `computer-action` with its kind and 
 Why: a Human who is away from the desk needs to sign in or answer a captcha without installing a separate remote-desktop app. Video separates watching from controlling, so watching never pauses a Bot. A durable pause means a closed app or a crashed helper cannot hand the desktop back while the Human is typing a password. Dropping the image fallback avoids a second transport lifecycle and silent image traffic through Connect.
 
 Enforced by: `packages/computer/test/computer-audit.property.test.ts` (for any write sequence, the pause record reads back the last value written and leaves no temporary file; any other file content is refused, never read as a pause state), `local-video-owner.test.ts`, `local-video-owner-scroll.test.ts`, `local-video-client.test.ts`, `desktop-view.test.ts`, `viewer.test.ts`, `viewer-state.test.ts`, `macos-scroll.test.ts`.
+
+## 6. iPhone unlock for a locked Mac
+
+[#5134](https://github.com/BotHarness/DeepSeekBot/issues/5134) defines the security
+boundary. [#5138](https://github.com/BotHarness/DeepSeekBot/issues/5138) uses the
+owner's approved Noise LAN device connection. The signed helper runs in the
+logged-in user's Aqua LaunchAgent session. It checks its launch parent and accepts
+local IPC from the console user's Host with a machine-local token. This boundary
+relies on the Host's OS account and code integrity.
+
+The phone pins the Mac's native public key under the stable Host ID on first
+explicit setup or manual unlock. Native code checks the pin, signature, operation
+and both device identities before asking for the password or Face ID. The Host
+forwards the signed challenge and sealed packets. The Mac consumes a short-lived
+challenge once and encrypts the result receipt with a separately derived key.
+iOS saves only after it verifies the receipt and Face ID succeeds. The password
+item requires the current Face ID enrollment and stays on this iPhone. Turning
+off Automatic Unlock deletes the password item and keeps the pin.
+
+Remote unlock persists Computer Pause and drains existing desktop operations
+before the helper receives a packet. It verifies the password for the foreground
+console account, wakes the display, revalidates the signed loginwindow and
+recognized AX surface, and uses one submit press. Success requires an observed
+lock-state change for that same account. The viewer reconnects and the Human can
+explicitly resume Bots. The CLI reads capability and lock state through
+`computer-unlock-status`. Unlock audit events contain only device, time and result.

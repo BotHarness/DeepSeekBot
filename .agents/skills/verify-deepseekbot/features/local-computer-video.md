@@ -5,6 +5,10 @@ One Windows x64 primary display reaches one Android viewer through a supervised 
 ## Sources
 
 - `packages/computer/src/local-video-*.ts`
+- `packages/computer/src/unlock-*.ts`
+- `packages/computer/native/unlock/**`
+- `apps/mobile/modules/computer-unlock/**`
+- `apps/mobile/src/ui/chat/computer-unlock.ios.tsx`
 - `packages/computer/src/computer-pause-store.ts`
 - `packages/computer/src/desktop-availability.ts`
 - `packages/computer/src/providers/wayland*.ts`
@@ -155,7 +159,6 @@ Entry points: Bot Computer pane → Check permissions, or Bot Settings → Compu
 - The Human grants permissions, fully restarts the app running DSH if macOS requires it, then selects Check permissions again. Record Granted plus canonical running status; permission refusal is not successful readiness. Verify both English/Chinese and light/dark, and keep untested variants explicit.
 - CLI parity: `deepseekbot computer-open-permission-settings --permission accessibility --confirm` opens the same Host pane; `screen-recording` selects recording. Missing confirmation, other platforms/targets and unknown permission names refuse without launching anything. `computer-status` exposes coded failure and per-permission booleans; raw diagnostics are not user-facing copy.
 
-
 ## Linux current desktop to Android (#5135)
 
 Start the isolated Host from the signed-in GNOME Wayland session. Use a clean desktop with a harmless local page and an editable field.
@@ -168,3 +171,11 @@ Start the isolated Host from the signed-in GNOME Wayland session. Use a clean de
 5. With Android watching, lock the Dell. The phone should lose the picture and report that the desktop is locked. Check that Computer and Bot Browser refuse. Have the Human unlock on the Dell and record whether GNOME asks for sharing again. Verify the phone returns to the same screen without restoring control. Require an explicit Resume for both Bot tools.
 
 Record Android video and separate X11 and Wayland view and input results. A virtual X11 fixture checks the driver and controller. A signed-in physical desktop qualifies the real journey. Keep secrets off the desktop throughout the recording.
+
+## iPhone unlock on macOS
+
+- Use the [signed helper runbook](../../../../packages/computer/native/unlock/README.md).
+  Run all four physical cases on one approved iPhone and the same Mac console account.
+  Keep recordings stopped during password entry. Check that Computer Pause survives
+  the attempt and that Bots resume only after the Human uses the explicit control.
+- Run `pnpm exec vitest run packages/computer/test/unlock-native.test.ts` on macOS.

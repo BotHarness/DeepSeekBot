@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +16,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   bwrapArgs,
   probeConfinement,
-  secretEnvNames,
   type ConfinementStatus,
 } from '../src/execution/linux-confinement.js';
 import {
@@ -17,6 +24,11 @@ import {
   memberExecutionPlan,
   type ConfinementCore,
 } from '../src/execution/member-confinement.js';
+import {
+  nodeShellReachHost,
+  SECRET_ENV_PATTERN,
+  secretEnvNames,
+} from '../src/execution/shell-reach.js';
 import { within } from '../src/workspaces/space-paths.js';
 
 interface Owner {
@@ -253,14 +265,23 @@ describe('member Bot execution plan', () => {
         readable: ['/srv/a'],
         writable: ['/srv/a'],
         hidden: ['/srv'],
+        tools: [],
         home: '/srv/a/home',
         resolvConf: '/etc/resolv.conf',
+        env: {
+          set: { HOME: '/srv/a/home' },
+          unset: ['SSH_AUTH_SOCK'],
+          secretPattern: SECRET_ENV_PATTERN,
+        },
+        network: 'filtered',
       },
       'workspace-write',
       true,
     );
     expect(args.indexOf('/srv')).toBeLessThan(args.indexOf('/srv/a'));
     expect(args.join(' ')).toContain('--ro-bind-data 9 /etc/resolv.conf');
+    expect(args.join(' ')).toContain('--unsetenv SSH_AUTH_SOCK');
+    expect(args.join(' ')).toContain('--setenv HOME /srv/a/home');
   });
 
   it('names secret environment variables for removal', () => {
@@ -290,6 +311,13 @@ const status: ConfinementStatus =
     ? probeConfinement()
     : { enforcement: 'unavailable', filesystem: false, network: false, missing: ['linux'] };
 
+it.runIf(process.env['BOTHARNESS_REQUIRE_CONFINEMENT'] === '1')(
+  'has filesystem and network confinement where the run requires it',
+  () => {
+    expect(status).toMatchObject({ filesystem: true, network: true });
+  },
+);
+
 describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
   let root: string;
   let server: Server;
@@ -305,9 +333,15 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  const run = (sessionId: string, workspaceRoot: string, script: string) => {
+  const run = (
+    sessionId: string,
+    workspaceRoot: string,
+    script: string,
+    extra: Record<string, string> = {},
+  ) => {
     const f = fixture(root);
-    const plan = memberExecutionPlan(f.core, f.dsh, sessionId);
+    const env = { ...process.env, OPENCODE_GO_API_KEY: 'sk-test', DSH_HOME: f.dsh, ...extra };
+    const plan = memberExecutionPlan(f.core, f.dsh, sessionId, { ...nodeShellReachHost, env });
     if (plan.kind !== 'plan') throw new Error(plan.kind);
     const confined = confineMemberCommand(
       plan.plan,
@@ -318,7 +352,7 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
     const result = spawnSync(confined.argv[0]!, confined.argv.slice(1), {
       encoding: 'utf8',
       timeout: 30_000,
-      env: { ...process.env, OPENCODE_GO_API_KEY: 'sk-test', DSH_HOME: f.dsh },
+      env,
       shell: false,
       windowsHide: true,
     });
@@ -388,6 +422,50 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
     expect(result.stdout).toContain('PATH=');
     expect(result.stdout).not.toContain('OPENCODE_GO_API_KEY');
     expect(result.stdout).not.toContain('DSH_HOME');
+  });
+
+  it('finds tools through a symlinked PATH entry and a single-file link under hidden roots', () => {
+    const f = fixture(root);
+    const tool = (path: string, text: string) => {
+      mkdirSync(join(path, '..'), { recursive: true });
+      writeFileSync(path, `#!/bin/sh\necho ${text}\n`);
+      chmodSync(path, 0o755);
+    };
+    const installs = join(root, 'tools');
+    tool(join(installs, 'fnm', 'v1', 'bin', 'hello'), 'hello-ok');
+    tool(join(installs, 'claude', 'versions', '2', 'claude'), 'claude-ok');
+    writeFileSync(join(installs, 'claude', 'versions', '2', 'neighbour.txt'), 'neighbour');
+    const multishell = join(root, 'run', 'fnm_multishells', '42');
+    mkdirSync(join(multishell, '..'), { recursive: true });
+    symlinkSync(join(installs, 'fnm', 'v1'), multishell);
+    const localBin = join(root, 'local', 'bin');
+    mkdirSync(localBin, { recursive: true });
+    symlinkSync(join(installs, 'claude', 'versions', '2', 'claude'), join(localBin, 'claude'));
+    const result = run(
+      'ada-chat',
+      f.memory.ada,
+      `hello; claude; cat '${join(installs, 'claude', 'versions', '2', 'neighbour.txt')}' 2>/dev/null && echo LEAK`,
+      { PATH: `${join(multishell, 'bin')}:${localBin}:${process.env['PATH'] ?? ''}` },
+    );
+    expect(result.stdout).toContain('hello-ok');
+    expect(result.stdout).toContain('claude-ok');
+    expect(result.stdout).not.toContain('LEAK');
+  });
+
+  it('drops inherited variables that point into hidden roots and keeps the rest', () => {
+    const f = fixture(root);
+    const result = run('ada-chat', f.memory.ada, 'env', {
+      SSH_AUTH_SOCK: join(root, 'agent', 'ssh.sock'),
+      XDG_RUNTIME_DIR: '/run/user/1000',
+      DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus',
+      BH_PLAIN: 'kept',
+      BH_GRANT: f.work.alpha,
+    });
+    expect(result.stdout).not.toMatch(
+      /^(SSH_AUTH_SOCK|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)=/mu,
+    );
+    expect(result.stdout).toContain('BH_PLAIN=kept');
+    expect(result.stdout).toContain(`BH_GRANT=${f.work.alpha}`);
   });
 
   it.skipIf(!status.network)('refuses loopback ports such as the Host API', () => {

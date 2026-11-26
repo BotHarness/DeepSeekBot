@@ -5,6 +5,13 @@ import {
   type CallMediaState,
 } from '../../../core/src/voice/call-client.js';
 
+import {
+  ComputerSoundMissing,
+  mixSound,
+  openComputerSound,
+  type ComputerSound,
+  type SoundMix,
+} from './computer-sound.js';
 import { openMicrophone } from './mic-device.js';
 import { levelDbfs, meterFraction } from './voice-level.js';
 
@@ -50,6 +57,8 @@ function gathered(peer: RTCPeerConnection): Promise<void> {
 
 export interface BrowserCallMedia extends CallClientMedia {
   level(): number;
+  computerSound(on: boolean): Promise<boolean>;
+  onComputerSound(listener: (on: boolean) => void): () => void;
 }
 
 interface MicMeter {
@@ -80,9 +89,16 @@ function meterMicrophone(stream: MediaStream): MicMeter | undefined {
 
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
+  options: { readonly computerSound?: () => Promise<ComputerSound> } = {},
 ): BrowserCallMedia {
   const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
+  const soundListeners = new Set<(on: boolean) => void>();
+  const openSound = options.computerSound ?? (() => openComputerSound(devices()));
   let peer: RTCPeerConnection | undefined;
+  let sender: RTCRtpSender | undefined;
+  let computer: { readonly sound: ComputerSound; readonly mix: SoundMix } | undefined;
+  let opening: Promise<boolean> | undefined;
+  let shareToken = 0;
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
   let meter: MicMeter | undefined;
@@ -91,8 +107,64 @@ export function createBrowserCallMedia(
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
+  const emitSound = (on: boolean) => {
+    for (const listener of [...soundListeners]) listener(on);
+  };
+  const dropComputer = () => {
+    shareToken += 1;
+    const owned = computer;
+    computer = undefined;
+    if (owned === undefined) return false;
+    owned.mix.close();
+    owned.sound.release();
+    return true;
+  };
+  const unshare = async () => {
+    const mic = stream?.getAudioTracks()[0];
+    const owner = sender;
+    if (!dropComputer()) return false;
+    if (owner !== undefined && mic !== undefined)
+      await owner.replaceTrack(mic).catch(() => undefined);
+    emitSound(false);
+    return false;
+  };
+  const share = async () => {
+    const mic = stream?.getAudioTracks()[0];
+    const owner = sender;
+    if (mic === undefined || owner === undefined) throw new ComputerSoundMissing();
+    const token = shareToken;
+    const sound = await openSound();
+    if (token !== shareToken || sender !== owner) {
+      sound.release();
+      return false;
+    }
+    let mix: SoundMix | undefined;
+    try {
+      mix = mixSound(mic, sound.track);
+      await owner.replaceTrack(mix.track);
+    } catch {
+      mix?.close();
+      sound.release();
+      throw new ComputerSoundMissing();
+    }
+    if (token !== shareToken || sender !== owner) {
+      if (sender === owner) await owner.replaceTrack(mic).catch(() => undefined);
+      mix.close();
+      sound.release();
+      return false;
+    }
+    const owned = { sound, mix };
+    computer = owned;
+    sound.onEnded(() => {
+      if (computer === owned) void unshare();
+    });
+    emitSound(true);
+    return true;
+  };
   const release = () => {
     generation += 1;
+    if (dropComputer()) emitSound(false);
+    sender = undefined;
     const current = peer;
     peer = undefined;
     if (current !== undefined) {
@@ -154,10 +226,11 @@ export function createBrowserCallMedia(
       const transceiver = current
         .getTransceivers()
         .find((entry) => entry.receiver.track.kind === 'audio');
-      if (transceiver === undefined) current.addTrack(track, stream);
+      if (transceiver === undefined) sender = current.addTrack(track, stream);
       else {
         await transceiver.sender.replaceTrack(track);
         transceiver.direction = 'sendrecv';
+        sender = transceiver.sender;
       }
       await current.setLocalDescription(await current.createAnswer());
       await gathered(current);
@@ -173,6 +246,18 @@ export function createBrowserCallMedia(
       muted = false;
     },
     level: () => (muted || meter === undefined ? 0 : meter.read()),
+    computerSound(on) {
+      if (!on) return unshare();
+      if (computer !== undefined) return Promise.resolve(true);
+      opening ??= share().finally(() => {
+        opening = undefined;
+      });
+      return opening;
+    },
+    onComputerSound(listener) {
+      soundListeners.add(listener);
+      return () => soundListeners.delete(listener);
+    },
     onState(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

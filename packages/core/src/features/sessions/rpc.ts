@@ -1,8 +1,7 @@
-import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
@@ -294,15 +293,35 @@ export const sessionDetailsRpc = {
     return sessionModel(this.methods, slug, sessionId, choice);
   },
 
+  sessionAnswerApproval(sessionId: string, requestId: string, decision: string) {
+    return unwrapAsync(this.methods.sessionAnswerApproval({ sessionId, requestId, decision }));
+  },
+
+  sessionAnswerQuestion(sessionId: string, requestId: string, answer: unknown) {
+    return unwrapAsync(this.methods.sessionAnswerQuestion({ sessionId, requestId, answer }));
+  },
+
+  sessionNativeStop(sessionId: string) {
+    return unwrapAsync(this.methods.sessionNativeStop({ sessionId }));
+  },
+
+  sessionNativeArchive(sessionId: string) {
+    return unwrapAsync(this.methods.sessionNativeArchive({ sessionId }));
+  },
+
+  workspaceLook(path: string) {
+    return unwrap(this.methods.workspaceLook({ path }));
+  },
+
+  workspaceLookSet(path: string, look: unknown) {
+    return unwrap(this.methods.workspaceLookSet({ path, look }));
+  },
+
   sessionTranscript(slug: string | null, sessionId: string) {
     return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   },
 
-  sessionLive(
-    slug: string | null,
-    sessionId: string,
-    after?: number,
-  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+  sessionLive(slug: string | null, sessionId: string, after?: number) {
     return unwrapAsync(
       this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
     );
@@ -320,8 +339,30 @@ export const sessionDetailsRpc = {
 export const sessionListRpc = {
   sessions: SessionListRpc.prototype.sessions,
 
-  sessionList(search?: string, sort?: string, source?: string, queryVersion?: number) {
-    return unwrapAsync(this.methods.sessionList({ search, sort, source, queryVersion }));
+  sessionList(
+    search?: string,
+    sort?: string,
+    source?: string,
+    queryVersion?: number,
+    includeArchived?: boolean,
+    limit?: number,
+    cursor?: string,
+  ) {
+    return unwrapAsync(
+      this.methods.sessionList({
+        search,
+        sort,
+        source,
+        queryVersion,
+        includeArchived,
+        limit,
+        cursor,
+      }),
+    );
+  },
+
+  sessionListChanges(sinceSeq?: number, epoch?: string) {
+    return unwrapAsync(this.methods.sessionListChanges({ sinceSeq, epoch }));
   },
 
   sessionCreate(

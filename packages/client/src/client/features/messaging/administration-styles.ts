@@ -54,8 +54,8 @@ export const MESSAGING_ADMINISTRATION_CSS = [
 .bh-behavior-preview-body { padding: ${space.x2} 0 0 20px; }
 `,
   messagingCss.pairingTablePanel,
-  `.bh-pairing-table td:first-child, .bh-pairing-table th:first-child { width: 28px; }
-.bh-pairing-table th:nth-child(2) { width: 24%; min-width: 130px; }
+  `.bh-pairing-table[data-selectable] td:first-child, .bh-pairing-table[data-selectable] th:first-child { width: 28px; }
+.bh-pairing-table[data-selectable] th:nth-child(2), .bh-pairing-table:not([data-selectable]) th:first-child { width: 24%; min-width: 130px; }
 .bh-pairing-table th:last-child { min-width: 52px; white-space: nowrap; }
 `,
   messagingCss.pairingTable,

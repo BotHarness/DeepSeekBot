@@ -30,6 +30,17 @@ describe('GenUI diagram authoring Tool', () => {
     expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('输入');
   });
 
+  it('compiles a width written as a numeric string exactly like the integer', async () => {
+    const tool = createGenuiDiagramTool();
+    const source = 'flowchart LR\n A --> B';
+    const integer = await tool.execute({ source, width: 720 }, execution);
+    expect(await tool.execute({ source, width: '720' }, execution)).toBe(integer);
+    expect(await tool.execute({ source, width: '720px' }, execution)).toBe(integer);
+    await expect(tool.execute({ source, width: 'wide' }, execution)).rejects.toThrow(
+      /integer width from 240 to 1600/u,
+    );
+  });
+
   it('honors direct-call cancellation', async () => {
     await expect(
       createGenuiDiagramTool().execute(

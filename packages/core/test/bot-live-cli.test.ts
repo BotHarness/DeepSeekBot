@@ -136,6 +136,21 @@ describe('live CLI over the authenticated DSH carrier', () => {
     },
   );
 
+  it('lists only Bots that are not deleted', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: {
+        bots: [
+          { slug: 'kept', displayName: 'Kept' },
+          { slug: 'gone', displayName: 'Gone', deleted: true, paused: true },
+        ],
+      },
+    }));
+    const result = await invoke(['list'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.bots.map((bot: { slug: string }) => bot.slug)).toEqual(['kept']);
+  });
+
   it('keeps an unfiltered Skill listing to one catalog RPC', async () => {
     const live = await host(() => ({ ok: true, value: { skills: [] } }));
     const result = await invoke(['skills-list', '--channel', 'group-team'], live.url);
@@ -551,6 +566,21 @@ describe('live CLI over the authenticated DSH carrier', () => {
     expect(
       (await invoke(['folder-browse', '/a', '--offset', '1.5'], live.url)).json.error.code,
     ).toBe('usage');
+  });
+
+  it('creates and registers a child folder through the Host', async () => {
+    const workspace = { id: 'workspace-1', path: '/Users/ada/New project', title: 'New project' };
+    const live = await host(() => ({ ok: true, value: workspace }));
+    const command = ['folder-create', '--parent', '/Users/ada', '--name', 'New project'];
+    const created = await invoke(command, live.url);
+    expect(created.code).toBe(0);
+    expect(created.json).toEqual(workspace);
+    for (const args of [command.slice(0, 3), command.concat('extra')]) {
+      expect((await invoke(args, live.url)).json.error.code).toBe('usage');
+    }
+    expect(live.calls).toEqual([
+      { method: 'folderCreate', args: { parent: '/Users/ada', name: 'New project' } },
+    ]);
   });
 
   it('rejects missing/unsafe origins, malformed answers and expired auth before mutation', async () => {

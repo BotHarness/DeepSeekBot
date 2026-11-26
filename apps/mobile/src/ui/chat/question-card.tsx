@@ -67,6 +67,18 @@ function settledLine(
     : line(t.elsewhere(t.cardAnswered), 'success');
 }
 
+export function questionCategory(
+  single: { header?: string; question: string } | undefined,
+  fallback: string,
+): string {
+  const header = single?.header?.trim();
+  return header === undefined ||
+    header === '' ||
+    header.toLowerCase() === single!.question.trim().toLowerCase()
+    ? fallback
+    : header;
+}
+
 export function QuestionCard({
   port,
   botName,
@@ -214,7 +226,7 @@ export function QuestionCard({
   return (
     <View ref={mount}>
       <ActionCard
-        category={single?.header ?? category}
+        category={questionCategory(single, category)}
         status={answered ? t.cardAnswered : t.needsYou}
         title={single?.question ?? t.asks(botName)}
         busy={singleAnswer && busy}

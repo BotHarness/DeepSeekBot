@@ -2,6 +2,28 @@ import { productName } from '../../ui/product-name';
 import { tapVerb } from '../../ui/platform-copy';
 
 export const en = {
+  computerSecurity: 'Security',
+  computerUnlockSave: 'Save',
+  computerUnlockAutomatic: 'Automatic Unlock',
+  computerUnlockAction: 'Unlock Mac',
+  computerUnlockManual: 'Enter Mac Password',
+  computerUnlockPassword: 'Mac Login Password',
+  computerUnlockProtect: 'Protect your saved Mac password with Face ID.',
+  computerUnlockFaceID: 'Use Face ID to unlock your Mac.',
+  computerUnlockExplanation:
+    'Save this Mac’s login password on this iPhone and use Face ID to unlock the Mac. Turning this off deletes the saved password.',
+  computerUnlockSetupUnlocked: 'Unlock the Mac before setting up Automatic Unlock.',
+  computerUnlockKeyChanged: 'This Mac’s identity changed. Verify the Mac before pairing it again.',
+  computerUnlockRejected: 'That password didn’t unlock the Mac. Check your Mac login password.',
+  computerUnlockMissing:
+    'Enter the Mac password, or turn Automatic Unlock off and set it up again.',
+  computerUnlockNeedsFaceID: 'Set up Face ID on this iPhone to use Automatic Unlock.',
+  computerUnlockAccessibility:
+    'On the Mac, allow the Computer Unlock helper in System Settings → Privacy & Security → Accessibility.',
+  computerUnlockLimited: 'Wait before trying again.',
+  computerUnlockUnrecognized: 'This lock screen couldn’t be unlocked. Check the screen on the Mac.',
+  computerUnlockUnavailable:
+    'Couldn’t reach the Mac’s unlock helper. Check the local connection and try again.',
   computerTitle: (name: string) => `${name}'s Computer`,
   computerClose: 'Close the Computer',
   computerLoading: 'Loading the Computer screen…',
@@ -101,6 +123,26 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  computerSecurity: '安全',
+  computerUnlockSave: '保存',
+  computerUnlockAutomatic: '自动解锁',
+  computerUnlockAction: '解锁 Mac',
+  computerUnlockManual: '输入 Mac 密码',
+  computerUnlockPassword: 'Mac 登录密码',
+  computerUnlockProtect: '用 Face ID 保护保存在这台手机上的 Mac 密码。',
+  computerUnlockFaceID: '用 Face ID 解锁你的 Mac。',
+  computerUnlockExplanation:
+    '在这台 iPhone 上保存 Mac 登录密码，并用 Face ID 解锁 Mac。关闭后会删除已保存的密码。',
+  computerUnlockSetupUnlocked: '先解锁 Mac，再设置自动解锁。',
+  computerUnlockKeyChanged: '这台 Mac 的身份已变化。确认电脑后再重新配对。',
+  computerUnlockRejected: '密码验证失败。确认你输入的是 Mac 登录密码。',
+  computerUnlockMissing: '输入 Mac 密码，或关闭自动解锁后重新设置。',
+  computerUnlockNeedsFaceID: '在这台 iPhone 上设置 Face ID，即可使用自动解锁。',
+  computerUnlockAccessibility:
+    '在 Mac 的「系统设置 → 隐私与安全性 → 辅助功能」中允许 Computer 解锁助手。',
+  computerUnlockLimited: '稍后再试。',
+  computerUnlockUnrecognized: '无法解锁。到 Mac 上检查锁屏画面。',
+  computerUnlockUnavailable: '无法连接 Mac 的解锁助手。检查局域网连接后重试。',
   computerTitle: (name: string) => `${name} 的 Computer`,
   computerClose: '关闭 Computer',
   computerLoading: '正在加载 Computer 画面…',

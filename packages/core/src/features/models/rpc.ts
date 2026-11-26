@@ -1,5 +1,10 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync, type AdminResult } from '../../bridge/rpc-result.js';
+import type { BotMetadataResult } from '../../team/bot-administration.js';
+import {
+  unwrap,
+  unwrapAsync,
+  type AdminResult as KernelAdminResult,
+} from '../../kernel/rpc-result.js';
 import type {
   ModelProvidersView,
   ModelProviderSave,
@@ -26,6 +31,9 @@ import type {
   EngineAccountBridgeMethods,
 } from './methods.js';
 import type { ModelPlanSubView, ModelPresetSubView } from './preset-sub-methods.js';
+
+type AdminResult<T> = KernelAdminResult<T, BotMetadataResult>;
+
 function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
   assignmentGroups: string[] | undefined,
@@ -47,6 +55,15 @@ export function modelPlanInherit(
   expectedRevision: number,
 ): AdminResult<{ revision: number }> {
   return unwrap(methods.modelPlanInherit({ slug, expectedRevision }));
+}
+
+export function modelPlanReset(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  slug: string,
+  slots: ('main' | 'sub')[],
+  expectedRevision: number,
+): AdminResult<{ revision: number; overrides: ('main' | 'sub')[] }> {
+  return unwrap(methods.modelPlanReset({ slug, slots, expectedRevision }));
 }
 
 export function modelProviders(
@@ -319,13 +336,15 @@ export function modelPresetApply(
   presetId: string,
   expectedRevision?: number,
   expectedPresetRevision?: number,
-): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+  keepOverrides?: boolean,
+): Promise<AdminResult<{ plan: PersonaBotModelPlan; overrides?: ('main' | 'sub')[] }>> {
   return unwrapAsync(
     methods.modelPresetApply({
       slug,
       presetId,
       expectedRevision,
       expectedPresetRevision,
+      ...(keepOverrides === undefined ? {} : { keepOverrides }),
     }),
   );
 }
@@ -458,6 +477,13 @@ export function modelPlanSet(
 export const modelsRpcMethods = {
   modelPlanInherit(slug: string, expectedRevision: number): AdminResult<{ revision: number }> {
     return modelPlanInherit(this.methods, slug, expectedRevision);
+  },
+  modelPlanReset(
+    slug: string,
+    slots: ('main' | 'sub')[],
+    expectedRevision: number,
+  ): AdminResult<{ revision: number; overrides: ('main' | 'sub')[] }> {
+    return modelPlanReset(this.methods, slug, slots, expectedRevision);
   },
 } satisfies ThisType<BridgeRpcReceiver>;
 
@@ -651,8 +677,16 @@ export const modelConfigurationRpc = {
     presetId: string,
     expectedRevision?: number,
     expectedPresetRevision?: number,
-  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return modelPresetApply(this.methods, slug, presetId, expectedRevision, expectedPresetRevision);
+    keepOverrides?: boolean,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan; overrides?: ('main' | 'sub')[] }>> {
+    return modelPresetApply(
+      this.methods,
+      slug,
+      presetId,
+      expectedRevision,
+      expectedPresetRevision,
+      keepOverrides,
+    );
   },
 
   modelGroups(): { groups: RoutingGroup[] } {

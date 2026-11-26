@@ -30,6 +30,7 @@ export interface HostAdminValues {
   reason?: string;
   decision?: string;
   capability?: string[];
+  delegable?: boolean;
   role?: string[];
   'avatar-tag'?: string[];
   'from-bot'?: string;
@@ -60,11 +61,21 @@ export const HOST_ADMIN_COMMANDS = [
     command: 'acknowledge',
     description: 'record that this Profile has seen a one-time notice',
   },
+  {
+    command: 'bot-grants',
+    description:
+      'list your Bots that may manage the App (manage-app) or other Bots (manage-bots) through the scoped CLI, and the built-in Tob id; --bot <id> also says whether you can switch that Bot',
+  },
+  {
+    command: 'bot-grant',
+    description:
+      '<bot> <manage-app|manage-bots> <on|off> turns an App management grant on or off for a Bot you own, as the Owner or a member with bots.manageGrants; on needs --confirm. Human-only',
+  },
   { command: 'pause', description: 'archive a Bot through the Host owner' },
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
   {
     command: 'tob-home',
-    description: 'prepare/reuse protected Tob, its Memory/Workspace/DM and Home status',
+    description: 'prepare or read built-in Tob, its Memory, Workspace, DM and Home status',
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   {
@@ -197,7 +208,10 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'telemetry-set', description: 'turn usage statistics on or off' },
   { command: 'git-status', description: 'read whether the Host can use Git for Memory' },
   { command: 'git-install', description: 'install Git through the Host when it is missing' },
-  { command: 'pairing-list', description: "list a Bot's IM pairing requests and roles" },
+  {
+    command: 'pairing-list',
+    description: "list a Bot's IM pairing requests, roles and blocked senders",
+  },
   {
     command: 'pairing-review',
     description: 'approve, reject or revoke an IM pairing request (revoke needs --confirm)',
@@ -226,6 +240,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   pause: 1,
   resume: 1,
   'tob-home': 0,
+  'bot-grants': 0,
+  'bot-grant': 3,
   onboarding: 0,
   acknowledgements: 0,
   acknowledge: 1,
@@ -277,15 +293,21 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
 const POSITIONAL_NAMES: Record<number, string> = {
   1: 'exactly one target',
   2: 'a bot id and a pairing id',
+  3: 'a Bot id, manage-app or manage-bots, and on or off',
 };
 
 interface PairingReview {
   kind: 'approve' | 'reject' | 'revoke';
   capabilities?: PairingCapability[];
+  delegable?: boolean;
   roleId?: string;
 }
 
-function validate(command: HostAdminCommand, rest: string[], values: HostAdminValues) {
+function validate(
+  command: HostAdminCommand,
+  rest: string[],
+  values: HostAdminValues,
+): PairingReview | undefined {
   const expected = POSITIONALS[command];
   if (rest.length !== expected || rest.some((value) => !value.trim()))
     usage(
@@ -335,7 +357,11 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('--tag only applies to marketplace-avatar-list.');
   if (command === 'marketplace-avatar-apply' && !values.bot?.trim())
     usage('marketplace-avatar-apply needs --bot <bot>.');
-  if (values.bot !== undefined && command !== 'marketplace-avatar-apply')
+  if (
+    values.bot !== undefined &&
+    command !== 'marketplace-avatar-apply' &&
+    command !== 'bot-grants'
+  )
     usage('--bot only applies to marketplace-avatar-apply.');
   if (values.version !== undefined && command !== 'acknowledge')
     usage('--version only applies to acknowledge release-notes-seen.');
@@ -364,6 +390,17 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('marketplace-author-avatar needs exactly one of --file or --clear.');
   if (values.replaces !== undefined && command !== 'marketplace-upload')
     usage('--replaces only applies to marketplace-upload.');
+  if (command === 'bot-grant') {
+    if (rest[1] !== 'manage-app' && rest[1] !== 'manage-bots')
+      usage('bot-grant needs manage-app or manage-bots.');
+    if (rest[2] !== 'on' && rest[2] !== 'off') usage('bot-grant needs on or off.');
+    if (rest[2] === 'on' && values.confirm !== true)
+      usage(
+        rest[1] === 'manage-app'
+          ? "manage-app lets the Bot change settings and models, run diagnostics and maintenance, create Bots and manage Channels through the CLI in its Human DM; a member's Bot can only create Bots and share Bot drafts. Writes follow its Approval Template. Pass --confirm."
+          : "manage-bots lets the Bot change other Bots' profiles, edit their Memory and lease their Memory for comparison; Memory edits always need your decision. Pass --confirm.",
+      );
+  }
   if (command === 'marketplace-delete' && values.confirm !== true)
     usage(
       'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
@@ -421,6 +458,8 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   for (const capability of capabilities)
     if (!(pairingCapabilities as readonly string[]).includes(capability))
       usage(`--capability must be one of ${pairingCapabilities.join(', ')}.`);
+  if (values.delegable === true && (kind !== 'approve' || capabilities.length === 0))
+    usage('--delegable only applies to --decision approve with --capability.');
   if (kind !== 'approve') {
     if (roles.length > 0 || capabilities.length > 0)
       usage('--role and --capability only apply to --decision approve.');
@@ -436,6 +475,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     : ({
         kind,
         capabilities: [...new Set(capabilities)] as PairingCapability[],
+        ...(values.delegable === true ? { delegable: true } : {}),
       } satisfies PairingReview);
 }
 
@@ -469,6 +509,7 @@ function pairingSummary(value: unknown) {
     'conversationId',
     'conversationKind',
     'capabilities',
+    'delegableCapabilities',
     'roleId',
     'revision',
     'createdAt',
@@ -481,7 +522,12 @@ function pairingSummary(value: unknown) {
 async function messagingSnapshot(rpc: Rpc, slug: string) {
   const snapshot = record(await rpc('messagingSnapshot', { slug }));
   const list = (key: string) => (Array.isArray(snapshot[key]) ? snapshot[key] : []).map(record);
-  return { pairings: list('pairings'), roles: list('roles') };
+  return {
+    pairings: list('pairings'),
+    roles: list('roles'),
+    blocks: list('senderBlocks'),
+    conversationBlocks: list('conversationBlocks'),
+  };
 }
 
 async function readResetToken(io: BotCreateCliIo): Promise<string> {
@@ -534,6 +580,15 @@ export async function runHostAdminCommand(
       return rpc('acknowledge', {
         key: rest[0]!.trim(),
         ...(values.version === undefined ? {} : { value: values.version }),
+      });
+    case 'bot-grants':
+      return rpc('managementGrants', values.bot?.trim() ? { slug: values.bot.trim() } : {});
+    case 'bot-grant':
+      return rpc('managementGrantSet', {
+        slug: target,
+        capability: rest[1],
+        enabled: rest[2] === 'on',
+        confirm: values.confirm === true,
       });
     case 'tob-home':
       return rpc('tobHome', {});
@@ -832,6 +887,21 @@ export async function runHostAdminCommand(
           capabilities: role['capabilities'],
           revision: role['revision'],
         })),
+        blocked: snapshot.blocks.map((block) => ({
+          bindingId: block['bindingId'],
+          actorId: block['actorId'],
+          actorName: block['actorName'],
+          revision: block['revision'],
+          blockedAt: block['blockedAt'],
+        })),
+        blockedConversations: snapshot.conversationBlocks.map((block) => ({
+          bindingId: block['bindingId'],
+          conversation: block['conversation'],
+          name: block['name'],
+          revision: block['revision'],
+          blockedAt: block['blockedAt'],
+          blockedBy: block['blockedBy'],
+        })),
       };
     }
     case 'pairing-review': {
@@ -857,6 +927,7 @@ export async function runHostAdminCommand(
             id: pairingId,
             expectedRevision: pairing['revision'],
             ...(review?.capabilities === undefined ? {} : { capabilities: review.capabilities }),
+            ...(review?.delegable === true ? { delegable: true } : {}),
             ...(role === undefined
               ? {}
               : { roleId: role['id'], expectedRoleRevision: role['revision'] }),

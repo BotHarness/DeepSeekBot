@@ -1,7 +1,7 @@
 import { sourceContentPurged } from '../purge/fence.js';
 import { admissionBound, readBlock } from './conversations.js';
 import type { MessagingIdentity } from './identity.js';
-import { senderAdmissionAllowed } from './sender-access.js';
+import { senderAdmission } from './permissions/index.js';
 import { readMessagingIdentity } from './identity.js';
 import { assertMessagingIdentity } from './identity.js';
 import {
@@ -150,7 +150,7 @@ export function createInboundCommandIntake(wiring: {
               ))
           : identity.newConversations === 'auto' &&
             admissionBound(db, row.id, new Date()) === undefined;
-        return allowedConversation && senderAdmissionAllowed(db, identity.botSlug, event);
+        return allowedConversation && senderAdmission(db, identity.botSlug, event) === 'wake';
       });
     if (!admissionAllowed()) return true;
     const entry = providers.get(identity.providerId);

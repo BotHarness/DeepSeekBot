@@ -25,6 +25,7 @@ export interface TeamRole {
   readonly name: string;
   readonly builtin: BuiltinRole | null;
   readonly permissions: readonly string[];
+  readonly denied: readonly string[];
   readonly memberCount: number;
   readonly policy: readonly PolicyItem[];
   readonly policyRevision: number;
@@ -95,6 +96,7 @@ export function parseRole(row: Record<string, unknown>): TeamRole | undefined {
     name,
     builtin: builtin === 'admin' || builtin === 'member' ? builtin : null,
     permissions: strings(row['permissions']),
+    denied: strings(row['denied']),
     models: parseRoleModels(row['models']),
     memberCount: typeof count === 'number' && count >= 0 ? count : 0,
     policy: parsePolicy(row['policy']),
@@ -204,6 +206,7 @@ export async function createRole(
   input: {
     name: string;
     permissions: readonly string[];
+    denied?: readonly string[];
     models?: RoleModels;
     policy?: readonly PolicyItem[];
   },
@@ -212,6 +215,7 @@ export async function createRole(
     await unwrap(call, 'roleCreate', {
       name: input.name,
       permissions: [...input.permissions],
+      ...(input.denied === undefined ? {} : { denied: [...input.denied] }),
       ...modelsPayload(input.models),
       ...policyPayload(input.policy),
     }),
@@ -224,6 +228,7 @@ export async function updateRole(
     roleId: string;
     name?: string;
     permissions?: readonly string[];
+    denied?: readonly string[];
     models?: RoleModels;
     policy?: readonly PolicyItem[];
   },
@@ -233,9 +238,80 @@ export async function updateRole(
       roleId: input.roleId,
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.permissions === undefined ? {} : { permissions: [...input.permissions] }),
+      ...(input.denied === undefined ? {} : { denied: [...input.denied] }),
       ...modelsPayload(input.models),
       ...policyPayload(input.policy),
     }),
+  );
+}
+
+export type PermissionState = 'granted' | 'denied' | 'unset';
+
+export interface PermissionSource {
+  readonly roleId: string;
+  readonly name: string;
+  readonly builtin: BuiltinRole | null;
+  readonly effect: 'allow' | 'deny';
+}
+
+export interface EffectivePermission {
+  readonly id: string;
+  readonly state: PermissionState;
+  readonly sources: readonly PermissionSource[];
+}
+
+export interface MemberPermissions {
+  readonly humanId: string;
+  readonly owner: boolean;
+  readonly active: boolean;
+  readonly permissions: readonly EffectivePermission[];
+}
+
+function parseSource(row: Record<string, unknown>): PermissionSource | undefined {
+  const roleId = row['roleId'];
+  const name = row['name'];
+  const effect = row['effect'];
+  const builtin = row['builtin'];
+  return typeof roleId === 'string' &&
+    typeof name === 'string' &&
+    (effect === 'allow' || effect === 'deny')
+    ? {
+        roleId,
+        name,
+        effect,
+        builtin: builtin === 'admin' || builtin === 'member' ? builtin : null,
+      }
+    : undefined;
+}
+
+function parseEffective(row: Record<string, unknown>): EffectivePermission | undefined {
+  const id = row['id'];
+  const state = row['state'];
+  return typeof id === 'string' && (state === 'granted' || state === 'denied' || state === 'unset')
+    ? { id, state, sources: list(row['sources'], parseSource) }
+    : undefined;
+}
+
+export async function loadMemberPermissions(
+  call: BridgeCall,
+  humanId: string,
+  signal?: AbortSignal,
+): Promise<MemberPermissions> {
+  const row = record(await unwrap(call, 'memberPermissions', { humanId }, signal));
+  if (row === undefined || typeof row['humanId'] !== 'string')
+    throw new Error('invalid member permissions response');
+  return {
+    humanId: row['humanId'],
+    owner: row['owner'] === true,
+    active: row['active'] === true,
+    permissions: list(row['permissions'], parseEffective),
+  };
+}
+
+export function hasConflict(permission: EffectivePermission): boolean {
+  return (
+    permission.sources.some((source) => source.effect === 'allow') &&
+    permission.sources.some((source) => source.effect === 'deny')
   );
 }
 
@@ -292,6 +368,7 @@ export function canGrant(viewer: GrantingViewer, permission: string): boolean {
   return (
     permission !== 'privateContent.view' &&
     permission !== 'modelSources.manage' &&
+    permission !== 'bots.manageGrants' &&
     viewer.permissions.includes(permission)
   );
 }

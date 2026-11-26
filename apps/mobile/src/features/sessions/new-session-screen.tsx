@@ -23,7 +23,7 @@ import {
   type PickedFolder,
 } from '../../ui/chat/folder-picker-sheet';
 import {
-  SessionModelChip,
+  SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
 } from '../../ui/chat/session-model-composer';
@@ -37,6 +37,7 @@ import { Text } from '../../ui/primitives/text';
 import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
 import { promptPlaceholder } from '../../ui/chat/session-header-title';
 import { useStrings } from '../../ui/strings';
+import { useCreateFolder } from '../../host/member-permissions';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
 import { HeaderBackButton } from '../../ui/chat/header-chrome';
@@ -174,16 +175,19 @@ function NewSessionForm({
     slug: null,
     sessionId: undefined,
     host: client,
+    hostId,
     enabled: online,
     running: false,
   });
+  const createFolder = useCreateFolder(client);
   const port = useMemo<FolderPickerPort>(
     () => ({
       listFolders: (path) => listHostFolders(client, path),
       loadWorkspaceOptions: () => loadWorkspaceOptions(client),
       resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+      createFolder,
     }),
-    [client],
+    [client, createFolder],
   );
 
   async function send() {
@@ -254,9 +258,7 @@ function NewSessionForm({
             blocksSend: model.visible || folder === undefined,
             stopping: busy || !online,
             onStop: undefined,
-            render: (width) => (
-              <SessionModelChip control={model} width={width} disabled={!online || busy} />
-            ),
+            model: <SessionModelLogo control={model} disabled={!online || busy} />,
           }}
         />
       }

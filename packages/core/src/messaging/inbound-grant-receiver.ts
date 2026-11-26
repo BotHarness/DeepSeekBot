@@ -1,11 +1,14 @@
 import { ReceiverRecovery } from './receiver-recovery.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { ConversationIngest } from './conversation-ingest.js';
-import { senderAdmissionAllowed, senderContextAllowed } from './sender-access.js';
+import {
+  senderAdmission,
+  threadReceptionPolicy,
+  groupReceptionPolicy,
+  initializeGroupReceptionPolicy,
+} from './permissions/index.js';
 import { readMessagingIdentity } from './identity.js';
 import { recordGrantReception, recordReceptionPath } from './reception-paths.js';
-import { threadReceptionPolicy } from './thread-policy.js';
-import { groupReceptionPolicy, initializeGroupReceptionPolicy } from './group-policy.js';
 import { bridgeChannel, placeBridgeSource } from './channel-target.js';
 import { admitBridgeMembers } from './member-admission.js';
 import { exceedsBotWakeCeiling, messagingDefaults } from './defaults.js';
@@ -328,7 +331,7 @@ export function createInboundGrantReceiver(wiring: {
             event.conversation.id !== value.receiveScope!.conversationId
           )
             return skip('other-conversation');
-          if (!database.read((db) => senderContextAllowed(db, value.botSlug, event)))
+          if (database.read((db) => senderAdmission(db, value.botSlug, event)) === 'refused')
             return skip('sender-not-allowed');
           if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
             return skip('before-grant-receive-after');
@@ -485,7 +488,7 @@ export function createInboundGrantReceiver(wiring: {
                   const policy = options.sourcePolicy.resolveIn(db, value.botSlug, reason);
                   const ordinary =
                     thread?.mode === 'follow' && thread.wake ? thread.wake : reception;
-                  const passive = !senderAdmissionAllowed(db, value.botSlug, event);
+                  const passive = senderAdmission(db, value.botSlug, event) !== 'wake';
                   const wake = passive
                     ? 'context'
                     : event.conversation.kind === 'dm' || event.mentionedAccount
@@ -640,7 +643,7 @@ export function createInboundGrantReceiver(wiring: {
               if (!event.mentionedAccount && source.localChannelId) return id;
               const reason = event.mentionedAccount ? 'group-mention' : 'group-ordinary';
               const policy = options.sourcePolicy.resolveIn(db, value.botSlug, reason);
-              const passive = !senderAdmissionAllowed(db, value.botSlug, event);
+              const passive = senderAdmission(db, value.botSlug, event) !== 'wake';
               const wake = passive
                 ? 'context'
                 : event.mentionedAccount

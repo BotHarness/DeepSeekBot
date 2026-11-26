@@ -830,3 +830,30 @@ describe('Local Computer owner authority', () => {
     });
   });
 });
+
+it('drains and durably pauses the Computer across unlock and requires an explicit resume', async () => {
+  const h = harness();
+  const binding = await h.connect();
+  const bot = deferred<string>();
+  const active = h.owner.runBotOperation(() => bot.promise);
+  const withheld = expect(active).rejects.toMatchObject({ code: 'control-required' });
+  const native = deferred<void>();
+  const dispatch = vi.fn(() => native.promise);
+  const unlock = h.owner.runUnlock(dispatch, new AbortController().signal);
+  expect(h.owner.isPaused()).toBe(true);
+  expect(dispatch).not.toHaveBeenCalled();
+  bot.resolve('desktop');
+  await withheld;
+  await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+  expect(h.writes).toEqual([true]);
+  await expect(
+    h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId, binding }),
+  ).rejects.toMatchObject({ code: 'control-required' });
+  const attempted = h.owner.runBotOperation(async () => 'desktop');
+  await expect(attempted).rejects.toMatchObject({ code: 'control-required' });
+  native.resolve();
+  await unlock;
+  expect(h.owner.isPaused()).toBe(true);
+  await h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId, binding });
+  expect(h.writes).toEqual([true, false]);
+});

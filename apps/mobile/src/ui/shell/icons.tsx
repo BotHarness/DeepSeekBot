@@ -99,10 +99,6 @@ export function ChevronRightIcon(props: IconProps) {
   return <Glyph {...props} d="m9 6 6 6-6 6" />;
 }
 
-export function TobModeIcon(props: IconProps) {
-  return <Glyph {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 10.5l4 4 4-4" />;
-}
-
 export function ChevronUpIcon(props: IconProps) {
   return <Glyph {...props} d="m6 15 6-6 6 6" />;
 }
@@ -403,6 +399,9 @@ export function ExternalLinkIcon(props: IconProps) {
       d="M15 3h6v6m0-6L10 14M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"
     />
   );
+}
+export function CodeIcon(props: IconProps) {
+  return <Glyph {...props} d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />;
 }
 export function TerminalIcon(props: IconProps) {
   return <Glyph {...props} d="m4 5 6 7-6 7m9 0h7" />;

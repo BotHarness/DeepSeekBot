@@ -36,7 +36,8 @@ Shot options:
   --bot-mode                Enter Bot mode before acting.
   --click <name>            Click the element with this accessible name (repeatable, in order).
   --click-text <text>       Click the last visible button, link or tab in page order whose text contains this.
-  --right-click <name>      Right-click the element with this accessible name to open its context menu.
+  --right-click <name>      Right-click the first enabled element with this accessible name to open its menu.
+  --long-press <name>       Hold the primary button for 800ms on the first enabled element with this name.
   --fill <name>=<text>      Type into the field with this accessible name (repeatable, in order).
   --hover <name>            Rest the pointer on the element with this accessible name (repeatable, in order).
   --press <key>             Press a key or chord in the focused element, for example Enter or Control+K
@@ -130,6 +131,9 @@ export function parseVerifyArgs(argv) {
         break;
       case '--right-click':
         options.actions.push({ kind: 'right-click', name: value() });
+        break;
+      case '--long-press':
+        options.actions.push({ kind: 'long-press', name: value() });
         break;
       case '--press':
         options.actions.push({ kind: 'press', name: value() });
@@ -540,6 +544,23 @@ const evidenceLabel = (options, command) => {
   return label;
 };
 
+async function enabledBox(page, name) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    for (const handle of await page.$$(aria(name))) {
+      const usable = await handle.evaluate(
+        (node) => !node.matches(':disabled') && node.getAttribute('aria-disabled') !== 'true',
+      );
+      if (!usable) continue;
+      await handle.evaluate((node) => node.scrollIntoView({ block: 'center' }));
+      const box = await handle.boundingBox();
+      if (box !== null && box.width > 0 && box.height > 0) return box;
+    }
+    await new Promise((done) => setTimeout(done, 250));
+  }
+  throw new Error(`no enabled element named ${JSON.stringify(name)}`);
+}
+
 async function shot(options, paths) {
   const label = evidenceLabel(options, 'shot');
   return withClient(options, paths, label, async ({ page, consoleLines, steps }) => {
@@ -569,8 +590,18 @@ async function shot(options, paths) {
         const locator = page.locator(aria(action.name)).setTimeout(15_000);
         if (action.kind === 'click') await locator.click();
         else if (action.kind === 'hover') await locator.hover();
-        else if (action.kind === 'right-click') await locator.click({ button: 'right' });
-        else await locator.fill(action.text);
+        else if (action.kind === 'right-click' || action.kind === 'long-press') {
+          const box = await enabledBox(page, action.name);
+          const x = box.x + box.width / 2;
+          const y = box.y + box.height / 2;
+          if (action.kind === 'right-click') await page.mouse.click(x, y, { button: 'right' });
+          else {
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+            await new Promise((done) => setTimeout(done, 800));
+            await page.mouse.up();
+          }
+        } else await locator.fill(action.text);
       }
       steps.push(`${action.kind} ${JSON.stringify(action.name)}`);
       await new Promise((done) => setTimeout(done, 500));

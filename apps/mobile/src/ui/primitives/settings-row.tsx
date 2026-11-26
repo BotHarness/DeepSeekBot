@@ -18,15 +18,18 @@ import { Toggle } from './toggle';
 import { segmentCorners } from '../design/segment-corners';
 import { useSettingsFormPlace } from './settings-form-context';
 import { FormRow, FormSection } from './settings-form-row';
+import { useSheetGroupFill } from './sheet-group-fill';
 
 function ControlView({
   control,
   label,
   on,
+  oneLine,
 }: {
   control: SettingsRowControl;
   label: string;
   on: LayerName;
+  oneLine: boolean;
 }) {
   const theme = useDesignTheme();
   switch (control.kind) {
@@ -51,8 +54,19 @@ function ControlView({
       );
     case 'value':
       return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x2,
+            ...(oneLine ? { flexShrink: 1, maxWidth: '65%' } : {}),
+          }}
+        >
+          <Text
+            tone="muted"
+            style={{ fontVariant: ['tabular-nums'], flexShrink: 1 }}
+            {...(oneLine ? { numberOfLines: 1 } : {})}
+          >
             {control.text}
           </Text>
           {control.chevron === true ? (
@@ -194,7 +208,12 @@ function ReactNativeSettingsRow({
       )}
       {trailing ??
         (control === undefined ? null : (
-          <ControlView control={control} label={accessibilityLabel ?? title} on={on} />
+          <ControlView
+            control={control}
+            label={accessibilityLabel ?? title}
+            on={on}
+            oneLine={oneLine}
+          />
         ))}
     </Pressable>
   );
@@ -303,7 +322,7 @@ export function SettingsGroupItem({
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
-  const layer = theme.layer[on];
+  const layer = useSheetGroupFill(on);
   const android = Platform.OS === 'android';
   if (android)
     return (

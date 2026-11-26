@@ -1,3 +1,9 @@
+import type { WireShellApprovalSuggestions } from '@botharness/host-protocol/wire';
+import {
+  checkShellPrefixPatterns,
+  MAX_SHELL_PREFIX_PATTERNS,
+  shellApprovalInput,
+} from '../../workspaces/shell-approval-prefix.js';
 import {
   asNonBlank,
   asObject,
@@ -6,7 +12,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { ApprovalTemplateDeletion } from '../../workspaces/approval-template-deletion.js';
 import type { ApprovalTemplateDeletionPreview } from '../../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';
@@ -87,6 +93,7 @@ export interface ApprovalsBridgeMethods {
   ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
   toolApprovalStatus(payload: unknown): BridgeResult<{
     approval?: ApprovalCard;
+    shellSuggestions?: WireShellApprovalSuggestions;
     status: 'pending' | 'expired' | 'stopped';
     expiresAt?: string;
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
@@ -197,6 +204,7 @@ export function createApprovalsBridgeMethods(
       | 'registry'
       | 'runtime'
       | 'toolApproval'
+      | 'team'
     >,
   globalRegistry: BridgeMethodsDeps['registry'],
   detailOf: (record: PersonaBotRecord) => { bot: PersonaBotDetail },
@@ -568,13 +576,19 @@ export function createApprovalsBridgeMethods(
       if (asker === undefined) {
         return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
       }
-      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
-      if (request === undefined) {
-        return invalidInput('Unknown tool approval request');
-      }
+      const message = deps.channels.message(channelId, messageId);
+      const request = message?.toolApprovalRequest;
+      if (!message || !request) return invalidInput('Unknown tool approval request');
+      const state = readToolApprovalState(deps, { ...request, botSlug: asker, messageId });
+      const shellSuggestions =
+        state.status === 'pending' &&
+        (request.toolName === 'bash' || request.toolName === 'shell') &&
+        (!deps.team || deps.team.approvals.card(human, channelId, message)?.masked === false)
+          ? deps.toolApproval?.shellSuggestions(asker, messageId)
+          : undefined;
       return {
         ok: true,
-        value: readToolApprovalState(deps, { ...request, botSlug: asker, messageId }),
+        value: { ...state, ...(shellSuggestions === undefined ? {} : { shellSuggestions }) },
       };
     },
     async toolApprovalDecide(payload) {
@@ -588,6 +602,7 @@ export function createApprovalsBridgeMethods(
         (outcome !== 'allowed-once' &&
           outcome !== 'allowed-always-tool' &&
           outcome !== 'allowed-always-exact' &&
+          outcome !== 'allowed-always-prefix' &&
           outcome !== 'allowed-always-all' &&
           outcome !== 'allowed-always-kind' &&
           outcome !== 'rejected')
@@ -603,6 +618,29 @@ export function createApprovalsBridgeMethods(
       if (request === undefined) {
         return invalidInput('Unknown tool approval request');
       }
+      if (outcome === 'allowed-always-prefix') {
+        const shell = shellApprovalInput(request.toolName, request.input);
+        if (!shell || request.allowAlways !== true)
+          return invalidInput(
+            'Prefix rules are available only for Shell calls that can be remembered',
+          );
+        const rule = z
+          .object({
+            kind: z.literal('prefix'),
+            patterns: z.array(z.string()).min(1).max(MAX_SHELL_PREFIX_PATTERNS),
+          })
+          .strict()
+          .safeParse(source['rule']);
+        if (!rule.success) return invalidInput('Provide a prefix rule with one to five patterns');
+        const error = checkShellPrefixPatterns(shell.command, rule.data.patterns);
+        if (error) return { ok: false, error };
+        const accepted = await deps.toolApproval?.decide(human, asker, messageId, rule.data);
+        if (!accepted)
+          return invalidInput('Tool approval request or its Shell rule scope is unavailable');
+        return { ok: true, value: { accepted: true } };
+      }
+      if (source['rule'] !== undefined)
+        return invalidInput('rule requires the allowed-always-prefix outcome');
       if (outcome === 'allowed-always-tool' && request.allowAlways !== true)
         return invalidInput('Always allow is unavailable for this request');
       if (outcome === 'allowed-always-kind' && request.toolName !== 'secret_cli')

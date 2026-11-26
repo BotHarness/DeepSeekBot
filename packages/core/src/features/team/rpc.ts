@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PrivateKind } from '../../team/private-contract.js';
 import type { SpaceAudience } from '../../workspaces/spaces.js';
 import type { ChannelVisibility, ChannelPolicy } from '../../team/channel-contract.js';
@@ -52,6 +52,10 @@ export function reachableBots(methods: TeamBridgeMethods) {
 
 export function botProactiveOptOut(methods: TeamBridgeMethods, slug: string, optOut: boolean) {
   return unwrapAsync(methods.botProactiveOptOut({ slug, optOut }));
+}
+
+export function memberPermissions(methods: TeamBridgeMethods, humanId?: string, username?: string) {
+  return unwrapAsync(methods.memberPermissions({ humanId, username }));
 }
 
 export function roleConflicts(methods: TeamBridgeMethods, humanId?: string, username?: string) {
@@ -392,6 +396,10 @@ export const teamServiceRpc = {
 
   botProactiveOptOut(slug: string, optOut: boolean) {
     return botProactiveOptOut(this.methods, slug, optOut);
+  },
+
+  memberPermissions(humanId?: string, username?: string) {
+    return memberPermissions(this.methods, humanId, username);
   },
 
   roleConflicts(humanId?: string, username?: string) {

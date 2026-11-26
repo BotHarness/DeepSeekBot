@@ -61,13 +61,20 @@ export interface SegmentedControlProps<Value extends string> {
   readonly separateTrack?: boolean | undefined;
 }
 
-const WALK = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+export const WALK_KEYS = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+]);
 
-function walk<Value extends string>(
-  options: readonly SegmentedControlOption<Value>[],
+export function walk<Option extends { readonly disabled?: boolean | undefined }>(
+  options: readonly Option[],
   from: number,
   key: string,
-): SegmentedControlOption<Value> | undefined {
+): Option | undefined {
   const enabled = options.filter((option) => option.disabled !== true);
   if (key === 'Home') return enabled[0];
   if (key === 'End') return enabled.at(-1);
@@ -93,7 +100,7 @@ export function SegmentedControl<Value extends string>({
 }: SegmentedControlProps<Value>): ReactElement {
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    if (!WALK.has(event.key)) return;
+    if (!WALK_KEYS.has(event.key)) return;
     event.preventDefault();
     const target = walk(options, selected, event.key);
     if (target === undefined || target.value === value) return;

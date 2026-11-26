@@ -33,7 +33,6 @@ import {
   CloseIcon,
   FileIcon,
   LockIcon,
-  PlusIcon,
   RecordingStopIcon,
 } from '../shell/icons';
 import {
@@ -44,6 +43,7 @@ import {
   composerControl,
   composerPrimary,
 } from './composer-chrome';
+import { composerSlots } from './composer-layout';
 import { ComposerActionButton } from './composer-action';
 import { ComposerPillContext } from './composer-pill';
 import { VoiceButton } from './voice-button';
@@ -216,7 +216,7 @@ export function Composer({
   onFocusChange?(focused: boolean): void;
   sessionControls?:
     | {
-        render(width: number): ReactNode;
+        model: ReactNode;
         blocksSend: boolean;
         onStop?: (() => void) | undefined;
         stopping: boolean;
@@ -246,8 +246,8 @@ export function Composer({
   const button = composerControl(theme);
   const inset = (bar - button) / 2;
   const corner = bar / 2;
-  const restingHeight =
-    lineHeight + 2 * inset + (sessionControls === undefined ? 0 : button + space.x2);
+  const expanded = theme.largeText || (wraps && value !== '');
+  const restingHeight = lineHeight + 2 * inset;
   const ownPill = useSharedValue(restingHeight);
   const sharedPill = useContext(ComposerPillContext);
   const pillHeight = sharedPill?.height ?? ownPill;
@@ -285,8 +285,7 @@ export function Composer({
     haptic('send');
     onSend();
   };
-  const expanded = theme.largeText || (wraps && value !== '');
-  const stacked = sessionControls !== undefined || composerStacked(actions, files.length, expanded);
+  const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
     <HoldDot key="lead" size={integratedLeading ? button : bar} />
@@ -302,13 +301,14 @@ export function Composer({
     >
       <CloseIcon color={theme.color.fg} size={icon} />
     </ComposerCircleButton>
-  ) : canAttach ? (
+  ) : canAttach || sessionControls !== undefined ? (
     <PlusMenuButton
       key="lead"
       label={t.attach}
       testID="composer-attach"
       size={integratedLeading ? button : bar}
       embedded={integratedLeading}
+      disabled={!canAttach}
       items={[
         {
           id: 'composer-attach-photos',
@@ -330,18 +330,6 @@ export function Composer({
         },
       ]}
     />
-  ) : sessionControls !== undefined ? (
-    <ComposerActionButton
-      key="lead"
-      label={t.attach}
-      symbol="plus"
-      testID="composer-attach"
-      filled={false}
-      disabled
-      onPress={() => onPick('file')}
-    >
-      <PlusIcon color={theme.color.subtle} size={icon} />
-    </ComposerActionButton>
   ) : null;
   const placeholder = held
     ? Platform.OS === 'android' || Platform.OS === 'ios'
@@ -431,7 +419,8 @@ export function Composer({
       />
     ),
   );
-  const leadingWidth = integratedLeading && leading !== null ? button + space.x2 : 0;
+  const slot = button + space.x2;
+  const leadingWidth = integratedLeading && leading !== null ? slot : 0;
   const stop =
     sessionControls?.onStop === undefined ? null : (
       <ComposerActionButton
@@ -448,12 +437,14 @@ export function Composer({
         />
       </ComposerActionButton>
     );
-  const compactWidth =
-    pill.width -
-    2 * (inset + space.x3) -
-    (sessionControls !== undefined
-      ? 0
-      : leadingWidth + (trailing.length === 0 ? 0 : button + space.x2));
+  const slots = composerSlots({
+    model: sessionControls !== undefined,
+    slot,
+    leading: leadingWidth,
+    trailing: trailing.length,
+    stop: stop !== null,
+  });
+  const compactWidth = pill.width - 2 * (inset + space.x3) - slots.left - slots.right;
   const expand =
     expanded && !listening ? (
       <ComposerActionButton
@@ -556,8 +547,8 @@ export function Composer({
                 onSend={send}
                 style={{
                   flexDirection: 'row',
-                  paddingLeft: stacked ? 0 : leadingWidth,
-                  paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
+                  paddingLeft: stacked ? 0 : slots.left,
+                  paddingRight: stacked ? 0 : slots.right,
                 }}
               >
                 <ComposerHold
@@ -594,7 +585,7 @@ export function Composer({
                   {expand}
                   {trailing.length === 0 ? null : stop}
                   <View pointerEvents="none" style={{ flex: 1 }} />
-                  {sessionControls?.render(pill.width)}
+                  {sessionControls?.model}
                   {trailing.length === 0 ? stop : trailing}
                 </View>
               )}

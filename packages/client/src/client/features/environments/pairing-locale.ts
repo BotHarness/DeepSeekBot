@@ -33,6 +33,18 @@ export const zh = {
   'pairing.search': '搜索{title}',
   'pairing.noMatches': '没有匹配的条目。',
   'pairing.noPeople': '尚无有效配对人员。',
+  'pairing.blocked': '已屏蔽',
+  'pairing.noBlocked': '没有被屏蔽的人或会话。',
+  'pairing.blockedName': '名称',
+  'pairing.blockedKind': '类型',
+  'pairing.blockedPerson': '个人',
+  'pairing.blockedGroup': '群或频道',
+  'pairing.blockedDm': '私聊',
+  'pairing.blockedAt': '屏蔽时间',
+  'pairing.block': '屏蔽',
+  'pairing.unblock': '取消屏蔽',
+  'pairing.blockHelp':
+    '被屏蔽的人或会话发的消息不会进入收件箱，也不会唤醒 Bot，主人的消息除外。审核人可在 IM 中用 /屏蔽 @某人。',
   'pairing.noRoles': '尚无角色。',
   'pairing.noRequests': '尚无待处理或历史申请。',
   'pairing.selectPerson': '选择条目查看详情。',
@@ -50,13 +62,26 @@ export const zh = {
   'pairing.behavior': '自然语言行为权限',
   'pairing.ordinary': '普通聊天 · 无管理能力',
   'pairing.editRole': '编辑角色',
+  'pairing.deleteRole': '删除角色',
+  'pairing.deleteRoleWarning': '删除后无法恢复。没有人在使用这个角色。',
+  'pairing.deleteDefaultRoleWarning':
+    '删除后无法恢复。这是默认审批角色，删除后新的配对申请将不再预选角色。',
+  'pairing.deleteRoleInUse':
+    '仍有 {count} 人使用或申请这个角色。先为他们改用其他角色，或拒绝待审核的申请。',
+  'pairing.defaultRole': '默认批准角色',
+  'pairing.defaultRoleHelp':
+    '审核人在 IM 里只回复「同意」时，配对申请会获得这个角色。审核人只能分配自己权限范围内的角色。',
+  'pairing.setDefaultRole': '设为默认批准角色',
+  'pairing.clearDefaultRole': '取消默认',
   'pairing.saveRole': '保存角色',
   'pairing.cancelRole': '取消编辑',
   'pairing.reassignRole': '分配所选角色',
   'pairing.roleCapabilities': '显式管理能力',
   'pairing.privateRoleApproval':
     '批准一次和拒绝适用于现有私聊执行审批；审核聊天配对适用于配对卡片，并受独立委派范围限制。原生问题与执行审批的群目的地由独立功能提供。行为文字不授予管理能力。',
-  'pairing.restricted': 'Lark 聊天与 Slack 私聊请求必须经过配对',
+  'pairing.restricted': 'Lark、Slack、Discord 的私聊和群 @ 请求必须经过配对',
+  'pairing.restrictedHelp':
+    '开启后，未配对的人发来的消息不会唤醒 Bot，只会生成配对申请等你审核。默认关闭。',
   'pairing.policyLimit':
     '行为权限是模型的 prompt 策略，不隔离邮件、代码或 Shell 资源。群回复对全群可见；聊天资格与管理权限独立。',
   'pairing.conversationAccess': '普通聊天配对申请',
@@ -67,12 +92,13 @@ export const zh = {
   'pairing.pendingCount': '{count} 个待处理',
   'pairing.approvedCount': '已配对 {count} 人',
   'pairing.hint':
-    '启用限制后，未配对的 Lark 私聊、群 @ 和 Slack 私聊自动申请普通聊天角色；Lark 管理授权仍用私聊 /pair。Slack 管理控件由独立功能提供。申请 10 分钟后过期，审核后须发送新问题。',
+    '启用限制后，未配对的 Lark、Slack、Discord 私聊和群 @ 自动申请普通聊天角色；管理授权在 Lark、Slack 或 Discord 私聊中发送 /pair。申请 10 分钟后过期，审核后须发送新问题。',
   'pairing.empty':
     '尚无配对申请。接收器就绪后，受限私聊或群 @ 会申请聊天角色；管理配对请在私聊发送 /pair。',
   'pairing.refresh': '刷新申请',
   'pairing.actor': '申请人',
   'pairing.account': '接收账号',
+  'pairing.app': '应用',
   'pairing.reference': '申请编号',
   'pairing.expires': '过期时间',
   'pairing.approve': '批准所选能力',
@@ -83,6 +109,7 @@ export const zh = {
   'pairing.rejectCapability': '拒绝操作',
   'pairing.reviewCapability': '审核聊天配对',
   'pairing.delegable': '可委派管理能力',
+  'pairing.delegateApproved': '也可在 IM 里把这些能力授予别人',
   'pairing.delegateAllow': '允许委派',
   'pairing.delegateDeny': '禁止委派',
   'pairing.delegationHelp':
@@ -357,6 +384,18 @@ export const en = {
   'pairing.search': 'Search {title}',
   'pairing.noMatches': 'No matching entries.',
   'pairing.noPeople': 'No active paired people yet.',
+  'pairing.blocked': 'Blocked',
+  'pairing.noBlocked': 'Nothing is blocked.',
+  'pairing.blockedName': 'Name',
+  'pairing.blockedKind': 'Type',
+  'pairing.blockedPerson': 'Person',
+  'pairing.blockedGroup': 'Group or channel',
+  'pairing.blockedDm': 'DM',
+  'pairing.blockedAt': 'Blocked at',
+  'pairing.block': 'Block',
+  'pairing.unblock': 'Unblock',
+  'pairing.blockHelp':
+    "Messages from a blocked person or conversation never reach the Inbox or wake the Bot, except the Owner's. Reviewers can send /block @someone in IM.",
   'pairing.noRoles': 'No roles yet.',
   'pairing.noRequests': 'No pending or historical requests.',
   'pairing.selectPerson': 'Select an entry to view its details.',
@@ -374,13 +413,26 @@ export const en = {
   'pairing.behavior': 'Behavior permissions',
   'pairing.ordinary': 'Ordinary chat · no management capabilities',
   'pairing.editRole': 'Edit role',
+  'pairing.deleteRole': 'Delete role',
+  'pairing.deleteRoleWarning': 'This cannot be undone. No one uses this role.',
+  'pairing.deleteDefaultRoleWarning':
+    'This cannot be undone. It is the default approval role, so new pairing requests will no longer preselect a role.',
+  'pairing.deleteRoleInUse':
+    'Still used or requested by {count}. Move them to another role or reject their pending requests first.',
+  'pairing.defaultRole': 'Default approval role',
+  'pairing.defaultRoleHelp':
+    'When a reviewer replies only "approve" in IM, the pairing request gets this role. A reviewer can only assign roles within their own permissions.',
+  'pairing.setDefaultRole': 'Use as default approval role',
+  'pairing.clearDefaultRole': 'Stop using as default',
   'pairing.saveRole': 'Save role',
   'pairing.cancelRole': 'Cancel editing',
   'pairing.reassignRole': 'Assign selected role',
   'pairing.roleCapabilities': 'Explicit management capabilities',
   'pairing.privateRoleApproval':
     'Allow once and Reject apply to existing private execution approvals. Review chat pairing applies to pairing cards with a separate delegation ceiling. Group destinations for native questions and execution approvals are separate. Behavior text does not grant management capabilities.',
-  'pairing.restricted': 'Require pairing for Lark conversations and Slack DMs',
+  'pairing.restricted': 'Require pairing for Lark, Slack and Discord DMs and group mentions',
+  'pairing.restrictedHelp':
+    'When on, a message from someone who is not paired does not wake the Bot; it only creates a pairing request for you to review. Off by default.',
   'pairing.policyLimit':
     'Behavior permissions are prompt policies; they do not isolate email, code or Shell resources. Group replies are visible to the group. Chat eligibility and management powers are independent.',
   'pairing.conversationAccess': 'Conversation pairing request',
@@ -391,12 +443,13 @@ export const en = {
   'pairing.pendingCount': '{count} pending',
   'pairing.approvedCount': '{count} paired',
   'pairing.hint':
-    'When restricted, unpaired Lark DMs, group mentions and Slack DMs request an ordinary chat role automatically; Lark management requests still use /pair in a DM. Slack management controls are a separate feature. Requests expire after 10 minutes. Send a new question after approval.',
+    'When restricted, unpaired Lark, Slack and Discord DMs and group mentions request an ordinary chat role automatically; management requests use /pair in a Lark, Slack or Discord DM. Requests expire after 10 minutes. Send a new question after approval.',
   'pairing.empty':
     'No pairing requests. With a ready receiver, restricted DMs or group mentions request a chat role; management pairing uses /pair in a DM.',
   'pairing.refresh': 'Refresh requests',
   'pairing.actor': 'Applicant',
   'pairing.account': 'Receiving account',
+  'pairing.app': 'App',
   'pairing.reference': 'Request reference',
   'pairing.expires': 'Expires',
   'pairing.approve': 'Approve selected capabilities',
@@ -407,6 +460,7 @@ export const en = {
   'pairing.rejectCapability': 'Reject operations',
   'pairing.reviewCapability': 'Review chat pairing',
   'pairing.delegable': 'Delegable management capabilities',
+  'pairing.delegateApproved': 'Can also grant these to others in IM',
   'pairing.delegateAllow': 'Allow delegation',
   'pairing.delegateDeny': 'Deny delegation',
   'pairing.delegationHelp':

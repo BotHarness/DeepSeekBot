@@ -291,11 +291,8 @@ describe('reviewed Group edits', () => {
     expect(departures()).toHaveLength(1);
   });
 
-  it('requires an existing Group member and protects Tob from member mutations', () => {
+  it('requires an existing Group member', () => {
     const f = group();
-    expect(() =>
-      f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'tob' }),
-    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
     expect(() =>
       f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'other' }),
     ).toThrowError(expect.objectContaining({ code: 'not-group-member' }));

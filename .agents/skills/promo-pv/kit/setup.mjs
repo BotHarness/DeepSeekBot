@@ -12,6 +12,8 @@ const repo = resolve(skill, '../../..');
 const dest = resolve(process.argv[2] || 'promo-pv');
 for (const d of ['kit', 'lib', 'assets', 'out', 'sfx']) mkdirSync(join(dest, d), { recursive: true });
 for (const f of ['globals.js', 'motion.js', 'pixel-cosmos.js', 'boot.js', 'render.cjs', 'preview.cjs', 'render-all.sh', 'sheet.py', 'mix.py', 'sfx.py', 'beats.py']) cpSync(join(kit, f), join(dest, 'kit', f));
+// brand, accent and status colours come from Tobs core (the same file the docs and marketing sites read)
+cpSync(join(repo, 'design/tokens/tobs-core.generated.css'), join(dest, 'kit', 'tobs-core.css'));
 cpSync(join(kit, 'stage.html'), join(dest, 'index.html'));
 if (!existsSync(join(dest, 'scenes.js'))) cpSync(join(kit, 'example-scenes.js'), join(dest, 'scenes.js'));
 if (!existsSync(join(dest, 'beats.js'))) writeFileSync(join(dest, 'beats.js'), `const BEATS = ${JSON.stringify(Array.from({ length: 64 }, (_, i) => +(0.5 + i * 0.5).toFixed(3)))};\nconst KICKS = [];\nconst SAX = [];\nconst END = 24;\n`);

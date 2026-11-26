@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInterfacePreferences, preferredLanguage } from '../src/ui/interface-preferences';
 
 describe('phone interface preferences', () => {
+  it('starts in English when the test uses the system language', () => {
+    expect(createInterfacePreferences().getSnapshot()).toMatchObject({
+      language: 'system',
+      locale: 'en',
+    });
+  });
+
   it('remembers Session sort across device preference restores', async () => {
     let stored: unknown = { sessionsTab: true };
     const storage = {
@@ -17,7 +24,6 @@ describe('phone interface preferences', () => {
     const restarted = createInterfacePreferences();
     await restarted.restore(storage);
     expect(restarted.getSnapshot().sessionSort).toBe('created');
-    expect(restarted.getSnapshot().sessionsTab).toBe(true);
   });
 
   it('remembers the Session navigation style and landing choices on the phone', async () => {
@@ -54,12 +60,20 @@ describe('phone interface preferences', () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
     const restore = preferences.restore({
-      read: async () => ({ appearance: 'light', sessionSort: 'last-activity', sessionsTab: true }),
+      read: async () => ({
+        appearance: 'light',
+        sessionSort: 'last-activity',
+        tabOrder: ['pinned', 'chats', 'activity', 'sessions', 'settings'],
+      }),
       write,
     });
     preferences.setAppearance('dark');
     await restore;
-    const expected = { appearance: 'dark', sessionSort: 'last-activity', sessionsTab: true };
+    const expected = {
+      appearance: 'dark',
+      sessionSort: 'last-activity',
+      tabOrder: ['pinned', 'chats', 'activity', 'sessions', 'settings'],
+    };
     expect(preferences.getSnapshot()).toMatchObject(expected);
     expect(write).toHaveBeenCalledWith(expect.objectContaining(expected));
   });
@@ -101,8 +115,34 @@ describe('phone interface preferences', () => {
     });
   });
 
-  it('keeps Sessions opt-in on existing installs and restores the switch', async () => {
-    let saved: unknown = { language: 'zh', appearance: 'dark' };
+  it('keeps the tab order on this phone with the Pinned tab right of Chats by default', async () => {
+    let saved: unknown = { language: 'zh', sessionsTab: false };
+    const storage = {
+      read: async () => saved,
+      write: (value: unknown) => {
+        saved = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().tabOrder).toEqual([
+      'chats',
+      'pinned',
+      'activity',
+      'sessions',
+      'settings',
+    ]);
+    preferences.setTabOrder(['settings', 'chats', 'pinned', 'activity', 'sessions']);
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({
+      tabOrder: ['settings', 'chats', 'pinned', 'activity', 'sessions'],
+      language: 'zh',
+    });
+  });
+
+  it('keeps Sessions opt-in and its tab position while the switch is off', async () => {
+    let saved: unknown = { language: 'zh', tabOrder: ['sessions', 'chats'] };
     const storage = {
       read: async () => saved,
       write: (value: unknown) => {
@@ -113,16 +153,12 @@ describe('phone interface preferences', () => {
     expect(preferences.getSnapshot().sessionsTab).toBe(false);
     await preferences.restore(storage);
     expect(preferences.getSnapshot().sessionsTab).toBe(false);
+    expect(preferences.getSnapshot().tabOrder[0]).toBe('sessions');
     preferences.setSessionsTab(true);
     const restarted = createInterfacePreferences();
     await restarted.restore(storage);
-    expect(restarted.getSnapshot()).toMatchObject({
-      sessionsTab: true,
-      language: 'zh',
-      appearance: 'dark',
-    });
-    restarted.setSessionsTab(false);
-    expect(restarted.getSnapshot().sessionsTab).toBe(false);
+    expect(restarted.getSnapshot()).toMatchObject({ sessionsTab: true, language: 'zh' });
+    expect(restarted.getSnapshot().tabOrder[0]).toBe('sessions');
   });
 
   it('respects explicit language until follow system is selected again', async () => {
@@ -144,6 +180,8 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      hideBarsOnScroll: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
       sessionNavigation: 'drawer',
@@ -213,6 +251,8 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      hideBarsOnScroll: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
       hideBotSessions: false,
       sessionNavigation: 'drawer',
@@ -287,4 +327,16 @@ it('remembers the Hide Bot Sessions choice on the phone', async () => {
   const restarted = createInterfacePreferences();
   await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
   expect(restarted.getSnapshot().hideBotSessions).toBe(true);
+});
+
+it('keeps bars on screen while scrolling until the phone opts in', async () => {
+  const writes: unknown[] = [];
+  const preferences = createInterfacePreferences();
+  await preferences.restore({ read: async () => undefined, write: (value) => writes.push(value) });
+  expect(preferences.getSnapshot().hideBarsOnScroll).toBe(false);
+  preferences.setHideBarsOnScroll(true);
+  expect(writes.at(-1)).toMatchObject({ hideBarsOnScroll: true });
+  const restarted = createInterfacePreferences();
+  await restarted.restore({ read: async () => writes.at(-1), write: () => {} });
+  expect(restarted.getSnapshot().hideBarsOnScroll).toBe(true);
 });

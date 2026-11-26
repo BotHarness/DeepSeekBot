@@ -167,6 +167,7 @@ export const zh = {
   'sessions.detail.tool.empty': '没有输出',
   'sessions.detail.tool.input': '参数',
   'sessions.detail.tool.output': '结果',
+  'sessions.detail.tool.wrap': '自动换行',
   'sessions.detail.tool.matches': '共 {count} 处',
   'sessions.detail.tool.truncated': '只显示前面一部分',
   'sessions.detail.tool.lines': '第 {from}–{to} 行，共 {total} 行',
@@ -219,7 +220,7 @@ export const zh = {
   'sessions.role.orchestrator': 'Orchestrator',
   'sessions.role.assignment': 'Assignment',
   'sessions.access.danger': '完整文件访问',
-  'sessions.mode': '模式：{name}。会话开始后不能更换。',
+  'sessions.mode': '配装：{name}。会话开始后不能更换。',
   'sessions.access.dangerDetails':
     '此事项的命令可修改或删除工作区外的文件，无需审批。关闭 Bot 的完全访问开关后，此事项仍保留该权限。',
   'sessions.status.running': '运行中',
@@ -478,6 +479,7 @@ export const en = {
   'sessions.detail.tool.exit': 'Exit code {code}',
   'sessions.detail.tool.empty': 'No output',
   'sessions.detail.tool.input': 'Input',
+  'sessions.detail.tool.wrap': 'Auto wrap',
   'sessions.detail.tool.output': 'Result',
   'sessions.detail.tool.matches': '{count} in total',
   'sessions.detail.tool.truncated': 'Only the first part is shown',
@@ -532,7 +534,7 @@ export const en = {
   'sessions.role.orchestrator': 'Orchestrator',
   'sessions.role.assignment': 'Assignment',
   'sessions.access.danger': 'Full file access',
-  'sessions.mode': 'Mode: {name}. It stays fixed once the Session starts.',
+  'sessions.mode': 'Loadout: {name}. It stays fixed once the Session starts.',
   'sessions.access.dangerDetails':
     'This Assignment can run commands that change or delete files outside its workspace without approval. It keeps that access if you turn off Full access for the Bot.',
   'sessions.status.running': 'Running',

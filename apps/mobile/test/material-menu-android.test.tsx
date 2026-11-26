@@ -33,7 +33,8 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     Text: node('Text'),
     RNHostView: ({ children }: { children?: ReactNode }) => children ?? null,
     useMaterialColors: () => ({
-      surfaceContainerLow: '#1d1b20',
+      surfaceContainer: '#211f26',
+      surfaceContainerHigh: '#2b2930',
       onSurface: '#e6e0e9',
       onSurfaceVariant: '#cac4d0',
     }),
@@ -75,7 +76,7 @@ it('draws the menu header inside the menu surface, above the items', () => {
     />,
   );
   const surface = view.querySelector<HTMLElement>('[data-node="Column"][data-surface]')!;
-  expect(surface.dataset['surface']).toBe('#1d1b20');
+  expect(surface.dataset['surface']).toBe('#211f26');
   const first = surface.firstElementChild as HTMLElement;
   expect(first.dataset['testId']).toBe('material-menu-header');
   expect(first.textContent).toBe('Investigate the flaky release build on the staging computer');
