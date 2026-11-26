@@ -7,6 +7,7 @@ import {
   FlowRow,
   Host,
   Icon,
+  RNHostView,
   Row,
   Text,
   TextButton,
@@ -147,6 +148,14 @@ export function CardPreview({
     </Text>
   );
   return well ? <Well>{body}</Well> : body;
+}
+
+export function CardEmbed({ children }: { children: ReactNode }) {
+  return (
+    <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
+      <ComposeTreeContext.Provider value={undefined}>{children}</ComposeTreeContext.Provider>
+    </RNHostView>
+  );
 }
 
 export function CardGroup({ children }: { children: ReactNode }) {
