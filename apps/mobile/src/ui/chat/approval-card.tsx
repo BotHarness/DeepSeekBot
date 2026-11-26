@@ -119,6 +119,7 @@ interface ApprovalCardProps {
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
+  alwaysAllow?: boolean;
   preset?: ApprovalPresetPort;
   onSettled?(result: DecisionResult): void;
 }
@@ -137,6 +138,7 @@ function ApprovalCardContent({
   decidedHere = false,
   focused = false,
   wide = false,
+  alwaysAllow = true,
   preset,
   onSettled,
 }: ApprovalCardProps) {
@@ -301,7 +303,7 @@ function ApprovalCardContent({
     }
   };
   const scopeActions =
-    actionable && busy === undefined && request.allowAlways
+    actionable && alwaysAllow && busy === undefined && request.allowAlways
       ? shellScopeActions(live?.shellSuggestions, request.toolName, {
           decide: (decision) =>
             void decide(
@@ -311,7 +313,7 @@ function ApprovalCardContent({
           custom: setCustomScope,
         })
       : [];
-  const alwaysAllow = (
+  const alwaysAllowButton = (
     <Button
       label={t.alwaysAllow}
       testID="approval-always-allow"
@@ -373,17 +375,23 @@ function ApprovalCardContent({
         details={
           <>
             <DetailRow label={t.tool} value={request.toolName} />
-            <DetailRow label={t.workingFolder} value={request.cwd} />
+            {request.cwd === '' ? null : <DetailRow label={t.workingFolder} value={request.cwd} />}
             {change !== undefined ? (
               <FileDiff change={change} />
             ) : (
               rows.map((row, index) => (
-                <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
+                <DetailRow
+                  key={`${row.label}-${index}`}
+                  label={
+                    Object.hasOwn(t.inputLabels, row.label) ? t.inputLabels[row.label]! : row.label
+                  }
+                  value={row.value}
+                />
               ))
             )}
             {effects === undefined ? null : <CardNote>{effects}</CardNote>}
             {highRisk(request.toolName) ? null : <CardNote>{riskNote(request.toolName)}</CardNote>}
-            <CardNote>{alwaysNote(request)}</CardNote>
+            {alwaysAllow ? <CardNote>{alwaysNote(request)}</CardNote> : null}
           </>
         }
       >
@@ -418,10 +426,10 @@ function ApprovalCardContent({
             busy={busy === 'allowed-once'}
             onPress={() => void decide('allowed-once')}
           />
-          {nativeContextMenu && scopeActions.length > 0 ? (
-            <ContextMenuArea actions={scopeActions}>{alwaysAllow}</ContextMenuArea>
+          {!alwaysAllow ? null : nativeContextMenu && scopeActions.length > 0 ? (
+            <ContextMenuArea actions={scopeActions}>{alwaysAllowButton}</ContextMenuArea>
           ) : (
-            alwaysAllow
+            alwaysAllowButton
           )}
           <Button
             label={t.reject}

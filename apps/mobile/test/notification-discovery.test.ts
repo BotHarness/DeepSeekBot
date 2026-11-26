@@ -102,3 +102,37 @@ it('publishes only complete notification discovery and restarts a scan invalidat
     inbox.stop();
   }
 });
+
+it('asks notification discovery for the same Activity source as the feed', async () => {
+  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+    if (method === 'channelUnreadCounts') return { channels: [] };
+    if (!args?.notifications) return { queryVersion: 1, items: [], source: args?.source };
+    return { notificationVersion: 1, items: [], source: args.source };
+  });
+  const unavailable = () => {
+    throw Error('unused client operation');
+  };
+  const client: HostClient = {
+    start: unavailable,
+    stop: unavailable,
+    retryNow: unavailable,
+    refresh: unavailable,
+    upload: unavailable,
+    api: unavailable,
+    resource: unavailable,
+    follow: unavailable,
+    getSnapshot: () => ({ connection: { status: 'connected', route: '' } }),
+    subscribe: () => () => {},
+    onLive: () => () => {},
+    call: call as HostClient['call'],
+  };
+  const inbox = createInbox(client, { activity: true, notifications: true, source: 'all' });
+  try {
+    await inbox.refresh();
+    const reads = call.mock.calls.filter(([, args]) => args?.notifications);
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every(([, args]) => args?.source === 'all')).toBe(true);
+  } finally {
+    inbox.stop();
+  }
+});

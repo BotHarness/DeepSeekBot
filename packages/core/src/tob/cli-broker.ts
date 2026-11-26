@@ -302,6 +302,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                     developerMode: { type: 'boolean' },
                     showBotSessions: { type: 'boolean' },
                     showApprovalReviewSessions: { type: 'boolean' },
+                    nativeSessionAttention: { type: 'boolean' },
                   }
                 : {}),
             },

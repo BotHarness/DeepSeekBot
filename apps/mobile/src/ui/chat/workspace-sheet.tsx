@@ -41,8 +41,9 @@ import {
   SHEET_GROUP,
 } from './sheet';
 import { confirmDestructive } from '../primitives/app-dialog';
+import { NewFolderPage, type CreateFolder } from './new-folder-page';
 
-type Mode = 'main' | 'browse' | 'confirm';
+type Mode = 'main' | 'browse' | 'new-folder' | 'confirm';
 type Pending = { path: string; workspaceId?: string };
 
 type MainRow =
@@ -72,18 +73,12 @@ type MainSection = {
 
 type BrowseRow =
   | { kind: 'registered'; key: string; option: WorkspaceOption }
+  | { kind: 'new-folder'; key: string }
   | { kind: 'folder'; key: string; folder: HostFolder }
   | { kind: 'loading'; key: string }
   | { kind: 'empty'; key: string; text: string; tone?: 'warning' };
 
 const OFF = '@off';
-
-export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
-  const t = useStrings();
-  return listing.status === 'ready' ? (
-    <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
-  ) : null;
-}
 
 export function locationSection(listing: HostFolderListing) {
   const data = listing.roots
@@ -255,6 +250,7 @@ export function WorkspaceSheet({
   onAccess,
   onTemplates,
   onClose,
+  createFolder,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -268,6 +264,7 @@ export function WorkspaceSheet({
   onAccess(access: AssignmentAccess): void;
   onTemplates(templates: ApprovalTemplates): void;
   onClose(): void;
+  createFolder?: CreateFolder | undefined;
 }) {
   const t = useStrings();
   const [mode, setMode] = useState<Mode>('main');
@@ -279,6 +276,7 @@ export function WorkspaceSheet({
   const [confirmDanger, setConfirmDanger] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [creating, setCreating] = useState(false);
   const mutate = (key: string, work: () => Promise<void>, after?: () => void) => {
     if (busy !== undefined) return;
     setBusy(key);
@@ -450,6 +448,38 @@ export function WorkspaceSheet({
     );
   }
 
+  if (mode === 'new-folder' && listing.status === 'ready' && createFolder !== undefined)
+    return (
+      <Sheet
+        page={page}
+        visible={visible}
+        avoidKeyboard
+        label={t.newFolder}
+        title={t.newFolder}
+        onClose={() => {
+          if (!creating) close();
+        }}
+      >
+        <NewFolderPage
+          parent={{
+            path: listing.value.path,
+            name: listing.value.crumbs.at(-1)?.name ?? listing.value.path,
+          }}
+          create={createFolder}
+          onBusy={setCreating}
+          onBack={() => setMode('browse')}
+          onCreated={(workspace) => {
+            setOptions((current) => [
+              workspace,
+              ...current.filter((option) => option.id !== workspace.id),
+            ]);
+            setPending({ path: workspace.path, workspaceId: workspace.id });
+            setMode('confirm');
+          }}
+        />
+      </Sheet>
+    );
+
   if (mode === 'browse') {
     const grantedIds = new Set(granted.map((grant) => grant.workspaceId));
     const registered = options.filter((option) => !grantedIds.has(option.id));
@@ -467,13 +497,18 @@ export function WorkspaceSheet({
                 tone: 'warning',
               },
             ]
-          : folders.length === 0
-            ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty }]
-            : folders.map((folder) => ({
-                kind: 'folder',
-                key: `folder:${folder.path}`,
-                folder,
-              }));
+          : [
+              ...(createFolder === undefined
+                ? []
+                : [{ kind: 'new-folder', key: 'new-folder' } as const]),
+              ...(folders.length === 0
+                ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty } as const]
+                : folders.map((folder) => ({
+                    kind: 'folder' as const,
+                    key: `folder:${folder.path}`,
+                    folder,
+                  }))),
+            ];
     const sections = [
       ...(registered.length === 0
         ? []
@@ -542,6 +577,14 @@ export function WorkspaceSheet({
                   tone={item.tone === 'warning' ? 'warning' : 'muted'}
                   on={SHEET_GROUP}
                 />
+              ) : item.kind === 'new-folder' ? (
+                <SettingsRow
+                  testID="folder-picker-new-folder"
+                  title={t.newFolder}
+                  icon="newFolder"
+                  on={SHEET_GROUP}
+                  onPress={busy === undefined ? () => setMode('new-folder') : undefined}
+                />
               ) : item.kind === 'registered' ? (
                 <SettingsRow
                   title={item.option.title}
@@ -566,7 +609,6 @@ export function WorkspaceSheet({
             </Grouped>
           )}
         />
-        <OpenFolderTarget listing={listing} />
         <SheetActions>
           <Button
             label={t.back}

@@ -766,5 +766,13 @@
   {
     "id": "shell-prefix-tool-rule",
     "sha256": "5e6de29688067eefc270b7e31808afc7d16dac03c4ee45d01a77f2c35b96a0a0"
+  },
+  {
+    "id": "source-block",
+    "sha256": "a6ede706bb8c3bc5f73c78ef02c7c6f8a620a3ad7036629b3f4b58df3df775c6"
+  },
+  {
+    "id": "connector-sign-in-access",
+    "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
   }
 ]

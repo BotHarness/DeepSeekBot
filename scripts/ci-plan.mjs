@@ -773,9 +773,21 @@ function githubPlan(changesFile) {
   const index = createIndex(files, (file) => readFileSync(join(ROOT, file), 'utf8'));
   const input = { event, labels, changes, truncated: changedCount > changes.length, index };
   const result = { ...plan(input), mobile: mobileVerification(input) };
+  const relay =
+    event !== 'pull_request' ||
+    input.truncated ||
+    labels.includes(FULL_LABEL) ||
+    changes.some(({ path, previous }) =>
+      [path, previous].some(
+        (file) =>
+          file?.startsWith('deploy/private-relay/') ||
+          file === WORKFLOW ||
+          file === 'scripts/ci-plan.mjs',
+      ),
+    );
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nui-visual=${result.tests !== 'none' && uiVisual(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nui-visual=${result.tests !== 'none' && uiVisual(result.tests, changes)}\nprivate-relay=${relay}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(
