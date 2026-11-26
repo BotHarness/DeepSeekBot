@@ -130,3 +130,30 @@ it('says when no one else is on the Host', async () => {
   expect(host.querySelector('[data-testid="message-person-search"]')).toBeNull();
   act(() => root.unmount());
 });
+
+it('ignores a DM that opens on a client the sheet no longer uses', async () => {
+  let release: (value: unknown) => void = () => {};
+  const old = hostWith((method) =>
+    method === 'teamDirectory'
+      ? people
+      : new Promise((resolve) => {
+          release = resolve;
+        }),
+  );
+  const { host, root, onOpened } = await render(old.client);
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-testid="message-person-bob"]')!.click(),
+  );
+  const replacement = hostWith(() => people);
+  await act(async () =>
+    root.render(
+      <MessagePersonSheet client={replacement.client} onClose={() => {}} onOpened={onOpened} />,
+    ),
+  );
+  await act(async () => release({ channel: { id: 'dm-humans-bob', name: 'Bob' } }));
+  expect(onOpened).not.toHaveBeenCalled();
+  expect(
+    host.querySelector<HTMLButtonElement>('[data-testid="message-person-bob"]')!.disabled,
+  ).toBe(false);
+  act(() => root.unmount());
+});

@@ -2097,7 +2097,7 @@
       "behaviors": ["team.human-dm-first-message"],
       "reason": "Fresh named Host; alice dismisses the first-run name and photo prompt with Later, starts the DM from New > Message a person in the member Web Client and lands in an empty DM with a composer, the DM is listed for neither side until her first message from that composer, then both list it and bob's member Web Client shows it live, in light and dark; no model or native mobile qualification. #5418 re-audit: child-process calls keep shell: false and windowsHide; this hash is not runtime qualification.",
       "task": 5418,
-      "sha256": "3d64553c5aaa1f1e402e3fe86c22caec2854da790dfc749ffe4a56bcd3eeb737"
+      "sha256": "ce2f29eabc7c98157c45ef1649f76ac2e66548f48891c380fd92a3d32bf0cff7"
     },
     {
       "path": "scripts/e2e-team-profile-setup.mjs",

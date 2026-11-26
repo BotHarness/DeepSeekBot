@@ -38,8 +38,12 @@ export function MessagePersonSheet({
   const [opening, setOpening] = useState<string>();
   const [openFailed, setOpenFailed] = useState(false);
   const live = useRef(false);
+  const generation = useRef(0);
   const mount = useMounted<ViewInstance>(() => {
     live.current = true;
+    generation.current += 1;
+    setOpening(undefined);
+    setOpenFailed(false);
     let current = true;
     setLoad({ state: 'loading' });
     if (client === undefined) setLoad({ state: 'failed' });
@@ -63,15 +67,17 @@ export function MessagePersonSheet({
   };
   const open = async (person: TeamPerson) => {
     if (client === undefined || opening !== undefined) return;
+    const requested = generation.current;
+    const stale = () => !live.current || generation.current !== requested;
     setOpening(person.humanId);
     setOpenFailed(false);
     try {
       const target = await openHumanDm(client, person);
-      if (!live.current) return;
+      if (stale()) return;
       Keyboard.dismiss();
       onOpened(target);
     } catch {
-      if (!live.current) return;
+      if (stale()) return;
       setOpening(undefined);
       setOpenFailed(true);
     }

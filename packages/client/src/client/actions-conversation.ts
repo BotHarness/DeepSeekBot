@@ -152,6 +152,8 @@ export function createConversationActions(
     );
     if (unreadAfterMessageId !== undefined) clientStore.setConversation({ unreadAfterMessageId });
   };
+  const MISSING_CHANNEL = ['not-found', 'channel-not-found', 'bot-not-found'];
+  let latestOpen = 0;
   const openChannelById = async (
     channelId: string,
     {
@@ -162,16 +164,22 @@ export function createConversationActions(
     scopedCall.assertCurrent?.();
     const snapshot = clientStore.getSnapshot();
     const requestedFrom = currentSelection();
+    const request = ++latestOpen;
+    const superseded = () => request !== latestOpen || currentSelection() !== requestedFrom;
     let channel = snapshot.channels.find((candidate) => candidate.id === channelId);
     if (channel === undefined && messageId !== undefined) {
       const channels = await loadChannels(scopedCall);
-      if (currentSelection() !== requestedFrom) return;
+      if (superseded()) return;
       clientStore.setRoster(clientStore.getSnapshot().bots, channels);
       channel = channels.find((candidate) => candidate.id === channelId);
     }
     if (channel === undefined && messageId === undefined) {
-      channel = await loadChannel(scopedCall, channelId).catch(() => undefined);
-      if (currentSelection() !== requestedFrom) return;
+      channel = await loadChannel(scopedCall, channelId).catch((error: unknown) => {
+        if (error instanceof BridgeCallError && MISSING_CHANNEL.includes(error.code))
+          return undefined;
+        throw error;
+      });
+      if (superseded()) return;
     }
     if (channel === undefined) {
       if (messageId !== undefined) throw new Error('Source Channel is no longer available');
@@ -184,7 +192,7 @@ export function createConversationActions(
             direction: 'around',
             around: messageId,
           });
-    if (sourcePage !== undefined && currentSelection() !== requestedFrom) return;
+    if (sourcePage !== undefined && superseded()) return;
     const selection: ConversationSelection = { kind: 'channel', channelId };
     clientStore.select(selection, {
       deferConversation: messageId !== undefined,

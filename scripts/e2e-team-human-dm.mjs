@@ -208,8 +208,12 @@ try {
   await first.keyboard.type(marker);
   await first.keyboard.press('Enter');
   await first.locator(`text=${marker} >> visible=true`).first().waitFor({ timeout: 30_000 });
-  assert.deepEqual(dmIds(alice), [dm]);
-  assert.deepEqual(dmIds(bob), [dm]);
+  for (const username of [alice, bob]) {
+    const deadline = Date.now() + 30_000;
+    while (JSON.stringify(dmIds(username)) !== JSON.stringify([dm]) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.deepEqual(dmIds(username), [dm]);
+  }
   check('the first message from the picker DM lists it for both people', null);
   for (const [scheme, sender] of senders) {
     await sender.page

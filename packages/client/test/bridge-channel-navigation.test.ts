@@ -59,7 +59,8 @@ describe('bridge actions', () => {
     const timelines: unknown[] = [];
     const { clientStore, actions } = setup({
       channelGet: ({ channelId }) => {
-        if (channelId !== pending.id) throw new Error('channel-not-found');
+        if (channelId === 'offline') throw new BridgeCallError('unavailable', 'Host unavailable');
+        if (channelId !== pending.id) throw new BridgeCallError('not-found', 'unknown Channel');
         return { channel: pending };
       },
       channelTimeline: ({ channelId }) => {
@@ -96,6 +97,49 @@ describe('bridge actions', () => {
     clientStore.select(undefined);
     await actions.openChannel('missing');
     expect(clientStore.getSnapshot().selection).toBeUndefined();
+    await expect(actions.openChannel('offline')).rejects.toMatchObject({ code: 'unavailable' });
+    expect(clientStore.getSnapshot().selection).toBeUndefined();
+  });
+
+  it('lets only the latest of two overlapping opens select its unlisted Channel', async () => {
+    const pending = (id: string, name: string) => ({
+      id,
+      type: 'dm' as const,
+      name,
+      members: [],
+      humanParticipants: ['alice', name.toLowerCase()],
+      createdAt: GROUP.createdAt,
+      updatedAt: GROUP.updatedAt,
+    });
+    const releases = new Map<string, () => void>();
+    const { clientStore, actions } = setup({
+      channelGet: ({ channelId }) =>
+        new Promise((resolve) => {
+          const id = String(channelId);
+          releases.set(id, () =>
+            resolve({ channel: pending(id, id === 'dm-bob' ? 'Bob' : 'Carol') }),
+          );
+        }),
+      channelTimeline: () => ({
+        revision: 0,
+        page: {
+          entries: [],
+          olderCursor: null,
+          newerCursor: null,
+          hasOlder: false,
+          hasNewer: false,
+        },
+      }),
+    });
+    await actions.load();
+    const first = actions.openChannel('dm-bob');
+    const second = actions.openChannel('dm-carol');
+    await vi.waitFor(() => expect(releases.size).toBe(2));
+    releases.get('dm-bob')!();
+    await first;
+    releases.get('dm-carol')!();
+    await second;
+    expect(clientStore.getSnapshot().selection).toEqual({ kind: 'channel', channelId: 'dm-carol' });
   });
 
   it('keeps Session rows visible and ignores an older refresh response', async () => {
