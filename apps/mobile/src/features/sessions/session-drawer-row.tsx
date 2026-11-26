@@ -1,6 +1,7 @@
 import { Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { modelBrand } from '@botharness/host-client/shared/model-brand';
+import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { BotPortrait } from '../../ui/bot-avatar';
 import { ModelBrandIcon } from '../../ui/chat/model-brand-icon';
 import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
@@ -53,6 +54,7 @@ export function SessionDrawerRow({
   const minutes = Math.max(0, Math.floor((now - (row.lastPromptAt ?? row.updatedAt)) / 60_000));
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
+  const hostColor = look.color ?? 'blue';
   const badge = theme.touch;
   const avatar = Math.round(badge / 2);
   const statusLine = (
@@ -104,6 +106,7 @@ export function SessionDrawerRow({
         <SessionFolderAvatar
           testID={`session-monogram-${row.sessionId}`}
           folderName={row.folderName}
+          colorId={hostColor}
           size={badge}
           corner={radius.md}
         />
@@ -163,7 +166,13 @@ export function SessionDrawerRow({
               minWidth: 0,
             }}
           >
-            <HostGlyph icon={look.icon} size={theme.type.meta.line} color={theme.color.muted} />
+            <View testID={`session-host-mark-${row.sessionId}`}>
+              <HostGlyph
+                icon={look.icon}
+                size={theme.type.meta.line}
+                color={hostColorInk(theme.scheme, theme.color, hostColor)}
+              />
+            </View>
             <Text
               variant="meta"
               tone="muted"

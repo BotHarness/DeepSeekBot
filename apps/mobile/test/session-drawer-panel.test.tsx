@@ -49,9 +49,14 @@ vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }
 vi.mock('../src/ui/chat/row-status-glyph', () => ({
   RowStatusGlyph: ({ status }: { status: string }) => <span data-status={status} />,
 }));
-vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => <span data-host-glyph="" /> }));
+vi.mock('../src/ui/shell/host-tile', () => ({
+  HostGlyph: ({ color }: { color: string }) => <span data-host-glyph={color} />,
+}));
 vi.mock('../src/host/native-host-look', () => ({
-  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+  useHostLook: (hostId: string) =>
+    hostId === 'laptop'
+      ? { icon: { kind: 'symbol', id: 'laptop' }, color: 'green' }
+      : { icon: { kind: 'symbol', id: 'desktop' } },
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({
   DrawerMaterial: () => null,
@@ -290,6 +295,22 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   expect(status('remote')).toBe('done');
   expect(view.querySelector('[data-testid="session-model-fresh"]')).not.toBeNull();
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
+});
+
+it('tints the leading tile and Host icon with the environment’s colour, not the folder’s', async () => {
+  const { view } = await render({ second: true });
+  const fill = (id: string) =>
+    JSON.parse(
+      view.querySelector(`[data-testid="session-monogram-${id}"]`)!.getAttribute('data-style')!,
+    ).backgroundColor;
+  expect(fill('fresh')).toBe(fill('old'));
+  expect(fill('remote')).not.toBe(fill('fresh'));
+  const ink = (id: string) =>
+    view
+      .querySelector(`[data-testid="session-host-mark-${id}"] [data-host-glyph]`)!
+      .getAttribute('data-host-glyph');
+  expect(ink('fresh')).toBe(ink('old'));
+  expect(ink('remote')).not.toBe(ink('fresh'));
 });
 
 it('puts the status beside the name and the model icon beside the place line', async () => {
