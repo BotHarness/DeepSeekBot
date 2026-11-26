@@ -246,8 +246,14 @@ describe('meeting store', () => {
       'Read the full transcript with meeting_transcript first, calling again with after while more is true, so the recap covers lines you have not read (before line 601).',
     );
 
+    const service = createMeetings({
+      store,
+      admitted: () => undefined,
+      stopCall: async () => undefined,
+    });
+    cleanup.push(() => service.dispose());
     const commands = bindMeetingCommands({
-      meetings: {} as Parameters<typeof bindMeetingCommands>[0]['meetings'],
+      meetings: service,
       store,
       bot: { slug: 'ada' },
       markSideEffect: () => undefined,
@@ -449,6 +455,52 @@ describe('meetings', () => {
     expect(store.get(meeting.id)?.state).toBe('in-meeting');
     await vi.advanceTimersByTimeAsync(30_000);
     expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'time-limit' });
+  });
+
+  it('retries the end write when the Owner stops listening and the write fails, until disposed', async () => {
+    vi.useFakeTimers();
+    const { store } = storeFixture();
+    let failing = 2;
+    const flaky = {
+      ...store,
+      end: (...args: Parameters<typeof store.end>) => {
+        if (failing > 0) {
+          failing -= 1;
+          throw new Error('database is locked');
+        }
+        return store.end(...args);
+      },
+    };
+    const meetings = createMeetings({
+      store: flaky,
+      admitted: () => undefined,
+      stopCall: async () => undefined,
+    });
+    cleanup.push(() => meetings.dispose());
+    const meeting = meetings.begin({
+      slug: 'ada',
+      callId: 'call-1',
+      platform: 'owner-window',
+      dispatcher,
+    });
+    expect(() => meetings.callEnded(meeting.id, 'hangup')).not.toThrow();
+    expect(store.get(meeting.id)?.state).toBe('in-meeting');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.get(meeting.id)?.state).toBe('in-meeting');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(store.get(meeting.id)).toMatchObject({ state: 'left', endReason: 'owner-stopped' });
+
+    failing = 1;
+    const other = meetings.begin({
+      slug: 'bea',
+      callId: 'call-2',
+      platform: 'owner-window',
+      dispatcher,
+    });
+    meetings.callEnded(other.id, 'hangup');
+    meetings.dispose();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(store.get(other.id)?.state).toBe('in-meeting');
   });
 
   it('stops the call when the Bot leaves or the time limit passes', async () => {

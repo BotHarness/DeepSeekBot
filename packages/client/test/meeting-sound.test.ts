@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MeetingSoundMissing, openMeetingSound } from '../src/client/meeting-sound.js';
+import { createBrowserCallMedia } from '../src/client/call-media.js';
+import {
+  MeetingSoundMissing,
+  openMeetingSound,
+  type MeetingSound,
+} from '../src/client/meeting-sound.js';
 
 function track(kind: 'audio' | 'video') {
   const listeners: (() => void)[] = [];
@@ -102,5 +107,26 @@ describe('meeting sound', () => {
     opened.release();
     opened.onEnded(() => heard.push('after release'));
     expect(heard).toEqual(['ended']);
+  });
+
+  it('refuses to start the call when the share ended before anyone listened', async () => {
+    let released = 0;
+    const ended: MeetingSound = {
+      stream: stream(track('audio')),
+      mute: () => undefined,
+      onEnded: (listener) => listener(),
+      release: () => {
+        released += 1;
+      },
+    };
+    const media = createBrowserCallMedia(
+      () => ({ getUserMedia: async () => stream(track('audio')) }) as unknown as MediaDevices,
+      { meeting: true, sound: Promise.resolve(ended) },
+    );
+    await expect(media.start({ callId: 'call-1', offer: '' })).rejects.toMatchObject({
+      code: 'meeting-sound-ended',
+    });
+    media.stop();
+    await vi.waitFor(() => expect(released).toBe(1));
   });
 });

@@ -99,6 +99,7 @@ export function createBrowserCallMedia(
   let stopped = false;
   let generation = 0;
   let muted = false;
+  let soundEnded = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
@@ -106,6 +107,7 @@ export function createBrowserCallMedia(
     pending
       .then((owned) =>
         owned.onEnded(() => {
+          soundEnded = true;
           if (!stopped) emit('closed', 'meeting-sound-ended');
         }),
       )
@@ -161,6 +163,8 @@ export function createBrowserCallMedia(
         if (opened === undefined) for (const late of acquired.getTracks()) late.stop();
         throw new Error('call-stopped');
       }
+      if (opened !== undefined && soundEnded)
+        throw new CallMediaFailure('meeting-sound-ended', 'The shared meeting sound ended.');
       stream = acquired;
       sound = opened;
       const track = stream.getAudioTracks()[0];

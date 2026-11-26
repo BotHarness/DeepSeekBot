@@ -58,6 +58,14 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
   const log = deps.log ?? (() => undefined);
 
   const stopping = new Map<string, MeetingEndReason>();
+  let disposed = false;
+
+  const later = (attendanceId: string, retry: () => void) => {
+    if (disposed) return;
+    const timer = setTimeout(retry, 30_000);
+    timer.unref?.();
+    timers.set(attendanceId, timer);
+  };
 
   const end = (attendanceId: string, state: 'left' | 'failed', reason: MeetingEndReason) => {
     clearTimeout(timers.get(attendanceId));
@@ -82,10 +90,17 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
   const expire = (meeting: MeetingAttendance) => {
     stop(meeting, 'time-limit').catch((error: unknown) => {
       log('meeting-stop-failed', { meeting: meeting.id, error: String(error).slice(0, 200) });
-      const retry = setTimeout(() => expire(meeting), 30_000);
-      retry.unref?.();
-      timers.set(meeting.id, retry);
+      later(meeting.id, () => expire(meeting));
     });
+  };
+
+  const finish = (attendanceId: string, state: 'left' | 'failed', reason: MeetingEndReason) => {
+    try {
+      if (deps.store.get(attendanceId)?.state === 'in-meeting') end(attendanceId, state, reason);
+    } catch (error) {
+      log('meeting-end-failed', { meeting: attendanceId, error: String(error).slice(0, 200) });
+      later(attendanceId, () => finish(attendanceId, state, reason));
+    }
   };
 
   return {
@@ -107,9 +122,9 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
     },
     callEnded(attendanceId, reason) {
       const asked = stopping.get(attendanceId);
-      if (asked !== undefined) return end(attendanceId, 'left', asked);
+      if (asked !== undefined) return finish(attendanceId, 'left', asked);
       const mapped = CALL_END_REASONS[reason] ?? 'audio-lost';
-      end(attendanceId, mapped === 'owner-stopped' ? 'left' : 'failed', mapped);
+      finish(attendanceId, mapped === 'owner-stopped' ? 'left' : 'failed', mapped);
     },
     async leave(slug) {
       const meeting = deps.store.live(slug);
@@ -132,6 +147,7 @@ export function createMeetings(deps: MeetingsDeps): Meetings {
       if (meeting !== undefined) deps.admitted(meeting.botSlug);
     },
     dispose() {
+      disposed = true;
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
     },

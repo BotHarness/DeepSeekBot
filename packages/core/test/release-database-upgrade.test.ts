@@ -138,7 +138,9 @@ function assertPreserved(
   if (before.tables.has('inbox_history_fts')) {
     const writable = new DatabaseSync(path);
     try {
-      writable.exec("INSERT INTO inbox_history_fts(inbox_history_fts) VALUES ('integrity-check')");
+      writable.exec(
+        "INSERT INTO inbox_history_fts(inbox_history_fts, rank) VALUES ('integrity-check', 1)",
+      );
     } finally {
       writable.close();
     }
