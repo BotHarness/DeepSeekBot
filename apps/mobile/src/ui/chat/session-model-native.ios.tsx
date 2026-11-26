@@ -231,6 +231,7 @@ export function NativeSessionModelSheet({
                     <ProgressView modifiers={[accessibilityLabel(refreshingLabel)]} />
                   ) : (
                     <Button
+                      label={refreshLabel}
                       systemImage="arrow.clockwise"
                       onPress={onRefresh}
                       modifiers={[accessibilityLabel(refreshLabel), disabled(saving !== undefined)]}
