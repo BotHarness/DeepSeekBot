@@ -1,6 +1,9 @@
-import { z } from 'zod';
-import { DEFAULT_CHANNEL_POLICY } from '../../team/channel-contract.js';
-import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../../team/permissions.js';
+import {
+  ADMIN_PERMISSIONS,
+  DEFAULT_CHANNEL_POLICY,
+  MEMBER_PERMISSIONS,
+  z,
+} from '../historical-migration-snapshots.js';
 import type { SchemaMigration } from '../schema.js';
 
 export const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
