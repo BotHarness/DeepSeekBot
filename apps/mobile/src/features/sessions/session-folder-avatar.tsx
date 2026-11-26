@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import {
@@ -46,13 +47,19 @@ export function SessionFolderAvatar({
   corner: number;
   colorId?: HostColorId | undefined;
   look?: HostSessionFolderLook | undefined;
-  client?: HostClient | undefined;
+  client?: Pick<HostClient, 'resource'> | undefined;
   testID?: string;
 }) {
   const theme = useDesignTheme();
-  const chosen = look?.icon !== undefined || lookColor(look) !== undefined;
-  const favicon = !chosen && look?.favicon !== undefined && client !== undefined;
-  const colorId = lookColor(look) ?? assigned ?? folderColor(folderName);
+  const chosenColor = lookColor(look);
+  const chosen = look?.icon !== undefined || chosenColor !== undefined;
+  const source =
+    !chosen && look?.favicon !== undefined ? client?.resource(look.favicon) : undefined;
+  const uri = source?.uri;
+  const sourceIdentity = useMemo(() => ({ client, uri }), [client, uri]);
+  const [failedSource, setFailedSource] = useState<typeof sourceIdentity>();
+  const favicon = sourceIdentity === failedSource ? undefined : source;
+  const colorId = chosenColor ?? assigned ?? folderColor(folderName);
   const ink = hostColorInk(theme.scheme, theme.color, colorId);
   const symbol = lookSymbol(look);
   const emoji = look?.icon?.kind === 'emoji' ? look.icon.emoji : undefined;
@@ -67,15 +74,17 @@ export function SessionFolderAvatar({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: favicon
-          ? theme.layer.canvas.inset
-          : hostTileFill(theme.scheme, theme.color, colorId, theme.color.base),
+        backgroundColor:
+          favicon !== undefined
+            ? theme.layer.canvas.inset
+            : hostTileFill(theme.scheme, theme.color, colorId, theme.color.base),
       }}
     >
-      {favicon ? (
+      {favicon !== undefined ? (
         <ResourceImage
           testID={testID === undefined ? undefined : `${testID}-favicon`}
-          source={client!.resource(look!.favicon!)}
+          source={favicon}
+          onError={() => setFailedSource(sourceIdentity)}
           contentFit="contain"
           style={{ width: size * FAVICON_SHARE, height: size * FAVICON_SHARE }}
         />

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
+import { act, createElement, useLayoutEffect, type ReactElement } from 'react';
+import type { HostCall } from '@botharness/host-client/host-answer';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -24,17 +25,30 @@ vi.mock('react-native-svg', () => ({
   Circle: () => null,
 }));
 vi.mock('../src/ui/primitives/resource-image', () => ({ ResourceImage: () => null }));
+vi.mock('expo-router', () => ({
+  useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
+  useLocalSearchParams: () => ({
+    hostId: 'host',
+    path: '/work/lab-notes',
+    folderName: 'lab-notes',
+  }),
+  useRouter: () => ({ back: vi.fn() }),
+}));
+vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ client }) }));
 
+import FolderLookScreen from '../app/folder-look';
 import { FolderLookEditor } from '../src/features/sessions/folder-look-editor';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLElement | undefined;
+let client: HostCall | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
+  client = undefined;
 });
 
 async function render(element: ReactElement): Promise<HTMLElement> {
@@ -112,4 +126,38 @@ it('stays open and says so when saving fails', async () => {
   await act(async () => byId(view, 'folder-look-save')!.click());
   expect(onClose).not.toHaveBeenCalled();
   expect(view.textContent).toContain(t.hostSessions.folderLookSaveFailed);
+});
+
+it('does not navigate again when a pending save succeeds after Back', async () => {
+  const save = Promise.withResolvers<void>();
+  const onSave = vi.fn(() => save.promise);
+  const onClose = vi.fn(() => root!.render(null));
+  const view = await render(
+    <FolderLookEditor folderName="lab-notes" look={{}} onSave={onSave} onClose={onClose} />,
+  );
+  await act(async () => byId(view, 'folder-look-save')!.click());
+  expect(onSave).toHaveBeenCalledOnce();
+  await act(async () => button(view, t.back)!.click());
+  expect(view.textContent).toBe('');
+  await act(async () => save.resolve());
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('reloads the editor when the Host reconnects while the sheet is open', async () => {
+  client = { call: vi.fn(async () => ({ look: { color: 'purple' } })) };
+  const view = await render(<FolderLookScreen />);
+  const selected = (color: string) =>
+    byId(view, `folder-color-${color}`)?.getAttribute('aria-selected');
+  expect(selected('purple')).toBe('true');
+
+  const pending = Promise.withResolvers<unknown>();
+  const call = vi.fn(() => pending.promise);
+  client = { call };
+  await act(async () => root!.render(<FolderLookScreen />));
+  expect(call).toHaveBeenCalledWith('workspaceLook', { path: '/work/lab-notes' });
+  expect(byId(view, 'folder-look-save')).toBeNull();
+
+  await act(async () => pending.resolve({ look: { color: 'teal' } }));
+  expect(selected('teal')).toBe('true');
+  expect(selected('purple')).toBe('false');
 });

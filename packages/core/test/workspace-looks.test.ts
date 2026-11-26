@@ -227,35 +227,51 @@ it('puts each folder look on Session rows for everyone and lets only the Owner c
 });
 
 it('reads a cached look without disk I/O and announces look and favicon changes', async () => {
-  let version = 'one';
+  let version: string | undefined = 'one';
   const find = vi.fn(async (cwd: string) =>
-    cwd === '/web' ? { path: '/web/favicon.png', mediaType: 'image/png', version } : undefined,
+    cwd === '/web' && version !== undefined
+      ? { path: '/web/favicon.png', mediaType: 'image/png', version }
+      : undefined,
   );
   const { looks, advance } = store(find);
   const changed = vi.fn();
   const stop = looks.subscribe(changed);
   expect(looks.cached('/web')).toBeUndefined();
-  await looks.folderLooks(['/web']);
+  await looks.folderLooks(['/plain']);
   expect(changed).not.toHaveBeenCalled();
+  find.mockClear();
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(1);
   expect(looks.cached('/web')).toEqual({
     favicon: `${WORKSPACE_FAVICON_PATH}?w=${workspaceKey('/web')}&v=one`,
   });
   expect(find).toHaveBeenCalledTimes(1);
   looks.set('/web', { color: 'teal' });
-  expect(changed).toHaveBeenCalledTimes(1);
+  expect(changed).toHaveBeenCalledTimes(2);
   expect(looks.cached('/web')).toMatchObject({ color: 'teal' });
   advance(11 * 60_000);
   await looks.folderLooks(['/web']);
-  expect(changed).toHaveBeenCalledTimes(1);
+  expect(changed).toHaveBeenCalledTimes(2);
+
+  await looks.folderLooks(Array.from({ length: 512 }, (_, index) => `/other-${index}`));
+  expect(looks.cached('/web')).toMatchObject({ favicon: expect.stringContaining('&v=one') });
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(2);
+
   version = 'two';
   advance(11 * 60_000);
   await looks.folderLooks(['/web']);
-  expect(changed).toHaveBeenCalledTimes(2);
+  expect(changed).toHaveBeenCalledTimes(3);
+  version = undefined;
+  advance(11 * 60_000);
+  await looks.folderLooks(['/web']);
+  expect(changed).toHaveBeenCalledTimes(4);
+  expect(looks.cached('/web')).toEqual({ color: 'teal' });
   expect(looks.clear('/web')).toBe(true);
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(5);
   looks.clear('/web');
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(5);
   stop();
   looks.set('/web', { color: 'red' });
-  expect(changed).toHaveBeenCalledTimes(3);
+  expect(changed).toHaveBeenCalledTimes(5);
 });

@@ -13,36 +13,42 @@ vi.mock('../src/ui/shell/host-tile', () => ({
   ),
 }));
 vi.mock('../src/ui/primitives/resource-image', () => ({
-  ResourceImage: ({ source }: { source: { uri: string } }) => <img data-src={source.uri} />,
+  ResourceImage: ({ source, onError }: { source: { uri: string }; onError?: () => void }) => (
+    <img data-src={source.uri} onError={() => onError?.()} />
+  ),
 }));
 
 import { SessionFolderAvatar } from '../src/features/sessions/session-folder-avatar';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
+let container: HTMLDivElement | undefined;
 afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
+  container = undefined;
 });
 
-const client = { resource: (path: string) => ({ uri: `https://host${path}`, headers: {} }) };
+const client: Pick<HostClient, 'resource'> = {
+  resource: (path) => ({ uri: `https://host${path}`, headers: {} }),
+};
 
 function tile(look: HostSessionFolderLook | undefined, withClient = true) {
-  const view = document.createElement('div');
-  root = createRoot(view);
+  container ??= document.createElement('div');
+  const renderer = (root ??= createRoot(container));
   act(() =>
-    root!.render(
+    renderer.render(
       <SessionFolderAvatar
         testID="tile"
         folderName="vite-dashboard"
         look={look}
-        client={withClient ? (client as unknown as HostClient) : undefined}
+        client={withClient ? client : undefined}
         size={44}
         corner={12}
       />,
     ),
   );
-  return view.querySelector('[data-testid="tile"]')!;
+  return container.querySelector('[data-testid="tile"]')!;
 }
 
 it('shows the chosen icon first, then the favicon, then the folder monogram', () => {
@@ -67,4 +73,22 @@ it('lets a chosen colour replace the folder colour on the tile', () => {
     JSON.parse(tile(look).getAttribute('data-style')!).backgroundColor;
   expect(fill({ color: 'purple' })).not.toBe(fill(undefined));
   expect(fill({ color: 'purple', icon: { kind: 'monogram' } })).toBe(fill({ color: 'purple' }));
+});
+
+it('restores the folder monogram and colour after an image error and loads the next favicon', () => {
+  const path = '/api/botharness/workspace-favicon?w=k&v=';
+  const fallbackStyle = tile(undefined).getAttribute('data-style');
+  const view = tile({ favicon: `${path}1` });
+  act(() => {
+    view.querySelector('img')!.dispatchEvent(new Event('error'));
+  });
+  expect(view.querySelector('img')).toBeNull();
+  expect(view.textContent).toBe('VD');
+  expect(view.getAttribute('data-style')).toBe(fallbackStyle);
+
+  expect(
+    tile({ favicon: `${path}2` })
+      .querySelector('img')
+      ?.getAttribute('data-src'),
+  ).toBe(`https://host${path}2`);
 });

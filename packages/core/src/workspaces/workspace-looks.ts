@@ -212,10 +212,14 @@ export function createWorkspaceLooks(options: {
     )
       return hit.favicon;
     const favicon = await find(path).catch(() => undefined);
-    if (cache.size >= CACHE_CAPACITY) cache.delete(cache.keys().next().value as string);
+    if (!cache.has(path) && cache.size >= CACHE_CAPACITY)
+      cache.delete(cache.keys().next().value as string);
     cache.set(path, { at: time, favicon });
-    if (favicon !== undefined) issued.set(workspaceKey(path), favicon);
-    if (hit !== undefined && hit.favicon?.version !== favicon?.version) notify();
+    const key = workspaceKey(path);
+    const previous = issued.get(key);
+    if (favicon === undefined) issued.delete(key);
+    else issued.set(key, favicon);
+    if (previous?.version !== favicon?.version) notify();
     return favicon;
   };
   return {
@@ -269,7 +273,7 @@ export function createWorkspaceLooks(options: {
     },
     favicon: (key) => issued.get(key),
     cached(path) {
-      const favicon = cache.get(path)?.favicon;
+      const favicon = issued.get(workspaceKey(path));
       const look: HostSessionFolderLook = {
         ...stored(path),
         ...(favicon === undefined ? {} : { favicon: faviconUrl(path, favicon) }),

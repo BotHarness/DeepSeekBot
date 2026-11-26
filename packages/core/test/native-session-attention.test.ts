@@ -1,5 +1,6 @@
 import type { HostSessionFolderLook } from '@botharness/host-protocol/host-sessions';
 import { describe, expect, it, vi } from 'vitest';
+import { createCore } from '../src/core.js';
 import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
 import {
   withNativeSessionAttention,
@@ -7,6 +8,7 @@ import {
 } from '../src/features/activity/native-session-attention.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { notificationAttentionPage } from '../src/runtime/notification-attention.js';
+import { createTempRoot } from './helpers.js';
 
 const botItem = (id: string, createdAt: string): HumanAttentionItem => ({
   id,
@@ -65,6 +67,38 @@ function setup(
 }
 
 describe('native Session attention in Activity', () => {
+  it('invalidates live Activity when the look of a pending native Session changes', async () => {
+    const core = createCore({ dshHome: createTempRoot('native-attention-look-') });
+    const frames = core.live
+      .followRoster(OWNER_HUMAN_CONTEXT, AbortSignal.timeout(2_000))
+      [Symbol.asyncIterator]();
+    const current = () =>
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { source: 'native' }).items[0]?.nativeSession;
+    let stop: (() => void) | undefined;
+    try {
+      await frames.next();
+      stop = core.contributeNativeSessionAttention({
+        list: () => [entry()],
+        subscribe: () => () => {},
+      });
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()).not.toHaveProperty('folderLook');
+      core.workspaceLooks.set('/work/site', { color: 'purple' });
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()?.folderLook).toEqual({ color: 'purple' });
+
+      core.workspaceLooks.clear('/work/site');
+      expect((await frames.next()).value).toEqual({ type: 'attention' });
+      expect(current()).not.toHaveProperty('folderLook');
+    } finally {
+      stop?.();
+      await frames.return?.();
+      core.live.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('carries the folder look of the Session folder, and none for a folder without one', () => {
     const look = { color: 'purple', icon: { kind: 'emoji', emoji: '🧪' } } as const;
     const { query } = setup({

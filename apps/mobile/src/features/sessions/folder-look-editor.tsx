@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import { View } from 'react-native';
 import {
   HOST_COLOR_IDS,
@@ -13,6 +13,7 @@ import { contrast } from '../../ui/design/resolve-theme';
 import { useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
 import type { LayerName } from '../../ui/design/layers';
+import { useMounted } from '../../ui/mounted';
 import { KeyboardFormScroll } from '../../ui/primitives/keyboard-form';
 import { Segmented } from '../../ui/primitives/segmented';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../../ui/primitives/settings-row';
@@ -56,6 +57,13 @@ export function FolderLookEditor({
   const [set, setSet] = useState<IconSet>(initial.icon?.kind ?? 'symbol');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const live = useRef(false);
+  const mounted = useMounted(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
   const auto: HostColorId = (HOST_COLOR_IDS as readonly string[]).includes(assigned ?? '')
     ? (assigned as HostColorId)
     : folderColor(folderName);
@@ -68,16 +76,23 @@ export function FolderLookEditor({
       ...(look.icon === undefined ? {} : { icon: look.icon }),
       ...(id === undefined ? {} : { color: id }),
     });
+  const close = () => {
+    if (!live.current) return;
+    live.current = false;
+    onClose();
+  };
   const save = async (next: WorkspaceLook | null) => {
-    if (busy) return;
+    if (busy || !live.current) return;
     setBusy(true);
     setFailed(false);
     try {
       await onSave(next !== null && Object.keys(next).length === 0 ? null : next);
-      onClose();
+      close();
     } catch {
-      setFailed(true);
-      setBusy(false);
+      if (live.current) {
+        setFailed(true);
+        setBusy(false);
+      }
     }
   };
   const iconSwatch = (icon: WorkspaceLookIcon, key: string, label: string, glyph: ReactElement) => {
@@ -97,10 +112,10 @@ export function FolderLookEditor({
     );
   };
   return (
-    <View style={{ flex: 1 }}>
+    <View ref={mounted} style={{ flex: 1 }}>
       <SheetHeader
         title={t.folderLook}
-        onBack={onClose}
+        onBack={close}
         trailing={
           <SheetSaveButton
             label={t.folderLookSave}
