@@ -407,6 +407,7 @@ export function TeamWorkbench({
   const [loadFailed, setLoadFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const inspection = useRef(0);
+  const inspecting = useRef<TeamMember | undefined>(undefined);
 
   const refresh = async (signal?: AbortSignal): Promise<void> => {
     try {
@@ -454,9 +455,11 @@ export function TeamWorkbench({
       setRoles((current) =>
         current.map((item) => (item.roleId === updated.roleId ? updated : item)),
       );
-      if (inspected !== undefined && request === inspection.current) {
-        const result = await loadMemberPermissions(call, inspected.member.humanId);
-        if (request === inspection.current) setInspected({ member: inspected.member, result });
+      const member = inspecting.current;
+      if (member !== undefined && request === inspection.current) {
+        const reload = ++inspection.current;
+        const result = await loadMemberPermissions(call, member.humanId);
+        if (reload === inspection.current) setInspected({ member, result });
       }
     } catch (failure) {
       setError(teamErrorText(t, failure));
@@ -467,11 +470,13 @@ export function TeamWorkbench({
 
   const clearInspection = (): void => {
     inspection.current++;
+    inspecting.current = undefined;
     setInspected(undefined);
   };
 
   const inspect = async (member: TeamMember): Promise<void> => {
     const request = ++inspection.current;
+    inspecting.current = member;
     setError(undefined);
     try {
       const result = await loadMemberPermissions(call, member.humanId);

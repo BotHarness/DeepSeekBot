@@ -251,3 +251,52 @@ it('keeps a member inspection closed when the role changes during a save', async
   expect(host.querySelector('[data-team-effective="bob"]')).toBeNull();
   expect(call.mock.calls.filter(([method]) => method === 'memberPermissions')).toHaveLength(1);
 });
+
+it('reloads the member being selected when a save lands during their load', async () => {
+  let current = role({ memberCount: 2 });
+  let releaseAlice: () => void = () => undefined;
+  let aliceLoads = 0;
+  let releaseSave: () => void = () => undefined;
+  const holder = (humanId: string) => ({
+    humanId,
+    username: humanId,
+    displayName: humanId,
+    status: 'active',
+    roleIds: ['member', 'leads'],
+  });
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles') return { ok: true, value: [current] };
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members') return { ok: true, value: [holder('bob'), holder('alice')] };
+    if (method === 'roleUpdate') {
+      await new Promise<void>((resolve) => (releaseSave = resolve));
+      current = {
+        ...current,
+        permissions: args['permissions'],
+        denied: args['denied'],
+      } as TeamRole;
+      return { ok: true, value: { role: current } };
+    }
+    if (method === 'memberPermissions') {
+      const humanId = String(args['humanId']);
+      if (humanId === 'alice' && aliceLoads++ === 0)
+        await new Promise<void>((resolve) => (releaseAlice = resolve));
+      return { ok: true, value: { humanId, owner: false, active: true, permissions: [] } };
+    }
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-team-holder="bob"]')!.click());
+  expect(host.querySelector('[data-team-effective="bob"]')).not.toBeNull();
+
+  await act(async () => {
+    host.querySelector<HTMLButtonElement>('[data-team-holder="alice"]')!.click();
+  });
+  await act(async () => segment('channels.create', '拒绝').click());
+  await act(async () => releaseAlice());
+  expect(host.querySelector('[data-team-effective="alice"]')).not.toBeNull();
+  await act(async () => releaseSave());
+  expect(host.querySelector('[data-team-effective="bob"]')).toBeNull();
+  expect(host.querySelector('[data-team-effective="alice"]')).not.toBeNull();
+});
