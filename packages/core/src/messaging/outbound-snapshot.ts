@@ -4,6 +4,7 @@ import type { FailureAlerts } from './failure-alerts.js';
 import type { ApprovalMessaging } from './approval-messaging.js';
 import {
   externalPermissionGroups,
+  listSenderBlocks,
   behaviorPermissions,
   externalUserRoles,
   platformPeople,
@@ -545,6 +546,7 @@ export function createOutboundSnapshot(context: {
         identities,
         roles: database.read((db) => externalUserRoles(db, botSlug)),
         permissionGroups: database.read((db) => externalPermissionGroups(db, botSlug)),
+        senderBlocks: database.read((db) => listSenderBlocks(db, botSlug)),
         behaviorPermissions: database.read((db) => behaviorPermissions(db, botSlug)),
         senderPolicy: database.read((db) => readSenderPolicy(db, botSlug)),
         pairings: pairing.list(botSlug),

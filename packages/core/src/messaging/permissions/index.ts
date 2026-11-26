@@ -26,6 +26,12 @@ export {
 } from './groups.js';
 export { behaviorPermissions } from './behavior.js';
 export {
+  listSenderBlocks,
+  readSenderBlock,
+  senderBlocked,
+  type SenderBlock,
+} from './sender-blocks.js';
+export {
   behaviorConfigurationConflicts,
   resolveBehaviorPermissions,
   withBehaviorPermission,

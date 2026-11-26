@@ -208,7 +208,10 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'telemetry-set', description: 'turn usage statistics on or off' },
   { command: 'git-status', description: 'read whether the Host can use Git for Memory' },
   { command: 'git-install', description: 'install Git through the Host when it is missing' },
-  { command: 'pairing-list', description: "list a Bot's IM pairing requests and roles" },
+  {
+    command: 'pairing-list',
+    description: "list a Bot's IM pairing requests, roles and blocked senders",
+  },
   {
     command: 'pairing-review',
     description: 'approve, reject or revoke an IM pairing request (revoke needs --confirm)',
@@ -515,7 +518,7 @@ function pairingSummary(value: unknown) {
 async function messagingSnapshot(rpc: Rpc, slug: string) {
   const snapshot = record(await rpc('messagingSnapshot', { slug }));
   const list = (key: string) => (Array.isArray(snapshot[key]) ? snapshot[key] : []).map(record);
-  return { pairings: list('pairings'), roles: list('roles') };
+  return { pairings: list('pairings'), roles: list('roles'), blocks: list('senderBlocks') };
 }
 
 async function readResetToken(io: BotCreateCliIo): Promise<string> {
@@ -874,6 +877,13 @@ export async function runHostAdminCommand(
           name: role['name'],
           capabilities: role['capabilities'],
           revision: role['revision'],
+        })),
+        blocked: snapshot.blocks.map((block) => ({
+          bindingId: block['bindingId'],
+          actorId: block['actorId'],
+          actorName: block['actorName'],
+          revision: block['revision'],
+          blockedAt: block['blockedAt'],
         })),
       };
     }

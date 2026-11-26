@@ -7,6 +7,7 @@ import {
   externalPermissionGroups,
   externalUserRoles,
   platformPeople,
+  readSenderBlock,
   type ExternalPermissionGroup,
   type ExternalUserRole,
 } from '../permissions/index.js';
@@ -70,6 +71,12 @@ export function parseGroupCommand(text: string): GroupCommand | undefined {
     action: /^(?:add|加入)$/iu.test(action[1]!) ? 'add' : 'remove',
     ...(group ? { group } : {}),
   };
+}
+
+export function parseBlockCommand(text: string): { action: 'block' | 'unblock' } | undefined {
+  const match = /^[/／](block|unblock|屏蔽|取消屏蔽)\s*$/iu.exec(text.trim());
+  if (!match) return undefined;
+  return { action: /^(?:block|屏蔽)$/iu.test(match[1]!) ? 'block' : 'unblock' };
 }
 
 type ManagedCapability = Exclude<PairingCapability, 'answer'>;
@@ -170,6 +177,20 @@ const NOTICE = {
     `${person} is already in ${group}. / ${person} 已经在权限组「${group}」中。`,
   alreadyOut: (person: string, group: string) =>
     `${person} is not in ${group}. / ${person} 本来就不在权限组「${group}」中。`,
+  unauthorizedBlock:
+    'Only people allowed to review pairing for this Bot can block senders. / 只有此 Bot 的配对审核人可以屏蔽发送者。',
+  oneBlock:
+    'Mention exactly one person, for example "/block @name". / 请只提及一个人，例如「/屏蔽 @某人」。',
+  selfBlock: 'You cannot block yourself. / 不能屏蔽自己。',
+  deniedBlock: (name: string) =>
+    `You cannot block or unblock ${name}. / 你不能屏蔽或取消屏蔽 ${name}。`,
+  blocked: (name: string) =>
+    `Blocked ${name}. This Bot no longer receives their messages. / 已屏蔽 ${name}，此 Bot 不再接收其消息。`,
+  unblocked: (name: string) => `Unblocked ${name}. / 已取消屏蔽 ${name}。`,
+  alreadyBlocked: (name: string) => `${name} is already blocked. / ${name} 已经被屏蔽。`,
+  notBlocked: (name: string) => `${name} is not blocked. / ${name} 没有被屏蔽。`,
+  blockFailed:
+    'The block could not be changed here. Use Web settings. / 无法在此修改屏蔽，请在 Web 设置中处理。',
   groupFailed:
     'The permission group could not be changed here. Use Web settings. / 无法在此修改权限组，请在 Web 设置中处理。',
   permissionFailed:
@@ -251,7 +272,9 @@ export function createRoleText(options: {
     const command = parseRoleCommand(normalized);
     const permission = command ? undefined : parsePermissionCommand(normalized);
     const groupCommand = command || permission ? undefined : parseGroupCommand(normalized);
-    if (!command && !permission && !groupCommand) return false;
+    const blockCommand =
+      command || permission || groupCommand ? undefined : parseBlockCommand(normalized);
+    if (!command && !permission && !groupCommand && !blockCommand) return false;
     const binding = controlBinding(database, providerId, event);
     if (!binding?.enabled || !options.isBotActive(binding.botSlug)) return false;
     if (!deliveries.claim(event)) return true;
@@ -289,7 +312,9 @@ export function createRoleText(options: {
           ? NOTICE.unauthorizedPermission
           : groupCommand
             ? NOTICE.unauthorizedGroup
-            : NOTICE.unauthorized,
+            : blockCommand
+              ? NOTICE.unauthorizedBlock
+              : NOTICE.unauthorized,
       );
       log('command', 'unauthorized');
       return true;
@@ -348,6 +373,46 @@ export function createRoleText(options: {
             : code === 'pairing-delegation-denied'
               ? NOTICE.deniedCapability(capability)
               : NOTICE.permissionFailed,
+        );
+      }
+      return true;
+    }
+    if (blockCommand) {
+      if (distinctTargets.length !== 1) {
+        reply(NOTICE.oneBlock);
+        return true;
+      }
+      const mention = targets[0]!;
+      const label = mention.name ? `@${mention.name}` : `@${mention.id}`;
+      if (mention.id === event.actor.id) {
+        reply(NOTICE.selfBlock);
+        return true;
+      }
+      if (signal.aborted) return true;
+      try {
+        const outcome = changeBlock(binding, mention, blockCommand.action, {
+          bindingId: binding.id,
+          actorId: event.actor.id,
+        });
+        log('block', outcome);
+        reply(
+          outcome === 'unchanged'
+            ? blockCommand.action === 'block'
+              ? NOTICE.alreadyBlocked(label)
+              : NOTICE.notBlocked(label)
+            : blockCommand.action === 'block'
+              ? NOTICE.blocked(label)
+              : NOTICE.unblocked(label),
+        );
+      } catch (error) {
+        const code = errorCode(error);
+        log('block', code);
+        reply(
+          code === 'pairing-unauthorized'
+            ? NOTICE.unauthorizedBlock
+            : code === 'pairing-delegation-denied'
+              ? NOTICE.deniedBlock(label)
+              : NOTICE.blockFailed,
         );
       }
       return true;
@@ -545,6 +610,36 @@ export function createRoleText(options: {
           reviewer,
         );
         return 'changed' as const;
+      },
+      ['pairing', 'bot-inbox'],
+    );
+    if (outcome === 'changed') options.changed(binding.botSlug);
+    return outcome;
+  };
+
+  const changeBlock = (
+    binding: MessagingIdentity,
+    mention: MessagingInboundEvent['mentions'][number],
+    action: 'block' | 'unblock',
+    reviewer: { bindingId: string; actorId: string },
+  ): 'changed' | 'unchanged' => {
+    const outcome = database.transaction(
+      (db) => {
+        const before = !!readSenderBlock(db, binding.botSlug, binding.fingerprint, mention.id);
+        changeSenderAccess(
+          db,
+          binding.botSlug,
+          action === 'block'
+            ? {
+                kind: 'block-sender',
+                bindingId: binding.id,
+                actorId: mention.id,
+                ...(mention.name ? { actorName: mention.name.slice(0, 200) } : {}),
+              }
+            : { kind: 'unblock-sender', bindingId: binding.id, actorId: mention.id },
+          reviewer,
+        );
+        return before === (action === 'block') ? ('unchanged' as const) : ('changed' as const);
       },
       ['pairing', 'bot-inbox'],
     );
