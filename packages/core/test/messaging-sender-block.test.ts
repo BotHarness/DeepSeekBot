@@ -166,4 +166,24 @@ it('the owner blocks and unblocks through the Host bridge, and a block removes c
   ).toMatchObject({ ok: true });
   expect(await blocks(fx)).toEqual([]);
   expect(pendingFor(fx, reviewer).capabilities).toContain('review-pairing');
+
+  await methods.senderAccess({
+    slug: 'ada',
+    input: { kind: 'block-sender', bindingId: reviewerPairing.bindingId, actorId: reviewer },
+  });
+  const [again] = await blocks(fx);
+  expect(again).toMatchObject({ revision: 3 });
+  expect(again).not.toHaveProperty('unblockedAt');
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: {
+        kind: 'unblock-sender',
+        bindingId: reviewerPairing.bindingId,
+        actorId: reviewer,
+        expectedRevision: 1,
+      },
+    }),
+  ).toMatchObject({ ok: false });
+  expect(await blocks(fx)).toHaveLength(1);
 });
