@@ -163,7 +163,6 @@ export function createBotRuntimeFeatures(
     );
   const inboxTriage = createInboxTriage(database, options.channels, options.now);
   const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, options.now);
-  const schedules = options.schedules;
   const agents = options.agents;
   const memory = options.memory;
   const attachments = options.attachments;
@@ -432,6 +431,7 @@ export function createBotRuntimeFeatures(
   });
 
   const groupDigest = createGroupDigest({
+    lifetime: waitLifetime.signal,
     assignmentEvents,
     channels,
     closed,
@@ -869,7 +869,7 @@ export function createBotRuntimeFeatures(
     messagingEvents,
     registry,
     requireTurnAccess,
-    schedules,
+    schedules: options.schedules,
     sourcePolicy,
     team,
   });
@@ -955,6 +955,7 @@ export function createBotRuntimeFeatures(
   });
 
   return {
+    runtimeHost: groupDigest.runtimeHost,
     admissions,
     assignmentExecution,
     assignmentRouting,

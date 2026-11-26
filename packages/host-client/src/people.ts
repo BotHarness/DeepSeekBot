@@ -102,6 +102,25 @@ function isNativeQuestion(request: Record<string, unknown>): boolean {
   );
 }
 
+function isWorkspaceLookIcon(value: unknown): boolean {
+  const icon = record(value);
+  return (
+    icon?.['kind'] === 'monogram' ||
+    (icon?.['kind'] === 'symbol' && isString(icon['id'])) ||
+    (icon?.['kind'] === 'emoji' && isString(icon['emoji']))
+  );
+}
+
+function isFolderLook(value: unknown): boolean {
+  const look = record(value);
+  return (
+    look !== undefined &&
+    optional(look['color'], isString) &&
+    optional(look['icon'], isWorkspaceLookIcon) &&
+    optional(look['favicon'], (path) => isString(path) && path.startsWith('/api/'))
+  );
+}
+
 function isNativeSessionItem(row: Record<string, unknown>): boolean {
   const native = record(row['nativeSession']);
   return (
@@ -113,6 +132,7 @@ function isNativeSessionItem(row: Record<string, unknown>): boolean {
     (native['input'] === 'approval' || native['input'] === 'question') &&
     optional(native['sessionTitle'], text) &&
     optional(native['folderName'], text) &&
+    optional(native['folderLook'], isFolderLook) &&
     optional(native['cwd'], text) &&
     optional(native['request'], (value) => {
       const request = record(value);

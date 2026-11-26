@@ -15,6 +15,11 @@ import {
   remoteMcpToolDenial,
 } from '../src/connectors/policy.js';
 import { grantedAccess } from '../src/connectors/remote.js';
+import {
+  CONNECTOR_CALLBACK_PATH,
+  CONNECTOR_DEVICE_CALLBACK_PATH,
+  connectorCallback,
+} from '../src/connectors/mount.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';
@@ -532,6 +537,25 @@ describe('remote MCP App connections', () => {
     } finally {
       owner.close();
     }
+  });
+});
+
+describe('App connection sign-in callback', () => {
+  it('returns to a public Host address when one is published, so any device can finish sign-in', async () => {
+    let published: string[] = [];
+    const callback = connectorCallback(async () => published);
+    expect(await callback.url()).toBeUndefined();
+    callback.attach(() => 'http://127.0.0.1:7777');
+    expect(await callback.url()).toBe(`http://127.0.0.1:7777${CONNECTOR_CALLBACK_PATH}`);
+    published = ['https://abc.deepseekbot.dev', 'https://pc.tail1234.ts.net'];
+    expect(await callback.url()).toBe(
+      `https://abc.deepseekbot.dev${CONNECTOR_DEVICE_CALLBACK_PATH}`,
+    );
+    const failing = connectorCallback(async () => {
+      throw new Error('offline');
+    });
+    failing.attach(() => 'http://127.0.0.1:7777');
+    expect(await failing.url()).toBe(`http://127.0.0.1:7777${CONNECTOR_CALLBACK_PATH}`);
   });
 });
 

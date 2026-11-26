@@ -13,6 +13,7 @@ import type { PersonaBotRegistry } from '../../bots/registry.js';
 import type { ConnectAccount } from '../../devices/connect-account.js';
 import { createMarketplaceClient } from '../../marketplace/client.js';
 import { createInstallReceipts } from '../../marketplace/install-receipts.js';
+import { createMarketplaceSkillSource } from '../../marketplace/skill-source.js';
 import {
   createMarketplaceInstallReviews,
   INSTALL_REVIEW_SYSTEM_PROMPT,
@@ -47,6 +48,7 @@ export function apply(
   const marketplaceClient = createMarketplaceClient({
     baseUrl,
   });
+  const marketplaceSkillSource = createMarketplaceSkillSource({ baseUrl });
   const shareDrafts = createShareDrafts({
     root: join(dshHome, 'botharness', 'share-drafts'),
     memoryDir: (slug) =>
@@ -59,7 +61,13 @@ export function apply(
     drafts: shareDrafts,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
-  return { marketplaceClient, marketplaceUploads, shareDrafts };
+  return {
+    marketplaceClient,
+    marketplaceUploads,
+    shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir: join(dshHome, 'skills'),
+  };
 }
 
 export function createInstallReviews(
@@ -144,9 +152,11 @@ export function createReceipts(
   ctx: Context,
   marketplaceClient: ReturnType<typeof createMarketplaceClient>,
   telemetryDir: string,
+  skills?: ReturnType<typeof createMarketplaceSkillSource>,
 ) {
   return createInstallReceipts({
     client: marketplaceClient,
+    ...(skills === undefined ? {} : { skills }),
     dataDir: telemetryDir,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });

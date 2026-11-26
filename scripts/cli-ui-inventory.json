@@ -1413,6 +1413,7 @@
         "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
         "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}",
         "route:packages/core/src/connectors/mount.ts:CONNECTOR_CALLBACK_PATH",
+        "route:packages/core/src/connectors/mount.ts:CONNECTOR_DEVICE_CALLBACK_PATH",
         "setting:packages/client/src/client/app-connections-catalog.tsx:{t('connectors.composio.savedTitle')}"
       ],
       "commands": [

@@ -174,6 +174,12 @@ export interface WorkspaceLooks {
   clear(path: string): boolean;
   folderLooks(paths: readonly string[]): Promise<Map<string, HostSessionFolderLook>>;
   favicon(key: string): WorkspaceFavicon | undefined;
+  cached(path: string): HostSessionFolderLook | undefined;
+  subscribe(changed: () => void): () => void;
+}
+
+function faviconUrl(path: string, favicon: WorkspaceFavicon): string {
+  return `${WORKSPACE_FAVICON_PATH}?w=${workspaceKey(path)}&v=${favicon.version}`;
 }
 
 export function createWorkspaceLooks(options: {
@@ -186,6 +192,11 @@ export function createWorkspaceLooks(options: {
   const find = options.find ?? findWorkspaceFavicon;
   const cache = new Map<string, { at: number; favicon: WorkspaceFavicon | undefined }>();
   const issued = new Map<string, WorkspaceFavicon>();
+  const discoveries = new Map<string, { started: number; applied: number; pending: number }>();
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
   const stored = (path: string): WorkspaceLook | undefined =>
     database.read((db) => {
       const row = db.prepare('SELECT body FROM workspace_looks WHERE path = ?').get(path);
@@ -201,11 +212,26 @@ export function createWorkspaceLooks(options: {
       time - hit.at < (hit.favicon === undefined ? NEGATIVE_TTL : POSITIVE_TTL)
     )
       return hit.favicon;
-    const favicon = await find(path).catch(() => undefined);
-    if (cache.size >= CACHE_CAPACITY) cache.delete(cache.keys().next().value as string);
-    cache.set(path, { at: time, favicon });
-    if (favicon !== undefined) issued.set(workspaceKey(path), favicon);
-    return favicon;
+    const discovery = discoveries.get(path) ?? { started: 0, applied: 0, pending: 0 };
+    discoveries.set(path, discovery);
+    const order = ++discovery.started;
+    discovery.pending++;
+    try {
+      const favicon = await find(path).catch(() => undefined);
+      const key = workspaceKey(path);
+      const previous = issued.get(key);
+      if (order < discovery.applied) return previous;
+      discovery.applied = order;
+      if (!cache.has(path) && cache.size >= CACHE_CAPACITY)
+        cache.delete(cache.keys().next().value as string);
+      cache.set(path, { at: time, favicon });
+      if (favicon === undefined) issued.delete(key);
+      else issued.set(key, favicon);
+      if (previous?.version !== favicon?.version) notify();
+      return favicon;
+    } finally {
+      if (--discovery.pending === 0) discoveries.delete(path);
+    }
   };
   return {
     get: stored,
@@ -218,12 +244,15 @@ export function createWorkspaceLooks(options: {
            ON CONFLICT(path) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`,
         ).run(path, JSON.stringify(normalized), new Date(now()).toISOString());
       });
+      notify();
       return normalized;
     },
     clear(path) {
-      return database.transaction(
+      const cleared = database.transaction(
         (db) => db.prepare('DELETE FROM workspace_looks WHERE path = ?').run(path).changes > 0,
       );
+      if (cleared) notify();
+      return cleared;
     },
     async folderLooks(paths) {
       const looks = new Map<string, HostSessionFolderLook>();
@@ -246,11 +275,7 @@ export function createWorkspaceLooks(options: {
           const favicon = await faviconFor(path);
           const look: HostSessionFolderLook = {
             ...stored.get(path),
-            ...(favicon === undefined
-              ? {}
-              : {
-                  favicon: `${WORKSPACE_FAVICON_PATH}?w=${workspaceKey(path)}&v=${favicon.version}`,
-                }),
+            ...(favicon === undefined ? {} : { favicon: faviconUrl(path, favicon) }),
           };
           if (Object.keys(look).length > 0) looks.set(path, look);
         }),
@@ -258,6 +283,18 @@ export function createWorkspaceLooks(options: {
       return looks;
     },
     favicon: (key) => issued.get(key),
+    cached(path) {
+      const favicon = issued.get(workspaceKey(path));
+      const look: HostSessionFolderLook = {
+        ...stored(path),
+        ...(favicon === undefined ? {} : { favicon: faviconUrl(path, favicon) }),
+      };
+      return Object.keys(look).length === 0 ? undefined : look;
+    },
+    subscribe(changed) {
+      listeners.add(changed);
+      return () => listeners.delete(changed);
+    },
   };
 }
 

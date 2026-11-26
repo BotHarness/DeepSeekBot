@@ -1,7 +1,12 @@
 import { afterEach, expect, it } from 'vitest';
-import { openLocalStore, type LocalStore } from '@botharness/host-client/local-store';
+import {
+  LOCAL_STORE_MIGRATIONS,
+  openLocalStore,
+  type LocalStore,
+} from '@botharness/host-client/local-store';
 import {
   readSessionList,
+  replaceSessionList,
   syncSessionList,
   type SessionListSource,
 } from '@botharness/host-client/session-list-store';
@@ -111,4 +116,18 @@ it('keeps rows without a cursor when the Host has no change log', async () => {
 
 it('has nothing stored before the first sync', async () => {
   expect(await readSessionList(await store())).toBeUndefined();
+});
+
+it('drops a Session list cached by an app that did not keep folder looks, so it is read again', async () => {
+  const connection = nodeSqlConnection();
+  const old = await openLocalStore(connection, LOCAL_STORE_MIGRATIONS.slice(0, -1));
+  await replaceSessionList(old, {
+    sessions: [row('cached')],
+    sources: [{ kind: 'native' }],
+    cursor: { epoch: 'e1', seq: 4 },
+  });
+  expect(await readSessionList(old)).toBeDefined();
+  const upgraded = await openLocalStore(connection);
+  opened.push(upgraded);
+  expect(await readSessionList(upgraded)).toBeUndefined();
 });

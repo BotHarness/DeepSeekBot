@@ -5,7 +5,7 @@ import {
   relativeBotScheduleTrigger,
   type BotScheduleTrigger,
 } from '../../schedules/bot-schedules.js';
-import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
+import type { bindScheduleCommands } from './events.js';
 
 const NATIVE_SCHEDULE_TOOLS = new Set([
   'schedule_create',
@@ -21,7 +21,7 @@ export function nativeScheduleToolRefusal(name: string): string | undefined {
 }
 
 export function registerScheduleTools(
-  currentRun: () => Pick<OrchestratorAgentRun, 'schedules'> | undefined,
+  currentRun: () => { schedules?: ReturnType<typeof bindScheduleCommands> } | undefined,
   registerTool: (tool: ToolDefinition) => unknown,
 ): void {
   const scheduleRun = (tool: string) => {

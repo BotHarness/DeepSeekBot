@@ -75,6 +75,8 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createFeatureContributions } from './feature-contributions.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
@@ -262,11 +264,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return templateInUse;
     },
   });
+  const featureContributions = createFeatureContributions({
+    genui: {
+      browserPath: config.genuiPreviewBrowserPath,
+      onDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
+      attachmentContext: ctx,
+    },
+  });
   const agentAdapter = personabotsFeature.createHostAgentAdapter(ctx, config, {
     engineHost,
     engineToolGate,
     tobCliInvocation,
-    diagnosticEvents,
+    featureContributions,
     defaultModel,
     providerCredentials,
     turnRefusals,
@@ -452,7 +461,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     diagnosticEvents,
   );
   if (core.operationalDatabase.mode === 'ready') {
-    const callback = connectorCallback();
+    const callback = connectorCallback(core.team.publicOrigins);
     const connectors = new ConnectorService({
       store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
       credentials: () => ctx.get('credentials'),
@@ -568,7 +577,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     releaseService,
   });
   const folders = workspacesFeature.mountFolders(ctx);
-  const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
+  const {
+    marketplaceClient,
+    marketplaceUploads,
+    shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
+  } = marketplace.apply(ctx, {
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     dshHome,
     registry: core.registry,
@@ -579,6 +594,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.live.publishResourceChanged('sessions'),
   );
   ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
+  ctx.effect(
+    () => core.workspaceLooks.subscribe(() => sessionListChanges.changedAll()),
+    'botharness: Workspace looks refresh Session lists',
+  );
   const nativeSessionInput = dshHostSessionInput(
     ctx,
     (id) => core.ownership.resolve(id) === undefined,
@@ -602,6 +621,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
+    featureContributions,
     team,
     skills,
     release,
@@ -642,6 +662,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,
@@ -728,6 +750,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
     },
     team,
+    featureContributions,
   );
 
   skills.mountNative({

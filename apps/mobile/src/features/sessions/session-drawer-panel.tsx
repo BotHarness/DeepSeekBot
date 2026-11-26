@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Keyboard, Platform, Pressable, SectionList, View, type ViewProps } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -14,7 +15,12 @@ import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
 import { ReadFailure } from '../../ui/primitives/read-failure';
 import { SearchField } from '../../ui/primitives/search-field';
 import { Text } from '../../ui/primitives/text';
-import { assignFolderColors, folderColorKey, type SessionQueryRow } from './session-query-model';
+import {
+  assignFolderColors,
+  folderColor,
+  folderColorKey,
+  type SessionQueryRow,
+} from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
 import { SessionDrawerEnvironmentChip } from './session-drawer-environment-chip';
 import { SessionDrawerFooterActions } from './session-drawer-footer-actions';
@@ -235,6 +241,22 @@ export function SessionDrawerPanel({
               row={item}
               client={hosts.find((host) => host.hostId === item.hostId)?.client}
               folderColor={folderColors.get(folderColorKey(item.hostId, item.folderName))}
+              onFolderLook={
+                item.cwd === undefined
+                  ? undefined
+                  : () =>
+                      router.push({
+                        pathname: '/folder-look',
+                        params: {
+                          hostId: item.hostId,
+                          path: item.cwd!,
+                          ...(item.folderName === undefined ? {} : { folderName: item.folderName }),
+                          autoColor:
+                            folderColors.get(folderColorKey(item.hostId, item.folderName)) ??
+                            folderColor(item.folderName),
+                        },
+                      })
+              }
               showHost={showHost}
               selected={item.hostId === selected?.hostId && item.sessionId === selected.sessionId}
               onPress={() => onOpen(item)}
