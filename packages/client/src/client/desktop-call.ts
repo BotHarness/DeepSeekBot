@@ -156,6 +156,7 @@ export function createDesktopCall(
   let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
   let sessionMedia: DesktopCallMedia | undefined;
   let soundWatch: (() => void) | undefined;
+  let micHold = false;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
@@ -227,7 +228,7 @@ export function createDesktopCall(
         CallCaptureErrorCode
       >({
         post,
-        media: ownedMedia,
+        media: { ...ownedMedia, mute: (next) => ownedMedia.mute(next || micHold) },
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
           desktopCapture(
@@ -280,8 +281,17 @@ export function createDesktopCall(
         const hostMuted = current.state.status === 'live' && current.state.muted;
         set({ sound: shared ? 'on' : 'off' });
         if (shared && hostMuted) {
+          micHold = true;
           await session?.client.mute(false);
+          micHold = false;
           owned.mute(true);
+          const state = current.state;
+          if (state.status === 'live' && state.call.muted) {
+            await owned.computerSound?.(false);
+            await session?.client.mute(true);
+            if (sessionMedia === owned) set({ sound: 'off', micMuted: false });
+            return;
+          }
           set({ micMuted: true });
         }
       } catch {

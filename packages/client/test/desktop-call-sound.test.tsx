@@ -132,4 +132,45 @@ describe('desktop call voice setup and computer sound', () => {
     expect(hostMuted()).toBe(true);
     expect(element.querySelector('button[aria-label="Unmute"]')).not.toBeNull();
   });
+  it.each(['slow', 'refused'] as const)(
+    'keeps the microphone off while a muted call starts sharing, with a %s Host unmute',
+    async (answer) => {
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+      const { fetcher } = host();
+      let release: () => void = () => undefined;
+      let holding = false;
+      const gated = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const body = typeof init?.body === 'string' ? init.body : '';
+        if (holding && body.includes('"kind":"mute"') && body.includes('"muted":false')) {
+          holding = false;
+          if (answer === 'refused') throw new Error('offline');
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return fetcher(input, init);
+      }) as typeof fetch;
+      const mac = desktopWindow(gated, 'window-mac-0001');
+      await mac.call.start('mira');
+      await vi.waitFor(() => expect(mac.call.snapshot().state.status).toBe('live'));
+      await mac.call.mute(true);
+      const heardMic = mac.media.muted.length;
+      holding = true;
+      const sharing = mac.call.computerSound(true);
+      await vi.waitFor(() => expect(holding).toBe(false));
+      expect(mac.media.muted.slice(heardMic)).not.toContain(false);
+      release();
+      await sharing;
+      expect(mac.media.muted.slice(heardMic)).not.toContain(false);
+      const state = mac.call.snapshot().state as { muted?: boolean; call?: { muted?: boolean } };
+      if (answer === 'slow') {
+        expect(state.call?.muted).toBe(false);
+        expect(mac.call.snapshot()).toMatchObject({ sound: 'on', micMuted: true });
+      } else {
+        expect(state.call?.muted).toBe(true);
+        expect(mac.call.snapshot()).toMatchObject({ sound: 'off', micMuted: false });
+        expect(mac.media.sounds).toEqual([true, false]);
+      }
+    },
+  );
 });
