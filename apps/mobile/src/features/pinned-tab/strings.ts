@@ -24,10 +24,10 @@ export const en = {
     tabLabel: (name: string, unread?: string) =>
       unread === undefined ? `${name}, pinned tab` : `${name}, pinned tab, ${unread} unread`,
     emptyTitle: 'Nothing to pin yet',
-    emptyBody: 'Add a computer and its Tob appears here.',
-    emptyAction: 'Add a computer',
+    emptyBody: 'Add an Environment and its Tob appears here.',
+    emptyAction: 'Add Environment',
     loading: 'Loading the pinned conversation',
-    loadFailed: 'Could not reach this computer.',
+    loadFailed: 'Could not reach this Environment.',
   },
 };
 
@@ -55,9 +55,9 @@ export const zh: typeof en = {
     tabLabel: (name: string, unread?: string) =>
       unread === undefined ? `${name}，固定标签页` : `${name}，固定标签页，${unread} 条未读`,
     emptyTitle: '还没有可固定的对话',
-    emptyBody: '添加电脑后，它的 Tob 会出现在这里。',
-    emptyAction: '添加电脑',
+    emptyBody: '添加环境后，它的 Tob 会出现在这里。',
+    emptyAction: '添加环境',
     loading: '正在载入固定的对话',
-    loadFailed: '连不上这台电脑。',
+    loadFailed: '连不上这个环境。',
   },
 };
