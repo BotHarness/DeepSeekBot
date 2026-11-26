@@ -307,6 +307,13 @@ function RootNavigator() {
                     }}
                   />
                   <Stack.Screen
+                    name="folder-look"
+                    options={{
+                      title: t.hostSessions.folderLook,
+                      ...sheetScreenOptions(design, true),
+                    }}
+                  />
+                  <Stack.Screen
                     name="sign-in"
                     options={{ ...sheetScreenOptions(design, true), title: t.emailSignIn.title }}
                   />

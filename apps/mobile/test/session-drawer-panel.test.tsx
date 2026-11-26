@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { HostClient } from '@botharness/host-client/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/primitives/resource-image', () => ({ ResourceImage: () => null }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -27,6 +28,30 @@ vi.mock('react-native-keyboard-controller', () => ({
   ),
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('../src/ui/primitives/item-menu', async () => {
+  const { useState } = await import('react');
+  return {
+    ItemMenu: ({
+      actions,
+      children,
+    }: {
+      actions: { key: string; run(): void }[];
+      children(open: () => void): ReactNode;
+    }) => {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          {children(() => setOpen(true))}
+          {open
+            ? actions.map((action) => (
+                <button key={action.key} data-testid={`menu-${action.key}`} onClick={action.run} />
+              ))
+            : null}
+        </>
+      );
+    },
+  };
+});
 vi.mock('expo-router', () => ({
   router: navigation,
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
@@ -107,6 +132,7 @@ async function render(
           sessionId: 'fresh',
           title: 'Fresh work',
           folderName: 'botharness',
+          cwd: '/work/botharness',
           model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
           source: { kind: 'native' },
           running: true,
@@ -478,4 +504,19 @@ it('shows the cached Sessions at once when the drawer opens again, and refreshes
   await settle();
   expect(again.textContent).toContain('Newer work');
   expect(again.textContent).not.toContain('Old research');
+});
+
+it('opens 文件夹外观 from a long press on a Session whose folder the Owner can see', async () => {
+  const { view } = await render({ second: true });
+  const fresh = view.querySelector<HTMLElement>('[data-testid="host-session-fresh"]')!;
+  await act(async () => fresh.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  const action = view.querySelector<HTMLElement>('[data-testid="menu-folder-look"]')!;
+  await act(async () => action.click());
+  expect(navigation.push).toHaveBeenCalledWith({
+    pathname: '/folder-look',
+    params: { hostId: 'studio', path: '/work/botharness', folderName: 'botharness' },
+  });
+  const remote = view.querySelector<HTMLElement>('[data-testid="host-session-remote"]')!;
+  await act(async () => remote.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  expect(view.querySelectorAll('[data-testid="menu-folder-look"]')).toHaveLength(1);
 });

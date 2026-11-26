@@ -280,6 +280,7 @@ function initializeCore(
     enabled: () =>
       (nativeAttentionSettings.at(-1)?.read() ?? DEFAULT_NATIVE_SESSION_ATTENTION) !== false,
     owner: (human) => human.caller !== 'bot' && team.isOwner(human),
+    folderLook: (cwd) => workspaceLooks.cached(cwd),
   });
   const spaces = workspacesFeature.apply(operationalDatabase, dshHome, team);
   startup.enter('channel-live', 'initialize');

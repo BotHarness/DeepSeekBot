@@ -1,4 +1,7 @@
-import type { HostSessionPendingInput } from '@botharness/host-protocol/host-sessions';
+import type {
+  HostSessionFolderLook,
+  HostSessionPendingInput,
+} from '@botharness/host-protocol/host-sessions';
 import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import type { HumanContext } from '../../humans/context.js';
 import { attentionSummary } from './human-attention-query.js';
@@ -29,13 +32,17 @@ export interface NativeSessionAttentionOptions {
   source(): NativeSessionAttentionSource | undefined;
   enabled(): boolean;
   owner(human: HumanContext): boolean;
+  folderLook?(cwd: string): HostSessionFolderLook | undefined;
 }
 
 export function nativeSessionItemId(entry: Pick<NativeSessionAttentionEntry, 'requestId'>) {
   return `native-session:${entry.requestId}`;
 }
 
-function item(entry: NativeSessionAttentionEntry): HumanAttentionItem {
+function item(
+  entry: NativeSessionAttentionEntry,
+  folderLook: HostSessionFolderLook | undefined,
+): HumanAttentionItem {
   return {
     id: nativeSessionItemId(entry),
     category: 'action',
@@ -50,6 +57,7 @@ function item(entry: NativeSessionAttentionEntry): HumanAttentionItem {
       ...(entry.sessionTitle === undefined ? {} : { sessionTitle: entry.sessionTitle }),
       ...(entry.folderName === undefined ? {} : { folderName: entry.folderName }),
       ...(entry.cwd === undefined ? {} : { cwd: entry.cwd }),
+      ...(folderLook === undefined ? {} : { folderLook }),
       ...(entry.request === undefined ? {} : { request: entry.request }),
     },
   };
@@ -78,7 +86,9 @@ export function withNativeSessionAttention(
     if (!wantsNative(input) || !options.enabled() || !options.owner(human)) return [];
     const search = input.search?.trim().toLowerCase() ?? '';
     return (options.source()?.list() ?? [])
-      .map(item)
+      .map((entry) =>
+        item(entry, entry.cwd === undefined ? undefined : options.folderLook?.(entry.cwd)),
+      )
       .filter(
         (row) =>
           (input.itemId === undefined || row.id === input.itemId) &&

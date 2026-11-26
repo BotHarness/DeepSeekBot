@@ -10,6 +10,7 @@ import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
 import { radius, rowGlyph, space } from '../../ui/design/tokens';
 import { clampScaledIconSize } from '../../ui/design/scaled-icon-size';
+import { ItemMenu } from '../../ui/primitives/item-menu';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { SessionFolderAvatar } from './session-folder-avatar';
@@ -35,6 +36,7 @@ export function SessionDrawerRow({
   selected,
   now = Date.now(),
   onPress,
+  onFolderLook,
 }: {
   row: SessionQueryRow;
   client: HostClient | undefined;
@@ -43,6 +45,7 @@ export function SessionDrawerRow({
   selected: boolean;
   now?: number;
   onPress(): void;
+  onFolderLook?: (() => void) | undefined;
 }) {
   const strings = useStrings();
   const t = strings.hostSessions;
@@ -80,7 +83,7 @@ export function SessionDrawerRow({
         <ModelBrandIcon brand={brand} size={metaIcon} color={theme.color.muted} />
       </View>
     );
-  return (
+  const body = (onLongPress?: () => void) => (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={[
@@ -96,6 +99,7 @@ export function SessionDrawerRow({
       accessibilityState={{ selected }}
       testID={`host-session-${row.sessionId}`}
       onPress={onPress}
+      {...(onLongPress === undefined ? {} : { onLongPress })}
       android_ripple={{ color: pressTint(theme.color.fg) }}
       style={({ pressed }) => ({
         minHeight: theme.touch,
@@ -112,6 +116,8 @@ export function SessionDrawerRow({
           testID={`session-monogram-${row.sessionId}`}
           folderName={row.folderName}
           colorId={folderColor}
+          look={row.folderLook}
+          client={client}
           size={badge}
           corner={radius.md}
         />
@@ -198,5 +204,14 @@ export function SessionDrawerRow({
         ) : null}
       </View>
     </Pressable>
+  );
+  if (onFolderLook === undefined) return body();
+  return (
+    <ItemMenu
+      title={row.folderName ?? title}
+      actions={[{ key: 'folder-look', label: t.folderLook, glyph: 'folder', run: onFolderLook }]}
+    >
+      {(open) => body(open)}
+    </ItemMenu>
   );
 }

@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Keyboard, Platform, Pressable, SectionList, View, type ViewProps } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -234,6 +235,19 @@ export function SessionDrawerPanel({
               row={item}
               client={hosts.find((host) => host.hostId === item.hostId)?.client}
               folderColor={folderColors.get(folderColorKey(item.hostId, item.folderName))}
+              onFolderLook={
+                item.cwd === undefined
+                  ? undefined
+                  : () =>
+                      router.push({
+                        pathname: '/folder-look',
+                        params: {
+                          hostId: item.hostId,
+                          path: item.cwd!,
+                          ...(item.folderName === undefined ? {} : { folderName: item.folderName }),
+                        },
+                      })
+              }
               showHost={showHost}
               selected={item.hostId === selected?.hostId && item.sessionId === selected.sessionId}
               onPress={() => onOpen(item)}
