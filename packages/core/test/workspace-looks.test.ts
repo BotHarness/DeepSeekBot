@@ -67,6 +67,11 @@ it('follows a link rel=icon in index.html or a root route, inside the folder onl
   expect(await findWorkspaceFavicon(remote)).toBeUndefined();
 });
 
+it('accepts a multi-size favicon.ico of a few hundred KB, like t3code ships', async () => {
+  const root = folder({ 'public/favicon.ico': Buffer.alloc(290 * 1024, 1) });
+  expect((await findWorkspaceFavicon(root))?.mediaType).toBe('image/x-icon');
+});
+
 it('skips symlinks out of the folder, empty or oversized files and unknown types', async () => {
   const outside = folder({ 'secret.png': PNG });
   const linked = folder({});

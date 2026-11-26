@@ -47,7 +47,7 @@ export const ICON_SOURCE_FILES = [
   'src/index.html',
 ] as const;
 
-export const FAVICON_MAX_BYTES = 256 * 1024;
+export const FAVICON_MAX_BYTES = 1024 * 1024;
 const SOURCE_MAX_BYTES = 512 * 1024;
 const POSITIVE_TTL = 10 * 60_000;
 const NEGATIVE_TTL = 60_000;
