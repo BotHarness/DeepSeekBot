@@ -84,6 +84,8 @@ export function createHostBridgeDependencies(
     marketplaceClient: ReturnType<typeof marketplace.apply>['marketplaceClient'];
     marketplaceUploads: ReturnType<typeof marketplace.apply>['marketplaceUploads'];
     shareDrafts: ReturnType<typeof marketplace.apply>['shareDrafts'];
+    marketplaceSkillSource: ReturnType<typeof marketplace.apply>['marketplaceSkillSource'];
+    hostSkillsDir: string;
     dshHome: string;
     reviewing: Set<string>;
     telemetryDir: string;
@@ -132,6 +134,8 @@ export function createHostBridgeDependencies(
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,
@@ -144,6 +148,12 @@ export function createHostBridgeDependencies(
     developerMode,
   } = deps;
   const { botModeSettings, productBotMode, installedBotModes, botModeOf } = botModes;
+  const marketplaceReceipts = marketplace.createReceipts(
+    ctx,
+    marketplaceClient,
+    telemetryDir,
+    marketplaceSkillSource,
+  );
   return {
     team,
     skills: skills.catalog,
@@ -398,7 +408,13 @@ export function createHostBridgeDependencies(
       marketplaceUploads,
     }),
     shareDrafts,
-    marketplaceReceipts: marketplace.createReceipts(ctx, marketplaceClient, telemetryDir),
+    marketplaceReceipts,
+    marketplaceSkills: {
+      source: marketplaceSkillSource,
+      hostSkillsDir,
+      receipt: (skillId: string, target: string) =>
+        void marketplaceReceipts.sendSkill?.(skillId, target).catch(() => undefined),
+    },
     release: releaseService,
     plugins: pluginUpdates,
     updates: updateRuns,

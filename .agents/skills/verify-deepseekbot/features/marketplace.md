@@ -7,7 +7,9 @@
 - `packages/core/src/features/marketplace/**`
 - `packages/host-client/src/marketplace-avatars.ts`
 - `packages/client/src/client/marketplace-report.tsx`
-- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,market-skills,market-skill-dialog,personabot-avatar-crop}.tsx`
+- `packages/host-protocol/src/marketplace-skill.ts`
+- `packages/core/src/bots/cli-skills.ts`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `packages/client/src/client/marketplace-install-review.tsx`
 - `packages/client/src/client/standing-import-usage.tsx`
@@ -24,6 +26,8 @@
 - Install Receipt
 - Share Draft
 - Listing
+- Marketplace Skill
+- Indexed Skill Repository
 
 ## Sub-features
 
@@ -75,6 +79,15 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 The import confirmation shows the standing memory usage and effective limits from the staged files. Check an older Bot Marketplace entry that exceeds a default limit and an entry carrying a valid custom pair. Before confirming, compare the usage to the CLI's `marketplace-install <listing-id>` review result. After confirming, read the new Bot's standing memory limits.
 
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
+
+## Marketplace Skills
+
+The Worker indexes public repositories tagged `tobs-skill`; each folder with a `SKILL.md` is one entry pinned to a commit. A malicious scan finding keeps the entry unlisted; a warning lists it with a tag.
+
+1. Serve a task-local Worker: wrap `handlerForEnv` with a local SQLite D1 and the real GitHub client, run the skills discovery phase (in-scope repositories only, for example `BotHarness/DeepSeekBot`), and set `marketplaceUrl` in the Host profile. Node needs `NODE_USE_ENV_PROXY=1` and the proxy CA to reach GitHub from a cloud session.
+2. `shot <label> --bot-mode --click Marketplace --click-text Skills --wait-text <name>` shows the grid. Use `--click-text Skills`, not `--click`: the accessible name is not unique. Search, then open a card: the dialog shows SKILL.md, the Has scripts list, the scan warning and the file list. Compare with `deepseekbot marketplace-skill-list --query <q>` and `marketplace-skill-detail <id>`.
+3. **Add…** downloads and re-scans the files on the Host. Tick a Bot and **Global (every Bot)**, then **Add**. Prove canonical state: one commit `skills: add <name> from Marketplace` in the Bot's memory repository, `metadata.tobs-source/tobs-repository/tobs-hash` in its `SKILL.md`, `<DSH home>/skills/<name>/` for global, `rpc botharness/botSkills '{"slug":"<slug>"}'` lists it, typing `/<name>` in the Bot's composer offers it, and the Worker install count rises by one per target.
+4. Add again: the targets show the name conflict and the dialog asks to add renamed (`<name>-2`) or replace. `deepseekbot skills-add <id> --bot <slug> --confirm --on-conflict rename` gives the same result.
 
 ## Gotchas
 

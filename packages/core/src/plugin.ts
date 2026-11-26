@@ -461,7 +461,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     diagnosticEvents,
   );
   if (core.operationalDatabase.mode === 'ready') {
-    const callback = connectorCallback();
+    const callback = connectorCallback(core.team.publicOrigins);
     const connectors = new ConnectorService({
       store: createConnectorStore(attachOperationalModule(core.operationalDatabase, 'connectors')),
       credentials: () => ctx.get('credentials'),
@@ -577,7 +577,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     releaseService,
   });
   const folders = workspacesFeature.mountFolders(ctx);
-  const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
+  const {
+    marketplaceClient,
+    marketplaceUploads,
+    shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
+  } = marketplace.apply(ctx, {
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     dshHome,
     registry: core.registry,
@@ -652,6 +658,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplaceClient,
     marketplaceUploads,
     shareDrafts,
+    marketplaceSkillSource,
+    hostSkillsDir,
     dshHome,
     reviewing,
     telemetryDir,

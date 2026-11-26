@@ -37,6 +37,9 @@ export type { CallPost, VoiceCallResult };
 
 const CLIENT_KEY = 'botharness/call-client.v1';
 
+type DesktopCallMedia = CallClientMedia &
+  Partial<Pick<BrowserCallMedia, 'level' | 'computerSound' | 'onComputerSound'>>;
+
 export interface DesktopCallBlock {
   readonly kind: NonNullable<CallReadinessVerdict['blocked']>;
   readonly notices: readonly CallNotice[];
@@ -75,7 +78,11 @@ export interface DesktopCallSnapshot {
   readonly block: DesktopCallBlock | undefined;
   readonly state: CallClientState;
   readonly visual: DesktopCallVisual;
+  readonly sound: DesktopCallSound;
+  readonly micMuted?: boolean | undefined;
 }
+
+export type DesktopCallSound = 'off' | 'starting' | 'on' | 'missing';
 
 export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
   source: 'off',
@@ -94,6 +101,7 @@ export interface DesktopCall {
   mute(muted: boolean): Promise<void>;
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
+  computerSound(on: boolean): Promise<void>;
   dismissVisual(): void;
   hangup(options?: CallHangupOptions): Promise<void>;
   dismiss(): void;
@@ -135,7 +143,7 @@ function desktopCapture(camera: CallCamera): DesktopCapture {
 export function createDesktopCall(
   options: {
     post?: CallPost;
-    media?: () => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
+    media?: () => DesktopCallMedia;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
   } = {},
@@ -146,13 +154,18 @@ export function createDesktopCall(
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
   const listeners = new Set<() => void>();
   let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
-  let sessionMedia: (CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>) | undefined;
+  let sessionMedia: DesktopCallMedia | undefined;
+  let soundWatch: (() => void) | undefined;
+  let heldFor: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
+  let heldMuted = true;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
     block: undefined,
     state: { status: 'idle' },
     visual: DESKTOP_CALL_VISUAL_OFF,
+    sound: 'off',
+    micMuted: false,
   };
   const set = (next: Partial<DesktopCallSnapshot>) => {
     current = { ...current, ...next };
@@ -185,6 +198,8 @@ export function createDesktopCall(
       session?.dispose();
       session = undefined;
       sessionMedia = undefined;
+      soundWatch?.();
+      soundWatch = undefined;
       set({
         slug,
         place,
@@ -192,6 +207,8 @@ export function createDesktopCall(
         block: undefined,
         state: { status: 'idle' },
         visual: DESKTOP_CALL_VISUAL_OFF,
+        sound: 'off',
+        micMuted: false,
       });
       let verdict: CallReadinessVerdict;
       try {
@@ -212,7 +229,7 @@ export function createDesktopCall(
         CallCaptureErrorCode
       >({
         post,
-        media: ownedMedia,
+        media: { ...ownedMedia, mute: (next) => ownedMedia.mute(next || heldFor === owned) },
         ...(options.now === undefined ? {} : { now: options.now }),
         capture: (source, events) =>
           desktopCapture(
@@ -223,15 +240,28 @@ export function createDesktopCall(
           set({
             state: state.call,
             visual: visualOf(owned, state.visual as CallVisualState<CallCaptureErrorCode>),
+            ...(state.call.status === 'live' ? {} : { sound: 'off' as const, micMuted: false }),
           });
         },
       });
       session = owned;
       sessionMedia = ownedMedia;
+      soundWatch = ownedMedia.onComputerSound?.((on) => {
+        if (sessionMedia !== ownedMedia) return;
+        const micMuted = current.micMuted === true;
+        set({ sound: on ? 'on' : 'off', ...(on ? {} : { micMuted: false }) });
+        if (!on && micMuted && heldFor !== owned) void owned.client.mute(true);
+      });
       set({ checking: false });
       await owned.client.open(slug);
     },
     async mute(muted) {
+      if (heldFor !== undefined && heldFor === session) heldMuted = muted;
+      if (current.sound === 'on' && sessionMedia !== undefined) {
+        sessionMedia.mute(muted);
+        set({ micMuted: muted });
+        return;
+      }
       await session?.client.mute(muted);
     },
     camera: async (on) => {
@@ -242,12 +272,51 @@ export function createDesktopCall(
       if (on) await session?.share('screen');
       else await session?.unshare('screen');
     },
+    async computerSound(on) {
+      const owned = sessionMedia;
+      const owner = session;
+      if (owned?.computerSound === undefined || current.state.status !== 'live') return;
+      if (on && current.sound === 'starting') return;
+      if (on) set({ sound: 'starting' });
+      try {
+        const shared = await owned.computerSound(on);
+        if (session !== owner) return;
+        const hostMuted = current.state.status === 'live' && current.state.muted;
+        set({ sound: shared ? 'on' : 'off', ...(shared && hostMuted ? { micMuted: true } : {}) });
+        if (shared && hostMuted) {
+          heldFor = owner;
+          heldMuted = true;
+          await owner?.client.mute(false);
+          if (heldFor === owner) heldFor = undefined;
+          if (session !== owner) return;
+          const state = current.state;
+          const refused = state.status === 'live' && state.call.muted;
+          if (refused || current.sound !== 'on') {
+            const keepMuted = refused || heldMuted;
+            owned.mute(keepMuted);
+            if (refused) await owned.computerSound?.(false);
+            if (keepMuted) await owner?.client.mute(true);
+            if (session === owner) set({ sound: 'off', micMuted: false });
+            return;
+          }
+          owned.mute(current.micMuted === true);
+        }
+      } catch {
+        if (session === owner) set({ sound: 'missing' });
+      }
+    },
     dismissVisual() {
       session?.dismissVisual();
     },
     async hangup(options) {
       await session?.hangup(options);
-      set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
+      set({
+        block: undefined,
+        state: { status: 'idle' },
+        visual: DESKTOP_CALL_VISUAL_OFF,
+        sound: 'off',
+        micMuted: false,
+      });
     },
     dismiss() {
       if (active()) return;

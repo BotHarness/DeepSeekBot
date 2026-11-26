@@ -49,11 +49,18 @@ const SESSION_RETRY_MS = 30_000;
 const RENEW_EARLY_MS = 60_000;
 const LOOKUP_RETRY_MS = 30_000;
 export const CONNECTOR_CALLBACK_PATH = '/botharness/connectors/oauth/callback';
+export const CONNECTOR_DEVICE_CALLBACK_PATH = '/botharness-device/connectors/oauth/callback';
 
-export function connectorCallback() {
+export function connectorCallback(publicOrigins: () => Promise<string[]> = async () => []) {
   let origin: (() => string) | undefined;
   return {
-    url: () => (origin === undefined ? undefined : `${origin()}${CONNECTOR_CALLBACK_PATH}`),
+    async url(): Promise<string | undefined> {
+      if (origin === undefined) return undefined;
+      const [reachable] = await publicOrigins().catch(() => []);
+      return reachable === undefined
+        ? `${origin()}${CONNECTOR_CALLBACK_PATH}`
+        : `${reachable}${CONNECTOR_DEVICE_CALLBACK_PATH}`;
+    },
     attach(next: (() => string) | undefined) {
       origin = next;
     },
@@ -95,37 +102,37 @@ function mountCallback(
     }
     webCtx.effect(() => {
       callback.attach(() => web.getOrigin());
-      const off = web.register({
-        kind: 'exact',
-        path: CONNECTOR_CALLBACK_PATH,
-        handler: async (request, response) => {
-          const params = new URL(request.url ?? '/', 'http://callback').searchParams;
-          let status = 200;
-          let page: string;
-          try {
-            const account = await service.remote.finish(params);
-            page = callbackPage(
-              `${account.label} is connected`,
-              'You can close this tab and go back to Tobs.',
-            );
-          } catch (error) {
-            status = 400;
-            page = callbackPage(
-              'Sign-in did not finish',
-              error instanceof ConnectorError ? error.message : 'Try connecting the app again.',
-            );
-          }
-          response.writeHead(status, {
-            'content-type': 'text/html; charset=utf-8',
-            'cache-control': 'no-store',
-            'referrer-policy': 'no-referrer',
-            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
-          });
-          response.end(page);
-        },
-      });
+      const handler = async (request: IncomingMessage, response: ServerResponse) => {
+        const params = new URL(request.url ?? '/', 'http://callback').searchParams;
+        let status = 200;
+        let page: string;
+        try {
+          const account = await service.remote.finish(params);
+          page = callbackPage(
+            `${account.label} is connected`,
+            'You can close this tab and go back to Tobs.',
+          );
+        } catch (error) {
+          status = 400;
+          page = callbackPage(
+            'Sign-in did not finish',
+            error instanceof ConnectorError ? error.message : 'Try connecting the app again.',
+          );
+        }
+        response.writeHead(status, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'referrer-policy': 'no-referrer',
+          'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+        });
+        response.end(page);
+      };
+      const offs = [
+        web.register({ kind: 'exact', path: CONNECTOR_CALLBACK_PATH, handler }),
+        web.register({ kind: 'exact', path: CONNECTOR_DEVICE_CALLBACK_PATH, handler }),
+      ];
       return () => {
-        off();
+        for (const off of offs) off();
         callback.attach(undefined);
       };
     }, 'botharness: App connection sign-in callback');
