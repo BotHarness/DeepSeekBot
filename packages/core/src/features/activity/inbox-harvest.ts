@@ -808,6 +808,38 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
     );
   }
 
+  function markMissedMeetingLines(
+    botSlug: string,
+    units: InboxUnit[],
+    rows: InboxReportRow[],
+  ): InboxUnit[] {
+    return units.map((unit) => {
+      if (unit.meeting === undefined) return unit;
+      const id = unit.meeting.id;
+      const selected = rows.filter(
+        (row) => meetingInboxFacts(row.meeting_json).meeting?.id === id,
+      ).length;
+      const unread = ports.database.read(
+        (database) =>
+          database
+            .prepare(
+              `SELECT COUNT(*) AS n FROM source_events e
+                WHERE e.bot_slug = ? AND e.source_kind = 'meeting-speech'
+                  AND e.observed_at IS NULL
+                  AND json_extract(e.payload_json, '$.meeting.id') = ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM inbox_admissions i
+                    WHERE i.source_event_id = e.source_event_id AND i.bot_slug = e.bot_slug
+                      AND i.reason = 'meeting'
+                      AND (i.attempt_state NOT IN ('pending', 'retryable') OR i.side_effect_started_at IS NOT NULL)
+                  )`,
+            )
+            .get(botSlug, id) as { n: number },
+      ).n;
+      return unread > selected ? { ...unit, meeting: { ...unit.meeting, missed: true } } : unit;
+    });
+  }
+
   function collectInbox(botSlug: string): { units: InboxUnit[]; eventIds: string[] } {
     const rows = ports.database.read(
       (database) =>
@@ -843,7 +875,7 @@ export function createInboxHarvest(ports: InboxHarvestPorts) {
 
     rows.reverse();
     ports.messagingEvents.collectExternalRows(botSlug, rows);
-    const units = coalesceInbox(rows);
+    const units = markMissedMeetingLines(botSlug, coalesceInbox(rows), rows);
     return {
       units,
       eventIds: rows.map((row) => row.source_event_id),

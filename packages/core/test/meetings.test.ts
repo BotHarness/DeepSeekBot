@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { coalesceInbox } from '../src/features/activity/inbox-harvest.js';
+import { coalesceInbox, createInboxHarvest } from '../src/features/activity/inbox-harvest.js';
 import { bindMeetingCommands } from '../src/meetings/commands.js';
 import { createMeetings } from '../src/meetings/meetings.js';
 import {
@@ -220,6 +220,43 @@ describe('meeting store', () => {
     expect(units[0]!.meeting?.lines).toHaveLength(201);
     expect(units[0]!.meeting?.lines[0]!.body).toBe('line 1');
     expect(units[0]!.meeting?.ended).toBe('owner-stopped');
+  });
+
+  it('tells the Bot to read the transcript when a harvest leaves earlier meeting lines out', () => {
+    const { port, store } = storeFixture();
+    const meeting = store.create({
+      botSlug: 'ada',
+      platform: 'synthetic',
+      callId: 'call-1',
+      dispatcher,
+    });
+    for (let index = 1; index <= 4_001; index += 1)
+      store.hear(meeting.id, { body: `line ${index}` });
+    store.end(meeting.id, 'left', 'owner-stopped');
+    expect(pendingMeetingRows(store, port)).toHaveLength(21);
+    const harvest = createInboxHarvest({
+      database: port,
+      messagingEvents: { collectExternalRows: () => undefined },
+    } as unknown as Parameters<typeof createInboxHarvest>[0]);
+    const { units } = harvest.collectInbox('ada');
+    expect(units).toHaveLength(1);
+    expect(units[0]!.meeting).toMatchObject({ ended: 'owner-stopped', missed: true });
+    expect(units[0]!.meeting?.lines[0]!.body).not.toBe('line 1');
+    expect(inboxLine(units[0]!)).toContain(
+      'Read the full transcript with meeting_transcript first.',
+    );
+
+    const short = store.create({
+      botSlug: 'bea',
+      platform: 'synthetic',
+      callId: 'call-2',
+      dispatcher,
+    });
+    store.hear(short.id, { body: 'only line' });
+    store.end(short.id, 'left', 'owner-stopped');
+    const [unit] = harvest.collectInbox('bea').units;
+    expect(unit!.meeting?.missed).toBeUndefined();
+    expect(inboxLine(unit!)).toContain('meeting_transcript if you need it');
   });
 
   it('wakes the Bot again when the meeting ends on a batch whose turn failed', () => {

@@ -46,6 +46,7 @@ export interface MeetingSpeechFacts {
   readonly originChannelId?: string | undefined;
   readonly lines: readonly MeetingLine[];
   readonly ended?: MeetingEndReason | undefined;
+  readonly missed?: boolean | undefined;
 }
 
 export const MEETING_LIVE_STATES: readonly MeetingState[] = ['in-meeting'];
