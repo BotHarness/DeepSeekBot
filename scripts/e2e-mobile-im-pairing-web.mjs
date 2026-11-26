@@ -222,13 +222,13 @@ function loadPuppeteer() {
 }
 
 async function main() {
-  mkdirSync(paths.evidence, { recursive: true });
   const console_ = [];
   let instance;
   let proxy;
   let browser;
   let page;
   try {
+    mkdirSync(paths.evidence, { recursive: true });
     mkdirSync(control, { recursive: true });
     if (!skipExport || !existsSync(join(dist, 'index.html'))) {
       const exported = spawnSync('pnpm', ['--filter', '@botharness/mobile', 'export:web'], {
@@ -359,6 +359,10 @@ async function main() {
     await tap('settings-im-apps');
     await text('Phone QA app');
     await text('Not bound');
+    checks.appShowsPlatformIcon = await page
+      .waitForSelector('[data-testid="im-platform-feishu"]', { timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
     await shot('2-im-apps-unbound');
     steps.push('Settings → IM apps lists the synthetic app as not bound');
 
