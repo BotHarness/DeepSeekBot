@@ -12,7 +12,6 @@ export type SessionDrawerFooterActionsProps = {
   onCreate(): void;
 };
 
-/** Search beside a New Session pill that fills the rest of the drawer's footer. */
 export function SessionDrawerFooterActions({
   searchLabel,
   createLabel,

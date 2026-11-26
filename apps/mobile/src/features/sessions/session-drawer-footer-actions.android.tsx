@@ -1,11 +1,4 @@
-import {
-  Button,
-  FilledTonalIconButton,
-  Host,
-  Icon,
-  Row,
-  Text,
-} from '@expo/ui/jetpack-compose';
+import { Button, FilledTonalIconButton, Host, Icon, Row, Text } from '@expo/ui/jetpack-compose';
 import {
   defaultMinSize,
   fillMaxWidth,
@@ -21,10 +14,6 @@ import type { SessionDrawerFooterActionsProps } from './session-drawer-footer-ac
 
 export type { SessionDrawerFooterActionsProps } from './session-drawer-footer-actions';
 
-/**
- * Material 3 footer of the Session drawer: a tonal search icon button beside a filled New Session
- * button that fills the rest of the row, both `theme.touch` tall, as on iOS.
- */
 export function SessionDrawerFooterActions({
   searchLabel,
   createLabel,

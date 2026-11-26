@@ -68,7 +68,6 @@ export function SessionDrawerPanel({
   const query = useSessionQuery(hosts, active);
   const [searching, setSearching] = useState(false);
   const floating = !page && edgeBars;
-  // Android always has the footer of search and New Session; iOS needs the native edge bars.
   const compactFooter = floating || Platform.OS === 'android';
   const [headerHeight, setHeaderHeight] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
