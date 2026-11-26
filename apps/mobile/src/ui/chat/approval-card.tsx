@@ -258,7 +258,7 @@ function ApprovalCardContent({
     submission.pending = true;
     setPhase({ kind: 'pending', request: phase.request, busy: outcome });
     try {
-      const result = await port.decide(outcome, rule);
+      const result = await (rule === undefined ? port.decide(outcome) : port.decide(outcome, rule));
       if (!submission.active || current.current !== submission) return true;
       if (result === 'accepted') {
         haptic(outcome === 'rejected' ? 'deny' : 'approve');
