@@ -26,7 +26,9 @@ vi.mock('react-native-keyboard-controller', () => ({
     </div>
   ),
 }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('expo-router', () => ({
+  router: navigation,
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
@@ -89,36 +91,40 @@ async function render(
     variant?: 'drawer' | 'page';
   } = {},
 ) {
-  const call = vi.fn(async (_method: string, args: { search?: string }) => ({
-    queryVersion: 1,
-    sources: [{ kind: 'native' }],
-    sessions: [
-      {
-        sessionId: 'fresh',
-        title: 'Fresh work',
-        folderName: 'botharness',
-        model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
-        source: { kind: 'native' },
-        running: true,
-        lastPromptAt: now,
-        updatedAt: now,
-      },
-      {
-        sessionId: 'old',
-        title: 'Old research',
-        folderName: '笔记',
-        source: { kind: 'native' },
-        waiting: true,
-        running: false,
-        lastPromptAt: now - 5 * 86_400_000,
-        updatedAt: now - 5 * 86_400_000,
-      },
-    ].filter((row) => !args.search || row.title.toLowerCase().includes(args.search)),
-  }));
+  const call = vi.fn(
+    async (_method: string, args: { search?: string; includeArchived?: boolean }) => ({
+      queryVersion: 1,
+      ...(args.includeArchived ? { includeArchived: true } : {}),
+      sources: [{ kind: 'native' }],
+      sessions: [
+        {
+          sessionId: 'fresh',
+          title: 'Fresh work',
+          folderName: 'botharness',
+          model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+          source: { kind: 'native' },
+          running: true,
+          lastPromptAt: now,
+          updatedAt: now,
+        },
+        {
+          sessionId: 'old',
+          title: 'Old research',
+          folderName: '笔记',
+          source: { kind: 'native' },
+          waiting: true,
+          running: false,
+          lastPromptAt: now - 5 * 86_400_000,
+          updatedAt: now - 5 * 86_400_000,
+        },
+      ].filter((row) => !args.search || row.title.toLowerCase().includes(args.search)),
+    }),
+  );
   const view = document.createElement('div');
   root = createRoot(view);
-  const other = vi.fn(async () => ({
+  const other = vi.fn(async (_method: string, args: { includeArchived?: boolean }) => ({
     queryVersion: 1,
+    ...(args.includeArchived ? { includeArchived: true } : {}),
     sources: [{ kind: 'bot', botSlug: 'ada', displayName: 'Ada' }],
     sessions: [
       {
@@ -170,7 +176,14 @@ it('lists Sessions by day with the open one highlighted under the Environment na
   );
   expect(call).toHaveBeenCalledWith(
     'sessionList',
-    { search: '', sort: 'last-human-turn', source: 'all', limit: 50, queryVersion: 1 },
+    {
+      search: '',
+      sort: 'last-human-turn',
+      source: 'all',
+      limit: 200,
+      includeArchived: true,
+      queryVersion: 1,
+    },
     expect.anything(),
   );
   const sections = [...view.querySelectorAll('section')].map((section) => section.textContent);
@@ -249,6 +262,14 @@ it('floats the header and footer over the list when the native edge bars exist',
   } finally {
     edge.on = false;
   }
+});
+
+it('opens the environment sheet from the environment chip', async () => {
+  const { view } = await render();
+  const chip = view.querySelector<HTMLElement>('[data-testid="session-drawer-environment"]')!;
+  expect(chip.getAttribute('role')).toBe('button');
+  await act(async () => chip.click());
+  expect(navigation.push).toHaveBeenCalledWith('/environment');
 });
 
 it('hides New Session from a member', async () => {
@@ -362,6 +383,7 @@ it('shows the cached Sessions at once when the drawer opens again, and refreshes
   await act(async () =>
     answer({
       queryVersion: 1,
+      includeArchived: true,
       sources: [{ kind: 'native' }],
       sessions: [
         {

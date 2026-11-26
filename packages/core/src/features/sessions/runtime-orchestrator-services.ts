@@ -23,7 +23,7 @@ import { sessionDirectSpeaker } from '../../runtime/session-direct-message.js';
 import type { BotSourcePolicyStore } from '../../runtime/source-policy.js';
 import { botOwner } from '../../team/bot-access.js';
 import type { TeamService } from '../../team/service.js';
-import type { TobService } from '../../tob/service.js';
+import { holdsManagementGrant } from '../../tob/management-grants.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
@@ -55,7 +55,6 @@ interface OrchestratorServicesPorts {
   schedules: BotRuntimeOptions['schedules'];
   sourcePolicy: BotSourcePolicyStore;
   team: TeamService | undefined;
-  tob: TobService | undefined;
 }
 
 function grantRoots(grants: WorkspaceGrantStore, slug: string): string[] {
@@ -103,7 +102,7 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             },
           }
         : {}),
-      ...(ports.tob?.isTob(bot.slug) ? { tobCli: true } : {}),
+      holdsManagementGrant: () => holdsManagementGrant(ports.database, bot.slug),
       ...(ports.workspaceSessions === undefined || ports.grants === undefined
         ? {}
         : {

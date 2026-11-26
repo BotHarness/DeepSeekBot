@@ -593,7 +593,7 @@ try {
       'create',
       'update',
       'deny',
-      'protected',
+      'last-manager',
       'direct',
       'model',
       'restart-read',
@@ -690,20 +690,20 @@ try {
     assert.deepEqual(await rpc('get', { slug: fixture.botSlug }), before);
     steps.push('denied profile edit returns approval-denied with unchanged profile fingerprint');
   }
-  if (phase === 'journey' || phase === 'protected') {
+  if (phase === 'journey' || phase === 'last-manager') {
     const before = await rpc('get', { slug: home.botSlug });
     const context = await beginPrompt(
       home,
-      `这是隔离测试。请用 deepseekbot bot-delete-preview ${home.botSlug} 检查删除 Tob 是否被保护，只运行这次只读预览并报告拒绝码，不要修改任何文件、绕过保护或继续删除。`,
+      `这是隔离测试。请用 deepseekbot bot-delete-preview ${home.botSlug} 预览删除 Tob，只运行这次只读预览并报告它是不是最后一个能管理 App 的 Bot，不要修改任何文件或继续删除。`,
     );
-    await completeTurn(home, context, 'bot-delete-preview', 'protected-bot');
+    await completeTurn(home, context, 'bot-delete-preview', 'lastAppManager');
     assert.deepEqual(await rpc('get', { slug: home.botSlug }), before);
     const approvals = (await rpc('channelMessages', { channelId: home.channelId })).messages.filter(
       (message) => !context.previousMessages.has(message.id) && message.toolApprovalRequest,
     );
     assert.equal(approvals.length, 0);
     steps.push(
-      'protected Tob deletion refuses before approval and leaves canonical profile unchanged',
+      'Tob deletion preview flags the last App manager without approval and leaves the profile unchanged',
     );
   }
   if (phase === 'direct') {
@@ -755,22 +755,22 @@ try {
     );
     assert.equal(stale.error.code, 'stale-profile');
     assert.deepEqual(await humanCli('show', [fixture.botSlug]), current);
-    const protectedResult = await humanCli('bot-delete-preview', [home.botSlug], undefined, true);
-    assert.equal(protectedResult.error.code, 'protected-bot');
+    const lastManager = await humanCli('bot-delete-preview', [home.botSlug]);
+    assert.equal(lastManager.lastAppManager, true);
     writeFileSync(
       resolve(out, 'direct-refusals.json'),
       JSON.stringify(
         {
           conflict: conflict.error.code,
           stale: stale.error.code,
-          protected: protectedResult.error.code,
+          lastAppManager: lastManager.lastAppManager,
         },
         null,
         2,
       ),
     );
     steps.push(
-      'Human CLI stable create/replay, conflicting payload, stale profile and protected deletion refusals',
+      'Human CLI stable create/replay, conflicting payload and stale profile refusals, and the last App manager deletion preview',
     );
   }
   if (phase === 'model') {

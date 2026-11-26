@@ -23,8 +23,12 @@ export interface SessionModelSheetProps {
   saving?: string | undefined;
   savingLabel: string;
   loading: boolean;
+  refreshLabel: string;
+  refreshingLabel: string;
+  refreshing: boolean;
   onClose(): void;
   onRetry(): void;
+  onRefresh(): void;
   onChoose(key: string): void;
 }
 

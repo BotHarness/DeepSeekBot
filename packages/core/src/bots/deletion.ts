@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { isTob, TobError } from '../tob/service.js';
+import { TobError } from '../tob/service.js';
+import { managementGrantHolders } from '../tob/management-grants.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -49,6 +50,7 @@ export interface PersonaBotDeletionPreview {
   refusal?: string;
   dependencies: PersonaBotDeletionDependencies;
   deletion?: PersonaBotDeletion;
+  lastAppManager?: true;
 }
 
 export interface PersonaBotDeletions {
@@ -333,7 +335,11 @@ export function createPersonaBotDeletions(options: {
       refusal = error instanceof Error ? error.message : 'Memory ownership check failed';
     }
     const dependencies = options.dependencies(slug);
-    const snapshot = { record, path, proof, refusal, dependencies, state };
+    const appManagers = managementGrantHolders(port)
+      .filter((holder) => holder.capabilities.includes('manage-app'))
+      .map((holder) => holder.botSlug);
+    const lastAppManager = appManagers.length === 1 && appManagers[0] === slug;
+    const snapshot = { record, path, proof, refusal, dependencies, state, appManagers };
     return {
       slug,
       displayName: record.displayName,
@@ -343,12 +349,10 @@ export function createPersonaBotDeletions(options: {
       ...(refusal === undefined ? {} : { refusal }),
       dependencies,
       ...(state === undefined ? {} : { deletion: state }),
+      ...(lastAppManager ? { lastAppManager: true as const } : {}),
     };
   };
-  const preview = (slug: string): PersonaBotDeletionPreview => {
-    if (isTob(port, slug)) throw new TobError('protected-bot');
-    return snapshot(slug);
-  };
+  const preview = snapshot;
   const run = (state: PersonaBotDeletion): Promise<PersonaBotDeletion> => {
     const active = pending.get(state.slug);
     if (active !== undefined) return active;

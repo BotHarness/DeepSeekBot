@@ -7,6 +7,7 @@ import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { UsageCard } from './shell/usage-card';
 import {
   AppearanceSetting,
+  HideBarsSetting,
   InterfaceSaveNotice,
   LanguageSetting,
   SessionNavigationSettings,
@@ -130,6 +131,7 @@ export function SettingsView({
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         <SessionsTabSetting on={SHEET_GROUP} />
+        <HideBarsSetting on={SHEET_GROUP} />
         {messageDisplay}
         {sendJump}
         <SettingsRow

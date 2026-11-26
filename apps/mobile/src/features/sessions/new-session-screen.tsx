@@ -174,6 +174,7 @@ function NewSessionForm({
     slug: null,
     sessionId: undefined,
     host: client,
+    hostId,
     enabled: online,
     running: false,
   });

@@ -23,6 +23,7 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 export const MEMBER_GLOBAL_METHODS = [
+  'managementGrants',
   'marketplaceAvatarList',
   'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
@@ -145,6 +146,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'promptPresets',
   'approvalTemplates',
   'sessionList',
+  'sessionListChanges',
   'sessionOwner',
   'humanAttention',
   'humanAttentionStatus',

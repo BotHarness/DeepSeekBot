@@ -61,3 +61,23 @@ it('retries a failed read on the next list instead of caching the failure', asyn
   expect((await titles(rows(1))).get('s0')).toBe('Recovered');
   expect(read).toHaveBeenCalledTimes(2);
 });
+
+it('reports the Sessions whose fallback title arrived after the list answered', async () => {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const onTitled = vi.fn();
+  const titles = createSessionTitleCache(
+    async (ids) => {
+      await gate;
+      return new Map(ids.filter((id) => id !== 's1').map((id) => [id, `T ${id}`]));
+    },
+    { waitMs: 10, onTitled },
+  );
+  expect((await titles(rows(3))).size).toBe(0);
+  release();
+  await vi.waitFor(() => expect(onTitled).toHaveBeenCalledWith(['s0', 's2']));
+  await titles(rows(3));
+  expect(onTitled).toHaveBeenCalledTimes(1);
+});

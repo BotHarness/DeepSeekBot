@@ -30,7 +30,9 @@ it('uses a single provider badge and the model name in a Sessions row', () => {
     />,
   );
   expect(result).toContain('data-model-brand="openai"');
-  expect(result).toContain('>订阅<');
+  expect(result).toContain('data-external-engine-badge');
+  expect(result).toContain('aria-label="外部引擎"');
+  expect(result).not.toContain('>订阅<');
   expect(result).not.toContain('ChatGPT');
   expect(result).toContain('>GPT-6.2-Sol<');
 });
@@ -46,6 +48,7 @@ it('shows short names and distinguishes subscriptions from API routes', () => {
   expect(engine).toContain('>Opus 5.5<');
   expect(engine).not.toContain('Claude Code');
   expect(engine).not.toContain('Claude Max');
+  expect(engine).toContain('data-external-engine-badge');
   const fallback = renderToStaticMarkup(
     <SessionTargetChip
       target={{ kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' }}
@@ -54,7 +57,8 @@ it('shows short names and distinguishes subscriptions from API routes', () => {
     />,
   );
   expect(fallback).toContain('data-model-brand="deepseek"');
-  expect(fallback).toContain('>API<');
+  expect(fallback).not.toContain('data-external-engine-badge');
+  expect(fallback).not.toContain('>API<');
 });
 
 it('can show an unknown model ID and omits a model label until an engine reports a model', () => {

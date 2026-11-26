@@ -1363,6 +1363,15 @@
       "commands": ["bot-access"]
     },
     {
+      "id": "app-management-grants",
+      "description": "The Human Host Owner turns a Bot's App management grants (manage the App, manage other Bots) on or off.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-management-entry.tsx:{t(`botManagement.${capability}`)}"
+      ],
+      "commands": ["bot-grant", "bot-grants"]
+    },
+    {
       "id": "avatar-crop-preview",
       "description": "The avatar crop zoom is a temporary image-editing value.",
       "scope": "Client draft",
@@ -1392,6 +1401,28 @@
       "scope": "Local Host",
       "surfaces": ["setting:packages/client/src/client/group-member-picker.tsx:{row.displayName}"],
       "commands": ["group-member-picker", "group-create", "group-members-add"]
+    },
+    {
+      "id": "app-connectors",
+      "description": "App connections through the Owner's Composio key and per-Bot read or write access.",
+      "scope": "Local Host",
+      "surfaces": [
+        "setting:packages/client/src/client/app-connections-catalog.tsx:{picked.name}",
+        "setting:packages/client/src/client/connectors-settings.tsx:{grant.botName ?? grant.botSlug}",
+        "setting:packages/client/src/client/connectors-settings.tsx:{t('connectors.key.title')}"
+      ],
+      "commands": [
+        "connectors",
+        "connector-key-set",
+        "connector-key-clear",
+        "connector-connect",
+        "connector-reconnect",
+        "connector-refresh",
+        "connector-search",
+        "connector-remove",
+        "connector-grant",
+        "bot-connectors"
+      ]
     }
   ]
 }

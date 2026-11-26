@@ -410,7 +410,7 @@ export function mountLifecycle(
       });
       activity.handleSessionEvent(session.id, event);
       sessionLive.observe(session.id, event);
-      sessionListChanges.changed(changesSessionRow(event.type));
+      sessionListChanges.changed(changesSessionRow(event.type), session.id, event.time);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -438,7 +438,7 @@ export function mountLifecycle(
     'agent/created',
     async ({ agent }) => {
       activity.handleAgentCreated(agent.session);
-      sessionListChanges.changed();
+      sessionListChanges.changed(true, agent.session.id);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const routing = models.installSubagentRouting(
         core,
@@ -455,7 +455,7 @@ export function mountLifecycle(
     'agent/status',
     ({ agent, status }) => {
       if (status === 'idle') activity.handleAgentIdle(agent.session.id);
-      sessionListChanges.changed();
+      sessionListChanges.changed(true, agent.session.id);
       idleCompaction.agentStatus(agent.session.id, status);
     },
     { global: true },
@@ -471,7 +471,7 @@ export function mountLifecycle(
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
       sessionLive.forget(agent.session.id);
-      sessionListChanges.changed();
+      sessionListChanges.changed(true, agent.session.id);
     },
     { global: true },
   );

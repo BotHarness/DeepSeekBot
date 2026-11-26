@@ -115,6 +115,7 @@ export interface PairingReviewer {
   actorId: string;
   approvalRoute?: true;
 }
+const attempted = (key: string) => !key.startsWith('route:') && !key.startsWith('private:');
 export const pairingDefaults = Object.freeze({
   expiryMs: 10 * 60 * 1000,
   maxAttempts: 5,
@@ -448,8 +449,8 @@ export function createBotPairing(
         if (!outcome && previous) return false;
         if (
           !previous &&
-          !key.startsWith('route:') &&
-          notifications.filter((item) => !item.key.startsWith('route:')).length >=
+          attempted(key) &&
+          notifications.filter((item) => attempted(item.key)).length >=
             pairingDefaults.maxAttempts + 1
         )
           return false;
@@ -472,6 +473,32 @@ export function createBotPairing(
       });
     },
     assert(botSlug, bindingId, actorId, capability, pairingId) {
+      if (pairingId === undefined) {
+        const shared = database.read((db) => {
+          const rows = (
+            db
+              .prepare(
+                "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND status = 'approved'",
+              )
+              .all(botSlug, bindingId, actorId) as { body: string }[]
+          )
+            .map((item) => current(read(item)))
+            .filter((item) => item.status === 'approved')
+            .sort(
+              (a, b) => Number(a.purpose === 'conversation') - Number(b.purpose === 'conversation'),
+            );
+          if (
+            !rows.length ||
+            !effectivePairingPermissions(db, botSlug, bindingId, actorId).capabilities.includes(
+              capability,
+            )
+          )
+            return undefined;
+          return rows[0];
+        });
+        if (!shared) throw new MessagingError('pairing-unauthorized');
+        return shared;
+      }
       const row = database.read((db) =>
         db
           .prepare(

@@ -257,6 +257,20 @@ export function mountEngines(
         ...(request.device === undefined ? {} : { device: request.device }),
         signal: request.signal,
       })) ?? 'unavailable',
+    claimSubagent: ({ sessionId, parentSessionId }) => {
+      const { ownership } = core();
+      const parent = ownership.resolve(parentSessionId);
+      if (parent === undefined || ownership.resolve(sessionId) !== undefined) return;
+      ownership.claim({
+        sessionId,
+        botSlug: parent.botSlug,
+        rootRole: 'assignment',
+        provenance: 'subagent',
+        parentSessionId,
+        at: new Date().toISOString(),
+      });
+    },
+    warn: (message, error) => ctx.logger.warn(`botharness: ${message}: ${String(error)}`),
     observe: (slug, sessionId, state, role) => {
       if (state !== 'idle')
         core().states.setSessionState(slug, sessionId, 'thinking', undefined, role);

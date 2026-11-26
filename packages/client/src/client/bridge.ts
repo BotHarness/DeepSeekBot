@@ -47,6 +47,7 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
+import { isChannelManagementGrant } from '@botharness/host-protocol/management-grant';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import {
@@ -866,6 +867,7 @@ export {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
   isChannelModelSwitch,
+  isChannelManagementGrant,
   isChannelAttachmentRef,
   isChannelClearedAttachment,
   isChannelMessageVoice,

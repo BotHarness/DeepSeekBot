@@ -1,7 +1,6 @@
 import { Icon } from '../../ds/icon.js';
 import { Tag } from '../../ds/tag.js';
 import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from '../../approval-mask.js';
-import { approvalShellCommand } from '@botharness/host-client/shared/approval-diff';
 import { ActionButton, ActionGroup } from '../../ds/action-button.js';
 import { InlineTokenButton } from '../../ds/inline-token-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from '../../session-maintenance.js';
@@ -470,12 +469,6 @@ export function ChannelMessageBody({
   if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
       <>
-        {approvalShellCommand(
-          message.toolApprovalRequest.toolName,
-          message.toolApprovalRequest.input,
-        ) === undefined ? null : (
-          <OpaqueToolWarning approval={message.approval} t={t} />
-        )}
         <ToolApprovalCard
           message={message}
           actions={actions}

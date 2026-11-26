@@ -22,6 +22,7 @@ import {
   MessagingSection,
   registerModelSettingsSections,
   PromptsSection,
+  ConnectorsSection,
   VoiceSection,
 } from './bot-settings-sections.js';
 import type { BridgeCall } from './bridge.js';
@@ -197,6 +198,19 @@ export function registerClientSettings(
           inject: () => ({ actions }),
         },
         PromptsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.connectors,
+          order: 18,
+          label: () => t('botSettings.section.connectors'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions, call }),
+        },
+        ConnectorsSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

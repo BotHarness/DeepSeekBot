@@ -36,6 +36,7 @@ vi.mock('../src/host/native-host-look', () => ({
 }));
 
 vi.mock('../src/ui/shell/home-header', () => ({
+  useGlassHomeHeader: () => false,
   HomeHeader: ({
     actions,
     search,

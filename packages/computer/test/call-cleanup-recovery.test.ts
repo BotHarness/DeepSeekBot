@@ -97,6 +97,7 @@ function setup(mode: string, enabled = true) {
   const media = createCallMedia({
     platform: 'win32',
     arch: 'x64',
+    maxPeers: 1,
     onEvent: (event) => events.push(event),
   });
   const abort = new AbortController();

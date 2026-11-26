@@ -62,7 +62,7 @@ export interface OrchestratorAgentRun {
   ):
     | { kind: 'external'; source: ExternalSource }
     | { kind: 'channel'; channelId: string; messageId: string };
-  tobCli?: boolean;
+  holdsManagementGrant?: () => boolean;
   workspaceSessions?: {
     list(): Promise<import('./workspace-sessions.js').WorkspaceSessionSummary[]>;
     read(sessionId: string): Promise<string>;
