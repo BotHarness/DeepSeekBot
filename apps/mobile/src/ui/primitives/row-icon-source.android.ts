@@ -49,6 +49,7 @@ export const ROW_ICON_SOURCES: Record<
   check: require('../../../assets/row-icons/check.xml'),
   chevron: require('../../../assets/row-icons/chevron.xml'),
   add: require('../../../assets/row-icons/add.xml'),
+  newFolder: require('../../../assets/row-icons/newFolder.xml'),
   voice: require('../../../assets/row-icons/voice.xml'),
   drawer: require('../../../assets/row-icons/drawer.xml'),
   stacked: require('../../../assets/row-icons/stacked.xml'),
