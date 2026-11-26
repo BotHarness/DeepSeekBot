@@ -95,7 +95,13 @@ it('restores before showing content, updates native appearance and refreshes sys
       language: 'en',
       appearance: 'system',
       sessionsTab: false,
+      hideBarsOnScroll: false,
+      tabOrder: ['chats', 'pinned', 'activity', 'sessions', 'settings'],
       sessionSort: 'last-human-turn',
+      hideBotSessions: false,
+      sessionNavigation: 'drawer',
+      sessionLaunch: 'new',
+      sessionReturn: 'stay',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

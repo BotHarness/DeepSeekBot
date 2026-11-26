@@ -24,29 +24,49 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
-import { Crumbs, Grouped, locationSection, OpenFolderTarget } from './workspace-sheet';
+import { NewFolderPage, type CreateFolder } from './new-folder-page';
+import { Crumbs, Grouped, locationSection } from './workspace-sheet';
 
 export interface FolderPickerPort {
   listFolders(path?: string): Promise<HostFolderListing>;
   loadWorkspaceOptions(): Promise<WorkspaceOption[]>;
   resolveFolder(path: string): Promise<WorkspaceOption>;
+  createFolder?: CreateFolder | undefined;
 }
 
 type Row =
   | { kind: 'registered'; key: string; option: WorkspaceOption }
   | { kind: 'folder'; key: string; folder: HostFolder }
+  | { kind: 'new-folder'; key: string }
   | { kind: 'loading'; key: string }
   | { kind: 'empty'; key: string; text: string; tone?: 'warning' };
 
+export type PickedFolder = { path: string; title: string; workspaceId?: string };
+
+export type FolderPick = {
+  title: string;
+  subtitle: string;
+  heading: string;
+  target(path: string): string;
+  confirm: string;
+  onPick(folder: PickedFolder): void;
+};
+
+function folderTitle(path: string): string {
+  return path.split(/[\\/]/u).findLast((part) => part !== '') ?? path;
+}
+
 export function FolderPickerSheet({
-  botName,
+  botName = '',
   port,
+  pick,
   onConfirm,
   onClose,
 }: {
-  botName: string;
+  botName?: string;
   port: FolderPickerPort;
-  onConfirm(folder: WorkspaceOption): Promise<void>;
+  pick?: FolderPick;
+  onConfirm?(folder: WorkspaceOption): Promise<void>;
   onClose(): void;
 }) {
   const t = useStrings();
@@ -57,6 +77,8 @@ export function FolderPickerSheet({
   const [error, setError] = useState<string>();
   const [manual, setManual] = useState(false);
   const [typed, setTyped] = useState('');
+  const [naming, setNaming] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const browse = (path?: string) => {
     setListing({ status: 'loading' });
@@ -88,7 +110,7 @@ export function FolderPickerSheet({
   };
 
   const close = () => {
-    if (busy === undefined) onClose();
+    if (busy === undefined && !creating) onClose();
   };
 
   const start = <View ref={mount} />;
@@ -125,7 +147,7 @@ export function FolderPickerSheet({
         <SheetActions>
           <Button
             label={t.back}
-            on="canvas"
+            on="sheet"
             disabled={busy !== undefined}
             onPress={() => {
               setError(undefined);
@@ -136,19 +158,54 @@ export function FolderPickerSheet({
             label={t.grantAllow}
             testID="grant-allow-read-write"
             tone="primary"
-            on="canvas"
+            on="sheet"
             busy={busy === 'confirm'}
             disabled={busy !== undefined}
-            onPress={() => run('confirm', () => onConfirm(chosen))}
+            onPress={() => run('confirm', () => onConfirm?.(chosen) ?? Promise.resolve())}
           />
         </SheetActions>
       </Sheet>
     );
 
-  const choose = (path: string) =>
+  if (naming && listing.status === 'ready' && port.createFolder !== undefined)
+    return (
+      <Sheet visible fill avoidKeyboard label={t.newFolder} title={t.newFolder} onClose={close}>
+        {start}
+        <NewFolderPage
+          parent={{
+            path: listing.value.path,
+            name: listing.value.crumbs.at(-1)?.name ?? folderTitle(listing.value.path),
+          }}
+          create={port.createFolder}
+          onBusy={setCreating}
+          onBack={() => setNaming(false)}
+          onCreated={(workspace) => {
+            setNaming(false);
+            setOptions((current) => [
+              workspace,
+              ...current.filter((option) => option.id !== workspace.id),
+            ]);
+            if (pick !== undefined)
+              pick.onPick({
+                path: workspace.path,
+                title: workspace.title,
+                workspaceId: workspace.id,
+              });
+            else setChosen(workspace);
+          }}
+        />
+      </Sheet>
+    );
+
+  const choose = (path: string) => {
+    if (pick !== undefined) {
+      pick.onPick({ path, title: folderTitle(path) });
+      return;
+    }
     run('resolve', async () => {
       setChosen(await port.resolveFolder(path));
     });
+  };
 
   const folders =
     listing.status === 'ready' ? listing.value.entries.filter((entry) => !entry.hidden) : [];
@@ -157,9 +214,18 @@ export function FolderPickerSheet({
       ? [{ kind: 'loading', key: 'loading' }]
       : listing.status === 'failed'
         ? [{ kind: 'empty', key: 'failed', text: listing.error, tone: 'warning' }]
-        : folders.length === 0
-          ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty }]
-          : folders.map((folder) => ({ kind: 'folder', key: `folder:${folder.path}`, folder }));
+        : [
+            ...(port.createFolder === undefined
+              ? []
+              : [{ kind: 'new-folder', key: 'new-folder' } as const]),
+            ...(folders.length === 0
+              ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty } as const]
+              : folders.map((folder) => ({
+                  kind: 'folder' as const,
+                  key: `folder:${folder.path}`,
+                  folder,
+                }))),
+          ];
   const sections = [
     ...(options.length === 0
       ? []
@@ -176,7 +242,7 @@ export function FolderPickerSheet({
         ]),
     {
       key: 'folders',
-      title: t.browseTitle,
+      title: pick?.heading ?? t.browseTitle,
       footer: listing.status === 'ready' && listing.value.truncated ? t.browseTruncated : undefined,
       data: folderRows,
     },
@@ -186,9 +252,9 @@ export function FolderPickerSheet({
     <Sheet
       visible
       fill
-      label={t.browseTitle}
-      title={t.grantTitle}
-      subtitle={t.browseHint}
+      label={pick?.title ?? t.browseTitle}
+      title={pick?.title ?? t.grantTitle}
+      subtitle={pick?.subtitle ?? t.browseHint}
       onClose={close}
     >
       {start}
@@ -235,6 +301,14 @@ export function FolderPickerSheet({
                 tone={item.tone === 'warning' ? 'warning' : 'muted'}
                 on={SHEET_GROUP}
               />
+            ) : item.kind === 'new-folder' ? (
+              <SettingsRow
+                testID="folder-picker-new-folder"
+                title={t.newFolder}
+                icon="newFolder"
+                on={SHEET_GROUP}
+                onPress={busy === undefined ? () => setNaming(true) : undefined}
+              />
             ) : item.kind === 'registered' ? (
               <SettingsRow
                 title={item.option.title}
@@ -242,7 +316,18 @@ export function FolderPickerSheet({
                 icon="folder"
                 iconTone="muted"
                 on={SHEET_GROUP}
-                onPress={busy === undefined ? () => choose(item.option.path) : undefined}
+                onPress={
+                  busy !== undefined
+                    ? undefined
+                    : pick !== undefined
+                      ? () =>
+                          pick.onPick({
+                            path: item.option.path,
+                            title: item.option.title,
+                            workspaceId: item.option.id,
+                          })
+                      : () => choose(item.option.path)
+                }
               />
             ) : (
               <SettingsRow
@@ -257,14 +342,16 @@ export function FolderPickerSheet({
           </Grouped>
         )}
       />
-      {manual ? null : <OpenFolderTarget listing={listing} />}
+      {!manual && pick !== undefined && listing.status === 'ready' ? (
+        <SheetNote>{pick.target(listing.value.path)}</SheetNote>
+      ) : null}
       <SheetActions>
-        <Button label={t.cancel} on="canvas" disabled={busy !== undefined} onPress={close} />
+        <Button label={t.cancel} on="sheet" disabled={busy !== undefined} onPress={close} />
         <Button
-          label={t.authorizeHere}
+          label={pick?.confirm ?? t.authorizeHere}
           testID="grant-choose-here"
           tone="primary"
-          on="canvas"
+          on="sheet"
           busy={busy === 'resolve'}
           disabled={
             busy !== undefined || (manual ? typed.trim() === '' : listing.status !== 'ready')

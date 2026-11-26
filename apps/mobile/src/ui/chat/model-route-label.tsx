@@ -28,7 +28,13 @@ export function RouteIcon({
       : route === undefined
         ? undefined
         : modelBrand({ provider: route.provider, model: route.model, name: route.model });
-  return <ModelBrandIcon brand={brand} size={theme.type.title.line} color={theme.color.fg} />;
+  return (
+    <ModelBrandIcon
+      brand={brand}
+      size={theme.type.title.line * theme.fontScale}
+      color={theme.color.fg}
+    />
+  );
 }
 
 export function PickerLink({
@@ -79,7 +85,11 @@ export function CurrentEngineModel({
           .join(' · ') || undefined
       }
       leading={
-        <ModelTargetIcon target={label} size={theme.type.title.line} color={theme.color.fg} />
+        <ModelTargetIcon
+          target={label}
+          size={theme.type.title.line * theme.fontScale}
+          color={theme.color.fg}
+        />
       }
       accessibilityLabel={[
         heading,

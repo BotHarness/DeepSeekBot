@@ -3,7 +3,6 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import {
-  TOB_CLI_TOOL_NAMES,
   ORCHESTRATOR_TOOL_ORDER,
   ASSIGNMENT,
   groupTools,
@@ -256,9 +255,17 @@ describe('DSH Bot Agent adapter', () => {
   });
 
   it.each([false, true])(
-    'keeps tool and prompt registration order as IM connectivity changes (Tob CLI %s)',
+    'keeps tool and prompt registration order as IM connectivity changes (App management grant %s)',
     async (tobCli) => {
-      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      let admittedTools: string[] = [];
+      const host = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async (_session, tools) => {
+            admittedTools = tools.map((tool) => tool.name);
+          },
+        },
+      );
       const adapter = createDshBotAgentAdapter({
         agents: host,
         defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
@@ -268,17 +275,14 @@ describe('DSH Bot Agent adapter', () => {
       let connected = false;
       const run: OrchestratorAgentRun = {
         ...reportRun,
-        tobCli,
+        holdsManagementGrant: () => tobCli,
         externalMessaging: {
           connected: () => connected,
         } as NonNullable<OrchestratorAgentRun['externalMessaging']>,
       };
-      const baseTools = ORCHESTRATOR_TOOL_ORDER.filter(
-        (name) => !tobCli || !TOB_CLI_TOOL_NAMES.includes(name),
-      );
+      const baseTools = ORCHESTRATOR_TOOL_ORDER;
       const baseSections = [
         ['botharness:orchestrator-role', 10_350],
-        ...(tobCli ? [['botharness:tob-cli', 10_351]] : []),
         ['botharness:reply-delivery', 10_450],
         ['botharness:genui-authoring', 10_451],
       ];
@@ -292,6 +296,7 @@ describe('DSH Bot Agent adapter', () => {
         'bridge_share',
         'bridge_group_policy_list',
         'bridge_group_policy_set',
+        'bridge_source_block',
         'bridge_thread_policy_list',
         'bridge_thread_policy_set',
         'bridge_context',
@@ -299,9 +304,7 @@ describe('DSH Bot Agent adapter', () => {
       ];
       const expectRegistration = () => {
         const scope = host.scopes.get(run.sessionId)!;
-        expect(scope.tools.map((tool) => tool.name)).toEqual(
-          connected ? [...baseTools, ...bridgeToolNames] : baseTools,
-        );
+        expect(admittedTools).toEqual(connected ? [...baseTools, ...bridgeToolNames] : baseTools);
         expect(scope.sections.map(({ name, order }) => [name, order])).toEqual(
           connected ? [...baseSections, ['botharness:external-im', 10_351]] : baseSections,
         );

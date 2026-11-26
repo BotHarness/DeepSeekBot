@@ -1,4 +1,4 @@
-import { asObject, invalidInput, unavailable } from '../../bridge/method-utils.js';
+import { asObject, invalidInput, unavailable } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { modelFavorite } from '../../models/favorites.js';

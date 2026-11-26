@@ -48,10 +48,12 @@ export function teamFixture(
   options: {
     urls?: () => string[];
     routes?: () => Promise<string[]>;
+    addressRoutes?: () => string[];
     now?: () => number;
     warn?: (message: string) => void;
     voice?: boolean;
     liveRosterChanges?: boolean;
+    workspaceResource?: boolean;
   } = {},
 ) {
   const root = createTempRoot('team-mode-');
@@ -144,6 +146,7 @@ export function teamFixture(
       options.routes ??
       (async () => ['https://host.test', 'http://127.0.0.1:3080', 'http://192.168.1.2:3080']),
     ...(options.now ? { now: options.now } : {}),
+    ...(options.addressRoutes ? { addressRoutes: options.addressRoutes } : {}),
   });
   const unbindDevices = team.bindDevices(devices);
   closes.push(async () => unbindDevices());
@@ -174,7 +177,6 @@ export function teamFixture(
       database,
       registry,
       channels,
-      isProtectedBot: () => false,
     }),
     createBotId: () => 'ada',
   });
@@ -207,7 +209,10 @@ export function teamFixture(
           ? { wire: 'public', resolve: (value: unknown) => z.boolean().parse(value) }
           : undefined,
     },
-    resources: { entries: () => [] },
+    resources: {
+      entries: () =>
+        options.workspaceResource ? [{ kind: 'workspace', field: 'workspaceId' }] : [],
+    },
   });
   const access = new RemoteAccessService(ctx);
   access.registerPolicy('botharness-member', memberPolicy(team));
@@ -338,7 +343,7 @@ export async function memberHttp(
 
 export async function memberDeviceHost(
   f: ReturnType<typeof teamFixture>,
-  options: { tls?: boolean; remote?: boolean } = {},
+  options: { tls?: boolean; remote?: boolean; admissionDeadlineMs?: number } = {},
 ) {
   const http = createTeamHttp({
     team: f.team,
@@ -364,6 +369,9 @@ export async function memberDeviceHost(
     memberDevices: f.devices,
     key: async () => Uint8Array.from(f.privateKey),
     port: () => port,
+    ...(options.admissionDeadlineMs === undefined
+      ? {}
+      : { admissionDeadlineMs: options.admissionDeadlineMs }),
   });
   const discover = createChannelDiscovery({
     host: () => f.pairing.host(),

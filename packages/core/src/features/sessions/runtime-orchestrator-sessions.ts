@@ -7,7 +7,11 @@ import type {
   NativeSessionArchive,
   BotAgentAdapter,
 } from '../../runtime/bot-runtime.js';
-import type { SessionOwnership } from '../../sessions/ownership.js';
+import type {
+  PendingOrchestratorReplacement,
+  SessionOwnership,
+  SessionOwnershipRecord,
+} from '../../sessions/ownership.js';
 
 export const BOT_BUSY = {
   outcome: 'refused',
@@ -46,14 +50,32 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     ports.agents.captureNativeOrchestratorModel?.(sessionId, bot);
   }
 
-  function currentOrchestratorSessionId(botSlug: string): string | undefined {
+  function latestAvailableOrchestrator(botSlug: string): SessionOwnershipRecord | undefined {
     return ports.ownership
       .rootsFor(botSlug, 'orchestrator')
       .find(
         (root) =>
           ports.ownership.contentAvailable(root.sessionId) &&
           ports.sessionArchived?.(root.sessionId) !== true,
-      )?.sessionId;
+      );
+  }
+
+  function currentOrchestratorSessionId(botSlug: string): string | undefined {
+    const root = latestAvailableOrchestrator(botSlug);
+    if (root === undefined) return undefined;
+    const bot = ports.registry.get(botSlug);
+    const cwd = bot === undefined ? undefined : orchestratorCwdReference(bot);
+    if (cwd === undefined || root.cwdReference === cwd) return root.sessionId;
+    if (
+      ports.ownership
+        .pendingOrchestratorReplacements(botSlug)
+        .some(
+          ({ cwdReference, previousCwdReference }) =>
+            cwdReference === cwd && previousCwdReference !== cwdReference,
+        )
+    )
+      return undefined;
+    return root.sessionId;
   }
 
   async function replaceOrchestrator<T>(
@@ -61,8 +83,13 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     body: () => T,
     nextCwd?: () => string | undefined,
   ): Promise<OrchestratorReplacement<T>> {
-    const current = ports.currentOrchestratorSessionId(botSlug);
-    if (current === undefined) return { outcome: 'replaced', value: body() };
+    const current =
+      ports.currentOrchestratorSessionId(botSlug) ??
+      (nextCwd === undefined ? undefined : latestAvailableOrchestrator(botSlug)?.sessionId);
+    if (current === undefined) {
+      ports.ownership.discardOrchestratorReplacements(botSlug);
+      return { outcome: 'replaced', value: body() };
+    }
     const archive = ports.sessionArchive?.();
     if (archive === undefined) throw new Error('DSH Session archive is unavailable');
     try {
@@ -86,6 +113,7 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
       ),
     );
     try {
+      ports.ownership.discardOrchestratorReplacements(botSlug);
       return { outcome: 'replaced', value: body() };
     } catch (error) {
       await archive.unarchiveSession(current);
@@ -101,19 +129,37 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     const owner = ports.ownership.resolve(unsaved);
     const bot = owner === undefined ? undefined : ports.registry.get(owner.botSlug);
     if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
-    const at = Math.max(ports.now().getTime(), Date.parse(owner.createdAt) + 1);
     const sessionId = ports.createSessionId();
-    if (ports.ownership.resolve(sessionId) !== undefined)
-      throw new Error('Replacement Orchestrator Session ID is already claimed');
-    claimOrchestrator(bot, new Date(at).toISOString(), sessionId, nextCwd?.());
+    const previousCwdReference = orchestratorCwdReference(bot);
+    const cwdReference = nextCwd?.() ?? previousCwdReference;
+    ports.ownership.reserveOrchestratorReplacement({
+      sessionId,
+      botSlug: bot.slug,
+      cwdReference,
+      previousCwdReference,
+      createdAt: nextRootCreatedAt(bot.slug, ports.now().toISOString()),
+    });
     let value: T;
     try {
       value = body();
     } catch (error) {
-      ports.ownership.discardUnstartedOrchestrator(sessionId, bot.slug);
+      try {
+        ports.ownership.discardOrchestratorReplacement(sessionId);
+      } catch {
+        warnReplacementFailure('orchestrator-replacement-discard-failed', bot.slug, sessionId);
+      }
       throw error;
     }
-    releaseReplacedOrchestrators(bot.slug, sessionId);
+    try {
+      try {
+        ports.ownership.commitOrchestratorReplacement(sessionId);
+      } catch {
+        ports.ownership.commitOrchestratorReplacement(sessionId);
+      }
+      releaseReplacedOrchestrators(bot.slug, sessionId);
+    } catch {
+      warnReplacementFailure('orchestrator-replacement-publication-failed', bot.slug, sessionId);
+    }
     return value;
   }
 
@@ -148,20 +194,26 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     }
   }
 
-  function claimOrchestrator(
-    bot: PersonaBotRecord,
-    at: string,
-    sessionId = ports.createSessionId(),
-    cwdReference = orchestratorCwdReference(bot),
-  ): string {
+  function claimOrchestrator(bot: PersonaBotRecord, at: string): string {
+    const sessionId = ports.createSessionId();
+    const cwdReference = orchestratorCwdReference(bot);
     ports.ownership.claim({
       sessionId,
       botSlug: bot.slug,
       rootRole: 'orchestrator',
       ...(cwdReference === undefined ? {} : { cwdReference }),
-      at,
+      at: nextRootCreatedAt(bot.slug, at),
     });
     return sessionId;
+  }
+
+  function nextRootCreatedAt(botSlug: string, at: string): string {
+    const newestClaim = ports.ownership.rootsFor(botSlug, 'orchestrator')[0]?.createdAt ?? '';
+    const newestReservation =
+      ports.ownership.pendingOrchestratorReplacements(botSlug)[0]?.createdAt ?? '';
+    const latest = newestClaim > newestReservation ? newestClaim : newestReservation;
+    if (latest < at) return at;
+    return new Date(Date.parse(latest) + 1).toISOString();
   }
 
   function orchestratorCwdReference(bot: PersonaBotRecord): string | undefined {
@@ -174,8 +226,43 @@ export function createOrchestratorSessions(ports: OrchestratorSessionsPorts) {
     return ports.workspaceRoot === undefined ? undefined : join(ports.workspaceRoot, bot.slug);
   }
 
+  function reconcilePendingOrchestratorReplacements(): void {
+    let pending: PendingOrchestratorReplacement[];
+    try {
+      pending = ports.ownership.pendingOrchestratorReplacements();
+    } catch {
+      warnReplacementFailure('orchestrator-replacement-recovery-failed');
+      return;
+    }
+    for (const { botSlug, sessionId, cwdReference, previousCwdReference, createdAt } of pending) {
+      try {
+        const bot = ports.registry.get(botSlug);
+        const latest = ports.ownership.rootsFor(botSlug, 'orchestrator')[0];
+        if (
+          bot !== undefined &&
+          cwdReference !== undefined &&
+          orchestratorCwdReference(bot) === cwdReference &&
+          previousCwdReference !== cwdReference &&
+          (latest === undefined || latest.createdAt < createdAt)
+        ) {
+          ports.ownership.commitOrchestratorReplacement(sessionId);
+          releaseReplacedOrchestrators(botSlug, sessionId);
+        } else {
+          ports.ownership.discardOrchestratorReplacement(sessionId);
+        }
+      } catch {
+        warnReplacementFailure('orchestrator-replacement-recovery-failed', botSlug, sessionId);
+      }
+    }
+  }
+
+  function warnReplacementFailure(event: string, botSlug?: string, sessionId?: string): void {
+    ports.warn?.(JSON.stringify({ component: 'bot-runtime', event, botSlug, sessionId }));
+  }
+
   return {
     captureNativeOrchestratorModel,
+    reconcilePendingOrchestratorReplacements,
     currentOrchestratorSessionId,
     replaceOrchestrator,
     ensureOrchestrator,

@@ -51,9 +51,6 @@ vi.mock('../src/host/native-host-look', () => ({ hostLooks: looks }));
 vi.mock('../src/cloud/native', () => ({
   useCloudSnapshot: () => ({ ready: true, rows: [] }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
-}));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 async function settle() {
@@ -153,7 +150,7 @@ it('opening an unread reply from Activity opens its Channel and marks it read, b
     await act(async () => row!.click());
     await settle();
     expect(push).not.toHaveBeenCalled();
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       name: 'channel/[id]',
       params: { hostId: 'a', id: 'group', focus: 'message-1' },
     });

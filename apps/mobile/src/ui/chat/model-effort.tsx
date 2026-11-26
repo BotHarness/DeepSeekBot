@@ -84,7 +84,7 @@ export function GroupEfforts({
               leading={
                 <ModelBrandIcon
                   brand={entry === undefined ? undefined : modelEntryLabel(entry).brand}
-                  size={theme.type.title.line}
+                  size={theme.type.title.line * theme.fontScale}
                   color={theme.color.fg}
                 />
               }

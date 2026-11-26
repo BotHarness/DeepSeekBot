@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Image, Platform, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   visibleBrowserRefusal,
@@ -13,20 +13,37 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, signInBrand, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import type { RevealBand } from '../primitives/keyboard-form-native-focus';
+import { useKeyboardFormSubmit } from '../primitives/keyboard-form-submit';
 import { Text } from '../primitives/text';
-import { TextField } from '../primitives/text-field';
+import { TextField, type TextFieldHandle } from '../primitives/text-field';
 import { useStrings } from '../strings';
 import { SignInBrandButton } from './sign-in-brand-button';
+
+const noBands: readonly RevealBand[] = [];
 
 const APP_ICON = {
   light: require('../../../assets/app-icons/deepseekbot-light-preview.png'),
   dark: require('../../../assets/app-icons/deepseekbot-dark-preview.png'),
 };
 
-function Heading({ title, detail, icon }: { title: string; detail: string; icon?: boolean }) {
+function Heading({
+  title,
+  detail,
+  icon,
+  onLayout,
+}: {
+  title: string;
+  detail: string;
+  icon?: boolean;
+  onLayout(event: LayoutChangeEvent): void;
+}) {
   const theme = useDesignTheme();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}>
+    <View
+      onLayout={onLayout}
+      style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x3 }}
+    >
       {icon ? (
         <Image
           source={APP_ICON[theme.scheme]}
@@ -86,6 +103,7 @@ export function EmailCodeSignIn({
     flow.password ? 'password' : 'code',
   );
   const [password, setPassword] = useState('');
+  const passwordField = useRef<TextFieldHandle>(null);
   const [verifyPassword, setVerifyPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [sentTo, setSentTo] = useState<string>();
@@ -93,6 +111,26 @@ export function EmailCodeSignIn({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<EmailCodeRefusal>();
   const working = useRef(false);
+  const submit = useKeyboardFormSubmit();
+  const [headingEnd, setHeadingEnd] = useState(0);
+  const measureHeading = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setHeadingEnd(layout.y + layout.height);
+  const [providerBands, setProviderBands] = useState<Record<string, RevealBand>>({});
+  const measureProvider =
+    (id: SocialProvider) =>
+    ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+      setProviderBands((current) =>
+        current[id]?.start === layout.y && current[id]?.end === layout.y + layout.height
+          ? current
+          : { ...current, [id]: { start: layout.y, end: layout.y + layout.height } },
+      );
+  const [forgotBottom, setForgotBottom] = useState(0);
+  const measureForgot = ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+    setForgotBottom(layout.y + layout.height);
+  const revealBands = useMemo(
+    () => Object.values(providerBands).sort((a, b) => a.start - b.start),
+    [providerBands],
+  );
 
   const run = async (work: () => Promise<void>) => {
     if (working.current) return;
@@ -178,8 +216,16 @@ export function EmailCodeSignIn({
   if (Platform.OS !== 'ios') providers.reverse();
   return (
     <KeyboardFormScroll
+      {...submit.scroll}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
+      revealPast={headingEnd}
+      revealBands={sentTo === undefined ? revealBands : noBands}
+      revealEnd={
+        submit.revealEnd > 0 && sentTo === undefined && (mode === 'password' || mode === 'register')
+          ? Math.max(submit.revealEnd, forgotBottom)
+          : submit.revealEnd
+      }
       contentContainerStyle={{
         paddingHorizontal: space.x5,
         paddingTop: space.x3,
@@ -191,6 +237,7 @@ export function EmailCodeSignIn({
         <>
           <Heading
             icon
+            onLayout={measureHeading}
             title={
               mode === 'register'
                 ? copy.register
@@ -201,40 +248,46 @@ export function EmailCodeSignIn({
             detail={mode === 'reset' ? copy.resetDetail : copy.headingDetail}
           />
           {providers.map((provider) => (
-            <SignInBrandButton
-              key={provider.id}
-              provider={provider.id}
-              testID={provider.testID}
-              label={provider.label}
-              disabled={busy}
-              onPress={() => void browser(provider.id)}
-            />
+            <View key={provider.id} onLayout={measureProvider(provider.id)}>
+              <SignInBrandButton
+                provider={provider.id}
+                testID={provider.testID}
+                label={provider.label}
+                disabled={busy}
+                onPress={() => void browser(provider.id)}
+              />
+            </View>
           ))}
           <OrDivider label={copy.or} />
-          <TextField
-            testID="email-sign-in-email"
-            accessibilityLabel={copy.email}
-            label={copy.email}
-            placeholder={copy.emailPlaceholder}
-            value={email}
-            onChangeText={setEmail}
-            editable={!busy}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="emailAddress"
-            keyboardType="email-address"
-            inputMode="email"
-            returnKeyType={mode === 'password' || mode === 'register' ? 'done' : 'send'}
-            invalid={error === 'invalid-email'}
-            onSubmitEditing={() => {
-              if (mode === 'code') void send(email);
-              else if (mode === 'reset') void reset();
-            }}
-          />
+          <View onLayout={submit.onFieldLayout}>
+            <TextField
+              testID="email-sign-in-email"
+              accessibilityLabel={copy.email}
+              label={copy.email}
+              placeholder={copy.emailPlaceholder}
+              value={email}
+              onChangeText={setEmail}
+              editable={!busy}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              keyboardType="email-address"
+              inputMode="email"
+              returnKeyType={mode === 'password' || mode === 'register' ? 'next' : 'send'}
+              submitBehavior={mode === 'password' || mode === 'register' ? 'submit' : undefined}
+              invalid={error === 'invalid-email'}
+              onSubmitEditing={() => {
+                if (mode === 'code') void send(email);
+                else if (mode === 'reset') void reset();
+                else passwordField.current?.focus();
+              }}
+            />
+          </View>
           {mode === 'password' || mode === 'register' ? (
             <>
               <TextField
+                ref={passwordField}
                 testID="email-sign-in-password"
                 accessibilityLabel={copy.password}
                 label={copy.password}
@@ -251,34 +304,40 @@ export function EmailCodeSignIn({
                 invalid={error === 'invalid-credentials' || error === 'sign-up-failed'}
                 onSubmitEditing={() => void submitPassword()}
               />
-              <Button
-                testID="email-sign-in-password-submit"
-                label={mode === 'register' ? copy.register : copy.title}
-                tone="primary"
-                busy={busy}
-                disabled={!email.trim() || !password}
-                onPress={() => void submitPassword()}
-              />
-              <Button
-                testID="email-sign-in-forgot"
-                label={copy.forgotPassword}
-                variant="text"
-                disabled={busy}
-                onPress={() => changeMode('reset')}
-              />
+              <View onLayout={submit.onSubmitLayout}>
+                <Button
+                  testID="email-sign-in-password-submit"
+                  label={mode === 'register' ? copy.register : copy.title}
+                  tone="primary"
+                  busy={busy}
+                  disabled={!email.trim() || !password}
+                  onPress={() => void submitPassword()}
+                />
+              </View>
+              <View onLayout={measureForgot}>
+                <Button
+                  testID="email-sign-in-forgot"
+                  label={copy.forgotPassword}
+                  variant="text"
+                  disabled={busy}
+                  onPress={() => changeMode('reset')}
+                />
+              </View>
             </>
           ) : (
-            <Button
-              testID="email-sign-in-send"
-              label={mode === 'reset' ? copy.sendReset : copy.sendCode}
-              tone="primary"
-              busy={busy}
-              disabled={!email.trim()}
-              onPress={() => {
-                if (mode === 'reset') void reset();
-                else void send(email);
-              }}
-            />
+            <View onLayout={submit.onSubmitLayout}>
+              <Button
+                testID="email-sign-in-send"
+                label={mode === 'reset' ? copy.sendReset : copy.sendCode}
+                tone="primary"
+                busy={busy}
+                disabled={!email.trim()}
+                onPress={() => {
+                  if (mode === 'reset') void reset();
+                  else void send(email);
+                }}
+              />
+            </View>
           )}
           {resetSent ? <Text accessibilityLiveRegion="polite">{copy.resetSent}</Text> : null}
           {flow.password ? (
@@ -304,35 +363,43 @@ export function EmailCodeSignIn({
         </>
       ) : (
         <>
-          <Heading title={copy.codeTitle} detail={copy.codeHint(sentTo)} />
-          <TextField
-            testID="email-sign-in-code"
-            accessibilityLabel={copy.code}
-            label={copy.code}
-            placeholder="000000"
-            value={code}
-            onChangeText={(value) => {
-              const next = digits(value);
-              setCode(next);
-              if (next.length === CODE_LENGTH) void verify(next);
-            }}
-            editable={!busy}
-            autoFocus
-            autoComplete="one-time-code"
-            textContentType="oneTimeCode"
-            keyboardType="number-pad"
-            inputMode="numeric"
-            maxLength={CODE_LENGTH}
-            invalid={error === 'invalid-code'}
+          <Heading
+            title={copy.codeTitle}
+            detail={copy.codeHint(sentTo)}
+            onLayout={measureHeading}
           />
-          <Button
-            testID="email-sign-in-verify"
-            label={copy.verify}
-            tone="primary"
-            busy={busy}
-            disabled={code.length !== CODE_LENGTH}
-            onPress={() => void verify(code)}
-          />
+          <View onLayout={submit.onFieldLayout}>
+            <TextField
+              testID="email-sign-in-code"
+              accessibilityLabel={copy.code}
+              label={copy.code}
+              placeholder="000000"
+              value={code}
+              onChangeText={(value) => {
+                const next = digits(value);
+                setCode(next);
+                if (next.length === CODE_LENGTH) void verify(next);
+              }}
+              editable={!busy}
+              autoFocus
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              keyboardType="number-pad"
+              inputMode="numeric"
+              maxLength={CODE_LENGTH}
+              invalid={error === 'invalid-code'}
+            />
+          </View>
+          <View onLayout={submit.onSubmitLayout}>
+            <Button
+              testID="email-sign-in-verify"
+              label={copy.verify}
+              tone="primary"
+              busy={busy}
+              disabled={code.length !== CODE_LENGTH}
+              onPress={() => void verify(code)}
+            />
+          </View>
           <View style={{ gap: space.x2 }}>
             {verifyPassword ? null : (
               <Button

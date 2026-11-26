@@ -9,7 +9,7 @@ import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { HostDirectoryListing } from './actions.js';
-import type { WorkspaceOption, ToolApprovalRuleView } from './bridge.js';
+import type { BridgeCall, WorkspaceOption, ToolApprovalRuleView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { isAbsoluteHostPath } from './persona-bot-create.js';
 import { Callout } from './ds/callout.js';
@@ -23,9 +23,10 @@ import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { ApprovalTemplateEntry } from './approval-template-entry.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
+import { NewFolderButton, NewFolderForm, useCreateFolder } from './workspace-new-folder.js';
 
 export { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
-import { approvalRulePath, secretCliRuleLabel } from './workspace-approval-rule-labels.js';
+import { approvalRuleLabel, approvalRulePath } from './workspace-approval-rule-labels.js';
 import { renderWorkspaceGrantFolders } from './workspace-grant-folders.js';
 import {
   folderBrowseError,
@@ -215,6 +216,8 @@ export interface FolderBrowserActions {
     signal?: AbortSignal,
     offset?: number,
   ): Promise<Omit<HostDirectoryListing, 'home'>>;
+  createHostFolder?(parent: string, name: string): Promise<WorkspaceOption>;
+  teamCall?: BridgeCall | undefined;
 }
 
 type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & {
@@ -262,7 +265,7 @@ export function FolderBrowser({
   actions,
   onCancel,
   onChoose,
-  busy,
+  busy: outerBusy,
   t,
 }: {
   initial: FolderBrowserListing;
@@ -272,6 +275,10 @@ export function FolderBrowser({
   busy: boolean;
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
+  const createFolder = useCreateFolder(actions);
+  const [naming, setNaming] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const busy = outerBusy || creating;
   const [listing, setListing] = useState(initial);
   const [location, setLocation] = useState(initial.path);
   const [loading, setLoading] = useState(false);
@@ -400,7 +407,9 @@ export function FolderBrowser({
           </Button>
           <Button
             variant="primary"
-            disabled={busy || loading || location.trim() !== listing.path || error !== undefined}
+            disabled={
+              busy || naming || loading || location.trim() !== listing.path || error !== undefined
+            }
             onClick={() => onChoose(listing.path)}
           >
             {t('grant.authorize')}
@@ -468,6 +477,26 @@ export function FolderBrowser({
           </button>
         ))}
       </div>
+      {createFolder === undefined ? null : naming ? (
+        <NewFolderForm
+          parent={listing.path}
+          create={createFolder}
+          onBusy={setCreating}
+          onCancel={() => setNaming(false)}
+          onCreated={(workspace) => {
+            setNaming(false);
+            folderCache(actions).clear();
+            onChoose(workspace.path);
+          }}
+          t={t}
+        />
+      ) : (
+        <NewFolderButton
+          disabled={busy || loading || location.trim() !== listing.path}
+          onOpen={() => setNaming(true)}
+          t={t}
+        />
+      )}
       <div
         role="list"
         aria-label={t('grant.browseFolders')}
@@ -709,13 +738,7 @@ export function WorkspaceGrantsEntry({
                   <span className="bh-workspace-folder-toggle">
                     <Tag>{t('approval.ruleFromCard')}</Tag>
                     {' · '}
-                    {rule.kind === 'tool'
-                      ? t('approval.toolRule', { tool: rule.toolName })
-                      : rule.kind === 'exact'
-                        ? t('approval.exactRule', { tool: rule.toolName })
-                        : rule.kind === 'secret-cli'
-                          ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
-                          : t('approval.allRule')}
+                    {approvalRuleLabel(rule, t)}
                     {' · '}
                     {rule.role === 'assignment'
                       ? t('approval.assignment')

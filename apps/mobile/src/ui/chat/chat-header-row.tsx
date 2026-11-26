@@ -13,10 +13,14 @@ import { headerControlHeight } from './native-header';
 export function ChatHeaderRow({
   title,
   back,
+  leading,
+  extra,
   controls,
 }: {
   title?: ReactNode;
-  back: Omit<ChatHeaderAction, 'icon'>;
+  back: Omit<ChatHeaderAction, 'icon'> | undefined;
+  leading?: ReactNode;
+  extra?: ReactNode;
   controls?: ChatHeaderControls | undefined;
 }) {
   const theme = useDesignTheme();
@@ -32,8 +36,9 @@ export function ChatHeaderRow({
         gap: glassPress.gap,
       }}
     >
-      <ChatHeaderActions kind="back" back={back} />
+      {leading ?? (back === undefined ? null : <ChatHeaderActions kind="back" back={back} />)}
       <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+      {extra}
       {controls !== undefined && (controls.kind === 'menu' || controls.actions.length > 0) ? (
         <ChatHeaderActions {...controls} />
       ) : null}

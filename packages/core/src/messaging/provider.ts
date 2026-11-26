@@ -155,6 +155,7 @@ export interface MessagingApprovalCard {
   detail: string;
   rules?: ['exact'] | ['exact', 'all-opaque'];
   ruleConfirmation?: { id: string; kind: 'exact' | 'all-opaque' };
+  actions?: ['allowed-once'] | ['rejected'];
   status:
     | 'pending'
     | 'web-required'
@@ -170,7 +171,7 @@ export interface MessagingApprovalCard {
 export interface MessagingApprovalAction {
   kind?: undefined;
   version: 1;
-  channel: 'feishu';
+  channel: MessagingInboundEvent['channel'];
   botId: string;
   fingerprint: string;
   actorId: string;
@@ -229,12 +230,14 @@ export interface MessagingApprovalAck {
   status: 'queued' | 'refused';
 }
 
-export interface MessagingSetup {
+export type MessagingSetupVariant =
+  | { platform: 'feishu'; kind: 'credentials' }
+  | { platform: 'weixin'; kind: 'qr' };
+
+export type MessagingSetup = MessagingSetupVariant & {
   version: 1;
-  platform: 'feishu' | 'weixin';
   endpoint: 'dsh-im/app-setup';
-  kind: 'credentials' | 'qr';
-}
+};
 
 export interface MessagingQuestionCard {
   requestId: string;
@@ -329,6 +332,7 @@ export interface MessagingProvider {
     text: string;
     signal: AbortSignal;
     beforeSend?: () => boolean;
+    standalone?: true;
   }): Promise<{ accepted: true; receipt?: MessagingReceipt }>;
   history?(input: {
     accountRef: string;

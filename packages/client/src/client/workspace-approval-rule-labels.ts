@@ -1,4 +1,6 @@
+import { shellPrefixHead } from '@botharness/host-client/shared/shell-approval-scope';
 import type { ToolApprovalRuleView } from './bridge.js';
+import type { BotHarnessTranslate } from './locale.js';
 
 export function secretCliRuleLabel(input: string): {
   program: string;
@@ -30,4 +32,14 @@ export function approvalRulePath(rule: ToolApprovalRuleView): string {
     if (Array.isArray(scope) && typeof scope[1] === 'string') return scope[1];
   } catch {}
   return rule.scopeKey;
+}
+
+export function approvalRuleLabel(rule: ToolApprovalRuleView, t: BotHarnessTranslate): string {
+  if (rule.kind === 'tool') return t('approval.toolRule', { tool: rule.toolName });
+  if (rule.kind === 'exact') return t('approval.exactRule', { tool: rule.toolName });
+  if (rule.kind === 'prefix')
+    return t('approval.prefixRule', { tool: rule.toolName, prefix: shellPrefixHead(rule.input) });
+  if (rule.kind === 'secret-cli')
+    return t('approval.secretCliRule', secretCliRuleLabel(rule.input));
+  return t('approval.allRule');
 }

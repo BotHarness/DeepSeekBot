@@ -17,6 +17,7 @@ import {
   DEFAULT_BOT_MODE_MOTION,
   DEFAULT_BOT_MODE_SEND_KEY,
   DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
+  DEFAULT_NATIVE_SESSION_ATTENTION,
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
   DEFAULT_SETTINGS_PINS,
@@ -46,6 +47,7 @@ export interface Config {
   developerMode: Volatile<boolean>;
   showBotSessions: Volatile<boolean>;
   showApprovalReviewSessions: Volatile<boolean>;
+  nativeSessionAttention: Volatile<boolean>;
   botIcon: Volatile<BotModeIcon>;
   motionPreference: Volatile<BotModeMotionPreference>;
   sendKey: Volatile<BotModeSendKey>;
@@ -95,6 +97,7 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
   showApprovalReviewSessions: Schema.boolean()
     .default(DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS)
     .volatile(),
+  nativeSessionAttention: Schema.boolean().default(DEFAULT_NATIVE_SESSION_ATTENTION).volatile(),
   botIcon: Schema.union([...BOT_MODE_ICONS])
     .default(DEFAULT_BOT_MODE_ICON)
     .volatile(),
@@ -123,6 +126,7 @@ export function apply(ctx: Context, config?: Config): void {
           configureGroupInvitations(autoAccept: () => boolean): () => void;
           configureAssignmentConcurrencyLimit?(read: () => number): () => void;
           configureBotHopLimit?(read: () => number): () => void;
+          configureNativeSessionAttention?(read: () => boolean): () => void;
         };
       }
     ).botharness;
@@ -143,6 +147,13 @@ export function apply(ctx: Context, config?: Config): void {
     if (configureHopLimit !== undefined)
       child.effect(() =>
         configureHopLimit(() => config?.botHopLimit.get() ?? DEFAULT_BOT_HOP_LIMIT),
+      );
+    const configureNativeAttention = core.configureNativeSessionAttention;
+    if (configureNativeAttention !== undefined)
+      child.effect(() =>
+        configureNativeAttention(
+          () => config?.nativeSessionAttention.get() ?? DEFAULT_NATIVE_SESSION_ATTENTION,
+        ),
       );
   });
   ctx.inject(['settings'], (child) => {

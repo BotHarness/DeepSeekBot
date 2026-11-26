@@ -9,9 +9,11 @@ import type {
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { SegmentedControl } from './ds/segmented.js';
+import { ChipTabs } from './ds/chip-tabs.js';
 import { space } from './ds/tokens.stylex.js';
 import { MarketAvatars } from './market-avatars.js';
+import { MarketAppConnections } from './app-connections-catalog.js';
+import { MarketSkills } from './market-skills.js';
 import { joinClass } from './ds/class-name.js';
 import { useTeamMode } from './team-state.js';
 import { IconButton } from './ds/icon-button.js';
@@ -37,8 +39,9 @@ import {
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column' },
-  tabs: { flexShrink: 0, marginBlockStart: space.x4, marginInline: space.x4 },
+  tabs: { flexShrink: 0, marginBlockStart: space.x4, paddingInline: space.x4 },
   panel: { flexGrow: 1, flexBasis: 0, minHeight: 0 },
+  apps: { overflowY: 'auto' },
 });
 
 export const MARKET_PANEL = 'bot-market';
@@ -64,7 +67,7 @@ export function openMarketplaceAvatarPublish(
   registry.open(MARKET_PANEL);
 }
 
-type MarketSection = 'bots' | 'avatars';
+type MarketSection = 'bots' | 'skills' | 'avatars' | 'apps';
 type MarketNavigationState = {
   section: MarketSection;
   dialog: 'upload' | 'mine' | undefined;
@@ -236,15 +239,32 @@ function MarketPanelView({
       data-market-panel
       ref={listen}
     >
-      <SegmentedControl
+      <ChipTabs
         id="bh-market-section"
         value={section}
         options={[
-          { value: 'bots', label: t('market.avatar.bots') },
-          { value: 'avatars', label: t('market.avatar.title') },
+          {
+            value: 'bots',
+            label: t('market.avatar.bots'),
+            icon: <ChannelSidebarIcon name="bot" />,
+          },
+          {
+            value: 'skills',
+            label: t('market.skills'),
+            icon: <ChannelSidebarIcon name="sparkles" />,
+          },
+          {
+            value: 'avatars',
+            label: t('market.avatar.title'),
+            icon: <ChannelSidebarIcon name="user" />,
+          },
+          {
+            value: 'apps',
+            label: t('botSettings.section.connectors'),
+            icon: <ChannelSidebarIcon name="plug" />,
+          },
         ]}
         label={t('market.panel.title')}
-        controlsPanel
         className={stylex.props(styles.tabs).className}
         onChange={navigation.select}
       />
@@ -265,6 +285,32 @@ function MarketPanelView({
             onClosePublish={() => navigation.open(undefined)}
           />
         )}
+      </div>
+      <div
+        {...stylex.props(styles.panel, styles.apps)}
+        id="bh-market-section-skills-panel"
+        aria-labelledby="bh-market-section-skills"
+        role="tabpanel"
+        hidden={section !== 'skills'}
+      >
+        {section === 'skills' ? (
+          <div className="bh-market-panel">
+            <MarketSkills actions={actions} t={t} />
+          </div>
+        ) : null}
+      </div>
+      <div
+        {...stylex.props(styles.panel, styles.apps)}
+        id="bh-market-section-apps-panel"
+        aria-labelledby="bh-market-section-apps"
+        role="tabpanel"
+        hidden={section !== 'apps'}
+      >
+        {section === 'apps' ? (
+          <div className="bh-market-panel">
+            <MarketAppConnections actions={actions} t={t} />
+          </div>
+        ) : null}
       </div>
       <div
         className={joinClass('bh-market-page', stylex.props(styles.panel).className)}

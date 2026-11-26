@@ -9,6 +9,8 @@ import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
+
+vi.mock('../src/ui/shell/message-person-sheet', () => ({ MessagePersonSheet: () => null }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
@@ -30,13 +32,13 @@ vi.mock('expo-router', () => {
     useRouter: () => ({ push, prefetch: () => undefined }),
   };
 });
-vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
 
 vi.mock('../src/ui/shell/home-header', () => ({
+  useGlassHomeHeader: () => false,
   HomeHeader: ({
     actions,
     search,
@@ -54,10 +56,8 @@ vi.mock('../src/ui/shell/home-header', () => ({
     </div>
   ),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  useHostDrawerOpen: () => false,
-  HostDrawerEdge: ({ children }: { children: ReactNode | ((height: number) => ReactNode) }) =>
-    typeof children === 'function' ? children(0) : children,
+vi.mock('../src/ui/shell/host-drawer-state', () => ({
+  hostDrawer: { captureWorkspaceSelection: () => () => true },
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/primitives/item-menu', () => ({
@@ -187,15 +187,15 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     );
     expect(row).toBeDefined();
     channelHistory.push('dm/[slug]', { slug: 'same', hostId: 'a' });
-    const originalRoute = channelHistory.state.routes.at(-1)?.key;
+    const originalRoute = channelHistory.visible?.key;
     await act(async () => row?.click());
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       name: 'dm/[slug]',
       params: { slug: 'same', hostId: 'b' },
     });
-    expect(channelHistory.state.routes).toHaveLength(3);
+    expect(channelHistory.chats).toHaveLength(3);
     channelHistory.back();
-    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+    expect(channelHistory.visible).toMatchObject({
       key: originalRoute,
       params: { slug: 'same', hostId: 'a' },
     });

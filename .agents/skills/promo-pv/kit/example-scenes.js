@@ -1,6 +1,6 @@
 // Example timeline: three reference scenes from the Tobs PV, small enough to read in one sitting.
 // Every time is on the beat grid: T(bar) for bars, TB(beat) for beats. Replace with your own storyboard.
-const BEIGE = '#ECEAE6', BLUE = '#4176E6';
+const BEIGE = '#ECEAE6', BLUE = TOBS('brand');
 
 // ---- 1 · the answer: a typed line with a caret, then the name drops in letter by letter, the logo lands on top ----
 S('answer', 0, T(3), (root) => {
@@ -38,7 +38,7 @@ S('bento', T(3), T(8), (root) => {
     d.style.cssText += `left:${L}px;top:${Y0}px;width:${W}px;height:${CH}px;border-radius:34px;background:${bg};color:${fg};overflow:hidden;box-shadow:0 24px 50px -28px rgba(0,0,0,.45);`;
     d._cx = L + W / 2; d._cy = Y0 + CH / 2; d._w = W; cards.push(d); return d;
   };
-  cell(0, 2, BLUE, '托布 + 群聊', '一句话组队，群里 @ 谁谁就来'); cell(2, 1, '#287454', '记忆', '是一个 Git 仓库'); cell(3, 1, '#7957C9', '定时任务', '每周五 17:30 发周报');
+  cell(0, 2, BLUE, '托布 + 群聊', '一句话组队，群里 @ 谁谁就来'); cell(2, 1, TOBS('accent-forest-green'), '记忆', '是一个 Git 仓库'); cell(3, 1, TOBS('accent-mist-purple'), '定时任务', '每周五 17:30 发周报');
   const ck = cards[2].querySelector('.ck');
   const a = T(3), D = T(7), TS = cards.map((_, k) => T(4 + k));
   const tgt = (k) => k < 0 || k >= cards.length ? [960, 540, 0] : [cards[k]._cx, cards[k]._cy, Math.log(Math.min(2.2, 1500 / cards[k]._w, 860 / CH))];

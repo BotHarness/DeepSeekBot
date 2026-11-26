@@ -1,6 +1,24 @@
 # iOS workspace paging checks for #3017
 
-The native UIKit page-view controller retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-workspace-panel-3017). Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
+The native UIKit page-view controller retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-chats-pages-3017); ADR-0364 later removed the Workspaces page. Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
+
+## Current paging checks (after ADR-0364)
+
+ADR-0364 removed the Workspaces page. Chats is page 0, the last conversation is to its right and its profile is to the right of that. Environments are chosen from the Environment sheet (Settings, the Chats header or the Session drawer) ([phone Environment sheet journey](../../.agents/skills/verify-deepseekbot/features/phone-drawer-views.md)).
+
+| #   | Steps                                                                                 | Expected                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Cold start with existing paired QA Computers.                                         | Chats is the first native page; nothing is to its left, and a right swipe on Chats does nothing. Original pairings remain. |
+| 2   | Slowly left-swipe from Chats into the last chat, reverse before release, then commit. | The whole Chats surface and its tab bar follow together; cancelling keeps Chats, committing shows the last conversation.   |
+| 3   | From the last chat, left-swipe into its profile, then right-swipe back twice.         | The same mounted chat and then the same Chats list return, with draft, reading position and list offset kept.              |
+| 4   | Type a Chats search with the real keyboard, then try to swipe left.                   | Forward paging stays off while search is open or holds a query; the query and results remain.                              |
+| 5   | Change Reduce Motion while the app is alive; repeat the gestures.                     | The live preference is respected and no retained page is replaced.                                                         |
+| 6   | Default/intermediate/maximum Dynamic Type in light/dark.                              | Chats and its tab bar stay together; the Chats Environment name button stays readable and opens the Environment sheet.                   |
+| 7   | VoiceOver on Chats.                                                                   | Only the visible page is reachable; the Environment name is read as a button with a Switch environment hint and opens the Environment sheet.                            |
+
+## Historical checks (before ADR-0364)
+
+The checklist and dated results below describe the removed Workspaces page and are kept as historical evidence only.
 
 | #   | Steps                                                                                                          | Expected                                                                                                                                                |
 | --- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |

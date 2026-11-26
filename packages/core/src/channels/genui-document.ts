@@ -107,11 +107,18 @@ export function parseGenuiDocument(value: unknown): GenuiDocument {
   if (encodedSize(value) > GENUI_DOCUMENT_LIMITS.bytes)
     throw new GenuiError('invalid-genui', 'Document exceeds the 256 KiB budget.');
   const result = documentSchema.safeParse(value);
-  if (
-    !result.success ||
-    new TextEncoder().encode(result.data.html).length > GENUI_DOCUMENT_LIMITS.htmlBytes
-  )
-    throw new GenuiError('invalid-genui', 'Invalid document structure or HTML resource limits.');
+  if (!result.success)
+    throw new GenuiError(
+      'invalid-genui',
+      `Invalid document structure: ${result.error.issues
+        .slice(0, 4)
+        .map((issue) => `${issue.path.join('.') || 'document'}: ${issue.message}`.slice(0, 160))
+        .join(
+          '; ',
+        )}. Expected {version:2, snapshotId, observedAt ISO datetime with offset, title, html, optional stateContract {version:1, fields}, optional predecessorMessageId}.`,
+    );
+  if (new TextEncoder().encode(result.data.html).length > GENUI_DOCUMENT_LIMITS.htmlBytes)
+    throw new GenuiError('invalid-genui', 'Document HTML exceeds its 192 KiB budget.');
   const document = result.data;
   const fields = Object.values(document.stateContract?.fields ?? {});
   if (fields.length > GENUI_DOCUMENT_LIMITS.fields)

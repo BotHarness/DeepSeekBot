@@ -863,7 +863,10 @@ export function BotProfilePage({
                     testID="profile-notifications"
                     title={t.profileNotifications}
                     trailing={
-                      <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+                      <ChevronRightIcon
+                        color={theme.color.muted}
+                        size={theme.type.body.line * theme.fontScale}
+                      />
                     }
                     onPress={actions.onNotifications}
                   />

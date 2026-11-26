@@ -2,10 +2,19 @@
 import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import Yoga from 'yoga-layout';
 
+const device = vi.hoisted(() => ({ fontScale: 1, listeners: new Set<() => void>() }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android' },
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: (_event: string, listener: () => void) => {
+      device.listeners.add(listener);
+      return { remove: () => device.listeners.delete(listener) };
+    },
+  },
   View: (props: {
     children?: ReactNode;
     testID?: string;
@@ -15,7 +24,7 @@ vi.mock('react-native', async () => ({
     accessibilityState?: Record<string, boolean | undefined>;
     accessibilityActions?: { name: string }[];
     importantForAccessibility?: string;
-    style?: { height?: number; minHeight?: number };
+    style?: { height?: number; minHeight?: number; flex?: number };
     onAccessibilityAction?(event: { nativeEvent: { actionName: string } }): void;
   }) =>
     createElement(
@@ -32,6 +41,7 @@ vi.mock('react-native', async () => ({
         'aria-hidden': props.importantForAccessibility === 'no-hide-descendants' || undefined,
         'data-actions': props.accessibilityActions?.map((action) => action.name).join(' '),
         'data-height': props.style?.height ?? props.style?.minHeight,
+        'data-flex': props.style?.flex,
         onDoubleClick: () =>
           props.onAccessibilityAction?.({ nativeEvent: { actionName: 'activate' } }),
       },
@@ -40,6 +50,28 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
+vi.mock('expo', () => ({
+  requireNativeView:
+    () =>
+    ({
+      text,
+      spans,
+      color,
+      maxLines,
+    }: {
+      text?: unknown;
+      spans?: readonly { text?: string }[];
+      color?: string;
+      maxLines?: number;
+    }) => {
+      const nativeText = typeof text === 'string' ? text : undefined;
+      return (
+        <span data-native-text={nativeText} data-color={color} data-max-lines={maxLines}>
+          {nativeText ?? spans?.map((span) => span.text).join('')}
+        </span>
+      );
+    },
+}));
 vi.mock(
   '../src/ui/primitives/settings-list-item',
   () => import('../src/ui/primitives/settings-list-item.android'),
@@ -47,22 +79,25 @@ vi.mock(
 vi.mock('../src/ui/primitives/row-icon-source.android', async () => ({
   ROW_ICON_SOURCES: (await import('./compose-list-item-shim')).rowIconSources,
 }));
-vi.mock(
-  '@expo/ui/jetpack-compose',
-  async () => (await import('./compose-list-item-shim')).components,
-);
+vi.mock('@expo/ui/jetpack-compose', async () => ({
+  ...(await import('./compose-list-item-shim')).components,
+  ...(await vi.importActual<Pick<typeof import('@expo/ui/jetpack-compose'), 'Text'>>(
+    '../node_modules/@expo/ui/src/jetpack-compose/Text/index',
+  )),
+}));
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
   async () => (await import('./compose-list-item-shim')).modifiers,
 );
 
 import { DesignThemeProvider, resolveTheme } from '../src/ui/design/theme';
-import { SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
+import { SettingsGroupItem, SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(() => {
+  device.fontScale = 1;
   act(() => root?.unmount());
   host?.remove();
 });
@@ -213,4 +248,143 @@ it('hosts avatars inside the item and keeps React Native buttons outside it', as
   expect(item.querySelector('button')).toBeNull();
   expect(slot(item, 'trailing')).toBeNull();
   expect(screen.querySelector('button')!.textContent).toBe('Remove');
+});
+
+it('keeps native Settings text props as strings through live font and theme changes', async () => {
+  const computer = 'A very long Computer name';
+  const open = vi.fn();
+  const row = (
+    <SettingsRow
+      testID="environment-row"
+      title="Environment"
+      icon="computer"
+      singleLine
+      control={{ kind: 'value', text: computer, chevron: true }}
+      onPress={open}
+    />
+  );
+  const screen = await render(row);
+  const item = screen.querySelector<HTMLElement>('[data-list-item]')!;
+  const headline = () => [...slot(item, 'headline')!.querySelectorAll('span')];
+  const nativeText = () => headline().map((text) => text.getAttribute('data-native-text'));
+  const setFontScale = (scale: number) =>
+    act(async () => {
+      device.fontScale = scale;
+      for (const notify of device.listeners) notify();
+    });
+
+  expect(nativeText()).toEqual(['Environment']);
+  expect(slot(item, 'trailing')!.textContent).toBe(computer);
+  for (const scale of [2, 1.3]) {
+    await setFontScale(scale);
+    expect(nativeText()).toEqual(['Environment', computer]);
+    expect(headline().every((text) => !text.hasAttribute('data-max-lines'))).toBe(true);
+    expect(slot(item, 'supporting')).toBeNull();
+    expect(slot(item, 'trailing')!.textContent).toBe('');
+    expect(slot(item, 'trailing')!.querySelector('i')!.getAttribute('data-icon')).toBe(
+      'row-icon:chevron',
+    );
+  }
+  expect(screen.querySelector('[data-testid="environment-row"]')!.getAttribute('aria-label')).toBe(
+    `Environment, ${computer}`,
+  );
+  await act(async () =>
+    root!.render(<DesignThemeProvider appearance={{ scheme: 'dark' }}>{row}</DesignThemeProvider>),
+  );
+  expect(screen.querySelector('[data-list-item]')).toBe(item);
+  expect(item.getAttribute('data-fill')).toBe(
+    resolveTheme('dark', { scheme: 'dark' }).layer.sheet.fill,
+  );
+  expect(nativeText()).toEqual(['Environment', computer]);
+  await act(async () => headline()[0]!.click());
+  expect(open).toHaveBeenCalledOnce();
+
+  await setFontScale(1);
+  expect(nativeText()).toEqual(['Environment']);
+  expect(headline()[0]!.getAttribute('data-max-lines')).toBe('1');
+  expect(slot(item, 'trailing')!.textContent).toBe(computer);
+});
+
+it.each([1, 2])('keeps a detail status dot beside a value at font scale %s', async (fontScale) => {
+  device.fontScale = fontScale;
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow
+        title="Studio"
+        detail="Online"
+        detailDot="green-token"
+        control={{ kind: 'value', text: 'QA Host', chevron: true }}
+        onPress={() => {}}
+      />
+    </SettingsSection>,
+  );
+  const item = screen.querySelector('[data-list-item]')!;
+  const supporting = slot(item, 'supporting')!;
+  expect(supporting.querySelector('[data-dot]')!.getAttribute('data-dot')).toBe('green-token');
+  expect(supporting.textContent).toContain('Online');
+  expect(supporting.textContent).toBe('Online');
+  expect(slot(item, 'headline')!.textContent?.includes('QA Host')).toBe(fontScale === 2);
+});
+
+it('keeps a text-only detail without a dot', async () => {
+  const screen = await render(
+    <SettingsSection>
+      <SettingsRow title="Storage" detail="Cached files" onPress={() => {}} />
+    </SettingsSection>,
+  );
+  const supporting = slot(screen.querySelector('[data-list-item]')!, 'supporting')!;
+  expect(supporting.textContent).toBe('Cached files');
+  expect(supporting.querySelector('[data-dot]')).toBeNull();
+});
+
+it('sizes a standalone row to its content and lets a row beside a trailing view fill the width', async () => {
+  const view = await render(
+    <>
+      <SettingsRow testID="alone" title="Folder" control={{ kind: 'value', text: 'notes-app' }} />
+      <SettingsRow testID="beside" title="Model" trailing={<span>Now</span>} />
+    </>,
+  );
+  expect(view.querySelector('[data-testid="alone"]')?.getAttribute('data-flex')).toBeNull();
+  expect(view.querySelector('[data-testid="beside"]')?.getAttribute('data-flex')).toBe('1');
+});
+
+function centredRowHeight(flex: number | undefined): number {
+  const config = Yoga.Config.create();
+  config.setUseWebDefaults(false);
+  const root = Yoga.Node.create(config);
+  try {
+    root.setWidth(400);
+    root.setHeight(800);
+    const centre = Yoga.Node.create(config);
+    centre.setFlex(1);
+    centre.setJustifyContent(Yoga.JUSTIFY_CENTER);
+    root.insertChild(centre, 0);
+    const group = Yoga.Node.create(config);
+    centre.insertChild(group, 0);
+    const segment = Yoga.Node.create(config);
+    segment.setMargin(Yoga.EDGE_HORIZONTAL, 16);
+    group.insertChild(segment, 0);
+    const item = Yoga.Node.create(config);
+    if (flex !== undefined) item.setFlex(flex);
+    segment.insertChild(item, 0);
+    const compose = Yoga.Node.create(config);
+    compose.setHeight(56);
+    item.insertChild(compose, 0);
+    root.calculateLayout(undefined, undefined, Yoga.DIRECTION_LTR);
+    return item.getComputedHeight();
+  } finally {
+    root.freeRecursive();
+    config.free();
+  }
+}
+
+it('lays out the New Session picker rows at their Compose height in a centred column', async () => {
+  const view = await render(
+    <SettingsGroupItem first last on="canvas">
+      <SettingsRow testID="new-session-folder" title="Folder" control={{ kind: 'chevron' }} />
+    </SettingsGroupItem>,
+  );
+  const flex = view.querySelector('[data-testid="new-session-folder"]')?.getAttribute('data-flex');
+  expect(centredRowHeight(flex == null ? undefined : Number(flex))).toBe(56);
+  expect(centredRowHeight(1)).toBe(0);
 });

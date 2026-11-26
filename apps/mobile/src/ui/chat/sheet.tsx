@@ -1,12 +1,12 @@
 import type { ComponentType, ReactNode } from 'react';
-import { View } from 'react-native';
+import { View, type DimensionValue } from 'react-native';
 
 import type { LayerName } from '../design/layers';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetFramed, SheetHeader } from '../primitives/sheet-header';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SheetFrame } from './sheet-frame';
@@ -31,7 +31,9 @@ export function Sheet({
   avoidKeyboard = false,
   animationType = 'fade',
   fill = false,
+  resizable = false,
   androidFill,
+  trailing,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -44,7 +46,9 @@ export function Sheet({
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
   fill?: boolean;
+  resizable?: boolean;
   androidFill?: boolean;
+  trailing?: ReactNode;
 }) {
   if (Page !== undefined)
     return visible ? (
@@ -56,32 +60,29 @@ export function Sheet({
       </Page>
     ) : null;
   return (
-    <SheetFrame
-      visible={visible}
-      label={label}
-      onClose={onClose}
-      onDismissed={onDismissed}
-      avoidKeyboard={avoidKeyboard}
-      animationType={animationType}
-      fill={fill}
-      androidFill={androidFill}
-    >
-      {title === undefined ? null : (
-        <View
-          style={{
-            paddingHorizontal: space.x5,
-            paddingBottom: space.x4,
-          }}
-        >
-          <DrawerHeader
+    <SheetFramed value>
+      <SheetFrame
+        visible={visible}
+        label={label}
+        onClose={onClose}
+        onDismissed={onDismissed}
+        avoidKeyboard={avoidKeyboard}
+        animationType={animationType}
+        fill={fill}
+        resizable={resizable}
+        androidFill={androidFill}
+      >
+        {title === undefined ? null : (
+          <SheetHeader
             title={title}
             {...(subtitle === undefined ? {} : { subtitle })}
+            {...(trailing === undefined ? {} : { trailing })}
             onClose={onClose}
           />
-        </View>
-      )}
-      {children}
-    </SheetFrame>
+        )}
+        {children}
+      </SheetFrame>
+    </SheetFramed>
   );
 }
 
@@ -115,7 +116,7 @@ export function SheetCallout({ children, tone }: { children: string; tone: 'warn
         paddingHorizontal: space.x4,
         paddingVertical: space.x3,
         borderRadius: radius.md,
-        backgroundColor: tone === 'warning' ? theme.color.warningSoft : theme.layer.canvas.danger,
+        backgroundColor: tone === 'warning' ? theme.color.warningSoft : theme.layer.sheet.danger,
       }}
     >
       <Text variant="meta" tone={tone === 'warning' ? 'fg' : 'danger'}>
@@ -151,6 +152,57 @@ export function SheetFooter({ children }: { children: string }) {
     >
       {children}
     </Text>
+  );
+}
+
+export function SheetSkeleton({ rows = 4 }: { rows?: number }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const group = theme.layer[SHEET_GROUP];
+  const bar = (width: DimensionValue) => ({
+    width,
+    height: theme.type.body.line * 0.7,
+    borderRadius: radius.sm,
+    backgroundColor: group.inset,
+  });
+  return (
+    <View
+      testID="sheet-skeleton"
+      accessibilityRole="progressbar"
+      accessibilityLabel={t.contextLoading}
+      style={{ paddingHorizontal: space.x5, paddingTop: space.x3 }}
+    >
+      <View
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+        style={{ borderRadius: radius.md, overflow: 'hidden', backgroundColor: group.fill }}
+      >
+        {Array.from({ length: rows }, (_, row) => (
+          <View
+            key={row}
+            style={{
+              minHeight: theme.touch + space.x3,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x4,
+              paddingHorizontal: space.x4,
+              borderBottomWidth: row === rows - 1 ? 0 : edge.hairline,
+              borderBottomColor: group.divider,
+            }}
+          >
+            <View
+              style={{
+                width: theme.type.title.line,
+                height: theme.type.title.line,
+                borderRadius: radius.round,
+                backgroundColor: group.inset,
+              }}
+            />
+            <View style={bar(row % 2 === 0 ? '55%' : '40%')} />
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 

@@ -2,11 +2,18 @@ import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { effectiveDmControls } from './dm-controls.js';
 import type { FailureAlerts } from './failure-alerts.js';
 import type { ApprovalMessaging } from './approval-messaging.js';
-import { externalPermissionGroups } from './permission-groups.js';
-import { behaviorPermissions } from './behavior-permissions.js';
+import {
+  externalPermissionGroups,
+  listConversationSourceBlocks,
+  listSenderBlocks,
+  senderBlockBindingIds,
+  behaviorPermissions,
+  externalUserRoles,
+  platformPeople,
+  readSenderPolicy,
+} from './permissions/index.js';
 import type { QuestionMessaging } from './question-messaging.js';
 import type { BotPairing } from './pairing.js';
-import { externalUserRoles, readSenderPolicy } from './sender-access.js';
 import {
   readMessagingIdentity,
   type MessagingIdentity,
@@ -495,6 +502,16 @@ export function createOutboundSnapshot(context: {
         }
       }
       const qqIdentities = identities.filter((identity) => identity.platform === 'qq');
+      const currentBlockBinding = <T extends { fingerprint: string; bindingId: string }>(
+        block: T,
+      ): T => {
+        const current =
+          identities.find(
+            (identity) =>
+              identity.fingerprint === block.fingerprint && identity.enabled && !identity.revokedAt,
+          ) ?? identities.find((identity) => identity.fingerprint === block.fingerprint);
+        return current ? { ...block, bindingId: current.id } : block;
+      };
       const observedAt = now();
       const observations =
         context.closed || mode === 'saved'
@@ -541,6 +558,22 @@ export function createOutboundSnapshot(context: {
         identities,
         roles: database.read((db) => externalUserRoles(db, botSlug)),
         permissionGroups: database.read((db) => externalPermissionGroups(db, botSlug)),
+        senderBlocks: database
+          .read((db) =>
+            listSenderBlocks(db, botSlug).map((block) => ({
+              ...block,
+              bindingIds: senderBlockBindingIds(db, botSlug, block.fingerprint),
+            })),
+          )
+          .map(currentBlockBinding),
+        conversationBlocks: database
+          .read((db) =>
+            listConversationSourceBlocks(db, botSlug).map((block) => ({
+              ...block,
+              bindingIds: senderBlockBindingIds(db, botSlug, block.fingerprint),
+            })),
+          )
+          .map(currentBlockBinding),
         behaviorPermissions: database.read((db) => behaviorPermissions(db, botSlug)),
         senderPolicy: database.read((db) => readSenderPolicy(db, botSlug)),
         pairings: pairing.list(botSlug),
@@ -548,7 +581,7 @@ export function createOutboundSnapshot(context: {
         questions: questions.snapshot(botSlug),
         failureAlerts: failureAlerts.snapshot(botSlug),
         pairingReceivers: identities
-          .filter((i) => ['feishu', 'slack'].includes(i.platform) && !i.revokedAt)
+          .filter((i) => !!platformPeople(i.platform) && !i.revokedAt)
           .map((i) => ({ name: i.name, status: i.reception ?? 'unavailable' })),
         grants,
         heldConversations: database.read((db) =>

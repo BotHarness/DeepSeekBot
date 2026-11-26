@@ -1,26 +1,33 @@
 import { Form, Host, RNHostView, Section, VStack } from '@expo/ui/swift-ui';
 import {
+  environment,
   listRowBackground,
   listRowInsets,
   scrollContentBackground,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import type { ReactElement } from 'react';
+import { useContext, type ReactElement } from 'react';
 import { View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { useFloatingTabInset } from '../shell/floating-tab-inset';
 import { SettingsFormContext, useSettingsFormPlace } from './settings-form-context';
+import { SystemSheet } from './system-sheet';
 import type { SettingsFormProps } from './settings-form';
 
-export function SettingsForm({ header, testID, children }: SettingsFormProps) {
+export function SettingsForm({ header, testID, reordering, children }: SettingsFormProps) {
   const theme = useDesignTheme();
   const tabInset = useFloatingTabInset();
+  const fill = useContext(SystemSheet) ? undefined : theme.overlay.fill;
   const form = (
-    <Host style={{ flex: 1, backgroundColor: theme.overlay.fill }} colorScheme={theme.scheme}>
+    <Host style={{ flex: 1, backgroundColor: fill }} colorScheme={theme.scheme}>
       <Form
         {...(testID === undefined ? {} : { testID })}
-        modifiers={[scrollContentBackground('hidden'), tint(theme.color.accent)]}
+        modifiers={[
+          scrollContentBackground('hidden'),
+          tint(theme.color.accent),
+          ...(reordering === true ? [environment('editMode', 'active')] : []),
+        ]}
       >
         <SettingsFormContext.Provider value="form">
           {children}
@@ -35,7 +42,7 @@ export function SettingsForm({ header, testID, children }: SettingsFormProps) {
   );
   if (header === undefined) return form;
   return (
-    <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <View style={{ flex: 1, backgroundColor: fill }}>
       {header}
       {form}
     </View>

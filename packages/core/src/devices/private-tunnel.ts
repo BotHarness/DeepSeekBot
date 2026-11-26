@@ -5,7 +5,10 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { request as httpsRequest } from 'node:https';
 import { connect as tcpConnect, type AddressInfo, type LookupFunction } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { privateAdmissionFromHeaders } from '../../../../deploy/private-relay/admission.mjs';
+import {
+  BROWSER_ADMISSION_PROTOCOL,
+  privateAdmissionFromHeaders,
+} from '../../../../deploy/private-relay/admission.mjs';
 import { getCACertificates } from 'node:tls';
 
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
@@ -19,6 +22,11 @@ import { validTunnelToken, type SpawnTunnel, type TunnelProcess } from './connec
 import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { PrivateRelayAdmission } from './private-relay.js';
 import { isConnectZoneHost } from './routes.js';
+import {
+  addressRouteHeader,
+  DEVICE_NOISE_PEER_HEADER,
+  DEVICE_ROUTE_HEADER,
+} from './route-context.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -60,6 +68,9 @@ export type PrivateTunnelRefusal =
   | 'private-route-replace-required'
   | 'private-route-changed'
   | 'private-route-limit'
+  | 'private-route-address-sign-in-unsupported'
+  | 'private-route-address-sign-in-lan'
+  | 'private-route-address-sign-in-unavailable'
   | 'private-tunnel-credential-invalid';
 
 export type PrivateTunnelResult =
@@ -178,14 +189,38 @@ export function parseTunnelRecord(payload: unknown): TunnelRecord | undefined {
   return { mode, phoneToken, originPort, ...(hostname === undefined ? {} : { hostname }) };
 }
 
-type TunnelOrigin = Server & { upgraded: Set<Duplex> };
+export function addressSignInAllowed(record: TunnelRecord): boolean {
+  return record.mode !== 'quick' && !(record.mode === 'ingress' && record.lan === true);
+}
+
+type TunnelOrigin = Server & { upgraded: Set<Duplex>; addressed: Set<Duplex> };
+
+const DISCOVERY_HEADERS = ['content-type', 'cache-control', 'access-control-allow-origin'];
+const STRIPPED_UPGRADE_HEADERS = new Set([
+  'authorization',
+  'x-botharness-admission',
+  DEVICE_ROUTE_HEADER,
+  DEVICE_NOISE_PEER_HEADER,
+]);
+
+function withoutAdmission(request: IncomingMessage): boolean {
+  const protocol = request.headers['sec-websocket-protocol'];
+  return (
+    request.headers.authorization === undefined &&
+    request.headers['x-botharness-admission'] === undefined &&
+    (protocol === undefined || protocol === BROWSER_ADMISSION_PROTOCOL)
+  );
+}
 
 export function createTunnelOrigin(options: {
   port: () => number;
   phoneToken: () => string;
   probe: () => string | undefined;
+  addressSignIn?: () => boolean;
 }): TunnelOrigin {
   const upgraded = new Set<Duplex>();
+  const addressed = new Set<Duplex>();
+  const addressSignIn = () => options.addressSignIn?.() === true;
   const server = createServer((request, response) => {
     request.resume();
     const nonce = options.probe();
@@ -198,31 +233,81 @@ export function createTunnelOrigin(options: {
       response.end(nonce);
       return;
     }
-    response.writeHead(404, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    response.end(JSON.stringify({ code: 'not-found' }));
+    const discovery = request.method === 'GET' && request.url === CONNECT_CHANNEL_PATH;
+    if (discovery && addressSignIn()) {
+      const upstream = httpRequest(
+        {
+          host: '127.0.0.1',
+          port: options.port(),
+          method: 'GET',
+          path: CONNECT_CHANNEL_PATH,
+          agent: false,
+          headers: {
+            ...(request.headers.host === undefined ? {} : { host: request.headers.host }),
+            accept: 'application/json',
+          },
+        },
+        (reply) => {
+          const headers = Object.fromEntries(
+            DISCOVERY_HEADERS.flatMap((name) => {
+              const value = reply.headers[name];
+              return value === undefined ? [] : [[name, value]];
+            }),
+          );
+          response.writeHead(reply.statusCode ?? 502, headers);
+          reply.on('error', () => response.destroy());
+          reply.pipe(response);
+        },
+      );
+      upstream.on('error', () => {
+        if (response.headersSent) response.destroy();
+        else {
+          response.writeHead(502, {
+            'content-type': 'application/json',
+            'cache-control': 'no-store',
+          });
+          response.end(JSON.stringify({ code: 'host-unavailable' }));
+        }
+      });
+      response.on('close', () => upstream.destroy());
+      upstream.end();
+      return;
+    }
+    response.writeHead(404, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      ...(discovery ? { 'access-control-allow-origin': '*' } : {}),
+    });
+    response.end(JSON.stringify({ code: discovery ? 'private-route' : 'not-found' }));
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-    const admission = privateAdmissionFromHeaders(
-      request.headers.authorization,
-      request.headers['x-botharness-admission'],
-      request.headers['sec-websocket-protocol'],
-    );
+    const byAddress = withoutAdmission(request) && addressSignIn();
+    const admission = byAddress
+      ? undefined
+      : privateAdmissionFromHeaders(
+          request.headers.authorization,
+          request.headers['x-botharness-admission'],
+          request.headers['sec-websocket-protocol'],
+        );
     if (
+      request.method !== 'GET' ||
       request.url !== CONNECT_CHANNEL_PATH ||
       request.headers.cookie !== undefined ||
-      !admission ||
-      !timingSafeEqual(digest(admission.token), digest(options.phoneToken()))
+      (!byAddress &&
+        (!admission || !timingSafeEqual(digest(admission.token), digest(options.phoneToken()))))
     ) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }
-    let raw = `${request.method ?? 'GET'} ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;
+    let raw = `GET ${CONNECT_CHANNEL_PATH} HTTP/${request.httpVersion}\r\n`;
+    if (byAddress) raw += `${addressRouteHeader()}\r\n`;
     for (let index = 0; index < request.rawHeaders.length; index += 2) {
       const name = request.rawHeaders[index] ?? '';
       const lower = name.toLowerCase();
-      if (lower === 'authorization' || lower === 'x-botharness-admission') continue;
+      if (STRIPPED_UPGRADE_HEADERS.has(lower)) continue;
       if (lower === 'sec-websocket-protocol') {
-        if (admission.protocol) raw += `${name}: ${admission.protocol}\r\n`;
+        const protocol = byAddress ? BROWSER_ADMISSION_PROTOCOL : admission?.protocol;
+        if (protocol) raw += `${name}: ${protocol}\r\n`;
         continue;
       }
       raw += `${name}: ${request.rawHeaders[index + 1] ?? ''}\r\n`;
@@ -236,12 +321,14 @@ export function createTunnelOrigin(options: {
     upstream.on('error', () => socket.destroy());
     socket.on('error', () => upstream.destroy());
     upgraded.add(socket);
+    if (byAddress) addressed.add(socket);
     socket.on('close', () => {
       upgraded.delete(socket);
+      addressed.delete(socket);
       upstream.destroy();
     });
   });
-  return Object.assign(server, { upgraded });
+  return Object.assign(server, { upgraded, addressed });
 }
 
 const spawnTunnel: SpawnTunnel = (binary, args, env) =>
@@ -326,10 +413,12 @@ export interface PrivateTunnelOptions {
   probeWindowMs?: number;
   reprobeMs?: number;
   record?: (phase: string, detail?: string) => void;
+  passwordSignInAvailable?: () => boolean;
 }
 
 export function createPrivateTunnelRuntime(
   options: Omit<PrivateTunnelOptions, 'credentials'> & {
+    addressSignIn?: () => boolean;
     storage: {
       read(): Promise<TunnelRecord | undefined | 'unavailable' | 'invalid'>;
       persist(record: TunnelRecord): Promise<boolean>;
@@ -584,6 +673,7 @@ export function createPrivateTunnelRuntime(
       port: options.port,
       phoneToken: () => next.phoneToken,
       probe: () => nonce,
+      addressSignIn: () => addressSignInAllowed(next) && options.addressSignIn?.() === true,
     });
     const lan = next.mode === 'ingress' && next.lan === true;
     const bound =
@@ -637,6 +727,9 @@ export function createPrivateTunnelRuntime(
       }),
     acknowledgeAddress: () => {
       delete status.addressChanged;
+    },
+    closeAddressSignIn: () => {
+      for (const socket of server?.addressed ?? []) socket.destroy();
     },
     close: () => serial(stop),
   };

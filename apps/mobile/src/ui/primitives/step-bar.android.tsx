@@ -8,8 +8,8 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
+  defaultMinSize,
   fillMaxWidth,
-  height as fixedHeight,
   semantics,
   size,
   testID,
@@ -83,7 +83,7 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
             onClick={primary.onPress}
             modifiers={[
               weight(1),
-              fixedHeight(height),
+              defaultMinSize({ minHeight: height }),
               semantics({ contentDescription: stepBarAccessibilityLabel(t, primary.label, step) }),
               testID(primary.testID),
             ]}

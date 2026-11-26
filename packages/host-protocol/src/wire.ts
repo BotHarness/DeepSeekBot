@@ -1,3 +1,4 @@
+import type { HostSessionPendingInput } from './host-sessions';
 import type { TurnTarget, SessionTurnModelSwitch } from './turn-target';
 import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
@@ -550,6 +551,17 @@ export type MuxServerFrame =
 export const REMOTE_STREAM_MUX_PATH = '/api/remote.mux';
 
 export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
+export type HumanAttentionSource = 'all' | 'bot' | 'native';
+export const NATIVE_SESSION_ATTENTION_KIND = 'native-session-input';
+
+export interface NativeSessionAttention {
+  sessionId: string;
+  sessionTitle?: string;
+  folderName?: string;
+  cwd?: string;
+  input: 'approval' | 'question';
+  request?: HostSessionPendingInput;
+}
 
 export interface HumanAttentionItem {
   id: string;
@@ -575,6 +587,7 @@ export interface HumanAttentionItem {
     template: string;
     reason: string;
   };
+  nativeSession?: NativeSessionAttention;
 }
 
 export interface HumanAssignmentReport {
@@ -628,6 +641,7 @@ export interface BotInboxPage {
 export interface HumanAttentionPage {
   queryVersion?: number;
   notificationVersion?: number;
+  source?: HumanAttentionSource;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }
@@ -645,6 +659,7 @@ export type ToolApprovalOutcome =
   | 'allowed-once'
   | 'allowed-always-tool'
   | 'allowed-always-exact'
+  | 'allowed-always-prefix'
   | 'allowed-always-all'
   | 'rejected';
 
@@ -838,7 +853,7 @@ export interface WireApprovalRule {
   botSlug: string;
   role: 'orchestrator' | 'assignment';
   scopeKey: string;
-  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+  kind: 'exact' | 'prefix' | 'tool' | 'all-opaque' | 'secret-cli';
   toolName: string;
   input: string;
   createdAt: string;
@@ -874,8 +889,22 @@ export type WireToolApprovalExecution =
   | 'settled'
   | 'needs-repair';
 
+export interface WireShellApprovalSuggestions {
+  exact: string;
+  compound: boolean;
+  unparseable: boolean;
+  subcommands: {
+    exact: string;
+    oneWordPrefix?: string;
+    twoWordPrefix?: string;
+  }[];
+}
+
+export type ShellPrefixApproval = { kind: 'prefix'; patterns: string[] };
+
 export interface WireToolApprovalState {
   status: ToolApprovalStatus;
+  shellSuggestions?: WireShellApprovalSuggestions;
   expiresAt?: string;
   execution?: WireToolApprovalExecution;
   approval?: WireApprovalCard;

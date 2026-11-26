@@ -41,9 +41,11 @@ import {
   customizeModelPlan,
   DEFAULT_MODEL_PRESET_ID,
   inheritModelPlan,
+  setBotEngine,
   setModelPlan,
   setOnboardingModel,
   updateModelPreset,
+  type BotEngineChoice,
 } from './model-plans';
 import {
   canAddSubChoice,
@@ -367,6 +369,9 @@ async function writePresetRoutes(
     assignmentModels: AssignmentModelOption[];
     groups: ModelPlanGroups;
   },
+  engine: BotEngineChoice | null | undefined = state.preset?.orchestratorEngine === undefined
+    ? undefined
+    : null,
 ): Promise<void> {
   const preset = state.preset;
   if (preset?.revision === undefined) throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
@@ -375,7 +380,37 @@ async function writePresetRoutes(
     ...groupFields(routes.groups, routes.orchestrator),
     assignmentDefault: routes.assignmentDefault,
     assignmentModels: routes.assignmentModels,
+    ...(engine === undefined ? {} : { orchestratorEngine: engine }),
   });
+}
+
+export async function setModelEngine(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  choice: BotEngineChoice,
+): Promise<void> {
+  if (scope.kind === 'bot') {
+    await setBotEngine(client, scope.slug, 'orchestrator', choice);
+    recordFeature('model:plan_update', { via: 'custom' });
+    return;
+  }
+  if (scope.kind !== 'preset') throw new HostAnswerInvalid('MODEL_PRESET_REQUIRED');
+  const previous = modelRoutes(state);
+  const orchestrator = requireRoute(previous.orchestrator);
+  await writePresetRoutes(
+    client,
+    scope.id,
+    state,
+    {
+      orchestrator,
+      assignmentDefault: previous.assignmentDefault ?? orchestrator,
+      assignmentModels: previous.assignmentModels,
+      groups: previous.groups,
+    },
+    choice,
+  );
+  recordFeature('model:plan_update', { via: 'custom' });
 }
 
 function withoutKey<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {

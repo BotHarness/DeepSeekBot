@@ -94,12 +94,9 @@ const discoverHostAddress = vi.hoisted(() =>
   vi.fn(async (_input: unknown) => ({ ok: true as const, value: discovery })),
 );
 vi.mock('@botharness/host-client/password-sign-in', () => ({ discoverHostAddress }));
-const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
+const landing = vi.hoisted(() => ({ filter: vi.fn() }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: landing.filter },
-}));
-vi.mock('../src/ui/shell/workspace-paging', () => ({
-  closeWorkspacePageWhenShown: landing.closePage,
 }));
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
 vi.mock('expo-clipboard', () => clipboard);
@@ -176,7 +173,6 @@ it('signs the same member in again from a saved Host without an invitation or a 
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
     expect(router.dismissTo).toHaveBeenCalledOnce();
     expect(landing.filter).toHaveBeenCalledWith(computerEnvironmentKey('h'));
-    expect(landing.closePage).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     element.remove();
@@ -237,6 +233,13 @@ async function renderAddress(address: string) {
   };
   const press = (id: string) =>
     act(async () => element.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+  const submit = (id: string) =>
+    act(async () => {
+      element
+        .querySelector(`[data-testid="${id}"]`)!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+  const focused = () => document.activeElement?.getAttribute('data-testid');
   await act(async () => root.render(<TeamSignInScreen />));
   const close = () => {
     act(() => root.unmount());
@@ -244,7 +247,7 @@ async function renderAddress(address: string) {
     params.value = { i: 'invite' };
     navigation.prevented = undefined;
   };
-  return { element, type, press, close };
+  return { element, type, press, submit, focused, close };
 }
 
 it('asks how to connect, then signs in with one username and password form for an address', async () => {
@@ -253,7 +256,7 @@ it('asks how to connect, then signs in with one username and password form for a
     ok: true,
     value: { ...bob, hostId: 'other-host', member: undefined, role: 'owner' },
   });
-  const { element, type, press, close } = await renderAddress('studio.example');
+  const { element, type, press, submit, focused, close } = await renderAddress('studio.example');
   try {
     expect(discoverHostAddress).toHaveBeenLastCalledWith(
       expect.objectContaining({ input: 'studio.example' }),
@@ -273,6 +276,8 @@ it('asks how to connect, then signs in with one username and password form for a
     await press('team-fingerprint');
     expect(clipboard.setStringAsync).toHaveBeenCalledWith(Array(16).fill('bbbb').join(' '));
     await type('team-username', 'Dana');
+    await submit('team-username');
+    expect(focused()).toBe('team-password');
     await type('team-password', 'owner-password');
     await press('team-sign-in');
     expect(session.signInPassword).toHaveBeenLastCalledWith(
@@ -303,7 +308,8 @@ it('continues a member to the password change after address sign-in', async () =
       role: 'member',
     },
   });
-  const { element, type, press, close } = await renderAddress('https://studio.example');
+  const { element, type, press, submit, focused, close } =
+    await renderAddress('https://studio.example');
   try {
     await press('team-choose-password');
     await type('team-username', 'bob');
@@ -311,6 +317,8 @@ it('continues a member to the password change after address sign-in', async () =
     await press('team-sign-in');
     expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
     await type('team-new-password', 'a-new-password');
+    await submit('team-new-password');
+    expect(focused()).toBe('team-confirm-password');
     await type('team-confirm-password', 'a-new-password');
     const labels = [...element.querySelectorAll('*')]
       .filter((node) => node.children.length === 0)

@@ -21,15 +21,21 @@ export function Welcome({
   return (
     <div className="bh-root bh-main">
       <div className="bh-content" {...stylex.props(messageStyles.emptyContainer)}>
-        <PanelEmptyState icon="messages-circle">
-          {t(
-            member
-              ? 'team.firstRun.main'
-              : state.bots.length === 0
-                ? 'main.welcome.empty'
-                : 'main.welcome.hint',
-          )}
-        </PanelEmptyState>
+        {state.closedChannel === undefined ? (
+          <PanelEmptyState icon="messages-circle">
+            {t(
+              member
+                ? 'team.firstRun.main'
+                : state.bots.length === 0
+                  ? 'main.welcome.empty'
+                  : 'main.welcome.hint',
+            )}
+          </PanelEmptyState>
+        ) : (
+          <PanelEmptyState icon="lock">
+            {t('main.channelAccessRemoved', { name: state.closedChannel.name })}
+          </PanelEmptyState>
+        )}
       </div>
     </div>
   );

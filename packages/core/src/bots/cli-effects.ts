@@ -71,6 +71,9 @@ export const CLI_EFFECTS = {
   'ask-secret-submit': { effects: secretWrite, brokerRead: false },
   assignment: { effects: read, brokerRead: true },
   'assignment-context': { effects: read, brokerRead: true },
+  'assignment-memory-lease': { effects: memoryRead, brokerRead: false },
+  'assignment-memory-leases': { effects: memoryRead, brokerRead: true },
+  'assignment-memory-revoke': { effects: write, brokerRead: false },
   'assignment-timeline': { effects: read, brokerRead: true },
   assignments: { effects: read, brokerRead: true },
   audit: { effects: read, brokerRead: false },
@@ -79,6 +82,8 @@ export const CLI_EFFECTS = {
   'bot-appearance-set': { effects: write, brokerRead: false },
   'bot-access': { effects: management, brokerRead: true },
   'bot-attention': { effects: read, brokerRead: true },
+  'bot-grant': { effects: management, brokerRead: false },
+  'bot-grants': { effects: read, brokerRead: true },
   'bot-avatar-set': { effects: write, brokerRead: false },
   'bot-banner-set': { effects: write, brokerRead: false },
   'bot-compact': { effects: write, brokerRead: false },
@@ -89,14 +94,15 @@ export const CLI_EFFECTS = {
   'bot-delete-retry': { effects: destructive, brokerRead: false },
   'bot-import-preview': { effects: read, brokerRead: false },
   'bot-lan': { effects: management, brokerRead: false },
-  'bot-mode-default-set': { effects: management, brokerRead: false },
-  'bot-mode-set': { effects: management, brokerRead: false },
-  'bot-mode-template-delete': { effects: management, brokerRead: false },
-  'bot-mode-template-save': { effects: management, brokerRead: false },
-  'bot-mode-template-set': { effects: management, brokerRead: false },
-  'bot-modes': { effects: read, brokerRead: true },
+  'loadout-default-set': { effects: management, brokerRead: false },
+  'loadout-set': { effects: management, brokerRead: false },
+  'loadout-template-delete': { effects: management, brokerRead: false },
+  'loadout-template-save': { effects: management, brokerRead: false },
+  'loadout-template-set': { effects: management, brokerRead: false },
+  loadouts: { effects: read, brokerRead: true },
   'bot-new-session': { effects: write, brokerRead: false },
   'bot-primary-color-set': { effects: write, brokerRead: false },
+  'bot-connectors': { effects: read, brokerRead: true },
   'bot-prompt': { effects: read, brokerRead: true },
   'bot-prompt-set': { effects: write, brokerRead: false },
   'bot-session-usage': { effects: read, brokerRead: true },
@@ -203,6 +209,7 @@ export const CLI_EFFECTS = {
   'computer-open-permission-settings': { effects: write, brokerRead: false },
   'computer-start': { effects: write, brokerRead: false },
   'computer-status': { effects: read, brokerRead: true },
+  'computer-unlock-status': { effects: read, brokerRead: true },
   'computer-stop': { effects: write, brokerRead: false },
   'computer-takeover': { effects: write, brokerRead: false },
   'computer-tool': { effects: opaque, brokerRead: false },
@@ -222,6 +229,18 @@ export const CLI_EFFECTS = {
   'connection-clients': { effects: read, brokerRead: true },
   'connection-host': { effects: write, brokerRead: false },
   'connection-hosts': { effects: write, brokerRead: false },
+  'connector-connect': { effects: externalManagement, brokerRead: false },
+  'connector-grant': { effects: management, brokerRead: false },
+  'connector-key-clear': { effects: destructiveSecretManagement, brokerRead: false },
+  'connector-key-set': { effects: externalSecretManagement, brokerRead: false },
+  'connector-reconnect': { effects: externalManagement, brokerRead: false },
+  'connector-refresh': { effects: externalWrite, brokerRead: false },
+  'connector-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-search': { effects: externalRead, brokerRead: false },
+  'connector-mcp-add': { effects: externalManagement, brokerRead: false },
+  'connector-mcp-finish': { effects: externalSecretManagement, brokerRead: false },
+  'connector-remove': { effects: externalIrreversibleManagement, brokerRead: false },
+  connectors: { effects: read, brokerRead: true },
   create: { effects: external, brokerRead: false },
   'create-status': { effects: read, brokerRead: false },
   'data-reset-confirm': { effects: destructive, brokerRead: false },
@@ -255,6 +274,7 @@ export const CLI_EFFECTS = {
   'feedback-preview': { effects: read, brokerRead: false },
   'feedback-submit': { effects: external, brokerRead: false },
   'folder-browse': { effects: read, brokerRead: true },
+  'folder-create': { effects: write, brokerRead: false },
   'genui-submit': { effects: external, brokerRead: false },
   'genui-view': { effects: read, brokerRead: true },
   'genui-view-save': { effects: write, brokerRead: false },
@@ -358,6 +378,7 @@ export const CLI_EFFECTS = {
   'messaging-defaults': { effects: read, brokerRead: true },
   'messaging-defaults-set': { effects: write, brokerRead: false },
   'messaging-grants': { effects: read, brokerRead: true },
+  'messaging-group-interactions': { effects: write, brokerRead: false },
   'messaging-group-policy': { effects: management, brokerRead: false },
   'messaging-post': { effects: external, brokerRead: false },
   'messaging-post-limit': { effects: write, brokerRead: false },
@@ -383,6 +404,7 @@ export const CLI_EFFECTS = {
   'model-plan-assignments-set': { effects: write, brokerRead: false },
   'model-plan-customize': { effects: write, brokerRead: false },
   'model-plan-inherit': { effects: write, brokerRead: false },
+  'model-plan-reset': { effects: write, brokerRead: false },
   'model-plan-set': { effects: write, brokerRead: false },
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },
@@ -488,11 +510,19 @@ export const CLI_EFFECTS = {
   send: { effects: external, brokerRead: false },
   'send-status': { effects: read, brokerRead: true },
   'sender-access': { effects: management, brokerRead: false },
+  'session-answer-approval': { effects: externalIrreversibleManagement, brokerRead: false },
+  'session-answer-question': { effects: external, brokerRead: false },
+  'session-archive': { effects: write, brokerRead: false },
+  'workspace-look': { effects: read, brokerRead: true },
+  'workspace-look-set': { effects: write, brokerRead: false },
   'session-archive-set': { effects: write, brokerRead: false },
   'session-ids': { effects: read, brokerRead: true },
   'session-progress': { effects: read, brokerRead: true },
   'session-model': { effects: write, brokerRead: false },
   'session-list': { effects: read, brokerRead: true },
+  'session-list-changes': { effects: read, brokerRead: true },
+  'session-import-list': { effects: read, brokerRead: false },
+  'session-create': { effects: destructive, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
   'session-live': { effects: read, brokerRead: true },
   'session-tool': { effects: read, brokerRead: true },
@@ -520,6 +550,9 @@ export const CLI_EFFECTS = {
   'skills-list': { effects: read, brokerRead: true },
   'skills-memory': { effects: memoryRead, brokerRead: true },
   'skills-show': { effects: read, brokerRead: true },
+  'skills-add': { effects: externalWrite, brokerRead: false },
+  'marketplace-skill-list': { effects: externalRead, brokerRead: true },
+  'marketplace-skill-detail': { effects: externalRead, brokerRead: true },
   'skills-remove': { effects: memoryWrite, brokerRead: false },
   'speaker-policy': { effects: read, brokerRead: true },
   'takeover-cancel': { effects: write, brokerRead: false },
@@ -538,6 +571,7 @@ export const CLI_EFFECTS = {
   'todo-tools': { effects: read, brokerRead: true },
   'todo-update': { effects: write, brokerRead: false },
   todos: { effects: read, brokerRead: true },
+  'approval-rule-add': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-decide': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-history': { effects: read, brokerRead: true },
   'tool-approval-rule-revoke': { effects: externalIrreversibleManagement, brokerRead: false },
@@ -643,7 +677,7 @@ function familyEffects(
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':
-      if (action === undefined || ['get', 'roles', 'member-candidates'].includes(action))
+      if (action === undefined || ['get', 'access', 'roles', 'member-candidates'].includes(action))
         return read;
       if (action === 'send') return external;
       if (['visibility', 'admins', 'add-member', 'policy', 'set-public'].includes(action))
@@ -703,6 +737,8 @@ function familyEffects(
         : values.owner?.startsWith('workspace:')
           ? { ...read, reach: 'workspace' }
           : read;
+    case 'skills-add':
+      return values.confirm ? externalWrite : externalRead;
     case 'computer-video':
       return action === 'input' ? external : write;
     case 'approval-template':

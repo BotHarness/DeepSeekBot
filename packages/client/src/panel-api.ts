@@ -25,6 +25,7 @@ export interface DockPanel {
     | undefined;
   readonly component: ComponentType<DockPanelProps>;
   readonly headerAction?: ComponentType<DockPanelProps> | undefined;
+  readonly presentation?: 'workbench' | undefined;
 }
 export interface DockPanelInstance {
   readonly id: string;

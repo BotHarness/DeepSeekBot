@@ -3,7 +3,7 @@ import { attachmentIdentity } from '../../attachments/ref.js';
 import type { AttachmentStore } from '../../attachments/store.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
-import type { createChannelAccess } from '../../channels/runtime-access.js';
+import type { createChannelAccess } from '../../runtime/runtime-access.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { externalMemberWake } from '../../messaging/defaults.js';
@@ -23,11 +23,29 @@ import { sessionDirectSpeaker } from '../../runtime/session-direct-message.js';
 import type { BotSourcePolicyStore } from '../../runtime/source-policy.js';
 import { botOwner } from '../../team/bot-access.js';
 import type { TeamService } from '../../team/service.js';
-import type { TobService } from '../../tob/service.js';
+import { holdsManagementGrant } from '../../tob/management-grants.js';
 import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
+import { createChannelFileAccess } from '../channel-files/events.js';
+import {
+  callTimelineNote,
+  callVisualNote,
+  createVoiceAccess,
+  lastCallNote,
+  queryCallWindow,
+  timelineSuffix,
+} from '../voice/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { bindScheduleCommands } from '../schedules/events.js';
+import type { WorkspaceSessionReader } from './workspace-sessions.js';
+
+export const channelToolFeatures = { createChannelFileAccess, createVoiceAccess, queryCallWindow };
+export const voiceAdmissionNotes = {
+  callTimelineNote,
+  callVisualNote,
+  lastCallNote,
+  timelineSuffix,
+};
 
 interface OrchestratorServicesPorts {
   activityEvents: ReturnType<typeof createActivityEvents>;
@@ -44,6 +62,7 @@ interface OrchestratorServicesPorts {
   database: OperationalDatabaseModulePort;
   externalMessaging: OutboundMessaging | undefined;
   grants: WorkspaceGrantStore | undefined;
+  workspaceSessions: WorkspaceSessionReader | undefined;
   inboxHistory: InboxHistoryQuery;
   inboxTriage: InboxTriage;
   memory: BotRuntimeOptions['memory'];
@@ -53,7 +72,13 @@ interface OrchestratorServicesPorts {
   schedules: BotRuntimeOptions['schedules'];
   sourcePolicy: BotSourcePolicyStore;
   team: TeamService | undefined;
-  tob: TobService | undefined;
+}
+
+function grantRoots(grants: WorkspaceGrantStore, slug: string): string[] {
+  return grants
+    .list(slug)
+    .filter((grant) => grant.revokedAt === undefined)
+    .map((grant) => grant.workspacePath);
 }
 
 export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
@@ -94,7 +119,16 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
             },
           }
         : {}),
-      ...(ports.tob?.isTob(bot.slug) ? { tobCli: true } : {}),
+      holdsManagementGrant: () => holdsManagementGrant(ports.database, bot.slug),
+      ...(ports.workspaceSessions === undefined || ports.grants === undefined
+        ? {}
+        : {
+            workspaceSessions: {
+              list: () => ports.workspaceSessions!.list(() => grantRoots(ports.grants!, bot.slug)),
+              read: (sessionId: string) =>
+                ports.workspaceSessions!.read(() => grantRoots(ports.grants!, bot.slug), sessionId),
+            },
+          }),
       ...(ports.externalMessaging === undefined
         ? {}
         : {
@@ -106,6 +140,10 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
                 return identities.length > 0 || grants.length > 0;
               },
               senderPermissions: (id) => ports.externalMessaging!.senderPermissions(bot.slug, id),
+              sourceBlocks: (input) => {
+                if (input.action === 'block' || input.action === 'unblock') turn.markSideEffect();
+                return ports.externalMessaging!.sourceBlocks(bot.slug, input);
+              },
               directory: (query) => ports.externalMessaging!.directory(bot.slug, query),
               reachable: async (bindingId, cursor) => {
                 const snapshot = await ports.externalMessaging!.snapshot(bot.slug);
@@ -398,35 +436,6 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
       ...(ports.schedules === undefined
         ? {}
         : { schedules: bindScheduleCommands(ports.schedules, bot, () => turn.markSideEffect()) }),
-      ...(turn.observeMemory
-        ? {
-            memory: {
-              continueFromCommit: (sha, branch) => {
-                if (ports.memory === undefined) throw new Error('Memory is unavailable');
-                turn.requireSideEffectAccess();
-                const result = ports.memory.continueFromCommit({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  sha,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-              switchBranch: (branch) => {
-                if (ports.memory === undefined) throw new Error('Memory is unavailable');
-                turn.requireSideEffectAccess();
-                const result = ports.memory.switchBranch({
-                  botSlug: bot.slug,
-                  sessionId: turn.sessionId,
-                  branch,
-                });
-                turn.markSideEffect();
-                return result;
-              },
-            },
-          }
-        : {}),
       assignments: ports.assignmentAccess(
         bot,
         turn.sourceEventId,

@@ -11,6 +11,7 @@ import {
   LOCAL_VIDEO_PATH,
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
+import { COMPUTER_UNLOCK_PATH } from '../../../computer/src/unlock-contract.js';
 import {
   DEVICE_NOISE_PEER_HEADER,
   DEVICE_ROUTE_HEADER,
@@ -393,6 +394,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     const pathname = new URL(request.url ?? '/', 'http://device').pathname;
     const endpoint = pathname.slice(`${prefix}/api/`.length);
     const normalizedEndpoint = decodeURIComponent(endpoint).replace(/\/{2,}/gu, '/');
+    if (`/api/${normalizedEndpoint.replace(/\/$/u, '')}` === COMPUTER_UNLOCK_PATH)
+      return refuse(response, 404, 'not-found');
     if (normalizedEndpoint.startsWith('botharness/relationships'))
       return refuse(response, 403, 'relationship-local-client-required');
     if (

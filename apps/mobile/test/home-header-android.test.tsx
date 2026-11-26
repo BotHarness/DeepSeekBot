@@ -24,18 +24,18 @@ vi.mock('react-native', async () => ({
     testID?: string;
   }) => createElement('div', { style, 'data-testid': testID }, children),
 }));
-vi.mock('expo-router', () => ({ useIsFocused: () => true, Stack: { Screen: () => null } }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
+  useRouter: () => navigation,
+  Stack: { Screen: () => null },
+}));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
-}));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  useHostDrawerOpen: () => false,
-  hostDrawer: { setReturnFocus: () => {} },
-  openHostDrawer: () => {},
-  focusOn: () => {},
 }));
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) =>
@@ -51,6 +51,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
   SettingsIcon: () => null,
 }));
 vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => null }));
+vi.mock('../src/ui/shell/list-edge-fades', () => ({ ListEdgeFades: () => null }));
 vi.mock('../src/ui/primitives/system-symbol', () => ({
   SystemSymbol: ({
     name,
@@ -134,7 +135,6 @@ describe('Android Chats header', () => {
             onQuery={() => {}}
             onExpanded={() => {}}
             onPick={() => {}}
-            onNavigation={() => {}}
           />
         }
       >
@@ -150,14 +150,15 @@ describe('Android Chats header', () => {
     expect(Number.parseFloat(bar.style.height)).toBe(56 + 24 * (scale - 1) + 8);
   });
 
-  it('keeps actions reachable on a separate row at large text sizes', () => {
+  it('keeps the environment and actions on one row at large text sizes', () => {
     const readDirection = () =>
       header(false).querySelector<HTMLElement>('[data-testid="home-header"]')?.style.flexDirection;
     device.fontScale = 1;
     expect(readDirection()).toBe('row');
     device.fontScale = 2;
-    expect(readDirection()).toBe('column');
+    expect(readDirection()).toBe('row');
     expect(header(false).querySelectorAll('[data-symbol]')).toHaveLength(2);
+    device.fontScale = 1;
   });
 
   it.each([1, 1.5, 2])(
@@ -214,7 +215,7 @@ describe('Android Chats header', () => {
 
 describe('Chats header Host name', () => {
   it.each(['ios', 'android'])(
-    'allows the entire Host name to wrap at accessibility text sizes on %s',
+    'keeps the Host name on one truncating line at accessibility text sizes on %s',
     (os) => {
       platform.OS = os;
       device.fontScale = 3.12;
@@ -230,7 +231,7 @@ describe('Chats header Host name', () => {
         const name = [...view.querySelectorAll<HTMLElement>('span')].find(
           (node) => node.textContent === 'DoodleBeardeMacBook-Air',
         )!;
-        expect(name.dataset.lines).toBeUndefined();
+        expect(name.dataset.lines).toBe('1');
       } finally {
         platform.OS = 'android';
         device.fontScale = 1;

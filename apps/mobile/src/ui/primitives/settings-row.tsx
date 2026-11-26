@@ -4,6 +4,7 @@ import { Platform, Pressable, View } from 'react-native';
 import type { LayerName } from '../design/layers';
 import { settingsColors } from '../design/controls';
 import { androidSettings, edge, radius, space } from '../design/tokens';
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
 import { LoadingIndicator } from './loading-indicator';
@@ -17,15 +18,18 @@ import { Toggle } from './toggle';
 import { segmentCorners } from '../design/segment-corners';
 import { useSettingsFormPlace } from './settings-form-context';
 import { FormRow, FormSection } from './settings-form-row';
+import { useSheetGroupFill } from './sheet-group-fill';
 
 function ControlView({
   control,
   label,
   on,
+  oneLine,
 }: {
   control: SettingsRowControl;
   label: string;
   on: LayerName;
+  oneLine: boolean;
 }) {
   const theme = useDesignTheme();
   switch (control.kind) {
@@ -44,27 +48,43 @@ function ControlView({
       return (
         <SystemSymbol
           name={{ ios: 'checkmark', android: 'check' }}
-          size={theme.type.title.line}
+          size={theme.type.title.line * theme.fontScale}
           color={theme.color.accent}
         />
       );
     case 'value':
       return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x2,
+            ...(oneLine ? { flexShrink: 1, maxWidth: '65%' } : {}),
+          }}
+        >
+          <Text
+            tone="muted"
+            style={{ fontVariant: ['tabular-nums'], flexShrink: 1 }}
+            {...(oneLine ? { numberOfLines: 1 } : {})}
+          >
             {control.text}
           </Text>
           {control.chevron === true ? (
-            <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+            <ChevronRightIcon
+              color={theme.color.muted}
+              size={theme.type.body.line * theme.fontScale}
+            />
           ) : null}
         </View>
       );
     case 'busy':
       return <LoadingIndicator size="control" />;
     case 'chevron':
-      return <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />;
+      return (
+        <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line * theme.fontScale} />
+      );
     case 'add':
-      return <PlusIcon color={theme.color.muted} size={theme.type.title.line} />;
+      return <PlusIcon color={theme.color.muted} size={theme.type.title.line * theme.fontScale} />;
   }
 }
 
@@ -101,6 +121,54 @@ function ReactNativeSettingsRow({
   const theme = useDesignTheme();
   const layer = theme.layer[on];
   const oneLine = singleLine && !theme.largeText;
+  const stacked =
+    accessibilityTextSize(theme.fontScale) && (icon !== undefined || leading !== undefined);
+  const glyph =
+    icon === undefined && leading === undefined ? null : (
+      <>
+        {icon === undefined ? null : (
+          <RowIcon
+            name={icon}
+            size={theme.type.title.line * theme.fontScale}
+            {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
+          />
+        )}
+        {leading}
+      </>
+    );
+  const text = (
+    <View
+      style={
+        stacked ? { alignSelf: 'stretch', gap: space.x1 } : { flex: 1, minWidth: 0, gap: space.x1 }
+      }
+    >
+      <Text variant="body" tone={tone} strong={strong} {...(oneLine ? { numberOfLines: 1 } : {})}>
+        {title}
+      </Text>
+      {detail === undefined ? null : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+          {detailDot === undefined ? null : (
+            <View
+              style={{
+                width: space.x3,
+                height: space.x3,
+                borderRadius: radius.round,
+                backgroundColor: detailDot,
+              }}
+            />
+          )}
+          <Text
+            variant="meta"
+            tone="muted"
+            {...(oneLine ? { numberOfLines: 1 } : {})}
+            style={{ flexShrink: 1 }}
+          >
+            {detail}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
   const row = (
     <Pressable
       testID={testID}
@@ -127,43 +195,25 @@ function ReactNativeSettingsRow({
         backgroundColor: pressed ? layer.pressed : layer.fill,
       })}
     >
-      {icon === undefined ? null : (
-        <RowIcon
-          name={icon}
-          {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
-        />
+      {stacked ? (
+        <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-start', gap: space.x3 }}>
+          {glyph}
+          {text}
+        </View>
+      ) : (
+        <>
+          {glyph}
+          {text}
+        </>
       )}
-      {leading}
-      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
-        <Text variant="body" tone={tone} strong={strong} {...(oneLine ? { numberOfLines: 1 } : {})}>
-          {title}
-        </Text>
-        {detail === undefined ? null : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-            {detailDot === undefined ? null : (
-              <View
-                style={{
-                  width: space.x3,
-                  height: space.x3,
-                  borderRadius: radius.round,
-                  backgroundColor: detailDot,
-                }}
-              />
-            )}
-            <Text
-              variant="meta"
-              tone="muted"
-              {...(oneLine ? { numberOfLines: 1 } : {})}
-              style={{ flexShrink: 1 }}
-            >
-              {detail}
-            </Text>
-          </View>
-        )}
-      </View>
       {trailing ??
         (control === undefined ? null : (
-          <ControlView control={control} label={accessibilityLabel ?? title} on={on} />
+          <ControlView
+            control={control}
+            label={accessibilityLabel ?? title}
+            on={on}
+            oneLine={oneLine}
+          />
         ))}
     </Pressable>
   );
@@ -272,7 +322,7 @@ export function SettingsGroupItem({
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
-  const layer = theme.layer[on];
+  const layer = useSheetGroupFill(on);
   const android = Platform.OS === 'android';
   if (android)
     return (

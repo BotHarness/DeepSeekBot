@@ -31,16 +31,18 @@ import {
   tint,
   truncationMode,
 } from '@expo/ui/swift-ui/modifiers';
-import { isValidElement, type ReactElement, type ReactNode } from 'react';
+import { isValidElement, useContext, type ReactElement, type ReactNode } from 'react';
 import type { ColorValue, StyleProp, TextStyle } from 'react-native';
 import { View, StyleSheet } from 'react-native';
 
+import { accessibilityTextSize } from '../design/large-text-fallback';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { CheckIcon } from '../shell/icons';
 import { LoadingIndicator } from './loading-indicator';
 import { RowIcon, rowSymbol, type RowIconName } from './row-icon';
 import { SettingsFormContext } from './settings-form-context';
+import { SystemSheet } from './system-sheet';
 import type { SettingsRowProps, SettingsSectionProps } from './settings-form-row';
 import type { SettingsRowControl } from './settings-row-model';
 import { Text as RowText } from './text';
@@ -132,9 +134,10 @@ function Hosted({ children }: { children: ReactElement }) {
 
 export function FormSection({ title, footer, children }: SettingsSectionProps) {
   const theme = useDesignTheme();
+  const system = useContext(SystemSheet);
   return (
     <Section
-      modifiers={[listRowBackground(theme.layer.raised.fill)]}
+      modifiers={system ? [] : [listRowBackground(theme.layer.raised.fill)]}
       {...(title === undefined ? {} : { title })}
       {...(footer === undefined ? {} : { footer: <Text>{footer}</Text> })}
     >
@@ -236,10 +239,17 @@ export function FormRow({
         {text}
       </Label>
     ) : leading !== undefined && isValidElement(leading) ? (
-      <HStack spacing={space.x4}>
-        <Hosted>{leading}</Hosted>
-        {text}
-      </HStack>
+      accessibilityTextSize(theme.fontScale) ? (
+        <VStack alignment="leading" spacing={space.x3}>
+          <Hosted>{leading}</Hosted>
+          {text}
+        </VStack>
+      ) : (
+        <HStack spacing={space.x4}>
+          <Hosted>{leading}</Hosted>
+          {text}
+        </HStack>
+      )
     ) : (
       text
     );
@@ -304,7 +314,7 @@ export function FormRow({
     end.kind === 'value' ? (
       <LabeledContent label={label}>
         <HStack spacing={space.x2}>
-          <Text modifiers={end.digits ? [monospacedDigit()] : []}>{end.text}</Text>
+          <Text modifiers={[...(end.digits ? [monospacedDigit()] : []), ...lines]}>{end.text}</Text>
           {chevron}
         </HStack>
       </LabeledContent>

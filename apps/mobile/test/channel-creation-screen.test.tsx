@@ -7,7 +7,7 @@ import { createChannelCreation, type ChannelCandidate } from '../src/host/channe
 const fixture = vi.hoisted(() => ({
   back: vi.fn(),
   push: vi.fn(),
-  replace: vi.fn(),
+  dismissTo: vi.fn(),
   switchTo: vi.fn(async () => true),
   fail: false,
   peopleFail: false,
@@ -71,7 +71,7 @@ vi.mock('expo-router', () => ({
       return null;
     },
   },
-  router: { back: fixture.back, push: fixture.push, replace: fixture.replace },
+  router: { back: fixture.back, push: fixture.push, dismissTo: fixture.dismissTo },
   useLocalSearchParams: () => ({ entry: 'all' }),
   useFocusEffect: (effect: () => () => void) => {
     effect();
@@ -337,7 +337,7 @@ it('chooses an Environment, a name, Bots and people in the sheet and opens the n
     humanIds: ['B-cy'],
   });
   expect(fixture.switchTo).toHaveBeenCalledWith('B');
-  expect(fixture.replace).toHaveBeenCalledWith({
+  expect(fixture.dismissTo).toHaveBeenCalledWith({
     pathname: '/channel/[id]',
     params: { id: 'group-team', hostId: 'B' },
   });

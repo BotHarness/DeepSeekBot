@@ -2,15 +2,16 @@ import type { ReceptionRecovery } from './receiver-recovery.js';
 import { pendingExternalReception } from './external-reception.js';
 import type { ConversationIngestInput, ConversationIngestSnapshot } from './conversation-ingest.js';
 import type { PairingRequest } from './pairing.js';
-import type { TrustedSenderReference } from './sender-access.js';
-import type { GrantReception, ReceptionPath } from './reception-paths.js';
-import type { QuoteResolution } from './retained-context.js';
 import type {
+  TrustedSenderReference,
   ThreadReceptionInput,
   ThreadReceptionPolicy,
   ThreadReceptionView,
-} from './thread-policy.js';
-import type { GroupReceptionInput, GroupReceptionPolicy } from './group-policy.js';
+  GroupReceptionInput,
+  GroupReceptionPolicy,
+} from './permissions/index.js';
+import type { GrantReception, ReceptionPath } from './reception-paths.js';
+import type { QuoteResolution } from './retained-context.js';
 import type { BotSourcePolicyEditor } from '../runtime/source-policy.js';
 import type { ChannelBridgeInput } from './channel-bridge.js';
 import type { RelatedReport } from './report.js';

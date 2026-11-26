@@ -4,11 +4,6 @@ import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
 import { useDeviceAlert } from '../src/ui/primitives/use-device-alert';
-import {
-  channelRouteId,
-  channelStackRouter,
-  conversationRouteOptions,
-} from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, type ViewInstance } from 'react-native';
@@ -19,14 +14,13 @@ import '../src/host/native-haptic-feedback';
 import { registerPushResolveTask } from '../src/host/native-push-resolve';
 
 import { usePushRouting } from '../src/host/push-routing';
-import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
+import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
 import { usePredictiveBack } from '../src/ui/shell/predictive-back';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
-import { topEntranceScreenOptions } from '../src/ui/shell/tob-mode-model';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
@@ -43,6 +37,7 @@ import { nativeHostStoreOpener } from '../src/host/native-local-store';
 import { nativePurgeTargets } from '../src/host/native-purge-targets';
 import { nativeBackgroundCatchUp } from '../src/host/native-background-support';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { WindowSafeAreaProvider } from '../src/ui/shell/window-insets';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -100,10 +95,14 @@ function RootNavigator() {
     ['model-preset', undefined],
     ['routing-group', undefined],
     ['prompts', t.prompts.title],
+    ['im-apps', t.imApps.title],
+    ['im-app', t.imApps.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
     ['activity-count', t.activityCountSettings.title],
+    ['tab-bar', t.tabBarSettings.title],
+    ['pinned-conversation', t.tabBarSettings.pickerTitle],
     ['chat-background', t.chatBackground.global],
   ];
   const profileListeners = swipeEntryListeners(
@@ -130,9 +129,8 @@ function RootNavigator() {
               </SafeAreaView>
             ) : null}
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
-              <SafeAreaProvider>
+              <WindowSafeAreaProvider>
                 <Stack
-                  UNSTABLE_router={channelStackRouter}
                   screenOptions={{
                     orientation: 'portrait',
                     headerStyle: { backgroundColor: theme.background },
@@ -161,19 +159,6 @@ function RootNavigator() {
                     name="create-bot-avatar"
                     options={Platform.OS === 'ios' ? { presentation: 'modal' } : {}}
                   />
-                  <Stack.Screen
-                    name="dm/[slug]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen
-                    name="channel/[id]"
-                    dangerouslySingular={channelRouteId}
-                    options={conversationRouteOptions}
-                    listeners={swipeEntryListeners('default')}
-                  />
-                  <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                   <Stack.Screen
                     name="bot/[slug]"
                     options={({ route }) => ({
@@ -237,7 +222,6 @@ function RootNavigator() {
                       title: t.privateInputOpen,
                     }}
                   />
-                  <Stack.Screen name="session/[id]" />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
                   <Stack.Screen
                     name="conversation-section"
@@ -251,35 +235,30 @@ function RootNavigator() {
                     name="cloud-join"
                     options={{
                       title: t.cloudJoin.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-services"
                     options={{
                       title: t.cloud.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-organizations"
                     options={{
                       title: t.cloudOrganizations.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-invitations"
                     options={{
                       title: t.cloudInvitations.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
                     name="cloud-agents"
                     options={{
                       title: t.cloudAgents.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
@@ -287,7 +266,6 @@ function RootNavigator() {
                     dangerouslySingular={cloudChannelRouteId}
                     options={{
                       title: t.cloudChannels.title,
-                      headerRight: () => <WorkspaceButton />,
                     }}
                   />
                   <Stack.Screen
@@ -339,6 +317,14 @@ function RootNavigator() {
                     options={{ title: t.memberPairing.title, ...sheetScreenOptions(design, true) }}
                   />
                   <Stack.Screen
+                    name="environment"
+                    options={{
+                      ...sheetScreenOptions(design),
+                      sheetAllowedDetents: [0.5, 1],
+                      title: t.environmentSheet.title,
+                    }}
+                  />
+                  <Stack.Screen
                     name="host-connection"
                     options={{
                       title: t.connectionRoutes.title,
@@ -346,14 +332,13 @@ function RootNavigator() {
                     }}
                   />
                 </Stack>
-              </SafeAreaProvider>
+              </WindowSafeAreaProvider>
             </View>
             <CallSessionHost />
             <BotCreationNotice />
             <ChannelCreationNotice />
             <StatisticsNotice />
             <DeviceAlertBanner placement="overlay" />
-            <HostDrawer />
             <AppDialogHost />
           </View>
         </SafeAreaProvider>

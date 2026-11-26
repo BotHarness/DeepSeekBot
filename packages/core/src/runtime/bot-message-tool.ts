@@ -16,11 +16,18 @@ import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../chan
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
 import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
+import { expandGenuiContent, genuiPreviews, type GenuiPreviewStore } from './genui-authoring.js';
 import {
   qqReplyFailureCapability,
   sourceReplyCapability,
 } from '../messaging/source-reply-capability.js';
 import { MessagingError } from '../messaging/provider.js';
+import {
+  closeStreakSource,
+  isStreakSourceClosed,
+  recordSend,
+  SEND_STREAK_LIMIT,
+} from './send-streak.js';
 
 const QQ_REPLY_NOTICE =
   'Keep the answer in the original QQ conversation. Use its actual @-mention Source Event if it is still replyable. A failed reply does not authorize a proactive post.';
@@ -39,6 +46,11 @@ export class BotMessageError extends HarnessError {
     this.name = 'BotMessageError';
   }
 }
+
+const SEND_STREAK_NOTICE = `Not sent, and this turn has ended: this would be message ${SEND_STREAK_LIMIT + 1} in a row to the same destination with no other work in between. Do not post status updates in place of work. This request is closed: do not reply to it or continue it later. Answer only new messages. If something you need, such as a tool, is unavailable, say so once instead of promising it.`;
+
+const CLOSED_SOURCE_NOTICE =
+  'Not sent: this request was closed after repeated messages in a row. Do not reply to it or finish it; answer only new messages.';
 
 const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
@@ -131,52 +143,48 @@ export function createBotMessageTool(
     discard(channelId: string): void;
   },
   sentToHumanDm?: (messageId: string) => void,
+  previews?: GenuiPreviewStore,
 ) {
   const runsWithFailedQqReply = new WeakSet<OrchestratorAgentRun>();
   return defineTool({
     name: 'bot_send_message',
     description:
-      'Explicitly send a text message to a Channel or external IM. Reply using a trusted source_event_id, or proactively name channel_id, bot_id, grant_id, or binding_id plus conversation_id; provide exactly one destination. Decide whether a message is useful: answer quick tasks directly, report meaningful changes, ask necessary questions, and respect silence. Ordinary assistant text is private. end_turn ends only this turn after delivery and requested Inbox resolution succeed; a question can end the turn without resolving unfinished work. Group sends retain draft review: use the returned observation and draft identifiers to revise or recover a held send. Unknown external delivery never resolves Inbox or ends the turn. For a remote Bot DM, delivery-unknown means the receiver may already have accepted it: inspect existing history and report uncertainty; never resend automatically or switch destinations to retry. unable-to-deliver and network-denied are refusals, not instructions to retry; follow the explicit Human policy for any later attempt.',
+      'Send a message to a Channel or external IM. Ordinary assistant text is private. Give exactly one destination: a trusted source_event_id to reply, or channel_id, human_id, bot_id, grant_id, or binding_id with conversation_id. After delivery-unknown, check that conversation history and report the uncertainty; never resend or switch destinations. unable-to-deliver and network-denied are refusals. A finished reply passes resolve_inbox_ids and end_turn.',
     parameters: {
       source_event_id: {
         type: 'string',
-        description:
-          'Trusted Source Event from your Inbox. External sources reply on their original IM route.',
+        description: 'Trusted Inbox Source Event to reply to.',
       },
       channel_id: {
         type: 'string',
-        description: 'Explicit authorized Channel destination for a proactive send.',
+        description: 'Authorized Channel for a proactive send.',
       },
       human_id: {
         type: 'string',
-        description:
-          'Proactively DM this Host Human; requires the Bot proactive switch, current audience and no per-Bot opt-out.',
+        description: 'Host Human to DM proactively, when proactive DMs are allowed.',
       },
       bot_id: {
         type: 'string',
-        description:
-          'Stable colleague Bot ID from list_bot_contacts; proactively open or send to its Bot DM.',
+        description: 'Colleague Bot ID from list_bot_contacts, for its Bot DM.',
       },
       binding_id: {
         type: 'string',
-        description: 'Owned external app from bridge_reachable_groups; use with conversation_id.',
+        description: 'External app from bridge_reachable_groups, with conversation_id.',
       },
       conversation_id: {
         type: 'string',
-        description: 'Exact reachable conversation belonging to binding_id.',
+        description: 'Conversation of binding_id.',
       },
       grant_id: {
         type: 'string',
-        description:
-          'Explicit authorized external target from bridge_targets for a proactive send.',
+        description: 'External target from bridge_targets.',
       },
-      observation_id: { type: 'string', description: 'Current Group read or review observation.' },
-      draft_id: { type: 'string', description: 'Existing Group draft to revise or recover.' },
-      recover: { type: 'boolean', description: 'Recover the specified Group draft after restart.' },
+      observation_id: { type: 'string', description: 'Group observation from a read or review.' },
+      draft_id: { type: 'string', description: 'Held Group draft to revise or recover.' },
+      recover: { type: 'boolean', description: 'Recover draft_id after a restart.' },
       attachments: {
         type: 'array',
-        description:
-          'Imported Attachment references. External replies support one file with empty body; proactive external file sending is unavailable.',
+        description: 'Imported Attachments. External replies take one file with an empty body.',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -191,7 +199,7 @@ export function createBotMessageTool(
       },
       quotes: {
         type: 'array',
-        description: `Cite up to ${MAX_CHANNEL_QUOTES} earlier messages of the destination Channel that this message answers, shown to the Human above your text. Give message_id, and text only to cite a part: copy that excerpt word for word from the message. Add note to answer that one quote right under it. Local Channels only.`,
+        description: `Up to ${MAX_CHANNEL_QUOTES} earlier messages this answers, shown above your text. text cites a verbatim excerpt; note answers that quote. Local Channels only.`,
         items: {
           type: 'object',
           additionalProperties: false,
@@ -205,12 +213,12 @@ export function createBotMessageTool(
       mention_bot_ids: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Stable Bot IDs to mention in a local Group.',
+        description: 'Bot IDs to mention in a local Group.',
       },
       mention_human_ids: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Stable Human IDs to mention in a local Group.',
+        description: 'Human IDs to mention in a local Group.',
       },
       freshness_override: {
         type: 'object',
@@ -219,34 +227,36 @@ export function createBotMessageTool(
           draftVersion: { type: 'integer', required: true },
           reason: { type: 'string', required: true },
         },
-        description: 'Explicit Group review override for the current draft version and reason.',
+        description: 'Group review override for this draft version.',
       },
       voice: {
         type: 'boolean',
         description:
-          'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
+          'Also send as a voice message in your voice; give it before body. Local Channels only.',
       },
       body: {
         type: 'string',
         required: true,
         description:
-          'The actual message to deliver. To point the Human at one of your Assignments inside the text, write [Assignment title](session:<session id>) inline; it shows as a clickable chip, and external IM gets the plain title. To link a Human DM message to the Assignments it reports on, call link_message_sessions with its messageId after sending.',
+          'Message text. [Assignment title](session:<session id>) shows a clickable Assignment chip.',
       },
       genui_json: {
         type: 'string',
         description:
-          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
+          'Complete GenUI JSON for a Human DM (256 KiB max), same format as genui_preview; body is the readable summary. After a genui_preview, pass genui_preview_id instead.',
+      },
+      genui_preview_id: {
+        type: 'string',
+        description: 'Publish a genui_preview result instead of genui_json. Human DM only.',
       },
       resolve_inbox_ids: {
         type: 'array',
         items: { type: 'string' },
-        description:
-          'Explicitly resolve this reply source after delivery. Omit for unfinished work.',
+        description: 'Resolve this reply source after delivery; omit for unfinished work.',
       },
       end_turn: {
         type: 'boolean',
-        description:
-          'Default false. Conclude this turn only after successful delivery and requested resolution.',
+        description: 'End this turn after delivery and resolution succeed.',
       },
     },
     output: {
@@ -270,6 +280,48 @@ export function createBotMessageTool(
         );
       if (!args.body.trim() && !args.attachments?.length)
         throw new BotMessageError('empty-message', 'Text or an attachment is required.');
+      if (
+        args.source_event_id !== undefined &&
+        isStreakSourceClosed(run.sessionId, args.source_event_id)
+      )
+        return JSON.stringify({
+          status: 'refused',
+          reason: 'source-closed',
+          notice: CLOSED_SOURCE_NOTICE,
+          inboxResolution: { outcome: 'not-requested' },
+        });
+      const destination = destinations[0]!;
+      if (
+        recordSend(
+          run,
+          JSON.stringify([destination, args[destination], args.conversation_id]),
+          String(exec.callId),
+        ) > SEND_STREAK_LIMIT
+      ) {
+        exec.concludeTurn();
+        let ignored = false;
+        if (args.source_event_id !== undefined)
+          closeStreakSource(run.sessionId, args.source_event_id);
+        if (args.source_event_id !== undefined && run.triage !== undefined)
+          try {
+            ignored =
+              run.triage.resolve({
+                ids: [args.source_event_id],
+                outcome: 'ignored',
+                note: 'send-streak',
+              }).outcome === 'resolved';
+          } catch {
+            ignored = false;
+          }
+        return JSON.stringify({
+          status: 'refused',
+          reason: 'send-streak',
+          notice: SEND_STREAK_NOTICE,
+          inboxResolution: ignored
+            ? { outcome: 'ignored', resolved: [args.source_event_id] }
+            : { outcome: 'not-requested' },
+        });
+      }
       const reply =
         args.source_event_id === undefined
           ? undefined
@@ -321,19 +373,31 @@ export function createBotMessageTool(
           'invalid-review',
           'Recovery requires draft_id and a fresh observation_id.',
         );
+      if (args.genui_json !== undefined && args.genui_preview_id !== undefined)
+        throw new BotMessageError(
+          'invalid-genui',
+          'Use either genui_preview_id or genui_json, not both.',
+        );
       const genui =
-        args.genui_json === undefined
+        args.genui_json === undefined && args.genui_preview_id === undefined
           ? undefined
-          : (() => {
+          : await (async () => {
               if (external || channel?.kind !== 'human-dm' || !args.body.trim())
                 throw new BotMessageError(
                   'unsupported-genui-destination',
                   'Reports require a Human DM and a readable summary.',
                 );
-              if (new TextEncoder().encode(args.genui_json).length > GENUI_DOCUMENT_LIMITS.bytes)
+              if (args.genui_preview_id !== undefined)
+                return parseGenuiContent(
+                  (previews ?? genuiPreviews).read(run.bot.slug, args.genui_preview_id),
+                );
+              if (new TextEncoder().encode(args.genui_json!).length > GENUI_DOCUMENT_LIMITS.bytes)
                 throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
-              return parseGenuiContent(JSON.parse(args.genui_json));
+              return parseGenuiContent(
+                await expandGenuiContent(JSON.parse(args.genui_json!), { signal: exec.signal }),
+              );
             })();
+      exec.signal.throwIfAborted();
       if (
         args.freshness_override &&
         (!args.draft_id ||

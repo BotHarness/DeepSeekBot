@@ -7,7 +7,7 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 ### Product naming
 
 **Tobs / 托布**:
-The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Bot.
 _Avoid_: 拖布, Tob (when referring to the product)
 
 **BotHarness**:
@@ -38,23 +38,35 @@ A voice identity that a compatible speech model can use to speak. It can be buil
 **Speech Catalog**:
 The speech models and voices a provider offers for selection. A shared voice may need to be added to the provider account before it becomes usable.
 
+**Meeting**:
+One session on an outside meeting platform, such as a Zoom or Google Meet meeting, identified by its link.
+_Avoid_: call (a call is between a Human and a Bot), conference
+
+**Meeting Attendance**:
+One Bot's presence in one Meeting, run as a call whose far end is the meeting. It is waiting, in the meeting, left or failed, and leaves a transcript and recap in the Bot's Memory, not in any conversation.
+_Avoid_: meeting bot, meeting session, recording
+
 ### PersonaBots
 
-**Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
-_Avoid_: global Orchestrator, Home panel, dashboard
-
 **Tob**:
-The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access.
+The built-in local PersonaBot every Profile creates first; its name reverses “Bot” and also stands for “Thousands of Bot.” It is an ordinary Bot: the Human can rename, archive, delete or share it, and its Soul and Memory stay editable and portable. It starts with both **App management grant** switches on, so it is the Bot that helps the Human configure the rest of the App; the grant, never its name, decides what it may manage ([Tob decisions](docs/decisions/tob.md#app-management-grant)).
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+Retired ([Tob decisions §2](docs/decisions/tob.md#adr-0268), #5198). The mobile entrance that opened the Tob DM from the Tob entry bar was replaced by the **Pinned tab**; the Tob DM opens from its Chats row or the Pinned tab like any conversation.
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
 Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
 _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
+
+**Steward**:
+Retired ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). The singleton role of ADR-0365 was replaced by the **App management grant**.
+_Avoid_: Steward role, Steward transfer, Steward Bot
+
+**App management grant**:
+The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' PersonaBot Profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
+_Avoid_: Steward, Admin, administrator
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
@@ -192,7 +204,7 @@ The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in
 _Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
 
 **Subagent**:
-A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.
+A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session. A Subscription Engine's own sub-agent is shown the same way, as a read-only child Session that cannot act as the Bot.
 _Avoid_: sub-bot, worker, helper
 
 **Session**:
@@ -286,6 +298,10 @@ _Avoid_: reviewer Session, auto-approval Session, Orchestrator Session, Assignme
 **Assignment Access Preset**:
 A Human-controlled per-PersonaBot choice applied when a new Assignment is created. The default is DSH workspace-write with ask; dangerous full access is an explicit opt-in to DSH danger-full-access with never. The chosen mode is frozen in each Assignment's permission snapshot, while its selected Workspace Grant remains required.
 _Avoid_: Workspace Grant, in-place Session mode switch, Orchestrator permission
+
+**Loadout**:
+A named system prompt and bounded tool set that a Session runs with, fixed once the Session starts. Tobs and the Tobs scenario Loadouts (research, code, script) are built in; a lean Loadout gives a simple job a short prompt and a few tools, so each step sends far less, and the Orchestrator can pair it with a cheaper Model Choice. A PersonaBot's own Loadout, the Orchestrator's choice per Assignment and the mode template follow [Session decisions §15](docs/decisions/sessions.md#bot-modes). The UI, `create_assignment` and the CLI say Loadout; DSH still calls it a mode.
+_Avoid_: Session mode, mode (bare, beside Team mode, Developer Mode and Tob Mode), agent preset (outside DSH seams), instruction set
 
 **Delegation**:
 Handing responsibility to a PersonaBot from a Chat or the Roster. Its Orchestrator may answer directly or create or reuse one or more Assignment Sessions.
@@ -455,6 +471,10 @@ _Avoid_: Memory tool, filesystem watcher, Git event source, generic repository
 An ordinary Git commit in a Memory Repository. Git authorship and topology remain intact. BotHarness may record the HEAD observed after a trusted operation with its own actor and cause; the record is an audit/recovery checkpoint, not permission for the file to become Memory.
 _Avoid_: accepted commit, file save, filesystem event, auto-save
 
+**Memory Lease**:
+A read-only grant that lets one Tob-owned Assignment read selected Bots' accepted Memory for one Human request in Tob's DM. It is bound to that request's Source Events, the Assignment and each Bot's incarnation, records every read with its revision, and ends when revoked, when the Assignment is archived or when the request is purged. It never permits a write.
+_Avoid_: Memory share, cross-Bot access, Memory permission, borrowed Memory
+
 **Memory Observation**:
 A trusted record of repository state seen by the Host, optionally in the context of an owned Orchestrator Session and Source Event. It describes when the state was seen, not who authored Git content; observation does not stage, commit, reject, or hide current working-tree files.
 _Avoid_: commit acceptance, filesystem watch, background distillation
@@ -508,6 +528,14 @@ _Avoid_: install, download, subscribe
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
+
+**Indexed Skill Repository**:
+A public GitHub repository carrying the `tobs-skill` topic, or one an administrator indexed by hand, whose `SKILL.md` folders the Marketplace lists as Marketplace Skills and refreshes on a schedule.
+_Avoid_: skill pack, skill source, plugin repository
+
+**Marketplace Skill**:
+One `SKILL.md` folder of an Indexed Skill Repository, listed at the commit the Marketplace last read, with its scripts and safety-scan findings. Adding it copies the folder into chosen PersonaBots' Memory Repositories as a Project Skill, or into the Host as a Host Skill; later changes upstream never reach the copy.
+_Avoid_: plugin, connector, App connection, extension, Skill install
 
 **Uploaded Bot**:
 A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
@@ -616,7 +644,7 @@ One way a Host Member proves identity to a Host, separate from the identity itse
 _Avoid_: session, account, device grant
 
 **Host Role**:
-A named set of Host Permissions assigned to Host Members, with union semantics across a member's roles; Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
+A named set of Host Permissions assigned to Host Members, each allowed, denied or left unset; a member holds the union of their roles' allowed permissions minus any permission one of their roles denies. Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
 _Avoid_: group, Channel role, pairing Role
 
 **Host Permission**:
@@ -719,6 +747,10 @@ _Avoid_: sync, mirror, Bridge (for this record)
 **App**:
 The UI name (应用) for one authenticated Provider account, such as a Lark app, a Slack app, a Discord bot or a paired WeChat Bot. An App is bound to at most one PersonaBot; a PersonaBot may bind several Apps, including several of one platform. Bot Settings → IM apps lists every App and the PersonaBot that uses it.
 _Avoid_: IM account (in UI copy), connector, integration
+
+**App connection**:
+The UI name (应用连接) for one account in an outside data app, such as Gmail, Google Calendar, Drive, Notion or GitHub, that the Host Owner connects once on the Host through the Owner's own Composio project. The Owner gives each PersonaBot No access, Read or Read and write on each App connection; a Bot reaches it only through Host-guarded `mcp__composio__` tools and never sees the Composio key. It is unrelated to an IM App and to External connectors.
+_Avoid_: connector (bare, in UI copy), integration, App (for this record), plugin
 
 **Default traffic**:
 The messages an enabled external identity Binding admits without any per-conversation consent: direct messages to the App and group messages the qualified Provider reports as mentioning it. Where the App can be reached is decided on the platform; ordinary group text, followed threads and Channel syncs stay explicit.
@@ -1258,17 +1290,37 @@ _Avoid_: home, conversation list, Chat list
 The tab that shows Activity.
 _Avoid_: notifications tab, inbox
 
+**Sessions tab**:
+The optional tab for the phone's Host Sessions. Its root follows the Session navigation style: the New Session screen in Drawer style, with existing Sessions in the Session drawer, or the Session list in Stacked style. Per-phone landing settings choose where it opens on launch and when returning from another tab.
+_Avoid_: Session list tab, Sessions page
+
+**New Session screen**:
+The empty state of the Sessions tab where the Human picks a computer Environment and working folder and writes the first prompt of a new Session. Its Session does not exist until that first prompt is sent.
+_Avoid_: create Session form, blank Session
+
+**Session drawer**:
+The left modal navigation drawer of the Sessions tab (Android `ModalNavigationDrawer` ↔ a native iOS replica), opened by a rightward swipe anywhere on a Drawer-style Session root or its header button, that lists the Environment Scope's Sessions with search, sort and filter. Choosing a row replaces the Sessions tab's content.
+_Avoid_: Session sidebar, Session list page, Host drawer
+
+**Session navigation style**:
+A per-phone preference for how the Sessions tab moves between Sessions: Drawer (default; the New Session screen is the root, the Session drawer lists Sessions, and a chosen Session replaces the content without Back) or Stacked (the Session list is the root and a chosen Session is pushed with Back). In both, the tab island stays visible inside a Session.
+_Avoid_: Session mode, layout mode
+
+**Tob entry bar**:
+Retired ([Tob decisions §2](docs/decisions/tob.md#adr-0268), #5198). The Composer-shaped tap target on Chats was replaced by the **Pinned tab**; Chats has no Composer-shaped bar.
+_Avoid_: Tob input, quick composer, pull to Tob
+
+**Pinned tab**:
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the built-in Tob's DM (then the most recent conversation), follows the Environment Scope, and replaces the Tob entry bar and Tob Mode. Settings → Tab bar reorders the tabs by dragging and picks the bound conversation for the current Environment (#5196).
+_Avoid_: Tob tab, favorite, shortcut tab
+
 **Settings**:
 The tab for the phone's own preferences and the Human's account, models, usage and storage.
 _Avoid_: preferences page, gear menu
 
-**Workspace panel**:
-On iOS, the retained page to the left of Chats that lists paired Computers and cloud workspaces and switches between them. The Workspace drawer does the same job everywhere else.
-_Avoid_: -1 screen, sidebar, Host drawer
-
-**Workspace drawer**:
-The navigation drawer, opened from the Host chip, that lists paired Computers and cloud workspaces and switches between them.
-_Avoid_: Host drawer, sidebar, menu
+**Environment sheet**:
+The bottom sheet, opened from the Environment settings group in Settings and from the Environment name in the Chats header, that lists All, paired Computers and cloud workspaces and sets the Environment Scope for Chats, Activity and Sessions together ([ADR-0364](docs/decisions/mobile-ui.md#adr-0364)).
+_Avoid_: Workspace panel, Workspace drawer, Host drawer, Host chip, sidebar
 
 **Conversation screen**:
 The screen that shows one DM or Channel: a header, the Conversation Timeline and, where the Human can post, the Composer (a read-only Bot-to-Bot DM has none). Tob Mode opens this same screen.

@@ -3,190 +3,243 @@ import { createRequire, Module } from 'node:module';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock(
-  '@expo/ui/jetpack-compose/modifiers',
-  async () => (await import('./compose-menu-shim')).modifiers,
-);
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
+const avatar = vi.hoisted(() => ({
+  icons: {
+    default: { uri: 'file:///plain.png', scale: 3 },
+    selected: { uri: 'file:///ring.png', scale: 3 },
+  } as { default: { uri: string }; selected: { uri: string } } | undefined,
+}));
+vi.mock('../src/features/pinned-tab/avatar-icon', () => ({
+  useAvatarIcons: () => ({ icons: avatar.icons, capture: null }),
+}));
+vi.mock('@expo/ui/jetpack-compose/modifiers', async () => {
+  const { modifiers } = await import('./compose-menu-shim');
+  return {
+    ...modifiers,
+    size: () => ({}),
+    dropShadow: (_shape: unknown, config: { alpha: number }) => ({ shadow: config.alpha }),
+    combinedClickable: ({ onClick, onLongClick }: { onClick(): void; onLongClick(): void }) => ({
+      onClick,
+      onLongClick,
+    }),
+  };
+});
 vi.mock('@expo/ui/jetpack-compose', async () => {
   const { components } = await import('./compose-menu-shim');
   const pass = ({ children }: { children?: ReactNode }) => children;
-  const slot =
-    (name: string) =>
-    ({ children }: { children?: ReactNode }) =>
-      createElement('span', { 'data-slot': name }, children);
-  const Item = Object.assign(
-    ({
+  type Modifier = {
+    onClick?: () => void;
+    onLongClick?: () => void;
+    id?: string;
+    fill?: string;
+    shadow?: number;
+  };
+  const Box = ({ children, modifiers }: { children?: ReactNode; modifiers?: Modifier[] }) => {
+    const click = modifiers?.find((modifier) => modifier.onClick);
+    return createElement(
+      click ? 'button' : 'div',
+      {
+        onClick: click?.onClick,
+        onContextMenu: click?.onLongClick,
+        'data-testid': modifiers?.find((modifier) => modifier.id)?.id,
+        'data-fill': modifiers?.find((modifier) => modifier.fill)?.fill,
+      },
       children,
-      onClick,
-      selected,
-      modifiers,
-    }: {
-      children?: ReactNode;
-      onClick(): void;
-      selected: boolean;
-      modifiers: Array<{ description?: string }>;
-    }) =>
-      createElement(
-        'button',
-        {
-          onClick,
-          'aria-pressed': selected,
-          'aria-label': modifiers.find((modifier) => modifier.description)?.description,
-        },
-        children,
-      ),
-    { Icon: slot('icon'), Label: slot('label') },
-  );
-  const BadgedBox = Object.assign(pass, { Badge: slot('badge') });
+    );
+  };
+  const Toolbar = ({
+    children,
+    modifiers,
+    colors,
+  }: {
+    children?: ReactNode;
+    modifiers?: Modifier[];
+    colors?: { toolbarContainerColor?: string };
+  }) =>
+    createElement(
+      'nav',
+      {
+        'data-shadow': modifiers?.find((modifier) => modifier.shadow !== undefined)?.shadow,
+        'data-container': colors?.toolbarContainerColor,
+      },
+      children,
+    );
   return {
     ...components,
-    NavigationBar: pass,
-    NavigationBarItem: Item,
-    BadgedBox,
-    Badge: ({ children, containerColor }: { children?: ReactNode; containerColor?: string }) =>
-      createElement('b', { 'data-container': containerColor ?? 'default' }, children),
-    Icon: () => createElement('i', { 'data-icon': true }),
+    Box,
+    HorizontalFloatingToolbar: Toolbar,
+    BadgedBox: Object.assign(pass, {
+      Badge: ({ children }: { children?: ReactNode }) =>
+        createElement('span', { 'data-slot': 'badge' }, children),
+    }),
+    Icon: ({ source }: { source: string }) => createElement('i', { 'data-icon': source }),
+    Image: ({ source }: { source: { uri: string } }) =>
+      createElement('em', { 'data-avatar': source.uri }),
   };
 });
+vi.mock('../src/ui/primitives/count-badge.android', () => ({
+  MaterialCountBadge: ({ count }: { count: number }) => createElement('b', null, String(count)),
+}));
 import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.android';
-import { router } from 'expo-router';
+import type { NavigationDestination } from '../src/ui/shell/navigation-destination';
+import type { TabSlot } from '../src/ui/shell/tab-slots';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-it('keeps the Activity icon and labels, marks pending items with a Material 3 dot badge and speaks the count', async () => {
-  const requireAsset = createRequire(import.meta.url);
-  const assets = ['activity', 'chats', 'settings'].map((name) =>
-    requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
-  );
-  for (const path of assets) {
-    const asset = new Module(path);
-    asset.exports = 1;
-    requireAsset.cache[path] = asset;
-  }
-  const host = document.createElement('div');
-  const root = createRoot(host);
-  const select = vi.fn();
-  const render = (count: number, focused: boolean) =>
-    act(() =>
-      root.render(
-        createElement(NavigationDestinations, {
-          items: [
-            {
-              key: 'chats',
-              activity: false,
-              count: 0,
-              focused: !focused,
-              onPress: select,
-              onLongPress() {},
-            },
-            {
-              key: 'activity',
-              activity: true,
-              count,
-              focused,
-              onPress: select,
-              onLongPress() {},
-            },
-            {
-              key: 'settings',
-              activity: false,
-              settings: true,
-              count: 0,
-              focused: false,
-              onPress: () => router.push('/settings'),
-              onLongPress() {},
-            },
-          ],
-        }),
-      ),
-    );
-  try {
-    for (const focused of [false, true]) {
-      for (const [count, expected] of [
-        [0, ''],
-        [7, '7'],
-        [100, '99+'],
-        [0, ''],
-      ] as const) {
-        render(count, focused);
-        const button = host.querySelectorAll('button')[1]!;
-        expect(button.querySelector('[data-slot="label"]')?.textContent).toBe(t.activity);
-        expect(button.querySelector('[data-slot="icon"] i')).not.toBeNull();
-        const badge = button.querySelector('[data-slot="badge"] b');
-        expect(Boolean(badge)).toBe(count > 0);
-        if (badge) {
-          expect(badge.textContent).toBe('');
-          expect(badge.getAttribute('data-container')).not.toBe('default');
-        }
-        expect(button.getAttribute('aria-label')).toBe(
-          count === 0 ? t.activity : `${t.activity}, ${t.activityPendingLabel(expected)}`,
-        );
-        expect(button.getAttribute('aria-pressed')).toBe(String(focused));
-      }
-      const settings = host.querySelectorAll('button')[2]!;
-      expect(settings.querySelector('[data-slot="label"]')?.textContent).toBe(t.settings);
-      expect(settings.querySelector('[data-slot="icon"] i')).not.toBeNull();
-      expect(settings.getAttribute('aria-pressed')).toBe('false');
-      vi.mocked(router.push).mockClear();
-      await act(async () => settings.click());
-      expect(router.push).toHaveBeenCalledExactlyOnceWith('/settings');
-      expect(select).not.toHaveBeenCalled();
-      expect(host.querySelectorAll('button')[1]!.getAttribute('aria-pressed')).toBe(
-        String(focused),
-      );
-    }
-    await act(async () => host.querySelectorAll('button')[1]!.click());
-    expect(select).toHaveBeenCalledOnce();
-  } finally {
-    act(() => root.unmount());
-    for (const path of assets) delete requireAsset.cache[path];
-  }
-});
 
-it('drops every Material label together when labels do not fit and keeps each content description', async () => {
+const names = [
+  'activity',
+  'activity-filled',
+  'chats',
+  'chats-filled',
+  'code',
+  'settings',
+  'settings-outline',
+];
+
+async function withAssets(run: () => Promise<void> | void) {
   const requireAsset = createRequire(import.meta.url);
-  const assets = ['chats', 'sessions', 'settings'].map((name) =>
-    requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
+  const assets = new Map(
+    names.map((name) => [requireAsset.resolve(`../assets/toolbar/${name}.xml`), name]),
   );
-  for (const path of assets) {
+  assets.set(requireAsset.resolve('../assets/row-icons/stay.xml'), 'pin');
+  for (const [path, name] of assets) {
     const asset = new Module(path);
-    asset.exports = 1;
+    asset.exports = name;
     requireAsset.cache[path] = asset;
   }
-  const host = document.createElement('div');
-  const root = createRoot(host);
-  const item = (key: string, kind: { sessions?: boolean; settings?: boolean }) => ({
-    key,
-    focused: key === 'chats',
-    activity: false,
-    ...kind,
-    count: 0,
-    onPress() {},
-    onLongPress() {},
-  });
   try {
-    act(() =>
-      root.render(
-        createElement(NavigationDestinations, {
-          labels: false,
-          items: [
-            item('chats', {}),
-            item('sessions', { sessions: true }),
-            item('settings', { settings: true }),
-          ],
-        }),
-      ),
-    );
-    expect(host.querySelectorAll('[data-slot="label"]')).toHaveLength(0);
-    expect(host.querySelectorAll('[data-slot="icon"] i')).toHaveLength(3);
-    expect([...host.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))).toEqual([
-      t.chats,
-      t.hostSessions.title,
-      t.settings,
-    ]);
+    await run();
   } finally {
-    act(() => root.unmount());
-    for (const path of assets) delete requireAsset.cache[path];
+    for (const path of assets.keys()) delete requireAsset.cache[path];
   }
-});
+}
+
+function item(slot: TabSlot, extra: Partial<NavigationDestination> = {}): NavigationDestination {
+  return {
+    key: slot,
+    slot,
+    focused: false,
+    count: 0,
+    name: slot,
+    accessibilityLabel: slot,
+    onPress: vi.fn(),
+    onLongPress: vi.fn(),
+    ...extra,
+  };
+}
+
+it('floats five icon-only items flat on the page colour with a tonal selected pill and the Pinned avatar', () =>
+  withAssets(() => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const pinned = item('pinned', {
+      focused: true,
+      count: 3,
+      accessibilityLabel: 'Launch, pinned tab, 3 unread',
+    });
+    try {
+      act(() =>
+        root.render(
+          createElement(NavigationDestinations, {
+            items: [
+              item('chats'),
+              pinned,
+              item('activity', { count: 2 }),
+              item('sessions'),
+              item('settings'),
+            ],
+          }),
+        ),
+      );
+      const nav = host.querySelector('nav')!;
+      expect(nav.getAttribute('data-shadow')).toBeNull();
+      expect(nav.getAttribute('data-container')).toBe(resolveTheme('light').color.base);
+      const buttons = [...host.querySelectorAll('button')];
+      expect(buttons.map((button) => button.getAttribute('data-testid'))).toEqual([
+        'navigation-chats',
+        'navigation-pinned',
+        'navigation-activity',
+        'sessions-tab',
+        'settings-button',
+      ]);
+      expect(
+        buttons.map((button) => button.querySelector('i')?.getAttribute('data-icon') ?? null),
+      ).toEqual(['chats', null, 'activity', 'code', 'settings-outline']);
+      expect(buttons[1]!.querySelector('em')?.getAttribute('data-avatar')).toBe('file:///ring.png');
+      expect(buttons[1]!.querySelector('[data-slot="badge"]')?.textContent).toBe('3');
+      expect(buttons[2]!.querySelector('[data-slot="badge"]')?.textContent).toBe('2');
+      expect(
+        buttons.filter((button) => button.getAttribute('data-fill') !== 'transparent'),
+      ).toEqual([buttons[1]]);
+      expect(host.textContent).not.toContain(t.chats);
+      expect(
+        [...host.querySelectorAll('[role="tab"]')].map((tab) => [
+          tab.getAttribute('aria-label'),
+          tab.getAttribute('aria-selected'),
+        ]),
+      ).toEqual([
+        ['chats', 'false'],
+        ['Launch, pinned tab, 3 unread', 'true'],
+        ['activity', 'false'],
+        ['sessions', 'false'],
+        ['settings', 'false'],
+      ]);
+    } finally {
+      act(() => root.unmount());
+    }
+  }));
+
+it('routes a tap to onPress and a long press to onLongPress', () =>
+  withAssets(async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const chats = item('chats', { focused: true });
+    try {
+      act(() =>
+        root.render(createElement(NavigationDestinations, { items: [chats, item('settings')] })),
+      );
+      const button = host.querySelector('button')!;
+      await act(async () => button.click());
+      await act(async () => {
+        button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+      });
+      expect(chats.onPress).toHaveBeenCalledOnce();
+      expect(chats.onLongPress).toHaveBeenCalledOnce();
+    } finally {
+      act(() => root.unmount());
+    }
+  }));
+
+it('shows the Pin until both captures are available, then displays the focused or unfocused avatar', () =>
+  withAssets(() => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const render = (focused: boolean) =>
+      act(() =>
+        root.render(
+          createElement(NavigationDestinations, {
+            items: [item('chats'), item('pinned', { focused })],
+          }),
+        ),
+      );
+    const face = () => host.querySelector('[data-testid="navigation-pinned"]')!.firstElementChild;
+    const captured = avatar.icons;
+    try {
+      avatar.icons = undefined;
+      render(false);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      render(true);
+      expect(face()?.getAttribute('data-icon')).toBe('pin');
+      avatar.icons = captured;
+      render(false);
+      expect(face()?.getAttribute('data-avatar')).toBe('file:///plain.png');
+      render(true);
+      expect(face()?.getAttribute('data-avatar')).toBe('file:///ring.png');
+    } finally {
+      avatar.icons = captured;
+      act(() => root.unmount());
+    }
+  }));

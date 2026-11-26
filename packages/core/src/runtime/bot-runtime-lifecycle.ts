@@ -1,4 +1,4 @@
-import type { createChannelAdmission } from '../channels/runtime-admission.js';
+import type { createChannelAdmission } from './runtime-admission.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { createActivityEvents } from '../features/activity/events.js';
@@ -116,6 +116,7 @@ export function createBotRuntimeLifecycle(ports: BotRuntimeLifecyclePorts) {
 
 interface BotRuntimeRecoveryPorts {
   ready: () => boolean;
+  reconcilePendingOrchestratorReplacements: () => void;
   admissionRecovery: Pick<
     ReturnType<typeof createRuntimeAdmissionRecovery>,
     'recoverInterruptedAttempts' | 'retireRevokedGroupRetries'
@@ -140,6 +141,7 @@ interface BotRuntimeRecoveryPorts {
 
 export function createBotRuntimeRecovery({
   ready,
+  reconcilePendingOrchestratorReplacements,
   admissionRecovery,
   channelAdmission,
   channels,
@@ -151,6 +153,7 @@ export function createBotRuntimeRecovery({
 }: BotRuntimeRecoveryPorts) {
   return function recoverAtStartup(): void {
     if (ready()) {
+      reconcilePendingOrchestratorReplacements();
       const interruptedDms = admissionRecovery.recoverInterruptedAttempts();
       admissionRecovery.retireRevokedGroupRetries();
       channelAdmission.recoverPendingChannelAdmissions();

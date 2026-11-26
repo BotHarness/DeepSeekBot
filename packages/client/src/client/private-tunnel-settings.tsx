@@ -29,6 +29,7 @@ export interface PrivateTunnelView {
   issue?: string;
   probe?: string;
   addressChanged?: boolean;
+  addressSignIn?: boolean;
 }
 
 export type PrivateTunnelStep = 'choose' | 'named' | 'ingress';
@@ -77,6 +78,9 @@ function recoveryKey(reason: string | undefined) {
     return 'connections.recovery.token';
   if (reason === 'private-route-origin-in-use') return 'privateTunnel.routes.originInUse';
   if (reason === 'private-route-in-use') return 'connections.recovery.busy';
+  if (reason === 'private-route-address-sign-in-lan') return 'privateTunnel.addressSignInLan';
+  if (reason === 'private-route-address-sign-in-unavailable')
+    return 'privateTunnel.addressSignInUnavailable';
   if (reason === 'dns') return 'connections.recovery.dns';
   if (reason === 'tls') return 'connections.recovery.tls';
   if (reason === 'timeout' || reason === 'tunnel-unreachable' || reason?.startsWith('http-'))
@@ -162,6 +166,28 @@ function PrivateTunnelRouteSettings({
       }
       setToken('');
       setStep('choose');
+      await refresh();
+    } catch {
+      setFailure('private-tunnel-failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function setAddressSignIn(enabled: boolean): Promise<void> {
+    if (locked || routeId !== 'custom') return;
+    setBusy(true);
+    setFailure(undefined);
+    try {
+      const response = await fetch('./api/botharness/devices/private-tunnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'address-sign-in', routeId, enabled, confirm: true }),
+      });
+      const result = (await response.json().catch(() => ({}))) as { code?: string };
+      if (!response.ok) {
+        setFailure(result.code ?? 'private-tunnel-failed');
+        return;
+      }
       await refresh();
     } catch {
       setFailure('private-tunnel-failed');
@@ -310,6 +336,27 @@ function PrivateTunnelRouteSettings({
           ) : null}
           {status.probe && status.state === 'connected' ? (
             <StatusFact label={t('privateTunnel.panel.lastCheck')}>{status.probe}</StatusFact>
+          ) : null}
+          {routeId === 'custom' && status.mode !== 'quick' ? (
+            <SettingsRow
+              title={t('privateTunnel.addressSignIn')}
+              description={t(
+                status.lan === true && status.addressSignIn !== true
+                  ? 'privateTunnel.addressSignInLan'
+                  : 'privateTunnel.addressSignInHint',
+              )}
+              data={{ 'data-private-route-address-sign-in': status.addressSignIn ? 'on' : 'off' }}
+              control={
+                <Switch
+                  label={t('privateTunnel.addressSignIn')}
+                  checked={status.addressSignIn === true}
+                  disabled={
+                    locked || busy || (status.lan === true && status.addressSignIn !== true)
+                  }
+                  onChange={(next) => void setAddressSignIn(next)}
+                />
+              }
+            />
           ) : null}
           <StatusFact
             label={t('privateTunnel.panel.turnOff')}

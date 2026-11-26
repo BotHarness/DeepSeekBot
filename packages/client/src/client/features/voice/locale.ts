@@ -170,6 +170,14 @@ export const zh = {
   'call.unavailable': '暂时不能和这个 Bot 通话',
   'call.again': '再次通话',
   'call.close': '关闭',
+  'call.openVoiceSettings': '打开语音设置',
+  'call.soundOn': '把你电脑上的声音也共享给 {name}',
+  'call.soundTip':
+    '把你电脑上的声音也共享给 {name}。建议戴耳机，或让 {name} 只听不说，免得它听到自己的回声。',
+  'call.soundOff': '停止把电脑声音共享给 {name}',
+  'call.soundMissing':
+    '没有共享到电脑声音。在弹出的共享窗口里选一个标签页或屏幕，并打开“共享音频”。',
+  'call.soundRetry': '重新共享',
   'call.missing.asr': '请在设置 › 语音里为这个 Bot 添加语音转文字 Provider。',
   'call.missing.tts': '请在设置 › 语音里为这个 Bot 添加语音合成（TTS）Provider。',
   'call.missing.bot': '这个 Bot 已不在这台电脑上。',
@@ -178,7 +186,8 @@ export const zh = {
   'call.missing.mediaUnavailable': '电脑现在无法开始通话，请稍后再试。',
   'call.missing.localVoiceOff':
     '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
-  'call.elsewhere': '另一台设备或窗口正在和这台电脑通话。',
+  'call.missing.callsFull': '这个 Host 已经有 3 通通话了，先结束一通再打。',
+  'call.elsewhere': '这个 Bot 正在另一通通话里。',
   'call.unreachable': '连不上电脑，请再试一次。',
   'call.connectOnly': '通话需要和电脑在同一网络，或使用 Tailscale。',
   'call.microphoneDenied': '请允许这个 App 使用麦克风，然后再通话。',
@@ -379,6 +388,14 @@ export const en = {
   'call.unavailable': 'Can’t call this Bot yet',
   'call.again': 'Call again',
   'call.close': 'Close',
+  'call.openVoiceSettings': 'Open Voice settings',
+  'call.soundOn': 'Share your computer’s sound with {name}',
+  'call.soundTip':
+    'Share your computer’s sound with {name}. Wear headphones, or ask {name} to only listen, so it doesn’t hear its own voice.',
+  'call.soundOff': 'Stop sharing your computer’s sound with {name}',
+  'call.soundMissing':
+    'No computer sound was shared. In the share window, pick a tab or screen and turn on “Share audio”.',
+  'call.soundRetry': 'Share again',
   'call.missing.asr': 'Add a speech-to-text Provider for this Bot in Settings › Voice.',
   'call.missing.tts': 'Add a voice (TTS) Provider for this Bot in Settings › Voice.',
   'call.missing.bot': 'This Bot isn’t on this computer anymore.',
@@ -388,7 +405,8 @@ export const en = {
   'call.missing.mediaUnavailable': 'The computer can’t start a call right now. Try again soon.',
   'call.missing.localVoiceOff':
     'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
-  'call.elsewhere': 'Another device or window is on a call with this computer.',
+  'call.missing.callsFull': 'This Host already has 3 calls. End one first.',
+  'call.elsewhere': 'This Bot is already on another call.',
   'call.unreachable': 'Can’t reach the computer. Try again.',
   'call.connectOnly': 'Calls need the same network as the computer, or Tailscale.',
   'call.microphoneDenied': 'Allow this app to use the microphone, then call again.',

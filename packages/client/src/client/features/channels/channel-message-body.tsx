@@ -410,6 +410,7 @@ export function ChannelMessageBody({
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected'
     | undefined;
@@ -469,7 +470,6 @@ export function ChannelMessageBody({
   if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
       <>
-        <OpaqueToolWarning approval={message.approval} t={t} />
         <ToolApprovalCard
           message={message}
           actions={actions}

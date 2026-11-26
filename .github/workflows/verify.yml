@@ -36,7 +36,7 @@ env:
 jobs:
   plan:
     name: plan tests and run small selections
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
       contents: read
@@ -48,7 +48,9 @@ jobs:
       android-native: ${{ steps.plan.outputs.android-native }}
       perf: ${{ steps.plan.outputs.perf }}
       ui-visual: ${{ steps.plan.outputs.ui-visual }}
+      confinement: ${{ steps.plan.outputs.confinement }}
       mobile: ${{ steps.plan.outputs.mobile }}
+      private-relay: ${{ steps.plan.outputs.private-relay }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
       shards: ${{ steps.select.outputs.shards }}
@@ -74,13 +76,20 @@ jobs:
       - id: plan
         run: node scripts/ci-plan.mjs --github --changes "$RUNNER_TEMP/changes.tsv"
       - id: select
-        if: steps.plan.outputs.tests == 'affected'
+        if: steps.plan.outputs.tests == 'affected' || steps.plan.outputs.tests == 'full'
         env:
           RELATED: ${{ steps.plan.outputs.related }}
-        run: node scripts/ci-affected.mjs --select
+          TESTS: ${{ steps.plan.outputs.tests }}
+        run: |
+          if [ "$TESTS" = full ]; then
+            node scripts/ci-affected.mjs --select-full
+          else
+            node scripts/ci-affected.mjs --select
+          fi
       - name: Run small affected selection
-        if: steps.select.outputs.shards == '1'
-        run: node scripts/ci-affected.mjs --run
+        if: steps.plan.outputs.tests == 'affected' && steps.select.outputs.shards == '1'
+        timeout-minutes: 15
+        run: exec node scripts/ci-with-deadline.mjs 885 1 node scripts/ci-affected.mjs --run
         env:
           TEST_FILES: ${{ toJSON(fromJSON(steps.select.outputs.matrix || '{"include":[{"files":[]}]}').include[0].files) }}
 
@@ -147,7 +156,8 @@ jobs:
             node scripts/health.mjs --base=HEAD^
           fi
       - name: Model-check the TLA+ specs (correct models hold, broken variants break)
-        run: node scripts/verify-tla.mjs
+        timeout-minutes: 4
+        run: exec node scripts/ci-with-deadline.mjs 90 2 node scripts/verify-tla.mjs
       - name: Report the features this change touches
         env:
           HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
@@ -157,13 +167,66 @@ jobs:
           else
             node scripts/feature-impact.mjs --base=HEAD^ --summary
           fi
-      - run: pnpm lint
+      - name: Run pnpm lint
+        timeout-minutes: 7
+        run: exec node scripts/ci-with-deadline.mjs 160 2 pnpm lint
         env:
           BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
-      - run: pnpm format:check
-      - run: pnpm typecheck
-      - run: pnpm build
+      - name: Run pnpm format:check
+        timeout-minutes: 3
+        run: exec node scripts/ci-with-deadline.mjs 40 2 pnpm format:check
+      - name: Run pnpm typecheck
+        timeout-minutes: 4
+        run: exec node scripts/ci-with-deadline.mjs 75 2 pnpm typecheck
+      - name: Run pnpm build
+        timeout-minutes: 8
+        run: exec node scripts/ci-with-deadline.mjs 210 2 pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
+
+  private-relay:
+    name: Go private relay and wire conformance
+    needs: plan
+    if: needs.plan.outputs.private-relay == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deploy/private-relay
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: deploy/private-relay/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: go test -race ./...
+      - run: docker build -t tobs-relay:ci .
+      - run: npm ci --ignore-scripts
+      - name: Check the container against the Node conformance client
+        run: |
+          work=$(mktemp -d)
+          volume=$(docker volume create)
+          trap 'docker rm -f tobs-relay-ci >/dev/null 2>&1 || true; docker volume rm "$volume" >/dev/null; rm -rf "$work"' EXIT
+          config=(-v "$volume:/data" tobs-relay:ci)
+          docker run --rm "${config[@]}" setup relay.example.test
+          docker run --rm "${config[@]}" add-host conformance-a
+          docker run --rm "${config[@]}" add-host conformance-b
+          docker run -d --name tobs-relay-ci --read-only --cap-drop ALL \
+            -e RELAY_TLS=off -e RELAY_LISTEN=:8080 -p 127.0.0.1::8080 "${config[@]}"
+          for attempt in {1..20}; do
+            if docker exec tobs-relay-ci /tobs-relay health; then break; fi
+            sleep 1
+          done
+          docker exec tobs-relay-ci /tobs-relay health
+          docker cp tobs-relay-ci:/data/host-conformance-a.secret "$work/a.secret"
+          docker cp tobs-relay-ci:/data/host-conformance-b.secret "$work/b.secret"
+          node conformance.mjs --origin "http://$(docker port tobs-relay-ci 8080/tcp)" \
+            --key-a-file "$work/a.secret" --key-b-file "$work/b.secret"
 
   mobile-export:
     name: mobile verification (iOS and Android)
@@ -206,6 +269,10 @@ jobs:
     if: needs.plan.outputs.android-native == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      ROBOLECTRIC_MAVEN_URL: https://repo.maven.apache.org/maven2
+      # Robolectric 4.14.1 SDK jars for the API 28 and API 35 suites.
+      ROBOLECTRIC_SDK_VERSIONS: 9-robolectric-4913185-2-i7 15-robolectric-12650502-i7
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -220,12 +287,37 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Cache Robolectric Android SDK jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented
+          key: robolectric-sdk-${{ runner.os }}-${{ env.ROBOLECTRIC_SDK_VERSIONS }}
+      - name: Fetch and verify Robolectric Android SDK jars before running tests
+        shell: bash
+        run: |
+          artifact=org/robolectric/android-all-instrumented
+          curl_options=(
+            --fail --silent --show-error
+            --retry 4 --retry-max-time 90
+            --connect-timeout 10 --speed-limit 1024 --speed-time 30
+          )
+          for version in $ROBOLECTRIC_SDK_VERSIONS; do
+            filename="android-all-instrumented-$version.jar"
+            jar="$HOME/.m2/repository/$artifact/$version/$filename"
+            [[ ! -s "$jar" ]] || continue
+            mkdir -p "$(dirname "$jar")"
+            url="$ROBOLECTRIC_MAVEN_URL/$artifact/$version/$filename"
+            checksum=$(curl "${curl_options[@]}" "$url.sha512")
+            curl "${curl_options[@]}" --output "$jar.tmp" "$url"
+            printf '%s  %s\n' "$checksum" "$jar.tmp" | sha512sum -c -
+            mv "$jar.tmp" "$jar"
+          done
       - name: Configure Android test dependency downloads and failure details
         run: |
           cat > "$RUNNER_TEMP/android-test-init.gradle" <<'GRADLE'
           allprojects {
             tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
-              systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+              systemProperty 'robolectric.dependency.repo.url', System.getenv('ROBOLECTRIC_MAVEN_URL')
               testLogging {
                 exceptionFormat = 'full'
                 showCauses = true
@@ -239,7 +331,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :expo-ui-teardown:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
       - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
       - name: Retain Android unit-test failure reports
@@ -370,30 +462,8 @@ jobs:
     name: test (shard ${{ matrix.shard }})
     needs: plan
     if: needs.plan.outputs.tests == 'full'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          run_install: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-
-  test-affected:
-    name: test (affected shard ${{ matrix.shard }})
-    needs: plan
-    if: needs.plan.outputs.shards == '3'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 17
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -407,7 +477,34 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/ci-affected.mjs --run
+      - name: Run Vitest shard
+        timeout-minutes: 15
+        run: exec node scripts/ci-with-deadline.mjs 885 1 node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(matrix.files) }}
+
+  test-affected:
+    name: test (affected shard ${{ matrix.shard }})
+    needs: plan
+    if: needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '4'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 17
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run affected test shard
+        timeout-minutes: 15
+        run: exec node scripts/ci-with-deadline.mjs 885 1 node scripts/ci-affected.mjs --run
         env:
           TEST_FILES: ${{ toJSON(matrix.files) }}
 
@@ -435,7 +532,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.tests != 'none'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v7
         with:
@@ -448,7 +545,12 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm e2e:smoke
+      - name: Run pnpm e2e:smoke
+        timeout-minutes: 12
+        run: exec node scripts/ci-with-deadline.mjs 320 2 pnpm e2e:smoke
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
 
   ui-visual:
     name: UI visual checks (alignment, accessibility, keyboard, zoom)
@@ -478,12 +580,47 @@ jobs:
           path: .humanlayer/ui-visual/*.png
           if-no-files-found: ignore
 
+  confinement:
+    name: member Shell confinement under bwrap
+    needs: plan
+    if: needs.plan.outputs.confinement == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the sandbox tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends bubblewrap slirp4netns nftables
+      - name: Let bwrap and unshare create user namespaces under AppArmor
+        run: |
+          [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] || exit 0
+          allow() {
+            printf 'abi <abi/4.0>,\nprofile %s %s flags=(unconfined) {\n  userns,\n}\n' "$1" "$2" |
+              sudo tee "/etc/apparmor.d/$1" >/dev/null
+            sudo apparmor_parser -r "/etc/apparmor.d/$1"
+          }
+          allow botharness-ci-unshare "$(command -v unshare)"
+          bwrap --ro-bind / / --unshare-user true 2>/dev/null || allow botharness-ci-bwrap "$(command -v bwrap)"
+      - name: Run the confinement tests with real bwrap
+        env:
+          BOTHARNESS_REQUIRE_CONFINEMENT: '1'
+        run: pnpm exec vitest run packages/core/test/member-confinement.test.ts packages/core/test/shell-reach.test.ts
+
   perf-budget:
     name: timeline performance budget
     needs: plan
     if: needs.plan.outputs.perf == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && 20 || 18 }}
     env:
       BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
       DEEPSEEK_API_KEY: perf-budget-placeholder
@@ -504,21 +641,27 @@ jobs:
           node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
           sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
           sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
-      - env:
+      - name: Launch the performance Host
+        timeout-minutes: 9
+        env:
           SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: |
           preview_args=()
           if [ "$SYSTEM_PREVIEW_DIAGNOSTIC" != "true" ]; then
             preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
           fi
-          node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
-      - run: >-
-          node scripts/perf-idle-timeline.mjs --messages 600 --label ci
+          exec node scripts/ci-with-deadline.mjs 220 2 node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
+      - name: Check the timeline performance budget
+        timeout-minutes: 11
+        run: >-
+          exec node scripts/ci-with-deadline.mjs 280 2 node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
-      - id: system_preview
+      - name: Check GenUI opening
+        id: system_preview
+        timeout-minutes: 6
         continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
         run: >-
-          node scripts/perf-genui-opening.mjs --headless
+          exec node scripts/ci-with-deadline.mjs 140 2 node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-ci > /dev/null
       - if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
         run: >-
@@ -531,14 +674,16 @@ jobs:
         run: node scripts/verify-app.mjs stop --name perf
       - id: controlled_launch
         if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.controlled_sandbox.outcome == 'success' && steps.browser_environment.outcome == 'success'
+        timeout-minutes: 9
         run: >-
-          node scripts/verify-app.mjs launch --name perf
+          exec node scripts/ci-with-deadline.mjs 220 2 node scripts/verify-app.mjs launch --name perf
           --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null
       - id: controlled_preview
         if: always() && steps.controlled_launch.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 6
         run: >-
-          node scripts/perf-genui-opening.mjs --headless
+          exec node scripts/ci-with-deadline.mjs 140 2 node scripts/perf-genui-opening.mjs --headless
           --out .humanlayer/perf/genui-controlled > /dev/null
       - if: always() && steps.controlled_launch.outcome == 'success'
         run: >-
@@ -556,6 +701,9 @@ jobs:
           CONTROLLED_PREVIEW: ${{ steps.controlled_preview.outcome }}
         run: >-
           node -e 'if (process.env.SYSTEM_PREVIEW !== "success" || process.env.CONTROLLED_PREVIEW !== "success") throw Error("Both complete GenUI browser arms are required; retain failures for diagnosis")'
+      - name: Report kernel out-of-memory kills
+        if: failure() || cancelled()
+        run: sudo dmesg --ctime | grep -iE 'out of memory|oom-kill|killed process' || echo 'No out-of-memory kills in the kernel log.'
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -574,6 +722,7 @@ jobs:
       [
         plan,
         static,
+        private-relay,
         mobile-export,
         mobile-native,
         mobile-native-ios,
@@ -583,6 +732,7 @@ jobs:
         e2e-smoke,
         perf-budget,
         ui-visual,
+        confinement,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -596,6 +746,7 @@ jobs:
           const needs = JSON.parse(process.env.NEEDS);
           const plan = needs.plan.outputs;
           const required = ['plan', 'static'];
+          if (plan['private-relay'] === 'true') required.push('private-relay');
           if (process.env.IOS_HARDWARE_SEND_TESTS === 'true') required.push('mobile-native-ios');
           if (plan.mobile === 'true') required.push('mobile-export');
           if (plan['android-native'] === 'true') required.push('mobile-native');
@@ -603,17 +754,22 @@ jobs:
           if (plan.tests !== 'none') required.push('e2e-smoke');
           if (plan.perf === 'true') required.push('perf-budget');
           if (plan['ui-visual'] === 'true') required.push('ui-visual');
-          if (plan.tests === 'full') required.push('test-full');
+          if (plan.confinement === 'true') required.push('confinement');
+          if (plan.tests === 'full') {
+            if (plan.shards !== '4') throw new Error('Invalid full test shards');
+            required.push('test-full');
+          }
           if (plan.tests === 'affected') {
             const count = plan.count;
             const shards = plan.shards;
             if (!/^\d+$/.test(count ?? '')) throw new Error('Missing affected test count');
-            if (!['0', '1', '3'].includes(shards) ||
+            if (!['0', '1', '4'].includes(shards) ||
                 (Number(count) === 0) !== (shards === '0')) throw new Error('Invalid affected test shards');
-            if (shards === '3') required.push('test-affected');
+            if (shards === '4') required.push('test-affected');
           }
           if (!['none', 'affected', 'full'].includes(plan.tests) ||
-              !['true', 'false'].includes(plan.mobile)) throw new Error('Invalid CI plan');
+              !['true', 'false'].includes(plan.mobile) ||
+              !['true', 'false'].includes(plan['private-relay'])) throw new Error('Invalid CI plan');
           const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
           const missing = required.filter((name) => needs[name]?.result !== 'success');
           if (failed.length || missing.length) {

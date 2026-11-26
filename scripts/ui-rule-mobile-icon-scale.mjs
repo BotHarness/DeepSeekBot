@@ -87,7 +87,7 @@ function isFontScale(path) {
   );
 }
 
-function scaleInSize(value, checkReference = false) {
+export function scaleInSize(value, checkReference = false) {
   const path = resolveValue(value);
   if (!path) return false;
   if (isFontScale(path)) return true;
@@ -187,6 +187,10 @@ function hasScalableFont(boxes) {
   return false;
 }
 
+export function modifierEntries(opening) {
+  return entries(prop(opening, 'modifiers'), true);
+}
+
 export function mobileIconScale(file, ast) {
   const found = [];
   traverse(ast, {
@@ -232,7 +236,7 @@ export function mobileActionScale(file, ast) {
     JSXOpeningElement(opening) {
       const button = importOf(opening.get('name'));
       if (button?.source !== COMPOSE || !ICON_BUTTON.test(button.name)) return;
-      const scaled = entries(prop(opening, 'modifiers'), true).some(
+      const scaled = modifierEntries(opening).some(
         (entry) =>
           entry.isCallExpression() &&
           BOX_MODIFIERS.some((name) => imported(entry.get('callee'), name, COMPOSE_MODIFIERS)) &&

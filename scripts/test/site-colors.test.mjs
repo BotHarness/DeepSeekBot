@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { contrast, mix, renderSite, SITE_OUTPUT, siteColors } from '../generate-tokens.mjs';
+import {
+  contrast,
+  mix,
+  renderSite,
+  renderSlides,
+  SITE_OUTPUT,
+  SLIDES_OUTPUT,
+  siteColors,
+} from '../generate-tokens.mjs';
 
 const docsSurfaces = {
   light: ['#fcfcfc', '#ffffff', '#f4f4f4'],
@@ -16,6 +24,14 @@ describe('shared site colours', () => {
     expect(Buffer.byteLength(css)).toBeLessThanOrEqual(2048);
   });
 
+  it('gives slides the same core values as the site stylesheet', () => {
+    expect(readFileSync(SLIDES_OUTPUT, 'utf8')).toBe(renderSlides(colors));
+    const css = readFileSync(SITE_OUTPUT, 'utf8');
+    for (const [name, value] of Object.entries(colors.light)) {
+      expect(css).toContain(`--tobs-core-${name}: ${value};`);
+    }
+  });
+
   it.each(Object.entries(docsSurfaces))(
     'keeps brand controls and status badges and callouts legible in %s mode',
     (mode, surfaces) => {
@@ -24,6 +40,10 @@ describe('shared site colours', () => {
         expect(contrast(palette.brand, surface), `brand text on ${surface}`).toBeGreaterThanOrEqual(
           4.5,
         );
+        expect(
+          contrast(palette['brand-vivid'], surface),
+          `marketing brand text on ${surface}`,
+        ).toBeGreaterThanOrEqual(4.5);
         expect(
           contrast(palette['brand-hover'], surface),
           `brand graphic on ${surface}`,
@@ -39,7 +59,7 @@ describe('shared site colours', () => {
           'destructive hover text',
         ).toBeGreaterThanOrEqual(4.5);
       }
-      for (const fill of ['brand', 'brand-hover', 'danger']) {
+      for (const fill of ['brand', 'brand-hover', 'brand-vivid', 'danger']) {
         expect(
           contrast(palette['on-solid'], palette[fill]),
           `text on ${fill}`,

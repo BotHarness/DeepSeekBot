@@ -44,7 +44,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { CreationField } from '../primitives/creation-field';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PreferenceRow } from '../primitives/preference-row';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
@@ -285,7 +285,11 @@ export function VoiceServiceSheet({
               on={SHEET_GROUP}
               testID={`voice-service-${field}`}
               leading={
-                <ModelBrandIcon brand={brand} size={theme.type.title.line} color={theme.color.fg} />
+                <ModelBrandIcon
+                  brand={brand}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={theme.color.fg}
+                />
               }
               title={choiceLabel(state, names, t.custom)}
               detail={label}
@@ -313,9 +317,7 @@ export function VoiceServiceSheet({
     >
       {page === 'preset' ? (
         <View testID="voice-service-presets" style={{ flexShrink: 1 }}>
-          <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-            <DrawerHeader title={t.preset} onBack={() => setPage('form')} />
-          </View>
+          <SheetHeader title={t.preset} onBack={() => setPage('form')} />
           <KeyboardFormScroll enabled={false} nestedScrollEnabled>
             {presets.map((entry, index) => (
               <SettingsGroupItem key={entry.id} first={index === 0} last={false} on={SHEET_GROUP}>
@@ -325,7 +327,7 @@ export function VoiceServiceSheet({
                   leading={
                     <ModelBrandIcon
                       brand={providerBrand(entry.id, entry.name)}
-                      size={theme.type.title.line}
+                      size={theme.type.title.line * theme.fontScale}
                       color={theme.color.fg}
                     />
                   }
@@ -349,7 +351,7 @@ export function VoiceServiceSheet({
                 leading={
                   <ModelBrandIcon
                     brand={providerBrand('custom')}
-                    size={theme.type.title.line}
+                    size={theme.type.title.line * theme.fontScale}
                     color={theme.color.fg}
                   />
                 }
@@ -391,9 +393,7 @@ export function VoiceServiceSheet({
         />
       ) : (
         <>
-          <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-            <DrawerHeader title={title} onClose={close} />
-          </View>
+          <SheetHeader title={title} onClose={close} />
           <KeyboardFormScroll nestedScrollEnabled>
             <View testID="voice-service-form" style={{ gap: space.x4 }}>
               <SettingsGroupItem first last on={SHEET_GROUP}>
@@ -403,7 +403,7 @@ export function VoiceServiceSheet({
                   leading={
                     <ModelBrandIcon
                       brand={brand}
-                      size={theme.type.title.line}
+                      size={theme.type.title.line * theme.fontScale}
                       color={theme.color.fg}
                     />
                   }

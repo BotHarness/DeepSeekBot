@@ -5,10 +5,12 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { TeamError } from '../../team/error.js';
+import { ownsBot } from '../../team/bot-access.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';
-import { TobError, type TobHome } from '../../tob/service.js';
+import { TobError, type ManagementGrantChange, type TobHome } from '../../tob/service.js';
+import { isManagementCapability, type ManagementCapability } from '../../tob/management-grants.js';
 import { tobCliRequestSchema, type TobCliStatus } from '../../tob/cli-request.js';
 import { DirectBotToolError } from '../../runtime/bot-runtime.js';
 import { GenuiDiagramError } from '../../runtime/genui-diagram.js';
@@ -31,6 +33,13 @@ function directToolsUnavailable(): BridgeResult<never> {
 }
 
 export interface TobAdapterMethods {
+  managementGrants(payload: unknown): BridgeResult<{
+    tobSlug?: string;
+    holders: { botSlug: string; capabilities: ManagementCapability[] }[];
+    editable: boolean;
+    memberBot: boolean;
+  }>;
+  managementGrantSet(payload: unknown): BridgeResult<ManagementGrantChange>;
   tobHome(
     payload: unknown,
   ): Promise<
@@ -56,6 +65,55 @@ export function createTobAdapterMethods(
   isHostOwner: () => boolean,
 ): TobAdapterMethods {
   return {
+    managementGrants(payload) {
+      if (!deps.tob) return unavailable();
+      const tobSlug = deps.tob.slug();
+      const slug = asSlug(payload);
+      const authorized = deps.tob.canManageGrants(human);
+      const bot = slug === undefined ? undefined : deps.registry.get(slug);
+      return {
+        ok: true,
+        value: {
+          ...(tobSlug === undefined ? {} : { tobSlug }),
+          holders:
+            isHostOwner() || authorized ? deps.tob.managementGrantHolders(human.humanId) : [],
+          editable: authorized && (slug === undefined || ownsBot(human, bot)),
+          memberBot: !isHostOwner(),
+        },
+      };
+    },
+    managementGrantSet(payload) {
+      if (!deps.tob?.canManageGrants(human))
+        return {
+          ok: false,
+          error: {
+            code: 'permission-required',
+            message:
+              'Only the Owner, or a member the Owner authorized, can change management grants for their own Bots.',
+          },
+        };
+      const slug = asSlug(payload);
+      const { capability, enabled, confirm } = asObject(payload);
+      if (
+        !slug ||
+        !isManagementCapability(capability) ||
+        typeof enabled !== 'boolean' ||
+        (enabled && confirm !== true)
+      )
+        return invalidInput(
+          'A management grant change needs a Bot slug, manage-app or manage-bots, enabled true or false, and confirm true when turning it on.',
+        );
+      if (!deps.tob) return unavailable();
+      try {
+        return {
+          ok: true,
+          value: deps.tob.setManagementGrant(human, slug, capability, enabled),
+        };
+      } catch (error) {
+        if (!(error instanceof TobError)) throw error;
+        return { ok: false, error: { code: error.code, message: error.message } };
+      }
+    },
     async tobCli(payload) {
       if (!isHostOwner())
         return {

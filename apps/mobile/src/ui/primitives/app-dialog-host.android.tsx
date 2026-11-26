@@ -28,6 +28,13 @@ import { materialMenu, space } from '../design/tokens';
 import { MaterialMenuGroup } from './material-menu.android';
 import { MenuIcon } from './menu-icon';
 
+export function menuGroups<T extends { action: DialogAction }>(choices: readonly T[]): T[][] {
+  const keyOf = ({ action }: T) =>
+    action.style === 'destructive' ? Infinity : (action.group ?? 0);
+  const keys = [...new Set(choices.map(keyOf))].sort((a, b) => a - b);
+  return keys.map((key) => choices.filter((choice) => keyOf(choice) === key));
+}
+
 export function AppDialogHost() {
   const t = useStrings();
   const shown = useSyncExternalStore(
@@ -59,11 +66,11 @@ export function AppDialogHost() {
       <Text>{shown.busy === index ? `${action.text}…` : action.text}</Text>
     </TextButton>
   );
-  const groups = [false, true].map((destructive) => {
-    const group = choices.filter(({ action }) => (action.style === 'destructive') === destructive);
-    return group.length === 0 ? null : (
+  const groups = menuGroups(choices).map((group) => {
+    const destructive = group[0]?.action.style === 'destructive';
+    return (
       <MaterialMenuGroup
-        key={String(destructive)}
+        key={String(group[0]?.index)}
         items={group.map(({ action, index }) => ({
           key: String(index),
           label: shown.busy === index ? `${action.text}…` : action.text,
@@ -173,7 +180,10 @@ export function AppDialogHost() {
         </ModalBottomSheet>
       </Host>
     );
-  const single = choices[0];
+  const confirms = [
+    ...choices.filter(({ action }) => action.style !== 'destructive'),
+    ...choices.filter(({ action }) => action.style === 'destructive'),
+  ];
   return (
     <Host
       key={shown.id}
@@ -199,8 +209,8 @@ export function AppDialogHost() {
             </Column>
           </AlertDialog.Text>
         )}
-        {single === undefined ? null : (
-          <AlertDialog.ConfirmButton>{choiceButton(single)}</AlertDialog.ConfirmButton>
+        {confirms.length === 0 ? null : (
+          <AlertDialog.ConfirmButton>{confirms.map(choiceButton)}</AlertDialog.ConfirmButton>
         )}
         {cancel === undefined ? null : (
           <AlertDialog.DismissButton>

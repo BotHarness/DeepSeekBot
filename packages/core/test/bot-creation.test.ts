@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBotCreation, BotCreationError } from '../src/bots/creation.js';
+import { createBotCreation, BotCreationError, privateBotCreations } from '../src/bots/creation.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -129,11 +129,30 @@ describe('canonical keyed Bot creation', () => {
     expect(() => f.owner.create({ ...input, displayName: 'Different' }, key)).toThrowError(
       expect.objectContaining({ code: 'creation-key-conflict' }),
     );
+    expect(() => f.owner.create(input, key, { sessionIds: ['a1'] })).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
     f.core.registry.setPaused(first.record.slug, true);
     expect(() => f.owner.create(input, key)).toThrowError(
       expect.objectContaining({ code: 'creation-identity-unavailable' }),
     );
     expect(f.core.registry.listHistorical()).toHaveLength(1);
+  });
+
+  it('binds the creation scope through the bridge creation wrapper', () => {
+    const f = fixture();
+    const bridge = privateBotCreations(f.owner, OWNER_HUMAN_CONTEXT);
+    const kept = bridge.create(input, key, { sessionIds: ['a1'] });
+    expect(bridge.create(input, key, { sessionIds: ['a1'] }).record.slug).toBe(kept.record.slug);
+    expect(() => bridge.create(input, key, { sessionIds: ['b1'] })).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
+    expect(bridge.lookup(key, input, { sessionIds: ['a1'] })).toMatchObject({
+      botSlug: kept.record.slug,
+    });
+    expect(() => bridge.lookup(key, input)).toThrowError(
+      expect.objectContaining({ code: 'creation-key-conflict' }),
+    );
   });
 
   it('refuses an unknown Memory folder for a reserved identity without modifying it', () => {

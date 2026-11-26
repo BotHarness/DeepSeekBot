@@ -99,10 +99,6 @@ export function ChevronRightIcon(props: IconProps) {
   return <Glyph {...props} d="m9 6 6 6-6 6" />;
 }
 
-export function TobModeIcon(props: IconProps) {
-  return <Glyph {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 10.5l4 4 4-4" />;
-}
-
 export function ChevronUpIcon(props: IconProps) {
   return <Glyph {...props} d="m6 15 6-6 6 6" />;
 }
@@ -404,6 +400,9 @@ export function ExternalLinkIcon(props: IconProps) {
     />
   );
 }
+export function CodeIcon(props: IconProps) {
+  return <Glyph {...props} d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16" />;
+}
 export function TerminalIcon(props: IconProps) {
   return <Glyph {...props} d="m4 5 6 7-6 7m9 0h7" />;
 }
@@ -435,4 +434,8 @@ export function MemoryIcon(props: IconProps) {
 
 export function PencilIcon(props: IconProps) {
   return <Glyph {...props} d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16v4Zm9.5-13.5 4 4" />;
+}
+
+export function MenuIcon(props: IconProps) {
+  return <Glyph {...props} d="M4 8h16M4 16h11" />;
 }

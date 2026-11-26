@@ -4,11 +4,13 @@ import { View } from 'react-native';
 
 import { botSettings } from '@botharness/host-client/bot-settings';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { useCreateFolder } from '../../host/member-permissions';
 import { SheetPage } from '../primitives/sheet-page';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { ModelSheet } from './model-sheet';
 import { WorkspaceSheet } from './workspace-sheet';
+import { announcingTemplates } from './approval-preset-port';
 import { SheetNote } from './sheet';
 
 export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
@@ -16,9 +18,13 @@ export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const { client } = useHostSession();
+  const createFolder = useCreateFolder(client);
   const bot = useHostSnapshot(client).roster?.bots.find((entry) => entry.slug === slug);
   const settings = useMemo(
-    () => (client === undefined ? undefined : botSettings(client, slug)),
+    () =>
+      client === undefined
+        ? undefined
+        : announcingTemplates(botSettings(client, slug), client, slug),
     [client, slug],
   );
   const context = useComposerContext(settings);
@@ -58,6 +64,7 @@ export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
           onGrantsChanged={context.reloadGrants}
           onAccess={context.setAccess}
           onTemplates={context.setTemplates}
+          createFolder={createFolder}
           onClose={() => router.back()}
         />
       )}

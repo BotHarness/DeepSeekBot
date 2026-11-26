@@ -1,87 +1,72 @@
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { materialNavigationBar, navigationBar, radius } from '../design/tokens';
+import { navigationBar } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
-import { Text } from '../primitives/text';
-import { badgeCount } from '../primitives/badge-count';
-import { ChatsIcon, ActivityIcon, SettingsIcon, AssignmentSessionIcon } from './icons';
-import { useStrings } from '../strings';
+import { ChatsIcon, ActivityIcon, SettingsIcon, CodeIcon } from './icons';
 import type { NavigationDestination } from './navigation-destination';
-import { navigationLabel } from './navigation-label';
-export function NavigationDestinations({
-  items,
-  labels = true,
-}: {
-  items: NavigationDestination[];
-  labels?: boolean;
-}) {
-  const t = useStrings();
+
+export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const theme = useDesignTheme();
-  const android = Platform.OS === 'android';
   return (
     <>
       {items.map((item) => {
-        const { focused, activity, settings, sessions, count: pending } = item;
-        const Icon = settings
-          ? SettingsIcon
-          : activity
-            ? ActivityIcon
-            : sessions
-              ? AssignmentSessionIcon
-              : ChatsIcon;
-        const label = navigationLabel(t, item);
+        const { focused, slot } = item;
+        const color = focused ? theme.color.fg : theme.color.muted;
+        const Icon =
+          slot === 'settings'
+            ? SettingsIcon
+            : slot === 'activity'
+              ? ActivityIcon
+              : slot === 'sessions'
+                ? CodeIcon
+                : ChatsIcon;
         return (
           <Pressable
             key={item.key}
-            testID={settings ? 'settings-button' : sessions ? 'sessions-tab' : `tab-${item.key}`}
-            accessibilityRole="tab"
-            accessibilityLabel={
-              activity && pending > 0 ? `${label}, ${badgeCount(pending)}` : label
+            testID={
+              slot === 'settings'
+                ? 'settings-button'
+                : slot === 'sessions'
+                  ? 'sessions-tab'
+                  : `tab-${item.key}`
             }
+            accessibilityRole="tab"
+            accessibilityLabel={item.accessibilityLabel}
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
             onLongPress={item.onLongPress}
-            android_ripple={{
-              color: pressTint(theme.color.fg),
-              borderless: true,
-              radius: materialNavigationBar.indicatorWidth / 2,
-            }}
-            style={({ pressed }) => ({
+            android_ripple={{ color: pressTint(theme.color.fg), borderless: true }}
+            style={{
               flex: 1,
               alignItems: 'center',
               justifyContent: 'center',
               minHeight: theme.touch,
-              gap: android ? materialNavigationBar.iconLabelGap : 0,
-              borderRadius: radius.round,
-              backgroundColor:
-                !android && (pressed || focused) ? theme.layer.raised.chosen : 'transparent',
-            })}
+            }}
           >
             <View
               style={{
                 width: '100%',
-                height: android
-                  ? materialNavigationBar.indicatorHeight
-                  : Math.max(navigationBar.indicatorHeight, theme.type.title.line),
+                height: Math.max(navigationBar.indicatorHeight, theme.type.title.line),
               }}
             >
               <NavigationIcon
                 focused={focused}
-                color={focused ? theme.color.fg : theme.color.muted}
-                count={activity ? pending : 0}
+                color={color}
+                count={item.count}
                 countVisible={!focused}
               >
-                <Icon
-                  color={focused ? theme.color.fg : theme.color.muted}
-                  size={theme.type.title.line}
-                />
+                {slot === 'pinned' ? (
+                  <PinnedAvatar
+                    conversation={item.conversation}
+                    size={navigationBar.symbolBox}
+                    selected={focused}
+                  />
+                ) : (
+                  <Icon color={color} size={theme.type.title.line} />
+                )}
               </NavigationIcon>
             </View>
-            {labels ? (
-              <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
-                {label}
-              </Text>
-            ) : null}
           </Pressable>
         );
       })}

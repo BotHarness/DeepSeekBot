@@ -31,7 +31,7 @@ export const requestCardStyles = stylex.create({
     overflowWrap: 'anywhere',
   },
   inset: { padding: space.x4 },
-  compact: { gap: space.x2, width: 'auto' },
+  compact: { width: 'auto' },
   approval: { minWidth: `min(${dimension.approvalCardMinWidth}, 100%)` },
   question: { width: dimension.questionCardWidth, maxWidth: '100%' },
   focus: {
@@ -46,6 +46,7 @@ export const requestCardStyles = stylex.create({
     gap: space.x2,
   },
   caption: { color: ink.secondary, fontSize: type.captionSize, lineHeight: type.captionLine },
+  label: { display: 'inline-flex', alignItems: 'center', gap: space.x1 },
   prompt: {
     color: ink.primary,
     fontSize: type.bodySize,
@@ -53,14 +54,15 @@ export const requestCardStyles = stylex.create({
     fontWeight: type.labelWeight,
     whiteSpace: 'pre-wrap',
   },
-  group: { display: 'grid', gap: space.x2, gridTemplateColumns: 'minmax(0, 1fr)' },
+  group: { display: 'grid', gap: space.x3, gridTemplateColumns: 'minmax(0, 1fr)' },
   summary: {
     display: 'grid',
     justifyContent: 'stretch',
-    gap: space.x2,
+    gap: space.x3,
     height: 'auto',
     minWidth: 0,
-    padding: 0,
+    paddingBlock: 0,
+    paddingInline: 0,
     borderRadius: style.radiusSmall,
     textAlign: 'start',
     whiteSpace: 'normal',
@@ -112,18 +114,23 @@ export function RequestDetail({
 
 export function RequestHeading({
   children,
+  info,
   pending,
   urgent = false,
   pendingRef,
 }: {
   children: ReactNode;
+  info?: ReactNode;
   pending?: ReactNode;
   urgent?: boolean;
   pendingRef?: Ref<HTMLSpanElement>;
 }): ReactElement {
   return (
     <div {...hooked('bh-request-head', requestCardStyles.head)}>
-      <span {...hooked('bh-request-category', requestCardStyles.caption)}>{children}</span>
+      <span {...hooked('bh-request-category', requestCardStyles.caption, requestCardStyles.label)}>
+        {children}
+        {info}
+      </span>
       {pending === undefined ? null : (
         <Tag
           ref={pendingRef}

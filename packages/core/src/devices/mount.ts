@@ -33,6 +33,7 @@ import {
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { join } from 'node:path';
+import type { ComputerService } from '../../../computer/src/service.js';
 import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
 import { localVideoCommand } from '../../../computer/src/local-video-http.js';
 import type { VoiceCallResult } from '../voice/call-contract.js';
@@ -116,8 +117,13 @@ export function mountDevicePairing(
     logs = undefined;
   }
   ctx.effect(() => () => logs?.close(), 'botharness: device pairing logs');
-  const write = (plugin: string, kind: string, message: string): void => {
-    ctx.logger.info(message);
+  const write = (
+    plugin: string,
+    kind: string,
+    message: string,
+    level: 'info' | 'warn' = 'info',
+  ): void => {
+    ctx.logger[level](message);
     try {
       logs?.write({ plugin, owner: 'profile-shared', kind, detail: message });
     } catch {}
@@ -125,7 +131,7 @@ export function mountDevicePairing(
   let push: PushDelivery | undefined;
   let activity: ActivityDelivery | undefined;
   const videoOwner = (): LocalVideoOwner | undefined =>
-    (ctx.get('botharnessComputer') as { localVideo?: LocalVideoOwner } | undefined)?.localVideo;
+    (ctx.get('botharnessComputer') as ComputerService | undefined)?.localVideo;
   const voiceCall = async (
     caller: { deviceId: string },
     command: unknown,
@@ -197,12 +203,14 @@ export function mountDevicePairing(
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   let memberRoutes: () => Promise<string[]> = async () => [];
+  let addressRoutes: () => string[] = () => [];
   const memberDevices = options.team
     ? createMemberDevices({
         team: options.team,
         pairing,
         encryption: identity.publicIdentity,
         routes: () => memberRoutes(),
+        addressRoutes: () => addressRoutes(),
       })
     : undefined;
   if (options.team && memberDevices)
@@ -270,6 +278,7 @@ export function mountDevicePairing(
             'bot-network',
             event.phase,
             JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
+            event.phase === 'withdrawal-refused' ? 'warn' : 'info',
           ),
       });
       const detach = botNetworks.attach({ ...bridge, membership: bridge.probeMembership });
@@ -417,6 +426,8 @@ export function mountDevicePairing(
           key: identity.key,
           port: () => webServer.port,
           route: 'lan',
+          computerUnlock: () =>
+            (ctx.get('botharnessComputer') as ComputerService | undefined)?.unlock,
           localVideo: ({ deviceId, command, signal }) =>
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
           voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
@@ -810,6 +821,7 @@ export function mountDevicePairing(
     const privateTunnel = createPrivateTunnel({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
+      passwordSignInAvailable: () => memberDevices?.passwordSignInAvailable() ?? false,
       cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
       ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
       record: (phase, info) =>
@@ -845,6 +857,7 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
+    addressRoutes = () => privateTunnel.addressSignInOrigins();
     memberRoutes = async () => {
       await publishingReady;
       const status = await publishing.status();

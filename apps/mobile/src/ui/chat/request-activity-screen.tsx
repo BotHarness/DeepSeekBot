@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { hostSession } from '../../host/host-session';
 import { requestActivitySession } from '../../host/native-live-activity';
 import { navigateChannel } from '../shell/channel-navigation';
-import { hostDrawer } from '../shell/host-drawer';
+import { hostDrawer } from '../shell/host-drawer-state';
 import {
   activityAssignmentDestination,
   activityDestination,
@@ -110,8 +110,7 @@ export function RequestActivityScreen() {
         ?.getSnapshot()
         .roster?.bots.find((bot) => bot.slug === target.botSlug)?.dmChannelId;
       const destination = activityDestination(target, selected.saved?.hostId, dm);
-      if (!destination || !navigateChannel(navigation, destination, 'dismiss-activity'))
-        throw new Error('missing');
+      if (!destination || !navigateChannel(navigation, destination)) throw new Error('missing');
     })().catch(() => {
       if (!disposed) setFailed(true);
     });

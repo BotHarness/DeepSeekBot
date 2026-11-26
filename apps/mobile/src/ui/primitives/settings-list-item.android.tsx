@@ -1,6 +1,7 @@
 import {
   Box,
   CircularProgressIndicator,
+  Column,
   Host,
   Icon,
   ListItem,
@@ -23,8 +24,10 @@ import { settingsColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator, space } from '../design/tokens';
 import { ROW_ICON_SOURCES } from './row-icon-source.android';
+import { useSheetGroupFill } from './sheet-group-fill';
 import {
   settingsRowLabel,
+  valueBelowTitle,
   type SettingsRowControl,
   type SettingsRowProps,
 } from './settings-row-model';
@@ -41,7 +44,9 @@ function TrailingControl({ control }: { control: SettingsRowControl }) {
     case 'value':
       return (
         <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
-          <Text style={{ typography: 'bodyMedium' }}>{control.text}</Text>
+          <Text style={{ typography: 'bodyMedium' }} maxLines={1} overflow="ellipsis">
+            {control.text}
+          </Text>
           {control.chevron === true ? <Icon source={ROW_ICON_SOURCES.chevron} size={ICON} /> : null}
         </Row>
       );
@@ -84,14 +89,38 @@ export function SettingsListItem(props: SettingsRowProps) {
   const theme = useDesignTheme();
   const oneLine = singleLine && !theme.largeText;
   const colors = settingsColors(theme, on);
-  const fill = selected === true ? colors.selected : theme.layer[on].fill;
+  const group = useSheetGroupFill(on);
+  const fill = selected === true ? colors.selected : group.fill;
   const control: SettingsRowControl | undefined =
     props.control ?? (disclosure && trailing === undefined ? { kind: 'chevron' } : undefined);
+  const below = valueBelowTitle(control, theme.fontScale > 1) ? control : undefined;
+  const end: SettingsRowControl | undefined =
+    below === undefined ? control : below.chevron === true ? { kind: 'chevron' } : undefined;
   const toggle = control?.kind === 'switch' ? control : undefined;
   const activate = toggle === undefined ? onPress : () => toggle.onChange(!toggle.value);
   const enabled = toggle === undefined ? onPress !== undefined : toggle.disabled !== true;
   const headline =
     selected === true ? colors.selectedText : tone === 'fg' ? undefined : theme.color[tone];
+  const lines = oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {};
+  const titleLine = (
+    <Text
+      {...(headline === undefined ? {} : { color: headline })}
+      {...(below === undefined ? lines : {})}
+      style={strong ? { fontWeight: 'bold' } : {}}
+    >
+      {title}
+    </Text>
+  );
+  const detailLine =
+    detail === undefined ? null : detailDot === undefined ? (
+      <Text {...lines}>{detail}</Text>
+    ) : (
+      <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
+        <Box modifiers={[size(space.x3, space.x3), clip(Shapes.Circle), background(detailDot)]} />
+        <Text {...lines}>{detail}</Text>
+      </Row>
+    );
+  const standalone = trailing === undefined && accessory === undefined;
   const item = (
     <View
       testID={testID}
@@ -113,7 +142,7 @@ export function SettingsListItem(props: SettingsRowProps) {
       onAccessibilityAction={({ nativeEvent }) => {
         if (enabled && nativeEvent.actionName === 'activate') activate?.();
       }}
-      style={{ flex: 1 }}
+      style={standalone ? undefined : { flex: 1 }}
     >
       <View importantForAccessibility="no-hide-descendants">
         <Host
@@ -132,35 +161,19 @@ export function SettingsListItem(props: SettingsRowProps) {
             }
           >
             <ListItem.HeadlineContent>
-              <Text
-                {...(headline === undefined ? {} : { color: headline })}
-                {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}
-                style={strong ? { fontWeight: 'bold' } : {}}
-              >
-                {title}
-              </Text>
-            </ListItem.HeadlineContent>
-            {detail === undefined ? null : (
-              <ListItem.SupportingContent>
-                {detailDot === undefined ? (
-                  <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
-                    {detail}
+              {below === undefined ? (
+                titleLine
+              ) : (
+                <Column>
+                  {titleLine}
+                  <Text color={theme.color.muted} style={{ fontWeight: 'normal' }}>
+                    {below.text}
                   </Text>
-                ) : (
-                  <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
-                    <Box
-                      modifiers={[
-                        size(space.x3, space.x3),
-                        clip(Shapes.Circle),
-                        background(detailDot),
-                      ]}
-                    />
-                    <Text {...(oneLine ? { maxLines: 1, overflow: 'ellipsis' as const } : {})}>
-                      {detail}
-                    </Text>
-                  </Row>
-                )}
-              </ListItem.SupportingContent>
+                </Column>
+              )}
+            </ListItem.HeadlineContent>
+            {detailLine === null ? null : (
+              <ListItem.SupportingContent>{detailLine}</ListItem.SupportingContent>
             )}
             {icon === undefined && leading === undefined ? null : (
               <ListItem.LeadingContent>
@@ -177,9 +190,9 @@ export function SettingsListItem(props: SettingsRowProps) {
                 )}
               </ListItem.LeadingContent>
             )}
-            {control === undefined ? null : (
+            {end === undefined ? null : (
               <ListItem.TrailingContent>
-                <TrailingControl control={control} />
+                <TrailingControl control={end} />
               </ListItem.TrailingContent>
             )}
           </ListItem>
@@ -187,7 +200,7 @@ export function SettingsListItem(props: SettingsRowProps) {
       </View>
     </View>
   );
-  if (trailing === undefined && accessory === undefined) return item;
+  if (standalone) return item;
   return (
     <View
       style={{

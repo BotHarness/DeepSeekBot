@@ -143,7 +143,7 @@ export function UsageCard({
           <Text variant="meta" tone="muted">
             {t.usageWeek}
           </Text>
-          <ChevronRightIcon color={theme.color.muted} size={space.x5} />
+          <ChevronRightIcon color={theme.color.muted} size={space.x5 * theme.fontScale} />
         </View>
         <Text variant="display">
           {amount === undefined ? '—' : amount}

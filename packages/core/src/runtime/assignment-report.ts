@@ -92,3 +92,7 @@ export function acceptedReportText(
   }
   return undefined;
 }
+
+export function withReportFooter(summary: string, footer: string | undefined): string {
+  return footer === undefined ? summary : `${summary.trim()}\n\n${footer}`;
+}

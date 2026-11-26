@@ -43,7 +43,7 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { StatusChip } from '../../../src/ui/primitives/status-chip';
 import { HostCompatibilityChips } from '../../../src/ui/host-compatibility-chip';
-import { fab, searchAppBar, space } from '../../../src/ui/design/tokens';
+import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -54,16 +54,13 @@ import { useCreationTargets } from '../../../src/ui/shell/use-creation-targets';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
-import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
-import { useDesignTheme } from '../../../src/ui/design/theme';
-import { HomeHeader } from '../../../src/ui/shell/home-header';
-import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
+import { HomeHeader, useGlassHomeHeader } from '../../../src/ui/shell/home-header';
+import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
+import { useChatsCreate } from '../../../src/ui/shell/chats-create';
+import { hostDrawer } from '../../../src/ui/shell/host-drawer-state';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
-import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
-import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
-import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
 import { recordFeature } from '@botharness/host-client/telemetry/features';
 import {
   chatsSearchResults,
@@ -75,7 +72,8 @@ import { useConnectionPresence } from '../../../src/ui/primitives/connection-pro
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
-import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
+import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
+import { useHideChromeOnScroll } from '../../../src/ui/shell/tab-chrome';
 
 import {
   environmentChatList,
@@ -123,10 +121,8 @@ const HomeContent = memo(function HomeContent({
   hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
-  const showWorkspaces = useWorkspacePanel();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -136,7 +132,7 @@ const HomeContent = memo(function HomeContent({
       const idle = requestIdleCallback(() => {
         prepared.current = client;
         router.prefetch('/activity');
-        stop = prefetchInbox(client, { activity: true, section: 'action' });
+        stop = prefetchInbox(client, { activity: true, section: 'action', source: 'all' });
       });
       return () => {
         cancelIdleCallback(idle);
@@ -149,11 +145,14 @@ const HomeContent = memo(function HomeContent({
   const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const bottom = useFloatingTabInset();
+  const floatingBottom = useFloatingTabInset();
+  const glassHeader = useGlassHomeHeader();
+  const bottom = glassHeader ? 0 : floatingBottom;
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
   const directory = useCloudConversations();
   const [filter, setFilter] = useConversationFilter();
+  const create = useChatsCreate(filter);
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<string>();
   const openTarget = useRef<string | undefined>(undefined);
@@ -236,16 +235,8 @@ const HomeContent = memo(function HomeContent({
       };
     }, [enrollment, effectiveFilter]),
   );
-  const recent = useRecentChats();
-  const tobComputers = hosts.map(tobComputer);
-  const tobHostId = tobModeHostId(
-    effectiveFilter,
-    tobComputers,
-    recentHostIds(recent),
-    saved?.hostId,
-  );
-  const tobHref = tobModeHref(tobHostId, tobComputers);
-  const pullFocused = useIsFocused();
+  const browsing = !searching && !searchFocused && query === '';
+  const hideChrome = useHideChromeOnScroll(browsing);
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -593,298 +584,296 @@ const HomeContent = memo(function HomeContent({
   return (
     <>
       {Platform.OS === 'ios' ? null : screen}
-      <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
-        <HomeHeader
-          environment={environment}
-          connection={selectedConnection}
-          disruptedSince={selectedHost?.snapshot.disruptedSince}
-          onWorkspaces={showWorkspaces}
-          bar={
-            Platform.OS === 'android' && searching ? (
-              <ChatsSearchBar
-                autoExpand
-                placeholder={t.searchIn(environment.title)}
-                busy={connecting || messages.loading}
-                results={searchResults}
-                onQuery={onQuery}
-                onExpanded={(expanded) => {
-                  setSearchFocused(expanded);
-                  if (!expanded) {
-                    setQuery('');
-                    setSearching(false);
-                  }
-                }}
-                onPick={pickSearch}
-                onNavigation={openHostDrawer}
-              />
-            ) : undefined
-          }
-          nativeSearch={{
-            placeholder: t.searchPlaceholder,
-            onChange: onQuery,
-            onFocus: () => {
-              setSearching(true);
-              setSearchFocused(true);
-            },
-            onBlur: () => setSearchFocused(false),
-            onCancel: () => {
-              setQuery('');
-              setSearchFocused(false);
-              setSearching(false);
-            },
-          }}
-          search={
-            Platform.OS === 'web' && searching ? (
-              <HeaderSearch
-                value={query}
-                placeholder={t.searchPlaceholder}
-                onChangeText={onQuery}
-                onFocusChange={(next) => {
-                  setSearchFocused(next);
-                  if (!next && query === '') setSearching(false);
-                }}
-                onClose={() => {
-                  setSearchFocused(false);
+      <HomeHeader
+        environment={environment}
+        connection={selectedConnection}
+        disruptedSince={selectedHost?.snapshot.disruptedSince}
+        bar={
+          Platform.OS === 'android' && searching ? (
+            <ChatsSearchBar
+              autoExpand
+              placeholder={t.searchIn(environment.title)}
+              busy={connecting || messages.loading}
+              results={searchResults}
+              onQuery={onQuery}
+              onExpanded={(expanded) => {
+                setSearchFocused(expanded);
+                if (!expanded) {
+                  setQuery('');
                   setSearching(false);
-                }}
-              />
-            ) : undefined
-          }
-          actions={
-            <HeaderAction
-              icon="search"
-              label={t.openSearch}
-              testID="search-button"
-              onPress={() => setSearching(true)}
+                }
+              }}
+              onPick={pickSearch}
             />
-          }
+          ) : undefined
+        }
+        nativeSearch={{
+          placeholder: t.searchPlaceholder,
+          label: t.openSearch,
+          onChange: onQuery,
+          onFocus: () => {
+            setSearching(true);
+            setSearchFocused(true);
+          },
+          onBlur: () => setSearchFocused(false),
+          onCancel: () => {
+            setQuery('');
+            setSearchFocused(false);
+            setSearching(false);
+          },
+        }}
+        search={
+          Platform.OS === 'web' && searching ? (
+            <HeaderSearch
+              value={query}
+              placeholder={t.searchPlaceholder}
+              onChangeText={onQuery}
+              onFocusChange={(next) => {
+                setSearchFocused(next);
+                if (!next && query === '') setSearching(false);
+              }}
+              onClose={() => {
+                setSearchFocused(false);
+                setSearching(false);
+              }}
+            />
+          ) : undefined
+        }
+        nativeItems={create.nativeItem ? [create.nativeItem] : undefined}
+        actions={
+          <ChatsHeaderActions
+            search={{ label: t.openSearch, onPress: () => setSearching(true) }}
+            create={create.button}
+          />
+        }
+      >
+        <LastChatSwipe
+          enabled={!searching && !searchFocused && query === ''}
+          candidates={displayed.flatMap((row) =>
+            row.type !== 'computer'
+              ? []
+              : [
+                  {
+                    id: row.key,
+                    title:
+                      row.conversation.kind === 'bot'
+                        ? row.conversation.bot.displayName
+                        : row.conversation.channel.name,
+                    href: chatHref(
+                      row.conversation.kind === 'bot'
+                        ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
+                        : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
+                      row.host.saved.hostId,
+                    ),
+                  },
+                ],
+          )}
+          travel={lastChatTravel}
         >
-          <LastChatSwipe
-            enabled={!searching && !searchFocused && query === ''}
-            candidates={displayed.flatMap((row) =>
-              row.type !== 'computer'
-                ? []
-                : [
-                    {
-                      id: row.key,
-                      title:
-                        row.conversation.kind === 'bot'
-                          ? row.conversation.bot.displayName
-                          : row.conversation.channel.name,
-                      href: chatHref(
-                        row.conversation.kind === 'bot'
-                          ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
-                          : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
-                        row.host.saved.hostId,
-                      ),
-                    },
-                  ],
-            )}
-            travel={lastChatTravel}
-          >
-            <PullToTob
-              enabled={pullFocused && !searching && !searchFocused && query === ''}
-              scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
-              hostId={tobHostId}
-              href={tobHref}
-              refreshing={refreshing}
-              onRefresh={() => void refresh()}
-              onOpen={(href) => router.push(href)}
-            >
-              {(pull) => (
-                <Animated.FlatList<HomeItem>
-                  {...pull}
-                  renderScrollComponent={renderKeyboardFormScroll}
-                  scrollEventThrottle={1}
-                  contentContainerStyle={{ paddingBottom: bottom + fab.size + space.x6 }}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
-                  data={listItems}
-                  keyExtractor={(r) => r.key}
-                  ListHeaderComponent={
-                    <>
-                      {actionError ? (
-                        <Text accessibilityRole="alert" tone="danger">
-                          {t.rowActions.failed}
-                        </Text>
-                      ) : null}
-                      {refusedHost?.snapshot.connection.status === 'refused' ? (
-                        <StatusChip
-                          testID="home-status-chip"
-                          tone="danger"
-                          label={
-                            selectedHost === undefined && hosts.length > 1
-                              ? `${shownHostName(hostLooks.look(refusedHost.saved.hostId), refusedHost.saved.hostName)}: ${t.deviceRefusal[refusedHost.snapshot.connection.code]}`
-                              : t.deviceRefusal[refusedHost.snapshot.connection.code]
-                          }
-                          action={
-                            refusedHost.snapshot.connection.code === 'sign-in-required'
-                              ? {
-                                  label: t.teamSignIn.again,
-                                  testID: 'home-sign-in-again',
-                                  onPress: () =>
-                                    router.push({
-                                      pathname: '/pair/team',
-                                      params: { host: refusedHost.saved.hostId },
-                                    }),
-                                }
-                              : refusedHost.snapshot.connection.code === 'member-suspended'
-                                ? undefined
-                                : { label: t.pairAgain, onPress: () => router.push('/pair') }
-                          }
-                        />
-                      ) : null}
-                      {selectedHost &&
-                      (hostDown ||
-                        (refreshFailedHosts.includes(selectedHost.saved.hostId) &&
-                          selectedHost.snapshot.connection.status === 'connected')) ? (
-                        <StatusChip
-                          testID="home-status-chip"
-                          label={
-                            selectedHost.snapshot.roster === undefined
-                              ? t.hostListLoadFailed
-                              : hostDown
-                                ? t.hostListOffline
-                                : t.hostListUnavailable
-                          }
-                          action={
-                            refreshing
+          <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
+            {(pull) => (
+              <Animated.FlatList<HomeItem>
+                {...(browsing ? pull : {})}
+                onScroll={hideChrome}
+                {...(glassHeader
+                  ? {
+                      contentInsetAdjustmentBehavior: 'automatic' as const,
+                      automaticallyAdjustsScrollIndicatorInsets: true,
+                    }
+                  : {})}
+                renderScrollComponent={renderKeyboardFormScroll}
+                scrollEventThrottle={1}
+                contentContainerStyle={{
+                  paddingBottom: bottom + space.x6,
+                }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                data={listItems}
+                keyExtractor={(r) => r.key}
+                ListHeaderComponent={
+                  <>
+                    {actionError ? (
+                      <Text accessibilityRole="alert" tone="danger">
+                        {t.rowActions.failed}
+                      </Text>
+                    ) : null}
+                    {refusedHost?.snapshot.connection.status === 'refused' ? (
+                      <StatusChip
+                        testID="home-status-chip"
+                        tone="danger"
+                        label={
+                          selectedHost === undefined && hosts.length > 1
+                            ? `${shownHostName(hostLooks.look(refusedHost.saved.hostId), refusedHost.saved.hostName)}: ${t.deviceRefusal[refusedHost.snapshot.connection.code]}`
+                            : t.deviceRefusal[refusedHost.snapshot.connection.code]
+                        }
+                        action={
+                          refusedHost.snapshot.connection.code === 'sign-in-required'
+                            ? {
+                                label: t.teamSignIn.again,
+                                testID: 'home-sign-in-again',
+                                onPress: () =>
+                                  router.push({
+                                    pathname: '/pair/team',
+                                    params: { host: refusedHost.saved.hostId },
+                                  }),
+                              }
+                            : refusedHost.snapshot.connection.code === 'member-suspended'
                               ? undefined
-                              : {
-                                  label: t.retry,
-                                  testID: 'chat-list-retry',
-                                  onPress: () => void refresh(selectedHost),
-                                }
-                          }
-                          busy={refreshing}
-                        />
-                      ) : null}
-                      <HostCompatibilityChips
-                        named={selectedHost === undefined && hosts.length > 1}
-                        hosts={loadingHosts.flatMap((host) =>
-                          host.snapshot.connection.status === 'connected'
-                            ? [
-                                {
-                                  hostId: host.saved.hostId,
-                                  name: shownHostName(
-                                    hostLooks.look(host.saved.hostId),
-                                    host.saved.hostName,
-                                  ),
-                                  compatibility: host.snapshot.compatibility,
-                                },
-                              ]
-                            : [],
-                        )}
+                              : { label: t.pairAgain, onPress: () => router.push('/pair') }
+                        }
                       />
-                      {(cloudFailed || error) && (
-                        <StatusChip
-                          testID="cloud-status-chip"
-                          label={`${t.cloudListUnavailable}${error ? ` (${error})` : ''}`}
-                          busy={refreshing}
-                          action={
-                            refreshing
-                              ? undefined
-                              : {
-                                  label: t.retry,
-                                  testID: 'cloud-list-retry',
-                                  onPress: () =>
-                                    failedOpen ? void openCloud(failedOpen) : void refresh(),
-                                }
+                    ) : null}
+                    {selectedHost &&
+                    (hostDown ||
+                      (refreshFailedHosts.includes(selectedHost.saved.hostId) &&
+                        selectedHost.snapshot.connection.status === 'connected')) ? (
+                      <StatusChip
+                        testID="home-status-chip"
+                        label={
+                          selectedHost.snapshot.roster === undefined
+                            ? t.hostListLoadFailed
+                            : hostDown
+                              ? t.hostListOffline
+                              : t.hostListUnavailable
+                        }
+                        action={
+                          refreshing
+                            ? undefined
+                            : {
+                                label: t.retry,
+                                testID: 'chat-list-retry',
+                                onPress: () => void refresh(selectedHost),
+                              }
+                        }
+                        busy={refreshing}
+                      />
+                    ) : null}
+                    <HostCompatibilityChips
+                      named={selectedHost === undefined && hosts.length > 1}
+                      hosts={loadingHosts.flatMap((host) =>
+                        host.snapshot.connection.status === 'connected'
+                          ? [
+                              {
+                                hostId: host.saved.hostId,
+                                name: shownHostName(
+                                  hostLooks.look(host.saved.hostId),
+                                  host.saved.hostName,
+                                ),
+                                compatibility: host.snapshot.compatibility,
+                              },
+                            ]
+                          : [],
+                      )}
+                    />
+                    {(cloudFailed || error) && (
+                      <StatusChip
+                        testID="cloud-status-chip"
+                        label={`${t.cloudListUnavailable}${error ? ` (${error})` : ''}`}
+                        busy={refreshing}
+                        action={
+                          refreshing
+                            ? undefined
+                            : {
+                                label: t.retry,
+                                testID: 'cloud-list-retry',
+                                onPress: () =>
+                                  failedOpen ? void openCloud(failedOpen) : void refresh(),
+                              }
+                        }
+                      />
+                    )}
+                  </>
+                }
+                ListEmptyComponent={
+                  coldLoading ? (
+                    <ListSkeleton />
+                  ) : hostFailed || cloudFailed || refusedHost !== undefined ? undefined : (
+                    <Text tone="muted" style={{ padding: space.x6 }}>
+                      {query
+                        ? t.searchNoMatch(query.trim())
+                        : effectiveFilter === 'all' &&
+                            hosts.length > 0 &&
+                            hosts.every((host) => host.snapshot.connection.status !== 'connected')
+                          ? t.noOnlineChats
+                          : emptyChannels}
+                    </Text>
+                  )
+                }
+                renderItem={({ item }) =>
+                  item.type === 'message-heading' ? (
+                    <MessageSearchHeading loading={messages.loading} />
+                  ) : item.type === 'message' ? (
+                    <MessageSearchRow
+                      hit={item.hit}
+                      conversation={item.conversation}
+                      now={new Date()}
+                      onPress={() => openMessage(item)}
+                    />
+                  ) : item.type === 'section' ? (
+                    <ItemMenu
+                      title={item.name ?? t.pinnedSection}
+                      actions={
+                        item.id === PINNED_SECTION || !item.host
+                          ? []
+                          : [
+                              {
+                                key: 'delete-section',
+                                glyph: 'delete',
+                                label: t.deletion.deleteSection,
+                                destructive: true,
+                                run: () =>
+                                  setDeleting({
+                                    host: item.host!,
+                                    target: {
+                                      kind: 'section',
+                                      id: item.id,
+                                      name: item.name ?? '',
+                                    },
+                                  }),
+                              },
+                            ]
+                      }
+                    >
+                      {(open, nativeContextMenu) => (
+                        <SectionHeader
+                          count={item.count}
+                          needsYou={item.needsYou}
+                          unread={item.unread}
+                          collapsed={item.collapsed}
+                          testID={`chat-section-${item.id}`}
+                          name={item.name ?? t.pinnedSection}
+                          onLongPress={
+                            nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
                           }
+                          onMenu={item.id === PINNED_SECTION ? undefined : open}
+                          onToggle={() => {
+                            sectionCollapse.toggle(collapseScope, item.id);
+                          }}
                         />
                       )}
-                    </>
-                  }
-                  ListEmptyComponent={
-                    coldLoading ? (
-                      <ListSkeleton />
-                    ) : hostFailed || cloudFailed || refusedHost !== undefined ? undefined : (
-                      <Text tone="muted" style={{ padding: space.x6 }}>
-                        {query
-                          ? t.searchNoMatch(query.trim())
-                          : effectiveFilter === 'all' &&
-                              hosts.length > 0 &&
-                              hosts.every((host) => host.snapshot.connection.status !== 'connected')
-                            ? t.noOnlineChats
-                            : emptyChannels}
-                      </Text>
-                    )
-                  }
-                  renderItem={({ item }) =>
-                    item.type === 'message-heading' ? (
-                      <MessageSearchHeading loading={messages.loading} />
-                    ) : item.type === 'message' ? (
-                      <MessageSearchRow
-                        hit={item.hit}
-                        conversation={item.conversation}
-                        now={new Date()}
-                        onPress={() => openMessage(item)}
-                      />
-                    ) : item.type === 'section' ? (
-                      <ItemMenu
-                        title={item.name ?? t.pinnedSection}
-                        actions={
-                          item.id === PINNED_SECTION || !item.host
-                            ? []
-                            : [
-                                {
-                                  key: 'delete-section',
-                                  glyph: 'delete',
-                                  label: t.deletion.deleteSection,
-                                  destructive: true,
-                                  run: () =>
-                                    setDeleting({
-                                      host: item.host!,
-                                      target: {
-                                        kind: 'section',
-                                        id: item.id,
-                                        name: item.name ?? '',
-                                      },
-                                    }),
-                                },
-                              ]
-                        }
-                      >
-                        {(open, nativeContextMenu) => (
-                          <SectionHeader
-                            count={item.count}
-                            needsYou={item.needsYou}
-                            unread={item.unread}
-                            collapsed={item.collapsed}
-                            testID={`chat-section-${item.id}`}
-                            name={item.name ?? t.pinnedSection}
-                            onLongPress={
-                              nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
-                            }
-                            onMenu={item.id === PINNED_SECTION ? undefined : open}
-                            onToggle={() => {
-                              sectionCollapse.toggle(collapseScope, item.id);
-                            }}
-                          />
-                        )}
-                      </ItemMenu>
-                    ) : item.type === 'computer' ? (
-                      <HostRow
-                        item={item}
-                        showSourceLabel={effectiveFilter === 'all'}
-                        onError={() => setActionError(true)}
-                        onDelete={(target) => setDeleting({ host: item.host, target })}
-                      />
-                    ) : (
-                      <CloudConversationRow
-                        row={item.conversation}
-                        pending={opening === item.conversation.key}
-                        mixed={effectiveFilter === 'all'}
-                        onPress={() => void openCloud(item.conversation)}
-                      />
-                    )
-                  }
-                />
-              )}
-            </PullToTob>
-          </LastChatSwipe>
-        </HomeHeader>
-      </HostDrawerEdge>
+                    </ItemMenu>
+                  ) : item.type === 'computer' ? (
+                    <HostRow
+                      item={item}
+                      showSourceLabel={effectiveFilter === 'all'}
+                      onError={() => setActionError(true)}
+                      onDelete={(target) => setDeleting({ host: item.host, target })}
+                    />
+                  ) : (
+                    <CloudConversationRow
+                      row={item.conversation}
+                      pending={opening === item.conversation.key}
+                      mixed={effectiveFilter === 'all'}
+                      onPress={() => void openCloud(item.conversation)}
+                    />
+                  )
+                }
+              />
+            )}
+          </PullToRefresh>
+        </LastChatSwipe>
+      </HomeHeader>
+      {create.sheet}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet

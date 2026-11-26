@@ -325,6 +325,25 @@ describe('Host client', () => {
       }),
     ]);
   });
+  it('counts the people in a group that has no Bots', async () => {
+    const host = new FakeHost();
+    const group = {
+      id: 'group-people',
+      type: 'group',
+      name: 'Design Room',
+      members: [],
+      humanMembers: [
+        { humanId: 'human-owner', displayName: 'Owner' },
+        { humanId: 'human-alice', displayName: 'Alice' },
+        { humanId: 'human-bob', displayName: 'Bob' },
+      ],
+    };
+    host.methods.set('channels', () => ({ channels: [group] }));
+    const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.channels).toEqual([
+      expect.objectContaining({ id: 'group-people', memberCount: 3 }),
+    ]);
+  });
   it('keeps the channel list in the local store and later asks only for what changed (C3)', async () => {
     const store: LocalStore = await openLocalStore(nodeSqlConnection());
     const host = new FakeHost();

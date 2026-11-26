@@ -270,7 +270,12 @@ it('answers the first Human message on DSH when the engine hits quota before out
   ]);
   expect(bot.dsh.stored.get(sessionId)?.header.cwd).toBe(bot.memoryDirectory);
   expect(bot.codex[0]?.closed).toBe(true);
-  expect(bot.prepareModelRoute).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', API);
+  expect(bot.prepareModelRoute).toHaveBeenCalledExactlyOnceWith(
+    'ada',
+    'orchestrator',
+    API,
+    expect.any(AbortSignal),
+  );
   expect(bot.host.store.selections()).toEqual([]);
   expect(bot.host.quota('codex')?.limitedUntil).toBe(RESETS_AT);
 });
@@ -402,7 +407,7 @@ it('starts mixed-group engines in read-only mode across quota continuation', asy
     {
       model: CLAUDE.model,
       permissionMode: 'default',
-      tools: ['Read', 'Glob', 'Grep'],
+      tools: ['Read', 'Glob', 'Grep', 'Agent'],
       disallowedTools: ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'],
     },
   ]);

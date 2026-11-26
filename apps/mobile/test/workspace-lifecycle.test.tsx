@@ -25,6 +25,8 @@ const fixture = vi.hoisted(() => ({
   cloudListeners: new Set<() => void>(),
   invalidations: 0,
   filter: 'all',
+  backs: 0,
+  pushed: [] as string[],
 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -34,7 +36,8 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigation,
   usePathname: () => '/',
   useGlobalSearchParams: () => ({}),
-  router: {},
+  router: { push: (path: string) => fixture.pushed.push(path) },
+  useRouter: () => ({ back: () => fixture.backs++, push: () => {} }),
 }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
@@ -76,6 +79,27 @@ vi.mock('../src/ui/primitives/drawer-material', () => ({
   DrawerMaterial: () => null,
   useLiquidGlass: () => false,
 }));
+vi.mock('../src/ui/primitives/sheet-screen', async () => {
+  const { createElement } = await import('react');
+  return {
+    SheetScreen: ({
+      children,
+      onMount,
+    }: {
+      children?: import('react').ReactNode;
+      onMount?: import('react').Ref<HTMLDivElement>;
+    }) => createElement('div', { ref: onMount }, children),
+  };
+});
+vi.mock('../src/ui/primitives/sheet-header', async () => {
+  const { createElement } = await import('react');
+  return {
+    SheetHeader: ({ title, trailing }: { title: string; trailing?: import('react').ReactNode }) =>
+      createElement('div', null, createElement('h2', { role: 'header' }, title), trailing),
+  };
+});
+vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));
+vi.mock('../src/ui/primitives/read-failure', () => ({ ReadFailure: () => null }));
 vi.mock('../src/ui/primitives/action-menu-button', () => ({ ActionMenuButton: () => null }));
 vi.mock('../src/ui/primitives/app-dialog', () => ({
   showActionMenu: () => {},
@@ -151,7 +175,8 @@ vi.mock('../src/host/host-session', () => ({
   },
 }));
 import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
-import { HostDrawer, WorkspacePanel, hostDrawer } from '../src/ui/shell/host-drawer';
+import { EnvironmentSheetScreen } from '../src/ui/shell/environment-sheet';
+import { hostDrawer } from '../src/ui/shell/host-drawer-state';
 
 const stack = StackRouter({ initialRouteName: '(tabs)' });
 const routeNames = ['(tabs)', 'dm/[slug]', 'cloud-channels', 'cloud-services'];
@@ -183,7 +208,7 @@ function Entry() {
   const mounted = useWorkspaceNavigation(invalidate);
   return (
     <View ref={mounted}>
-      <HostDrawer />
+      <EnvironmentSheetScreen />
     </View>
   );
 }
@@ -208,6 +233,9 @@ beforeEach(async () => {
   fixture.rows = [row()];
   fixture.selected = 'a';
   fixture.invalidations = 0;
+  fixture.backs = 0;
+  fixture.pushed = [];
+  fixture.filter = 'all';
   fixture.hosts = [
     { hostId: 'a', hostName: 'A', routes: ['https://a.test'], deviceId: 'qa', credential: 'first' },
     {
@@ -224,20 +252,20 @@ beforeEach(async () => {
   await act(async () => root.render(<Entry />));
 });
 afterEach(() => {
-  hostDrawer.close();
   act(() => root.unmount());
   node.remove();
 });
 const push = (name: string, params: object) =>
   navigation.dispatch({ type: 'PUSH', payload: { name, params } });
 
-it('pressing a Computer in the real drawer resets scoped pages and keeps the existing tab root', async () => {
+it('pressing a Computer in the Environment sheet closes it, resets scoped pages and keeps the existing tab root', async () => {
   push('dm/[slug]', { hostId: 'a', slug: 'ada' });
-  await act(async () => hostDrawer.open());
   const target = node.querySelector<HTMLButtonElement>('[data-testid="drawer-host-b"]');
   expect(target).not.toBeNull();
   await act(async () => target!.click());
+  expect(fixture.backs).toBe(1);
   expect(fixture.selected).toBe('b');
+  expect(fixture.filter).toBe(JSON.stringify(['computer', 'b']));
   expect(state.routes).toEqual([{ key: 'tabs', name: '(tabs)' }]);
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes).toHaveLength(1);
@@ -301,24 +329,33 @@ it('unpairing removes only routes whose explicit Host source was removed', async
   expect(state.routes[1]?.params).toMatchObject({ hostId: 'b' });
 });
 
-it('the iOS workspace page draws its own title and lists environments as native rows', async () => {
-  const page = document.createElement('div');
-  document.body.append(page);
-  const panel = createRoot(page);
-  await act(async () => panel.render(<WorkspacePanel page active />));
-  expect(page.querySelector('[role="header"]')?.textContent).toBe(t.workspaces);
-  expect(page.querySelector('[data-testid="workspace-pair"]')).not.toBeNull();
-  expect(page.querySelector('[data-testid="drawer-all"]')).not.toBeNull();
-  await act(async () =>
-    page.querySelector<HTMLButtonElement>('[data-testid="drawer-host-b"]')!.click(),
+it('the Environment sheet lists All and each Computer, with pairing behind the header +', async () => {
+  expect(node.querySelector('[role="header"]')?.textContent).toBe(t.environmentSheet.title);
+  const ids = [...node.querySelectorAll('[data-testid]')].map((item) =>
+    item.getAttribute('data-testid'),
   );
-  expect(fixture.selected).toBe('b');
-  act(() => panel.unmount());
-  page.remove();
+  expect(ids.filter((id) => /^(environment-|drawer-host-)/.test(id ?? ''))).toEqual([
+    'environment-add',
+    'environment-sheet',
+    'environment-all',
+    'drawer-host-a',
+    'drawer-host-b',
+  ]);
+  await act(async () =>
+    node.querySelector<HTMLButtonElement>('[data-testid="environment-add"]')!.click(),
+  );
+  expect(fixture.backs).toBe(1);
+  expect(fixture.pushed).toEqual(['/pair']);
+  await act(async () => root.render(<Entry />));
+  fixture.filter = JSON.stringify(['computer', 'b']);
+  await act(async () =>
+    node.querySelector<HTMLButtonElement>('[data-testid="environment-all"]')!.click(),
+  );
+  expect(fixture.filter).toBe('all');
+  expect(fixture.selected).toBe('a');
 });
 
 it('environment rows show only the name and status; addresses stay on the connection page', async () => {
-  await act(async () => hostDrawer.open());
   const row = node.querySelector('[data-testid="drawer-host-b"]');
   expect(row?.textContent).toContain('B');
   expect(row?.textContent).toMatch(
@@ -326,13 +363,4 @@ it('environment rows show only the name and status; addresses stay on the connec
   );
   expect(node.textContent).not.toContain('a.test');
   expect(node.textContent).not.toContain('b.test');
-
-  const page = document.createElement('div');
-  document.body.append(page);
-  const panel = createRoot(page);
-  await act(async () => panel.render(<WorkspacePanel page active />));
-  expect(page.querySelector('[data-testid="drawer-host-b"]')).not.toBeNull();
-  expect(page.textContent).not.toContain('b.test');
-  act(() => panel.unmount());
-  page.remove();
 });

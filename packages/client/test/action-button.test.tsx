@@ -43,3 +43,18 @@ it('keeps the action name, disables pending actions, and preserves callbacks', a
     vi.unstubAllGlobals();
   }
 });
+it('renders a text-only action without an icon until it is busy', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<ActionButton>允许这次</ActionButton>));
+    expect(host.querySelector('button')!.textContent).toBe('允许这次');
+    expect(host.querySelector('[aria-hidden="true"]')).toBeNull();
+    await act(async () => root.render(<ActionButton busy>允许这次</ActionButton>));
+    expect(host.querySelector('[aria-hidden="true"] svg')).not.toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});

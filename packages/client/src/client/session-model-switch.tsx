@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
+import { Fragment } from 'react';
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnModelSwitch } from '@botharness/host-protocol/turn-target';
 
@@ -29,20 +30,28 @@ const styles = stylex.create({
   },
   name: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
   fixed: { flex: 'none' },
+  wrap: { flexWrap: 'wrap', whiteSpace: 'normal' },
 });
 
 export function SessionModelSwitch({
   item,
   catalog,
+  native = false,
   t,
 }: {
   item: TurnModelSwitch;
   catalog: TurnTargetCatalog;
+  native?: boolean;
   t: BotHarnessTranslate;
 }) {
   const reason = item.reason;
   const from = turnTargetLabel(item.from, catalog);
   const to = turnTargetLabel(item.to, catalog);
+  const translation = `sessions.model.${reason ?? 'switched'}` as const;
+  const name = (label: typeof from) =>
+    native
+      ? label.short
+      : `${label.short} ${t(label.external ? 'sessions.model.sub' : 'sessions.model.api')}`;
   const model = (label: ReturnType<typeof turnTargetLabel>) => (
     <span title={label.short} {...stylex.props(styles.model)}>
       <span {...stylex.props(styles.fixed)}>
@@ -55,22 +64,31 @@ export function SessionModelSwitch({
     <div
       data-session-model-switch=""
       role="note"
-      aria-label={t(`sessions.model.${reason ?? 'switched'}` as const, {
-        from: `${from.short} ${t(from.external ? 'sessions.model.sub' : 'sessions.model.api')}`,
-        to: `${to.short} ${t(to.external ? 'sessions.model.sub' : 'sessions.model.api')}`,
-      })}
-      {...stylex.props(styles.row)}
+      aria-label={t(translation, { from: name(from), to: name(to) })}
+      {...stylex.props(styles.row, native && styles.wrap)}
     >
-      {reason === undefined ? null : (
-        <span aria-hidden {...stylex.props(styles.reason)}>
-          {t(`sessions.model.reason.${reason}` as const)} ·
-        </span>
+      {native ? (
+        t(translation, { from: '\uE000from\uE000', to: '\uE000to\uE000' })
+          .split('\uE000')
+          .map((part, index) => (
+            <Fragment key={index}>
+              {part === 'from' ? model(from) : part === 'to' ? model(to) : part}
+            </Fragment>
+          ))
+      ) : (
+        <>
+          {reason === undefined ? null : (
+            <span aria-hidden {...stylex.props(styles.reason)}>
+              {t(`sessions.model.reason.${reason}` as const)} ·
+            </span>
+          )}
+          <span aria-hidden {...stylex.props(styles.pair)}>
+            {model(from)}
+            <span {...stylex.props(styles.fixed)}>→</span>
+            {model(to)}
+          </span>
+        </>
       )}
-      <span aria-hidden {...stylex.props(styles.pair)}>
-        {model(from)}
-        <span {...stylex.props(styles.fixed)}>→</span>
-        {model(to)}
-      </span>
     </div>
   );
 }

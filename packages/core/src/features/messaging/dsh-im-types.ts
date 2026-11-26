@@ -141,6 +141,7 @@ export interface DshImOutboundService {
       receipt?: true;
       beforeSend?: () => boolean;
       mentionUserIds?: string[];
+      standalone?: true;
     },
   ): Promise<{ sent: true; receipt?: MessagingReceipt }>;
   historyChecked?(

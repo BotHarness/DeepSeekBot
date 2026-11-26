@@ -41,8 +41,8 @@ export const components = {
       TrailingContent: slot('trailing'),
     },
   ),
-  Text: ({ children, color }: Children & { color?: string }) =>
-    createElement('span', { 'data-color': color }, children),
+  Text: ({ children, color, maxLines }: Children & { color?: string; maxLines?: number }) =>
+    createElement('span', { 'data-color': color, 'data-max-lines': maxLines }, children),
   Icon: ({ source, tint }: { source: string; tint?: string }) =>
     createElement('i', { 'data-icon': source, 'data-tint': tint }),
   Switch: ({ value, enabled }: { value: boolean; enabled?: boolean }) =>
@@ -56,6 +56,11 @@ export const components = {
   CircularProgressIndicator: () => createElement('progress', { 'data-native-busy': '' }),
   RNHostView: pass,
   Row: pass,
+  Column: pass,
+  Box: ({ modifiers = [] }: { modifiers?: { background?: string }[] }) =>
+    createElement('b', {
+      'data-dot': modifiers.find((modifier) => modifier.background)?.background,
+    }),
 };
 
 export const modifiers = {
@@ -66,6 +71,9 @@ export const modifiers = {
     options?: { role?: string; enabled?: boolean },
   ) => ({ toggled, onClick, ...options }),
   size: () => ({}),
+  clip: () => ({}),
+  background: (background: string) => ({ background }),
+  Shapes: { Circle: 'circle' },
 };
 
 export const rowIconSources = new Proxy({}, { get: (_target, name) => `row-icon:${String(name)}` });

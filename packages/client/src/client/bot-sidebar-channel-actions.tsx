@@ -374,8 +374,7 @@ export function renderSidebarChannelActions({
               (channel) => channel.id === channelMenu.channelId && channel.type === 'dm',
             )?.botSlug;
             const bot = state.bots.find((item) => item.slug === botId);
-            if (bot === undefined || bot.deleted === true || bot.tob !== undefined)
-              return undefined;
+            if (bot === undefined || bot.deleted === true) return undefined;
             return () => {
               setPublishing(bot);
               setChannelMenu(undefined);
@@ -409,6 +408,12 @@ export function renderSidebarChannelActions({
             void actions.setChannelPinned(channelId, pinned);
             setChannelMenu(undefined);
           }}
+          groupDetailsCall={
+            state.channels.find((candidate) => candidate.id === channelMenu.channelId)?.type ===
+            'group'
+              ? actions.teamCall
+              : undefined
+          }
           onRename={(channelId) => {
             const channel = state.channels.find((candidate) => candidate.id === channelId);
             if (channel !== undefined) setChannelRenameTarget(channel);

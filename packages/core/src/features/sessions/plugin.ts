@@ -2,6 +2,7 @@ import type * as diagnosticsFeature from '../diagnostics/plugin.js';
 import type * as approvalsFeature from '../approvals/plugin.js';
 import type * as workspacesFeature from '../workspaces/plugin.js';
 import type { SessionLiveStreams } from '../../runtime/session-live.js';
+import { changesSessionRow, type SessionListChanges } from './session-list-changes.js';
 import { TeamError } from '../../team/error.js';
 import { requireBotModel } from '../../team/models.js';
 import {
@@ -380,7 +381,9 @@ export function mountLifecycle(
     idleCompaction: ReturnType<typeof createIdleCompaction>;
     agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
     dshSessions: DshSessionStore;
+    sessionListChanges: Pick<SessionListChanges, 'changed'>;
     openAssignmentRoutes: ReturnType<typeof models.createCatalog>['openAssignmentRoutes'];
+    effectivePlan: ReturnType<typeof models.createCatalog>['routingDefaults']['effectivePlan'];
   },
 ) {
   const {
@@ -393,7 +396,9 @@ export function mountLifecycle(
     idleCompaction,
     agentAdapter,
     dshSessions,
+    sessionListChanges,
     openAssignmentRoutes,
+    effectivePlan,
   } = deps;
   ctx.on(
     'session/event',
@@ -405,6 +410,7 @@ export function mountLifecycle(
       });
       activity.handleSessionEvent(session.id, event);
       sessionLive.observe(session.id, event);
+      sessionListChanges.changed(changesSessionRow(event.type), session.id, event.time);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -432,12 +438,14 @@ export function mountLifecycle(
     'agent/created',
     async ({ agent }) => {
       activity.handleAgentCreated(agent.session);
+      sessionListChanges.changed(true, agent.session.id);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const routing = models.installSubagentRouting(
         core,
         agent,
         () => config.subagent,
         openAssignmentRoutes,
+        effectivePlan,
       );
       if (routing !== undefined) await routing;
     },
@@ -447,6 +455,7 @@ export function mountLifecycle(
     'agent/status',
     ({ agent, status }) => {
       if (status === 'idle') activity.handleAgentIdle(agent.session.id);
+      sessionListChanges.changed(true, agent.session.id);
       idleCompaction.agentStatus(agent.session.id, status);
     },
     { global: true },
@@ -462,6 +471,7 @@ export function mountLifecycle(
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
       sessionLive.forget(agent.session.id);
+      sessionListChanges.changed(true, agent.session.id);
     },
     { global: true },
   );

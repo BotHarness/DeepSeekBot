@@ -272,3 +272,67 @@ describe('durable tool approval rules', () => {
     }
   });
 });
+
+it('migrates active, pending and revoked rules with their counts and creator provenance', () => {
+  const home = createTempRoot('botharness-shell-prefix-upgrade-');
+  let owner = mountOperationalDatabase({
+    dshHome: home,
+    schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
+  });
+  const store = () =>
+    createToolApprovalRuleStore(attachOperationalModule(owner, 'tool-approval-rules'), () => true);
+  const input = {
+    botSlug: 'ada',
+    role: 'orchestrator' as const,
+    scopeKey: 'scope',
+    toolName: 'bash',
+    input: 'pwd',
+  };
+  const externalCreator = {
+    platform: 'feishu' as const,
+    bindingId: 'binding',
+    fingerprint: 'a'.repeat(64),
+    actorId: 'ou_alice',
+    pairingId: 'pairing',
+    pairingRevision: 2,
+    conversationId: 'oc_private',
+    messageId: 'om_card',
+  };
+  try {
+    const original = store().createPending({ ...input, kind: 'exact', externalCreator });
+    store().activate('ada', original.id);
+    store().recordAutoApproval('ada', original.id);
+    const revoked = store().createPending({ ...input, kind: 'tool' });
+    store().activate('ada', revoked.id);
+    store().revoke('ada', revoked.id);
+    const pending = store().createPending({ ...input, kind: 'exact' });
+    const before = store().list('ada');
+    const readRows = () =>
+      attachOperationalModule(owner, 'tool-approval-rules').read((db) =>
+        db.prepare('SELECT * FROM tool_approval_rules ORDER BY id').all(),
+      );
+    const rowsBefore = readRows();
+    owner.close();
+    owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    expect(readRows()).toEqual(rowsBefore);
+    expect(store().list('ada')).toEqual(before);
+    expect(store().match(input)).toMatchObject({
+      id: original.id,
+      autoApprovedCount: 1,
+      externalCreator,
+    });
+    expect(
+      store()
+        .list('ada')
+        .map((rule) => rule.id),
+    ).not.toContain(pending.id);
+    const prepared = store().preparePrefixes({ ...input, patterns: ['git status *'] });
+    attachOperationalModule(owner, 'tool-approval-rules').transaction(prepared.commit);
+    expect(store().list('ada')).toContainEqual(
+      expect.objectContaining({ kind: 'prefix', input: 'git status *' }),
+    );
+  } finally {
+    owner.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});

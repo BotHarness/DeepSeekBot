@@ -8,12 +8,14 @@
 
 ## Palette
 
+Brand, accent and status colours come from Tobs core: `setup.mjs` copies `design/tokens/tobs-core.generated.css` to `kit/tobs-core.css`, and scenes read them with `TOBS('<name>')` (light values; the PV ground is light). Never hard-code these hex values. A new workspace picks up a brand change on its first render; an existing workspace keeps its copied `kit/tobs-core.css` until you re-run `setup.mjs` on it (the re-run keeps `scenes.js` and `beats.js`). The ground, ink, rainbow and space colours below are the PV's own.
+
 | Role | Value |
 | --- | --- |
 | Light ground | `#ECEAE6` (warm beige) |
 | Ink | `#0F1115`, secondary `#3A3D44`, muted `#5A5D63` |
-| Accent blue | `#4176E6` (also the T / o / B of "Team of Bots") |
-| Feature cards | blue `#4176E6`, green `#287454`, amber `#D99A2B`, purple `#7957C9`, black `#0F1115`, white |
+| Accent blue | `TOBS('brand')` (also the T / o / B of "Team of Bots") |
+| Feature cards | `TOBS('brand')`, `TOBS('accent-forest-green')`, `TOBS('accent-warm-amber')`, `TOBS('accent-mist-purple')`, black `#0F1115`, white |
 | Rainbow (progress bar, trails, confetti) | `#FF3B3B #FF9A1F #FFE23B #3BD16F #2FA8FF #7A5CFF` |
 | Space | pure `#000`, bar track `#1B2142`, label `#AEB6D6` |
 

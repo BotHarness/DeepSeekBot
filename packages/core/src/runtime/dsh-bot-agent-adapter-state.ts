@@ -1,12 +1,12 @@
 import { orchestratorHandle } from './dsh-bot-agent-adapter-orchestrator.js';
-import type { AssignmentModeChoices } from '../features/assignments/tools.js';
+import type { AssignmentModeChoices } from '../features/assignments/loadout-parameter.js';
 import { ModelFreeTobCliInvocation } from '../tob/cli-invocation.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
 import type { Agent, AgentHandle, ModelSelection } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
-import type { PersonaBotModelPlan } from '../models/presets.js';
+import type { ModelRoute, PersonaBotModelPlan } from '../models/presets.js';
 import type { OpenAssignmentRoutes } from '../models/open-assignments.js';
 import { ChannelDraftTracker } from '../channels/draft.js';
 import {
@@ -44,7 +44,7 @@ export class DshBotAgentAdapterState {
   readonly openAssignmentRoutes: OpenAssignmentRoutes | undefined;
   readonly orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
   readonly assignmentGroups: AssignmentGroupRoutes | undefined;
-  readonly prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
+  readonly #checkModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly promptText: (sessionId: string) => PromptText;
@@ -64,6 +64,8 @@ export class DshBotAgentAdapterState {
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
   readonly assignmentModes: ((botSlug: string) => Promise<AssignmentModeChoices>) | undefined;
   readonly onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
+  readonly onAssignmentShellSetup: DshBotAgentAdapterOptions['onAssignmentShellSetup'];
+  readonly assignmentReportFooter: DshBotAgentAdapterOptions['assignmentReportFooter'];
   readonly onAgentSetup:
     | ((agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void)
     | undefined;
@@ -125,7 +127,7 @@ export class DshBotAgentAdapterState {
     this.openAssignmentRoutes = options.openAssignmentRoutes;
     this.orchestratorRoute = options.orchestratorRoute;
     this.assignmentGroups = options.assignmentGroups;
-    this.prepareModelRoute = options.prepareModelRoute;
+    this.#checkModelRoute = options.prepareModelRoute;
     this.observeTurnFailure = options.observeTurnFailure;
     this.turnRefusal = options.turnRefusal;
     this.promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
@@ -142,6 +144,8 @@ export class DshBotAgentAdapterState {
     this.admitSession = options.admitSession;
     this.onAgentSetup = options.onAgentSetup;
     this.onOrchestratorFileSetup = options.onOrchestratorFileSetup;
+    this.onAssignmentShellSetup = options.onAssignmentShellSetup;
+    this.assignmentReportFooter = options.assignmentReportFooter;
     this.#resolveAgentPresets = options.resolveAgentPresets;
     this.assignmentModes = options.assignmentModes;
     this.ensureWorkspace =
@@ -166,11 +170,24 @@ export class DshBotAgentAdapterState {
       );
   }
 
+  async prepareModelRoute(
+    botSlug: string,
+    role: 'orchestrator' | 'assignment',
+    route: ModelRoute | undefined,
+    signal: AbortSignal,
+  ): Promise<void> {
+    signal.throwIfAborted();
+    const check = this.#checkModelRoute?.(botSlug, role, route, signal);
+    if (check !== undefined) await untilAborted(check, signal);
+  }
+
   async prepare<T>(
     sessionId: string,
     work: (signal: AbortSignal) => Promise<T>,
     signal?: AbortSignal,
   ): Promise<T> {
+    if (this.engineStops.has(sessionId))
+      throw new DirectBotToolError('bot-busy', 'The Session is running on an engine');
     this.requireNoPreparation(sessionId);
     const controller = new AbortController();
     this.#preparations.set(sessionId, controller);
@@ -276,12 +293,19 @@ export class DshBotAgentAdapterState {
       return [agent];
     });
     await Promise.all(agents.map((agent) => agent.whenIdle()));
+    let firstFailure: { error: unknown } | undefined;
     for (const id of ids) {
       const handle = this.handles.get(id);
       if (handle === undefined) continue;
-      await handle.dispose();
+      try {
+        await handle.dispose();
+      } catch (error) {
+        firstFailure ??= { error };
+        continue;
+      }
       this.forgetHandle(id);
     }
+    if (firstFailure !== undefined) throw firstFailure.error;
   }
 
   async abandonSession(sessionId: string): Promise<void> {

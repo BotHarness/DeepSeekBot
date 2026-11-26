@@ -730,5 +730,57 @@
   {
     "id": "bot-schedule-creation-receipts",
     "sha256": "645281f35ccda914a5f53253861bf4a8076d5338f5cad9e03875625a17743c30"
+  },
+  {
+    "id": "pending-orchestrator-replacements",
+    "sha256": "0212155fd450e0d4030993a5e6bee01d90404edbb1af68b949e10e1612d40e21"
+  },
+  {
+    "id": "tob-memory-leases",
+    "sha256": "8520f1204dc8d9cc8f65f1106f835df568cc86c3edcc7726dc67c6d247980fae"
+  },
+  {
+    "id": "binding-group-interactions",
+    "sha256": "f588f5903452481413b4ab2a4a84739ae597860a7161b94ba6b21dd9447592db"
+  },
+  {
+    "id": "sender-default-role",
+    "sha256": "2c8c51128525b7ef3b3b1d2951e686df84031e0174f28dab373f691556661e5b"
+  },
+  {
+    "id": "connector-accounts",
+    "sha256": "6466c009108fbaad7510d9eecb7f79f66f5dd980969be49762a74448bf3d0865"
+  },
+  {
+    "id": "bot-management-grants",
+    "sha256": "63437bdd59b8ed905577534d32987ae8f5cf58ea60db90a546c183e35efe3caf"
+  },
+  {
+    "id": "connector-remote-mcp",
+    "sha256": "4897d986659a9c3f523737c7efb0ce62b8845f98fb9f85a75b1545a6f9ee2d82"
+  },
+  {
+    "id": "sender-block",
+    "sha256": "6038e99514650fd293e152f4c762f10765a7321c66edc1a5c79d025dc1420f9c"
+  },
+  {
+    "id": "shell-prefix-tool-rule",
+    "sha256": "5e6de29688067eefc270b7e31808afc7d16dac03c4ee45d01a77f2c35b96a0a0"
+  },
+  {
+    "id": "source-block",
+    "sha256": "a6ede706bb8c3bc5f73c78ef02c7c6f8a620a3ad7036629b3f4b58df3df775c6"
+  },
+  {
+    "id": "connector-sign-in-access",
+    "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
+  },
+  {
+    "id": "workspace-looks",
+    "sha256": "1f0c624e90e6666c80ada16f81a37ca0c1b2ac9bf5f5784d64bcf5903709d239"
+  },
+  {
+    "id": "role-denied-permissions",
+    "sha256": "9e0587401ed5997f39383fb34181edd14e5f7d705a46b6e922b0e53da0af9075"
   }
 ]

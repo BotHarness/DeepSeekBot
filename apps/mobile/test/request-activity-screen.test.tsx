@@ -95,7 +95,7 @@ const navigation = {
   },
 };
 vi.mock('../src/host/host-session', () => ({ hostSession: source }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
+vi.mock('../src/ui/shell/host-drawer-state', () => ({
   hostDrawer: { captureWorkspaceSelection: () => () => workspaceCurrent },
 }));
 const assignment = vi.hoisted(() => ({ id: undefined as string | undefined }));
@@ -145,13 +145,14 @@ afterEach(() => {
 it('replaces the activity entry for a new original DM and Back leaves no intermediate route', async () => {
   await act(async () => root.render(<RequestActivityScreen />));
   await act(async () => source.a.emit());
-  expect(history.state.routes.at(-1)).toMatchObject({
+  expect(history.visible).toMatchObject({
     name: 'dm/[slug]',
     params: { slug: 'ada', hostId: 'a', focus: 'request', focusRequest: expect.any(String) },
   });
-  expect(history.state.routes).toHaveLength(2);
+  expect(history.state.routes).toHaveLength(1);
+  expect(history.chats).toHaveLength(2);
   history.back();
-  expect(history.state.routes.at(-1)?.name).toBe('(tabs)');
+  expect(history.visible?.name).toBe('index');
   expect(source.router.replace).not.toHaveBeenCalled();
   expect(source.listeners.size + source.a.listeners.size + navigationListeners.size).toBe(0);
 });
@@ -169,32 +170,33 @@ it('replaces the activity entry with the Assignment detail when the request has 
     pathname: '/bot/[slug]/assignment/[id]',
     params: { slug: 'ada', id: 'assignment-1', hostId: 'a' },
   });
-  expect(history.state.routes.at(-1)?.name).toBe('request-activity');
+  expect(history.visible?.name).toBe('request-activity');
 });
 it('reuses the same scoped DM and refreshes focus through the shared navigation owner', async () => {
   history.back();
   history.push('dm/[slug]', { hostId: 'a', slug: 'ada', focus: 'old', focusRequest: 'previous' });
-  const key = history.state.routes.at(-1)?.key;
+  const key = history.visible?.key;
   history.push('request-activity', { id: 'link' });
   await act(async () => root.render(<RequestActivityScreen />));
   await act(async () => source.a.emit());
-  expect(history.state.routes.at(-1)).toMatchObject({
+  expect(history.visible).toMatchObject({
     key,
     params: { hostId: 'a', focus: 'request', focusRequest: expect.any(String) },
   });
-  expect(history.state.routes.at(-1)?.params).not.toMatchObject({ focusRequest: 'previous' });
-  expect(history.state.routes).toHaveLength(2);
+  expect(history.visible?.params).not.toMatchObject({ focusRequest: 'previous' });
+  expect(history.state.routes).toHaveLength(1);
+  expect(history.chats).toHaveLength(2);
 });
 it('waits for navigation readiness after the client-only roster event', async () => {
   navigationReady = false;
   await act(async () => root.render(<RequestActivityScreen />));
   await act(async () => source.a.emit());
-  expect(history.state.routes.at(-1)?.name).toBe('request-activity');
+  expect(history.visible?.name).toBe('request-activity');
   await act(async () => {
     navigationReady = true;
     for (const fn of navigationListeners) fn();
   });
-  expect(history.state.routes.at(-1)?.name).toBe('dm/[slug]');
+  expect(history.visible?.name).toBe('dm/[slug]');
 });
 it('cancels delayed Host selection when a newer workspace intent wins', async () => {
   let release!: () => void;
@@ -213,7 +215,7 @@ it('cancels delayed Host selection when a newer workspace intent wins', async ()
     source.a.emit();
   });
   expect(source.state.saved.hostId).toBe('b');
-  expect(history.state.routes.at(-1)?.name).toBe('request-activity');
+  expect(history.visible?.name).toBe('request-activity');
   expect(source.router.replace).not.toHaveBeenCalled();
 });
 it('does not commit a delayed switch after the Human opens another page', async () => {
@@ -233,7 +235,7 @@ it('does not commit a delayed switch after the Human opens another page', async 
     source.a.emit();
   });
   expect(source.state.saved.hostId).toBe('b');
-  expect(history.state.routes.at(-1)?.name).toBe('settings');
+  expect(history.visible?.name).toBe('settings');
 });
 it('keeps a newer notification selection when the old Host roster arrives before its save completes', async () => {
   await act(async () => root.render(<RequestActivityScreen />));
@@ -257,7 +259,7 @@ it('keeps a newer notification selection when the old Host roster arrives before
   expect(afterOldRoster).toBe(originalPage);
   expect(selected).toBe(true);
   expect(source.state.saved.hostId).toBe('b');
-  expect(history.state.routes.at(-1)?.params).toMatchObject({ hostId: 'b' });
+  expect(history.visible?.params).toMatchObject({ hostId: 'b' });
 });
 it('captures its own selection before a newer notification starts ahead of the await continuation', async () => {
   source.a.emit();
@@ -294,7 +296,7 @@ it('ignores the old client after a source change and releases subscriptions', as
     source.change();
     source.a.emit();
   });
-  expect(history.state.routes.at(-1)?.name).toBe('request-activity');
+  expect(history.visible?.name).toBe('request-activity');
   act(() => root.unmount());
   expect(
     source.listeners.size +

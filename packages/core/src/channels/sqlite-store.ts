@@ -1,4 +1,4 @@
-import { createBotSourcePolicyStore } from '../runtime/source-policy.js';
+import { createSqliteSourcePolicyResolver } from './sqlite-source-policy.js';
 import type { ChannelStore } from './store.js';
 import { DEFAULT_BOT_HOP_LIMIT } from './channel.js';
 import type { SqliteChannelAccess, SqliteChannelStoreOptions } from './sqlite-store.types.js';
@@ -216,13 +216,18 @@ const groupMembershipSql = {
 };
 
 const noticesSql = {
+  insertSystemSourceEvent: `
+              INSERT INTO source_events (
+                source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json
+              ) VALUES (?, 'system-message', ?, ?, ?, ?, ?)
+            `,
   insertMemorySourceEvent: `
               INSERT INTO source_events (
                 source_event_id, source_kind, bot_slug, channel_id, message_id,
                 body, created_at, payload_json
               ) VALUES (?, 'self-record', ?, ?, ?, '', ?, ?)
             `,
-  insertMemoryPlacement: `
+  insertPlacement: `
               INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
               VALUES (?, ?, ?, ?)
             `,
@@ -296,7 +301,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const humanAccess: SqliteChannelAccess = { current: undefined };
   const { database, rootDir } = options;
   const now = options.now ?? (() => new Date());
-  const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
+  const sourcePolicy = options.sourcePolicy ?? createSqliteSourcePolicyResolver(database, now);
   const isBotActive = options.isBotActive ?? (() => true);
   const botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
 
@@ -500,6 +505,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     removeGroupMember: groupMembership.removeGroupMember,
     appendMemoryCommits: notices.appendMemoryCommits,
     appendBotCreateAction: notices.appendBotCreateAction,
+    appendSystemNotices: notices.appendSystemNotices,
     deleteGroup: groupMembership.deleteGroup,
     setGroupAvatar: records.methods.setGroupAvatar,
     rename: records.methods.rename,

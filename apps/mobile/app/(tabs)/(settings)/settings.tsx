@@ -14,18 +14,25 @@ import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings
 import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
 import { SendJumpSetting } from '../../../src/ui/shell/send-jump-setting';
+import { TabBarLink } from '../../../src/features/pinned-tab/tab-bar-settings';
+import { SessionRequestsSetting } from '../../../src/features/sessions/session-requests-setting';
 import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
 import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
 import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
+import {
+  EnvironmentSettingsRow,
+  useEnvironmentFooter,
+} from '../../../src/ui/shell/environment-settings-row';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
   const human = useHumanIdentity(client);
+  const environmentFooter = useEnvironmentFooter();
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
@@ -39,6 +46,8 @@ export default function SettingsScreen() {
   return (
     <SettingsTabPage>
       <SettingsView
+        environment={<EnvironmentSettingsRow />}
+        environmentFooter={environmentFooter}
         profile={
           <AccountProfileRow
             chat={{ name: human.identity?.displayName, avatar: human.avatar, mount: human.mount }}
@@ -51,6 +60,8 @@ export default function SettingsScreen() {
         activityCount={<ActivityCountLink />}
         hapticFeedback={<HapticFeedbackSetting />}
         deliveryReceipts={<DeliveryReceiptSetting />}
+        tabBar={<TabBarLink />}
+        sessionRequests={<SessionRequestsSetting />}
         chatBackground={
           <SettingsRow
             on={SHEET_GROUP}
@@ -71,7 +82,10 @@ export default function SettingsScreen() {
           onModelProviders: () => router.push('/settings/model-providers'),
           onModels: () => router.push('/settings/models'),
           ...(saved != null && saved.member === undefined
-            ? { onVoice: () => router.push('/settings/voice') }
+            ? {
+                onVoice: () => router.push('/settings/voice'),
+                onImApps: () => router.push('/settings/im-apps'),
+              }
             : {}),
           onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,

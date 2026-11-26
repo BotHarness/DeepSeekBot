@@ -223,6 +223,10 @@ export function CardPreview({
   );
 }
 
+export function CardEmbed({ children }: { children: ReactNode }) {
+  return <>{children}</>;
+}
+
 export function CardGroup({ children }: { children: ReactNode }) {
   return <View style={{ gap: space.x5 }}>{children}</View>;
 }

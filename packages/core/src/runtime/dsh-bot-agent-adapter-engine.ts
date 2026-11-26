@@ -39,6 +39,7 @@ type RunEngineTurnContext = Pick<
   | 'engineWorkspaceMode'
   | 'orchestratorCwd'
   | 'promptText'
+  | 'requireNoPreparation'
 > &
   EngineCatalogContext &
   Parameters<typeof directToolDefinitions>[0] &
@@ -91,6 +92,7 @@ export async function runEngineTurn(
   engines: DshBotEngines,
   abandoned: Promise<'abandoned'>,
 ): Promise<void> {
+  adapter.requireNoPreparation(run.sessionId);
   const stop = new AbortController();
   adapter.engineStops.set(run.sessionId, stop);
   if (run.inboundChannelId !== undefined)
@@ -112,6 +114,7 @@ export async function runEngineTurn(
     const promptText = adapter.promptText(run.sessionId);
     const persona = adapter.enginePersona?.(run.bot) ?? {};
     const sessionCwd = adapter.orchestratorCwd?.(run.bot);
+    const pendingReplies = new Set<string>();
     run.inputAccepted?.();
     await engines.runTurn({
       botSlug: run.bot.slug,
@@ -162,8 +165,11 @@ export async function runEngineTurn(
           (name !== TOOL_CALL.name && !tools.some((entry) => entry.name === name))
         )
           throw new Error(`refused: ${toolName} is not available to this engine Session`);
-        if (toolName === 'bot_send_message' && typeof toolArgs['source_event_id'] === 'string') {
-          const sourceId = toolArgs['source_event_id'];
+        const sourceId =
+          toolName === 'bot_send_message' && typeof toolArgs['source_event_id'] === 'string'
+            ? toolArgs['source_event_id']
+            : undefined;
+        if (sourceId !== undefined) {
           const destination = run.replyDestination?.(sourceId);
           if (
             destination?.kind === 'channel' &&
@@ -171,22 +177,27 @@ export async function runEngineTurn(
             run.canUseEngineChannel?.(destination.channelId) !== true
           )
             throw new Error('refused: channel-out-of-scope');
-          if (context.priorReplies?.has(sourceId))
+          if (pendingReplies.has(sourceId) || context.priorReplies?.has(sourceId))
             throw new Error('refused: a reply to this Source Event was already sent');
+          pendingReplies.add(sourceId);
         }
-        if (adapter.engineToolGate !== undefined) {
-          const refusal = await adapter.engineToolGate({
-            botSlug: run.bot.slug,
-            sessionId: run.sessionId,
-            session: context.session,
-            toolName,
-            args: toolArgs,
-            signal,
-            ask: context.ask,
-          });
-          if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
+        try {
+          if (adapter.engineToolGate !== undefined) {
+            const refusal = await adapter.engineToolGate({
+              botSlug: run.bot.slug,
+              sessionId: run.sessionId,
+              session: context.session,
+              toolName,
+              args: toolArgs,
+              signal,
+              ask: context.ask,
+            });
+            if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
+          }
+          return await tool.run(toolArgs, signal);
+        } finally {
+          if (sourceId !== undefined) pendingReplies.delete(sourceId);
         }
-        return tool.run(toolArgs, signal);
       },
       signal: stop.signal,
     });
@@ -262,9 +273,9 @@ async function engineCatalog(
     },
   }));
   const contributed = await untilAborted(
-    Promise.resolve(
-      adapter.engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId }) ?? [],
-    ).catch(() => []),
+    Promise.resolve()
+      .then(() => adapter.engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId }) ?? [])
+      .catch(() => []),
     signal,
   ).catch(() => []);
   for (const tool of contributed)
@@ -402,7 +413,7 @@ export async function runEngineAssignment(
             if (terminalReport?.published === report) terminalReport = undefined;
             throw error;
           }
-          entry.reported = true;
+          if (state !== 'progress') entry.hasOutcome = true;
           return 'Report delivered to the Orchestrator.';
         },
         signal: stop.signal,
@@ -413,14 +424,13 @@ export async function runEngineAssignment(
     if (outcome.turn !== undefined && outcome.endSeq !== undefined)
       run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });
     if (run.resume === true && run.continueInitialGroupTurn !== true) return;
-    if (!entry.reported && outcome.text !== undefined && outcome.text.trim() !== '') {
-      await run.report(
-        { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${outcome.text.trim()}` },
-        ...(outcome.turn === undefined ? [] : [{ turn: outcome.turn }]),
-      );
-      entry.reported = true;
-    }
-    if (!entry.reported) throw new Error('Assignment finished without report_to_orchestrator');
+    if (entry.hasOutcome) return;
+    const text = outcome.text?.trim();
+    if (!text) throw new Error('Assignment finished without report_to_orchestrator');
+    await run.report(
+      { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+      ...(outcome.turn === undefined ? [] : [{ turn: outcome.turn }]),
+    );
   } catch (error) {
     if (
       !stopped() &&

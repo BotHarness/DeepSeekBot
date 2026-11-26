@@ -31,6 +31,7 @@ vi.mock('react-native-gesture-handler', () => ({
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: ReactNode }) => children,
   SafeAreaView: ({ children }: { children: ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('../src/ui/native-interface-preferences', () => ({
   useNativeInterfacePreferences: () => ({ loaded: true }),
@@ -48,11 +49,7 @@ vi.mock('../src/ui/theme', () => ({ useTheme: () => ({ background: '', ink: '' }
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ scheme: 'dark', overlay: { fill: '' } }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawer: () => null,
-  WorkspaceButton: () => null,
-  hostDrawer: {},
-}));
+vi.mock('../src/ui/shell/host-drawer-state', () => ({ hostDrawer: {} }));
 vi.mock('../src/ui/primitives/device-alert-banner', () => ({ DeviceAlertBanner: () => null }));
 vi.mock('../src/ui/request-parts', () => ({ Notice: () => null }));
 vi.mock('../src/ui/shell/statistics-notice', () => ({ StatisticsNotice: () => null }));
@@ -105,7 +102,6 @@ vi.mock('../src/ui/shell/channel-navigation', async (importOriginal) => ({
   channelStackRouter: () => ({}),
 }));
 vi.mock('../src/ui/shell/cloud-channel-navigation', () => ({ cloudChannelRouteId: () => '' }));
-vi.mock('../src/ui/shell/tob-mode-model', () => ({ topEntranceScreenOptions: {} }));
 vi.mock('../src/ui/shell/swipe-entry', () => ({
   swipeEntryListeners: () => ({}),
   swipeEntryOptions: () => ({}),

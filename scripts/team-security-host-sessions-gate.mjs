@@ -97,8 +97,95 @@ export async function runHostSessionGate(s, fx, check) {
       result.error?.code,
     );
   }
+  for (const args of [
+    [
+      'session-answer-approval',
+      '--session',
+      sessionId,
+      '--request',
+      'pending',
+      '--decision',
+      'allowed-once',
+    ],
+    ['session-answer-question', '--session', sessionId, '--request', 'pending', '--answer-stdin'],
+    ['session-stop', '--session', sessionId],
+    ['session-archive', '--session', sessionId, '--confirm'],
+  ]) {
+    const result = s.cli(args, {
+      ...member,
+      input: '{"answers":[{"id":"choice","selected":["A"]}]}',
+    });
+    check(
+      `Member ${args[0]} refused at the Host boundary`,
+      result.error?.code === 'remote-access/denied',
+      result.error?.code,
+    );
+  }
+  const memberCreate = s.cli(
+    ['session-create', '--cwd', fx.sharedFinance, '--message', 'M15 member create'],
+    member,
+  );
+  check(
+    'Member session-create refused before the Host creates anything',
+    memberCreate.error?.code === 'remote-access/denied' && memberCreate.sessionId === undefined,
+    memberCreate.error?.code,
+  );
   const accepted = s.cli(['session-send', sessionId, 'Reply with exactly M15-4932-OK.']);
   check('Owner prompt admitted', typeof accepted.requestId === 'string');
   const transcript = s.cli(['session-transcript', '--session', sessionId]);
   check('Owner can read the native transcript', transcript.role === 'native');
+  const created = s.cli([
+    'session-create',
+    '--cwd',
+    fx.sharedFinance,
+    '--message',
+    'Reply with exactly M15-5109-OK.',
+  ]);
+  check('Owner can create a native Session', typeof created.sessionId === 'string');
+  const listed = s.cli(['session-list', '--source', 'native']);
+  check(
+    'The created Session is listed as native',
+    listed.sessions?.some((row) => row.sessionId === created.sessionId),
+  );
+  const hidden = s.cli(['session-list'], member);
+  check(
+    'Member inventory does not show the created native Session',
+    Array.isArray(hidden.sessions) &&
+      !hidden.sessions.some((row) => row.sessionId === created.sessionId),
+  );
+  await nativeAttentionGate(s, fx, check, member);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function nativeAttentionGate(s, fx, check, member) {
+  const asking = s.cli([
+    'session-create',
+    '--cwd',
+    fx.sharedFinance,
+    '--message',
+    "Before anything else, use your ask-user-question tool to ask exactly one question, 'C6 native attention pick', with options Red and Blue. Wait for the answer.",
+  ]);
+  let owner;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    owner = s.cli(['activity', '--source', 'native']);
+    if (owner.items?.some((item) => item.nativeSession?.sessionId === asking.sessionId)) break;
+    await sleep(3_000);
+  }
+  const item = owner?.items?.find((row) => row.nativeSession?.sessionId === asking.sessionId);
+  check('Owner Activity lists the waiting native Session request', item !== undefined);
+  const row = s
+    .cli(['session-list', '--source', 'native'])
+    .sessions?.find((entry) => entry.sessionId === asking.sessionId);
+  check('The waiting native Session row needs you', row?.status === 'needs-you', row?.status);
+  for (const source of ['all', 'native']) {
+    const page = s.cli(['activity', '--source', source], member);
+    check(
+      `Member Activity --source ${source} has no native Session request`,
+      Array.isArray(page.items) && !page.items.some((entry) => entry.botSlug === ''),
+      page.error?.code,
+    );
+  }
+  if (item !== undefined)
+    s.cli(['session-stop', '--session', asking.sessionId], { allowFail: true });
 }

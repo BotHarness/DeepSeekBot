@@ -18,7 +18,6 @@ const state = vi.hoisted(() => ({
   pans: [] as Pan[],
   navigate: vi.fn(),
   hosts: [{ hostId: 'h1' }, { hostId: 'h2' }],
-  drawerOpen: false,
   stored: new Map<string, string>(),
 }));
 
@@ -61,7 +60,6 @@ vi.mock('expo-secure-store', () => ({
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: state.hosts }) }));
 vi.mock('../src/ui/chat/native-header', () => ({ useHeaderOverlap: () => 0 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawerOpen }));
 
 const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');
 const { swipeOpenProgress, swipeOpenTravel, swipeOpens } =
@@ -130,7 +128,6 @@ describe('the Chats left swipe', () => {
   beforeEach(() => {
     state.pans.length = 0;
     state.navigate.mockClear();
-    state.drawerOpen = false;
     container = document.createElement('div');
     root = createRoot(container);
   });
@@ -212,11 +209,7 @@ describe('the Chats left swipe', () => {
     expect(travel.value).toBe(0);
   });
 
-  it('stays off while the workspace drawer is open, while searching, and without a paired chat', async () => {
-    state.drawerOpen = true;
-    await render();
-    expect(pan().enabled).toBe(false);
-    state.drawerOpen = false;
+  it('stays off while searching and without a paired chat', async () => {
     await render(false);
     expect(pan().enabled).toBe(false);
     const hosts = state.hosts;

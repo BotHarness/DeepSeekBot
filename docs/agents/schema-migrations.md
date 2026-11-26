@@ -1,11 +1,13 @@
 # Operational database migrations
 
-Append a `SchemaMigration` constant with a unique, stable kebab-case `id` to the end of
-`BOT_HARNESS_SCHEMA_PLAN` in `packages/core/src/database/schema-plan.ts`. Define its owning module,
-description and synchronous `migrate` body. Set `rebuildsReferencedTables` when rebuilding referenced
-tables. Do not specify a generation: `defineSchemaPlan` computes it from the list position, freezes
-each planned object and retains `generation` for callers. Tests use `plan.targetGeneration` or
-`plan.generationOf('your-id')`; historical fixtures may select a prefix by index/generation.
+Define the `SchemaMigration` constant in its owning file under
+`packages/core/src/database/migrations/`. Give it a unique, stable kebab-case `id`, a module,
+a description, and a synchronous `migrate` body. Set `rebuildsReferencedTables` when rebuilding
+referenced tables. Import the constant in `packages/core/src/database/schema-plan.ts` and append it
+to the end of `BOT_HARNESS_SCHEMA_PLAN`. Omit the generation. `defineSchemaPlan` computes it from
+the list position, freezes each planned object, and retains `generation` for callers. Tests use
+`plan.targetGeneration` or `plan.generationOf('your-id')`. Historical fixtures can select a prefix
+by index or generation.
 
 When two branches append migrations, keep both. The migration merged first stays first; append the
 other after it. Resolve the snapshot conflict in the same order, then run

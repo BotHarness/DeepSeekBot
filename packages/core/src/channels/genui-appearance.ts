@@ -118,4 +118,5 @@ export const GENUI_STYLE_GUIDANCE =
   'Use genui-grid, genui-table and genui-legend for layout; wrap tables in genui-table-scroll to preserve readable words on narrow screens. Retain meaningful graph/axis lines and keyboard focus-visible cues. ' +
   'Assign stable categories to distinct --chart-1 through --chart-8 colors (genui-series with data-series="1" through "8" exposes --series-color); never use same-primary shades for categories. ' +
   'Label chart values and legends and pair colors with line dashes, marker shapes or numbered sectors so color is not the only cue. ' +
-  'Tokens follow the root color-scheme in both themes; author typography and CSS remain customizable.';
+  'Tokens follow the root color-scheme in both themes; author typography and CSS remain customizable. ' +
+  'The renderer refuses CSS transition, animation and @keyframes, backdrop-filter, SVG filter effects and inline on* event attributes; attach listeners with addEventListener in a <script>.';

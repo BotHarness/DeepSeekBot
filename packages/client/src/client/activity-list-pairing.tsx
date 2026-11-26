@@ -7,7 +7,7 @@ import type {
   PairingRequest,
   PairingReviewInput,
 } from '../../../core/src/messaging/pairing.js';
-import type { ExternalUserRole } from '../../../core/src/messaging/sender-access.js';
+import type { ExternalUserRole } from '../../../core/src/messaging/permissions/client.js';
 import type { BridgeActions } from './actions.js';
 import { Combobox } from './combobox.js';
 import type { BotHarnessTranslate } from './locale.js';

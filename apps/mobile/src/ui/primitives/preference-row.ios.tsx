@@ -1,17 +1,19 @@
-import { Host, Label, Menu, Picker, RNHostView, Text } from '@expo/ui/swift-ui';
+import { Host, Label, Menu, Picker, RNHostView, Spacer, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits,
   accessibilityElement,
   accessibilityLabel,
   accessibilityValue,
   buttonStyle,
+  contentShape,
   foregroundStyle,
   frame,
   pickerStyle,
+  shapes,
   tag,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { rowSymbol } from './row-icon';
@@ -62,6 +64,57 @@ export function PreferenceRow<T extends string>({
         ))}
       </Picker>
     );
+  const choices = (
+    <Picker<T> selection={value} onSelectionChange={onChange} modifiers={[pickerStyle('inline')]}>
+      {options.map((option) => (
+        <Text key={option.value} modifiers={[tag(option.value)]}>
+          {option.label}
+        </Text>
+      ))}
+    </Picker>
+  );
+  const chevrons = (
+    <SystemSymbol
+      name="chevron.up.chevron.down"
+      size={theme.type.meta.size}
+      color={theme.color.muted}
+    />
+  );
+  if (theme.largeText)
+    return (
+      <View>
+        <View pointerEvents="none" accessible={false} accessibilityElementsHidden>
+          <SettingsRow
+            on={on}
+            title={title}
+            {...(icon === undefined ? {} : { icon })}
+            detail={selected}
+            trailing={chevrons}
+          />
+        </View>
+        <Host colorScheme={theme.scheme} style={StyleSheet.absoluteFill}>
+          <Menu
+            testID={testID}
+            label={
+              <Spacer
+                modifiers={[
+                  frame({ maxWidth: Infinity, maxHeight: Infinity }),
+                  contentShape(shapes.rectangle()),
+                ]}
+              />
+            }
+            modifiers={[
+              buttonStyle('plain'),
+              frame({ maxWidth: Infinity, maxHeight: Infinity }),
+              accessibilityElement('ignore'),
+              accessibilityLabel(`${title}, ${selected}`),
+            ]}
+          >
+            {choices}
+          </Menu>
+        </Host>
+      </View>
+    );
   return (
     <Host
       colorScheme={theme.scheme}
@@ -82,11 +135,7 @@ export function PreferenceRow<T extends string>({
                     <RowText tone="muted" numberOfLines={1}>
                       {selected}
                     </RowText>
-                    <SystemSymbol
-                      name="chevron.up.chevron.down"
-                      size={theme.type.meta.size}
-                      color={theme.color.muted}
-                    />
+                    {chevrons}
                   </View>
                 }
               />
@@ -100,17 +149,7 @@ export function PreferenceRow<T extends string>({
           accessibilityLabel(`${title}, ${selected}`),
         ]}
       >
-        <Picker<T>
-          selection={value}
-          onSelectionChange={onChange}
-          modifiers={[pickerStyle('inline')]}
-        >
-          {options.map((option) => (
-            <Text key={option.value} modifiers={[tag(option.value)]}>
-              {option.label}
-            </Text>
-          ))}
-        </Picker>
+        {choices}
       </Menu>
     </Host>
   );

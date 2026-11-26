@@ -96,6 +96,7 @@ Errors use `{ ok:false, error:{ code, message:code, details? } }` at the bridge 
 | `reachableBots`      | `{}`                                                          | `[{slug,displayName,avatar?,visibility,principalDisplayName}]`; metadata only                                              |
 | `botProactiveOptOut` | `{slug,optOut}`                                               | `null`; calling Human's own preference                                                                                     |
 | `roleConflicts`      | `{humanId}` or CLI `{username}`                               | `[{topic,allowRole:{roleId,name},denyRole:{roleId,name}}]`                                                                 |
+| `memberPermissions`  | `{humanId?}` or CLI `{username?}`                             | `{humanId,owner,active,permissions:[{id,state,sources:[{roleId,name,builtin,effect}]}]}`; own or member/role manager       |
 | `speakerPolicy`      | `{humanId?,topic?}`                                           | `{humanId,displayName,roles,resolved}`; own policy or member/role manager                                                  |
 
 Visibility is `{kind:'private'}` or `{kind:'public',audience}`. Audience is M6's
@@ -131,7 +132,8 @@ bot-tool <slug> speaker_policy --args-stdin
 
 Role policy stdin is `[{topic,text,effect:'allow'|'deny'}]`. `roleCreate`/`roleUpdate` accept the
 same optional `policy`; their returned roles include `policy` and `policyRevision`. Hard
-permissions remain the union across roles. Topic tags are admin-set. Resolution reuses the
+permissions are the union of what the roles allow minus anything a role denies; the Owner holds
+every permission. Topic tags are admin-set. Resolution reuses the
 existing Behavior permission evaluator with topic identity; Deny wins and every Allow/Deny role
 pair is returned for assignment UI review. Policy is advisory and never grants resource access.
 

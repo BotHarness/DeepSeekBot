@@ -25,6 +25,7 @@ These apply to every implementation, not only one feature.
 5. **Retain essential text and facts.** Short labels, units, current values, permission scope, privacy limits, irreversible consequences and actionable errors remain explicit. Security comparisons must expose the complete required values before confirmation. Simplicity never means truncating a fingerprint, silently choosing for the user or weakening consent.
 6. **Keep the design usable across modes.** Preserve reading order, keyboard/focus access, screen-reader names and reachable actions. Allow wrapping and scrolling at large text sizes. Apply the same hierarchy in both themes and maintained languages; use each platform's controls rather than copying another platform's appearance.
 7. **One design language across panels.** The [Desktop/Web UI decisions](../decisions/desktop-ui.md#adr-0028) link the active design-system contracts. A selection changes colour and label weight only, never borders or size. Surfaces are separated by a gap that shows the canvas, not a line; borders belong to inputs and focus rings.
+8. **Content scrolls freely under a sticky header.** A released drag ends where the platform's own scroll physics, including momentum, leave it, with no app-added snap, as on iOS and Android; only an iOS large title or a Material collapsing top app bar settles. Programmatic scrolls, such as a keyboard reveal, must not stop inside a heading block ([#5186](https://github.com/BotHarness/DeepSeekBot/issues/5186)).
 
 Desktop style literals, viewport breakpoints and motion are enforced by [UI rules 1, 2 and 6](../../scripts/check-ui-rules.mjs) and the [design token guard](../../scripts/check-design-tokens.mjs).
 
@@ -33,6 +34,18 @@ Desktop style literals, viewport breakpoints and motion are enforced by [UI rule
 Use the shared primitives in the [desktop/Web component catalogue](../../packages/client/src/client/ds/README.md), enforced by [UI rule 7](../../scripts/check-ui-rules.mjs). Review whether differently named components duplicate a catalogue primitive.
 
 Settings-row slots and primary actions within one dialog are enforced by [UI rule 11](../../scripts/check-ui-rules.mjs). Review descriptions at large text sizes and verify one primary action per surface, including actions added by separate components or runtime data.
+
+## Large text
+
+Content grows with the system text size; fixed chrome stays its size and offers another way to read it. Each control falls in one of three cases:
+
+| Where                                                            | At large text                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Body text, list rows, forms                                      | Everything grows. Text wraps and is never truncated to save room; at accessibility sizes (AX1–AX5, `theme.largeText`) side-by-side items stack.                                                                                                            |
+| Buttons and rows with an icon and a label                        | Keep the icon and grow it with the label: size it from the label's text role times `theme.fontScale`, or give a SwiftUI symbol a `textStyle` font. When the row runs out of room, wrap the label or stack the controls; do not hide the icon.              |
+| Icon-only buttons in navigation bars, toolbars and sheet headers | Do not grow with text. Use the native bar button where one exists, so iOS shows its Large Content Viewer on long press; custom ones share the header-action `xxxLarge` ceiling. Every one has an accessible name and a 44pt (iOS) / 48dp (Android) target. |
+
+`node scripts/check-ui-rules.mjs` (in `pnpm lint`) rejects a glyph with a fixed size beside a text label (`unscaledLabelIcon`), a scaled glyph inside a fixed box (`fixedIconScale`) and a text-scaled Compose icon button (`scaledActionBox`). [Mobile code rule 2](../../apps/mobile/DESIGN.md#code-rules) and the [large-text acceptance contract](../../apps/mobile/DESIGN.md#system-text-and-large-text-acceptance) hold the platform details.
 
 ## Examples
 
@@ -62,6 +75,17 @@ Use the Web `ds/action-button` module or the native `primitives/button` adapter 
 Use `ds/read-failure` or native `primitives/read-failure` for standalone failed reads. Keep the summary short and native diagnostic details behind a disclosure. Reloading a failed read is valid; it must not replay an approval, message or other mutation. Approval and question cards retain their owning request guards and keyboard/focus contract.
 
 Session maintenance uses the shared `session-maintenance` controller, scoped to a Host client and Bot DM. Failure cards and usage panels observe the same in-flight operation and outcome. Compact and new Session never resend messages. Group channels and Assignment failures do not expose these actions; the Host remains authoritative for busy and permission refusals.
+
+## Request cards
+
+Approval, question, grant and other request cards in a chat, Activity or companion surface follow one layout rule.
+
+- **One content inset.** Every row starts at the same left edge. On desktop and Web the inset is `space.x4` (12px). The chat bubble supplies it in a chat, and the card's `inset` style supplies it elsewhere, never both. Native cards use `space.x5` (16px).
+- **One row gap.** The heading, subject, warnings, notes and the action group are separated by one gap: `space.x3` (8px) on desktop and Web and `space.x4` (12px) on native cards. A nested group inside the card, such as a sentence above its command, repeats the same gap rather than a tighter one.
+- **Nested blocks line up.** A well such as a command, diff or option list keeps its own inner padding, but its outer edge sits on the content inset. A primitive used as a row, such as the clickable summary `Button`, resets its padding with `paddingBlock`/`paddingInline`: StyleX resolves by property specificity, so a `padding` shorthand in `xstyle` loses to the primitive's own longhand.
+- **Reading order.** Heading and state, then the subject (sentence and command or file), then irreversible effects and risks the Human must read before choosing, then the outcome, and the actions last. Context the Human can look up (rule scope, Host access, working folder, origin) goes behind the info icon or Details, not in a caption line on the card. Nothing sits above the card.
+
+[UI rule `xstyleShorthand`](../../scripts/check-ui-rules.mjs) rejects a `padding` or `margin` shorthand in a style passed through `xstyle`. Review the rest with a rendered card: measure that row edges and gaps match in both themes.
 
 ## Component names and motion
 

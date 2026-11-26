@@ -29,7 +29,7 @@
 | Selected-Client preferences, layout and shortcuts from the CLI and Tob | only for `--natural` | `scripts/e2e-client-settings.mjs`, `scripts/e2e-client-settings-tob.mjs` | [client-settings.md](client-settings.md) |
 | Functional Panel appearance | no | `scripts/e2e-panel-appearance.mjs`, `scripts/e2e-nested-appearance.mjs` | [panel-appearance.md](panel-appearance.md) |
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
-| Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
+| Tob DM and App management grants, including management, grant changes and typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs`, `scripts/e2e-team-security.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
 | Subscription Engine Session context, Model Choice, idle resume and lost-session recovery | yes | `verify-app` isolated Host, `deepseekbot session-model` and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
@@ -54,7 +54,9 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
 | Phone pairing, inbound Connections, onboarding Quick connect, QR images and route guidance | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs`, `scripts/e2e-phone-recovery.mjs` | [phone-pairing.md](phone-pairing.md) |
-| Phone Chats drawer views and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
+| Phone Environment sheet, Chats header and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
+| Phone tab long-press menus (recent conversations, Sessions and pending Activity) | no | none (shared-device native path) | [phone-tab-menus.md](phone-tab-menus.md) |
+| Phone Sessions navigation style (Drawer / Stacked) and landing settings | no | none (shared-device native path) | [phone-sessions-navigation.md](phone-sessions-navigation.md) |
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |
@@ -78,6 +80,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | About and running product identity | no (source-only observation; packaged/restart pending) | none (manual path) | [release-identity.md](release-identity.md) |
 | Historical Overview: idle PersonaBot (retired by #2026) | no | `scripts/e2e-activity-idle.mjs` | [activity-center-idle.md](activity-center-idle.md) |
 | Temporary Workspace Grant authorization, read and revocation | no | `scripts/e2e-workspace-grant.mjs` | [workspace-grant.md](workspace-grant.md) |
+| App connections (Composio): Host key, connected apps, per-Bot access, CLI | no (yes for a live Bot turn) | `verify-app` Bot settings path + connector CLI | [app-connections.md](app-connections.md) |
 | Default Bot Browser open, observe, stop and Access refusal | no | `scripts/e2e-browser-lifecycle.mjs` | [browser-lifecycle.md](browser-lifecycle.md) |
 | Skill Invocation from `/` and Bot-installed Skills in a Bot DM or Group Channel | yes for the reply | `verify-app` DM/Group; `skills-list`, `send --skill` / `channelSend` | [skill-invocation.md](skill-invocation.md) |
 | Composer footer customization and optional reply speed | yes for a speed sample | none (Web interaction path) | [composer-footer.md](composer-footer.md) |
@@ -89,6 +92,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
 | Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
 | Steer a Subscription Engine Orchestrator from a Group or DM | yes (Codex or Claude subscription) | `verify-app` isolated Host, authenticated Team members and `session-transcript` | [engine-orchestrator-steering.md](engine-orchestrator-steering.md) |
+
+| Container Computer start, real frame and stop (candidate; Engine prerequisite) | no | `scripts/e2e-computer-lifecycle.mjs` | [computer-lifecycle.md](computer-lifecycle.md) |
 
 ## Coverage and maintenance
 
@@ -135,7 +140,7 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Appearance recovery | no | `scripts/e2e-appearance-recovery.mjs`, `scripts/e2e-message-history-mask.mjs` | [appearance-recovery.md](appearance-recovery.md) |
 
-| Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
+| Three-action tool approval, CLI Shell prefixes, and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs`, `scripts/e2e-mobile-shell-scope-keyboard.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
 
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |

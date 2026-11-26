@@ -112,7 +112,7 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
   clickable: (onClick: () => void) => ({ onClick }),
 }));
 
-import { AppDialogHost } from '../src/ui/primitives/app-dialog-host.android';
+import { AppDialogHost, menuGroups } from '../src/ui/primitives/app-dialog-host.android';
 import { appDialogs } from '../src/ui/primitives/dialog-state';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -211,6 +211,24 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it('keeps every choice of a three-outcome prompt with the destructive one last', async () => {
+    const keep = vi.fn();
+    const view = mount();
+    act(() =>
+      appDialogs.open('Discard this draft?', undefined, [
+        { text: 'Discard Draft', style: 'destructive' },
+        { text: 'Keep Draft', onPress: keep },
+        { text: 'Keep Editing', style: 'cancel' },
+      ]),
+    );
+    expect(buttons(view, 'dismiss').map((button) => button.textContent)).toEqual(['Keep Editing']);
+    const confirms = buttons(view, 'confirm');
+    expect(confirms.map((button) => button.textContent)).toEqual(['Keep Draft', 'Discard Draft']);
+    await act(async () => confirms[0]?.click());
+    expect(keep).toHaveBeenCalledOnce();
+    expect(view.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('shows icon and label rows with destructive commands grouped last', () => {
     const open = vi.fn();
     const remove = vi.fn();
@@ -235,6 +253,40 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     act(() => (items[1] as HTMLElement).click());
     expect(open).toHaveBeenCalledOnce();
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('puts each action group in its own Expressive group, destructive last', () => {
+    const view = mount();
+    act(() =>
+      appDialogs.open(
+        'Chats',
+        undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Leave', icon: 'remove', style: 'destructive' },
+          { text: 'Ada', icon: 'chat', group: 0 },
+          { text: 'New Group', icon: 'channel', group: 1 },
+          { text: 'Bo', icon: 'chat', group: 0 },
+        ],
+        'menu',
+      ),
+    );
+    const groups = [...view.querySelectorAll('[data-testid="action-menu-group"]')];
+    expect(groups.map((group) => group.textContent)).toEqual(['AdaBo', 'New Group', 'Leave']);
+  });
+
+  it('groups choices by group number and keeps destructive choices last', () => {
+    const choices = [
+      { action: { text: 'Leave', style: 'destructive' as const }, index: 0 },
+      { action: { text: 'New', group: 1 }, index: 1 },
+      { action: { text: 'Ada' }, index: 2 },
+      { action: { text: 'Bo', group: 0 }, index: 3 },
+    ];
+    expect(menuGroups(choices).map((group) => group.map(({ action }) => action.text))).toEqual([
+      ['Ada', 'Bo'],
+      ['New'],
+      ['Leave'],
+    ]);
   });
 
   it('blocks Back and both buttons while the action is pending', async () => {

@@ -16,13 +16,22 @@ type Policy = ReturnType<SandboxPolicyService['resolve']>;
 const NATIVE_SHELL_TOOLS = { bash: bashTools, pwsh: pwshTools } as const;
 type NativeShellToolName = keyof typeof NATIVE_SHELL_TOOLS;
 
-function presetShells(agentCtx: Context, agent: Agent): NativeShellToolName[] {
+export function presetShells(agentCtx: Context, agent: Agent): NativeShellToolName[] {
   const tools = agentCtx.get('tools') as
     | { schemas(agent: Agent): Array<{ name: string }> }
     | undefined;
   const visible = new Set((tools?.schemas(agent) ?? []).map((tool) => tool.name));
   return (Object.keys(NATIVE_SHELL_TOOLS) as NativeShellToolName[]).filter((name) =>
     visible.has(name),
+  );
+}
+
+export function pluginShellTools(ctx: Context, shells: readonly NativeShellToolName[]) {
+  return shells.map((name) =>
+    ctx.plugin(NATIVE_SHELL_TOOLS[name], {
+      enableRunInBackground: false,
+      promoteOnTimeout: false,
+    }),
   );
 }
 
@@ -88,12 +97,7 @@ export async function installOrchestratorFileTools(
   try {
     await fiber.await();
     const files = fiber.ctx.plugin(fileTools, {});
-    const shellFibers = shells.map((name) =>
-      fiber.ctx.plugin(NATIVE_SHELL_TOOLS[name], {
-        enableRunInBackground: false,
-        promoteOnTimeout: false,
-      }),
-    );
+    const shellFibers = pluginShellTools(fiber.ctx, shells);
     await files.await();
     for (const shellFiber of shellFibers) await shellFiber.await();
     if (

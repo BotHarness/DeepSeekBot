@@ -8,7 +8,7 @@ import {
   type BotModeSettings,
   type BotModeTemplate,
 } from '../../runtime/bot-mode-settings.js';
-import type { BridgeResult } from '../../bridge/method-utils.js';
+import type { BridgeResult } from '../../kernel/method-utils.js';
 
 export interface BotModesDeps {
   settings: BotModeSettings;

@@ -1,4 +1,5 @@
 import { createGrant, readWorkspaceGrants } from '@botharness/host-client/access-readers';
+import { createHostFolder } from '@botharness/host-client/bot-settings';
 import {
   answerUserQuestion,
   decideToolApproval,
@@ -62,6 +63,7 @@ import { isProfileCommand, runProfileCommand } from './cli-profile.js';
 import { isTodoCommand, runTodoCommand } from './cli-todos.js';
 import { isApprovalTemplateCommand, runApprovalTemplateCommand } from './cli-approval-templates.js';
 import { isPromptPresetCommand, runPromptPresetCommand } from './cli-prompt-presets.js';
+import { isConnectorCommand, runConnectorCommand } from './cli-connectors.js';
 import { isApprovalReviewerCommand, runApprovalReviewerCommand } from './cli-approval-reviewer.js';
 import { isVoiceCommand, runVoiceCommand } from './cli-voice.js';
 import { isCallCommand, runCallCommand } from './cli-call.js';
@@ -270,8 +272,12 @@ export async function runLiveCli(
     return runMessaging(operation, (await connectLiveHost(values, io, signal)).rpc);
   }
   if (isInboxCommand(command))
-    return runInboxCommand(command, rest, values, () =>
-      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    return runInboxCommand(
+      command,
+      rest,
+      values,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+      io.readStdin,
     );
   if (isScheduleCommand(command)) {
     const prepared = prepareScheduleCommand(command, rest, values);
@@ -357,6 +363,11 @@ export async function runLiveCli(
       },
       values.id === undefined ? {} : { id: values.id },
     );
+  if (isConnectorCommand(command))
+    return runConnectorCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (isPromptPresetCommand(command))
     return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -432,6 +443,17 @@ export async function runLiveCli(
       ...(offset === undefined ? {} : { offset }),
     });
   }
+  if (command === 'folder-create') {
+    const { parent, name } = values;
+    if (rest.length !== 0 || !parent || !name)
+      usage('folder-create needs --parent <path> and --name <name>.');
+    const { rpc } = await connectLiveHost(
+      values,
+      io,
+      AbortSignal.timeout(timeoutMs(values.timeout)),
+    );
+    return createHostFolder({ call: (method, args = {}) => rpc(method, args) }, { parent, name });
+  }
   if (GENUI_COMMANDS.some((entry) => entry.command === command))
     return runGenuiCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -462,6 +484,7 @@ export async function runLiveCli(
       'send-status',
       'tool-approval-status',
       'tool-approval-decide',
+      'approval-rule-add',
       'user-question-status',
       'user-question-answer',
       'ask-secret-status',
@@ -531,10 +554,16 @@ export async function runLiveCli(
     command === 'tool-approval-decide' &&
     values.outcome !== 'allowed-once' &&
     values.outcome !== 'allowed-always-tool' &&
+    values.outcome !== 'allowed-always-exact' &&
     values.outcome !== 'allowed-always-kind' &&
     values.outcome !== 'rejected'
   )
-    usage('--outcome must be allowed-once, allowed-always-tool, allowed-always-kind or rejected.');
+    usage(
+      '--outcome must be allowed-once, allowed-always-tool, allowed-always-exact, allowed-always-kind or rejected.',
+    );
+  const patterns = values.prefix;
+  if (command === 'approval-rule-add' && (!patterns?.length || patterns.length > 5))
+    usage('approval-rule-add requires between one and five --prefix flags.');
   if (command === 'user-question-answer') {
     if (!values['answer-stdin']) usage('user-question-answer requires --answer-stdin.');
     try {
@@ -785,6 +814,11 @@ export async function runLiveCli(
       messageId!,
       values.outcome as Parameters<typeof decideToolApproval>[3],
     );
+  if (command === 'approval-rule-add' && patterns)
+    return decideToolApproval(reader, target, messageId!, 'allowed-always-prefix', {
+      kind: 'prefix',
+      patterns,
+    });
   if (command === 'user-question-status') return readUserQuestionStatus(reader, target, messageId!);
   if (command === 'user-question-answer')
     return answerUserQuestion(reader, target, messageId!, answer as QuestionAnswer);

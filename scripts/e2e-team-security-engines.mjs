@@ -3,6 +3,30 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 
+const shellTool = /^(?:bash|shell|powershell)$/iu;
+const permissionRefusal =
+  /^(?:declined|denied)$|\b(?:permission denied|access (?:is )?denied|operation not permitted|read-only file system|sandbox (?:blocked|denied|refused|rejected)|(?:blocked|denied|refused|rejected) by (?:the )?(?:sandbox|host))\b/iu;
+
+function fullAccessTool(suite, slug, sessionId, items, matches) {
+  const calls = items.filter((item) => item.kind === 'tool' && matches(item.tool));
+  if (calls.some((item) => item.status === 'denied'))
+    return { ok: false, reason: 'native tool was denied' };
+  for (const call of calls) {
+    if (call.status !== 'failed') continue;
+    const { detail } = suite.cli(
+      ['session-tool', slug, '--session', sessionId, '--call', call.id],
+      { allowFail: true },
+    );
+    const refusal = permissionRefusal.exec(detail?.output?.trim() ?? '')?.[0];
+    if (refusal !== undefined) return { ok: false, reason: `native tool refused: ${refusal}` };
+  }
+  if (calls.some((item) => item.status === 'done')) return { ok: true };
+  return {
+    ok: null,
+    reason: calls.length ? 'native tool did not succeed' : 'no native tool call was recorded',
+  };
+}
+
 export async function engineWorkspaceScenario(suite, engine, fullAccess, check, block) {
   if (suite.options.noSubscriptions) {
     block(
@@ -59,11 +83,26 @@ export async function engineWorkspaceScenario(suite, engine, fullAccess, check, 
       (path) =>
         `Replace the contents of ${path} with ${marker} using ${path.endsWith('shell.txt') ? 'the native shell tool' : fileTool}.`,
     );
+    const assignmentInstructions =
+      fullAccess && engine === 'codex'
+        ? [
+            'This Full access Assignment authorizes both operations on the two named disposable fixtures, even though both are outside the Workspace Grant. Execute both tool calls; do not just describe them or ask for approval.',
+            `First call the native apply_patch tool (not shell) with exactly this patch. It has one Update File header for the absolute path and replaces the single line original with ${marker}:`,
+            '*** Begin Patch',
+            `*** Update File: ${targets[0]}`,
+            '@@',
+            '-original',
+            `+${marker}`,
+            '*** End Patch',
+            `Then use the native shell tool to replace the contents of ${targets[1]} with ${marker} and read that file back. Do not use shell on the apply_patch target.`,
+            'If a tool fails, report the tool error and move to the next operation. Use only these fixture files. Report both results to the Orchestrator before ending.',
+          ].join('\n')
+        : `${instructions.join(' ')} Use only these fixture files. If a tool is unavailable or refused, report it and move to the next check. Do not ask for approval or try another tool for that file. Report the result to the Orchestrator before ending.`;
     suite.ask(
       'delegate',
       undefined,
       slug,
-      `Create one Assignment with title ${marker} and grant_id ${grant.id}. Give the Assignment these instructions verbatim, then acknowledge that it started. Do not edit the files yourself. Instructions: ${instructions.join(' ')} Use only these fixture files. If a tool is unavailable or refused, report it and move to the next check. Do not ask for approval or try another tool for that file. Report the result to the Orchestrator before ending.`,
+      `Create one Assignment with title ${marker} and grant_id ${grant.id}. Give the Assignment these instructions verbatim, then acknowledge that it started. Do not edit the files yourself. Instructions:${fullAccess && engine === 'codex' ? '\n' : ' '}${assignmentInstructions}`,
     );
     const deadline = Date.now() + suite.options.timeout * 1000;
     let assignment;
@@ -89,26 +128,30 @@ export async function engineWorkspaceScenario(suite, engine, fullAccess, check, 
       'the Assignment retained the expected access preset',
       assignment?.permission?.mode === (fullAccess ? 'danger-full-access' : 'workspace-write'),
     );
-    for (const target of targets)
+    const tools = fullAccess
+      ? [(name) => name === fileTool, (name) => shellTool.test(name)].map((matches) =>
+          fullAccessTool(suite, slug, assignment?.sessionId, transcript?.items ?? [], matches),
+        )
+      : [];
+    for (const [index, target] of targets.entries()) {
+      const expected =
+        existsSync(target) &&
+        readFileSync(target, 'utf8').trim() === (fullAccess ? marker : 'original');
       check(
         `${target.startsWith(root + sep) ? 'in-grant' : 'outside'} ${target.endsWith('shell.txt') ? 'shell' : 'file-tool'} fixture ${fullAccess ? 'changed' : 'unchanged'}`,
-        existsSync(target) &&
-          readFileSync(target, 'utf8').trim() === (fullAccess ? marker : 'original'),
+        !expected && tools[index]?.ok === null ? null : expected,
       );
+    }
     if (fullAccess) {
-      const tools =
-        transcript?.items?.filter((item) => item.kind === 'tool' && item.status === 'done') ?? [];
-      check(
-        'native file edit completed',
-        tools.some((item) => item.tool === fileTool),
-      );
-      check(
-        'native shell completed',
-        tools.some((item) => /^(?:bash|shell|powershell)$/iu.test(item.tool)),
-      );
+      check('native file edit completed', tools[0].ok, tools[0].reason);
+      check('native shell completed', tools[1].ok, tools[1].reason);
     }
     const approvals = suite.cli(['engine', 'approvals']).approvals;
     check('engine did not request an approval', !approvals.some((item) => item.botSlug === slug));
+    const incomplete = tools.flatMap(({ ok, reason }, index) =>
+      ok === null ? [`${index === 0 ? fileTool : 'shell'}: ${reason}`] : [],
+    );
+    if (incomplete.length) return incomplete.join('; ');
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

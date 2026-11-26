@@ -536,12 +536,19 @@ it('preserves independent model snapshots, Assignment choices and template revis
   expect(editedTemplate?.revision).toBe(2);
   const customized = core.registry.get('customized')!.modelPlan!;
   const applied = core.registry.get('applied')!.modelPlan!;
-  expect(customized).toMatchObject({ revision: 3, sourcePresetId: '', assignmentDefault: route });
+  expect(customized).toMatchObject({
+    revision: 3,
+    sourcePresetId: template.id,
+    orchestrator: reasoning,
+    assignmentDefault: route,
+    overrides: ['main', 'sub'],
+  });
   expect(applied).toMatchObject({
     revision: 1,
     sourcePresetId: template.id,
-    sourcePresetName: template.name,
-    assignmentDefault: reasoning,
+    sourcePresetName: 'Edited after applying',
+    orchestrator: { ...route, model: 'template-only-model' },
+    assignmentDefault: route,
   });
   const credential = 'SYNTHETIC-EXCLUDED-PROFILE-CREDENTIAL';
   writeFileSync(join(home, '.credentials.yaml'), 'deepseek: ' + credential);
@@ -586,7 +593,7 @@ it('preserves independent model snapshots, Assignment choices and template revis
   restored.profileRecovery.activate('customized', true);
   const readiness = createModelRouteReadiness(restored.registry, targetCatalog);
   expect(selectAssignmentRoute(restoredCustomized)).toEqual(route);
-  expect(selectAssignmentRoute(restoredApplied)).toEqual(reasoning);
+  expect(selectAssignmentRoute(restoredApplied)).toEqual(route);
   const selected = selectAssignmentRoute(restoredCustomized, {
     provider: reasoning.provider,
     model: reasoning.model,
@@ -617,8 +624,14 @@ it('preserves independent model snapshots, Assignment choices and template revis
   restored.operationalDatabase.close();
   restored = mount(destination);
   expect(restored.modelPresets.get(template.id)?.revision).toBe(3);
-  expect(restored.registry.get('customized')?.modelPlan).toEqual(customized);
-  expect(restored.registry.get('applied')?.modelPlan).toEqual(applied);
+  expect(restored.registry.get('customized')?.modelPlan).toEqual({
+    ...customized,
+    sourcePresetName: 'Target-local template edit',
+  });
+  expect(restored.registry.get('applied')?.modelPlan).toMatchObject({
+    sourcePresetName: 'Target-local template edit',
+    orchestrator: route,
+  });
   expect(() => restored.profileRecovery.requireExecution('customized')).not.toThrow();
   expect(() => restored.profileRecovery.requireExecution('applied')).toThrow();
 });

@@ -1,3 +1,4 @@
+import { createWorkspaceSessionReader } from '../sessions/workspace-sessions.js';
 import * as tobFeature from '../tob/plugin.js';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { defaultSpaceMemoryPath } from '../../workspaces/space-memory.js';
@@ -465,6 +466,15 @@ export function createRuntime(
     orchestratorCwd,
   } = deps;
   return createBotRuntime({
+    ...(options.nativeSessions === undefined
+      ? {}
+      : {
+          workspaceSessions: createWorkspaceSessionReader(
+            options.nativeSessions,
+            ownership,
+            options.externalSessions,
+          ),
+        }),
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     inheritedModelPlan: () => {
@@ -618,9 +628,9 @@ export function createHostAgentAdapter(
       if (persistence === undefined) throw new Error('DSH Session Persistence is unavailable');
       return (await persistence.stat(sessionId)) !== undefined;
     },
-    prepareModelRoute: (slug, role, retainedRoute) => {
+    prepareModelRoute: (slug, role, retainedRoute, signal) => {
       deps.core.profileRecovery.requireExecution(slug);
-      return modelReadiness.prepare(slug, role, retainedRoute);
+      return modelReadiness.prepare(slug, role, retainedRoute, signal);
     },
     orchestratorCwd: (bot) => deps.core.registry.memoryDirFor(bot.slug),
     observePreparation: (slug, sessionId, preparing) => {
@@ -648,6 +658,9 @@ export function createHostAgentAdapter(
     publishDraft: (event) => deps.publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => deps.core.runBotAgentSetups(agentCtx, agent, info),
     onOrchestratorFileSetup: tobFeature.createOrchestratorFileSetup(ctx, deps),
+    onAssignmentShellSetup: tobFeature.createAssignmentShellSetup(ctx, deps),
+    assignmentReportFooter: (sessionId) =>
+      deps.tobOperations.tobMemoryLeases.reportFooter(sessionId),
     authorizeBorrow: (agent, role) => {
       const denial = borrowedAgentDenial(deps.core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);

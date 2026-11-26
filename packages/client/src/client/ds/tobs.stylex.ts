@@ -84,6 +84,7 @@ export const layer = stylex.defineConsts({
   elevated: 'var(--tobs-layer-elevated)',
   scrim: 'var(--tobs-layer-scrim)',
   clear: 'var(--tobs-layer-clear)',
+  logo: 'var(--tobs-layer-logo)',
 });
 
 export const ink = stylex.defineConsts({

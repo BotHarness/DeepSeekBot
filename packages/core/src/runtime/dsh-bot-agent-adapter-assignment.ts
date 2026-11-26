@@ -19,9 +19,10 @@ import type {
   CreateAgentOptions,
   ModelSelection,
 } from '@deepseek-ai/dsh-agent';
-import { SessionId, type SessionLogOffset } from '@deepseek-ai/dsh-session';
+import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session';
 import { routingTargetRestKey } from '../models/group-fallback.js';
 import type { AssignmentAgentRun, AssignmentRequestDelivery } from './bot-runtime.js';
+import { withReportFooter } from './assignment-report.js';
 import { EngineLimitError } from '../engines/engine-session.js';
 import {
   ROLE_PROMPT_ORDER,
@@ -94,6 +95,8 @@ type AssignmentHandleContext = Pick<
   | 'hasSession'
   | 'liveHandle'
   | 'onAgentSetup'
+  | 'onAssignmentShellSetup'
+  | 'assignmentReportFooter'
   | 'orchestratorCwd'
   | 'promptText'
   | 'resolveModelPlan'
@@ -125,6 +128,24 @@ function finalAssistantText(handle: AgentHandle, fromSeq: SessionLogOffset): str
     .join('\n')
     .trim();
   return text.length > 0 ? text : undefined;
+}
+
+function failedRequestProvider(
+  session: Agent['session'],
+  fromSeq: SessionLogOffset,
+  endSeq: number,
+): string | undefined {
+  const events = session.snapshotEvents(fromSeq, SessionLogOffset(endSeq));
+  const lastStep = events.findLastIndex((event) => event.type === 'step/start');
+  if (lastStep === -1) return undefined;
+  const stepEvents = events.slice(lastStep + 1);
+  const header = stepEvents.findLast((event) => event.type === 'request/header');
+  if (header !== undefined) return header.data.header.config.provider;
+  if (!stepEvents.some((event) => event.type === 'assistant/attempt')) return undefined;
+  return (
+    events.findLast((event) => event.type === 'request/header') ??
+    session.snapshotEvents(undefined, fromSeq).findLast((event) => event.type === 'request/header')
+  )?.data.header.config.provider;
 }
 
 export async function runAssignment(
@@ -164,7 +185,7 @@ export function requestAssignment(
     refuse = reject;
   });
   const done = driveAssignment(adapter, run, accept);
-  void done.catch(refuse);
+  void done.then(() => refuse(new Error('Assignment finished before Inbox acceptance')), refuse);
   return { delivery: 'followup', accepted, done };
 }
 
@@ -287,7 +308,7 @@ async function driveAssignmentAttempt(
   accepted?: () => void,
 ): Promise<void> {
   if (adapter.stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
-  const entry: ActiveRun = { role: 'assignment', run, reported: false };
+  const entry: ActiveRun = { role: 'assignment', run, hasOutcome: false };
   adapter.runs.set(run.sessionId, entry);
   adapter.stopSeqs.delete(run.sessionId);
   const abandonable = adapter.abandonable(run.sessionId);
@@ -305,7 +326,7 @@ async function driveAssignmentAttempt(
     if (engines?.isLive(run.sessionId)) await engines.release(run.sessionId);
     const handle = await adapter
       .prepare(run.sessionId, async (signal) => {
-        await adapter.prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
+        await adapter.prepareModelRoute(run.bot.slug, 'assignment', run.modelRoute, signal);
         return assignmentHandle(adapter, run, signal);
       })
       .catch((error: unknown) => {
@@ -342,32 +363,27 @@ async function driveAssignmentAttempt(
       return;
     }
     if (idle === 'abandoned') return;
-    const provider = adapter.assignmentSelections.get(run.sessionId)?.current?.provider;
     const completion = requireCompletedTurn(
       handle,
       fromSeq,
       run.cancelledTurn,
       run.failedTurn,
-      (code) => {
-        if (provider !== undefined) adapter.observeTurnFailure?.(provider, code);
+      (code, endSeq) => {
+        if (adapter.observeTurnFailure === undefined) return;
+        const provider = failedRequestProvider(handle.agent.session, fromSeq, endSeq);
+        if (provider !== undefined) adapter.observeTurnFailure(provider, code);
       },
       adapter.turnRefusal?.(run.sessionId),
     );
     run.completedTurn?.(completion);
     if (run.resume === true && run.continueInitialGroupTurn !== true) return;
-    if (!entry.reported) {
-      const text = finalAssistantText(handle, fromSeq);
-      if (text !== undefined) {
-        await run.report(
-          { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
-          { turn: completion.turn },
-        );
-        entry.reported = true;
-      }
-    }
-    if (!entry.reported) {
-      throw new Error('Assignment finished without report_to_orchestrator');
-    }
+    if (entry.hasOutcome) return;
+    const text = finalAssistantText(handle, fromSeq);
+    if (text === undefined) throw new Error('Assignment finished without report_to_orchestrator');
+    await run.report(
+      { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+      { turn: completion.turn },
+    );
   } finally {
     abandonable.release();
     adapter.stopSeqs.delete(run.sessionId);
@@ -434,6 +450,8 @@ async function assignmentHandle(
       if (!borrowed) {
         await adapter.composePreset(agentCtx, agent, run);
       }
+      const disposeShell = await adapter.onAssignmentShellSetup?.(agentCtx, agent);
+      if (borrowed && disposeShell !== undefined) borrowedDisposers.push(disposeShell);
       const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
@@ -460,10 +478,14 @@ async function assignmentHandle(
       );
       if (borrowed) borrowedDisposers.push(disposeMemorySkills);
       registerTool(
-        createAssignmentReportTool(() => {
-          const active = adapter.runs.get(run.sessionId);
-          return active?.role === 'assignment' ? active : undefined;
-        }, agent),
+        createAssignmentReportTool(
+          () => {
+            const active = adapter.runs.get(run.sessionId);
+            return active?.role === 'assignment' ? active : undefined;
+          },
+          agent,
+          (summary) => withReportFooter(summary, adapter.assignmentReportFooter?.(run.sessionId)),
+        ),
       );
     },
   };

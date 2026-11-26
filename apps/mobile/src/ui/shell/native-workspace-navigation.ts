@@ -6,7 +6,6 @@ import { cloudViewScope, type CloudWorkspace } from '../../cloud/workspace-direc
 import { hostSession } from '../../host/host-session';
 import { useMounted } from '../mounted';
 import type { ChannelNavigation } from './channel-navigation';
-import { closeWorkspacePage } from './workspace-paging';
 import {
   removeScopedRoutes,
   resetWorkspaceRoot,
@@ -16,9 +15,7 @@ import {
 let rootNavigation: ChannelNavigation | undefined;
 
 export function showWorkspaceRoot(): boolean {
-  const opened = rootNavigation ? resetWorkspaceRoot(rootNavigation) : false;
-  if (opened) closeWorkspacePage();
-  return opened;
+  return rootNavigation ? resetWorkspaceRoot(rootNavigation) : false;
 }
 
 export function chooseCloudWorkspace(
@@ -38,10 +35,7 @@ export function chooseCloudWorkspace(
       },
     },
     current,
-  ).then((opened) => {
-    if (opened) closeWorkspacePage();
-    return opened;
-  });
+  );
 }
 
 export function useWorkspaceNavigation(invalidate: () => void): RefCallback<ViewInstance> {

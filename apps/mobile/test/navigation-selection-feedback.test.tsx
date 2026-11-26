@@ -12,6 +12,7 @@ const navigation = vi.hoisted(() => ({
   navigate: vi.fn(),
   emit: vi.fn(),
 }));
+vi.mock('../src/features/sessions/last-session', () => ({ lastSession: () => undefined }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: {
@@ -20,6 +21,9 @@ vi.mock('react-native', async () => ({
     },
   },
   Keyboard: { dismiss: vi.fn() },
+}));
+vi.mock('../src/ui/shell/use-tab-menus', () => ({
+  useTabMenus: () => ({ menus: {}, load: () => {} }),
 }));
 vi.mock('expo-router', () => ({
   router: { push: vi.fn() },
@@ -49,10 +53,7 @@ vi.mock('expo-router/js-tabs', () => {
   Tabs.Screen = () => null;
   return { Tabs };
 });
-vi.mock('react-native-reanimated', async () => ({
-  default: { View: (await import('./react-native-shim')).View },
-  useAnimatedStyle: (style: () => object) => style(),
-}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ left: 0, right: 0, bottom: 0 }),
 }));
@@ -65,6 +66,7 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
 vi.mock('../src/cloud/prepare-creation', () => ({ prepareCloudCreation: vi.fn() }));
+vi.mock('../src/features/pinned-tab/use-pinned-tab', () => ({ usePinnedTab: () => undefined }));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => undefined }));
 vi.mock('../src/ui/mounted', () => ({ useMounted: () => undefined }));
 vi.mock('../src/ui/shell/navigation-destinations', () => ({
@@ -84,7 +86,6 @@ vi.mock('../src/ui/shell/navigation-destinations', () => ({
 }));
 vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
 vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
-vi.mock('../src/ui/shell/creation-panel', () => ({ CreationPanel: () => null }));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
   PlusIcon: () => null,

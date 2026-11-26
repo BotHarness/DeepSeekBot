@@ -9,6 +9,7 @@ import {
 } from '../../../../../packages/client/src/client/album-layout';
 import type { MessageAttachment, ReplyThumbnail } from '@botharness/host-client/conversation';
 import { over } from '../design/layers';
+import { clampScaledIconSize } from '../design/scaled-icon-size';
 import { mediaBubble, radius, replyThumb, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
@@ -85,7 +86,14 @@ function AttachmentImage({
           overflow: 'hidden',
         }}
       >
-        <PhotoIcon color={theme.color[tone]} size={theme.type.title.line} />
+        <PhotoIcon
+          color={theme.color[tone]}
+          size={clampScaledIconSize(
+            theme.type.title.line,
+            theme.fontScale,
+            Math.min(width, height) / 3,
+          )}
+        />
         <Text variant="meta" tone={tone} style={{ textAlign: 'center' }}>
           {fallback}
         </Text>

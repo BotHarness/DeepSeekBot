@@ -465,7 +465,9 @@ class ChatRecyclerView(context: Context, app: AppContext) : ExpoView(context, ap
   private val layoutChildren = Runnable {
     if (isAttachedToWindow && width > 0 && height > 0) {
       measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-      onLayout(false, left, top, right, bottom)
+      // layout(), not onLayout(): it clears the layout request, so the RecyclerView's next request
+      // (notifyItemChanged when React mounts a cell) reaches requestLayout below again (#5175).
+      layout(left, top, right, bottom)
     }
   }
   override fun requestLayout() {

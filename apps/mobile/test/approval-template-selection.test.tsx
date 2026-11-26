@@ -9,6 +9,7 @@ import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake
 import { t } from '../src/ui/strings';
 
 vi.mock('react-native', async () => await import('./react-native-shim'));
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: PropsWithChildren) => children,
   SettingsRow: ({

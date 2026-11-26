@@ -22,6 +22,7 @@ export function useCreationTargets(scope = 'all') {
           ...target,
           botCreation: permissions?.bots !== false,
           channelCreation: saved?.member === undefined || permissions?.channels === true,
+          peopleDm: permissions?.people === true,
         }
       : target,
   );

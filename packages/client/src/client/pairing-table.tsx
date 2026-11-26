@@ -68,7 +68,11 @@ export function PairingTable<Row extends { id: string }>({
         onChange={(event) => table.setGlobalFilter(event.target.value)}
       />
       <div className="bh-pairing-table-scroll">
-        <table className="bh-pairing-table" aria-label={label}>
+        <table
+          className="bh-pairing-table"
+          aria-label={label}
+          data-selectable={select ? '' : undefined}
+        >
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
@@ -117,9 +121,13 @@ export function PairingTable<Row extends { id: string }>({
                 {select ? (
                   <td>
                     <Checkbox
-                      label={t('pairing.selectEntry', {
-                        name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
-                      })}
+                      label={
+                        <span className="bh-sr-only">
+                          {t('pairing.selectEntry', {
+                            name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
+                          })}
+                        </span>
+                      }
                       checked={row.getIsSelected()}
                       disabled={disabled}
                       onChange={() => select(row.original)}

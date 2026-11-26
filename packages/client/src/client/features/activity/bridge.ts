@@ -163,7 +163,7 @@ export async function loadHumanAttention(
   });
   if (extended && value.queryVersion !== 1) throw new Error('Update the Host to search Activity.');
   return {
-    items: value.items,
+    items: people.botAttentionItems(value.items),
     ...(value.nextCursor === undefined ? {} : { nextCursor: value.nextCursor }),
   };
 }

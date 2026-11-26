@@ -4,6 +4,12 @@ import { z } from 'zod';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import { TeamError } from './error.js';
+import {
+  effectiveHostPermissions,
+  resolveHostPermissions,
+  type EffectiveHostPermissions,
+  type RoleGrant,
+} from './host-permissions.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
@@ -19,7 +25,7 @@ import {
   roleModelsSchema,
 } from './permissions.js';
 
-const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
+const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.denied_permissions_json AS denied, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
 
 export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: string): void {
@@ -51,25 +57,50 @@ export class TeamRoles {
   }
 
   permissions(human: HumanContext): HostPermission[] {
-    const rows = z
-      .array(z.object({ permissions: z.string().nullable(), owner: z.coerce.boolean() }))
+    const rows = this.grantRows(human, "h.status = 'active'");
+    if (rows.some((row) => row.owner)) return [...ALL_PERMISSIONS];
+    return resolveHostPermissions(rows.flatMap((row) => (row.grant ? [row.grant] : [])));
+  }
+
+  effective(human: HumanContext, humanId: string): EffectiveHostPermissions {
+    if (human.humanId !== humanId) this.require(human, 'members.manage', 'roles.manage');
+    const result = effectiveHostPermissions(this.db, humanId);
+    if (!result) throw new TeamError('member-not-found');
+    return result;
+  }
+
+  private grantRows(
+    human: HumanContext,
+    status: string,
+  ): { owner: boolean; grant: RoleGrant | undefined }[] {
+    return z
+      .array(
+        z.object({
+          permissions: z.string().nullable(),
+          denied: z.string().nullable(),
+          owner: z.coerce.boolean(),
+        }),
+      )
       .parse(
         this.db.read((db) =>
           db
-            .prepare(`SELECT r.permissions_json AS permissions, r.models_json AS models,
+            .prepare(`SELECT r.permissions_json AS permissions, r.denied_permissions_json AS denied,
         s.owner_human_id = h.human_id AS owner FROM humans h CROSS JOIN team_settings s
         LEFT JOIN human_roles m ON m.human_id = h.human_id
-        LEFT JOIN host_roles r ON r.role_id = m.role_id WHERE h.human_id = ? AND h.status = 'active'`)
+        LEFT JOIN host_roles r ON r.role_id = m.role_id WHERE h.human_id = ? AND ${status}`)
             .all(human.humanId),
         ),
-      );
-    if (rows.some((row) => row.owner)) return [...ALL_PERMISSIONS];
-    const effective = new Set(
-      rows.flatMap((row) =>
-        row.permissions === null ? [] : z.array(z.string()).parse(JSON.parse(row.permissions)),
-      ),
-    );
-    return ALL_PERMISSIONS.filter((permission) => effective.has(permission));
+      )
+      .map((row) => ({
+        owner: row.owner,
+        grant:
+          row.permissions === null
+            ? undefined
+            : {
+                allow: z.array(z.string()).parse(JSON.parse(row.permissions)),
+                deny: z.array(z.string()).parse(JSON.parse(row.denied ?? '[]')),
+              },
+      }));
   }
 
   modelsAllowed(human: HumanContext): ModelsAllowed {
@@ -159,6 +190,14 @@ export class TeamRoles {
     return trimmed;
   }
 
+  private validateDenials(grants: readonly string[], denied: string[]): HostPermission[] {
+    const denials = this.validatePermissions(denied);
+    const both = denials.find((id) => grants.includes(id));
+    if (both !== undefined)
+      throw new TeamError('permission-conflict', undefined, { permission: both });
+    return denials;
+  }
+
   private validatePermissions(permissions: string[]): HostPermission[] {
     if (permissions.some((id) => !ALL_PERMISSIONS.some((known) => known === id)))
       throw new TeamError('permission-unknown');
@@ -166,27 +205,13 @@ export class TeamRoles {
   }
 
   private authority(human: HumanContext): RoleAuthority {
-    const rows = z
-      .array(z.object({ permissions: z.string().nullable(), owner: z.coerce.boolean() }))
-      .parse(
-        this.db.read((db) =>
-          db
-            .prepare(`SELECT r.permissions_json AS permissions, s.owner_human_id = h.human_id AS owner
-        FROM humans h CROSS JOIN team_settings s LEFT JOIN human_roles m ON m.human_id = h.human_id
-        LEFT JOIN host_roles r ON r.role_id = m.role_id
-        WHERE h.human_id = ? AND (h.status = 'active' OR s.owner_human_id = h.human_id)`)
-            .all(human.humanId),
-        ),
-      );
+    const rows = this.grantRows(human, "(h.status = 'active' OR s.owner_human_id = h.human_id)");
     if (rows.some((row) => row.owner)) return { kind: 'owner' };
-    const effective = new Set(
-      rows.flatMap((row) =>
-        row.permissions === null ? [] : z.array(z.string()).parse(JSON.parse(row.permissions)),
-      ),
-    );
     return {
       kind: 'member',
-      permissions: new Set(ALL_PERMISSIONS.filter((permission) => effective.has(permission))),
+      permissions: new Set(
+        resolveHostPermissions(rows.flatMap((row) => (row.grant ? [row.grant] : []))),
+      ),
     };
   }
 
@@ -231,12 +256,15 @@ export class TeamRoles {
     permissions: string[],
     models: RoleModelsInput = { kind: 'all' },
     policy: RolePolicy = [],
+    denied: string[] = [],
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const normalized = this.name(name);
     const grants = this.validatePermissions(permissions);
+    const denials = this.validateDenials(grants, denied);
     const authority = this.authority(human);
     this.checkPermissions(authority, grants, 'grant');
+    this.checkPermissions(authority, denials, 'manage');
     const modelPolicy = roleModelsSchema.parse(models);
     this.checkModelGrant(
       authority.kind === 'owner' ? { all: true } : this.modelsAllowed(human),
@@ -248,12 +276,13 @@ export class TeamRoles {
       (db) =>
         db
           .prepare(
-            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, models_json, policy_json) VALUES (?, ?, NULL, ?, ?, ?)',
+            'INSERT INTO host_roles (role_id, name, builtin, permissions_json, denied_permissions_json, models_json, policy_json) VALUES (?, ?, NULL, ?, ?, ?, ?)',
           )
           .run(
             id,
             normalized,
             JSON.stringify(grants),
+            JSON.stringify(denials),
             JSON.stringify(modelPolicy),
             JSON.stringify(items),
           ),
@@ -266,13 +295,20 @@ export class TeamRoles {
   update(
     human: HumanContext,
     roleId: string,
-    patch: { name?: string; permissions?: string[]; models?: RoleModelsInput; policy?: RolePolicy },
+    patch: {
+      name?: string;
+      permissions?: string[];
+      denied?: string[];
+      models?: RoleModelsInput;
+      policy?: RolePolicy;
+    },
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);
     const policy = patch.policy === undefined ? role.policy : rolePolicySchema.parse(patch.policy);
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
+    this.checkPermissions(authority, role.denied, 'manage');
     const models = patch.models === undefined ? role.models : roleModelsSchema.parse(patch.models);
     if (patch.models !== undefined)
       this.checkModelGrant(
@@ -289,15 +325,24 @@ export class TeamRoles {
     if (ownerGrant !== undefined)
       throw new TeamError('permission-not-grantable', undefined, { permission: ownerGrant });
     this.checkPermissions(authority, grants, 'grant');
+    const denials =
+      patch.denied === undefined && patch.permissions === undefined
+        ? role.denied
+        : this.validateDenials(
+            grants,
+            patch.denied ?? role.denied.filter((id) => !grants.includes(id)),
+          );
+    this.checkPermissions(authority, denials, 'manage');
     this.db.transaction(
       (db) =>
         db
           .prepare(
-            'UPDATE host_roles SET name = ?, permissions_json = ?, models_json = ?, policy_json = ?, policy_revision = policy_revision + ? WHERE role_id = ?',
+            'UPDATE host_roles SET name = ?, permissions_json = ?, denied_permissions_json = ?, models_json = ?, policy_json = ?, policy_revision = policy_revision + ? WHERE role_id = ?',
           )
           .run(
             name,
             JSON.stringify(grants),
+            JSON.stringify(denials),
             JSON.stringify(models),
             JSON.stringify(policy),
             Number(JSON.stringify(policy) !== JSON.stringify(role.policy)),
@@ -305,7 +350,10 @@ export class TeamRoles {
           ),
       ['team'],
     );
-    this.invalidate(role.permissions.some((permission) => !grants.includes(permission)));
+    this.invalidate(
+      role.permissions.some((permission) => !grants.includes(permission)) ||
+        denials.some((permission) => !role.denied.includes(permission)),
+    );
     return { role: this.role(roleId) };
   }
 
@@ -314,6 +362,7 @@ export class TeamRoles {
     const role = this.role(roleId);
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
+    this.checkPermissions(authority, role.denied, 'manage');
     if (role.builtin) throw new TeamError('role-builtin');
     if (
       this.db.read((db) => {

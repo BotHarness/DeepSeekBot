@@ -1,4 +1,13 @@
 export const en = {
+  messagePerson: {
+    title: 'Message a person',
+    search: 'Search people',
+    loading: 'Loading people…',
+    loadFailed: "Couldn't load people.",
+    empty: 'No one else is on this Host yet.',
+    noMatch: 'No one matches.',
+    openFailed: "Couldn't open this chat. Try again.",
+  },
   invitePeople: 'Invite people',
   stepBar: {
     back: 'Back',
@@ -82,6 +91,8 @@ export const en = {
       'password-reused': 'Choose a password you have not used here.',
       mismatch: 'Passwords do not match.',
       unreachable: 'Could not reach the Host. Check the network and try again.',
+      'private-route':
+        'This is a private connection for devices already paired with this Host, so you cannot sign in by its address. Open a pairing code or sign-in link on the Host and scan it.',
       'storage-failed': 'Could not save the sign-in on this phone. Try again.',
       'host-update-required': 'Update this Host before signing in with a password.',
     } as Record<string, string>,
@@ -89,6 +100,15 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  messagePerson: {
+    title: '给某人发消息',
+    search: '搜索成员',
+    loading: '正在加载成员…',
+    loadFailed: '成员加载失败。',
+    empty: '此 Host 上还没有其他人。',
+    noMatch: '没有匹配的人。',
+    openFailed: '打开聊天失败，再试一次。',
+  },
   invitePeople: '邀请成员',
   stepBar: {
     back: '上一步',
@@ -164,6 +184,8 @@ export const zh: typeof en = {
       'password-reused': '换一个在这里没用过的密码。',
       mismatch: '两次输入的密码不一致。',
       unreachable: '无法连接 Host，检查网络后再试。',
+      'private-route':
+        '这是只供已配对设备使用的私有连接，不能输入地址登录。在 Host 上打开配对码或登录链接，然后扫码。',
       'storage-failed': '无法在本机保存登录，再试一次。',
       'host-update-required': '先更新这台 Host，再用账密登录。',
     } as Record<string, string>,

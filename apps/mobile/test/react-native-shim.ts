@@ -23,7 +23,17 @@ export const View = (props: Props) =>
     { ...a11y(props), ref: props['ref'], 'data-style': JSON.stringify(props['style']) },
     props.children,
   );
-export const Text = (props: Props) => createElement('span', a11y(props), props.children);
+export const Text = (props: Props) =>
+  createElement(
+    'span',
+    {
+      ...a11y(props),
+      ...(props['numberOfLines'] === undefined
+        ? {}
+        : { 'data-lines': String(props['numberOfLines']) }),
+    },
+    props.children,
+  );
 export const ScrollView = View;
 export const Animated = {
   View,
@@ -74,6 +84,10 @@ export const Pressable = (props: Props) =>
 export const TextInput = (props: Props) =>
   createElement('textarea', {
     ...a11y(props),
+    ref: props['ref'],
+    onKeyDown: (event: { key: string }) => {
+      if (event.key === 'Enter') (props['onSubmitEditing'] as (() => void) | undefined)?.();
+    },
     value: props['value'] as string,
     placeholder: props['placeholder'] as string,
     onBlur: props['onBlur'] as (() => void) | undefined,
@@ -185,3 +199,4 @@ export const AccessibilityInfo = {
   isReduceMotionEnabled: async () => false,
   addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };
+export const Easing = { bezier: (...points: number[]) => ({ points }) };

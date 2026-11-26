@@ -14,7 +14,7 @@ import { TeamApprovals } from './approvals.js';
 import type { UsageProjection } from '../usage/usage.js';
 import type { UsageByMemberResult, UsageOverviewPeriod } from '../usage/overview.js';
 import { TeamChannels } from './channels.js';
-import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
+import { channelRoleMembershipEntrySql } from './channel-contract.js';
 import type { ContentPurge } from '../purge/contracts.js';
 import { TeamRoles } from './roles.js';
 import type { DevicePairing } from '../devices/pairing.js';
@@ -84,6 +84,13 @@ export class TeamService {
   readonly approvals: TeamApprovals;
   readonly channelAccess: TeamChannels;
   private readonly accessListeners = new Set<() => void>();
+  private readonly ownerListeners = new Set<() => Promise<unknown>>();
+  onOwnerTransferred(listener: () => Promise<unknown>): () => void {
+    this.ownerListeners.add(listener);
+    return () => {
+      this.ownerListeners.delete(listener);
+    };
+  }
   onAccessChanged(listener: () => void): () => void {
     this.accessListeners.add(listener);
     return () => {
@@ -393,6 +400,7 @@ export class TeamService {
     };
   }
 
+  readonly publicOrigins = async () => (await this.devices?.routes()) ?? [];
   bindDevices(devices: NonNullable<TeamService['devices']>): () => void {
     this.devices = devices;
     return () => {
@@ -961,22 +969,11 @@ export class TeamService {
       (device) => device.kind === 'paired-device',
     );
     if (oldDevices.length && !this.pairing) throw new TeamError('unavailable');
-    const roleAccessEnded = this.db.transaction(
-      (db) => {
-        db.prepare('DELETE FROM human_roles WHERE human_id IN (?, ?)').run(human.humanId, humanId);
-        db.prepare("INSERT INTO human_roles VALUES (?, 'admin')").run(human.humanId);
-        db.prepare('UPDATE team_settings SET owner_human_id = ? WHERE singleton = 1').run(humanId);
-        let roleAccessEnded = false;
-        const at = new Date(this.now()).toISOString();
-        for (const id of [human.humanId, humanId]) {
-          if (db.prepare(channelRoleMembershipExitSql('human')).run(at, id).changes > 0)
-            roleAccessEnded = true;
-          db.prepare(channelRoleMembershipEntrySql('human')).run(at, id);
-        }
-        db.prepare('DELETE FROM tob_identity WHERE human_id IN (?, ?)').run(human.humanId, humanId);
-        return roleAccessEnded;
-      },
-      ['team'],
+    const roleAccessEnded = memberLifecycle.commitOwnerTransfer(
+      this.db,
+      human.humanId,
+      humanId,
+      new Date(this.now()).toISOString(),
     );
     this.pairing?.clearOffers();
     if (roleAccessEnded) {
@@ -985,6 +982,10 @@ export class TeamService {
     } else this.invalidate();
     for (const device of oldDevices)
       await this.memberDeviceRevoke(human, human.humanId, device.grantId);
+    for (const listener of this.ownerListeners)
+      await listener().catch(() => {
+        this.log('owner-transfer-tob-unavailable', { humanId });
+      });
     this.log('owner-transferred', { initiator: 'owner', humanId });
     return null;
   }

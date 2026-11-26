@@ -14,6 +14,8 @@ export interface ModelPlanState {
   revision?: number;
   plan?: PersonaBotModelPlan;
   inheritedPresetId?: string;
+  presetId?: string;
+  overrides?: ('main' | 'sub')[];
   repair?: ModelRouteRepair;
 }
 
@@ -23,6 +25,7 @@ export interface ModelRouteReadiness {
     slug: string,
     role: 'orchestrator' | 'assignment',
     retainedRoute?: ModelRoute,
+    signal?: AbortSignal,
   ): Promise<void>;
 }
 
@@ -37,13 +40,15 @@ export function createModelRouteReadiness(
   requireRoute?: (slug: string, route: ModelRoute) => void,
   defaultAssignmentRoute?: () => ModelRoute | undefined,
 ): ModelRouteReadiness {
-  const migrate = async (slug: string): Promise<ModelPlanState> => {
+  const migrate = async (slug: string, signal?: AbortSignal): Promise<ModelPlanState> => {
+    signal?.throwIfAborted();
     const bot = registry.get(slug);
     if (bot === undefined) throw new Error('PersonaBot was not found');
     if (bot.modelPlan !== undefined) return { plan: bot.modelPlan };
     if (bot.model === undefined) return {};
     const legacyModel = bot.model;
     const matches = (await catalog.list()).filter((entry) => entry.model === legacyModel);
+    signal?.throwIfAborted();
     if (matches.length !== 1) {
       return {
         repair: {
@@ -61,6 +66,7 @@ export function createModelRouteReadiness(
         repair: { code: 'route-unavailable', legacyModel, message: repairMessage(route, failure) },
       };
     }
+    signal?.throwIfAborted();
     const result = registry.migrateLegacyModel(slug, legacyModel, route);
     if (!result.ok) throw new Error('PersonaBot model changed; reopen Profile before retrying');
     return result.record.modelPlan === undefined ? {} : { plan: result.record.modelPlan };
@@ -82,8 +88,9 @@ export function createModelRouteReadiness(
       }
       return state;
     },
-    async prepare(slug, role, retainedRoute) {
-      const state = await migrate(slug);
+    async prepare(slug, role, retainedRoute, signal) {
+      const state = await migrate(slug, signal);
+      signal?.throwIfAborted();
       if (state.repair !== undefined) throw new Error(state.repair.message);
       const selected =
         retainedRoute ??

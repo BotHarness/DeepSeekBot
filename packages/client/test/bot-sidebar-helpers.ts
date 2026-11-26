@@ -133,6 +133,11 @@ function stubActions(): BridgeActions {
     marketplaceAvatarDetail: vi.fn(),
     marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
+    marketplaceSkillList: vi.fn(),
+    marketplaceSkillDetail: vi.fn(),
+    marketplaceSkillAddCandidates: vi.fn(),
+    marketplaceSkillReview: vi.fn(),
+    marketplaceSkillAdd: vi.fn(),
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAvatarSource: vi.fn(),
@@ -270,6 +275,7 @@ function stubActions(): BridgeActions {
     setModelPlan: vi.fn(async () => {
       throw new Error('unexpected Model Plan change');
     }),
+    createHostFolder: vi.fn(),
     listHostFolders: vi.fn(async () => ({
       path: '/',
       home: '/',
@@ -521,6 +527,9 @@ function stubActions(): BridgeActions {
     previewBotImport: vi.fn(async (gitUrl: string) => ({ gitUrl, commit: 'a'.repeat(40) })),
     openCreatedBot: vi.fn(async () => undefined),
     importBotZip: vi.fn(async () => BOT),
+    importableSessions: vi.fn(async () => []),
+    createBotFromSessions: vi.fn(async () => BOT),
+    addBotFromSessions: vi.fn(async () => BOT),
     botZipFiles: vi.fn(async () => ({ files: [], always: [] })),
     exportBotZip: vi.fn(async () => undefined),
     createGroup: vi.fn(async () => undefined),
@@ -629,6 +638,7 @@ function renderSidebar(wide = true): string {
 
 function openSidebarMenu(label: string): HTMLElement {
   if (document.querySelector(`button[aria-label="${label}"]`) === null) {
+    disposeMenuView();
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
@@ -656,7 +666,7 @@ function openSidebarMenu(label: string): HTMLElement {
   return menu;
 }
 
-async function renderRailPreviews(): Promise<string> {
+async function renderRailPreviews() {
   disposeMenuView();
   const host = document.createElement('div');
   document.body.append(host);
@@ -678,19 +688,22 @@ async function renderRailPreviews(): Promise<string> {
         }),
       ),
     );
-    let markup = host.innerHTML;
+    const markup = host.innerHTML;
+    const previews = new Map<string, string>();
     for (const button of host.querySelectorAll<HTMLElement>('.bh-rail-channel')) {
-      const trigger = button.parentElement!;
+      const { channelId } = button.dataset;
+      const trigger = button.parentElement;
+      if (!channelId || !trigger) throw new Error('No Channel trigger for rail preview');
       await hoverTooltip(trigger, vi.advanceTimersByTimeAsync, 350);
       const preview = document.querySelector('.bh-rail-preview');
       if (preview === null) throw new Error('No rail preview after hover');
-      markup += preview.outerHTML;
+      previews.set(channelId, preview.outerHTML);
       await act(async () => {
         trigger.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: document.body }));
         await vi.advanceTimersByTimeAsync(1000);
       });
     }
-    return markup;
+    return { markup, previews };
   } finally {
     disposeMenuView();
     vi.useRealTimers();

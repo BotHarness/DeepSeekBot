@@ -141,8 +141,6 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     scanChangesAsync: (botSlug) => requireAcceptance().scanChangesAsync(botSlug),
     sourceReferences: (ids) => requireAcceptance().sourceReferences(ids),
     ...createMemoryFiles(registry),
-    continueFromCommit: (input) => requireAcceptance().continueFromCommit(input),
-    switchBranch: (input) => requireAcceptance().switchBranch(input),
     prepareTurn: (botSlug, sessionId, options) =>
       requireAcceptance().prepareTurn(botSlug, sessionId, options),
     scanChanges: (botSlug) => requireAcceptance().scanChanges(botSlug),
@@ -170,6 +168,8 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     restoreHuman: (human, input) => requireAcceptance().restoreHuman(human, input),
     saveHuman: (human, input) => requireAcceptance().saveHuman(human, input),
     restoreCommitHuman: (human, input) => requireAcceptance().restoreCommitHuman(human, input),
+    reviewHumanSave: (input) => requireAcceptance().reviewHumanSave(input),
+    reviewHumanRestore: (input) => requireAcceptance().reviewHumanRestore(input),
     nameVersionHuman: (input) => requireAcceptance().nameVersionHuman(input),
     versions: (botSlug) => requireAcceptance().versions(botSlug),
     removeVersionNameHuman: (input) => requireAcceptance().removeVersionNameHuman(input),

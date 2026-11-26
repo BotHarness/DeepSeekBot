@@ -3,8 +3,10 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { stopSession } from '@botharness/host-client/bot-control';
+import { archiveHostSession, stopHostSession } from '@botharness/host-client/host-sessions';
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
+import type { DecisionResult } from '@botharness/host-client/requests';
 import {
   sendOrchestratorMessage,
   sendSessionRequest,
@@ -12,20 +14,43 @@ import {
   setSessionArchived,
 } from '@botharness/host-client/session-detail';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { sessionReadHost } from '../../host/session-detail';
 import { sendJumpPreferences } from '../../host/native-send-jump';
 import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assignment-timeline';
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
 import { ChatList, type ChatListHandle } from '../primitives/chat-list';
+import { useTimelineIslandFloor } from '../primitives/chat-scroll';
+import { confirmAppDialog } from '../primitives/app-dialog';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
-import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../shell/icons';
+import {
+  useInSessionsTab,
+  useSessionsStackFit,
+  useSessionDrawerRoot,
+} from '../../features/sessions/drawer-root';
+import { forgetLastSession, rememberLastSession } from '../../features/sessions/last-session';
+import { NativeSessionInputCards } from '../../features/sessions/native-session-input-cards';
+import {
+  nativeSessionControls,
+  shownPendingInput,
+} from '../../features/sessions/native-session-input';
+import { canCreateNativeSession } from '../shell/page-create-actions';
+import { SessionDrawerButton } from '../../features/sessions/session-drawer-button';
+import { openNewSession } from '../../features/sessions/session-drawer-navigation';
+import { enterDrawerRoot, openSessionDrawer } from '../../features/sessions/session-drawer-state';
+import { HeaderCircleButton } from './header-chrome';
+import { useSessionNavigationStyle } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import type { ChatHeaderMenu } from './chat-header-actions';
 import { ChatHeaderRow } from './chat-header-row';
-import { ChatTitleCapsule } from './chat-title-capsule';
+import { sessionHeaderTitle } from './session-header-title';
+import { sessionPlace } from './session-place';
+import { SessionTitleMenu } from './session-title-menu';
 import { useChannelViewport } from './channel-viewport';
 import {
   ChatTimelineFrame,
@@ -40,9 +65,10 @@ import {
 import { Composer } from './composer';
 import { ConversationTopBar } from './conversation-top-bar';
 import {
-  SessionModelChip,
+  SessionModelLogo,
   SessionModelPicker,
   useSessionModelControl,
+  useSessionModelMenuLabel,
 } from './session-model-composer';
 import { SessionTranscriptRow } from './session-transcript-row';
 import { SheetFailed, SheetLoading, SheetNote } from './sheet';
@@ -50,19 +76,42 @@ import { useSessionTranscript } from './use-session-transcript';
 
 function SessionHeader({
   title,
+  pending = false,
+  cwd,
   menu,
   onHeight,
 }: {
   title: string;
+  pending?: boolean;
+  cwd?: string | undefined;
   menu?: ChatHeaderMenu | undefined;
   onHeight(height: number): void;
 }) {
   const theme = useDesignTheme();
   const t = useStrings();
   const router = useRouter();
+  const drawer = useSessionDrawerRoot();
+  const inSessions = useInSessionsTab();
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { saved } = useHostSession(hostId);
+  const stacked = useSessionNavigationStyle() === 'stacked';
+  const look = useHostLook(saved?.hostId);
+  const place =
+    saved == null
+      ? undefined
+      : sessionPlace({ hostIcon: look.icon, hostName: shownHostName(look, saved.hostName), cwd });
+  const compose =
+    inSessions && canCreateNativeSession(saved)
+      ? () =>
+          drawer
+            ? openNewSession()
+            : stacked
+              ? openNewSession('session')
+              : router.dismissTo('/sessions')
+      : undefined;
   const back = () => {
     if (router.canGoBack()) router.back();
-    else router.replace('/');
+    else router.replace(inSessions ? '/sessions' : '/');
   };
   return (
     <>
@@ -74,15 +123,29 @@ function SessionHeader({
           headerTitle: () => (
             <ChatHeaderRow
               back={{ label: t.back, testID: 'session-back-button', onPress: back }}
+              {...(drawer ? { leading: <SessionDrawerButton /> } : {})}
+              {...(compose === undefined
+                ? {}
+                : {
+                    extra: (
+                      <HeaderCircleButton
+                        label={t.hostSessions.create}
+                        testID="session-new"
+                        onPress={compose}
+                      >
+                        <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
+                      </HeaderCircleButton>
+                    ),
+                  })}
               title={
-                <ChatTitleCapsule
+                <SessionTitleMenu
                   title={title}
-                  kind="heading"
-                  accessibilityLabel={title}
-                  testID="session-header-title"
+                  pending={pending}
+                  place={place}
+                  hint={t.sessionDetail.options}
+                  menu={menu}
                 />
               }
-              controls={menu === undefined ? undefined : { kind: 'menu', menu }}
             />
           ),
         }}
@@ -91,8 +154,12 @@ function SessionHeader({
         <ConversationTopBar
           variant="session"
           title={title}
-          onBack={back}
-          menu={menu}
+          titlePending={pending}
+          place={place}
+          leading={drawer ? 'drawer' : 'back'}
+          onBack={drawer ? openSessionDrawer : back}
+          onCompose={compose}
+          titleMenu={menu}
           onHeight={onHeight}
         />
       ) : null}
@@ -100,7 +167,17 @@ function SessionHeader({
   );
 }
 
-function SessionNotice({ title, children }: { title: string; children: ReactNode }) {
+function SessionNotice({
+  title,
+  pending = false,
+  cwd,
+  children,
+}: {
+  title: string;
+  pending?: boolean;
+  cwd?: string | undefined;
+  children: ReactNode;
+}) {
   const theme = useDesignTheme();
   const { headerOverlap, headerPadding, setMeasuredHeaderHeight } = useChatTimelineChrome();
   return (
@@ -112,19 +189,20 @@ function SessionNotice({ title, children }: { title: string; children: ReactNode
       }}
     >
       {children}
-      <SessionHeader title={title} onHeight={setMeasuredHeaderHeight} />
+      <SessionHeader title={title} pending={pending} cwd={cwd} onHeight={setMeasuredHeaderHeight} />
     </View>
   );
 }
 
 export function SessionDetailScreen() {
-  const { hostId, slug, id, session, source, title } = useLocalSearchParams<{
+  const { hostId, slug, id, session, source, title, fresh } = useLocalSearchParams<{
     hostId?: string;
     slug?: string;
     id?: string;
     session?: string;
     source?: string;
     title?: string;
+    fresh?: string;
   }>();
   const t = useStrings().sessionDetail;
   const { client, saved } = useHostSession(hostId);
@@ -132,31 +210,58 @@ export function SessionDetailScreen() {
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const sessionId = session ?? id;
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
-  return client === undefined || !matchingHost || sessionId === undefined ? (
+  const drawer = useSessionDrawerRoot();
+  const inSessions = useInSessionsTab();
+  useSessionsStackFit();
+  useFocusEffect(
+    useCallback(
+      () => (drawer ? enterDrawerRoot(sessionId, hostId ?? openedOn) : undefined),
+      [drawer, sessionId, hostId, openedOn],
+    ),
+  );
+  useFocusEffect(
+    useCallback(() => {
+      const on = hostId ?? openedOn;
+      if (!inSessions || sessionId === undefined || on === undefined) return;
+      rememberLastSession({
+        hostId: on,
+        sessionId,
+        ...(source === 'native' || slug === undefined ? {} : { slug }),
+        ...(title === undefined ? {} : { title }),
+      });
+    }, [inSessions, sessionId, hostId, openedOn, source, slug, title]),
+  );
+  return client === undefined || saved == null || !matchingHost || sessionId === undefined ? (
     <SessionNotice title={title ?? t.title}>
       <SheetNote>{t.unavailable}</SheetNote>
     </SessionNotice>
   ) : (
     <SessionTarget
-      key={`${saved?.hostId}:${saved?.deviceId}:${source}:${slug}:${sessionId}`}
+      key={`${saved.hostId}:${saved.deviceId}:${source}:${slug}:${sessionId}`}
       client={client}
+      hostId={saved.hostId}
       slug={source === 'native' ? null : slug}
       id={sessionId}
       title={title}
+      fresh={fresh === '1'}
     />
   );
 }
 
 function SessionTarget({
   client,
+  hostId,
   slug,
   id,
   title,
+  fresh,
 }: {
   client: HostClient;
+  hostId: string;
   slug: string | null | undefined;
   id: string;
   title: string | undefined;
+  fresh: boolean;
 }) {
   const t = useStrings().sessionDetail;
   const [owner, setOwner] = useState<string | null>();
@@ -181,7 +286,7 @@ function SessionTarget({
   const resolved = slug === undefined ? owner : slug;
   if (slug === undefined && resolved == null)
     return (
-      <SessionNotice title={title ?? t.title}>
+      <SessionNotice title={title || t.title} pending={fresh}>
         {resolved === null ? (
           <SheetFailed message={t.unavailable} onRetry={() => setAttempt((value) => value + 1)} />
         ) : online ? (
@@ -193,7 +298,15 @@ function SessionTarget({
     );
   if (resolved === undefined) return null;
   return (
-    <SessionDetailBody client={client} slug={resolved} id={id} title={title} online={online} />
+    <SessionDetailBody
+      client={client}
+      hostId={hostId}
+      slug={resolved}
+      id={id}
+      title={title}
+      fresh={fresh}
+      online={online}
+    />
   );
 }
 
@@ -204,31 +317,57 @@ type SessionCommand =
 
 export function SessionDetailBody({
   client,
+  hostId,
   slug,
   id,
   title,
+  fresh = false,
   online,
 }: {
   client: HostClient;
+  hostId: string;
   slug: string | null;
   id: string;
   title?: string | undefined;
+  fresh?: boolean;
   online: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const router = useRouter();
+  const inSessions = useInSessionsTab();
+  const drawer = useSessionDrawerRoot();
+  const { saved } = useHostSession(hostId);
   const view = useSessionTranscript(client, slug, id, online);
   const transcript = view.transcript;
   const role = transcript?.role;
+  const native = nativeSessionControls({
+    native: role === 'native',
+    host: saved,
+    running: view.running,
+  });
+  const [handled, setHandled] = useState<ReadonlySet<string>>(() => new Set());
+  const { refresh } = view;
+  const settleInput = useCallback(
+    (requestId: string, result: DecisionResult) => {
+      if (result === 'accepted') setHandled((current) => new Set(current).add(requestId));
+      refresh();
+    },
+    [refresh],
+  );
+  const pendingInput = native.answer ? shownPendingInput(view.pendingInput, handled) : [];
   const model = useSessionModelControl({
     slug,
     sessionId: id,
     host: client,
+    hostId,
     enabled: online && role !== undefined,
     running: view.running,
     target: transcript?.currentTarget,
   });
+  const modelMenuLabel = useSessionModelMenuLabel(model);
   const chrome = useChatTimelineChrome();
+  const islandFloor = useTimelineIslandFloor();
   const { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight } = chrome;
   const android = Platform.OS === 'android';
   const rows = useMemo(
@@ -255,7 +394,11 @@ export function SessionDetailBody({
     0,
     android,
   );
-  const { key, ...initialScrollProps } = useChatInitialScroll(true, rows.length);
+  const { key, ...initialScrollProps } = useChatInitialScroll(
+    true,
+    rows.length,
+    transcript !== undefined,
+  );
   const { composerHeight, viewportHeight } = latest;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [assignmentRead, setAssignmentRead] = useState<{
@@ -270,6 +413,15 @@ export function SessionDetailBody({
   const [busy, setBusy] = useState<SessionCommand['kind']>();
   const [error, setError] = useState<string>();
   const pending = useRef(false);
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
   useFocusEffect(
     useCallback(() => {
       if (!online || role !== 'assignment' || slug === null) return;
@@ -292,12 +444,20 @@ export function SessionDetailBody({
       return () => abort.abort();
     }, [client, id, online, role, slug, view.running, assignmentAttempt, archiveRevision]),
   );
-  const sessionTitle =
-    assignment?.assignment.title ||
-    (role === 'assignment' ? title : undefined) ||
-    transcript?.displayTitle ||
-    title ||
-    id;
+  const header = sessionHeaderTitle({
+    resolved:
+      assignment?.assignment.title ||
+      (role === 'assignment' ? title : undefined) ||
+      transcript?.displayTitle,
+    placeholder: title,
+    fresh,
+    transcript:
+      transcript === undefined
+        ? undefined
+        : { ...transcript, running: view.running, items: view.items },
+    fallback: fresh ? t.hostSessions.create : id,
+  });
+  const sessionTitle = header.text;
 
   async function run(command: SessionCommand): Promise<boolean> {
     if (!online || role === undefined || pending.current) return false;
@@ -307,10 +467,21 @@ export function SessionDetailBody({
     try {
       switch (command.kind) {
         case 'stop':
-          if (slug === null) return false;
-          await stopSession(client, { botSlug: slug, sessionId: id });
+          if (role === 'native') await stopHostSession(client, id);
+          else if (slug === null) return false;
+          else await stopSession(client, { botSlug: slug, sessionId: id });
           break;
         case 'archive':
+          if (role === 'native') {
+            await archiveHostSession(client, id);
+            if (saved !== null && saved !== undefined) forgetLastSession(saved.hostId, id);
+            if (!focused.current) return true;
+            if (inSessions && drawer) openNewSession();
+            else if (inSessions) router.dismissTo('/sessions');
+            else if (router.canGoBack()) router.back();
+            else router.replace('/');
+            return true;
+          }
           if (slug === null) return false;
           await setSessionArchived(client, slug, id, command.archived);
           setArchiveRevision((revision) => revision + 1);
@@ -341,6 +512,15 @@ export function SessionDetailBody({
   }
 
   const stop = () => void run({ kind: 'stop' });
+  const canStop = (slug !== null && view.running) || native.stop;
+  const archiveNative = () =>
+    void confirmAppDialog(
+      t.sessionDetail.archiveConfirm,
+      t.sessionDetail.archiveConfirmDetail,
+      t.sessionDetail.archive,
+    ).then((confirmed) => {
+      if (confirmed) void run({ kind: 'archive', archived: true });
+    });
   const canArchive =
     busy === undefined &&
     !view.running &&
@@ -355,8 +535,18 @@ export function SessionDetailBody({
           label: t.sessionDetail.options,
           testID: 'session-options',
           items: [
-            ...(slug !== null && view.running
+            ...(canStop
               ? [{ label: t.sessionStop, testID: 'session-stop', icon: 'stop' as const, run: stop }]
+              : []),
+            ...(native.archive && busy === undefined
+              ? [
+                  {
+                    label: t.sessionDetail.archive,
+                    testID: 'session-archive',
+                    icon: 'archive' as const,
+                    run: archiveNative,
+                  },
+                ]
               : []),
             ...(canArchive
               ? [
@@ -369,7 +559,7 @@ export function SessionDetailBody({
                 ]
               : []),
             {
-              label: t.sessionModel.choice,
+              label: modelMenuLabel,
               testID: 'session-model-choice',
               icon: 'model',
               disabled: busy !== undefined,
@@ -383,7 +573,7 @@ export function SessionDetailBody({
 
   if (transcript === undefined)
     return (
-      <SessionNotice title={sessionTitle}>
+      <SessionNotice title={sessionTitle} pending={header.pending}>
         {view.error !== undefined ? (
           <SheetFailed
             message={
@@ -461,6 +651,15 @@ export function SessionDetailBody({
           />
         </View>
       ) : null}
+      <NativeSessionInputCards
+        client={client}
+        sessionId={id}
+        pending={pendingInput}
+        cwd={transcript.cwd}
+        items={view.items}
+        asker={t.sessionDetail.asker}
+        onSettled={settleInput}
+      />
       {chatLatestSpacer(latest, nativeSpacer)}
     </>
   );
@@ -476,7 +675,7 @@ export function SessionDetailBody({
             online={online}
             busy={busy}
             error={error}
-            onStop={slug !== null && view.running ? stop : undefined}
+            onStop={canStop ? stop : undefined}
             onSend={(text) => run({ kind: 'send', text })}
             model={model}
           />
@@ -495,6 +694,7 @@ export function SessionDetailBody({
               ...chrome,
               viewportHeight,
               composerHeight,
+              islandFloor,
               ready: latest.ready || rows.length === 0,
             })}
             {...latest.listProps}
@@ -508,6 +708,7 @@ export function SessionDetailBody({
                   item={row.item}
                   id={`${id}:${row.index}`}
                   catalog={model.catalog}
+                  native={role === 'native'}
                 />
               </View>
             )}
@@ -537,7 +738,13 @@ export function SessionDetailBody({
           </Animated.View>
         </Animated.View>
       </ChatTimelineFrame>
-      <SessionHeader title={sessionTitle} menu={menu} onHeight={setMeasuredHeaderHeight} />
+      <SessionHeader
+        title={sessionTitle}
+        pending={header.pending}
+        cwd={transcript?.cwd}
+        menu={menu}
+        onHeight={setMeasuredHeaderHeight}
+      />
       <SessionModelPicker control={model} />
     </View>
   );
@@ -593,13 +800,7 @@ function SessionComposer({
         blocksSend: model.visible || model.saving !== undefined,
         stopping: busy !== undefined || !online,
         onStop,
-        render: (width) => (
-          <SessionModelChip
-            control={model}
-            width={width}
-            disabled={!online || busy !== undefined}
-          />
-        ),
+        model: <SessionModelLogo control={model} disabled={!online || busy !== undefined} />,
       }}
     />
   );

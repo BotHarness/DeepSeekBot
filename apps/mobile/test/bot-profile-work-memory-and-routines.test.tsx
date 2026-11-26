@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, createElement, useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseSchedule, type BotScheduleFiring } from '@botharness/host-client/schedules';
+import type { RoutineChanges } from '../src/ui/chat/profile-routines';
 import { t } from '../src/ui/strings';
 import profileWire from './fixtures/profile-wire.json';
 
@@ -411,11 +413,21 @@ describe('Bot profile page', () => {
 
   it('runs a routine from its swipe action and reloads the list', async () => {
     let loads = 0;
-    const routines = {
-      runNow: vi.fn(async () => ({}) as never),
-      setEnabled: vi.fn(async () => ({}) as never),
-      remove: vi.fn(async () => undefined),
+    const routine = parseSchedule(profileWire.rpc.scheduleList.schedules[0]);
+    const firedAt = '2026-10-14T15:00:00.000Z';
+    const firing: BotScheduleFiring = {
+      id: 'run-1',
+      scheduleId: routine.id,
+      trigger: 'manual',
+      occurrenceAt: firedAt,
+      firedAt,
+      state: 'pending',
     };
+    const routines = {
+      runNow: vi.fn(async () => firing),
+      setEnabled: vi.fn(async (_id, enabled) => ({ ...routine, enabled })),
+      remove: vi.fn(async () => undefined),
+    } satisfies RoutineChanges;
     const view = await render(
       <BotProfileSheet
         tab="routines"
@@ -430,7 +442,7 @@ describe('Bot profile page', () => {
       />,
     );
     const before = loads;
-    const id = profileWire.rpc.scheduleList.schedules[0]!.id;
+    const { id } = routine;
     const run = view
       .querySelector(`[data-testid="profile-routine-swipe-${id}"]`)!
       .querySelector<HTMLButtonElement>('[data-testid="swipe-action-run"]')!;

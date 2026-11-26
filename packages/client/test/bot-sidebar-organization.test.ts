@@ -227,7 +227,7 @@ describe('bot sidebar rows', () => {
       ],
     );
 
-    const markup = await renderRailPreviews();
+    const { markup, previews } = await renderRailPreviews();
 
     expect(markup).toContain('bh-region-rail');
     const rail = new DOMParser().parseFromString(markup, 'text/html');
@@ -235,9 +235,11 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('data-rail-unpinned');
     expect(markup.indexOf('Atlas')).toBeLessThan(markup.indexOf('data-rail-unpinned'));
     expect(markup.indexOf('一级渠道')).toBeLessThan(markup.indexOf('散装渠道'));
-    expect(markup).toContain('Atlas：已完成调研');
-    expect(markup).toContain('你：继续处理');
-    expect(markup).toContain('暂无消息');
+    expect(Object.fromEntries(previews)).toEqual({
+      [DM_CHANNEL.id]: expect.stringContaining('Atlas：已完成调研'),
+      [SECTION_CHANNEL.id]: expect.stringContaining('你：继续处理'),
+      [FLAT_CHANNEL.id]: expect.stringContaining('暂无消息'),
+    });
   });
 
   it('renders a PersonaBot DM inside a section with the same channel drag lifecycle', () => {
@@ -285,6 +287,19 @@ describe('bot sidebar rows', () => {
     expect(markup).toMatch(/<button(?=[^>]*data-group-heading="")(?=[^>]*aria-expanded="false")/);
     expect(markup).not.toContain('一级渠道');
     expect(markup).toContain('bh-row-actions');
+  });
+
+  it('unmounts the previous sidebar when a replacement menu trigger is missing', () => {
+    const menu = openSidebarMenu(zhTranslate('roster.new.label'));
+    const trigger = document.querySelector(
+      `button[aria-label="${zhTranslate('roster.new.label')}"]`,
+    );
+    expect(trigger?.isConnected).toBe(true);
+    expect(() => openSidebarMenu('Missing sidebar trigger')).toThrow(
+      'No sidebar menu Missing sidebar trigger',
+    );
+    expect(trigger?.isConnected).toBe(false);
+    expect(menu.isConnected).toBe(false);
   });
 
   it('sorts the pinned grid independently and offers a pinned sort menu', () => {

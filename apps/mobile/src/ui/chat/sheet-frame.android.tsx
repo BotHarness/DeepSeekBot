@@ -5,9 +5,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
+import { SystemSheet } from '../primitives/system-sheet';
 import type { SheetFrameProps } from './sheet-frame';
 
-export function SheetFrame({ visible, label, onClose, children, androidFill }: SheetFrameProps) {
+export function SheetFrame({
+  visible,
+  label,
+  onClose,
+  children,
+  resizable,
+  androidFill,
+}: SheetFrameProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -21,23 +29,22 @@ export function SheetFrame({ visible, label, onClose, children, androidFill }: S
       pointerEvents="box-none"
       style={StyleSheet.absoluteFill}
     >
-      <ModalBottomSheet
-        onDismissRequest={onClose}
-        skipPartiallyExpanded
-        containerColor={theme.layer.sheet.fill}
-        contentColor={theme.color.fg}
-      >
+      <ModalBottomSheet onDismissRequest={onClose} skipPartiallyExpanded={resizable !== true}>
         <RNHostView matchContents={{ vertical: true }}>
           <View
             accessibilityLabel={label}
             onAccessibilityEscape={onClose}
-            style={{
-              maxHeight: contentHeight,
-              height: androidFill ? contentHeight : undefined,
-              paddingBottom: space.x5,
-            }}
+            style={
+              resizable === true
+                ? { height: contentHeight }
+                : {
+                    maxHeight: contentHeight,
+                    height: androidFill ? contentHeight : undefined,
+                    paddingBottom: space.x5,
+                  }
+            }
           >
-            {children}
+            <SystemSheet value>{children}</SystemSheet>
           </View>
         </RNHostView>
       </ModalBottomSheet>

@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { SHARDS } from '../ci-plan.mjs';
+
 const workflow = parse(
   readFileSync(new URL('../../.github/workflows/verify.yml', import.meta.url), 'utf8'),
 );
@@ -20,8 +22,16 @@ const fixture = (tests = 'none', mobile = 'false', count = '0') =>
                 mobile,
                 'docs-site': 'false',
                 'android-native': 'false',
+                'private-relay': 'false',
                 count,
-                shards: count === '0' ? '0' : Number(count) < 60 ? '1' : '3',
+                shards:
+                  tests === 'full'
+                    ? String(SHARDS)
+                    : count === '0'
+                      ? '0'
+                      : Number(count) < 60
+                        ? '1'
+                        : String(SHARDS),
               }
             : {},
       },
@@ -47,20 +57,26 @@ describe('required CI aggregate', () => {
     }
   });
 
-  it('requires selected mobile, native, docs, smoke and full-test jobs to succeed', () => {
+  it('requires selected mobile, native, relay, docs, smoke and full-test jobs to succeed', () => {
     for (const [output, value, job] of [
       ['mobile', 'true', 'mobile-export'],
       ['android-native', 'true', 'mobile-native'],
+      ['private-relay', 'true', 'private-relay'],
       ['docs-site', 'true', 'docs-site'],
+      ['confinement', 'true', 'confinement'],
       ['tests', 'full', 'test-full'],
     ]) {
       const needs = fixture();
       needs.plan.outputs[output] = value;
+      if (output === 'tests') needs.plan.outputs.shards = String(SHARDS);
       needs['e2e-smoke'].result = 'success';
       expect(passes(needs), job).toBe(false);
       needs[job].result = 'success';
       expect(passes(needs), job).toBe(true);
       if (output === 'tests') {
+        needs.plan.outputs.shards = '3';
+        expect(passes(needs)).toBe(false);
+        needs.plan.outputs.shards = String(SHARDS);
         needs['e2e-smoke'].result = 'skipped';
         expect(passes(needs)).toBe(false);
       }
@@ -72,7 +88,7 @@ describe('required CI aggregate', () => {
     needs['e2e-smoke'].result = 'success';
     expect(passes(needs)).toBe(true);
     needs.plan.outputs.count = '158';
-    needs.plan.outputs.shards = '3';
+    needs.plan.outputs.shards = String(SHARDS);
     expect(passes(needs)).toBe(false);
     needs['test-affected'].result = 'success';
     expect(passes(needs)).toBe(true);
@@ -85,15 +101,19 @@ describe('required CI aggregate', () => {
     needs['e2e-smoke'].result = 'success';
     expect(passes(needs)).toBe(true);
     const step = workflow.jobs.plan.steps.at(-1);
-    expect(step.if).toBe("steps.select.outputs.shards == '1'");
-    expect(step.run).toBe('node scripts/ci-affected.mjs --run');
+    expect(step.if).toBe(
+      "steps.plan.outputs.tests == 'affected' && steps.select.outputs.shards == '1'",
+    );
+    expect(step.run).toMatch(/node scripts\/ci-affected\.mjs --run$/);
     const fallback = step.env.TEST_FILES.match(/\|\| '([^']+)'/)[1];
     expect(JSON.parse(fallback).include[0].files).toEqual([]);
-    expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '3'");
+    expect(workflow.jobs['test-affected'].if).toBe(
+      `needs.plan.outputs.tests == 'affected' && needs.plan.outputs.shards == '${SHARDS}'`,
+    );
   });
 
   it('rejects a missing or malformed plan', () => {
-    for (const output of ['tests', 'mobile']) {
+    for (const output of ['tests', 'mobile', 'private-relay']) {
       const needs = fixture();
       delete needs.plan.outputs[output];
       expect(passes(needs)).toBe(false);
@@ -104,7 +124,9 @@ describe('required CI aggregate', () => {
     expect(workflow.jobs['mobile-export'].needs).toBe('plan');
     expect(workflow.jobs['mobile-export'].if).toBe("needs.plan.outputs.mobile == 'true'");
     const commands = workflow.jobs['mobile-export'].steps.map((step) => step.run).filter(Boolean);
-    expect(workflow.jobs.static.steps.some((step) => step.run === 'pnpm typecheck')).toBe(true);
+    expect(workflow.jobs.static.steps.some((step) => step.run?.endsWith('pnpm typecheck'))).toBe(
+      true,
+    );
     expect(commands).toContain('pnpm --filter @botharness/mobile expo:doctor');
     expect(commands).toContain('pnpm --filter @botharness/mobile export');
     expect(workflow.jobs['test-affected'].strategy['fail-fast']).toBe(false);

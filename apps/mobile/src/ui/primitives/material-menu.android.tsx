@@ -23,7 +23,7 @@ import { SystemSymbol } from './system-symbol';
 export type MaterialMenuItem = {
   key: string;
   label: string;
-  icon: ReactElement;
+  icon?: ReactElement | undefined;
   onPress(): void;
   disabled?: boolean;
   destructive?: boolean;
@@ -31,7 +31,13 @@ export type MaterialMenuItem = {
   testID?: string;
 };
 
-export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[] }) {
+export function MaterialMenuGroup({
+  items,
+  header,
+}: {
+  items: readonly MaterialMenuItem[];
+  header?: string | undefined;
+}) {
   const theme = useDesignTheme();
   const colors = useMaterialColors();
   return (
@@ -43,10 +49,29 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
           shape: Shapes.RoundedCorner(materialMenu.containerRadius),
         }),
         clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
-        background(colors.surfaceContainerLow),
+        background(theme.scheme === 'dark' ? colors.surfaceContainerHigh : colors.surfaceContainer),
         paddingAll(materialMenu.groupPadding),
+        testID('action-menu-group'),
       ]}
     >
+      {header === undefined ? null : (
+        <Text
+          color={colors.onSurfaceVariant}
+          style={{ typography: 'titleSmall' }}
+          modifiers={[
+            fillMaxWidth(),
+            testID('material-menu-header'),
+            padding(
+              materialMenu.horizontalPadding,
+              materialMenu.verticalPadding,
+              materialMenu.horizontalPadding,
+              materialMenu.verticalPadding,
+            ),
+          ]}
+        >
+          {header}
+        </Text>
+      )}
       {items.map((item, index) => {
         const shape = item.selected
           ? Shapes.RoundedCorner(materialMenu.outerItemRadius)
@@ -89,7 +114,7 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
               ),
             ]}
           >
-            <RNHostView matchContents>{item.icon}</RNHostView>
+            {item.icon === undefined ? null : <RNHostView matchContents>{item.icon}</RNHostView>}
             <Text
               color={
                 item.disabled

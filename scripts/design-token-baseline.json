@@ -108,7 +108,7 @@
     "legacyCss": 20,
     "lineBorder": 2
   },
-  "packages/client/src/client/channel-dock.tsx": {
+  "packages/client/src/client/channel-dock/dock-context.tsx": {
     "rawControl": 1
   },
   "packages/client/src/client/channel-history.tsx": {
@@ -338,7 +338,6 @@
   },
   "packages/client/src/client/features/schedules/schedules-entry.tsx": {
     "rawControl": 2,
-    "literalColor": 1,
     "lineBorder": 2
   },
   "packages/client/src/client/features/schedules/styles.ts": {
