@@ -249,7 +249,7 @@ export function createDesktopCall(
         if (sessionMedia !== ownedMedia) return;
         const micMuted = current.micMuted === true;
         set({ sound: on ? 'on' : 'off', ...(on ? {} : { micMuted: false }) });
-        if (!on && micMuted) void owned.client.mute(true);
+        if (!on && micMuted && heldFor !== owned) void owned.client.mute(true);
       });
       set({ checking: false });
       await owned.client.open(slug);
@@ -280,22 +280,22 @@ export function createDesktopCall(
         const shared = await owned.computerSound(on);
         if (session !== owner) return;
         const hostMuted = current.state.status === 'live' && current.state.muted;
-        set({ sound: shared ? 'on' : 'off' });
+        set({ sound: shared ? 'on' : 'off', ...(shared && hostMuted ? { micMuted: true } : {}) });
         if (shared && hostMuted) {
           heldFor = owner;
           await owner?.client.mute(false);
           if (heldFor === owner) heldFor = undefined;
           if (session !== owner) return;
-          owned.mute(true);
           const state = current.state;
           const refused = state.status === 'live' && state.call.muted;
           if (refused || current.sound !== 'on') {
+            owned.mute(true);
             if (refused) await owned.computerSound?.(false);
             await owner?.client.mute(true);
             if (session === owner) set({ sound: 'off', micMuted: false });
             return;
           }
-          set({ micMuted: true });
+          owned.mute(current.micMuted === true);
         }
       } catch {
         if (session === owner) set({ sound: 'missing' });
