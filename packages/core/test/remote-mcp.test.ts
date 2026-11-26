@@ -1,3 +1,4 @@
+import { OAuthError } from '@modelcontextprotocol/client';
 import { describe, expect, it } from 'vitest';
 
 import { runConnectorCommand } from '../src/bots/cli-connectors.js';
@@ -13,6 +14,7 @@ import {
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from '../src/connectors/policy.js';
+import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';
 
@@ -203,8 +205,57 @@ describe('remote MCP App connections', () => {
     }
   });
 
+  it('lets only the latest sign-in for an account finish', async () => {
+    let release: () => void = () => undefined;
+    const { client } = fakeMcp();
+    const exchange = client.exchange;
+    let hold = true;
+    client.exchange = async (...args) => {
+      if (hold) await new Promise<void>((resolve) => (release = resolve));
+      return exchange(...args);
+    };
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({ service: 'mcp_posthog' });
+      const first = service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'old' }),
+      );
+      await Promise.resolve();
+      hold = false;
+      const again = await service.reconnect(started.account.accountId);
+      release();
+      await expect(first).rejects.toMatchObject({ code: 'invalid' });
+      expect(store.account(started.account.accountId)?.status).toBe('pending');
+      const done = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(again.url!), code: 'new' }),
+      );
+      expect(done.status).toBe('active');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('keeps a token without a refresh token usable until it really expires', async () => {
+    const { client } = fakeMcp({
+      exchange: async () => ({ access_token: 'short', token_type: 'Bearer', expires_in: 60 }),
+    });
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({ service: 'mcp_posthog' });
+      const { accountId } = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'c' }),
+      );
+      expect((await service.remote.connection(accountId))?.headers['Authorization']).toBe(
+        'Bearer short',
+      );
+      expect(store.account(accountId)?.status).toBe('active');
+    } finally {
+      owner.close();
+    }
+  });
+
   it('refreshes a token before it expires and expires the account when refresh fails', async () => {
-    let fail = false;
+    let fail: Error | undefined;
     const { client, calls } = fakeMcp({
       exchange: async () => ({
         access_token: 'access-old',
@@ -215,7 +266,7 @@ describe('remote MCP App connections', () => {
     });
     const refresh = client.refresh;
     client.refresh = async (...args) => {
-      if (fail) throw new Error('refused');
+      if (fail !== undefined) throw fail;
       return refresh(...args);
     };
     const { owner, store, service } = setup(client);
@@ -236,7 +287,12 @@ describe('remote MCP App connections', () => {
       const other = await service.remote.finish(
         new URLSearchParams({ state: stateOf(second.url!), code: 'c2' }),
       );
-      fail = true;
+      fail = new TypeError('fetch failed');
+      expect((await service.remote.connection(other.accountId))?.headers['Authorization']).toBe(
+        'Bearer access-old',
+      );
+      expect(store.account(other.accountId)?.status).toBe('active');
+      fail = new OAuthError('invalid_grant', 'refused');
       expect(await service.remote.connection(other.accountId)).toBeUndefined();
       expect(store.account(other.accountId)?.status).toBe('expired');
     } finally {
@@ -251,17 +307,17 @@ describe('remote MCP App connections', () => {
       const found = await service.remote.search('analytics');
       expect(found.apps.map((app) => app.service)).toEqual([
         'mcp_posthog',
-        'mcp_io_github_example_analytics',
+        'mcp_io_github_example_analytics_5f4669a6',
       ]);
       expect(found.next).toBe('page-2');
-      const linked = await service.connect({ service: 'mcp_io_github_example_analytics' });
+      const linked = await service.connect({ service: 'mcp_io_github_example_analytics_5f4669a6' });
       expect(linked.url).toBeUndefined();
       expect(linked.account.status).toBe('active');
-      expect(store.mcpServer('mcp_io_github_example_analytics')).toMatchObject({
+      expect(store.mcpServer('mcp_io_github_example_analytics_5f4669a6')).toMatchObject({
         url: 'https://mcp.example.com/mcp',
         icon: 'https://example.com/icon.png',
       });
-      expect(service.appName('mcp_io_github_example_analytics')).toBe('PostHog');
+      expect(service.appName('mcp_io_github_example_analytics_5f4669a6')).toBe('PostHog');
       expect(await service.remote.connection(linked.account.accountId)).toEqual({
         url: 'https://mcp.example.com/mcp',
         headers: {},
@@ -357,10 +413,14 @@ describe('remote MCP tool policy', () => {
       { accountId: 'a', provider: 'mcp', service: 'mcp_posthog' },
       { accountId: 'c', provider: 'composio', service: 'gmail' },
     ]);
-    expect([...names]).toEqual([
-      ['a', 'app_posthog'],
-      ['b', 'app_posthog_2'],
+    expect([...names.keys()]).toEqual(['b', 'a']);
+    expect(names.get('a')).toMatch(/^app_posthog_[0-9a-f]{6}$/);
+    expect(names.get('b')).toMatch(/^app_posthog_[0-9a-f]{6}$/);
+    expect(names.get('a')).not.toBe(names.get('b'));
+    const alone = remoteMcpServerNames([
+      { accountId: 'b', provider: 'mcp', service: 'mcp_posthog' },
     ]);
+    expect(alone.get('b')).toBe(names.get('b'));
     expect(mcpPublicToolName('app_posthog', 'insights-get-all')).toBe(
       'mcp__app_posthog__insights-get-all',
     );
@@ -387,6 +447,31 @@ describe('remote MCP tool policy', () => {
     expect(remoteMcpToolDenial('mcp__app_notion__search', servers)).toContain('loading');
     expect(remoteMcpToolDenial('mcp__app_gone__x', servers)).toContain('any more');
     expect(remoteMcpToolDenial('mcp__composio__X', servers)).toBeUndefined();
+  });
+
+  it('fetches registry icons only from public addresses, and no more than the size limit', async () => {
+    const lookup = async (host: string) =>
+      host === 'inside.example' ? [{ address: '10.0.0.5' }] : [{ address: '93.184.216.34' }];
+    for (const url of [
+      'https://169.254.169.254/icon.png',
+      'https://[::1]/icon.png',
+      'https://[fd00::1]/icon.png',
+      'https://[::ffff:10.0.0.5]/icon.png',
+      'https://localhost/icon.png',
+      'https://inside.example/icon.png',
+    ])
+      expect(await publicDestination(new URL(url), lookup)).toBe(false);
+    expect(await publicDestination(new URL('https://cdn.example/icon.png'), lookup)).toBe(true);
+    const huge = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(64 * 1024));
+      },
+    });
+    const fetched = await fetchImage(
+      async () => new Response(huge, { headers: { 'content-type': 'image/png' } }),
+      'https://cdn.example/icon.png',
+    );
+    expect(fetched).toBeUndefined();
   });
 
   it('accepts only https or loopback MCP addresses', () => {

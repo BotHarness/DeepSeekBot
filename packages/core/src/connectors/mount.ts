@@ -13,6 +13,7 @@ import {
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
   mcpPublicToolName,
+  remoteMcpServerName,
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from './policy.js';
@@ -46,6 +47,7 @@ interface Mounted {
 
 const SESSION_RETRY_MS = 30_000;
 const RENEW_EARLY_MS = 60_000;
+const LOOKUP_RETRY_MS = 30_000;
 export const CONNECTOR_CALLBACK_PATH = '/botharness/connectors/oauth/callback';
 
 export function connectorCallback() {
@@ -258,7 +260,10 @@ export function mountConnectors(
       try {
         connection = await service.remote.connection(connector.accountId);
       } catch {
-        connection = undefined;
+        const kept = entry.remote.get(serverName);
+        if (kept !== undefined) kept.access = connector.access;
+        renewAt = Math.min(renewAt ?? Infinity, Date.now() + LOOKUP_RETRY_MS);
+        continue;
       }
       const current = entry.remote.get(serverName);
       if (connection === undefined) {
@@ -294,18 +299,24 @@ export function mountConnectors(
         }),
       };
       entry.remote.set(serverName, mount);
-      void service.remote.tools(connector.accountId).then(
-        (tools) => {
-          mount.readOnly = new Set(
-            tools
-              .filter((tool) => tool.readOnly)
-              .map((tool) => mcpPublicToolName(serverName, tool.name)),
-          );
-        },
-        () => {
-          mount.readOnly = new Set();
-        },
-      );
+      const load = (): void => {
+        void service.remote.tools(connector.accountId).then(
+          (tools) => {
+            mount.readOnly = new Set(
+              tools
+                .filter((tool) => tool.readOnly)
+                .map((tool) => mcpPublicToolName(serverName, tool.name)),
+            );
+          },
+          () => {
+            if (entry.disposed || entry.remote.get(serverName) !== mount) return;
+            setTimeout(() => {
+              if (!entry.disposed && entry.remote.get(serverName) === mount) load();
+            }, LOOKUP_RETRY_MS).unref?.();
+          },
+        );
+      };
+      load();
     }
     if (renewAt !== undefined && !entry.disposed)
       entry.renew = setTimeout(
@@ -465,7 +476,10 @@ export function mountConnectors(
                 granted: true,
                 service: account.service,
                 access: args.access,
-                tools: `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
+                tools:
+                  account.provider === 'mcp'
+                    ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`
+                    : `${CONNECTOR_TOOL_PREFIX}COMPOSIO_SEARCH_TOOLS`,
               });
             },
           }),

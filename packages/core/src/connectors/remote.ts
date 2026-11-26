@@ -1,6 +1,11 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
-import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprotocol/client';
+import {
+  OAuthError,
+  type OAuthClientInformationMixed,
+  type OAuthTokens,
+} from '@modelcontextprotocol/client';
+import { z } from 'zod';
 
 import { ConnectorError } from './errors.js';
 import {
@@ -127,6 +132,28 @@ interface StoredAuth {
   expiresAt?: number;
 }
 
+const clientSchema = z.object({ client_id: z.string().min(1) }).passthrough();
+
+const storedAuthSchema = z.object({
+  oauth: z
+    .object({
+      authorizationServer: z.string().url(),
+      metadata: z.object({}).passthrough().optional(),
+      resource: z.string().url(),
+      scope: z.string().optional(),
+    })
+    .optional(),
+  client: clientSchema.optional(),
+  accessToken: z.string().optional(),
+  refreshToken: z.string().optional(),
+  expiresAt: z.number().optional(),
+});
+
+function parseClient(payload: unknown): OAuthClientInformationMixed | undefined {
+  const parsed = clientSchema.safeParse(payload);
+  return parsed.success ? (parsed.data as OAuthClientInformationMixed) : undefined;
+}
+
 interface PendingLogin {
   accountId: string;
   oauth: RemoteMcpOAuth;
@@ -137,6 +164,11 @@ interface PendingLogin {
 }
 
 const LOGIN_TTL_MS = 15 * 60_000;
+const REJECTED: ReadonlySet<string> = new Set([
+  'invalid_grant',
+  'invalid_client',
+  'unauthorized_client',
+]);
 const REFRESH_EARLY_MS = 120_000;
 const TOOLS_TTL_MS = 10 * 60_000;
 const LABEL = /^[\p{L}\p{N}][\p{L}\p{N} ._@+-]{0,63}$/u;
@@ -193,6 +225,7 @@ export class RemoteMcpConnectors {
   readonly #refreshing = new Map<string, Promise<StoredAuth | undefined>>();
   readonly #icons = new Map<string, string>();
   readonly #found = new Map<string, { url: string; name: string }>();
+  readonly #attempts = new Map<string, string>();
 
   constructor(options: {
     store: ConnectorStore;
@@ -287,7 +320,8 @@ export class RemoteMcpConnectors {
     for (const server of page.servers) {
       if (urls.has(server.url) || seen.has(server.url)) continue;
       seen.add(server.url);
-      const service = `mcp_${slug(server.id)}`.slice(0, 63);
+      const digest = createHash('sha256').update(server.id).digest('hex').slice(0, 8);
+      const service = `mcp_${slug(server.id).slice(0, 50) || 'server'}_${digest}`;
       if (!SERVICE.test(service)) continue;
       if (server.icon !== undefined && this.#icons.size < 5000)
         this.#icons.set(service, server.icon);
@@ -334,12 +368,11 @@ export class RemoteMcpConnectors {
         .some((account) => account.service === service && account.label === label)
     )
       throw new RemoteMcpError('invalid', 'An account with this label already exists.');
-    const other = this.#store.mcpServer(service);
-    if (other !== undefined && other.url !== url)
-      throw new RemoteMcpError('invalid', 'Another MCP server already uses this name.');
+    this.#claim(service, url);
     const oauth = await this.#client.discover(url);
     if (oauth === undefined) {
       const info = await this.#inspect(url);
+      this.#claim(service, url);
       this.#saveServer(service, info.name ?? name, url, input.icon);
       const account = this.#store.createAccount({
         provider: 'mcp',
@@ -354,6 +387,7 @@ export class RemoteMcpConnectors {
     }
     const redirectUri = this.#requireRedirect();
     const client = await this.#clientFor(oauth, redirectUri);
+    this.#claim(service, url);
     this.#saveServer(service, name, url, input.icon);
     const account = this.#store.createAccount({
       provider: 'mcp',
@@ -395,11 +429,16 @@ export class RemoteMcpConnectors {
       throw new RemoteMcpError('invalid', 'This sign-in link expired; start it again.');
     }
     this.#pending.delete(state);
+    const current = () => this.#attempts.get(login.accountId) === state;
+    const stale = () =>
+      new RemoteMcpError('invalid', 'A newer sign-in replaced this one; use the latest link.');
+    if (!current()) throw stale();
     const account = this.#store.account(login.accountId);
     if (account === undefined)
       throw new RemoteMcpError('not-found', 'The App connection does not exist.');
     const failure = params.get('error');
     if (failure !== null) {
+      this.#attempts.delete(login.accountId);
       this.#store.updateAccount(login.accountId, { status: 'failed' });
       this.#changed();
       throw new RemoteMcpError(
@@ -418,27 +457,32 @@ export class RemoteMcpConnectors {
         redirectUri: login.redirectUri,
       });
     } catch (error) {
+      if (!current()) throw stale();
+      this.#attempts.delete(login.accountId);
       this.#store.updateAccount(login.accountId, { status: 'failed' });
       this.#changed();
       this.#log('mcp-exchange-failed', { error: error instanceof Error ? error.name : 'unknown' });
       throw new RemoteMcpError('upstream', 'The server refused the sign-in code; try again.');
     }
+    if (!current()) throw stale();
     const auth = this.#stored(login.oauth, login.client, tokens);
     await this.#native().modifyRecord(authKey(login.accountId), async () => ({
       kind: 'grant',
       payload: auth as unknown as Record<string, unknown>,
     }));
     const server = this.#requireServer(account.service);
-    let tools: RemoteMcpTool[] = [];
+    let tools: RemoteMcpTool[] | undefined;
     try {
-      const info = await this.#inspect(server.url, auth.accessToken);
-      tools = info.tools;
+      tools = (await this.#inspect(server.url, auth.accessToken)).tools;
     } catch (error) {
       this.#log('mcp-inspect-failed', { error: error instanceof Error ? error.name : 'unknown' });
     }
-    this.#tools.set(login.accountId, { at: Date.now(), tools: Promise.resolve(tools) });
+    if (!current()) throw stale();
+    this.#attempts.delete(login.accountId);
+    if (tools === undefined) this.#tools.delete(login.accountId);
+    else this.#tools.set(login.accountId, { at: Date.now(), tools: Promise.resolve(tools) });
     const active = this.#store.updateAccount(login.accountId, { status: 'active' })!;
-    this.#log('mcp-signed-in', { service: account.service, tools: tools.length });
+    this.#log('mcp-signed-in', { service: account.service, tools: tools?.length ?? 0 });
     this.#changed();
     return active;
   }
@@ -448,6 +492,7 @@ export class RemoteMcpConnectors {
     await this.#native().deleteRecord(authKey(accountId));
     this.#store.removeAccount(accountId);
     this.#tools.delete(accountId);
+    this.#attempts.delete(accountId);
     for (const [state, login] of this.#pending)
       if (login.accountId === accountId) this.#pending.delete(state);
     if (!this.#store.accounts().some((other) => other.service === account.service))
@@ -504,11 +549,19 @@ export class RemoteMcpConnectors {
 
   async #fresh(accountId: string): Promise<StoredAuth | undefined> {
     const record = await this.#native().readRecord(authKey(accountId));
-    const auth =
-      record?.kind === 'grant' ? (record.payload as unknown as StoredAuth | undefined) : undefined;
-    if (auth?.oauth === undefined) return undefined;
-    if (auth.expiresAt === undefined || auth.expiresAt - REFRESH_EARLY_MS > Date.now()) return auth;
-    if (auth.refreshToken === undefined || auth.client === undefined) {
+    if (record?.kind !== 'grant') return undefined;
+    const parsed = storedAuthSchema.safeParse(record.payload);
+    if (!parsed.success) {
+      this.#expire(accountId);
+      return { accessToken: undefined };
+    }
+    const auth = parsed.data as StoredAuth;
+    if (auth.oauth === undefined) return undefined;
+    const now = Date.now();
+    if (auth.expiresAt === undefined) return auth;
+    const refreshable = auth.refreshToken !== undefined && auth.client !== undefined;
+    if (auth.expiresAt - (refreshable ? REFRESH_EARLY_MS : 0) > now) return auth;
+    if (!refreshable) {
       this.#expire(accountId);
       return { ...auth, accessToken: undefined };
     }
@@ -528,8 +581,12 @@ export class RemoteMcpConnectors {
         this.#log('mcp-refresh-failed', {
           error: error instanceof Error ? error.name : 'unknown',
         });
-        this.#expire(accountId);
-        return { ...auth, accessToken: undefined };
+        if (error instanceof OAuthError && REJECTED.has(error.code)) {
+          this.#expire(accountId);
+          return { ...auth, accessToken: undefined };
+        }
+        if (auth.expiresAt !== undefined && auth.expiresAt > Date.now()) return auth;
+        throw new RemoteMcpError('upstream', 'The MCP server could not renew its sign-in yet.');
       } finally {
         this.#refreshing.delete(accountId);
       }
@@ -577,6 +634,7 @@ export class RemoteMcpConnectors {
     } catch {
       throw new RemoteMcpError('upstream', 'The server could not start a sign-in.');
     }
+    this.#attempts.set(accountId, state);
     this.#pending.set(state, {
       accountId,
       oauth,
@@ -594,11 +652,8 @@ export class RemoteMcpConnectors {
   ): Promise<OAuthClientInformationMixed> {
     const key = clientKey(oauth.authorizationServer, redirectUri);
     const record = await this.#native().readRecord(key);
-    if (
-      record?.kind === 'grant' &&
-      typeof (record.payload as Record<string, unknown> | undefined)?.['client_id'] === 'string'
-    )
-      return record.payload as unknown as OAuthClientInformationMixed;
+    const stored = record?.kind === 'grant' ? parseClient(record.payload) : undefined;
+    if (stored !== undefined) return stored;
     let client: OAuthClientInformationMixed;
     try {
       client = await this.#client.register(oauth, redirectUri);
@@ -614,6 +669,12 @@ export class RemoteMcpConnectors {
       payload: client as unknown as Record<string, unknown>,
     }));
     return client;
+  }
+
+  #claim(service: string, url: string): void {
+    const other = this.#store.mcpServer(service);
+    if (other !== undefined && other.url !== url)
+      throw new RemoteMcpError('invalid', 'Another MCP server already uses this name.');
   }
 
   #saveServer(service: string, name: string, url: string, icon?: string): void {

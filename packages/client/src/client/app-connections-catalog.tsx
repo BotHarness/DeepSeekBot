@@ -287,7 +287,7 @@ export function AppCatalog({
   };
 
   const mount = useMountedResource<HTMLDivElement>(() => {
-    run(source, '');
+    run(source, query);
     return () => {
       latest.current += 1;
       if (timer.current !== undefined) clearTimeout(timer.current);

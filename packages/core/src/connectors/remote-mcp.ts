@@ -3,6 +3,7 @@ import {
   StreamableHTTPClientTransport,
   discoverOAuthServerInfo,
   exchangeAuthorization,
+  extractWWWAuthenticateParams,
   refreshAuthorization,
   registerClient,
   startAuthorization,
@@ -12,7 +13,13 @@ import {
 } from '@modelcontextprotocol/client';
 import { z } from 'zod';
 
-import { fetchImage, safeImageUrl } from './images.js';
+import {
+  dnsLookup,
+  fetchImage,
+  publicDestination,
+  safeImageUrl,
+  type HostLookup,
+} from './images.js';
 
 export const MCP_REGISTRY = 'https://registry.modelcontextprotocol.io/v0';
 
@@ -128,23 +135,72 @@ function pick(server: z.infer<typeof registrySchema>['servers'][number]['server'
   return undefined;
 }
 
+async function challenge(
+  fetchImpl: typeof fetch,
+  url: string,
+  clientName: string,
+): Promise<{ resourceMetadataUrl?: URL; scope?: string }> {
+  try {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 0,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: clientName, version: '1.0.0' },
+        },
+      }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+    await response.body?.cancel().catch(() => undefined);
+    if (response.status !== 401) return {};
+    const { resourceMetadataUrl, scope } = extractWWWAuthenticateParams(response);
+    return {
+      ...(resourceMetadataUrl === undefined ? {} : { resourceMetadataUrl }),
+      ...(scope === undefined ? {} : { scope }),
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function createRemoteMcpClient(
-  options: { fetch?: typeof fetch; registry?: string; clientName?: string } = {},
+  options: {
+    fetch?: typeof fetch;
+    registry?: string;
+    clientName?: string;
+    lookup?: HostLookup;
+  } = {},
 ): RemoteMcpClient {
   const fetchImpl = options.fetch ?? fetch;
+  const resolve = options.lookup ?? dnsLookup;
   const registry = (options.registry ?? MCP_REGISTRY).replace(/\/$/, '');
   const clientName = options.clientName ?? 'Tobs';
   return {
     async discover(url) {
+      const challenged = await challenge(fetchImpl, url, clientName);
       let info: Awaited<ReturnType<typeof discoverOAuthServerInfo>>;
       try {
-        info = await discoverOAuthServerInfo(url, { fetchFn: fetchImpl });
+        info = await discoverOAuthServerInfo(url, {
+          fetchFn: fetchImpl,
+          ...(challenged.resourceMetadataUrl === undefined
+            ? {}
+            : { resourceMetadataUrl: challenged.resourceMetadataUrl }),
+        });
       } catch {
         return undefined;
       }
       if (info.authorizationServerMetadata === undefined && info.resourceMetadata === undefined)
         return undefined;
-      const scopes = info.resourceMetadata?.scopes_supported;
+      const scopes = info.resourceMetadata?.scopes_supported ?? challenged.scope?.split(' ');
       return {
         authorizationServer: String(info.authorizationServerUrl),
         ...(info.authorizationServerMetadata === undefined
@@ -227,7 +283,8 @@ export function createRemoteMcpClient(
     },
     async image(url) {
       const safe = safeImageUrl(url);
-      return safe === undefined ? undefined : fetchImage(fetchImpl, safe.href);
+      if (safe === undefined || !(await publicDestination(safe, resolve))) return undefined;
+      return fetchImage(fetchImpl, safe.href);
     },
     async registry(query, cursor) {
       const params = new URLSearchParams({ limit: '30', version: 'latest' });

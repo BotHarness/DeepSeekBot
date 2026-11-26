@@ -14,7 +14,8 @@ export const zh = {
   'connectors.key.field': 'API key',
   'connectors.key.save': '检查并保存',
   'connectors.key.removeTitle': '移除 Composio API key？',
-  'connectors.key.removeBody': '所有已连接的应用会停止工作，直到重新添加 key。',
+  'connectors.key.removeBody':
+    '通过 Composio 连接的应用会停止工作，直到重新添加 key；MCP 服务器不受影响。',
   'connectors.accounts.section': '已连接的账号',
   'connectors.accounts.refresh': '检查状态',
   'connectors.accounts.connect': '连接应用',
@@ -122,7 +123,8 @@ export const en = {
   'connectors.key.field': 'API key',
   'connectors.key.save': 'Check and save',
   'connectors.key.removeTitle': 'Remove the Composio API key?',
-  'connectors.key.removeBody': 'Every connected app stops working until you add a key again.',
+  'connectors.key.removeBody':
+    'Apps connected through Composio stop working until you add a key again; MCP servers keep working.',
   'connectors.accounts.section': 'Connected accounts',
   'connectors.accounts.refresh': 'Check status',
   'connectors.accounts.connect': 'Connect an app',

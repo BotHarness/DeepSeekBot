@@ -25,24 +25,19 @@ export function mcpPublicToolName(serverName: string, rawName: string): string {
   return `${normalized.slice(0, MAX_PUBLIC_NAME_LENGTH - HASH_LENGTH - 1)}_${hash}`;
 }
 
+export function remoteMcpServerName(accountId: string, service: string): string {
+  const suffix = createHash('sha256').update(accountId).digest('hex').slice(0, 6);
+  const base = `${REMOTE_MCP_SERVER_PREFIX}${service.replace(/^mcp_/, '')}`.slice(0, 21);
+  return `${base}_${suffix}`;
+}
+
 export function remoteMcpServerNames(
   connectors: ReadonlyArray<{ accountId: string; provider: string; service: string }>,
 ): Map<string, string> {
   const names = new Map<string, string>();
-  const used = new Set<string>();
-  const remote = connectors
-    .filter((connector) => connector.provider === 'mcp')
-    .sort((a, b) => a.accountId.localeCompare(b.accountId));
-  for (const connector of remote) {
-    const base = `${REMOTE_MCP_SERVER_PREFIX}${connector.service.replace(/^mcp_/, '')}`.slice(
-      0,
-      28,
-    );
-    let name = base;
-    for (let index = 2; used.has(name); index += 1) name = `${base.slice(0, 28)}_${index}`;
-    used.add(name);
-    names.set(connector.accountId, name);
-  }
+  for (const connector of connectors)
+    if (connector.provider === 'mcp')
+      names.set(connector.accountId, remoteMcpServerName(connector.accountId, connector.service));
   return names;
 }
 
