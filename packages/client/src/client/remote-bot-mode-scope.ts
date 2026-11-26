@@ -11,7 +11,7 @@ import {
 
 import type { BotModePathOp, BotModeScope, BotModeScopeSnapshot } from './bot-mode-prefs.js';
 import { bridgeHost, type BridgeCall } from './bridge.js';
-import { describeHostSettings } from '@botharness/host-client/host-settings';
+import { hostSettingsScope } from '@botharness/host-client/host-settings-scope';
 
 export interface RemoteBotModeScope extends BotModeScope {
   refresh(): Promise<void>;
@@ -48,6 +48,7 @@ function settingsOf(value: unknown): BotModeSettings {
 }
 
 export function remoteBotModeScope(call: BridgeCall): RemoteBotModeScope {
+  const settings = hostSettingsScope(bridgeHost(call), BOT_MODE_NAMESPACE);
   let snapshot: BotModeScopeSnapshot = {
     status: 'loading',
     value: undefined,
@@ -55,58 +56,43 @@ export function remoteBotModeScope(call: BridgeCall): RemoteBotModeScope {
     writable: false,
     mode: 'host',
   };
-  let revision: unknown;
-  const listeners = new Set<() => void>();
-  const publish = (next: BotModeScopeSnapshot): void => {
-    snapshot = next;
-    for (const listener of listeners) listener();
-  };
-  const adopt = (found: { revision?: unknown; value?: unknown }): void => {
-    revision = found['revision'];
-    publish({
-      status: 'ready',
-      value: settingsOf(found['value']),
-      user: undefined,
-      writable: true,
-      mode: 'host',
-    });
-  };
-  const refresh = async (): Promise<void> => {
-    const found = await describeHostSettings(bridgeHost(call)).then(
-      (namespaces) => namespaces.find((entry) => entry.ns === BOT_MODE_NAMESPACE),
-      () => undefined,
-    );
-    if (found === undefined) {
-      publish({ ...snapshot, status: 'unavailable', writable: false });
-      return;
-    }
-    adopt(found);
-  };
-  const write = async (endpoint: string, payload: Record<string, unknown>): Promise<boolean> => {
-    const result = await call(endpoint, {
-      ns: BOT_MODE_NAMESPACE,
-      expectedRevision: revision,
-      ...payload,
-    });
-    if (!result.ok) {
-      await refresh();
-      return false;
-    }
-    adopt(record(result.value));
-    return true;
+  const project = (): BotModeScopeSnapshot => {
+    const current = settings.getSnapshot();
+    if (current.status === 'ready')
+      return {
+        status: 'ready',
+        value: settingsOf(current.value),
+        user: undefined,
+        writable: true,
+        mode: 'host',
+      };
+    if (current.status === 'unavailable')
+      return { ...snapshot, status: 'unavailable', writable: false };
+    return snapshot;
   };
   return {
     getSnapshot: () => snapshot,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+    subscribe: (listener) =>
+      settings.subscribe(() => {
+        snapshot = project();
+        listener();
+      }),
+    refresh: async () => {
+      await settings.refresh();
+      snapshot = project();
     },
-    refresh,
-    set: (field, value) => write('settings/update', { patch: { [field]: value } }),
-    mutate: (ops: readonly BotModePathOp[], expectedRevision?: number) =>
-      write('settings/mutate', {
+    set: async (field, value) => {
+      const done = await settings.write('settings/update', { patch: { [field]: value } });
+      snapshot = project();
+      return done;
+    },
+    mutate: async (ops: readonly BotModePathOp[], expectedRevision?: number) => {
+      const done = await settings.write('settings/mutate', {
         ops,
         ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      }),
+      });
+      snapshot = project();
+      return done;
+    },
   };
 }

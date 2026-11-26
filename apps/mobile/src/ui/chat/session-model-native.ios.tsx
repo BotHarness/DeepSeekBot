@@ -7,8 +7,10 @@ import {
   Image,
   List,
   NavigationStack,
+  Picker,
   ProgressView,
   RNHostView,
+  ScrollView,
   Section,
   Spacer,
   Text,
@@ -17,25 +19,189 @@ import {
   VStack,
 } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
+  accessibilityElement,
+  accessibilityHidden,
   accessibilityLabel,
+  accessibilityValue,
+  buttonBorderShape,
+  buttonStyle,
   disabled,
   font,
   foregroundStyle,
   frame,
+  listRowBackground,
+  listRowInsets,
+  listRowSeparator,
   listStyle,
   navigationBarTitleDisplayMode,
   navigationTitle,
+  padding,
+  pickerStyle,
   presentationDetents,
   presentationDragIndicator,
   redacted,
   scrollContentBackground,
+  tag,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState } from 'react';
 import { Platform, PlatformColor, View } from 'react-native';
 
+import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
+import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { ModelBrandIcon } from './model-brand-icon';
+import { FILTER_SKELETON_CHIPS, ModelFilterGlyph } from './session-model-filter-strip';
 import type { SessionModelSheetProps } from './session-model-native';
+
+function RowContent({
+  name,
+  brand,
+  detail,
+  tag,
+  dim,
+  trailing,
+}: {
+  name: string;
+  brand: ModelBrand | undefined;
+  detail: string | undefined;
+  tag: string | undefined;
+  dim: boolean;
+  trailing: 'check' | 'saving' | 'none';
+}) {
+  const theme = useDesignTheme();
+  const icon = theme.type.title.line;
+  return (
+    <HStack spacing={12}>
+      <RNHostView matchContents>
+        <View style={{ width: icon, height: icon }}>
+          <ModelBrandIcon brand={brand} size={icon} color={theme.color.muted} />
+        </View>
+      </RNHostView>
+      <VStack alignment="leading" spacing={2}>
+        <Text modifiers={[foregroundStyle(PlatformColor(dim ? 'tertiaryLabel' : 'label'))]}>
+          {name}
+        </Text>
+        {detail === undefined ? null : (
+          <Text
+            modifiers={[
+              font({ textStyle: 'footnote' }),
+              foregroundStyle(PlatformColor('secondaryLabel')),
+            ]}
+          >
+            {detail}
+          </Text>
+        )}
+      </VStack>
+      <Spacer />
+      {tag === undefined ? null : (
+        <Text
+          modifiers={[
+            font({ textStyle: 'footnote' }),
+            foregroundStyle(PlatformColor('secondaryLabel')),
+          ]}
+        >
+          {tag}
+        </Text>
+      )}
+      {trailing === 'saving' ? (
+        <ProgressView />
+      ) : trailing === 'check' ? (
+        <Image
+          systemName="checkmark"
+          modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}
+          color={theme.color.accent}
+        />
+      ) : (
+        <Spacer modifiers={[frame({ width: 0 })]} />
+      )}
+    </HStack>
+  );
+}
+
+function FilterStrip({
+  label,
+  chips,
+}: {
+  label: string;
+  chips: {
+    key: string;
+    brand: ModelBrand | undefined;
+    sub: boolean;
+    group?: boolean;
+    picked: boolean;
+    accessible?: string;
+    onPress?: () => void;
+  }[];
+}) {
+  const theme = useDesignTheme();
+  const glass = Number(Platform.Version) >= 26;
+  const size = theme.touch - space.x4;
+  const placeholder = chips.every((chip) => chip.onPress === undefined);
+  return (
+    <ScrollView
+      axes="horizontal"
+      showsIndicators={false}
+      modifiers={[
+        listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+        listRowBackground('transparent'),
+        listRowSeparator('hidden'),
+        ...(placeholder
+          ? [redacted('placeholder'), accessibilityHidden(true)]
+          : [accessibilityElement('contain'), accessibilityLabel(label)]),
+      ]}
+    >
+      <HStack spacing={space.x3} modifiers={[padding({ horizontal: space.x5 })]}>
+        {chips.map((chip) => (
+          <Button
+            key={chip.key}
+            onPress={chip.onPress ?? (() => {})}
+            modifiers={[
+              buttonStyle(
+                glass
+                  ? chip.picked
+                    ? 'glassProminent'
+                    : 'glass'
+                  : chip.picked
+                    ? 'borderedProminent'
+                    : 'bordered',
+              ),
+              buttonBorderShape('circle'),
+              disabled(chip.onPress === undefined),
+              ...(chip.accessible === undefined
+                ? []
+                : [
+                    accessibilityLabel(chip.accessible),
+                    accessibilityAddTraits(chip.picked ? ['isSelected'] : []),
+                  ]),
+            ]}
+          >
+            <RNHostView matchContents>
+              <View
+                style={{
+                  width: size,
+                  height: size,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {placeholder ? null : (
+                  <ModelFilterGlyph
+                    brand={chip.brand}
+                    sub={chip.sub}
+                    group={chip.group === true}
+                    size={theme.type.title.line}
+                  />
+                )}
+              </View>
+            </RNHostView>
+          </Button>
+        ))}
+      </HStack>
+    </ScrollView>
+  );
+}
 
 export function NativeSessionModelSheet({
   visible,
@@ -45,6 +211,12 @@ export function NativeSessionModelSheet({
   failure,
   retryLabel,
   sections,
+  skeleton,
+  filters,
+  filter,
+  filterLabel,
+  effort,
+  effortLabel,
   current,
   saving,
   savingLabel,
@@ -55,14 +227,53 @@ export function NativeSessionModelSheet({
   onClose,
   onRetry,
   onRefresh,
+  onFilter,
+  onEffort,
   onChoose,
+  selected,
+  confirm,
 }: SessionModelSheetProps) {
+  const checked = (key: string) =>
+    selected === undefined ? current === key : selected.includes(key);
   const theme = useDesignTheme();
   const [shown, setShown] = useState(visible);
   const [detent, setDetent] = useState<'medium' | 'large'>('medium');
   if (visible && !shown) setShown(true);
   if (!shown) return null;
-  const icon = theme.type.title.line;
+  const anchor = (ids: readonly string[]) =>
+    ids.includes('presets') ? 'presets' : ids.includes('default') ? 'default' : undefined;
+  const stripAfter = anchor(sections.map((section) => section.id));
+  const skeletonStripAfter = anchor(skeleton.map((section) => section.id));
+  const skeletonStrip = (
+    <Section key="filters">
+      <FilterStrip
+        label={filterLabel}
+        chips={Array.from({ length: FILTER_SKELETON_CHIPS }, (_, key) => ({
+          key: String(key),
+          brand: undefined,
+          sub: false,
+          picked: false,
+        }))}
+      />
+    </Section>
+  );
+  const strip =
+    filters.length === 0 ? null : (
+      <Section key="filters">
+        <FilterStrip
+          label={filterLabel}
+          chips={filters.map((entry) => ({
+            key: entry.key,
+            brand: entry.brand,
+            sub: entry.source === 'sub',
+            group: entry.source === 'group',
+            picked: entry.key === filter,
+            accessible: entry.accessible,
+            onPress: () => onFilter(entry.key === filter ? undefined : entry.key),
+          }))}
+        />
+      </Section>
+    );
   return (
     <Host colorScheme={theme.scheme} pointerEvents="none" style={{ position: 'absolute' }}>
       <BottomSheet
@@ -106,107 +317,98 @@ export function NativeSessionModelSheet({
                     </Text>
                   </Section>
                 )}
+                {loading && skeletonStripAfter === undefined ? skeletonStrip : null}
+                {!loading && stripAfter === undefined ? strip : null}
                 {loading
-                  ? [3, 5].map((rows, group) => (
-                      <Section key={group}>
-                        {Array.from({ length: rows }, (_, row) => (
-                          <HStack
+                  ? skeleton.flatMap((section) => [
+                      <Section
+                        key={section.id}
+                        {...(section.title ? { title: section.title } : {})}
+                      >
+                        {Array.from({ length: section.rows }, (_, row) => (
+                          <Button
                             key={row}
-                            spacing={12}
+                            onPress={() => {}}
                             modifiers={[
+                              disabled(true),
                               redacted('placeholder'),
                               accessibilityLabel(refreshingLabel),
                             ]}
                           >
-                            <Image systemName="circle.fill" />
-                            <VStack alignment="leading" spacing={2}>
-                              <Text>{row % 2 === 0 ? title : `${title} ${title}`}</Text>
-                              <Text modifiers={[font({ textStyle: 'footnote' })]}>
-                                {refreshLabel}
-                              </Text>
-                            </VStack>
-                            <Spacer />
-                          </HStack>
+                            <RowContent
+                              name={row % 2 === 0 ? title : `${title} ${title}`}
+                              brand={undefined}
+                              detail={refreshLabel}
+                              tag={undefined}
+                              dim={false}
+                              trailing="none"
+                            />
+                          </Button>
                         ))}
-                      </Section>
-                    ))
-                  : sections
-                      .filter((section) => section.data.length > 0)
-                      .map((section, index) => (
-                        <Section
-                          key={section.title || `section-${index}`}
-                          {...(section.title ? { title: section.title } : {})}
-                        >
-                          {section.data.map((item) => {
-                            const selected = current === item.key;
-                            return (
-                              <Button
-                                key={item.key}
-                                onPress={() => onChoose(item.key)}
-                                modifiers={[
-                                  accessibilityLabel(item.accessible),
-                                  disabled(item.disabled === true || saving !== undefined),
-                                ]}
-                              >
-                                <HStack spacing={12}>
-                                  <RNHostView matchContents>
-                                    <View style={{ width: icon, height: icon }}>
-                                      <ModelBrandIcon
-                                        brand={item.brand}
-                                        size={icon}
-                                        color={theme.color.muted}
-                                      />
-                                    </View>
-                                  </RNHostView>
-                                  <VStack alignment="leading" spacing={2}>
-                                    <Text
-                                      modifiers={[
-                                        foregroundStyle(
-                                          PlatformColor(item.disabled ? 'tertiaryLabel' : 'label'),
-                                        ),
-                                      ]}
-                                    >
-                                      {item.name}
+                      </Section>,
+                      ...(section.id === skeletonStripAfter ? [skeletonStrip] : []),
+                    ])
+                  : sections.flatMap((section) => [
+                      <Section
+                        key={section.id}
+                        {...(section.title ? { title: section.title } : {})}
+                      >
+                        {section.data.flatMap((item) => [
+                          <Button
+                            key={item.key}
+                            onPress={() => onChoose(item.key)}
+                            modifiers={[
+                              accessibilityLabel(item.accessible),
+                              disabled(item.disabled === true || saving !== undefined),
+                            ]}
+                          >
+                            <RowContent
+                              name={item.name}
+                              brand={item.brand}
+                              detail={saving === item.key ? savingLabel : item.detail}
+                              tag={item.tag}
+                              dim={item.disabled === true}
+                              trailing={
+                                saving === item.key
+                                  ? 'saving'
+                                  : checked(item.key)
+                                    ? 'check'
+                                    : 'none'
+                              }
+                            />
+                          </Button>,
+                          ...(effort !== undefined && effort.key === item.key
+                            ? [
+                                <Picker<string>
+                                  key={`${item.key}:effort`}
+                                  testID="session-model-effort"
+                                  label={effortLabel}
+                                  selection={effort.current}
+                                  onSelectionChange={onEffort}
+                                  modifiers={[
+                                    pickerStyle('menu'),
+                                    tint(theme.color.muted),
+                                    disabled(saving !== undefined),
+                                    accessibilityElement('combine'),
+                                    accessibilityLabel(effortLabel),
+                                    accessibilityValue(
+                                      effort.options.find((option) => option.id === effort.current)
+                                        ?.name ?? '',
+                                    ),
+                                  ]}
+                                >
+                                  {effort.options.map((option) => (
+                                    <Text key={option.id} modifiers={[tag(option.id)]}>
+                                      {option.name}
                                     </Text>
-                                    {item.detail === undefined && saving !== item.key ? null : (
-                                      <Text
-                                        modifiers={[
-                                          font({ textStyle: 'footnote' }),
-                                          foregroundStyle(PlatformColor('secondaryLabel')),
-                                        ]}
-                                      >
-                                        {saving === item.key ? savingLabel : (item.detail ?? '')}
-                                      </Text>
-                                    )}
-                                  </VStack>
-                                  <Spacer />
-                                  {item.tag === undefined ? null : (
-                                    <Text
-                                      modifiers={[
-                                        font({ textStyle: 'footnote' }),
-                                        foregroundStyle(PlatformColor('secondaryLabel')),
-                                      ]}
-                                    >
-                                      {item.tag}
-                                    </Text>
-                                  )}
-                                  {saving === item.key ? (
-                                    <ProgressView />
-                                  ) : selected ? (
-                                    <Image
-                                      systemName="checkmark"
-                                      modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}
-                                      color={theme.color.accent}
-                                    />
-                                  ) : (
-                                    <Spacer modifiers={[frame({ width: 0 })]} />
-                                  )}
-                                </HStack>
-                              </Button>
-                            );
-                          })}
-                        </Section>
-                      ))}
+                                  ))}
+                                </Picker>,
+                              ]
+                            : []),
+                        ])}
+                      </Section>,
+                      ...(section.id === stripAfter && strip !== null ? [strip] : []),
+                    ])}
               </List>
               <Toolbar.Content>
                 <ToolbarItem placement="cancellationAction">
@@ -226,6 +428,18 @@ export function NativeSessionModelSheet({
                     </Button>
                   )}
                 </ToolbarItem>
+                {confirm === undefined ? null : (
+                  <ToolbarItem placement="confirmationAction">
+                    <Button
+                      label={confirm.label}
+                      onPress={confirm.onPress}
+                      modifiers={[
+                        disabled(confirm.disabled || saving !== undefined),
+                        ...(Number(Platform.Version) >= 26 ? [buttonStyle('glassProminent')] : []),
+                      ]}
+                    />
+                  </ToolbarItem>
+                )}
                 <ToolbarItem placement="primaryAction">
                   {refreshing ? (
                     <ProgressView modifiers={[accessibilityLabel(refreshingLabel)]} />

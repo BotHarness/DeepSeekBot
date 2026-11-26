@@ -155,9 +155,12 @@ describe('App management switches', () => {
   const managementToggle = (capability: string) =>
     container!.querySelector<HTMLInputElement>(`[data-testid="bot-management-${capability}"]`);
 
-  it('stays hidden from anyone but the Owner', async () => {
+  it('tells a member without the permission who can turn it on', async () => {
     await render(hostClient(async () => ({})));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
     expect(managementToggle('manage-app')).toBeNull();
+    expect(container!.textContent).toContain(t.profilePermissions.management);
+    expect(container!.textContent).toContain(t.profilePermissions.managementOwnerOnly);
   });
 
   it('asks before turning a grant on and sends confirm with it', async () => {

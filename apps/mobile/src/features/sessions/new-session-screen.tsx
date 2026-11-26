@@ -37,6 +37,7 @@ import { Text } from '../../ui/primitives/text';
 import { canCreateNativeSession } from '../../ui/shell/page-create-actions';
 import { promptPlaceholder } from '../../ui/chat/session-header-title';
 import { useStrings } from '../../ui/strings';
+import { useCreateFolder } from '../../host/member-permissions';
 import { lastSessionFolder, rememberSessionFolder } from './last-session-folder';
 import { preselectedComputer } from './session-drawer-model';
 import { HeaderBackButton } from '../../ui/chat/header-chrome';
@@ -178,13 +179,15 @@ function NewSessionForm({
     enabled: online,
     running: false,
   });
+  const createFolder = useCreateFolder(client);
   const port = useMemo<FolderPickerPort>(
     () => ({
       listFolders: (path) => listHostFolders(client, path),
       loadWorkspaceOptions: () => loadWorkspaceOptions(client),
       resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+      createFolder,
     }),
-    [client],
+    [client, createFolder],
   );
 
   async function send() {

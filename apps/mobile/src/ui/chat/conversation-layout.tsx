@@ -94,7 +94,6 @@ export function renderConversation({
   prepareProfile,
   windowWidth,
   listSafeArea,
-  stackRoot,
   tabRoot,
   leave,
   pull,
@@ -142,7 +141,6 @@ export function renderConversation({
   prepareProfile: () => void;
   windowWidth: number;
   listSafeArea: number;
-  stackRoot: boolean;
   tabRoot: boolean;
   leave: () => void;
   pull: ReturnType<typeof usePullToCompose>;
@@ -574,7 +572,6 @@ export function renderConversation({
                       nativeSpacer,
                       headerPadding,
                       listSafeArea,
-                      stackRoot,
                       pull,
                       markdownViewport,
                       initialScroll,

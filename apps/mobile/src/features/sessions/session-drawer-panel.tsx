@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Keyboard, Platform, Pressable, SectionList, View, type ViewProps } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
@@ -14,7 +14,7 @@ import { KeyboardFormFooter } from '../../ui/primitives/keyboard-form-footer';
 import { ReadFailure } from '../../ui/primitives/read-failure';
 import { SearchField } from '../../ui/primitives/search-field';
 import { Text } from '../../ui/primitives/text';
-import type { SessionQueryRow } from './session-query-model';
+import { assignFolderColors, folderColorKey, type SessionQueryRow } from './session-query-model';
 import { SessionDrawerRow } from './session-drawer-row';
 import { SessionDrawerEnvironmentChip } from './session-drawer-environment-chip';
 import { SessionDrawerNewButton } from './session-drawer-new-button';
@@ -72,6 +72,7 @@ export function SessionDrawerPanel({
   const [footerHeight, setFooterHeight] = useState(0);
   const hideChrome = useHideChromeOnScroll(page && !searching);
   const sections = sessionDrawerSections(query.rows ?? [], query.sort, Date.now());
+  const folderColors = useMemo(() => assignFolderColors(query.rows ?? []), [query.rows]);
   const closeSearch = () => {
     query.changeSearch('');
     setSearching(false);
@@ -232,6 +233,7 @@ export function SessionDrawerPanel({
             <SessionDrawerRow
               row={item}
               client={hosts.find((host) => host.hostId === item.hostId)?.client}
+              folderColor={folderColors.get(folderColorKey(item.hostId, item.folderName))}
               showHost={showHost}
               selected={item.hostId === selected?.hostId && item.sessionId === selected.sessionId}
               onPress={() => onOpen(item)}

@@ -48,6 +48,9 @@ export default function BotProfileLayout() {
         <Stack.Screen name="approval-history" />
         <Stack.Screen name="approval-rules" />
         <Stack.Screen name="access" />
+        <Stack.Screen name="external" options={{ title: t.externalContacts.title }} />
+        <Stack.Screen name="im-bind" options={{ title: t.imApps.bindApp }} />
+        <Stack.Screen name="pairing/[id]" options={{ title: t.pairingRequest.title }} />
         <Stack.Screen name="inbox" />
         <Stack.Screen name="notifications" options={{ title: t.notifications }} />
       </SheetStack>

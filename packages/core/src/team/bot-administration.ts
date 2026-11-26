@@ -28,6 +28,7 @@ export const botAdminActionSchema = z.enum([
   'modelPlanAssignmentsSet',
   'standingLimitsSet',
   'modelPlanInherit',
+  'modelPlanReset',
   'transfer',
   'memberPurgeConfirm',
 ]);

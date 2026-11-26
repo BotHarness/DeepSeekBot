@@ -100,7 +100,6 @@ export const rows = (view: HTMLElement) =>
           'studio',
           t.closeSearch,
           t.openSearch,
-          t.openTobMode,
           t.settings,
         ].includes(node.getAttribute('aria-label') ?? ''),
     )

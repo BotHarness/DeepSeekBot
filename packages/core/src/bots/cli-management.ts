@@ -339,7 +339,12 @@ export async function runOnlineManagement(
         usage(`--${flag} must be a nonnegative integer.`);
       revisions[field] = Number(raw);
     }
-    return rpc('modelPresetApply', { slug, presetId: values.preset!.trim(), ...revisions });
+    return rpc('modelPresetApply', {
+      slug,
+      presetId: values.preset!.trim(),
+      ...revisions,
+      ...(values['keep-overrides'] === true ? { keepOverrides: true } : {}),
+    });
   }
   if (command === 'model-plan') return rpc('modelPlan', { slug });
   const reader = { call: (method: string, args = {}) => rpc(method, args) };

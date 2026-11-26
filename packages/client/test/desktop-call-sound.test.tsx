@@ -8,7 +8,7 @@ vi.mock('../src/client/ds/tooltip.js', () => ({
 }));
 
 import { DmCallControl } from '../src/client/dm-call.js';
-import { mountSettingsSectionOpener } from '../src/client/environment-settings-source.js';
+import { mountHostSettingsOpener } from '../src/client/environment-settings-source.js';
 import { cleanup, desktopWindow, host, translate } from './support/desktop-call-world.js';
 
 afterEach(async () => {
@@ -22,7 +22,9 @@ describe('desktop call voice setup and computer sound', () => {
     const { fetcher } = host({ asr: false });
     const mac = desktopWindow(fetcher, 'window-mac-0001');
     const opened: string[] = [];
-    cleanup.push(mountSettingsSectionOpener((section) => opened.push(section)));
+    cleanup.push(
+      mountHostSettingsOpener({ openHost: vi.fn(), open: (section) => opened.push(section) }),
+    );
     const element = document.createElement('div');
     const root = createRoot(element);
     cleanup.push(() => act(() => root.unmount()));

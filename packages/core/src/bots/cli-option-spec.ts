@@ -110,6 +110,7 @@ export const HOST_ADMIN_OPTIONS = {
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
+  delegable: { type: 'boolean' },
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },
@@ -157,6 +158,8 @@ export const INBOX_OPTIONS = {
   workspace: { type: 'string' },
   model: { type: 'string' },
   message: { type: 'string' },
+  symbol: { type: 'string' },
+  monogram: { type: 'boolean' },
 } as const;
 
 export const MESSAGING_OPTIONS = {
@@ -173,6 +176,7 @@ export const MESSAGING_OPTIONS = {
 
 export const MODELS_USAGE_OPTIONS = {
   'include-usage': { type: 'boolean' },
+  'keep-overrides': { type: 'boolean' },
   'migration-dry-run': { type: 'boolean' },
   'assignment-follows-main': { type: 'boolean' },
   template: { type: 'string' },
@@ -402,6 +406,7 @@ export const LIVE_OPTIONS = {
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
+  prefix: { type: 'string', multiple: true },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },

@@ -13,6 +13,7 @@ import type { TobService, TobSettingsProvider } from './tob/service.js';
 import type { ClientAcknowledgements } from './onboarding/acknowledgements.js';
 import type { BotOnboarding } from './onboarding/service.js';
 import type { PartLibrary } from './bots/part-library.js';
+import type { WorkspaceLooks } from './workspaces/workspace-looks.js';
 import type { OutboundMessaging } from './messaging/outbound.js';
 import type { ProfileRecovery } from './portability/recovery.js';
 import type { ContentPurge } from './purge/contracts.js';
@@ -73,6 +74,7 @@ export interface BotHarnessCore {
   zipImports: BotZipImportService;
   channelManagement: ChannelManagementService;
   partLibrary: PartLibrary;
+  workspaceLooks: WorkspaceLooks;
   operationalDatabase: OperationalDatabaseOwner;
   registry: PersonaBotRegistry;
   deletions: PersonaBotDeletions;
@@ -89,6 +91,11 @@ export interface BotHarnessCore {
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
   configureBotHopLimit(read: () => number): () => void;
+  configureNativeSessionAttention(read: () => boolean): () => void;
+  contributeNativeSessionAttention(
+    source: import('./features/activity/native-session-attention.js').NativeSessionAttentionSource,
+  ): () => void;
+  onNativeSessionAttention(listener: () => void): () => void;
 
   hostTools: Set<string>;
 

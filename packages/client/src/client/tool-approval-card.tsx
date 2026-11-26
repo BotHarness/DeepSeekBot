@@ -26,6 +26,38 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalMemoryEdit, approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
+import { ApprovalPresetPicker } from './approval-preset-picker.js';
+import type { TemplateActions } from './approval-template-entry.js';
+import { shellScopeErrorText, useShellScopeMenu } from './shell-approval-scope-menu.js';
+import type {
+  ShellPrefixApproval,
+  WireShellApprovalSuggestions,
+} from '@botharness/host-protocol/wire';
+
+function sourceBlockSentence(
+  toolName: string,
+  input: string,
+  t: BotHarnessTranslate,
+): string | undefined {
+  if (toolName !== 'bridge_source_block') return undefined;
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(input) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const name = typeof args['target_name'] === 'string' ? args['target_name'] : undefined;
+  if (name === undefined) return undefined;
+  if (args['action'] === 'unblock') return t('approval.sourceBlock.unblock', { name });
+  if (args['action'] !== 'block') return undefined;
+  const app = typeof args['app'] === 'string' ? args['app'] : '';
+  return t(
+    args['scope'] === 'sender'
+      ? 'approval.sourceBlock.sender'
+      : 'approval.sourceBlock.conversation',
+    { name, app },
+  );
+}
 
 function isReadTimeout(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
@@ -58,13 +90,15 @@ export function ToolApprovalCard({
     | 'toolApprovalState'
     | 'toolApprovalExecutionState'
     | 'decideToolApproval'
-  >;
+  > &
+    TemplateActions;
   hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
     | 'allowed-once'
     | 'allowed-always-tool'
     | 'allowed-always-exact'
+    | 'allowed-always-prefix'
     | 'allowed-always-all'
     | 'rejected'
     | undefined;
@@ -97,6 +131,7 @@ export function ToolApprovalCard({
   const [executionState, setExecutionState] = useState<ToolApprovalExecutionState | undefined>();
   const [retry, setRetry] = useState(0);
   const [expiresAt, setExpiresAt] = useState<string>();
+  const [shellSuggestions, setShellSuggestions] = useState<WireShellApprovalSuggestions>();
   const [now, setNow] = useState(() => Date.now());
   const target = useRef(companionTarget);
   target.current = companionTarget;
@@ -144,6 +179,7 @@ export function ToolApprovalCard({
             status,
             expiresAt: undefined,
             execution: undefined,
+            shellSuggestions: undefined,
           })));
         if (!active) return;
         loaded = true;
@@ -156,6 +192,7 @@ export function ToolApprovalCard({
               : snapshot.status,
           );
           setExpiresAt(snapshot.expiresAt);
+          setShellSuggestions(snapshot.shellSuggestions);
         }
         if (
           snapshot.status !== 'pending' &&
@@ -229,8 +266,11 @@ export function ToolApprovalCard({
       | 'allowed-once'
       | 'allowed-always-tool'
       | 'allowed-always-exact'
+      | 'allowed-always-prefix'
       | 'allowed-always-all'
       | 'rejected',
+    rule?: ShellPrefixApproval,
+    report?: (cause: unknown) => void,
   ): void => {
     if (botSlug === undefined || submitting.current || !actionable) return;
     if (companionTarget && !qualified()) return;
@@ -259,7 +299,9 @@ export function ToolApprovalCard({
           return;
         }
       }
-      await actions.decideToolApproval(channelId, message.id, outcome);
+      await (rule === undefined
+        ? actions.decideToolApproval(channelId, message.id, outcome)
+        : actions.decideToolApproval(channelId, message.id, outcome, rule));
       if (mounted.current) {
         setAcceptedDecision(outcome);
         setStatus('decided');
@@ -273,7 +315,17 @@ export function ToolApprovalCard({
             (latest) => {
               if (!mounted.current) return;
               setStatus(latest);
-              setError(latest === 'pending' ? errorMessage(cause) : undefined);
+              if (latest === 'pending' && report !== undefined) {
+                setError(undefined);
+                report(cause);
+              } else
+                setError(
+                  latest !== 'pending'
+                    ? undefined
+                    : rule === undefined
+                      ? errorMessage(cause)
+                      : shellScopeErrorText(cause, t),
+                );
             },
             () => {
               if (!mounted.current) return;
@@ -289,6 +341,19 @@ export function ToolApprovalCard({
       });
   };
   const disabled = busy || !actionable || (companionTarget !== undefined && !qualified());
+  const scopeMenu = useShellScopeMenu({
+    suggestions: shellSuggestions,
+    toolName: request.toolName,
+    enabled: canAlwaysAllow && actionable,
+    busy,
+    t,
+    onDecide: (decision, report) =>
+      decide(
+        decision.outcome,
+        decision.outcome === 'allowed-always-prefix' ? decision.rule : undefined,
+        report,
+      ),
+  });
   const selectedChoice =
     effectiveDecision === undefined ||
     effectiveDecision === 'allowed-once' ||
@@ -299,7 +364,13 @@ export function ToolApprovalCard({
     if (surface === 'activity') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     const target = event.target as HTMLElement;
-    if (target.closest('input, textarea, select, [contenteditable="true"]') !== null) return;
+    if (!event.currentTarget.contains(target)) return;
+    if (
+      target.closest(
+        'input, textarea, select, [contenteditable="true"], [data-approval-preset]',
+      ) !== null
+    )
+      return;
     if (!actionable) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (disabled) return;
@@ -338,6 +409,7 @@ export function ToolApprovalCard({
     (botCreate === undefined
       ? undefined
       : t('approval.botCreate.summary', { name: botCreate.displayName })) ??
+    sourceBlockSentence(request.toolName, request.input, t) ??
     summary.description ??
     (summary.command !== undefined
       ? t('approval.summaryCommand')
@@ -397,6 +469,8 @@ export function ToolApprovalCard({
         : request.approvalReview.fallback === undefined
           ? request.approvalReview.reason
           : t('autoApproval.reviewUnavailable');
+  const secretRisk =
+    canAlwaysAllow && (secretCli || request.toolName === 'secret_mcp_connect') ? scope : undefined;
   const hostAccess =
     message.approval?.masked === false && message.approval.opaque
       ? t('approval.opaqueWarning')
@@ -408,28 +482,20 @@ export function ToolApprovalCard({
           t('approval.cwd', { path: request.cwd }),
           effects,
           review,
-          scope,
-          summary.command === undefined ? hostAccess : undefined,
+          secretRisk === undefined ? scope : undefined,
+          hostAccess,
         ]
       : [
           `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
           effects,
           origin,
           review,
-          canAlwaysAllow ? undefined : scope,
+          scope !== undefined && canAlwaysAllow ? t('approval.alwaysMemoryScope') : scope,
           hostAccess,
         ]
   )
     .filter((line) => line !== undefined && line !== '')
     .join('\n');
-  const shortScope =
-    scope === undefined || !canAlwaysAllow
-      ? undefined
-      : memoryEdit !== undefined
-        ? t('approval.alwaysMemoryScope')
-        : secretCli || request.toolName === 'secret_mcp_connect'
-          ? scope
-          : t('approval.alwaysToolScopeShort', { tool: request.toolName });
   const details =
     memoryEdit !== undefined ? (
       <ApprovalInput
@@ -466,9 +532,10 @@ export function ToolApprovalCard({
     ) : null;
   const onCardClick = (event: MouseEvent<HTMLDivElement>): void => {
     const target = event.target as HTMLElement;
+    if (!event.currentTarget.contains(target)) return;
     if (
       target.closest(
-        'button, a, input, textarea, select, label, [role="group"], .bh-tool-approval-details-body',
+        'button, a, input, textarea, select, label, [role="group"], [data-approval-preset], .bh-tool-approval-details-body',
       ) !== null
     )
       return;
@@ -548,11 +615,6 @@ export function ToolApprovalCard({
             t={t}
           />
         )}
-        {hostAccess === undefined || summary.command === undefined ? null : (
-          <div {...hooked('bh-tool-approval-host-access', styles.caption, styles.warning)}>
-            {hostAccess}
-          </div>
-        )}
         {request.effects?.changes !== 'irreversible' || memoryEdit !== undefined ? null : (
           <div {...hooked('bh-tool-approval-effects', styles.caption)}>{effects}</div>
         )}
@@ -571,8 +633,8 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {shortScope === undefined ? null : (
-        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{shortScope}</div>
+      {secretRisk === undefined ? null : (
+        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{secretRisk}</div>
       )}
       {settled !== undefined ? (
         <RequestOutcome
@@ -613,8 +675,11 @@ export function ToolApprovalCard({
             size={size}
             disabled={disabled || !canAlwaysAllow}
             aria-pressed={selectedChoice === 'allowed-always-tool'}
-            busy={busy && busyChoice === 'allowed-always-tool'}
-            onClick={() => decide('allowed-always-tool')}
+            busy={busy && busyChoice !== undefined && busyChoice.startsWith('allowed-always')}
+            {...scopeMenu.trigger}
+            onClick={() => {
+              if (!scopeMenu.consumeClick()) decide('allowed-always-tool');
+            }}
           >
             {t('approval.allowAlways')}
           </ActionButton>
@@ -635,6 +700,10 @@ export function ToolApprovalCard({
         <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
+      ) : null}
+      {scopeMenu.overlay}
+      {actionable && botSlug !== undefined ? (
+        <ApprovalPresetPicker botSlug={botSlug} actions={actions} manage={!hostScoped} t={t} />
       ) : null}
       {status === 'unavailable' ? (
         <ActionGroup>

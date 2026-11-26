@@ -3,7 +3,8 @@
 ## Sources
 
 - `packages/core/src/features/approvals/plugin.ts`
-- `packages/core/src/workspaces/{tool-approval,approval-reviewer,grants}.ts`
+- `packages/core/src/workspaces/{tool-approval,tool-approval-rules,shell-approval-prefix,approval-reviewer,grants}.ts`
+- `packages/core/src/features/approvals/{methods,rpc}.ts`
 - `packages/core/src/features/approvals/tool-approval-{review,types}.ts`
 - `packages/client/src/client/{tool-approval-card,approval-settings}.tsx`
 
@@ -19,6 +20,7 @@
 - Ordinary Channel, Activity and companion reuse renders Allow once / Always allow / Reject.
 - Always allow remembers only the selected tool in the current Bot/role/authority scope; changed inputs match, another tool or revoked rule does not.
 - Permission and policy management offers Always allow in a separate explicit scope; old ordinary rules do not gain this authority. Full Access ordinary actions do not ask; sensitive management still asks until the Human opts in.
+- The CLI saves Shell prefixes from a pending card, then checks compound matches, rule scope, revocation and template precedence.
 - Schema generation 104 preserves legacy rules and normalizes old top-level Full Access Assignment approval policy without widening its permissions.
 - Browser and Computer tools offer the same saved action; Browser rules survive a new Session for the same Bot/tool/target. Change the target and verify a new card, revoke its rule and verify prompting returns.
 - Device rules remain tool-specific inside the same Session: approving browser_open must not approve browser_click, and revoking browser_open must restore its card immediately. Switch targets away and back, restart the Host and verify the old scope does not return. Changing the Browser Profile must also prompt.
@@ -48,6 +50,12 @@ For a baseline capture, provide `--capture-report <private-json> --expect-legacy
 Open Bot permissions from the composer or the folder/access entry. After saving Always allow on a real card, open **Always allow · this Bot**. Check **From approval card**, tool, execution role, current directory and full scope under View scope against `tool-approval-rules`. Revoke that row and verify canonical readback shows it disabled. Repeat through the online CLI, then Reload the open list. The next same call must return to review. A second Bot using the same template and a template copy must acquire no rule. Model allow-once must not add a rule.
 
 This list reads the existing canonical owner once during permissions refresh; it adds no polling, template lookup or Reviewer work to tool execution. The focused Client test guards one initial rules read and canonical readback after revocation. `auto-approval-breaker.test.ts` guards zero template/Reviewer calls on a saved-rule hit, restored review after revoke, and no new rule from model allow-once. Runtime before/after latency and screenshots remain separate evidence.
+
+## Shell prefix rules (#5459)
+
+With a pending Bash approval for a harmless command in a disposable workspace, read `tool-approval-status <channel> --message-id <card>`. Check that `shellSuggestions` contains the exact command and each applicable prefix. Save a matching pattern with `approval-rule-add <channel> --message-id <card> --prefix "git status *"`. For a compound call, pass each prefix in subcommand order. Read the approval history and rule list, then repeat the covered call with a changed argument. Check the output and each covering rule's count. An uncovered subcommand, different workdir, revoked rule or matching Always ask guidance should produce a new card. If an IM route mirrors the request, its settled card shows the saved pattern text and refreshes when the rule is revoked.
+
+On Android, use the system keyboard and leave a pending Shell card visible with the keyboard closed. Run `heavy node scripts/e2e-mobile-shell-scope-keyboard.mjs <bound-agent-device>` with the command from the T3 device panel. The check opens the scope menu, chooses Custom, and verifies that the first prefix field is focused and the keyboard opens without an extra tap. The sheet stays open for capture or further checks.
 
 ## Gotchas
 

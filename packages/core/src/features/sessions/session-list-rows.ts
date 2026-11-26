@@ -1,22 +1,23 @@
-import { posix, win32 } from 'node:path';
-import type {
-  HostSessionFilter,
-  HostSessionRow,
-  HostSessionSourceOption,
+import {
+  hostSessionStatus,
+  type HostSessionAttention,
+  type HostSessionFilter,
+  type HostSessionRow,
+  type HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { HumanContext } from '../../humans/context.js';
+import type { AssignmentReport } from '@botharness/host-protocol/wire';
+import type { AssignmentSummary } from '../assignments/runtime-types.js';
+import { folderName } from './workspace-sessions.js';
 import {
   createSessionTitleCache,
   type SessionTitleCache,
   type SessionTitleReader,
 } from './session-title-cache.js';
 
-export function folderName(cwd: string): string {
-  const path = win32.isAbsolute(cwd) && !posix.isAbsolute(cwd) ? win32 : posix;
-  return path.basename(cwd) || path.parse(cwd).root;
-}
+export { folderName } from './workspace-sessions.js';
 
 const titleCaches = new WeakMap<SessionTitleReader, SessionTitleCache>();
 
@@ -78,6 +79,18 @@ export function mayKnowSession(
   return bot !== undefined && deps.team?.bots.privateSessions(human)?.has(bot.slug) !== true;
 }
 
+function currentReport(
+  assignment: Pick<AssignmentSummary, 'activity' | 'latestReport'> | undefined,
+  running: boolean,
+  lastPromptAt: number | null,
+): AssignmentReport['state'] | undefined {
+  const report = assignment?.latestReport;
+  if (report === undefined || running || assignment?.activity === 'working') return undefined;
+  const at = Date.parse(report.at);
+  if (lastPromptAt !== null && Number.isFinite(at) && at < lastPromptAt) return undefined;
+  return report.state;
+}
+
 export async function readVisibleSessionRows(
   { human, deps, globalRegistry, owner }: SessionRowScope,
   {
@@ -95,10 +108,14 @@ export async function readVisibleSessionRows(
   const sessions: HostSessionRow[] = [];
   const sources = new Map<string, HostSessionSourceOption>();
   if (owner) sources.set('native', { kind: 'native' });
-  const assignments = new Map<string, string>();
+  const assignments = new Map<
+    string,
+    Pick<AssignmentSummary, 'title' | 'activity' | 'latestReport' | 'openAsk'>
+  >();
   const seenBots = new Set<string>();
   const children = new Set<string>();
   const roots = new Set<string>();
+  const cwdOf = new Map<string, string>();
   for (const row of rows) {
     const record = ownership.get(row.sessionId);
     if (row.parentSessionId !== undefined || record?.parentSessionId !== undefined) {
@@ -108,6 +125,7 @@ export async function readVisibleSessionRows(
     roots.add(row.sessionId);
     if (row.archived === true && !includeArchived) continue;
     const cwd = row.cwd ?? record?.cwdReference;
+    if (cwd !== undefined) cwdOf.set(row.sessionId, cwd);
     const base = {
       sessionId: row.sessionId,
       ...(row.title === undefined ? {} : { title: row.title }),
@@ -119,47 +137,78 @@ export async function readVisibleSessionRows(
       running: row.running,
       lastPromptAt: row.lastPromptAt,
       updatedAt: row.updatedAt,
+      ...(row.createdAt === undefined ? {} : { createdAt: row.createdAt }),
     };
     if (record === undefined) {
-      if (owner && (source === 'all' || source === 'native'))
-        sessions.push({ ...base, source: { kind: 'native' } });
+      if (owner && (source === 'all' || source === 'native')) {
+        const attention: HostSessionAttention | undefined =
+          row.pendingInput ??
+          (row.waiting === true ? 'question' : row.failed === true ? 'failed' : undefined);
+        sessions.push({
+          ...base,
+          status: hostSessionStatus({ running: row.running, attention }),
+          ...(attention === undefined ? {} : { attention }),
+          source: { kind: 'native' },
+        });
+      }
       continue;
     }
     const bot = (owner ? globalRegistry : deps.registry).getHistorical(record.botSlug);
     if (bot === undefined || privateSessions?.has(bot.slug)) continue;
-    if (withSources && !sources.has(`bot:${bot.slug}`))
-      sources.set(`bot:${bot.slug}`, {
-        kind: 'bot',
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-      });
+    const avatar = bot.avatar?.startsWith('data:image/')
+      ? botAvatarUrl(bot.slug, bot.avatar)
+      : bot.avatar;
+    const identity = {
+      kind: 'bot' as const,
+      botSlug: bot.slug,
+      displayName: bot.displayName,
+      ...(avatar === undefined ? {} : { avatar }),
+      ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
+      ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
+    };
+    if (withSources && !sources.has(`bot:${bot.slug}`)) sources.set(`bot:${bot.slug}`, identity);
     if (source !== 'all' && source !== `bot:${bot.slug}`) continue;
     if (!seenBots.has(bot.slug)) {
       seenBots.add(bot.slug);
       for (const assignment of deps.runtime?.listAssignments(bot.slug) ?? [])
-        assignments.set(assignment.sessionId, assignment.title);
+        assignments.set(assignment.sessionId, assignment);
     }
-    const assignedTitle = assignments.get(row.sessionId);
+    const assignment = assignments.get(row.sessionId);
+    const assignedTitle = assignment?.title;
     const engine = deps.describeEngineSession?.(row.sessionId);
-    const avatar = bot.avatar?.startsWith('data:image/')
-      ? botAvatarUrl(bot.slug, bot.avatar)
-      : bot.avatar;
+    const running = row.running || (engine !== undefined && engine.state !== 'idle');
+    const report = currentReport(assignment, running, row.lastPromptAt);
+    const attention: HostSessionAttention | undefined =
+      row.pendingInput === 'approval' || engine?.state === 'waiting-approval'
+        ? 'approval'
+        : row.waiting === true ||
+            assignment?.openAsk !== undefined ||
+            report === 'waiting-human' ||
+            report === 'blocked'
+          ? 'question'
+          : assignment?.activity === 'error' || report === 'failed'
+            ? 'failed'
+            : undefined;
     sessions.push({
       ...base,
       ...(assignedTitle === undefined ? {} : { title: assignedTitle }),
-      running: row.running || (engine !== undefined && engine.state !== 'idle'),
+      running,
       ...(row.waiting === true || engine?.state === 'waiting-approval'
         ? { waiting: true as const }
         : {}),
-      source: {
-        kind: 'bot',
-        botSlug: bot.slug,
-        displayName: bot.displayName,
-        ...(avatar === undefined ? {} : { avatar }),
-        ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-        ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-      },
+      status: hostSessionStatus({ running, attention }),
+      ...(attention === undefined ? {} : { attention }),
+      source: identity,
     });
+  }
+  if (deps.workspaceLooks !== undefined) {
+    const looks = await deps.workspaceLooks.folderLooks(
+      sessions.flatMap((row) => cwdOf.get(row.sessionId) ?? []),
+    );
+    for (const row of sessions) {
+      const look = looks.get(cwdOf.get(row.sessionId) ?? '');
+      if (look !== undefined) row.folderLook = look;
+    }
   }
   return { sessions, sources: [...sources.values()], roots, children };
 }

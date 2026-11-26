@@ -10,6 +10,7 @@ type Modifier = {
   detents?: string[];
   selection?: string;
   onSelectionChange?: (detent: string) => void;
+  redacted?: boolean;
 };
 
 const detentChange = vi.hoisted(() => ({
@@ -55,10 +56,28 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
       return { detents, selection: options?.selection };
     },
     presentationDragIndicator: none,
-    redacted: none,
+    redacted: () => ({ redacted: true }),
     scrollContentBackground: none,
+    accessibilityAddTraits: none,
+    accessibilityElement: none,
+    accessibilityHidden: none,
+    accessibilityValue: none,
+    buttonBorderShape: none,
+    buttonStyle: none,
+    listRowBackground: none,
+    listRowInsets: none,
+    listRowSeparator: none,
+    padding: none,
+    pickerStyle: none,
+    tag: (value: string) => ({ tag: value }),
+    tint: none,
   };
 });
+vi.mock('../src/ui/chat/session-model-filter-strip', () => ({
+  FILTER_SKELETON_CHIPS: 5,
+  ModelFilterGlyph: ({ brand, sub }: { brand?: string; sub: boolean }) =>
+    createElement('b', { 'data-filter-brand': brand, 'data-sub': String(sub) }),
+}));
 vi.mock('@expo/ui/swift-ui', () => {
   const box =
     (tag: string) =>
@@ -69,6 +88,7 @@ vi.mock('@expo/ui/swift-ui', () => {
           'data-title': modifiers?.find((m) => m.title)?.title,
           'data-detents': modifiers?.find((m) => m.detents)?.detents?.join(),
           'data-detent': modifiers?.find((m) => m.detents)?.selection,
+          'data-redacted': modifiers?.some((m) => m.redacted) ? 'true' : undefined,
         },
         children,
       );
@@ -100,6 +120,7 @@ vi.mock('@expo/ui/swift-ui', () => {
           'data-label': label,
           'data-system-image': systemImage,
           'aria-label': modifiers?.find((m) => m.label)?.label ?? label,
+          'data-redacted': modifiers?.some((m) => m.redacted) ? 'true' : undefined,
           disabled: modifiers?.some((m) => m.disabled) ?? false,
         },
         children ?? label,
@@ -114,10 +135,36 @@ vi.mock('@expo/ui/swift-ui', () => {
     ProgressView: ({ modifiers }: { modifiers?: Modifier[] }) =>
       createElement('progress', { 'aria-label': modifiers?.find((m) => m.label)?.label }),
     RNHostView: ({ children }: { children: ReactNode }) => children,
+    ScrollView: box('menu'),
+    Picker: ({
+      label,
+      selection,
+      onSelectionChange,
+      children,
+    }: {
+      label: string;
+      selection: string;
+      onSelectionChange(value: string): void;
+      children?: ReactNode;
+    }) =>
+      createElement(
+        'select',
+        {
+          'aria-label': label,
+          value: selection,
+          onChange: (event: { target: { value: string } }) => onSelectionChange(event.target.value),
+        },
+        children,
+      ),
     Section: ({ title, children }: { title?: string; children?: ReactNode }) =>
       createElement('fieldset', { 'data-heading': title }, children),
     Spacer: () => null,
-    Text: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
+    Text: ({ children, modifiers }: { children?: ReactNode; modifiers?: { tag?: string }[] }) => {
+      const value = modifiers?.find((m) => m.tag !== undefined)?.tag;
+      return value === undefined
+        ? createElement('span', null, children)
+        : createElement('option', { value }, children);
+    },
     Toolbar,
     ToolbarItem: ({ placement, children }: { placement: string; children: ReactNode }) =>
       createElement('div', { 'data-placement': placement }, children),
@@ -144,8 +191,13 @@ const props = {
   refreshing: false,
   current: 'default',
   sections: [
-    { title: '', data: [{ key: 'default', name: 'Use Bot default', accessible: 'default' }] },
     {
+      id: 'default' as const,
+      title: '',
+      data: [{ key: 'default', name: 'Use Bot default', accessible: 'default' }],
+    },
+    {
+      id: 'api' as const,
       title: 'API models',
       data: [
         {
@@ -162,7 +214,36 @@ const props = {
   ],
   onClose: vi.fn(),
   onRetry: vi.fn(),
+  skeleton: [
+    { id: 'default' as const, title: '', rows: 1 },
+    { id: 'subs' as const, title: 'Subscriptions', rows: 3 },
+    { id: 'api' as const, title: 'API models', rows: 6 },
+  ],
+  filters: [
+    {
+      key: 'sub:claude',
+      brand: 'claude' as const,
+      source: 'sub' as const,
+      title: 'Claude',
+      accessible: 'Claude subscription',
+    },
+    {
+      key: 'api:deepseek',
+      brand: 'deepseek' as const,
+      source: 'api' as const,
+      title: 'DeepSeek',
+      accessible: 'DeepSeek',
+    },
+  ],
+  filter: undefined as string | undefined,
+  filterLabel: 'Filter by provider',
+  effortLabel: 'Reasoning effort',
+  effort: undefined as
+    | { key: string; current: string; options: { id: string; name: string }[] }
+    | undefined,
   onRefresh: vi.fn(),
+  onFilter: vi.fn(),
+  onEffort: vi.fn(),
   onChoose: vi.fn(),
 };
 
@@ -207,10 +288,31 @@ it('keeps the opening detent when the catalog arrives and keeps a detent the use
   expect(detent()).toBe('large');
 });
 
-it('shows skeleton rows while loading and a refresh button that becomes progress', () => {
+it('draws the skeleton with the loaded sections, headers and filter strip so rows do not shift', () => {
   act(() => root.render(createElement(NativeSessionModelSheet, { ...props, loading: true })));
   expect(container.querySelector('[aria-label="V4.1 Flash, API"]')).toBeNull();
-  expect(container.querySelectorAll('[data-symbol="circle.fill"]')).toHaveLength(8);
+  const fieldsets = () => [...container.querySelectorAll('fieldset')];
+  expect(fieldsets().map((set) => set.getAttribute('data-heading'))).toEqual([
+    null,
+    null,
+    'Subscriptions',
+    'API models',
+  ]);
+  expect(
+    fieldsets().map((set) => set.querySelectorAll('button[data-redacted="true"]').length),
+  ).toEqual([1, 0, 3, 6]);
+  expect(
+    fieldsets()[1]!.querySelector('menu[data-redacted="true"]')?.children[0]?.children,
+  ).toHaveLength(5);
+  act(() => root.render(createElement(NativeSessionModelSheet, props)));
+  expect(fieldsets().map((set) => set.getAttribute('data-heading'))).toEqual([
+    null,
+    null,
+    'API models',
+  ]);
+});
+
+it('shows a refresh button that becomes progress', () => {
   act(() => root.render(createElement(NativeSessionModelSheet, props)));
   const refresh = container.querySelector<HTMLButtonElement>(
     '[data-placement="primaryAction"] button',
@@ -226,4 +328,56 @@ it('shows skeleton rows while loading and a refresh button that becomes progress
       .querySelector('[data-placement="primaryAction"] progress')
       ?.getAttribute('aria-label'),
   ).toBe('Refreshing models');
+});
+
+it('puts the provider strip under the Default row, badges subscriptions and toggles the filter', () => {
+  act(() => root.render(createElement(NativeSessionModelSheet, props)));
+  const sets = [...container.querySelectorAll('fieldset')];
+  expect(sets[0]!.querySelector('[aria-label="default"]')).not.toBeNull();
+  const claude = sets[1]!.querySelector<HTMLButtonElement>('[aria-label="Claude subscription"]');
+  expect(claude?.querySelector('[data-filter-brand="claude"]')?.getAttribute('data-sub')).toBe(
+    'true',
+  );
+  expect(
+    sets[1]!.querySelector('[aria-label="DeepSeek"] [data-filter-brand]')?.getAttribute('data-sub'),
+  ).toBe('false');
+  act(() => claude?.click());
+  expect(props.onFilter).toHaveBeenLastCalledWith('sub:claude');
+  act(() =>
+    root.render(createElement(NativeSessionModelSheet, { ...props, filter: 'sub:claude' })),
+  );
+  act(() =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Claude subscription"]')?.click(),
+  );
+  expect(props.onFilter).toHaveBeenLastCalledWith(undefined);
+});
+
+it('puts the reasoning effort menu right under the selected model with only its levels', () => {
+  const effort = {
+    key: 'flash',
+    current: 'high',
+    options: [
+      { id: 'low', name: 'Low' },
+      { id: 'high', name: 'High' },
+    ],
+  };
+  act(() =>
+    root.render(createElement(NativeSessionModelSheet, { ...props, current: 'flash', effort })),
+  );
+  const api = [...container.querySelectorAll('fieldset')].find(
+    (set) => set.getAttribute('data-heading') === 'API models',
+  )!;
+  const children = [...api.children];
+  const row = children.findIndex((child) => child.getAttribute('aria-label') === 'V4.1 Flash, API');
+  const select = children[row + 1] as HTMLSelectElement;
+  expect(select.tagName).toBe('SELECT');
+  expect(select.getAttribute('aria-label')).toBe('Reasoning effort');
+  expect([...select.options].map((option) => option.textContent)).toEqual(['Low', 'High']);
+  act(() => {
+    select.value = 'low';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(props.onEffort).toHaveBeenCalledWith('low');
+  act(() => root.render(createElement(NativeSessionModelSheet, props)));
+  expect(container.querySelector('select')).toBeNull();
 });

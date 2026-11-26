@@ -15,7 +15,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const catalog = z
       .array(z.object({ id: z.string(), group: z.string() }).strict())
       .parse(await f.invoke('permissionCatalog'));
-    expect(catalog).toHaveLength(19);
+    expect(catalog).toHaveLength(20);
     expect(catalog).toContainEqual({ id: 'models.configure', group: 'compute' });
     expect(catalog).toContainEqual({ id: 'modelSources.manage', group: 'compute' });
     expect(catalog).toContainEqual({ id: 'workspaces.createFolder', group: 'compute' });

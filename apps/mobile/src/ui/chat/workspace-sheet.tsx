@@ -27,6 +27,7 @@ import {
 import { Text } from '../primitives/text';
 import { CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
 import { useStrings, t } from '../strings';
+import { globalTemplateLabel, templateChoices, type PresetOption } from './approval-preset';
 import {
   Sheet,
   type SheetPageProps,
@@ -40,8 +41,9 @@ import {
   SHEET_GROUP,
 } from './sheet';
 import { confirmDestructive } from '../primitives/app-dialog';
+import { NewFolderPage, type CreateFolder } from './new-folder-page';
 
-type Mode = 'main' | 'browse' | 'confirm';
+type Mode = 'main' | 'browse' | 'new-folder' | 'confirm';
 type Pending = { path: string; workspaceId?: string };
 
 type MainRow =
@@ -71,18 +73,12 @@ type MainSection = {
 
 type BrowseRow =
   | { kind: 'registered'; key: string; option: WorkspaceOption }
+  | { kind: 'new-folder'; key: string }
   | { kind: 'folder'; key: string; folder: HostFolder }
   | { kind: 'loading'; key: string }
   | { kind: 'empty'; key: string; text: string; tone?: 'warning' };
 
 const OFF = '@off';
-
-export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
-  const t = useStrings();
-  return listing.status === 'ready' ? (
-    <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
-  ) : null;
-}
 
 export function locationSection(listing: HostFolderListing) {
   const data = listing.roots
@@ -95,18 +91,30 @@ export function locationSection(listing: HostFolderListing) {
   return data.length === 0 ? [] : [{ key: 'locations', title: t.browseLocations, data }];
 }
 
-export function templateTitle(template: Pick<ApprovalTemplate, 'name' | 'title'>): string {
-  if (template.name === 'cautious') return t.autoApprovalCautious;
-  if (template.name === 'get-work-done') return t.autoApprovalGetWorkDone;
-  return template.title;
-}
-
-function inheritedTemplateLabel(selection: ApprovalTemplates): string {
-  const name = selection.globalDefault;
-  if (name === undefined) return t.contextUnavailable;
-  if (name === null) return t.autoApprovalOff;
-  const template = selection.templates.find((template) => template.name === name);
-  return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
+function templateSheetRows(value: ApprovalTemplates): MainRow[] {
+  const choices = templateChoices(value, t.autoApprovalInherit);
+  const row = (choice: PresetOption, detail: string): MainRow => ({
+    kind: 'template',
+    key: `template:${choice.value ?? OFF}`,
+    name: choice.value,
+    title: choice.title,
+    detail,
+    selected: choice.selected,
+  });
+  return [
+    ...(value.globalDefault === undefined && value.selected !== INHERIT_APPROVAL_TEMPLATE
+      ? []
+      : [
+          row(
+            choices.inherit,
+            t.autoApprovalInherited(globalTemplateLabel(value) ?? t.contextUnavailable),
+          ),
+        ]),
+    row(choices.off, t.autoApprovalOffHint),
+    ...choices.templates.map((choice, index) =>
+      row(choice, templateDescription(value.templates[index]!)),
+    ),
+  ];
 }
 
 export function templateDescription(template: ApprovalTemplate): string {
@@ -242,6 +250,7 @@ export function WorkspaceSheet({
   onAccess,
   onTemplates,
   onClose,
+  createFolder,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -255,6 +264,7 @@ export function WorkspaceSheet({
   onAccess(access: AssignmentAccess): void;
   onTemplates(templates: ApprovalTemplates): void;
   onClose(): void;
+  createFolder?: CreateFolder | undefined;
 }) {
   const t = useStrings();
   const [mode, setMode] = useState<Mode>('main');
@@ -266,6 +276,7 @@ export function WorkspaceSheet({
   const [confirmDanger, setConfirmDanger] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [creating, setCreating] = useState(false);
   const mutate = (key: string, work: () => Promise<void>, after?: () => void) => {
     if (busy !== undefined) return;
     setBusy(key);
@@ -437,6 +448,38 @@ export function WorkspaceSheet({
     );
   }
 
+  if (mode === 'new-folder' && listing.status === 'ready' && createFolder !== undefined)
+    return (
+      <Sheet
+        page={page}
+        visible={visible}
+        avoidKeyboard
+        label={t.newFolder}
+        title={t.newFolder}
+        onClose={() => {
+          if (!creating) close();
+        }}
+      >
+        <NewFolderPage
+          parent={{
+            path: listing.value.path,
+            name: listing.value.crumbs.at(-1)?.name ?? listing.value.path,
+          }}
+          create={createFolder}
+          onBusy={setCreating}
+          onBack={() => setMode('browse')}
+          onCreated={(workspace) => {
+            setOptions((current) => [
+              workspace,
+              ...current.filter((option) => option.id !== workspace.id),
+            ]);
+            setPending({ path: workspace.path, workspaceId: workspace.id });
+            setMode('confirm');
+          }}
+        />
+      </Sheet>
+    );
+
   if (mode === 'browse') {
     const grantedIds = new Set(granted.map((grant) => grant.workspaceId));
     const registered = options.filter((option) => !grantedIds.has(option.id));
@@ -454,13 +497,18 @@ export function WorkspaceSheet({
                 tone: 'warning',
               },
             ]
-          : folders.length === 0
-            ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty }]
-            : folders.map((folder) => ({
-                kind: 'folder',
-                key: `folder:${folder.path}`,
-                folder,
-              }));
+          : [
+              ...(createFolder === undefined
+                ? []
+                : [{ kind: 'new-folder', key: 'new-folder' } as const]),
+              ...(folders.length === 0
+                ? [{ kind: 'empty', key: 'empty', text: t.browseEmpty } as const]
+                : folders.map((folder) => ({
+                    kind: 'folder' as const,
+                    key: `folder:${folder.path}`,
+                    folder,
+                  }))),
+            ];
     const sections = [
       ...(registered.length === 0
         ? []
@@ -529,6 +577,14 @@ export function WorkspaceSheet({
                   tone={item.tone === 'warning' ? 'warning' : 'muted'}
                   on={SHEET_GROUP}
                 />
+              ) : item.kind === 'new-folder' ? (
+                <SettingsRow
+                  testID="folder-picker-new-folder"
+                  title={t.newFolder}
+                  icon="newFolder"
+                  on={SHEET_GROUP}
+                  onPress={busy === undefined ? () => setMode('new-folder') : undefined}
+                />
               ) : item.kind === 'registered' ? (
                 <SettingsRow
                   title={item.option.title}
@@ -553,7 +609,6 @@ export function WorkspaceSheet({
             </Grouped>
           )}
         />
-        <OpenFolderTarget listing={listing} />
         <SheetActions>
           <Button
             label={t.back}
@@ -624,37 +679,7 @@ export function WorkspaceSheet({
       ? [{ kind: 'loading', key: 'templates-loading' }]
       : templates.status === 'failed'
         ? [{ kind: 'failed', key: 'templates-failed', text: templates.error }]
-        : [
-            ...(templates.value.globalDefault === undefined &&
-            templates.value.selected !== INHERIT_APPROVAL_TEMPLATE
-              ? []
-              : [
-                  {
-                    kind: 'template' as const,
-                    key: `template:${INHERIT_APPROVAL_TEMPLATE}`,
-                    name: INHERIT_APPROVAL_TEMPLATE,
-                    title: t.autoApprovalInherit,
-                    detail: t.autoApprovalInherited(inheritedTemplateLabel(templates.value)),
-                    selected: templates.value.selected === INHERIT_APPROVAL_TEMPLATE,
-                  },
-                ]),
-            {
-              kind: 'template',
-              key: `template:${OFF}`,
-              name: null,
-              title: t.autoApprovalOff,
-              detail: t.autoApprovalOffHint,
-              selected: templates.value.selected === null,
-            },
-            ...templates.value.templates.map((template): MainRow => ({
-              kind: 'template',
-              key: `template:${template.name}`,
-              name: template.name,
-              title: templateTitle(template),
-              detail: templateDescription(template),
-              selected: templates.value.selected === template.name,
-            })),
-          ];
+        : templateSheetRows(templates.value);
 
   const sections: MainSection[] = [
     { key: 'folders', title: t.workspaceFolders, data: folderRows },

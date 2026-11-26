@@ -1,3 +1,7 @@
+import {
+  WORKSPACE_FAVICON_PATH,
+  createWorkspaceFaviconHttp,
+} from './workspaces/workspace-looks.js';
 import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -11,6 +15,7 @@ import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import type { TeamError } from './team/error.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
@@ -241,7 +246,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
     ctx,
     config,
     dshHome,
@@ -346,6 +351,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { nativeSessions: () => hostNativeSessions, externalSessions },
     ),
   );
+  followPresetEngines();
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
     core.live.publishDraft(event);
@@ -573,6 +579,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.live.publishResourceChanged('sessions'),
   );
   ctx.effect(() => () => sessionListChanges.close(), 'botharness: Session list changes');
+  const nativeSessionInput = dshHostSessionInput(
+    ctx,
+    (id) => core.ownership.resolve(id) === undefined,
+    (id) => {
+      sessionLive.observe(id, { type: 'native-input' });
+      sessionListChanges.changed(true, id);
+    },
+    (sessionId, callId) =>
+      sessionToolInputPreview(dshSessions.get(sessionId)?.snapshotEvents() ?? [], callId),
+  );
+  ctx.effect(
+    () =>
+      core.contributeNativeSessionAttention({
+        list: nativeSessionInput.attention,
+        subscribe: nativeSessionInput.subscribe,
+      }),
+    'botharness: native Session attention',
+  );
+  const stopTeamSessionWatch = team?.onAccessChanged(() => sessionListChanges.changedAll());
+  if (stopTeamSessionWatch !== undefined)
+    ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
     team,
@@ -605,11 +632,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     nativeSessions: (hostNativeSessions = dshHostSessions(
       ctx,
       dshSessions,
-      dshHostSessionInput(
-        ctx,
-        (id) => core.ownership.resolve(id) === undefined,
-        (id) => sessionLive.observe(id, { type: 'native-input' }),
-      ),
+      nativeSessionInput,
       sessionListChanges,
     )),
     takeovers,
@@ -662,6 +685,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const tobOperations = tobFeature.mountOperations(ctx, core, {
     bridgeMethods,
+    bridgeFor: invocationBridgeMethods,
     diagnosticEvents,
     hostDiagnosticEnvironment,
     readWebServices: (webCtx) =>
@@ -736,6 +760,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
     channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
     avatars.mountRoutes(connectionCtx, () => connection.fetch, core.registry);
+    const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: WORKSPACE_FAVICON_PATH,
+          methods: ['GET'],
+          requestBody: 'buffered',
+          fetch: workspaceFaviconHttp,
+        }),
+      'botharness: Workspace favicon',
+    );
     const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,
       detail: (slug) => bridgeMethods.get({ slug }),

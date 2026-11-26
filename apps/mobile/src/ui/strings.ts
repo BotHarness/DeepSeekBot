@@ -16,6 +16,7 @@ import * as humansCopy from '../features/humans/strings';
 import * as interfaceControlsCopy from '../features/interface-controls/strings';
 import * as marketplaceCopy from '../features/marketplace/strings';
 import * as memoryCopy from '../features/memory/strings';
+import * as messagingCopy from '../features/messaging/strings';
 import * as modelsCopy from '../features/models/strings';
 import * as personabotsCopy from '../features/personabots/strings';
 import * as pinnedTabCopy from '../features/pinned-tab/strings';
@@ -29,7 +30,6 @@ import * as sessionsCopy from '../features/sessions/strings';
 import * as skillsCopy from '../features/skills/strings';
 import * as takeoverCopy from '../features/takeover/strings';
 import * as teamCopy from '../features/team/strings';
-import * as tobCopy from '../features/tob/strings';
 import * as usageCopy from '../features/usage/strings';
 import * as voiceCopy from '../features/voice/strings';
 import * as workspacesCopy from '../features/workspaces/strings';
@@ -56,6 +56,7 @@ const en = {
   ...interfaceControlsCopy.en,
   ...marketplaceCopy.en,
   ...memoryCopy.en,
+  ...messagingCopy.en,
   ...modelsCopy.en,
   ...personabotsCopy.en,
   ...privateInputCopy.en,
@@ -68,7 +69,6 @@ const en = {
   ...skillsCopy.en,
   ...takeoverCopy.en,
   ...teamCopy.en,
-  ...tobCopy.en,
   ...pinnedTabCopy.en,
   ...usageCopy.en,
   ...voiceCopy.en,
@@ -125,6 +125,7 @@ const zh: typeof en = {
   ...interfaceControlsCopy.zh,
   ...marketplaceCopy.zh,
   ...memoryCopy.zh,
+  ...messagingCopy.zh,
   ...modelsCopy.zh,
   ...personabotsCopy.zh,
   ...privateInputCopy.zh,
@@ -137,7 +138,6 @@ const zh: typeof en = {
   ...skillsCopy.zh,
   ...takeoverCopy.zh,
   ...teamCopy.zh,
-  ...tobCopy.zh,
   ...pinnedTabCopy.zh,
   ...usageCopy.zh,
   ...voiceCopy.zh,

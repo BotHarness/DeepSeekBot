@@ -140,7 +140,7 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Appearance recovery | no | `scripts/e2e-appearance-recovery.mjs`, `scripts/e2e-message-history-mask.mjs` | [appearance-recovery.md](appearance-recovery.md) |
 
-| Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
+| Three-action tool approval, CLI Shell prefixes, and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs`, `scripts/e2e-mobile-shell-scope-keyboard.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
 
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |

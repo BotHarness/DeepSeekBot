@@ -8,7 +8,7 @@ import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useMemo, useSyncExternalStore } from 'react';
-import { refreshMemberPermissions } from './member-permissions';
+import { markMemberClient, refreshMemberPermissions } from './member-permissions';
 import { HostScope } from './host-scope';
 import { AppState, Platform } from 'react-native';
 import {
@@ -155,6 +155,7 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           botName: (slug: string) =>
             host.snapshot.roster?.bots.find((bot) => bot.slug === slug)?.displayName,
           approvalText: t.localApprovalText,
+          untitledSession: t.hostSessions.untitled,
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
           focusedChannelIds: attentionFocus.channels(host.saved.hostId),
@@ -349,9 +350,13 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
-  if (saved.member !== undefined) clientSelves.set(client, saved.member.humanId);
+  if (saved.member !== undefined) {
+    clientSelves.set(client, saved.member.humanId);
+    markMemberClient(client);
+  }
   warmHostConversations(saved.hostId);
   const inbox = createInbox(client, {
+    source: 'all',
     notifications: localAlerts,
     activityUpdateHost: () => t.activityUpdateHost,
   });

@@ -12,12 +12,15 @@ import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { workspaceLabel } from './composer-labels';
+import { contactCounts, externalContacts } from '../../host/messaging-settings';
+import { useResource } from '../messaging/use-resource';
 
 export interface BotPermissionsActions {
   onHistory(): void;
   onRules(): void;
   onWorkspace(): void;
   onAccess(): void;
+  onExternal(): void;
 }
 
 export function BotPermissions({
@@ -33,11 +36,15 @@ export function BotPermissions({
   const theme = useDesignTheme();
   const settings = useMemo(() => botSettings(client, bot.slug), [client, bot.slug]);
   const context = useComposerContext(settings);
+  const contacts = useMemo(() => externalContacts(client, bot.slug), [client, bot.slug]);
   useProfileFocusEffect(
     useCallback(() => {
       context.reloadGrants();
-    }, [settings]),
+      void contacts.load();
+    }, [settings, contacts]),
   );
+  const contactState = useResource(contacts);
+  const counts = contactCounts(contactState.status === 'ready' ? contactState.value : undefined);
   const copy = t.profilePermissions;
   const access = botAccess(bot);
   const workspace = workspaceLabel(context.grants);
@@ -74,6 +81,15 @@ export function BotPermissions({
       detail: accessDetail,
       icon: 'access',
       onPress: actions.onAccess,
+    },
+    {
+      testID: 'profile-permissions-external',
+      title: t.externalContacts.title,
+      ...(contactState.status === 'ready'
+        ? { detail: t.externalContacts.rowDetail(counts.pending, counts.approved) }
+        : {}),
+      icon: 'account',
+      onPress: actions.onExternal,
     },
   ];
   return (

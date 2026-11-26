@@ -244,11 +244,12 @@
     },
     {
       "id": "tob-runtime-settings",
-      "description": "#2088 reuses native Settings for exactly four live fields: assignmentConcurrencyLimit, developerMode, showBotSessions and showApprovalReviewSessions. Scoped Tob writes add source/approval/revision guards; no new settings owner.",
+      "description": "#2088 reuses native Settings for exactly five live fields: assignmentConcurrencyLimit, developerMode, showBotSessions, showApprovalReviewSessions and nativeSessionAttention (#4937). Scoped Tob writes add source/approval/revision guards; no new settings owner.",
       "scope": "Host / protected Tob Human DM",
       "surfaces": [
         "field:packages/host-client/src/shared/bot-mode-settings.ts:assignmentConcurrencyLimit",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:developerMode",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:nativeSessionAttention",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showApprovalReviewSessions",
         "field:packages/host-client/src/shared/bot-mode-settings.ts:showBotSessions",
         "setting:packages/client/src/client/assignment-concurrency-setting.tsx:{t('assignmentLimit.title')}",
@@ -552,6 +553,7 @@
         "model-plan-sub-set",
         "model-plan-customize",
         "model-plan-inherit",
+        "model-plan-reset",
         "model-plan-assignments-set",
         "model-presets",
         "model-preset-create",
@@ -792,14 +794,15 @@
     },
     {
       "id": "ui-projection",
-      "description": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
+      "description": "Authenticated live Channel projection and static avatar/banner/Workspace favicon rendering; content is managed through existing send/profile/workspace-look APIs.",
       "scope": "Client transport / transient state",
       "surfaces": [
         "route:packages/core/src/features/avatars/plugin.ts:BOT_AVATAR_PATH",
         "route:packages/core/src/features/avatars/plugin.ts:BOT_BANNER_PATH",
+        "route:packages/core/src/plugin.ts:WORKSPACE_FAVICON_PATH",
         "route:packages/core/src/features/channels/plugin.ts:CHANNEL_STREAM_PATH"
       ],
-      "exemption": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
+      "exemption": "Authenticated live Channel projection and static avatar/banner/Workspace favicon rendering; content is managed through existing send/profile/workspace-look APIs.",
       "configurable": false
     },
     {

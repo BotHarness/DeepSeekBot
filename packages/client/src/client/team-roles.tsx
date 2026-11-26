@@ -302,7 +302,9 @@ function RoleDialog({
                 {entries.map((entry) => {
                   const locked =
                     (builtin === 'admin' &&
-                      (entry.id === 'privateContent.view' || entry.id === 'modelSources.manage')) ||
+                      (entry.id === 'privateContent.view' ||
+                        entry.id === 'modelSources.manage' ||
+                        entry.id === 'bots.manageGrants')) ||
                     !canGrant(viewer, entry.id);
                   const hint = permissionHint(t, entry.id);
                   return (

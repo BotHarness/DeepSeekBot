@@ -55,15 +55,12 @@ import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
-import { useDesignTheme } from '../../../src/ui/design/theme';
 import { HomeHeader, useGlassHomeHeader } from '../../../src/ui/shell/home-header';
 import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
 import { useChatsCreate } from '../../../src/ui/shell/chats-create';
 import { hostDrawer } from '../../../src/ui/shell/host-drawer-state';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
-import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
-import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
 import { recordFeature } from '@botharness/host-client/telemetry/features';
 import {
   chatsSearchResults,
@@ -77,8 +74,6 @@ import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 import { useHideChromeOnScroll } from '../../../src/ui/shell/tab-chrome';
-import { useTabOrder } from '../../../src/ui/interface-preferences';
-import { TobEntryBar, tobEntryBarHeight } from '../../../src/ui/shell/tob-entry-bar';
 
 import {
   environmentChatList,
@@ -126,7 +121,6 @@ const HomeContent = memo(function HomeContent({
   hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const prepared = useRef<typeof client>(undefined);
@@ -138,7 +132,7 @@ const HomeContent = memo(function HomeContent({
       const idle = requestIdleCallback(() => {
         prepared.current = client;
         router.prefetch('/activity');
-        stop = prefetchInbox(client, { activity: true, section: 'action' });
+        stop = prefetchInbox(client, { activity: true, section: 'action', source: 'all' });
       });
       return () => {
         cancelIdleCallback(idle);
@@ -241,29 +235,8 @@ const HomeContent = memo(function HomeContent({
       };
     }, [enrollment, effectiveFilter]),
   );
-  const recent = useRecentChats();
-  const tobComputers = hosts.map(tobComputer);
-  const tobHostId = tobModeHostId(
-    effectiveFilter,
-    tobComputers,
-    recentHostIds(recent),
-    saved?.hostId,
-  );
-  const tobHref = tobModeHref(
-    tobHostId,
-    tobComputers,
-    Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : 'web',
-  );
-  const tobName = hosts
-    .find((host) => host.saved.hostId === tobHostId)
-    ?.snapshot.roster?.bots.find((bot) => bot.slug === tobHref?.params.slug)?.displayName;
   const browsing = !searching && !searchFocused && query === '';
   const hideChrome = useHideChromeOnScroll(browsing);
-  const pinnedTab = useTabOrder().includes('pinned');
-  const tobEntry =
-    tobHref !== undefined && browsing && !pinnedTab
-      ? { href: tobHref, name: tobName ?? tobHref.params.slug }
-      : undefined;
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -711,8 +684,7 @@ const HomeContent = memo(function HomeContent({
                 renderScrollComponent={renderKeyboardFormScroll}
                 scrollEventThrottle={1}
                 contentContainerStyle={{
-                  paddingBottom:
-                    bottom + space.x6 + (tobEntry ? tobEntryBarHeight(theme) + space.x3 : 0),
+                  paddingBottom: bottom + space.x6,
                 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
@@ -901,7 +873,6 @@ const HomeContent = memo(function HomeContent({
           </PullToRefresh>
         </LastChatSwipe>
       </HomeHeader>
-      {tobEntry ? <TobEntryBar href={tobEntry.href} name={tobEntry.name} /> : null}
       {create.sheet}
       <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (

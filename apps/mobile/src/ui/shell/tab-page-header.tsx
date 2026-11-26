@@ -18,7 +18,6 @@ export function TabPageHeader({
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const stacked = theme.largeText && actions != null;
   const contentHeight =
     Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : theme.touch;
   return (
@@ -31,18 +30,17 @@ export function TabPageHeader({
         paddingBottom: space.x2,
         paddingLeft: insets.left + tabHeader.gutter,
         paddingRight: insets.right + tabHeader.gutter,
-        flexDirection: stacked ? 'column' : 'row',
-        alignItems: stacked ? 'stretch' : 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: space.x2,
         minHeight: insets.top + contentHeight + space.x2 * 2,
       }}
     >
-      <View style={{ flex: stacked ? undefined : 1, minWidth: 0 }}>{leading}</View>
+      <View style={{ flex: 1, minWidth: 0 }}>{leading}</View>
       {actions == null ? null : (
         <View
           style={{
             flexDirection: 'row',
-            alignSelf: stacked ? 'flex-end' : undefined,
             gap: space.x2,
           }}
         >

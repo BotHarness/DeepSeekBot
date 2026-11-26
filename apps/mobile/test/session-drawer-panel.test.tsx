@@ -51,9 +51,14 @@ vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }
 vi.mock('../src/ui/chat/row-status-glyph', () => ({
   RowStatusGlyph: ({ status }: { status: string }) => <span data-status={status} />,
 }));
-vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => <span data-host-glyph="" /> }));
+vi.mock('../src/ui/shell/host-tile', () => ({
+  HostGlyph: ({ color }: { color: string }) => <span data-host-glyph={color} />,
+}));
 vi.mock('../src/host/native-host-look', () => ({
-  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+  useHostLook: (hostId: string) =>
+    hostId === 'laptop'
+      ? { icon: { kind: 'symbol', id: 'laptop' }, color: 'green' }
+      : { icon: { kind: 'symbol', id: 'desktop' } },
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({
   DrawerMaterial: () => null,
@@ -317,6 +322,21 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
 });
 
+it('colours the leading tile by folder and the Host icon by environment', async () => {
+  const { view } = await render({ second: true });
+  const fill = (id: string) =>
+    JSON.parse(
+      view.querySelector(`[data-testid="session-monogram-${id}"]`)!.getAttribute('data-style')!,
+    ).backgroundColor;
+  expect(fill('fresh')).not.toBe(fill('old'));
+  const ink = (id: string) =>
+    view
+      .querySelector(`[data-testid="session-host-mark-${id}"] [data-host-glyph]`)!
+      .getAttribute('data-host-glyph');
+  expect(ink('fresh')).toBe(ink('old'));
+  expect(ink('remote')).not.toBe(ink('fresh'));
+});
+
 it('puts the status beside the name and the model icon beside the place line', async () => {
   const { view } = await render();
   const titleLine = view.querySelector('[data-testid="session-title-line-fresh"]')!;
@@ -364,6 +384,49 @@ it('renders the Stacked-style Session list with ✎ in the header and Search abo
 it('hides ✎ from a member on the Stacked-style Session list', async () => {
   const { view } = await render({ variant: 'page', canCreate: false });
   expect(view.querySelector('[data-testid="session-list-new"]')).toBeNull();
+});
+
+it('takes the Host’s needs-you rule for list status and falls back for an older Host', async () => {
+  const { sessionRowStatus } = await import('../src/features/sessions/session-drawer-row');
+  const { readHostSessionList } = await import('@botharness/host-client/host-sessions');
+  const read = await readHostSessionList(
+    client(
+      vi.fn(async () => ({
+        queryVersion: 1,
+        sources: [{ kind: 'native' }],
+        sessions: [
+          {
+            sessionId: 'failed',
+            source: { kind: 'native' },
+            running: false,
+            status: 'needs-you',
+            attention: 'failed',
+            updatedAt: now,
+          },
+          {
+            sessionId: 'odd',
+            source: { kind: 'native' },
+            running: true,
+            status: 'later',
+            attention: 'maybe',
+            updatedAt: now,
+          },
+        ],
+      })),
+    ),
+    {},
+  );
+  const [failed, odd] = read.sessions;
+  expect(failed).toMatchObject({ status: 'needs-you', attention: 'failed' });
+  expect(odd).not.toHaveProperty('status');
+  expect(odd).not.toHaveProperty('attention');
+  expect(sessionRowStatus(failed!)).toBe('needs-you');
+  expect(sessionRowStatus(odd!)).toBe('working');
+  expect(sessionRowStatus({ running: true, status: 'idle' })).toBe('done');
+  expect(sessionRowStatus({ running: false, status: 'running' })).toBe('working');
+  expect(sessionRowStatus({ running: false, attention: 'question' })).toBe('needs-you');
+  expect(sessionRowStatus({ running: false, waiting: true })).toBe('needs-you');
+  expect(sessionRowStatus({ running: false })).toBe('done');
 });
 
 it('shows the cached Sessions at once when the drawer opens again, and refreshes them in the background', async () => {

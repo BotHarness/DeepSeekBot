@@ -7,6 +7,9 @@
 - `packages/core/src/tob/**`
 - `packages/core/src/bots/cli-tob.ts`
 - `packages/client/src/client/{tob-presentation,tob-requests}.ts`
+- `apps/mobile/src/features/pinned-tab/**`
+- `apps/mobile/src/ui/primitives/tab-order-list*`
+- `apps/mobile/src/ui/shell/tab-slots.ts`
 
 ## Terms
 
@@ -144,14 +147,14 @@ Use only native macOS accessibility and screenshots in an isolated Profile for t
 
 A fresh Profile whose journey tutorial is `not-started` opens a six-step dialog (`[data-intro-step]`: welcome, theme, model, phone, community, start) the first time it enters Bot mode. The tutorial starts when the dialog closes. Drive it in a new browser against a fresh isolated Profile (`verify-app launch`), step with Next, and capture each step in light and dark. Proof per step: the theme step changes `botharness:appearance:v1` and the visible theme at once, and an uploaded wallpaper shows behind the dialog. For the model step, follow the [Model providers journey](model-providers.md). The community step shows the live GitHub star count, the cached count or a plain Star offline. Picking a starter on the last step closes the dialog, sends that text once through the Tob DM composer and Tob replies, after which `deepseekbot onboarding` reports the tutorial active. Re-entry in the same browser must not reopen it (`botharness/onboarding/intro-v1/<profileId>`). Restarting the tutorial from Settings opens it again. Profiles that already started, finished or skipped the tutorial never see it.
 
-## Mobile Tob entry bar (#5106)
+## Mobile Pinned tab and tab order (#5195, #5196)
 
-Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qualify this entry. Pair only a dedicated QA Host. Read the roster's Tob identity through the CLI and compare it with the native route/chat after entry. No model reply is required to verify navigation.
+Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qualify this entry. Pair only a dedicated QA Host. Read the roster's Tob identity through the CLI and compare it with the Pinned tab's conversation. No model reply is required to verify navigation. Tob Mode and the Tob entry bar are retired (#5198): Chats shows no Composer-shaped bar, and `tob-entry-bar` must be absent.
 
-- On Chats, the Composer-shaped `tob-entry-bar` sits above the tab island. Tap it: iOS pushes `/dm/[slug]?compose=1` with the zoom navigation transition from the bar, Android pushes `/dm-tob/[slug]?compose=1` with the container transform. Both land in the existing Tob DM with the Composer focused and the keyboard up; Back returns to Chats.
-- Preserve the selected computer's Tob; All/cloud-only filters choose the most recent paired computer. With no paired computer, or before its roster names Tob, the bar is absent. Search focus or a query hides it.
-- Pulling down on Chats only refreshes and never opens Tob. Scrolling the Chats list down hides the bar and the tab island together; scrolling up or reaching the top shows them.
-- Record light/dark transition video, Reduce Motion (no zoom/transform, still focused), large text and the bar's accessible name ("Message {Tob}", hint "Opens Tob Mode"). Test the normal Tob-row push separately. Keep physical/Simulator/Android and source SHA results separate.
+- With no binding, `navigation-pinned` opens Tob's DM of the selected Environment (All/cloud filters use the most recently used computer Environment), with its avatar as the tab icon.
+- Settings → Tab bar (`settings-tab-bar`): drag a row by its handle (iOS uses the system List reorder control; Android the Material drag handle) and confirm the tab bar follows at once without remounting the tabs; the accessibility Move up/Move down actions do the same. Sessions appears in the list only while its switch is on. Reset restores Chats, Pinned, Activity, Sessions, Settings.
+- Pinned conversation (`settings-pinned-conversation`): pick another Bot DM or Channel; the tab's avatar, badge and screen follow. Pick Default to return to Tob. Each Environment keeps its own choice.
+- Pulling down on Chats only refreshes. Record light/dark, large text and the accessible names. Keep physical/Simulator/Android and source SHA results separate.
 
 Retain the first failure with native screenshot/AX/video and exact source/binary identity, then restore preferences, remove only this run's temporary pairing, revoke its Host key and stop owned resources. The full device matrix is tracked in #3090 and #3093.
 

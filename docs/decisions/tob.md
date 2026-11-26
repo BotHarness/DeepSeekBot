@@ -18,20 +18,20 @@ Why: authority tied to a name or persona would turn editable persona files and i
 
 Enforced by: `tob.test.ts` (concurrent clients converge on one Tob and one DM, restart keeps the identity, interrupted provisioning never restores a revoked Grant).
 
-## 2. The Human reaches Tob through its DM; Tob Mode is a mobile entrance to it
+## 2. The Human reaches Tob through its DM; the phone pins it as a tab
 
 <a id="adr-0268"></a>
-_Formerly ADR-0268, which removed the Home panel of ADR-0223._
+_Formerly ADR-0268, which removed the Home panel of ADR-0223. Tob Mode and the Tob entry bar (#5106) were removed by #5191 (#5198)._
 
 There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open Tob" command does that without changing the layout; in Simple layout the Human can hide the Side column to focus on the conversation ([ADR-0269](onboarding.md#adr-0269)). Cross-Bot attention stays in Activity Center, and the Human asks Tob in conversation to create a Bot.
 
-On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: the **Tob entry bar**, a Composer-shaped tap target above the tab island on Chats (#5106, replacing pull-to-Tob). A tap opens the Tob DM with the Composer focused and the keyboard up, through the iOS zoom navigation transition or an Android Material container transform (instant under Reduce Motion); Back returns to Chats. The bar targets the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter, and is hidden when there is no Tob. Pulling down on Chats only refreshes. The Tob row stays in the Chats list.
+On the phone, the **Pinned tab** in the tab bar opens one conversation as its own tab ([mobile UI](mobile-ui.md), #5195). It defaults to Tob's DM, then the most recent conversation, and the Human can bind it to any Bot DM, human DM or Channel and move it in Settings (#5196). There is no Tob Mode and no Tob entry bar: Chats is a plain list with no Composer-shaped bar, so the phone never shows a Composer outside a conversation. The Tob row stays in the Chats list, and tapping it opens the same DM inside Chats. Pulling down on Chats only refreshes.
 
 **Tob Delegation** uses the existing Bot-to-Bot DM: Tob picks a colleague, sends without asking the Human first, and reports back in its Human DM. Each send shows the existing action notice; approval ownership, the Bot-hop limit and Tob's CLI authority do not change. Since §11 delegation is an ordinary ability of every Bot, and a grant holder may be a Group member without the CLI in Group turns.
 
-Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with the Tob entry bar so the entrance is visible and lands ready to type.
+Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with a Composer-shaped Tob entry bar. That bar put a fake Composer on Chats and only reached Tob; the Pinned tab reaches any conversation in one tap and keeps its own stack, scroll position and draft (#5191).
 
-Enforced by: `apps/mobile/test/tob-mode.test.tsx`, `tob-entry-bar.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
+Enforced by: `apps/mobile/test/pinned-tab-model.test.ts`, `tab-order-settings.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
 
 ## 3. Each Shell execution gets its own short-lived CLI broker
 
@@ -163,7 +163,23 @@ _Added for #5191 (grilling session of 2026-11-26) and implemented in #5193; supe
 - **Prompt and cache.** A Bot with the grant gets one short line: for problems with the App, run `deepseekbot capabilities` and `doctor` first and use the CLI itself. The delegation half of the old `STEWARD_PROMPT` is dropped. Turning a grant on or off never edits a running Session's system prompt and never changes its tool list (Bots with and without the grant have the same tools). The Host appends a `[Host timeline]` marker to the Bot's Human DM instead, in the form of the model switch marker, stating that the Bot can or can no longer manage the App. The line moves into the system prompt at the Session's next compaction or in a new Session, when the prefix is rebuilt anyway.
 - **Tob is an ordinary Bot.** Each new Profile still creates the built-in Tob with both grants on, as the first Bot the Human talks to and the one that helps configure the rest of the App after onboarding. It can be renamed, archived, deleted and shared to the Marketplace. Deleting or archiving the last Bot with "Manage the App" warns that no Bot will be able to manage the App until the Human turns the grant on for another.
 - **Pinned tab.** It defaults to the built-in Tob's DM and falls back to the most recent conversation in Chats when Tob is gone. It is otherwise unrelated to the grant.
-- **Team mode.** Only the Owner's Bots can hold a management grant for now. When the Owner changes, the former Owner's management grants are revoked and the new Owner's Tob gets both. A scoped grant for members' Bots is a separate issue. Importing a Bot never brings a grant.
+- **Team mode.** The Owner's Bots can hold a management grant, and so can the Bots of a member the Owner authorized (see below). When the Owner changes, the former Owner's management grants are revoked and the new Owner's Tob gets both. Importing a Bot never brings a grant.
+
+### Members' Bots
+
+<a id="member-management-grant"></a>
+_Added for #5461 (Human, 2026-11-26)._
+
+Whether a Team member's Bot can hold a management grant depends on whether the Owner authorized that member.
+
+- **Permission.** `bots.manageGrants` ("Turn on management for own Bots") is an Owner-granted Host permission, like `privateContent.view` and `modelSources.manage`: only the Owner can put it in a role, and the built-in Admin role never carries it.
+- **Switching.** An active member whose role holds it turns "Manage the App" and "Manage other Bots" on or off for their own Bots, in Bot settings or with `deepseekbot bot-grant`, with the same confirmation, the same Human-only rule and the same self-escalation guard. They cannot switch another Human's Bots.
+- **When it counts.** A member Bot's grant counts only while Team mode is on, its owner is active and one of the owner's roles holds the permission. Withdrawing the permission, suspending or deactivating the member, or turning Team mode off stops it at once; the stored grant stays dormant, as for a former Owner's Bots. `managementGrants` and the last-App-manager warning count only the caller's own Bots.
+- **Authority.** The scoped CLI runs as the member, only in that member's own accepted Human DM turn, and every command goes through the member's bridge permissions. Member Bots get the commands that already run through a per-Human bridge: `create` and Share Drafts under "Manage the App", and the member's other Bots' PersonaBot Profile and Memory edits under "Manage other Bots". Settings and models, maintenance, `doctor` and diagnostic logs, voice, Channels/Groups, Memory leases and the Host CLI passthrough (which signs in with the Owner's Host token) stay with the Owner's Bots and refuse with `owner-bot-required`. Archiving, reactivating and deleting Bots also refuse for member Bots; the member still does those for their own Bots in the App.
+
+Why: the member already owns those Bots and can do the same things by hand; the Owner decides who may hand that to a Bot, so a member cannot raise their own Bot's authority above their own.
+
+Enforced by: `member-management-grants.test.ts`.
 
 Why: ADR-0365 made Steward a singleton role: exactly one Bot per Environment, moved by an atomic transfer. Reviewing it before #5206 merged (grilling session of 2026-11-26, #5191), the Human found that the singleton bought very little:
 

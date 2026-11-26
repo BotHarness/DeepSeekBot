@@ -6,7 +6,9 @@ import type {
   WireHumanAttentionPage,
   WireTeamMode,
 } from '@botharness/host-protocol/wire';
+import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 import { isApprovalCard } from './approval-readers';
+import { MethodRefused } from './client-errors';
 import {
   answer,
   count,
@@ -42,6 +44,7 @@ const kinds: ReadonlySet<unknown> = new Set<WireHumanAttentionItem['kind']>([
   'channel-unread',
   'channel-reply',
   'channel-mention',
+  NATIVE_SESSION_ATTENTION_KIND,
 ]);
 const handledKinds: ReadonlySet<unknown> = new Set([
   'user-question',
@@ -54,17 +57,78 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const hasText = (row: Record<string, unknown>, keys: string[]) =>
   keys.every((key) => text(row[key]));
 
-function isAttentionItem(value: unknown, notifications: boolean): value is WireHumanAttentionItem {
-  const row = record(value);
-  if (
-    !row ||
-    !hasText(row, ['id', 'createdAt', 'botSlug', 'summary']) ||
-    !categories.has(row['category']) ||
-    !kinds.has(row['kind'])
-  )
-    return false;
-  if (
-    ![
+const isString = (value: unknown): value is string => typeof value === 'string';
+const filled = (value: unknown): boolean => isString(value) && value !== '';
+
+function isNativeApproval(request: Record<string, unknown>): boolean {
+  return (
+    filled(request['toolName']) &&
+    optional(request['callId'], filled) &&
+    optional(request['reason'], isString) &&
+    optional(request['preview'], isString)
+  );
+}
+
+function isQuestionOption(value: unknown): boolean {
+  const option = record(value);
+  return (
+    option !== undefined && isString(option['label']) && optional(option['description'], isString)
+  );
+}
+
+function isQuestionItem(value: unknown): boolean {
+  const item = record(value);
+  return (
+    item !== undefined &&
+    filled(item['id']) &&
+    isString(item['question']) &&
+    optional(item['detail'], isString) &&
+    optional(item['header'], isString) &&
+    optional(item['multiSelect'], isBoolean) &&
+    optional(
+      item['options'],
+      (options) => Array.isArray(options) && options.every(isQuestionOption),
+    )
+  );
+}
+
+function isNativeQuestion(request: Record<string, unknown>): boolean {
+  const questions = request['questions'];
+  return (
+    Array.isArray(questions) &&
+    questions.length > 0 &&
+    questions.every(isQuestionItem) &&
+    optional(request['continued'], isBoolean)
+  );
+}
+
+function isNativeSessionItem(row: Record<string, unknown>): boolean {
+  const native = record(row['nativeSession']);
+  return (
+    hasText(row, ['id', 'createdAt', 'summary', 'requestId']) &&
+    row['category'] === 'action' &&
+    row['botSlug'] === '' &&
+    native !== undefined &&
+    text(native['sessionId']) &&
+    (native['input'] === 'approval' || native['input'] === 'question') &&
+    optional(native['sessionTitle'], text) &&
+    optional(native['folderName'], text) &&
+    optional(native['cwd'], text) &&
+    optional(native['request'], (value) => {
+      const request = record(value);
+      return (
+        request !== undefined &&
+        request['requestId'] === row['requestId'] &&
+        request['kind'] === native['input'] &&
+        (request['kind'] === 'approval' ? isNativeApproval(request) : isNativeQuestion(request))
+      );
+    })
+  );
+}
+
+function hasValidOptionalFields(row: Record<string, unknown>): boolean {
+  return (
+    [
       'channelId',
       'channelName',
       'messageId',
@@ -74,18 +138,32 @@ function isAttentionItem(value: unknown, notifications: boolean): value is WireH
       'responseMessageId',
       'responseSourceEventId',
       'snoozedUntil',
-    ].every((key) => optional(row[key], text)) ||
-    !optional(row['unreadCount'], count) ||
-    !optional(row['isUnread'], isBoolean) ||
-    !optional(row['approval'], isApprovalCard) ||
-    !optional(row['author'], (value) => {
+    ].every((key) => optional(row[key], text)) &&
+    optional(row['unreadCount'], count) &&
+    optional(row['isUnread'], isBoolean) &&
+    optional(row['approval'], isApprovalCard) &&
+    optional(row['author'], (value) => {
       const author = record(value);
       return (
         author?.['kind'] === 'bot' && text(author['slug']) && optional(author['displayName'], text)
       );
     })
+  );
+}
+
+function isAttentionItem(value: unknown, notifications: boolean): value is WireHumanAttentionItem {
+  const row = record(value);
+  if (row?.['kind'] === NATIVE_SESSION_ATTENTION_KIND)
+    return isNativeSessionItem(row) && hasValidOptionalFields(row);
+  if (row?.['nativeSession'] !== undefined) return false;
+  if (
+    !row ||
+    !hasText(row, ['id', 'createdAt', 'botSlug', 'summary']) ||
+    !categories.has(row['category']) ||
+    !kinds.has(row['kind'])
   )
     return false;
+  if (!hasValidOptionalFields(row)) return false;
   const category = row['category'];
   const kind = row['kind'];
   const assignment =
@@ -150,7 +228,21 @@ function isAttentionPage(value: unknown): value is WireHumanAttentionPage {
     optional(page['nextCursor'], text) &&
     optional(page['queryVersion'], (version) => version === 1) &&
     optional(page['notificationVersion'], (version) => version === 1) &&
-    optional(page['dismissed'], isBoolean)
+    optional(page['dismissed'], isBoolean) &&
+    optional(
+      page['source'],
+      (source) => source === 'all' || source === 'bot' || source === 'native',
+    )
+  );
+}
+
+export type BotAttentionItem = WireHumanAttentionItem & {
+  kind: Exclude<WireHumanAttentionItem['kind'], typeof NATIVE_SESSION_ATTENTION_KIND>;
+};
+
+export function botAttentionItems(items: readonly WireHumanAttentionItem[]): BotAttentionItem[] {
+  return items.filter(
+    (item): item is BotAttentionItem => item.kind !== NATIVE_SESSION_ATTENTION_KIND,
   );
 }
 
@@ -162,7 +254,14 @@ export async function readHumanAttention(
   host: HostCall,
   args: Record<string, unknown>,
 ): Promise<WireHumanAttentionPage> {
-  return parseHumanAttentionPage(await host.call('humanAttention', args));
+  try {
+    return parseHumanAttentionPage(await host.call('humanAttention', args));
+  } catch (error) {
+    if (args['source'] === undefined || !(error instanceof MethodRefused)) throw error;
+    if (error.code !== 'gateway/arguments-invalid') throw error;
+    const { source: _source, ...older } = args;
+    return parseHumanAttentionPage(await host.call('humanAttention', older));
+  }
 }
 
 function isDismissal(value: unknown): value is WireAttentionDismissal {

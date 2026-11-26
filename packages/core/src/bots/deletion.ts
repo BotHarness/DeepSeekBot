@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TobError } from '../tob/service.js';
 import { managementGrantHolders } from '../tob/management-grants.js';
+import { botOwner } from '../team/bot-access.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -335,7 +336,7 @@ export function createPersonaBotDeletions(options: {
       refusal = error instanceof Error ? error.message : 'Memory ownership check failed';
     }
     const dependencies = options.dependencies(slug);
-    const appManagers = managementGrantHolders(port)
+    const appManagers = managementGrantHolders(port, botOwner(record))
       .filter((holder) => holder.capabilities.includes('manage-app'))
       .map((holder) => holder.botSlug);
     const lastAppManager = appManagers.length === 1 && appManagers[0] === slug;

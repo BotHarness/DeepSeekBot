@@ -6,17 +6,19 @@ export interface SettingsHostChoice {
 type OpenHostSettings = (host?: SettingsHostChoice) => void;
 
 let opener: OpenHostSettings | undefined;
+let sectionOpener: ((sectionId: string) => void) | undefined;
 
-export function mountHostSettingsOpener(
-  open: OpenHostSettings,
-  openSection?: (sectionId: string) => void,
-): () => void {
+export function mountHostSettingsOpener(settings: {
+  readonly openHost: OpenHostSettings;
+  readonly open: (sectionId: string) => void;
+}): () => void {
+  const open = settings.openHost;
+  const section = (sectionId: string): void => settings.open(sectionId);
   opener = open;
-  const unmountSection =
-    openSection === undefined ? undefined : mountSettingsSectionOpener(openSection);
+  sectionOpener = section;
   return () => {
     if (opener === open) opener = undefined;
-    unmountSection?.();
+    if (sectionOpener === section) sectionOpener = undefined;
   };
 }
 
@@ -26,15 +28,8 @@ export function openHostSettings(host?: SettingsHostChoice): boolean {
   return true;
 }
 
-type OpenSettingsSection = (sectionId: string) => void;
-
-let sectionOpener: OpenSettingsSection | undefined;
-
-export function mountSettingsSectionOpener(open: OpenSettingsSection): () => void {
-  sectionOpener = open;
-  return () => {
-    if (sectionOpener === open) sectionOpener = undefined;
-  };
+export function canOpenSettingsSection(): boolean {
+  return sectionOpener !== undefined;
 }
 
 export function openSettingsSection(sectionId: string): boolean {

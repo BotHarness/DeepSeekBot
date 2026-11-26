@@ -95,10 +95,14 @@ function RootNavigator() {
     ['model-preset', undefined],
     ['routing-group', undefined],
     ['prompts', t.prompts.title],
+    ['im-apps', t.imApps.title],
+    ['im-app', t.imApps.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],
     ['app-icon', t.appIcon],
     ['activity-count', t.activityCountSettings.title],
+    ['tab-bar', t.tabBarSettings.title],
+    ['pinned-conversation', t.tabBarSettings.pickerTitle],
     ['chat-background', t.chatBackground.global],
   ];
   const profileListeners = swipeEntryListeners(
