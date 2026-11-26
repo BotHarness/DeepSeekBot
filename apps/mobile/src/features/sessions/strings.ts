@@ -40,12 +40,6 @@ export const en = {
     running: 'Running',
     idle: 'Idle',
     waiting: 'Needs you',
-    need: {
-      approval: 'Needs approval',
-      question: 'Has a question',
-      failed: 'Failed',
-      waiting: 'Needs you',
-    },
     done: 'Done',
     allEnvironments: 'All environments',
     computerScopeOnly:
@@ -267,12 +261,6 @@ export const zh: typeof en = {
     running: '运行中',
     idle: '空闲',
     waiting: '需要你',
-    need: {
-      approval: '需要批准',
-      question: '有个问题',
-      failed: '失败',
-      waiting: '需要你',
-    },
     done: '已完成',
     allEnvironments: '全部环境',
     computerScopeOnly: '会话运行在电脑上。请在设置中选择一台电脑或“全部环境”。',
