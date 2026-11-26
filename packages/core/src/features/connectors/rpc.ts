@@ -20,14 +20,16 @@ export const connectorsRpc = {
   connectorConnect(
     service: string,
     label?: string,
+    access?: ConnectorAccess,
   ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
-    return unwrapAsync(this.methods.connectorConnect({ service, label }));
+    return unwrapAsync(this.methods.connectorConnect({ service, label, access }));
   },
 
   connectorReconnect(
     accountId: string,
+    access?: ConnectorAccess,
   ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
-    return unwrapAsync(this.methods.connectorReconnect({ accountId }));
+    return unwrapAsync(this.methods.connectorReconnect({ accountId, access }));
   },
 
   connectorRefresh(): Promise<ConnectorsView> {
@@ -54,6 +56,7 @@ export const connectorsRpc = {
     url: string;
     name?: string;
     label?: string;
+    access?: ConnectorAccess;
   }): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     return unwrapAsync(this.methods.connectorMcpAdd(input));
   },

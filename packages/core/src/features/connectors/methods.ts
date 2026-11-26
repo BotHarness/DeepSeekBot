@@ -7,7 +7,7 @@ import {
   type ConnectorsView,
 } from '../../connectors/service.js';
 import type { McpAppSearch } from '../../connectors/remote.js';
-import type { ConnectorAccountRecord } from '../../connectors/store.js';
+import type { ConnectorAccess, ConnectorAccountRecord } from '../../connectors/store.js';
 
 export interface ConnectorsBridgeDeps {
   connectors?: ConnectorService;
@@ -39,8 +39,18 @@ export interface ConnectorsBridgeMethods {
   botConnectors(payload: unknown): BridgeResult<{ connectors: BotConnector[] }>;
 }
 
+function signInAccess(value: unknown): { access?: ConnectorAccess } | undefined {
+  if (value === undefined) return {};
+  return value === 'read' || value === 'write' ? { access: value } : undefined;
+}
+
 function failure(error: unknown): BridgeResult<never> {
   if (!(error instanceof ConnectorError)) throw error;
+  if (error.code === 'read-only-unsupported')
+    return {
+      ok: false,
+      error: { code: 'connector-read-only-unsupported', message: error.message },
+    };
   return {
     ok: false,
     error: {
@@ -111,20 +121,34 @@ export function createConnectorsBridgeMethods(
       const source = asObject(payload);
       const service = source['service'];
       const label = source['label'];
-      if (typeof service !== 'string' || (label !== undefined && typeof label !== 'string'))
-        return Promise.resolve(invalidInput('service and an optional label are required'));
+      const access = signInAccess(source['access']);
+      if (
+        typeof service !== 'string' ||
+        (label !== undefined && typeof label !== 'string') ||
+        access === undefined
+      )
+        return Promise.resolve(
+          invalidInput(
+            'service, an optional label and an optional access (read or write) are required',
+          ),
+        );
       return guarded((connectors) =>
         connectors.connect({
           service,
           ...(label === undefined ? {} : { label }),
+          ...access,
         }),
       );
     },
     connectorReconnect(payload) {
-      const accountId = asObject(payload)['accountId'];
-      if (typeof accountId !== 'string')
-        return Promise.resolve(invalidInput('accountId is required'));
-      return guarded((service) => service.reconnect(accountId));
+      const source = asObject(payload);
+      const accountId = source['accountId'];
+      const access = signInAccess(source['access']);
+      if (typeof accountId !== 'string' || access === undefined)
+        return Promise.resolve(
+          invalidInput('accountId and an optional access (read or write) are required'),
+        );
+      return guarded((service) => service.reconnect(accountId, access.access));
     },
     connectorRefresh: () => guarded(async (service) => named(await service.refresh())),
     connectorSearch(payload) {
@@ -158,17 +182,24 @@ export function createConnectorsBridgeMethods(
       const url = source['url'];
       const name = source['name'];
       const label = source['label'];
+      const access = signInAccess(source['access']);
       if (
         typeof url !== 'string' ||
         (name !== undefined && typeof name !== 'string') ||
-        (label !== undefined && typeof label !== 'string')
+        (label !== undefined && typeof label !== 'string') ||
+        access === undefined
       )
-        return Promise.resolve(invalidInput('url and an optional name and label are required'));
+        return Promise.resolve(
+          invalidInput(
+            'url, an optional name and label and an optional access (read or write) are required',
+          ),
+        );
       return guarded((service) =>
         service.remote.add({
           url,
           ...(name === undefined ? {} : { name }),
           ...(label === undefined ? {} : { label }),
+          ...access,
         }),
       );
     },

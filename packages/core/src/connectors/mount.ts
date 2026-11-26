@@ -12,7 +12,6 @@ import {
   CONNECTOR_TOOL_PREFIX,
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
-  mcpPublicToolName,
   remoteMcpServerName,
   remoteMcpServerNames,
   remoteMcpToolDenial,
@@ -29,8 +28,6 @@ interface RemoteMount {
   accountId: string;
   signature: string;
   fiber: Fiber;
-  access: ConnectorAccess;
-  readOnly: ReadonlySet<string> | undefined;
 }
 
 interface Mounted {
@@ -260,8 +257,6 @@ export function mountConnectors(
       try {
         connection = await service.remote.connection(connector.accountId);
       } catch {
-        const kept = entry.remote.get(serverName);
-        if (kept !== undefined) kept.access = connector.access;
         renewAt = Math.min(renewAt ?? Infinity, Date.now() + LOOKUP_RETRY_MS);
         continue;
       }
@@ -276,10 +271,7 @@ export function mountConnectors(
       if (connection.expiresAt !== undefined)
         renewAt = Math.min(renewAt ?? Infinity, connection.expiresAt - RENEW_EARLY_MS);
       const signature = remoteSignature(connection);
-      if (current?.signature === signature) {
-        current.access = connector.access;
-        continue;
-      }
+      if (current?.signature === signature) continue;
       if (current !== undefined) {
         entry.remote.delete(serverName);
         await Promise.resolve(current.fiber.dispose()).catch(() => undefined);
@@ -288,8 +280,6 @@ export function mountConnectors(
       const mount: RemoteMount = {
         accountId: connector.accountId,
         signature,
-        access: connector.access,
-        readOnly: undefined,
         fiber: entry.agentCtx.plugin(mcpClient, {
           transport: 'streamable-http',
           serverName,
@@ -299,24 +289,6 @@ export function mountConnectors(
         }),
       };
       entry.remote.set(serverName, mount);
-      const load = (): void => {
-        void service.remote.tools(connector.accountId).then(
-          (tools) => {
-            mount.readOnly = new Set(
-              tools
-                .filter((tool) => tool.readOnly)
-                .map((tool) => mcpPublicToolName(serverName, tool.name)),
-            );
-          },
-          () => {
-            if (entry.disposed || entry.remote.get(serverName) !== mount) return;
-            setTimeout(() => {
-              if (!entry.disposed && entry.remote.get(serverName) === mount) load();
-            }, LOOKUP_RETRY_MS).unref?.();
-          },
-        );
-      };
-      load();
     }
     if (renewAt !== undefined && !entry.disposed)
       entry.renew = setTimeout(
@@ -377,24 +349,22 @@ export function mountConnectors(
       }),
     'botharness: connector changes',
   );
-  ctx.tools.guard(({ name, agent, arguments: args }) => {
+  ctx.tools.guard(({ name, agent }) => {
     if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
     const entry = agent === undefined ? undefined : mounted.get(agent);
     if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
-    const access = new Map(service.forBot(entry.botSlug).map((c) => [c.accountId, c]));
-    const servers = new Map(
-      [...entry.remote].flatMap(([serverName, mount]) => {
-        const connector = access.get(mount.accountId);
-        if (connector === undefined || connector.status !== 'active') return [];
-        return [
-          [
-            serverName,
-            { access: connector.access, readOnly: mount.readOnly, service: connector.service },
-          ] as const,
-        ];
-      }),
+    const active = new Set(
+      service
+        .forBot(entry.botSlug)
+        .filter((connector) => connector.status === 'active')
+        .map((connector) => connector.accountId),
     );
-    return remoteMcpToolDenial(name, servers, args);
+    const servers = new Set(
+      [...entry.remote]
+        .filter(([, mount]) => active.has(mount.accountId))
+        .map(([serverName]) => serverName),
+    );
+    return remoteMcpToolDenial(name, servers);
   });
   ctx.tools.guard(({ name, agent, arguments: args }) => {
     if (!name.startsWith(CONNECTOR_TOOL_PREFIX)) return undefined;
@@ -438,7 +408,7 @@ export function mountConnectors(
           defineTool({
             name: 'connector_request',
             description:
-              'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. After approval its tools appear under mcp__composio__.',
+              'Ask the Owner to let you use one connected account listed as requestable by connector_catalog. The Owner approves or rejects it on a card that shows your reason. Ask for read unless the user asked you to send, create or change something there. A remote MCP account (service starting with mcp_) keeps the read or write access it was signed in with, whatever you ask for. After approval its tools appear under mcp__composio__ or the mcp__app_… name it returns.',
             parameters: {
               account_id: {
                 type: 'string',
@@ -480,7 +450,7 @@ export function mountConnectors(
               return JSON.stringify({
                 granted: true,
                 service: account.service,
-                access: args.access,
+                access: account.provider === 'mcp' ? (account.access ?? 'write') : args.access,
                 tools:
                   account.provider === 'mcp'
                     ? `mcp__${remoteMcpServerName(account.accountId, account.service)}__*`

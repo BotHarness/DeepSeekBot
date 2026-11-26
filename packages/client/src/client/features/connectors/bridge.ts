@@ -8,6 +8,7 @@ export interface ConnectorAccountRecord {
   label: string;
   identity?: string;
   status: ConnectorStatus;
+  access?: ConnectorAccess;
   revision: number;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +62,7 @@ export interface McpAppSearch {
 
 export interface BotConnector {
   accountId: string;
+  provider?: 'composio' | 'mcp';
   service: string;
   label: string;
   identity?: string;
@@ -77,9 +79,11 @@ export interface ConnectorActions {
   connectorConnect?(
     service: string,
     label?: string,
+    access?: ConnectorAccess,
   ): Promise<{ account: ConnectorAccountRecord; url?: string }>;
   connectorReconnect?(
     accountId: string,
+    access?: ConnectorAccess,
   ): Promise<{ account: ConnectorAccountRecord; url?: string }>;
   connectorRefresh?(): Promise<ConnectorsView>;
   connectorSearch?(query: string, cursor?: string): Promise<ConnectorAppSearch>;
@@ -89,6 +93,7 @@ export interface ConnectorActions {
     url: string;
     name?: string;
     label?: string;
+    access?: ConnectorAccess;
   }): Promise<{ account: ConnectorAccountRecord; url?: string }>;
   connectorGrantSet?(
     slug: string,
@@ -104,9 +109,14 @@ export function createConnectorActions(invoke: InvokeAction) {
     connectors: () => invoke('connectors', {}),
     connectorKeySet: (apiKey) => invoke('connectorKeySet', { apiKey }),
     connectorKeyClear: () => invoke('connectorKeyClear', {}),
-    connectorConnect: (service, label) =>
-      invoke('connectorConnect', label === undefined ? { service } : { service, label }),
-    connectorReconnect: (accountId) => invoke('connectorReconnect', { accountId }),
+    connectorConnect: (service, label, access) =>
+      invoke('connectorConnect', {
+        service,
+        ...(label === undefined ? {} : { label }),
+        ...(access === undefined ? {} : { access }),
+      }),
+    connectorReconnect: (accountId, access) =>
+      invoke('connectorReconnect', access === undefined ? { accountId } : { accountId, access }),
     connectorRefresh: () => invoke('connectorRefresh', {}),
     connectorSearch: (query, cursor) =>
       invoke('connectorSearch', cursor === undefined ? { query } : { query, cursor }),

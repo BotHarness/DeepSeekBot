@@ -98,6 +98,7 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
     'invalid-input': Record<string, never>;
     'connector-not-configured': Record<string, never>;
     'connector-unavailable': Record<string, never>;
+    'connector-read-only-unsupported': Record<string, never>;
     'session-input-not-pending': Record<string, never>;
     'invalid-slug': Record<string, never>;
     duplicate: Record<string, never>;

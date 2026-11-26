@@ -15,11 +15,42 @@ import {
   type RemoteMcpOAuth,
   type RemoteMcpTool,
 } from './remote-mcp.js';
-import type { ConnectorAccountRecord, ConnectorMcpServerRecord, ConnectorStore } from './store.js';
+import type {
+  ConnectorAccess,
+  ConnectorAccountRecord,
+  ConnectorMcpServerRecord,
+  ConnectorStore,
+} from './store.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
 export class RemoteMcpError extends ConnectorError {}
+
+const READ_SCOPE = /(^|[:._/-])(read|readonly|view)($|[:._/-])/i;
+const WRITE_SCOPE =
+  /(^|[:._/-])(write|admin|manage|modify|edit|create|delete|send|full)($|[:._/-])/i;
+const IDENTITY_SCOPES: ReadonlySet<string> = new Set([
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+]);
+
+export function readOnlyScope(scope: string | undefined): string | undefined {
+  const scopes = (scope ?? '').split(/\s+/).filter(Boolean);
+  const kept = scopes.filter(
+    (item) => IDENTITY_SCOPES.has(item) || (READ_SCOPE.test(item) && !WRITE_SCOPE.test(item)),
+  );
+  if (!kept.some((item) => READ_SCOPE.test(item))) return undefined;
+  return kept.join(' ');
+}
+
+function grantsWrite(scope: string): boolean {
+  return scope.split(/\s+/).some((item) => item !== '' && WRITE_SCOPE.test(item));
+}
+
+const READ_ONLY_UNSUPPORTED =
+  'This server does not offer a read-only sign-in, so it cannot be limited to Read; connect it with Read and write instead.';
 
 export interface FeaturedMcpServer {
   service: string;
@@ -156,6 +187,7 @@ function parseClient(payload: unknown): OAuthClientInformationMixed | undefined 
 
 interface PendingLogin {
   accountId: string;
+  access: ConnectorAccess;
   oauth: RemoteMcpOAuth;
   client: OAuthClientInformationMixed;
   verifier: string;
@@ -264,6 +296,7 @@ export class RemoteMcpConnectors {
   async connect(
     service: string,
     label?: string,
+    access?: ConnectorAccess,
   ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     const known = this.server(service) ?? this.#found.get(service);
     if (known === undefined)
@@ -275,6 +308,7 @@ export class RemoteMcpConnectors {
       service,
       ...(icon === undefined ? {} : { icon }),
       ...(label === undefined ? {} : { label }),
+      ...(access === undefined ? {} : { access }),
     });
   }
 
@@ -344,7 +378,9 @@ export class RemoteMcpConnectors {
     label?: string;
     icon?: string;
     service?: string;
+    access?: ConnectorAccess;
   }): Promise<{ account: ConnectorAccountRecord; url?: string }> {
+    const access = input.access ?? 'write';
     const parsed = remoteMcpUrl(input.url);
     if (parsed === undefined)
       throw new RemoteMcpError('invalid', 'Use an https:// MCP server address.');
@@ -369,8 +405,10 @@ export class RemoteMcpConnectors {
     )
       throw new RemoteMcpError('invalid', 'An account with this label already exists.');
     this.#claim(service, url);
-    const oauth = await this.#client.discover(url);
-    if (oauth === undefined) {
+    const discovered = await this.#client.discover(url);
+    if (discovered === undefined) {
+      if (access === 'read')
+        throw new RemoteMcpError('read-only-unsupported', READ_ONLY_UNSUPPORTED);
       const info = await this.#inspect(url);
       this.#claim(service, url);
       this.#saveServer(service, info.name ?? name, url, input.icon);
@@ -379,14 +417,16 @@ export class RemoteMcpConnectors {
         service,
         label,
         externalId: randomUUID(),
+        access,
       });
       const active = this.#store.updateAccount(account.accountId, { status: 'active' })!;
       this.#log('mcp-added', { service, auth: 'none' });
       this.#changed();
       return { account: active };
     }
+    const oauth = this.#scoped(discovered, access);
     const redirectUri = this.#requireRedirect();
-    const client = await this.#clientFor(oauth, redirectUri);
+    const client = await this.#clientFor(discovered, redirectUri);
     this.#claim(service, url);
     this.#saveServer(service, name, url, input.icon);
     const account = this.#store.createAccount({
@@ -394,27 +434,35 @@ export class RemoteMcpConnectors {
       service,
       label,
       externalId: randomUUID(),
+      access,
     });
-    const signIn = await this.#begin(account.accountId, oauth, client, redirectUri);
-    this.#log('mcp-added', { service, auth: 'oauth' });
+    const signIn = await this.#begin(account.accountId, access, oauth, client, redirectUri);
+    this.#log('mcp-added', { service, auth: 'oauth', access });
     this.#changed();
     return { account, url: signIn };
   }
 
-  async reconnect(accountId: string): Promise<{ account: ConnectorAccountRecord; url?: string }> {
+  async reconnect(
+    accountId: string,
+    requested?: ConnectorAccess,
+  ): Promise<{ account: ConnectorAccountRecord; url?: string }> {
     const account = this.#mcpAccount(accountId);
+    const access = requested ?? account.access ?? 'write';
     const server = this.#requireServer(account.service);
-    const oauth = await this.#client.discover(server.url);
-    if (oauth === undefined) {
+    const discovered = await this.#client.discover(server.url);
+    if (discovered === undefined) {
+      if (access === 'read')
+        throw new RemoteMcpError('read-only-unsupported', READ_ONLY_UNSUPPORTED);
       await this.#inspect(server.url);
-      const active = this.#store.updateAccount(accountId, { status: 'active' })!;
+      const active = this.#store.updateAccount(accountId, { status: 'active', access })!;
       this.#changed();
       return { account: active };
     }
+    const oauth = this.#scoped(discovered, access);
     const redirectUri = this.#requireRedirect();
-    const client = await this.#clientFor(oauth, redirectUri);
+    const client = await this.#clientFor(discovered, redirectUri);
     const pending = this.#store.updateAccount(accountId, { status: 'pending', identity: null })!;
-    const url = await this.#begin(accountId, oauth, client, redirectUri);
+    const url = await this.#begin(accountId, access, oauth, client, redirectUri);
     this.#tools.delete(accountId);
     this.#changed();
     return { account: pending, url };
@@ -465,6 +513,16 @@ export class RemoteMcpConnectors {
       throw new RemoteMcpError('upstream', 'The server refused the sign-in code; try again.');
     }
     if (!current()) throw stale();
+    if (login.access === 'read' && typeof tokens.scope === 'string' && grantsWrite(tokens.scope)) {
+      this.#attempts.delete(login.accountId);
+      this.#store.updateAccount(login.accountId, { status: 'failed' });
+      this.#changed();
+      this.#log('mcp-read-only-ignored', { service: account.service });
+      throw new RemoteMcpError(
+        'read-only-unsupported',
+        'The server granted write access although only Read was asked for, so the sign-in was not kept; connect it with Read and write instead.',
+      );
+    }
     const auth = this.#stored(login.oauth, login.client, tokens);
     await this.#native().modifyRecord(authKey(login.accountId), async () => ({
       kind: 'grant',
@@ -481,8 +539,15 @@ export class RemoteMcpConnectors {
     this.#attempts.delete(login.accountId);
     if (tools === undefined) this.#tools.delete(login.accountId);
     else this.#tools.set(login.accountId, { at: Date.now(), tools: Promise.resolve(tools) });
-    const active = this.#store.updateAccount(login.accountId, { status: 'active' })!;
-    this.#log('mcp-signed-in', { service: account.service, tools: tools?.length ?? 0 });
+    const active = this.#store.updateAccount(login.accountId, {
+      status: 'active',
+      access: login.access,
+    })!;
+    this.#log('mcp-signed-in', {
+      service: account.service,
+      access: login.access,
+      tools: tools?.length ?? 0,
+    });
     this.#changed();
     return active;
   }
@@ -618,8 +683,17 @@ export class RemoteMcpConnectors {
     };
   }
 
+  #scoped(oauth: RemoteMcpOAuth, access: ConnectorAccess): RemoteMcpOAuth {
+    if (access === 'write') return oauth;
+    const scope = readOnlyScope(oauth.scope);
+    if (scope === undefined)
+      throw new RemoteMcpError('read-only-unsupported', READ_ONLY_UNSUPPORTED);
+    return { ...oauth, scope };
+  }
+
   async #begin(
     accountId: string,
+    access: ConnectorAccess,
     oauth: RemoteMcpOAuth,
     client: OAuthClientInformationMixed,
     redirectUri: string,
@@ -637,6 +711,7 @@ export class RemoteMcpConnectors {
     this.#attempts.set(accountId, state);
     this.#pending.set(state, {
       accountId,
+      access,
       oauth,
       client,
       verifier: started.verifier,

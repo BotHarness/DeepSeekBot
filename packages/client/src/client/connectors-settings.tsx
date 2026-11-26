@@ -3,7 +3,7 @@ import { useState, type ReactElement } from 'react';
 import { MaskedEmail } from './account-quota.js';
 import type { BridgeActions } from './actions.js';
 import { ConnectAppDialog } from './app-connections-catalog.js';
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -115,7 +115,11 @@ export function ConnectorsSettings({
       await work();
       return true;
     } catch (failure) {
-      setError(t('connectors.error', { message: errorMessage(failure) }));
+      setError(
+        failure instanceof BridgeCallError && failure.code === 'connector-read-only-unsupported'
+          ? t('connectors.connect.readOnlyUnsupported')
+          : t('connectors.error', { message: errorMessage(failure) }),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -154,9 +158,9 @@ export function ConnectorsSettings({
     linked(accountId, url);
   };
 
-  const reconnect = (accountId: string) =>
+  const reconnect = (accountId: string, access?: ConnectorAccess) =>
     run(async () => {
-      const linked = await actions.connectorReconnect!(accountId);
+      const linked = await actions.connectorReconnect!(accountId, access);
       opened(accountId, linked.url);
       setView(await actions.connectors!());
     });
@@ -169,6 +173,14 @@ export function ConnectorsSettings({
 
   const accessOptions = [
     { value: 'none' as const, label: t('connectors.bot.none') },
+    { value: 'read' as const, label: t('connectors.bot.read') },
+    { value: 'write' as const, label: t('connectors.bot.write') },
+  ];
+  const useOptions = [
+    { value: 'none' as const, label: t('connectors.bot.none') },
+    { value: 'write' as const, label: t('connectors.bot.use') },
+  ];
+  const signInOptions = [
     { value: 'read' as const, label: t('connectors.bot.read') },
     { value: 'write' as const, label: t('connectors.bot.write') },
   ];
@@ -224,6 +236,16 @@ export function ConnectorsSettings({
                 account.status === 'expired' ||
                 account.status === 'failed' ||
                 (account.status === 'pending' && signIn === undefined);
+              const mcp = account.provider === 'mcp';
+              const scoped = account.access ?? 'write';
+              const extra = [
+                ...(mcp
+                  ? [t(scoped === 'read' ? 'connectors.bot.read' : 'connectors.bot.write')]
+                  : []),
+                ...(account.grants.length > 0
+                  ? [t('connectors.accounts.bots', { count: account.grants.length })]
+                  : []),
+              ];
               return (
                 <StatusListRow
                   key={account.accountId}
@@ -236,11 +258,7 @@ export function ConnectorsSettings({
                     <ConnectorMeta
                       status={account.status}
                       identity={account.identity}
-                      extra={
-                        account.grants.length > 0
-                          ? t('connectors.accounts.bots', { count: account.grants.length })
-                          : undefined
-                      }
+                      extra={extra.length > 0 ? extra.join(' · ') : undefined}
                       t={t}
                     />
                   }
@@ -274,6 +292,24 @@ export function ConnectorsSettings({
                     ) : undefined
                   }
                 >
+                  {mcp ? (
+                    <SettingsRow
+                      title={t('connectors.accounts.signInAccess')}
+                      description={t('connectors.accounts.signInAccessHint')}
+                      data={{ 'data-connector-sign-in-access': scoped }}
+                      control={
+                        <Select<ConnectorAccess>
+                          label={t('connectors.accounts.signInAccess')}
+                          value={scoped}
+                          options={signInOptions}
+                          disabled={busy}
+                          onChange={(choice) => {
+                            if (choice !== scoped) void reconnect(account.accountId, choice);
+                          }}
+                        />
+                      }
+                    />
+                  ) : null}
                   <SettingsSection title={t('connectors.accounts.botsTitle')}>
                     {account.grants.length === 0 ? (
                       <Note inset>{t('connectors.accounts.noBots')}</Note>
@@ -287,8 +323,8 @@ export function ConnectorsSettings({
                               label={t('connectors.accounts.access', {
                                 name: grant.botName ?? grant.botSlug,
                               })}
-                              value={grant.access}
-                              options={accessOptions}
+                              value={mcp ? 'write' : grant.access}
+                              options={mcp ? useOptions : accessOptions}
                               disabled={busy}
                               onChange={(choice) =>
                                 void setAccess(grant.botSlug, account.accountId, choice)

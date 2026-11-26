@@ -104,6 +104,13 @@ export const zh = {
     '用你在该服务的账号登录即可连接，不需要 Composio key。列表来自 MCP Registry，也可以直接粘贴服务器地址。',
   'connectors.catalog.mcpOffline': '暂时连不上 MCP Registry，只显示常用服务器。',
   'connectors.connect.connected': '已连接，这个服务器不需要登录。',
+  'connectors.connect.access': '权限',
+  'connectors.connect.accessHint': '只读时只向服务器申请读取权限，写入会被服务器拒绝。',
+  'connectors.connect.readOnlyUnsupported': '这个服务无法限制为只读。选“读写”后再连接。',
+  'connectors.accounts.signInAccess': '登录权限',
+  'connectors.accounts.signInAccessHint':
+    '由服务器执行，所有可用的 Bot 都按这个权限。修改后要重新登录。',
+  'connectors.bot.use': '可用',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -219,5 +226,14 @@ export const en = {
   'connectors.catalog.mcpOffline':
     'The MCP Registry is unreachable; showing featured servers only.',
   'connectors.connect.connected': 'Connected. This server needs no sign-in.',
+  'connectors.connect.access': 'Access',
+  'connectors.connect.accessHint':
+    'Read asks the server for read permissions only, so the server itself refuses changes.',
+  'connectors.connect.readOnlyUnsupported':
+    'This service cannot be limited to Read. Choose Read and write to connect it.',
+  'connectors.accounts.signInAccess': 'Sign-in access',
+  'connectors.accounts.signInAccessHint':
+    'The server enforces it for every Bot that can use the account. Changing it signs in again.',
+  'connectors.bot.use': 'Can use',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;

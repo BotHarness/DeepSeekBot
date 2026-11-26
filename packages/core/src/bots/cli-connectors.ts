@@ -30,12 +30,12 @@ export const CONNECTOR_COMMANDS = [
   {
     command: 'connector-connect',
     description:
-      'start connecting an account for a service such as gmail and print the sign-in link (--label)',
+      'start connecting an account for a service such as gmail and print the sign-in link (--label; --access read|write signs a remote MCP server in read-only or read-write)',
   },
   {
     command: 'connector-reconnect',
     description:
-      'sign an expired or failed App connection in again and print the new sign-in link; its Bot grants stay',
+      'sign an expired or failed App connection in again and print the new sign-in link; its Bot grants stay (--access read|write changes what a remote MCP sign-in allows)',
   },
   {
     command: 'connector-refresh',
@@ -54,7 +54,7 @@ export const CONNECTOR_COMMANDS = [
   {
     command: 'connector-mcp-add',
     description:
-      'connect a remote MCP server by its https address and print the sign-in link when it needs one (--name, --label)',
+      'connect a remote MCP server by its https address and print the sign-in link when it needs one (--name, --label, --access read|write; read asks the server for read-only scopes)',
   },
   {
     command: 'connector-mcp-finish',
@@ -85,6 +85,13 @@ export function isConnectorCommand(command: string): command is Command {
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
+}
+
+function signInAccess(command: Command, values: ConnectorValues): { access?: 'read' | 'write' } {
+  const access = values.access;
+  if (access === undefined) return {};
+  if (access !== 'read' && access !== 'write') usage(`${command} takes --access read or write.`);
+  return { access };
 }
 
 function positionals(command: Command, rest: string[], count: number, what: string): string[] {
@@ -122,14 +129,19 @@ export async function runConnectorCommand(
   }
   if (command === 'connector-connect') {
     const [service] = positionals(command, rest, 1, 'one service, for example gmail');
+    const access = signInAccess(command, values);
     return (await connect())('connectorConnect', {
       service,
       ...(values.label === undefined ? {} : { label: values.label }),
+      ...access,
     });
   }
   if (command === 'connector-reconnect') {
     const [accountId] = positionals(command, rest, 1, 'exactly one account id');
-    return (await connect())('connectorReconnect', { accountId });
+    return (await connect())('connectorReconnect', {
+      accountId,
+      ...signInAccess(command, values),
+    });
   }
   if (command === 'connector-search') {
     if (rest.length > 1) usage('connector-search takes at most one query; quote several words.');
@@ -154,10 +166,12 @@ export async function runConnectorCommand(
       1,
       'one https address, for example https://mcp.posthog.com/mcp',
     );
+    const access = signInAccess(command, values);
     return (await connect())('connectorMcpAdd', {
       url,
       ...(values.name === undefined ? {} : { name: values.name }),
       ...(values.label === undefined ? {} : { label: values.label }),
+      ...access,
     });
   }
   if (command === 'connector-mcp-finish') {

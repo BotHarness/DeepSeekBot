@@ -9,11 +9,8 @@ import { createConnectorStore } from '../src/connectors/store.js';
 import { ConnectorService } from '../src/connectors/service.js';
 import type { ComposioClient } from '../src/connectors/composio.js';
 import { remoteMcpUrl, type RemoteMcpClient } from '../src/connectors/remote-mcp.js';
-import {
-  mcpPublicToolName,
-  remoteMcpServerNames,
-  remoteMcpToolDenial,
-} from '../src/connectors/policy.js';
+import { remoteMcpServerNames, remoteMcpToolDenial } from '../src/connectors/policy.js';
+import { readOnlyScope } from '../src/connectors/remote.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';
@@ -22,7 +19,7 @@ const POSTHOG = 'https://mcp.posthog.com/mcp';
 const OAUTH = {
   authorizationServer: 'https://oauth.posthog.com/',
   resource: POSTHOG,
-  scope: 'openid',
+  scope: 'openid profile insight:read insight:write annotation:read annotation:write introspection',
 };
 
 function vault() {
@@ -56,8 +53,8 @@ function fakeMcp(overrides: Partial<RemoteMcpClient> = {}) {
       calls.push(['register', oauth.authorizationServer, redirectUri]);
       return { client_id: 'client-1', redirect_uris: [redirectUri] };
     },
-    authorize: async (_oauth, client, redirectUri, state) => {
-      calls.push(['authorize', client.client_id, redirectUri]);
+    authorize: async (oauth, client, redirectUri, state) => {
+      calls.push(['authorize', client.client_id, redirectUri, oauth.scope]);
       return {
         url: `https://oauth.posthog.com/oauth/authorize/?state=${state}`,
         verifier: 'verifier-1',
@@ -82,10 +79,7 @@ function fakeMcp(overrides: Partial<RemoteMcpClient> = {}) {
       calls.push(['inspect', url, token]);
       return {
         name: 'PostHog',
-        tools: [
-          { name: 'insights-get-all', readOnly: true },
-          { name: 'feature-flag-update', readOnly: false },
-        ],
+        tools: [{ name: 'insights-get-all' }, { name: 'feature-flag-update' }],
       };
     },
     image: async () => undefined,
@@ -184,6 +178,89 @@ describe('remote MCP App connections', () => {
       expect(store.accounts()).toEqual([]);
     } finally {
       owner.close();
+    }
+  });
+
+  it('signs in read-only with read scopes and lets the server enforce it for every Bot', async () => {
+    const { client, calls } = fakeMcp();
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({
+        service: 'mcp_posthog',
+        label: 'Reader',
+        access: 'read',
+      });
+      expect(started.account.access).toBe('read');
+      expect(calls).toContainEqual([
+        'authorize',
+        'client-1',
+        'http://127.0.0.1:7777/botharness/connectors/oauth/callback',
+        'openid profile insight:read annotation:read',
+      ]);
+      const finished = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'code-1' }),
+      );
+      expect(finished).toMatchObject({ status: 'active', access: 'read' });
+      service.grant('tob', finished.accountId, 'write');
+      expect(service.forBot('tob')).toMatchObject([
+        { accountId: finished.accountId, access: 'read' },
+      ]);
+
+      const widened = await service.reconnect(finished.accountId, 'write');
+      expect(calls.at(-1)?.[3]).toBe(OAUTH.scope);
+      expect(store.account(finished.accountId)?.access).toBe('read');
+      await service.remote.finish(
+        new URLSearchParams({ state: stateOf(widened.url!), code: 'code-2' }),
+      );
+      expect(store.account(finished.accountId)).toMatchObject({
+        status: 'active',
+        access: 'write',
+      });
+      expect(service.forBot('tob')).toMatchObject([{ access: 'write' }]);
+      await expect(service.connect({ service: 'gmail', access: 'read' })).rejects.toMatchObject({
+        code: 'invalid',
+      });
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('refuses a read-only sign-in the server cannot or does not honour', async () => {
+    const { client } = fakeMcp({
+      discover: async (url) =>
+        url === POSTHOG ? { ...OAUTH, scope: 'mcp offline_access' } : undefined,
+    });
+    const { owner, store, service } = setup(client);
+    try {
+      await expect(
+        service.connect({ service: 'mcp_posthog', access: 'read' }),
+      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
+      await expect(
+        service.remote.add({ url: 'https://open.example.com/mcp', access: 'read' }),
+      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
+      expect(store.accounts()).toEqual([]);
+    } finally {
+      owner.close();
+    }
+    const widening = fakeMcp({
+      exchange: async () => ({
+        access_token: 'access-1',
+        token_type: 'Bearer',
+        scope: 'openid insight:read insight:write',
+      }),
+    });
+    const next = setup(widening.client);
+    try {
+      const started = await next.service.connect({ service: 'mcp_posthog', access: 'read' });
+      await expect(
+        next.service.remote.finish(
+          new URLSearchParams({ state: stateOf(started.url!), code: 'code-1' }),
+        ),
+      ).rejects.toMatchObject({ code: 'read-only-unsupported' });
+      expect(next.store.account(started.account.accountId)?.status).toBe('failed');
+      expect([...next.credentials.records.keys()].join()).not.toContain(started.account.accountId);
+    } finally {
+      next.owner.close();
     }
   });
 
@@ -392,14 +469,21 @@ describe('remote MCP App connections', () => {
           },
         );
       await run('connector-mcp-search', ['analytics'], { cursor: 'p2' });
-      await run('connector-mcp-add', [POSTHOG], { name: 'PostHog', label: 'Work' });
+      await run('connector-mcp-add', [POSTHOG], { name: 'PostHog', label: 'Work', access: 'read' });
       await run('connector-mcp-finish', ['http://localhost/cb?state=s&code=c']);
+      await run('connector-connect', ['mcp_posthog'], { access: 'write' });
+      await run('connector-reconnect', ['acc-1'], { access: 'read' });
       expect(sent).toEqual([
         ['connectorMcpSearch', { query: 'analytics', cursor: 'p2' }],
-        ['connectorMcpAdd', { url: POSTHOG, name: 'PostHog', label: 'Work' }],
+        ['connectorMcpAdd', { url: POSTHOG, name: 'PostHog', label: 'Work', access: 'read' }],
         ['connectorMcpFinish', { url: 'http://localhost/cb?state=s&code=c' }],
+        ['connectorConnect', { service: 'mcp_posthog', access: 'write' }],
+        ['connectorReconnect', { accountId: 'acc-1', access: 'read' }],
       ]);
       await expect(run('connector-mcp-add', [])).rejects.toMatchObject({ code: 'usage' });
+      await expect(run('connector-mcp-add', [POSTHOG], { access: 'none' })).rejects.toMatchObject({
+        code: 'usage',
+      });
     } finally {
       owner.close();
     }
@@ -421,69 +505,29 @@ describe('remote MCP tool policy', () => {
       { accountId: 'b', provider: 'mcp', service: 'mcp_posthog' },
     ]);
     expect(alone.get('b')).toBe(names.get('b'));
-    expect(mcpPublicToolName('app_posthog', 'insights-get-all')).toBe(
-      'mcp__app_posthog__insights-get-all',
-    );
-    const long = mcpPublicToolName(
-      'app_posthog',
-      'a.very.long.tool.name.that.keeps.going.on.and.on',
-    );
-    expect(long).toHaveLength(64);
-    expect(long.startsWith('mcp__app_posthog__a_very')).toBe(true);
   });
 
-  it('lets Read access call only tools the server marks read-only', () => {
-    const read = new Set(['mcp__app_posthog__insights-get-all']);
-    const servers = new Map([
-      ['app_posthog', { access: 'read' as const, readOnly: read }],
-      ['app_linear', { access: 'write' as const, readOnly: undefined }],
-      ['app_notion', { access: 'read' as const, readOnly: undefined }],
-    ]);
-    expect(remoteMcpToolDenial('mcp__app_posthog__insights-get-all', servers)).toBeUndefined();
-    expect(remoteMcpToolDenial('mcp__app_posthog__feature-flag-update', servers)).toContain(
-      'Read access only',
-    );
-    expect(remoteMcpToolDenial('mcp__app_linear__create_issue', servers)).toBeUndefined();
-    expect(remoteMcpToolDenial('mcp__app_notion__search', servers)).toContain('loading');
-    expect(remoteMcpToolDenial('mcp__app_gone__x', servers)).toContain('any more');
+  it('lets a Bot call every tool of a granted MCP account and leaves read or write to the server', () => {
+    const servers = new Set(['app_posthog_be7f6b', 'app_linear_123456']);
+    expect(remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers)).toBeUndefined();
+    expect(remoteMcpToolDenial('mcp__app_linear_123456__create_issue', servers)).toBeUndefined();
+    expect(remoteMcpToolDenial('mcp__app_gone_000000__x', servers)).toContain('any more');
     expect(remoteMcpToolDenial('mcp__composio__X', servers)).toBeUndefined();
   });
 
-  it('lets Read access run PostHog exec commands that only read', () => {
-    const servers = new Map([
-      [
-        'app_posthog_be7f6b',
-        { access: 'read' as const, readOnly: new Set<string>(), service: 'mcp_posthog' },
-      ],
-    ]);
-    const exec = (command: string) =>
-      remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers, { command });
-    for (const command of [
-      'search insight',
-      'info query-trends',
-      'schema query-trends series',
-      'learn -s "weekly active users"',
-      'call projects-get {}',
-      'call --json insights-list {"limit": 5}',
-      'call feature-flag-get-all {}',
-      'call read-data-schema {"query": {"kind": "events"}}',
-      'call execute-sql {"query": "SELECT 1"}',
-      'call metric-describe {"id": 1}',
-    ])
-      expect(exec(command)).toBeUndefined();
-    for (const command of [
-      'call insight-create {}',
-      'call feature-flag-update {"id": 1}',
-      'call --confirm dashboard-get {}',
-      'call annotation-create {"content": "test"}',
-      'call switch-project {"id": 2}',
-      'call projects-get {}\ncall insight-create {}',
-      '',
-    ])
-      expect(exec(command)).toContain('Read access only');
-    expect(remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers, {})).toContain(
-      'Read access only',
-    );
+  it('keeps only read and sign-in scopes for a read-only sign-in', () => {
+    expect(readOnlyScope(OAUTH.scope)).toBe('openid profile insight:read annotation:read');
+    expect(readOnlyScope('read write')).toBe('read');
+    expect(readOnlyScope('read:user write:org repo')).toBe('read:user');
+    expect(
+      readOnlyScope(
+        'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+      ),
+    ).toBe('https://www.googleapis.com/auth/gmail.readonly');
+    expect(readOnlyScope('projects:read_write offline_access')).toBeUndefined();
+    expect(readOnlyScope('repo user')).toBeUndefined();
+    expect(readOnlyScope('openid profile')).toBeUndefined();
+    expect(readOnlyScope(undefined)).toBeUndefined();
   });
 
   it('fetches registry icons only from public addresses, and no more than the size limit', async () => {

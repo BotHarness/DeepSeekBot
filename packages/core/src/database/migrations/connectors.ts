@@ -67,3 +67,14 @@ export const CONNECTOR_REMOTE_MCP_MIGRATION: SchemaMigration = {
     `);
   },
 };
+
+export const CONNECTOR_SIGN_IN_ACCESS_MIGRATION: SchemaMigration = {
+  id: 'connector-sign-in-access',
+  module: 'connectors',
+  description: 'Read-only or read-write OAuth sign-in for remote MCP Connector Accounts (#5333)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE connector_accounts ADD COLUMN access TEXT CHECK (access IN ('read', 'write'));
+    `);
+  },
+};
