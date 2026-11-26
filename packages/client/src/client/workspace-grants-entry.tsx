@@ -26,8 +26,7 @@ import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 import { NewFolderButton, NewFolderForm, useCreateFolder } from './workspace-new-folder.js';
 
 export { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
-import { approvalRulePath, secretCliRuleLabel } from './workspace-approval-rule-labels.js';
-import { shellPrefixHead } from '@botharness/host-client/shared/shell-approval-scope';
+import { approvalRuleLabel, approvalRulePath } from './workspace-approval-rule-labels.js';
 import { renderWorkspaceGrantFolders } from './workspace-grant-folders.js';
 import {
   folderBrowseError,
@@ -739,18 +738,7 @@ export function WorkspaceGrantsEntry({
                   <span className="bh-workspace-folder-toggle">
                     <Tag>{t('approval.ruleFromCard')}</Tag>
                     {' · '}
-                    {rule.kind === 'tool'
-                      ? t('approval.toolRule', { tool: rule.toolName })
-                      : rule.kind === 'exact'
-                        ? t('approval.exactRule', { tool: rule.toolName })
-                        : rule.kind === 'prefix'
-                          ? t('approval.prefixRule', {
-                              tool: rule.toolName,
-                              prefix: shellPrefixHead(rule.input),
-                            })
-                          : rule.kind === 'secret-cli'
-                            ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
-                            : t('approval.allRule')}
+                    {approvalRuleLabel(rule, t)}
                     {' · '}
                     {rule.role === 'assignment'
                       ? t('approval.assignment')
