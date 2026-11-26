@@ -205,4 +205,35 @@ describe('desktop call voice setup and computer sound', () => {
     expect(mac.call.snapshot()).toMatchObject({ sound: 'on', micMuted: false });
     expect(mac.media.muted.slice(heardMic)).not.toContain(true);
   });
+  it('lets a new call unmute its microphone while an old muted share is still unmuting', async () => {
+    const { fetcher } = host();
+    let release: () => void = () => undefined;
+    let holding = false;
+    const gated = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? init.body : '';
+      if (holding && body.includes('"kind":"mute"') && body.includes('"muted":false')) {
+        holding = false;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return fetcher(input, init);
+    }) as typeof fetch;
+    const mac = desktopWindow(gated, 'window-mac-0001');
+    await mac.call.start('mira');
+    await vi.waitFor(() => expect(mac.call.snapshot().state.status).toBe('live'));
+    await mac.call.mute(true);
+    holding = true;
+    const sharing = mac.call.computerSound(true);
+    await vi.waitFor(() => expect(holding).toBe(false));
+    await mac.call.hangup();
+    await mac.call.start('mira');
+    await vi.waitFor(() => expect(mac.call.snapshot().state.status).toBe('live'));
+    await mac.call.mute(true);
+    await mac.call.mute(false);
+    expect(mac.media.muted.at(-1)).toBe(false);
+    release();
+    await sharing;
+    expect(mac.media.muted.at(-1)).toBe(false);
+  });
 });
