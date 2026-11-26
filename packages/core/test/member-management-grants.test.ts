@@ -196,6 +196,7 @@ it('limits member Bots to commands that run through the member’s own bridge', 
   expect(commands).toContain('memory-save');
   expect(commands).toContain('share-draft-show');
   expect(commands).toContain('update');
+  expect(commands.filter((command) => command.startsWith('bot-delete-'))).toEqual([]);
   for (const ownerOnly of [
     'cli',
     'doctor',
