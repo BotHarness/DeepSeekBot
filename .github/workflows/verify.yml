@@ -540,7 +540,7 @@ jobs:
     name: timeline performance budget
     needs: plan
     if: needs.plan.outputs.perf == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && 20 || 18 }}
     env:
       BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
