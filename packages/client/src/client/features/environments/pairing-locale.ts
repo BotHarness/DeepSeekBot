@@ -50,6 +50,12 @@ export const zh = {
   'pairing.behavior': '自然语言行为权限',
   'pairing.ordinary': '普通聊天 · 无管理能力',
   'pairing.editRole': '编辑角色',
+  'pairing.deleteRole': '删除角色',
+  'pairing.deleteRoleWarning': '删除后无法恢复。没有人在使用这个角色。',
+  'pairing.deleteDefaultRoleWarning':
+    '删除后无法恢复。这是默认审批角色，删除后新的配对申请将不再预选角色。',
+  'pairing.deleteRoleInUse':
+    '仍有 {count} 人使用或申请这个角色。先为他们改用其他角色，或拒绝待审核的申请。',
   'pairing.defaultRole': '默认批准角色',
   'pairing.defaultRoleHelp':
     '审核人在 IM 里只回复「同意」时，配对申请会获得这个角色。审核人只能分配自己权限范围内的角色。',
@@ -381,6 +387,12 @@ export const en = {
   'pairing.behavior': 'Behavior permissions',
   'pairing.ordinary': 'Ordinary chat · no management capabilities',
   'pairing.editRole': 'Edit role',
+  'pairing.deleteRole': 'Delete role',
+  'pairing.deleteRoleWarning': 'This cannot be undone. No one uses this role.',
+  'pairing.deleteDefaultRoleWarning':
+    'This cannot be undone. It is the default approval role, so new pairing requests will no longer preselect a role.',
+  'pairing.deleteRoleInUse':
+    'Still used or requested by {count}. Move them to another role or reject their pending requests first.',
   'pairing.defaultRole': 'Default approval role',
   'pairing.defaultRoleHelp':
     'When a reviewer replies only "approve" in IM, the pairing request gets this role. A reviewer can only assign roles within their own permissions.',
