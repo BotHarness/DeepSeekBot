@@ -1,4 +1,4 @@
-import type { HostSessionPendingInput } from './host-sessions';
+import type { HostSessionFolderLook, HostSessionPendingInput } from './host-sessions';
 import type { TurnTarget, SessionTurnModelSwitch } from './turn-target';
 import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
@@ -558,6 +558,7 @@ export interface NativeSessionAttention {
   sessionId: string;
   sessionTitle?: string;
   folderName?: string;
+  folderLook?: HostSessionFolderLook;
   cwd?: string;
   input: 'approval' | 'question';
   request?: HostSessionPendingInput;
