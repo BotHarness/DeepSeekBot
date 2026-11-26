@@ -44,6 +44,7 @@ import type * as voice from '../voice/plugin.js';
 import { ModelFreeTobCliInvocation } from '../../tob/cli-invocation.js';
 import { createTobChannelOperations } from '../../tob/cli-channel-operations.js';
 import { createTobBotCreationOperations } from '../../tob/cli-bot-create.js';
+import { privateBotCreations } from '../../bots/creation.js';
 import { createTobBotProfileOperations } from '../../tob/cli-bot-profile-operations.js';
 import { createTobDiagnosticOperations } from '../../tob/cli-diagnostic-operations.js';
 import {
@@ -265,7 +266,7 @@ export function mountOperations(
     const bridge = bridgeFor(human);
     const creation = createTobBotCreationOperations({
       registry: core.registry,
-      creations: core.creations,
+      creations: privateBotCreations(core.creations, human, () => core.team.isOwner(human)),
       bridge,
     });
     const profile = createTobBotProfileOperations({
