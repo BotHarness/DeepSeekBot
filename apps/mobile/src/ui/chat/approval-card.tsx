@@ -14,14 +14,7 @@ import {
 } from '@botharness/host-client/requests';
 import type { ToolApprovalOutcome } from '@botharness/host-protocol/wire';
 import { approvalFileChange } from '@botharness/host-client/shared/approval-diff';
-import {
-  alwaysNote,
-  alwaysShortNote,
-  executionNote,
-  expiryLabel,
-  highRisk,
-  riskNote,
-} from '../approval-note';
+import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';
@@ -296,7 +289,6 @@ function ApprovalCardContent({
     request.effects === undefined
       ? undefined
       : toolEffectLabels(request.effects, locale).join(' · ');
-  const scope = alwaysShortNote(request);
   return (
     <View ref={mount}>
       <ActionCard
@@ -338,7 +330,6 @@ function ApprovalCardContent({
         )}
         {running === undefined ? null : <CardNote>{running}</CardNote>}
         {highRisk(request.toolName) ? <CardNote>{riskNote(request.toolName)}</CardNote> : null}
-        {scope === undefined ? null : <CardNote testID="approval-scope">{scope}</CardNote>}
         {line === undefined ? null : (
           <CardNote testID="approval-result" live>
             {line.text}
