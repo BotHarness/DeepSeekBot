@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
-import { describeHostSettings, updateHostSettings } from '@botharness/host-client/host-settings';
+import { hostSettingsScope } from '@botharness/host-client/host-settings-scope';
 import {
   BOT_MODE_NAMESPACE,
   DEFAULT_NATIVE_SESSION_ATTENTION,
@@ -24,6 +24,7 @@ type Store = {
 };
 
 const LOADING: SessionRequestsState = { status: 'loading' };
+const UNAVAILABLE: SessionRequestsState = { status: 'unavailable' };
 const IDLE: Store = {
   getSnapshot: () => LOADING,
   subscribe: () => () => {},
@@ -39,69 +40,47 @@ function fieldOf(value: Record<string, unknown>): boolean {
 export function sessionRequestsStore(client: HostClient): Store {
   const existing = stores.get(client);
   if (existing !== undefined) return existing;
+  const settings = hostSettingsScope(client, BOT_MODE_NAMESPACE);
+  let saving: boolean | undefined;
+  let failed = false;
   let state: SessionRequestsState = LOADING;
-  let generation = 0;
   const listeners = new Set<() => void>();
-  const publish = (next: SessionRequestsState) => {
-    state = next;
-    for (const listener of listeners) listener();
+  const project = (): SessionRequestsState => {
+    const current = settings.getSnapshot();
+    if (current.status !== 'ready') return current.status === 'loading' ? LOADING : UNAVAILABLE;
+    return {
+      status: 'ready',
+      value: saving ?? fieldOf(current.value),
+      revision: current.revision,
+      saving: saving !== undefined,
+      failed,
+    };
   };
-  const read = async (failed: boolean) => {
-    const at = ++generation;
-    try {
-      const found = (await describeHostSettings(client)).find(
-        (entry) => entry.ns === BOT_MODE_NAMESPACE,
-      );
-      if (at !== generation) return;
-      publish(
-        found === undefined
-          ? { status: 'unavailable' }
-          : {
-              status: 'ready',
-              value: fieldOf(found.value),
-              revision: found.revision,
-              saving: false,
-              failed,
-            },
-      );
-    } catch {
-      if (at === generation) publish({ status: 'unavailable' });
-    }
+  const publish = () => {
+    state = project();
+    for (const listener of [...listeners]) listener();
   };
+  settings.subscribe(publish);
   const store: Store = {
     getSnapshot: () => state,
     subscribe(listener) {
       listeners.add(listener);
-      if (listeners.size === 1) void read(false);
+      if (listeners.size === 1) void settings.refresh();
       return () => {
         listeners.delete(listener);
       };
     },
     async set(value) {
-      const before = state;
-      if (before.status !== 'ready' || before.saving) return;
-      const at = ++generation;
-      publish({ ...before, value, saving: true, failed: false });
-      try {
-        const saved = await updateHostSettings(
-          client,
-          BOT_MODE_NAMESPACE,
-          { [NATIVE_SESSION_ATTENTION_FIELD]: value },
-          before.revision,
-        );
-        if (at !== generation) return;
-        publish({
-          status: 'ready',
-          value: fieldOf(saved.value),
-          revision: saved.revision,
-          saving: false,
-          failed: false,
-        });
-      } catch {
-        if (at !== generation) return;
-        publish({ ...before, saving: false, failed: true });
-        await read(true);
-      }
+      if (state.status !== 'ready' || state.saving) return;
+      saving = value;
+      failed = false;
+      publish();
+      const done = await settings.write('settings/update', {
+        patch: { [NATIVE_SESSION_ATTENTION_FIELD]: value },
+      });
+      saving = undefined;
+      failed = !done;
+      publish();
     },
   };
   stores.set(client, store);
