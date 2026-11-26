@@ -713,7 +713,18 @@ describe('pairing commands', () => {
     revision: 5,
     behavior: 'b',
   };
-  const snapshot = () => ok({ pairings: [pairing], roles: [role], accounts: [] });
+  const block = {
+    botSlug: 'ada',
+    bindingId: 'lark-qa',
+    fingerprint: 'lark:secret',
+    actorId: 'ou_2',
+    actorName: 'Spam',
+    revision: 1,
+    blockedAt: '2026-10-14T13:15:00.000Z',
+    blockedBy: 'authenticated-web',
+  };
+  const snapshot = () =>
+    ok({ pairings: [pairing], roles: [role], senderBlocks: [block], accounts: [] });
 
   it('lists pairings without internal reply handles', async () => {
     const live = await host(snapshot);
@@ -724,6 +735,15 @@ describe('pairing commands', () => {
     expect(listed.pairings[0]).not.toHaveProperty('privateReply');
     expect(listed.roles).toEqual([
       { id: role.id, name: 'Reviewer', capabilities: ['approve'], revision: 5 },
+    ]);
+    expect(listed.blocked).toEqual([
+      {
+        bindingId: 'lark-qa',
+        actorId: 'ou_2',
+        actorName: 'Spam',
+        revision: 1,
+        blockedAt: '2026-10-14T13:15:00.000Z',
+      },
     ]);
     expect(live.calls).toEqual([{ method: 'messagingSnapshot', args: { slug: 'ada' } }]);
   });

@@ -667,3 +667,19 @@ export const SENDER_DEFAULT_ROLE_MIGRATION: SchemaMigration = {
     database.exec('ALTER TABLE messaging_sender_policies ADD COLUMN default_role_id TEXT;');
   },
 };
+
+export const SENDER_BLOCK_MIGRATION: SchemaMigration = {
+  id: 'sender-block',
+  module: 'messaging',
+  description: 'Keep one sender of a bound app out of the Bot Inbox without the model',
+  migrate(database) {
+    database.exec(`CREATE TABLE messaging_sender_blocks (
+      bot_slug TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      body TEXT NOT NULL CHECK (json_valid(body)),
+      PRIMARY KEY (bot_slug, fingerprint, actor_id)
+    );`);
+  },
+};

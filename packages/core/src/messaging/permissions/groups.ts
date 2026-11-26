@@ -8,6 +8,7 @@ import { resolveGrants } from '../../authorization/grants.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
+import { readSenderBlock } from './sender-blocks.js';
 import {
   behaviorPermissions,
   resolveBehaviorPermissions,
@@ -254,6 +255,7 @@ export function effectivePairingPermissions(
   botSlug: string,
   bindingId: string,
   actorId: string,
+  options: { includeBlocked?: boolean } = {},
 ): EffectivePermissions {
   const empty: EffectivePermissions = {
     capabilities: [],
@@ -265,7 +267,8 @@ export function effectivePairingPermissions(
     !binding.enabled ||
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
-    !platformPeople(binding.platform)
+    !platformPeople(binding.platform) ||
+    (!options.includeBlocked && readSenderBlock(db, botSlug, binding.fingerprint, actorId))
   )
     return empty;
   const pairings = (
