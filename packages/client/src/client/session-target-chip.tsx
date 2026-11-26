@@ -4,9 +4,8 @@ import { modelShortName } from '@botharness/host-client/shared/model-brand';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import type { SessionEngine, SessionModelRoute } from './bridge.js';
-import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
+import { TargetBrandIcon } from './model-brand.js';
 import { SessionMetaChip } from './session-progress-view.js';
 
 export function SessionTargetChip({
@@ -57,11 +56,15 @@ export function SessionTargetChip({
   return (
     <SessionMetaChip
       kind={label.external ? 'engine' : 'model'}
-      icon={<ModelBrandIcon brand={label.brand} size={14} />}
-      label={effort === undefined ? short : `${short} · ${effort}`}
-      badge={
-        <Tag tone="quiet">{t(label.external ? 'sessions.model.sub' : 'sessions.model.api')}</Tag>
+      icon={
+        <TargetBrandIcon
+          brand={label.brand}
+          external={label.external}
+          size={14}
+          externalLabel={t('engine.externalLabel')}
+        />
       }
+      label={effort === undefined ? short : `${short} · ${effort}`}
       title={effortId === undefined || effortId === '' ? full : `${full} · ${effortId}`}
     />
   );

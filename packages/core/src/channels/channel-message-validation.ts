@@ -7,6 +7,8 @@ import {
   isChannelTurnStopRests,
   isChannelTurnStopTarget,
 } from './turn-stop.js';
+import { isValidSlug } from '../bots/slug.js';
+import { isChannelManagementGrant } from '@botharness/host-protocol/management-grant';
 import { isChannelModelSwitch } from './model-switch.js';
 import { isChannelVoiceCallRecord } from './voice-call-record.js';
 import { isChannelAttachmentRef, isChannelClearedAttachment } from '../attachments/ref.js';
@@ -415,6 +417,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       return false;
   }
   const memberDeparture = message['memberDeparture'];
+  if (
+    message['managementGrant'] !== undefined &&
+    ((message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelManagementGrant(message['managementGrant']) ||
+      !isValidSlug(message['managementGrant'].botSlug))
+  )
+    return false;
   if (memberDeparture !== undefined) {
     if (typeof memberDeparture !== 'object' || memberDeparture === null) return false;
     const departure = memberDeparture as Record<string, unknown>;
@@ -506,6 +515,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   ) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
+    message['managementGrant'] === undefined &&
     !(
       typeof message['onboardingWelcome'] === 'object' &&
       message['onboardingWelcome'] !== null &&

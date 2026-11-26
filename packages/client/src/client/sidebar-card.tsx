@@ -1,4 +1,4 @@
-import { useContext, type ReactElement, type ReactNode, type Ref } from 'react';
+import { useContext, useId, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -6,7 +6,17 @@ import { SettingsGroupContext } from './ds/settings-row.js';
 
 const styles = stylex.create({
   inGroup: { display: 'contents', listStyle: 'none' },
+  line: { position: 'relative' },
+  stretch: { position: 'absolute', inset: 0 },
+  stretched: { position: 'relative', pointerEvents: 'none' },
+  above: { position: 'relative' },
+  chipActions: { display: 'contents', pointerEvents: 'auto' },
 });
+
+function withStyle(base: string, extra: stylex.StyleXStyles | false): string {
+  const added = extra === false ? undefined : stylex.props(extra).className;
+  return added === undefined ? base : `${base} ${added}`;
+}
 
 export function SidebarCardList({
   label,
@@ -60,6 +70,7 @@ export interface SidebarCardRowProps {
   flipKey?: string | undefined;
   hint?: string | undefined;
   chips?: ReactNode | undefined;
+  chipActions?: ReactNode | undefined;
   meta?: ReactNode | undefined;
   trailing?: ReactNode | undefined;
   trailingAlign?: 'start' | undefined;
@@ -88,6 +99,7 @@ export function SidebarCardRow({
   flipKey,
   hint,
   chips,
+  chipActions,
   meta,
   trailing,
   trailingAlign,
@@ -104,6 +116,8 @@ export function SidebarCardRow({
   anchor,
 }: SidebarCardRowProps): ReactElement {
   const inGroup = useContext(SettingsGroupContext);
+  const titleId = useId();
+  const stretched = chipActions !== undefined && onClick !== undefined && selection === undefined;
   const body = (
     <>
       {leading === undefined ? null : <span className="bh-card-leading">{leading}</span>}
@@ -120,6 +134,7 @@ export function SidebarCardRow({
       <span className="bh-card-body">
         {badge === undefined ? (
           <span
+            id={titleId}
             className={
               titleClassName === undefined ? 'bh-card-title' : 'bh-card-title ' + titleClassName
             }
@@ -129,6 +144,7 @@ export function SidebarCardRow({
         ) : (
           <span className="bh-card-title-row">
             <span
+              id={titleId}
               className={
                 titleClassName === undefined ? 'bh-card-title' : 'bh-card-title ' + titleClassName
               }
@@ -139,7 +155,14 @@ export function SidebarCardRow({
           </span>
         )}
         {summary === undefined ? null : <span className="bh-card-summary">{summary}</span>}
-        {chips === undefined ? null : <span className="bh-card-chips">{chips}</span>}
+        {chips === undefined && chipActions === undefined ? null : (
+          <span className="bh-card-chips">
+            {chips}
+            {chipActions === undefined ? null : (
+              <span {...stylex.props(styles.chipActions)}>{chipActions}</span>
+            )}
+          </span>
+        )}
         {meta === undefined ? null : <span className="bh-card-meta">{meta}</span>}
       </span>
     </>
@@ -155,7 +178,7 @@ export function SidebarCardRow({
       data-anchor={anchor}
       data-flip-key={flipKey}
     >
-      <div className="bh-card-line">
+      <div className={withStyle('bh-card-line', stretched && styles.line)}>
         {selection?.multiple === true ? (
           <label className={className} title={hint}>
             <input
@@ -172,30 +195,39 @@ export function SidebarCardRow({
             {body}
           </div>
         ) : (
-          <button
-            type="button"
-            className={className}
-            title={hint}
-            disabled={disabled}
-            aria-pressed={selection?.checked}
-            aria-haspopup={dialog === true ? 'dialog' : undefined}
-            aria-expanded={expanded}
-            aria-controls={controls}
-            onClick={onClick}
-            onPointerEnter={
-              onIntent === undefined
-                ? undefined
-                : (event) => {
-                    if (event.pointerType !== 'touch') onIntent();
-                  }
-            }
-            onFocus={onIntent}
-          >
-            {body}
-          </button>
+          <>
+            <button
+              type="button"
+              className={withStyle(className, stretched && styles.stretch)}
+              aria-labelledby={stretched ? titleId : undefined}
+              title={hint}
+              disabled={disabled}
+              aria-pressed={selection?.checked}
+              aria-haspopup={dialog === true ? 'dialog' : undefined}
+              aria-expanded={expanded}
+              aria-controls={controls}
+              onClick={onClick}
+              onPointerEnter={
+                onIntent === undefined
+                  ? undefined
+                  : (event) => {
+                      if (event.pointerType !== 'touch') onIntent();
+                    }
+              }
+              onFocus={onIntent}
+            >
+              {stretched ? null : body}
+            </button>
+            {stretched ? (
+              <div className={withStyle(className, styles.stretched)}>{body}</div>
+            ) : null}
+          </>
         )}
         {trailing === undefined ? null : (
-          <span className="bh-card-trailing" data-card-trailing={trailingAlign}>
+          <span
+            className={withStyle('bh-card-trailing', stretched && styles.above)}
+            data-card-trailing={trailingAlign}
+          >
             {trailing}
           </span>
         )}

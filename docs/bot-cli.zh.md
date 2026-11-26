@@ -1388,6 +1388,26 @@ deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
 
 使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
 
+### 应用连接（Composio）
+
+Host Owner 在 Host 上一次性连接 Gmail、Google Calendar、Drive、Notion、Slack、GitHub 等外部应用，再按 Bot 分配需要的账号。应用连接通过 Owner 自己的 Composio 项目运行，先添加它的 API key。这个 key 需要对 Session management、Session tool execution、Connected accounts 和 Auth configs 有写权限；只读 key 能列出账号，但无法生成登录链接。如果同一个 Bot 对同一应用既有只读账号又有读写账号，该应用对这个 Bot 按只读处理。key 只存放在 Host 的凭据存储里，Bot 永远看不到。
+
+```bash
+deepseekbot connector-key-set --key-stdin < /path/to/composio-key
+deepseekbot connector-search crm
+deepseekbot connector-connect gmail --label "Work Gmail"
+deepseekbot connector-refresh
+deepseekbot connector-reconnect <account-id>
+deepseekbot connectors
+deepseekbot connector-grant <bot-id> <account-id> --access read
+deepseekbot bot-connectors <bot-id>
+deepseekbot connector-grant <bot-id> <account-id> --access none
+deepseekbot connector-remove <account-id> --confirm
+deepseekbot connector-key-clear --confirm
+```
+
+`connector-search [关键词]` 列出可以连接的应用：先列出匹配的常用应用，再列出 Composio 支持的所有匹配应用（约 2000 个），返回的 `next` 可作为 `--cursor` 取下一页。中文关键词只匹配常用应用；英文词（如 `crm`、`email`）会搜索整个 Composio。没有 key 时只返回常用应用。Bot 的 `connector_catalog` 用的是同一个搜索。`connector-reconnect <account-id>` 用于重新登录已过期或失败的账号：断开旧的 Composio 账号、输出新的登录链接，并保留该账号已有的 Bot 授权。`connector-connect` 会输出登录链接；打开并登录该服务后，运行 `connector-refresh` 直到账号变为 `active`。`read` 只允许 Bot 查询；`write` 还允许发送、创建和修改。Bot 通过 `mcp__composio__` 工具使用已分配的账号，只读授权会拒绝任何会修改该服务的工具。Bot 也可以调用 `connector_catalog` 查看自己能用什么，并用 `connector_request` 在审批卡片上向 Owner 申请账号。
+
 ### 市场、版本更新、使用统计、Git 与配对审核
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
@@ -1646,15 +1666,17 @@ deepseekbot memory-move <bot-id> --default-location
 
 ## Home 与 Tob
 
-`deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
+`deepseekbot bot-grants` 列出持有 App 管理授权的 Bot，返回 `{ "tobSlug": "<id>", "holders": [{ "botSlug", "capabilities" }] }`；只有 Host Owner 本人的 `editable` 为 true；Team 成员只得到 `tobSlug`、空列表和 `editable: false`。Host Owner 本人运行 `deepseekbot bot-grant <bot-id> manage-app|manage-bots on|off`，为自己拥有的活跃 Bot 打开或关闭“管理 App”或“管理其他 Bot”；`on` 需要 `--confirm`。结果为 `{botSlug, capabilities, changed, noAppManager}`。该 Bot 自己的 Human DM 会收到系统提示，下一轮 Human DM 对话会收到一行 `[Host timeline]`，不修改系统提示词。CLI broker 以 `cli-command-refused` 拒绝 `bot-grant`，Team 成员的 CLI 收到 `remote-access/denied`。见 [Tob 决策 §11](decisions/tob.md#app-management-grant)。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、Memory 修改、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
+`deepseekbot tob-home` 幂等准备本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-在具备权限的 Tob Shell 执行中：
+持有“管理 App”的 Bot 在已准入的 Owner DM 中通过原生 bash 或 pwsh Tool 调用 `deepseekbot`。Shell broker 提供支持的 Human CLI 命令，修改授权等仅限 Human 发起的命令由 Owner 执行。修改其他 Bot 的资料或 Memory、租用其 Memory 的命令还需要“管理其他 Bot”。[ADR-0314](decisions/tob.md#adr-0314)下方列出的 Bot 创建／资料／生命周期、Memory 修改、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Bot 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）与其他工具一样遵循该 Bot 的审批模板和已保存的“始终允许”规则，审批卡显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。删除与归档、其他 Bot 的 Memory、恢复 Profile Backup、凭据与配对命令无论模板如何都必须询问 Human。被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 
-Tob 的受信任系统说明随插件打包，只注入受保护的 Tob Orchestrator；升级不会覆盖用户修改过的人格或记忆。用户只需问“你能做什么？”，Tob 会先发现当前安装版本的 CLI 能力，再用用户的语言解释可完成的事情，并提出一个具体的下一步。能力询问只读，不提交变更或审批；后续明确的修改请求仍走现有权限与审批校验。
+持有授权的 Bot 会收到一行简短的系统说明：App 出问题时先运行 `capabilities` 和 `doctor`。打开或关闭授权不会改动正在运行的 Session 的系统提示词或工具；这行说明在下次压缩或新 Session 时才生效。授权不改动 Bot 的 Soul 和 Memory。`deepseekbot capabilities` 列出本次执行可用的命令。
 
-npm Bundle 自带 core CLI 模块和产品 CLI 入口。Tob 使用 Host 注入当前 Shell 的受管执行入口，不依赖全局安装的 `deepseekbot`、源码目录或手动复制的 skill。发布校验会拒绝缺少 CLI 入口的包；运行时缺失入口则报告安装问题，不回退到其他管理通道。
+npm Bundle 自带 core CLI 模块和产品 CLI 入口。授权持有者使用 Host 注入当前 Shell 的受管执行入口，不依赖全局安装的 `deepseekbot`、源码目录或手动复制的 skill。发布校验会拒绝缺少 CLI 入口的包；运行时缺失入口则报告安装问题，不回退到其他管理通道。
+
+在授权持有者具备权限的 Shell 中运行以下命令。
 
 ```bash
 deepseekbot capabilities
@@ -1663,13 +1685,13 @@ deepseekbot settings botharness-client
 printf '%s' '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin --expected-revision 12 --previous-value '{"assignmentConcurrencyLimit":8}'
 ```
 
-`capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验真实 Tob root Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
+`capabilities`（以及受限模式的 `--help`）列出支持的命令、字段、必需的审核输入和带代码的拒绝原因。读取返回 `{scope, ns, revision, value}`，`value` 只包含授权字段。写入将解析后的命名空间、旧值、新值和 revision 交给现有 Host 审批策略；审批前后和执行时重验授权、该 Bot 的 root Orchestrator 与准确的已准入 Human DM 来源，随后读回 native Settings 的值。群聊／外部 IM、Bot 来源、Assignment Sessions 和调用方自报身份均不能授予此权限。
 
-Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。Shell 完成、取消或释放后立即撤销。类型化操作不支持的参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
+Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程环境。它是短期 bearer capability，不是 Human 管理员凭据，也不构成同一 OS 用户之间的隔离边界；不要打印或持久化它。授权被关闭或 Shell 完成、取消、释放时，Host 撤销该 token。类型化操作不支持的参数、不完整的受限上下文、指定其他 Host／token／离线 home 的尝试均会拒绝，不回退到 Human 或离线访问。`stale-setting` 要求重新读取并提案；`agent-write-uncertain`、`setting-outcome-uncertain` 和 `setting-readback-mismatch` 要求重试前先读回。上下文过期后必须发起新的 Shell 执行。
 
-已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。Tob 的删除／归档仍返回 `protected-bot`。
+已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。可以删除或归档最后一个持有“管理 App”的 Bot；删除预览会带上 `lastAppManager: true`，先提醒 Human。
 
-[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](decisions/tob.md#adr-0224)，完整命令范围见 [ADR-0314](decisions/tob.md#adr-0314)。
+[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和授权持有者的受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](decisions/tob.md#adr-0224)，完整命令范围见 [ADR-0314](decisions/tob.md#adr-0314)。
 
 ### Tob 创建 Bot、资料与生命周期
 
@@ -1706,7 +1728,7 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot bot-delete-confirm <bot-
 deepseekbot bot-delete-retry <bot-id> --confirm
 ```
 
-删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。Tob 自身不能归档或删除（`protected-bot`）；名称、人格文本和导入内容都不能赋予其权限。
+删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。任何 Bot（包括 Tob）都可以归档或删除；若该 Bot 是最后一个持有“管理 App”的 Bot，预览会带上 `lastAppManager: true`。名称、人格文本和导入内容都不能赋予 App 管理授权。
 
 详见 [ADR-0225](decisions/tob.md#adr-0225) 与[覆盖清单](agents/cli-ui-coverage.md#2089-bot-management-scope)。直接 CLI、真实 Tob 对话、Web 导航和 macOS Desktop 是独立验收入口，命令契约不代表这些验证已通过。
 
@@ -2528,7 +2550,7 @@ CLI 与 Tob broker 共用应用定义的命令效果声明；lint 从真实命�
 
 已认证的 Host Owner 可将 `{"argv":["approval-templates"],"stdin":""}` 保存为本机私有 JSON 文件，用 `deepseekbot tob-cli start --args-stdin < request.json` 启动；用 `tob-cli status <request-id>` 读取状态和结果，或 `tob-cli cancel <request-id>` 请求取消。
 
-Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admission 接纳，在同一存活的 Tob 根 Orchestrator 中，通过 DSH 原生工具执行器调用 `deepseekbot_cli` 和既有 broker；不请求模型。调用方不能指定 actor、Source Event、Session、cwd 或权限覆盖。写入仍显示真实审批卡，可使用既有 `tool-approval-status`、`tool-approval-decide` 或 Tob DM 中的审批操作。
+Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admission 接纳，请求在内置 Tob 的 Human DM 中执行，并要求 Tob 持有“管理 App”，在 Tob 同一存活的根 Orchestrator 中，通过 DSH 原生工具执行器调用 `deepseekbot_cli` 和既有 broker；不请求模型。调用方不能指定 actor、Source Event、Session、cwd 或权限覆盖。写入仍显示真实审批卡，可使用既有 `tool-approval-status`、`tool-approval-decide` 或该 DM 中的审批操作。
 
 启动返回 `{id,channelId,messageId,state,cancelRequested}`。结束状态为 `completed`（含 `result:{exitCode,stdout,stderr}`），或带错误码的 `failed` / `cancelled`。`completed` 仅表示调用已结束，仍须检查 exitCode 和 JSON stdout 中的命令拒绝。取消须等待结束，不能撤销已提交的效果。模型回合、直接工具或另一请求正在运行时返回 `bot-busy`；权限不可用返回 `tob-authority-required`，运行时关闭返回 `runtime-closed`，请求不存在或过期返回 `cli-request-unavailable`。
 

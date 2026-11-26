@@ -23,6 +23,9 @@ const place = vi.hoisted(() => ({
   dismissTo: vi.fn(),
 }));
 
+vi.mock('../src/host/native-model-catalog', () => ({
+  nativeModelCatalogStore: { read: () => undefined, write: () => {} },
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: {
@@ -177,7 +180,10 @@ vi.mock('../src/ui/chat/assignment-screen', () => ({ AssignmentDetail: () => nul
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
-vi.mock('../src/ui/primitives/drawer-header', () => ({ DrawerHeader: () => null }));
+vi.mock('../src/ui/primitives/drawer-header', () => ({
+  DrawerHeader: () => null,
+  HeaderButton: () => null,
+}));
 vi.mock('../src/ui/chat/sheet-frame', () => ({
   SheetFrame: ({ visible, label }: { visible: boolean; label: string }) =>
     visible ? <section aria-label={label} /> : null,
@@ -388,6 +394,7 @@ async function open({
     root!.render(
       <Body
         client={client}
+        hostId="host"
         slug={role === 'native' ? null : 'ada'}
         id="chosen"
         title="Release review"

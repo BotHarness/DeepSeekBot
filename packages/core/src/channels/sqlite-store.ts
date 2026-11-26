@@ -216,13 +216,18 @@ const groupMembershipSql = {
 };
 
 const noticesSql = {
+  insertSystemSourceEvent: `
+              INSERT INTO source_events (
+                source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json
+              ) VALUES (?, 'system-message', ?, ?, ?, ?, ?)
+            `,
   insertMemorySourceEvent: `
               INSERT INTO source_events (
                 source_event_id, source_kind, bot_slug, channel_id, message_id,
                 body, created_at, payload_json
               ) VALUES (?, 'self-record', ?, ?, ?, '', ?, ?)
             `,
-  insertMemoryPlacement: `
+  insertPlacement: `
               INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
               VALUES (?, ?, ?, ?)
             `,
@@ -500,6 +505,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     removeGroupMember: groupMembership.removeGroupMember,
     appendMemoryCommits: notices.appendMemoryCommits,
     appendBotCreateAction: notices.appendBotCreateAction,
+    appendSystemNotices: notices.appendSystemNotices,
     deleteGroup: groupMembership.deleteGroup,
     setGroupAvatar: records.methods.setGroupAvatar,
     rename: records.methods.rename,

@@ -129,6 +129,7 @@ export interface BotHarnessCore {
   voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
+  connectors?: import('./connectors/service.js').ConnectorService;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
 }

@@ -1,16 +1,22 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { HostCall } from '@botharness/host-client/host-answer';
-import { loadSessionModelCatalog } from '@botharness/host-client/model-catalog';
 import { sessionModel } from '@botharness/host-client/session-model';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
 
-export type SessionModelCatalog = Awaited<ReturnType<typeof loadSessionModelCatalog>>;
+import { createModelCatalogCache } from './model-catalog-cache';
+import { nativeModelCatalogStore } from './native-model-catalog';
+
+export type { SessionModelCatalog } from './model-catalog-cache';
 
 export const sessionModelQueries = new QueryClient({
   defaultOptions: { queries: { retry: false, gcTime: 30 * 60 * 1000 } },
 });
 
-const CATALOG_STALE = 60 * 1000;
+export const modelCatalogCache = createModelCatalogCache({
+  queries: sessionModelQueries,
+  store: nativeModelCatalogStore,
+});
+
 const hosts = new WeakMap<HostCall, number>();
 let nextHost = 0;
 
@@ -21,14 +27,6 @@ function hostKey(host: HostCall): number {
     hosts.set(host, key);
   }
   return key;
-}
-
-export function catalogQuery(host: HostCall) {
-  return {
-    queryKey: ['session-model-catalog', hostKey(host)] as const,
-    queryFn: (): Promise<SessionModelCatalog> => loadSessionModelCatalog(host),
-    staleTime: CATALOG_STALE,
-  };
 }
 
 export function stateQuery(host: HostCall, slug: string | null, sessionId: string | undefined) {

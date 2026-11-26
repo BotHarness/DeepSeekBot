@@ -66,6 +66,8 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   channel_read: read,
   channel_read_image: read,
   cloud_work: send,
+  connector_catalog: read,
+  connector_request: { ...write, authority: 'management' },
   computer_click: computerAct,
   computer_get_desktop_state: computerRead,
   computer_get_window_state: computerRead,

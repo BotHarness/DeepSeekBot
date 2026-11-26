@@ -22,7 +22,7 @@ export const TOB_BOT_CREATE_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'create',
     description:
-      'Create one Bot with personality and initial Memory; retry the same operation key and payload to recover its identity and DM',
+      'Unless the Human skips Marketplace, first run marketplace-list --include-uploads --query with request keywords. Offer a custom Bot (name, Bio, tags, Soul and Core Memory) and up to three live candidates, then wait for their choice. A failed search is unavailable, while search: no-matches is an empty result. Create the reviewed custom Bot with a stable operation key or stage the chosen listing with marketplace-install and show its review before installing. Use the same key and payload to recover the result.',
     write: true,
   },
 ];

@@ -397,6 +397,8 @@ const BOT_TOOL_NAMES = new Set([
   'bridge_context',
   'bridge_group_policy_list',
   'bridge_group_policy_set',
+  'connector_catalog',
+  'connector_request',
   'bridge_thread_policy_list',
   'bridge_thread_policy_set',
   'bridge_attachment_save',

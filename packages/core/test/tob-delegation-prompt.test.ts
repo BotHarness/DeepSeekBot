@@ -1,51 +1,42 @@
-import { describe, expect, it } from 'vitest';
-
+import { expect, it } from 'vitest';
 import { DEFAULT_PROMPT_TEXT } from '../src/prompts/prompt-parts.js';
 import { orchestratorPromptSections } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { TOB_CHANNEL_CAPABILITIES } from '../src/tob/cli-channel-operations.js';
+import { TOB_DIAGNOSTIC_CAPABILITIES } from '../src/tob/cli-diagnostic-operations.js';
+import { TOB_HOST_CLI_CAPABILITY } from '../src/tob/cli-host-commands.js';
+import { TOB_SHARE_DRAFT_CAPABILITIES } from '../src/tob/cli-share-draft-operations.js';
 
-const tobRole = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
-const botRole = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, false).role;
-const delegation = tobRole.slice(tobRole.indexOf('Tob Delegation:')).split('\n')[0];
-
-describe('Tob Delegation prompt', () => {
-  it('gives only Tob the delegation contract', () => {
-    expect(tobRole).toContain('Tob Delegation:');
-    expect(botRole).not.toContain('Tob Delegation');
-    expect(botRole).not.toContain('single point of contact');
-  });
-
-  it('keeps trivial requests with Tob and delegates the rest without asking first', () => {
-    expect(delegation).toContain('Answer a trivial request yourself');
-    expect(delegation).toContain('delegate it without asking the Human first');
-    expect(delegation).toContain(
-      'Keep your own Memory updates, Bot Schedules and reminders, and MCP or credential setup with you',
+it('gives an App management grant holder one short management instruction', () => {
+  const manager = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, true).role;
+  const ordinary = orchestratorPromptSections(DEFAULT_PROMPT_TEXT, false).role;
+  const additions = manager
+    .split('\n')
+    .filter(
+      (line) => !ordinary.split('\n').includes(line) && !line.startsWith('In a Group Channel'),
     );
-    expect(delegation).toContain('call list_bot_contacts');
-    expect(delegation).toContain('one bot_send_message with its botId as bot_id');
-    expect(delegation).toContain('Send to one colleague only and never repeat the send');
-  });
+  expect(additions).toHaveLength(1);
+  expect(additions[0]!.length).toBeLessThan(450);
+  expect(additions[0]).toContain('deepseekbot capabilities');
+  expect(additions[0]).toContain('doctor first');
+  expect(ordinary).not.toContain('bot_create');
+  expect(manager).not.toContain('You are Tob');
+});
 
-  it('reports the colleague result back in the Human DM', () => {
-    expect(delegation).toContain("When the colleague's reply arrives in your Inbox");
-    expect(delegation).toContain('with bot_send_message in your Human DM');
-  });
-
-  it('sends nothing and offers creation when no colleague fits', () => {
-    expect(delegation).toContain('send nothing to any Bot');
-    expect(delegation).toContain('offer to create one, creating it only after the Human agrees');
-  });
-
-  it('carries no approval authority', () => {
-    expect(delegation).toContain(
-      'never relay, make or promise an approval decision for a colleague',
-    );
-    expect(delegation).toContain('its own approvals still go to the Human');
-  });
-
-  it('keeps Tob creation on the scoped CLI after the delegation guidance', () => {
-    expect(tobRole.indexOf('Tob Delegation:')).toBeLessThan(
-      tobRole.indexOf('When the Human asks you to create a Bot, use the scoped deepseekbot CLI'),
-    );
-    expect(tobRole).not.toContain('Create a new PersonaBot with bot_create');
-  });
+it('keeps the management operating rules in the capability descriptions', () => {
+  const describe = (command: string) =>
+    [
+      ...TOB_SHARE_DRAFT_CAPABILITIES,
+      ...TOB_DIAGNOSTIC_CAPABILITIES,
+      ...TOB_CHANNEL_CAPABILITIES,
+      TOB_HOST_CLI_CAPABILITY,
+    ].find((entry) => entry.command === command)!.description;
+  expect(describe('share-draft-show')).toContain(
+    'ask the Human with ask_user_question about that one file',
+  );
+  expect(describe('share-draft-show')).toContain('Ask one file at a time');
+  expect(describe('doctor')).toContain('run doctor before answering');
+  expect(describe('cli')).toContain('Read the target before any write');
+  expect(describe('cli')).toContain('never approve or decide on the Human');
+  expect(describe('group-invite')).toContain('never claim a pending invitation joined');
+  expect(describe('group-invite')).toContain('automatic acceptance');
 });

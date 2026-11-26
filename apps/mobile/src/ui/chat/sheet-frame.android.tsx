@@ -26,10 +26,14 @@ export function SheetFrame({ visible, label, onClose, children, resizable }: She
           <View
             accessibilityLabel={label}
             onAccessibilityEscape={onClose}
-            style={{
-              maxHeight: height - insets.top - insets.bottom - theme.touch * 2 - keyboard,
-              paddingBottom: space.x5,
-            }}
+            style={
+              resizable === true
+                ? { height: height - insets.top - insets.bottom - theme.touch * 2 - keyboard }
+                : {
+                    maxHeight: height - insets.top - insets.bottom - theme.touch * 2 - keyboard,
+                    paddingBottom: space.x5,
+                  }
+            }
           >
             <SystemSheet value>{children}</SystemSheet>
           </View>
