@@ -2,6 +2,7 @@ import { createApprovalText } from './interactions/approval-text.js';
 import { createFailureAlerts } from './failure-alerts.js';
 import { createApprovalMessaging } from './approval-messaging.js';
 import { createPairingCards } from './pairing-cards.js';
+import { createRoleText } from './interactions/role-text.js';
 import { createPairingText } from './interactions/pairing-text.js';
 import { createQuestionMessaging } from './question-messaging.js';
 import { createBotPairing } from './pairing.js';
@@ -354,9 +355,21 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     reviewed: (botSlug) => pairingCards.refresh(botSlug),
     ...(options.warn ? { warn: options.warn } : {}),
   });
+  const roleText = createRoleText({
+    database,
+    pairing,
+    provider: (id) => provider(id).provider,
+    isBotActive: options.isBotActive,
+    changed: (botSlug) => {
+      options.onAuthorizationChanged?.(botSlug);
+      pairingCards.refresh(botSlug);
+    },
+    ...(options.warn ? { warn: options.warn } : {}),
+  });
   const inbound = createInboundMessaging({
     onQuestionAction: (providerId, event, signal) => questions.action(providerId, event, signal),
     onQuestionText: async (providerId, event, signal) =>
+      (await roleText.text(providerId, event, signal)) ||
       (await questions.text(providerId, event, signal)) ||
       (await pairingText.text(providerId, event, signal)) ||
       approvalText(providerId, event, signal),
