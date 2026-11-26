@@ -247,6 +247,8 @@ Usage:
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
   tobs session-send <id> <orchestrator-session-id> [--] <text>
   tobs session-stop <id> <session-id> [--channel <channel-id>]
+  tobs workspace-look --cwd <path>
+  tobs workspace-look-set --cwd <path> [--color <id>] [--symbol <id> | --emoji <e> | --monogram] | --clear
   tobs bot-stop <id> [--channel <channel-id>]
   tobs tool-approval-rules <id>
   tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]

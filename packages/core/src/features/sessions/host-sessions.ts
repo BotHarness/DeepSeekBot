@@ -17,6 +17,7 @@ import {
   type HostSessionRow,
   type HostSessionSort,
   type HostSessionSourceOption,
+  type WorkspaceLookResult,
 } from '@botharness/host-protocol/host-sessions';
 import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 import { z } from 'zod';
@@ -29,6 +30,8 @@ import {
   unknownBot,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
+import { normalizeWorkspaceLook } from '../../workspaces/workspace-looks.js';
+import { isAbsolute } from 'node:path';
 import type { HumanContext } from '../../humans/context.js';
 import {
   sessionDisplayTitle,
@@ -340,6 +343,31 @@ export function createHostSessionsMethods(
         ok: true,
         value: { sessions, removed, sources: read.sources, cursor: changes.cursor },
       };
+    },
+    workspaceLook(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const path = asNonBlank(asObject(payload), 'path');
+      if (path === undefined) return invalidInput('path is required');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      return { ok: true, value: { path, look: deps.workspaceLooks.get(path) ?? null } };
+    },
+    workspaceLookSet(payload: unknown): BridgeResult<WorkspaceLookResult> {
+      if (!nativeAllowed()) return denied;
+      const input = asObject(payload);
+      const path = asNonBlank(input, 'path');
+      if (path === undefined || !isAbsolute(path))
+        return invalidInput('path must be an absolute folder path');
+      if (deps.workspaceLooks === undefined) return unavailable;
+      if (input['look'] === null) {
+        deps.workspaceLooks.clear(path);
+        return { ok: true, value: { path, look: null } };
+      }
+      const look = normalizeWorkspaceLook(input['look']);
+      if (look === undefined)
+        return invalidInput(
+          'look needs a known color, and an icon that is a known symbol, one emoji or the monogram',
+        );
+      return { ok: true, value: { path, look: deps.workspaceLooks.set(path, look) } };
     },
     sessionTranscript(payload: unknown) {
       return native<

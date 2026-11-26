@@ -79,11 +79,31 @@ export type HostSessionListChanges =
       cursor: HostSessionListCursor;
     };
 
+export type WorkspaceLookIcon =
+  | { kind: 'symbol'; id: string }
+  | { kind: 'emoji'; emoji: string }
+  | { kind: 'monogram' };
+
+export interface WorkspaceLook {
+  color?: string;
+  icon?: WorkspaceLookIcon;
+}
+
+export interface HostSessionFolderLook extends WorkspaceLook {
+  favicon?: string;
+}
+
+export interface WorkspaceLookResult {
+  path: string;
+  look: WorkspaceLook | null;
+}
+
 export interface HostSessionRow {
   sessionId: string;
   source: HostSessionSource;
   title?: string;
   folderName?: string;
+  folderLook?: HostSessionFolderLook;
   cwd?: string;
   running: boolean;
   waiting?: true;

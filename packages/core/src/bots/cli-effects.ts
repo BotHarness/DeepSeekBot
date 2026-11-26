@@ -512,6 +512,8 @@ export const CLI_EFFECTS = {
   'session-answer-approval': { effects: externalIrreversibleManagement, brokerRead: false },
   'session-answer-question': { effects: external, brokerRead: false },
   'session-archive': { effects: write, brokerRead: false },
+  'workspace-look': { effects: read, brokerRead: true },
+  'workspace-look-set': { effects: write, brokerRead: false },
   'session-archive-set': { effects: write, brokerRead: false },
   'session-ids': { effects: read, brokerRead: true },
   'session-progress': { effects: read, brokerRead: true },

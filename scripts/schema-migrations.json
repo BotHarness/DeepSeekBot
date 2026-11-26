@@ -758,5 +758,9 @@
   {
     "id": "connector-remote-mcp",
     "sha256": "4897d986659a9c3f523737c7efb0ce62b8845f98fb9f85a75b1545a6f9ee2d82"
+  },
+  {
+    "id": "workspace-looks",
+    "sha256": "1f0c624e90e6666c80ada16f81a37ca0c1b2ac9bf5f5784d64bcf5903709d239"
   }
 ]

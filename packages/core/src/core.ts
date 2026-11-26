@@ -1,3 +1,4 @@
+import { createWorkspaceLooks } from './workspaces/workspace-looks.js';
 import * as profileStorage from './features/profile-storage/plugin.js';
 import * as personabotsFeature from './features/personabots/plugin.js';
 import * as tobFeature from './features/tob/plugin.js';
@@ -86,6 +87,9 @@ function initializeCore(
   let usage: UsageProjection | undefined;
   startup.enter('avatar-part-library', 'initialize');
   const { partLibrary, onAppearanceImported } = avatars.apply(operationalDatabase);
+  const workspaceLooks = createWorkspaceLooks({
+    database: attachOperationalModule(operationalDatabase, 'workspace-looks'),
+  });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
   let modelFavorites: ModelFavoriteStore;
@@ -434,6 +438,7 @@ function initializeCore(
     zipImports,
     channelManagement,
     partLibrary,
+    workspaceLooks,
     rootDir,
     operationalDatabase,
     externalMessaging,
