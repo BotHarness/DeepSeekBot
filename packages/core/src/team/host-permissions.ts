@@ -133,3 +133,10 @@ export function roleGrantedPermissionsSql(human: string): string {
 export function roleGrantsPermissionSql(human: string, permission: HostPermission): string {
   return `(${permissionLiteral(permission)} IN (${roleGrantedPermissionsSql(human)}))`;
 }
+
+export function hostPermissionHolderSql(human: string, permission: HostPermission): string {
+  return `(${human} = (SELECT holder_settings.owner_human_id FROM team_settings holder_settings)
+    OR ((SELECT holder_settings.enabled FROM team_settings holder_settings) = 1
+      AND EXISTS (SELECT 1 FROM humans holder WHERE holder.human_id = ${human} AND holder.status = 'active')
+      AND ${roleGrantsPermissionSql(human, permission)}))`;
+}

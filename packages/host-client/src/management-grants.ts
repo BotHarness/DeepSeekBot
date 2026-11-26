@@ -5,6 +5,7 @@ export type ManagementCapability = (typeof MANAGEMENT_CAPABILITIES)[number];
 
 export interface ManagementGrants {
   readonly editable: boolean;
+  readonly memberBot: boolean;
   readonly capabilities: readonly ManagementCapability[];
   readonly appManagers: readonly string[];
 }
@@ -35,6 +36,7 @@ export async function loadManagementGrants(
   });
   return {
     editable: answer?.['editable'] === true,
+    memberBot: answer?.['memberBot'] === true,
     capabilities: parsed.find((holder) => holder.botSlug === slug)?.capabilities ?? [],
     appManagers: parsed
       .filter((holder) => holder.capabilities.includes('manage-app'))

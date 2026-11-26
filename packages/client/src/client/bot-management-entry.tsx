@@ -16,6 +16,20 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 import { teamErrorText } from './team-settings.js';
 
+function copy(grants: ManagementGrants | undefined, capability: ManagementCapability) {
+  if (grants?.memberBot === true && capability === 'manage-app')
+    return {
+      hint: 'botManagement.member.manage-app.hint',
+      confirmTitle: 'botManagement.member.manage-app.confirmTitle',
+      abilities: 'botManagement.member.manage-app.abilities',
+    } as const;
+  return {
+    hint: `botManagement.${capability}.hint`,
+    confirmTitle: `botManagement.${capability}.confirmTitle`,
+    abilities: `botManagement.${capability}.abilities`,
+  } as const;
+}
+
 export function BotManagementEntry({
   botSlug,
   actions,
@@ -82,7 +96,7 @@ export function BotManagementEntry({
             <SettingsRow
               key={capability}
               title={t(`botManagement.${capability}`)}
-              description={t(`botManagement.${capability}.hint`)}
+              description={t(copy(grants, capability).hint)}
               data={{ 'data-bot-management-row': capability }}
               control={
                 <Switch
@@ -107,8 +121,8 @@ export function BotManagementEntry({
       )}
       {confirming === undefined ? null : (
         <ConfirmDialog
-          title={t(`botManagement.${confirming}.confirmTitle`)}
-          description={`${t(`botManagement.${confirming}.abilities`)} ${t('botManagement.approval')}`}
+          title={t(copy(grants, confirming).confirmTitle)}
+          description={`${t(copy(grants, confirming).abilities)} ${t('botManagement.approval')}`}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           confirmLabel={t('botManagement.turnOn')}
           busy={busy}

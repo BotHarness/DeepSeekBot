@@ -69,7 +69,7 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'bot-grant',
     description:
-      '<bot> <manage-app|manage-bots> <on|off> turns an App management grant on or off for a Bot the Host Owner owns; on needs --confirm. Human-only',
+      '<bot> <manage-app|manage-bots> <on|off> turns an App management grant on or off for a Bot you own, as the Owner or a member with bots.manageGrants; on needs --confirm. Human-only',
   },
   { command: 'pause', description: 'archive a Bot through the Host owner' },
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
@@ -397,7 +397,7 @@ function validate(
     if (rest[2] === 'on' && values.confirm !== true)
       usage(
         rest[1] === 'manage-app'
-          ? 'manage-app lets the Bot change settings and models, run diagnostics and maintenance, create Bots and manage Channels through the CLI in its Human DM; writes follow its Approval Template. Pass --confirm.'
+          ? "manage-app lets the Bot change settings and models, run diagnostics and maintenance, create Bots and manage Channels through the CLI in its Human DM; a member's Bot can only create Bots and share Bot drafts. Writes follow its Approval Template. Pass --confirm."
           : "manage-bots lets the Bot change other Bots' profiles, edit their Memory and lease their Memory for comparison; Memory edits always need your decision. Pass --confirm.",
       );
   }
