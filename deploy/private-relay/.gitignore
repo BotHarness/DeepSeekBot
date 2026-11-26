@@ -1,4 +1,7 @@
 bootstrap.secret
 .env
-hosts/
+/hosts/
 host-*.secret
+relay-data/
+tobs-relay
+tobs-relay.exe

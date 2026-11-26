@@ -88,6 +88,7 @@ export function humanAttention(
   queryVersion?: number,
   dismissed?: boolean,
   notifications?: boolean,
+  source?: 'all' | 'bot' | 'native',
 ): HumanAttentionPage {
   return unwrap(
     methods.humanAttention({
@@ -104,6 +105,7 @@ export function humanAttention(
       queryVersion,
       dismissed,
       notifications,
+      source,
     }),
   );
 }
@@ -111,8 +113,9 @@ export function humanAttention(
 export function humanAttentionStatus(
   methods: ActivityBridgeMethods,
   messageCounts?: boolean,
+  source?: 'all' | 'bot' | 'native',
 ): HumanAttentionStatus {
-  return unwrap(methods.humanAttentionStatus({ messageCounts }));
+  return unwrap(methods.humanAttentionStatus({ messageCounts, source }));
 }
 
 export function channelUnreadCounts(methods: ActivityBridgeMethods): {
@@ -276,6 +279,7 @@ export const attentionRpc = {
     queryVersion?: number,
     dismissed?: boolean,
     notifications?: boolean,
+    source?: 'all' | 'bot' | 'native',
   ): HumanAttentionPage {
     return humanAttention(
       this.methods,
@@ -292,11 +296,15 @@ export const attentionRpc = {
       queryVersion,
       dismissed,
       notifications,
+      source,
     );
   },
 
-  humanAttentionStatus(messageCounts?: boolean): HumanAttentionStatus {
-    return humanAttentionStatus(this.methods, messageCounts);
+  humanAttentionStatus(
+    messageCounts?: boolean,
+    source?: 'all' | 'bot' | 'native',
+  ): HumanAttentionStatus {
+    return humanAttentionStatus(this.methods, messageCounts, source);
   },
 
   channelUnreadCounts(): {

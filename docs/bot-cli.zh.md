@@ -79,7 +79,7 @@ Client 线路偏好检查或文件替换失败时，Host 线路可能已经更�
 
 手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
 
-`deepseekbot activity --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
+`deepseekbot activity --notifications [--limit 1..100] [--cursor <游标>] [--source all|bot|native]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件；只有 `--source` 例外：`all` 把 Owner 的原生会话请求加在第一页、与 Bot 条目并列，`native` 只返回这些原生请求（不含 Bot 待办、回复和 DM 回复）；两者都只在 Host 的“会话请求进入活动”开启时生效。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
@@ -284,6 +284,7 @@ printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --p
 printf '{"sessionDetailLevel":"detailed","sessionCollapse":"nextInput","sessionFoldedReplies":"final"}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"nativeSessionAttention":false}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -600,6 +601,7 @@ iPhone 上打开 Computer。
 
 ```bash
 deepseekbot activity --category action --limit 20
+deepseekbot activity --source all
 deepseekbot activity --category replies --search budget --unread --sort mentions-first
 deepseekbot activity-watch --category unread --watch-seconds 10
 deepseekbot activity-status
@@ -663,7 +665,7 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 
 这些命令通过已认证的在线 Host 执行。`session-list` 默认按最近的 Human 消息时间降序列出根会话。用 `--sort created` 按创建时间降序排列，或用 `--sort last-activity` 按最近活动排序。`--search` 匹配会话标题和 Human 发送的消息，可与 `--source native` 或 `--source bot:<slug>` 组合。默认来源为 `all`。列表包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。传 `--limit` 时只返回一页和 `nextCursor`，把它作为 `--cursor` 传入即可读取下一页。`session-list-changes` 不带 `--since` 时返回当前变更游标（`reset: true`）。带上之前游标中的 `--since` 和 `--epoch` 时，返回变化的行、被删除会话的 ID 和新游标；如果 Host 已重启或变更记录已不包含该游标，则返回 `reset: true`，此时需重新读取完整列表。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
 
-Host Owner 可以从 `session-transcript` 和 `session-live` 的 `pendingInput` 读取原生审批和提问卡片。用相应命令回答，并传入卡片的 `requestId`。回答提问时，通过 stdin 提交 JSON，例如 `{"answers":[{"id":"format","selected":["Compact"]}]}`，每个问题对应一项。自由文本答案使用 `"selected":[]` 和 `custom` 字符串。使用空的 `selected` 并省略 `custom` 可跳过单个问题。已结束的请求返回 `session-input-not-pending`。
+Host Owner 可以从 `session-transcript` 和 `session-live` 的 `pendingInput` 读取原生审批和提问卡片。原生审批带有 `preview`，即待执行工具调用的主要参数（`bash` 时为命令），与 DSH 的 `reason` 并列；`activity --source all` 中的 `nativeSession.request` 是同一张卡片。用相应命令回答，并传入卡片的 `requestId`。回答提问时，通过 stdin 提交 JSON，例如 `{"answers":[{"id":"format","selected":["Compact"]}]}`，每个问题对应一项。自由文本答案使用 `"selected":[]` 和 `custom` 字符串。使用空的 `selected` 并省略 `custom` 可跳过单个问题。已结束的请求返回 `session-input-not-pending`。
 
 `session-stop --session` 请求 DSH 取消原生会话的当前回合。`session-archive` 归档空闲的原生会话。归档正在运行的会话前，请先停止并等待当前回合结束。列表和搜索默认隐藏已归档会话。使用 `--include-archived` 可查看这些会话，条目带有 `archived: true`。团队成员没有查看或处理原生会话请求的权限。
 
@@ -692,6 +694,8 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 `activity-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
 
 `activity-watch` 先订阅现有已认证 roster 实时流，再读取基线。观测 1–60 秒（默认 10 秒）后，仅输出一个 JSON，包含 `initial`、`current` 和 `invalidations` 数量。两次快照沿用 `activity` 的 Activity 查询与筛选；中间事件仅通知数据失效，不另存通知。流提前中断返回编码拒绝。`--timeout` 应长于观测窗口。
+
+`activity --source all|bot|native` 选择「活动」覆盖哪些会话。不传时只列 Bot 条目，与以前一致。`all` 把 Host Owner 原生会话的待处理请求（审批和提问，`kind` 为 `native-session-input`，`botSlug` 为空，`nativeSession` 带 `sessionId`、`sessionTitle`、`folderName`（会话文件夹名，已知时）、`cwd`（完整工作目录，已知时）、`input` 和 `request`（与 `session-transcript` 中相同的待处理审批或提问））加入第一页 `action`，与 Bot 条目并列；`native` 只返回这些原生请求，不含 Bot 条目。原生条目在请求被回答或取消后消失，不能清理或稍后提醒。`activity-status --source all` 把它们和 Bot 待办一起计入 `hasAction`；`activity-status --source native` 只按原生请求设置 `hasAction`。只有 Host Owner 能看到它们及其推送，且仅在 `nativeSessionAttention`（默认 `true`，用 `settings-set botharness-client` 设置）开启时出现；关闭后原生请求不进入「活动」也不推送，但 `sessions` 的每一行仍有 `status`（`running`、`needs-you` 或 `idle`）和 `attention`（`approval`、`question` 或 `failed`）。旧 Host 对 `--source` 返回 `host-query-unsupported`。
 
 `activity --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
 
@@ -1423,7 +1427,7 @@ deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label
 deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
 ```
 
-`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。授权方式和 Composio 账号相同：每个分配给 Bot 的账号会以独立的 `mcp__app_<service>__` 工具出现，`read` 只允许服务器标为只读的工具，`write` 允许全部工具。
+`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。Host 会申请服务器提供的全部 scope，允许哪些由你在服务自己的授权页上选。授权完成后，Host 记录服务器实际给出的权限：给出的 scope 全是读取类（例如 `insight:read`；`openid`、`profile`、`email`、`offline_access` 和 `introspection` 不计）时显示为只读，否则显示为读写。要修改，用 `connector-reconnect` 重新登录。分配到这个账号的 Bot 能看到它全部的 `mcp__app_<service>__` 工具，能做什么由服务器执行；Host 不按读写过滤 MCP 工具，所以 `connector-grant` 的 `--access` 对 MCP 账号只表示 Bot 能不能使用它。Host 开始记录授权权限之前连接的账号仍按每个 Bot 的授权处理：`read` 授权会拒绝它的工具，直到 Owner 重新登录。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

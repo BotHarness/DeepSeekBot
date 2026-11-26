@@ -1,6 +1,5 @@
-node_modules
-bootstrap.secret
-.env
-hosts
-host-*.secret
-*.test.mjs
+**
+!*.go
+!*_test.go
+!go.mod
+!go.sum

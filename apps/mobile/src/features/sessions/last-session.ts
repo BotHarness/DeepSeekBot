@@ -48,3 +48,12 @@ export function rememberLastSession(next: LastSession): void {
     file().writeSync(JSON.stringify(next));
   } catch {}
 }
+
+export function forgetLastSession(hostId: string, sessionId: string): void {
+  const current = lastSession();
+  if (current?.hostId !== hostId || current.sessionId !== sessionId) return;
+  last = null;
+  try {
+    file().delete();
+  } catch {}
+}

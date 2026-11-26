@@ -129,9 +129,16 @@ export function createLive({
   contentPurge,
   operationalDatabase,
   team,
+  onNativeSessionAttention,
 }: Pick<
   BotHarnessCore,
-  'channels' | 'registry' | 'states' | 'contentPurge' | 'operationalDatabase' | 'team'
+  | 'channels'
+  | 'registry'
+  | 'states'
+  | 'contentPurge'
+  | 'operationalDatabase'
+  | 'team'
+  | 'onNativeSessionAttention'
 >) {
   return createChannelLiveHub(
     channels,
@@ -147,10 +154,16 @@ export function createLive({
     (changed) =>
       watchHumanAttention(
         operationalDatabase,
-        (notify) =>
-          states.onActivity((event) => {
+        (notify) => {
+          const offStates = states.onActivity((event) => {
             if (event.cause === 'attention-changed') notify();
-          }),
+          });
+          const offNative = onNativeSessionAttention(notify);
+          return () => {
+            offStates();
+            offNative();
+          };
+        },
         changed,
       ),
     (human, resource) =>

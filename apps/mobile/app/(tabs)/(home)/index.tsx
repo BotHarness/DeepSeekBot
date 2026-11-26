@@ -132,7 +132,7 @@ const HomeContent = memo(function HomeContent({
       const idle = requestIdleCallback(() => {
         prepared.current = client;
         router.prefetch('/activity');
-        stop = prefetchInbox(client, { activity: true, section: 'action' });
+        stop = prefetchInbox(client, { activity: true, section: 'action', source: 'all' });
       });
       return () => {
         cancelIdleCallback(idle);

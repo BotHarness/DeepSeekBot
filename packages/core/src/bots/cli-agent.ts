@@ -110,6 +110,7 @@ export async function runAgentCli(
         'developerMode',
         'showBotSessions',
         'showApprovalReviewSessions',
+        'nativeSessionAttention',
       ];
       if (
         !Object.keys(patch).length ||

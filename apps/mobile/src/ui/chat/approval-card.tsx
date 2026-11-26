@@ -111,6 +111,7 @@ interface ApprovalCardProps {
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
+  alwaysAllow?: boolean;
   preset?: ApprovalPresetPort;
   onSettled?(result: DecisionResult): void;
 }
@@ -129,6 +130,7 @@ function ApprovalCardContent({
   decidedHere = false,
   focused = false,
   wide = false,
+  alwaysAllow = true,
   preset,
   onSettled,
 }: ApprovalCardProps) {
@@ -315,17 +317,23 @@ function ApprovalCardContent({
         details={
           <>
             <DetailRow label={t.tool} value={request.toolName} />
-            <DetailRow label={t.workingFolder} value={request.cwd} />
+            {request.cwd === '' ? null : <DetailRow label={t.workingFolder} value={request.cwd} />}
             {change !== undefined ? (
               <FileDiff change={change} />
             ) : (
               rows.map((row, index) => (
-                <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
+                <DetailRow
+                  key={`${row.label}-${index}`}
+                  label={
+                    Object.hasOwn(t.inputLabels, row.label) ? t.inputLabels[row.label]! : row.label
+                  }
+                  value={row.value}
+                />
               ))
             )}
             {effects === undefined ? null : <CardNote>{effects}</CardNote>}
             {highRisk(request.toolName) ? null : <CardNote>{riskNote(request.toolName)}</CardNote>}
-            <CardNote>{alwaysNote(request)}</CardNote>
+            {alwaysAllow ? <CardNote>{alwaysNote(request)}</CardNote> : null}
           </>
         }
       >
@@ -360,15 +368,17 @@ function ApprovalCardContent({
             busy={busy === 'allowed-once'}
             onPress={() => void decide('allowed-once')}
           />
-          <Button
-            label={t.alwaysAllow}
-            testID="approval-always-allow"
-            variant="card-solid"
-            disabled={!actionable || busy !== undefined || !request.allowAlways}
-            selected={selected === 'allowed-always-tool'}
-            busy={busy === 'allowed-always-tool'}
-            onPress={() => void decide('allowed-always-tool')}
-          />
+          {alwaysAllow ? (
+            <Button
+              label={t.alwaysAllow}
+              testID="approval-always-allow"
+              variant="card-solid"
+              disabled={!actionable || busy !== undefined || !request.allowAlways}
+              selected={selected === 'allowed-always-tool'}
+              busy={busy === 'allowed-always-tool'}
+              onPress={() => void decide('allowed-always-tool')}
+            />
+          ) : null}
           <Button
             label={t.reject}
             testID="approval-deny"

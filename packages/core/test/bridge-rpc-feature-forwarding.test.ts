@@ -564,7 +564,9 @@ describe('bridge typert service', () => {
       'queryVersion',
       'dismissed',
       'notifications',
+      'source',
     ]);
+    expect(parameterNames(service.humanAttentionStatus)).toEqual(['messageCounts', 'source']);
     expect(parameterNames(service.humanAttentionRestore)).toEqual(['itemId', 'sourceKey']);
     expect(() =>
       service.humanAttention(
@@ -612,6 +614,7 @@ describe('bridge typert service', () => {
       queryVersion: undefined,
       dismissed: undefined,
       notifications: true,
+      source: undefined,
     });
   });
 
