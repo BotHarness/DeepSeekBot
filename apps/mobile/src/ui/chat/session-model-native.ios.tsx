@@ -7,6 +7,7 @@ import {
   Image,
   List,
   NavigationStack,
+  Picker,
   ProgressView,
   RNHostView,
   ScrollView,
@@ -22,6 +23,7 @@ import {
   accessibilityElement,
   accessibilityHidden,
   accessibilityLabel,
+  accessibilityValue,
   buttonBorderShape,
   buttonStyle,
   disabled,
@@ -35,10 +37,13 @@ import {
   navigationBarTitleDisplayMode,
   navigationTitle,
   padding,
+  pickerStyle,
   presentationDetents,
   presentationDragIndicator,
   redacted,
   scrollContentBackground,
+  tag,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useState } from 'react';
 import { Platform, PlatformColor, View } from 'react-native';
@@ -208,6 +213,8 @@ export function NativeSessionModelSheet({
   filters,
   filter,
   filterLabel,
+  effort,
+  effortLabel,
   current,
   saving,
   savingLabel,
@@ -219,6 +226,7 @@ export function NativeSessionModelSheet({
   onRetry,
   onRefresh,
   onFilter,
+  onEffort,
   onChoose,
 }: SessionModelSheetProps) {
   const theme = useDesignTheme();
@@ -333,7 +341,7 @@ export function NativeSessionModelSheet({
                         key={section.id}
                         {...(section.title ? { title: section.title } : {})}
                       >
-                        {section.data.map((item) => (
+                        {section.data.flatMap((item) => [
                           <Button
                             key={item.key}
                             onPress={() => onChoose(item.key)}
@@ -356,8 +364,36 @@ export function NativeSessionModelSheet({
                                     : 'none'
                               }
                             />
-                          </Button>
-                        ))}
+                          </Button>,
+                          ...(effort !== undefined && effort.key === item.key
+                            ? [
+                                <Picker<string>
+                                  key={`${item.key}:effort`}
+                                  testID="session-model-effort"
+                                  label={effortLabel}
+                                  selection={effort.current}
+                                  onSelectionChange={onEffort}
+                                  modifiers={[
+                                    pickerStyle('menu'),
+                                    tint(theme.color.muted),
+                                    disabled(saving !== undefined),
+                                    accessibilityElement('combine'),
+                                    accessibilityLabel(effortLabel),
+                                    accessibilityValue(
+                                      effort.options.find((option) => option.id === effort.current)
+                                        ?.name ?? '',
+                                    ),
+                                  ]}
+                                >
+                                  {effort.options.map((option) => (
+                                    <Text key={option.id} modifiers={[tag(option.id)]}>
+                                      {option.name}
+                                    </Text>
+                                  ))}
+                                </Picker>,
+                              ]
+                            : []),
+                        ])}
                       </Section>,
                       ...(section.id === 'default' && strip !== null ? [strip] : []),
                     ])}

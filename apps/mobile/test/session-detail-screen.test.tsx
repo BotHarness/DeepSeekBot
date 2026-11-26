@@ -23,6 +23,7 @@ const place = vi.hoisted(() => ({
   dismissTo: vi.fn(),
 }));
 
+vi.mock('../src/ui/primitives/preference-row', () => ({ PreferenceRow: () => null }));
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('../src/host/native-model-catalog', () => ({
   nativeModelCatalogStore: { read: () => undefined, write: () => {} },
