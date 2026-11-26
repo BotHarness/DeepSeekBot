@@ -2,7 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import { resolveGrants } from '../authorization/grants.js';
-import { CONNECTOR_CATALOG, catalogEntry, type ConnectorCatalogEntry } from './catalog.js';
+import {
+  CONNECTOR_CATALOG,
+  catalogEntry,
+  matchesCatalog,
+  type ConnectorCatalogEntry,
+} from './catalog.js';
 import { ComposioError, createComposioClient, type ComposioClient } from './composio.js';
 import type {
   ConnectorAccess,
@@ -38,6 +43,21 @@ export interface ConnectorsView {
   configured: boolean;
   accounts: ConnectorAccountView[];
   catalog: readonly ConnectorCatalogEntry[];
+}
+
+export interface ConnectorApp {
+  service: string;
+  name: string;
+  summary: string;
+  featured: boolean;
+}
+
+export interface ConnectorAppSearch {
+  apps: ConnectorApp[];
+  next?: string;
+  total?: number;
+  source: 'composio' | 'featured';
+  offline?: true;
 }
 
 export interface BotConnector {
@@ -102,6 +122,8 @@ export class ConnectorService {
     { signature: string; session: Promise<BotConnectorSession | undefined> }
   >();
   #config: Promise<Config | undefined> | undefined;
+  readonly #names = new Map<string, string>();
+  readonly #logos = new Map<string, Promise<string | null>>();
 
   constructor(options: {
     store: ConnectorStore;
@@ -178,6 +200,91 @@ export class ConnectorService {
     }
   }
 
+  appName(service: string): string {
+    return catalogEntry(service)?.name ?? this.#names.get(service) ?? service;
+  }
+
+  async logos(services: readonly string[]): Promise<Record<string, string>> {
+    const wanted = [...new Set(services)].filter((service) => SLUG.test(service)).slice(0, 60);
+    const found = await Promise.all(
+      wanted.map(async (service) => [service, await this.#logo(service)] as const),
+    );
+    const logos: Record<string, string> = {};
+    for (const [service, logo] of found) if (logo !== null) logos[service] = logo;
+    return logos;
+  }
+
+  #logo(service: string): Promise<string | null> {
+    const cached = this.#logos.get(service);
+    if (cached !== undefined) return cached;
+    if (this.#logos.size >= 3000) this.#logos.delete(this.#logos.keys().next().value!);
+    const pending = this.#client.logo(service).then(
+      (logo) => logo ?? null,
+      (error: unknown) => {
+        this.#logos.delete(service);
+        this.#log('logo-failed', {
+          service,
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+        return null;
+      },
+    );
+    this.#logos.set(service, pending);
+    return pending;
+  }
+
+  async searchApps(query: string, after?: string): Promise<ConnectorAppSearch> {
+    const text = query.trim().slice(0, 80);
+    const cursor = after === '' ? undefined : after;
+    const matches: ConnectorApp[] = CONNECTOR_CATALOG.filter((entry) =>
+      matchesCatalog(entry, text),
+    ).map((entry) => ({
+      service: entry.service,
+      name: entry.name,
+      summary: entry.summary,
+      featured: true,
+    }));
+    const featured = cursor === undefined ? matches : [];
+    const latin = text
+      .replace(/[^\x20-\x7e]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const local: ConnectorAppSearch = { apps: featured, source: 'featured' };
+    if (text !== '' && latin === '') return local;
+    const config = await this.#readConfig().catch(() => undefined);
+    if (config === undefined) return local;
+    let page: Awaited<ReturnType<ComposioClient['toolkits']>>;
+    try {
+      page = await this.#upstream(() => this.#client.toolkits(config.apiKey, latin, cursor));
+    } catch (error) {
+      if (cursor !== undefined) throw error;
+      if (!(error instanceof ConnectorError))
+        this.#log('composio-unreachable', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      return { ...local, offline: true };
+    }
+    const seen = new Set(matches.map((app) => app.service));
+    const remote: ConnectorApp[] = [];
+    for (const item of page.items) {
+      if (!SLUG.test(item.service) || seen.has(item.service)) continue;
+      seen.add(item.service);
+      if (this.#names.size < 5000) this.#names.set(item.service, item.name);
+      remote.push({
+        service: item.service,
+        name: item.name,
+        summary: item.summary,
+        featured: catalogEntry(item.service) !== undefined,
+      });
+    }
+    return {
+      apps: [...featured, ...remote],
+      ...(page.next === undefined ? {} : { next: page.next }),
+      ...(page.total === undefined ? {} : { total: page.total }),
+      source: 'composio',
+    };
+  }
+
   async view(): Promise<ConnectorsView> {
     const configured = (await this.#readConfig().catch(() => undefined)) !== undefined;
     const grants = this.#store.grants();
@@ -185,7 +292,7 @@ export class ConnectorService {
       configured,
       accounts: this.#store.accounts().map((account) => ({
         ...account,
-        name: catalogEntry(account.service)?.name ?? account.service,
+        name: this.appName(account.service),
         grants: grants
           .filter((grant) => grant.accountId === account.accountId)
           .map((grant): { botSlug: string; botName?: string; access: ConnectorAccess } => ({
@@ -228,7 +335,7 @@ export class ConnectorService {
   }): Promise<{ account: ConnectorAccountRecord; url: string }> {
     const service = input.service.trim().toLowerCase();
     if (!SLUG.test(service)) throw new ConnectorError('invalid', 'The service name is invalid.');
-    const label = (input.label ?? defaultLabel(catalogEntry(service)?.name ?? service)).trim();
+    const label = (input.label ?? defaultLabel(this.appName(service))).trim();
     if (!LABEL.test(label)) throw new ConnectorError('invalid', 'The account label is invalid.');
     if (
       this.#store

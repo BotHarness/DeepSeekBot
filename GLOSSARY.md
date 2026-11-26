@@ -7,7 +7,7 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 ### Product naming
 
 **Tobs / 托布**:
-The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Bot.
 _Avoid_: 拖布, Tob (when referring to the product)
 
 **BotHarness**:
@@ -48,12 +48,8 @@ _Avoid_: meeting bot, meeting session, recording
 
 ### PersonaBots
 
-**Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
-_Avoid_: global Orchestrator, Home panel, dashboard
-
 **Tob**:
-The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access. It holds the Steward role by default; ADR-0365 (proposed) makes that role transferable.
+The built-in local PersonaBot every Profile creates first; its name reverses “Bot” and also stands for “Thousands of Bot.” It is an ordinary Bot: the Human can rename, archive, delete or share it, and its Soul and Memory stay editable and portable. It starts with both **App management grant** switches on, so it is the Bot that helps the Human configure the rest of the App; the grant, never its name, decides what it may manage ([Tob decisions](docs/decisions/tob.md#app-management-grant)).
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
@@ -65,8 +61,12 @@ Tob handing a Human's request to the colleague PersonaBot it judges best suited,
 _Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **Steward**:
-The role that lets one Bot manage its Environment through the Human's CLI, delegate to colleagues (Tob Delegation) and use any later Steward capability. Every Environment always has exactly one Steward; Tob holds it by default. ADR-0365 (proposed, #5191) makes it transferable by the Owner: the capability set moves as a whole, the new Steward keeps its own Soul, Memory and prompt, and the former Steward becomes an ordinary Bot. The role is not administrator access.
-_Avoid_: Admin, administrator, Chief, Orchestrator (a Bot's runtime, not this role)
+Retired ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). The singleton role of ADR-0365 was replaced by the **App management grant**.
+_Avoid_: Steward role, Steward transfer, Steward Bot
+
+**App management grant**:
+The grant that lets a Bot manage the App through the Human's scoped CLI in its own Human DM turns ([Tob decisions §11](docs/decisions/tob.md#app-management-grant)). Two switches: "Manage the App" (settings, models, diagnostics, Bot creation and the like) and "Manage other Bots" (other Bots' PersonaBot Profiles and Memory). The Owner turns it on for any of their Bots, for several or for none; the built-in Tob has both on by default. Its writes follow the Bot's Approval Template. It is not administrator access.
+_Avoid_: Steward, Admin, administrator
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
@@ -1303,7 +1303,7 @@ The Composer-shaped tap target above the tab island on Chats that opens Tob Mode
 _Avoid_: Tob input, quick composer, pull to Tob
 
 **Pinned tab**:
-The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the Steward's DM, follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
+The phone tab-bar slot (#5191, #5195) bound, per Environment, to one conversation (a Bot DM, a Channel or a human DM), showing its avatar and unread badge and opening it as its own tab. It defaults to the built-in Tob's DM (then the most recent conversation), follows the Environment Scope, and replaces the Tob entry bar and Tob Mode.
 _Avoid_: Tob tab, favorite, shortcut tab
 
 **Settings**:

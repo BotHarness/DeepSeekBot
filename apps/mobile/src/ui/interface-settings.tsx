@@ -97,6 +97,26 @@ export function SessionsTabSetting({ on = 'sheet' }: { on?: LayerName }) {
   );
 }
 
+export function HideBarsSetting({ on = 'sheet' }: { on?: LayerName }) {
+  const t = useStrings().hideBars;
+  const state = usePreferences();
+  return (
+    <SettingsRow
+      on={on}
+      title={t.title}
+      icon="scrollBars"
+      detail={t.detail}
+      control={{
+        kind: 'switch',
+        value: state.hideBarsOnScroll,
+        onChange: interfacePreferences.setHideBarsOnScroll,
+        disabled: !state.loaded,
+        testID: 'hide-bars-toggle',
+      }}
+    />
+  );
+}
+
 export function SessionNavigationSettings({ on = 'sheet' }: { on?: LayerName }) {
   const t = useStrings().hostSessions.navigation;
   const state = usePreferences();

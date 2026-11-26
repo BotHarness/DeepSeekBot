@@ -30,11 +30,11 @@ export const zh = {
   'intro.step.start': '开始',
   'intro.welcome.greeting': '你好，我是托布',
   'intro.welcome.body':
-    '我的名字来自 Bot 倒过来写：Tob。我是你的本地总管。你可以请我创建 Bot、拉群、安排任务，也可以问我每个 Bot 最近在忙什么。这里的每个 Bot 都有自己的性格和记忆，会记得你们聊过的事。',
+    '我的名字来自 Bot 倒过来写：Tob。我是你在这里的第一个 Bot。你可以请我创建 Bot、拉群、安排任务，也可以问我每个 Bot 最近在忙什么。这里的每个 Bot 都有自己的性格和记忆，会记得你们聊过的事。',
   'intro.welcome.next': '先花一分钟把这里布置成你喜欢的样子，然后我们就开始吧。',
   'intro.founder.title': '创始人的话',
   'intro.founder.body':
-    '在开发 Tobs 的时候，我还是一名在读的人机交互（HCI）学生。开发过程中我发表了 HAI 论文，现在我管理的 Agents 每过 3 个月就会翻一倍。\n我相信在未来，IM 软件里 Bots 的数量会多于人类。Tobs 就是看着这样的终局，抱着这样的想法被不断打磨的：\n1. 做下一个 Agents 时代的 IM 软件；\n2. 继承 DeepSeek Harness 的开放，坚持 everything is plugin 的理念。\n打磨它的不仅有我，还有这个开源社区里的每一个人、每一个 Bot。',
+    '在开发 Tobs 的时候，我还是一名在读的人机交互（HCI）学生。开发过程中我发表了 HAI 论文，现在我管理的 Agents 每过 3 个月就会翻一倍。\n 我相信在未来，IM 软件里 Bots 的数量会多于人类。Tobs 就是看着这样的终局，抱着这样的想法被不断打磨的：\n1. 做下一个 Agents 时代的 IM 软件；\n2. 继承 DeepSeek Harness 的开放，坚持 everything is plugin 的理念。\n 打磨它的不仅有我，还有这个开源社区里的每一个人、每一个 Bot。',
   'intro.founder.signature': '—— DoodleBear',
   'intro.reviews.title': '用户评价',
   'intro.reviews.clean': '“界面做得挺清爽的，功能多但不乱，找东西很快。”',
@@ -414,6 +414,21 @@ export const zh = {
   'botSettings.section.connect': 'Connect',
   'botSettings.section.team': '团队',
   'entry.botAccess': '使用范围',
+  'entry.botManagement': '管理权限',
+  'botManagement.manage-app': '管理 App',
+  'botManagement.manage-app.hint': '在你和它的私信里，替你改设置、模型、诊断和创建 Bot。',
+  'botManagement.manage-bots': '管理其他 Bot',
+  'botManagement.manage-bots.hint': '在你和它的私信里，替你改其他 Bot 的资料和 Memory。',
+  'botManagement.manage-app.confirmTitle': '让这个 Bot 管理 App？',
+  'botManagement.manage-app.abilities':
+    '它可以在你和它的私信里查看和修改 App 设置、模型和诊断，也可以创建 Bot。',
+  'botManagement.manage-bots.confirmTitle': '让这个 Bot 管理其他 Bot？',
+  'botManagement.manage-bots.abilities':
+    '它可以在你和它的私信里查看和修改你其他 Bot 的资料和 Memory。',
+  'botManagement.approval': '写操作跟随它的审批模板，删除这类操作总会先问你。',
+  'botManagement.turnOn': '打开',
+  'botManagement.ownerOnly': '只有 App 的 Owner 可以修改管理权限。',
+  'botManagement.noAppManager': '现在没有 Bot 能管理 App。你仍然可以自己在设置里修改。',
   'botAccess.who': '谁可以使用',
   'botAccess.change': '修改',
   'botAccess.private': '仅你自己（私有）',
@@ -477,7 +492,7 @@ export const en = {
   'intro.step.start': 'Start',
   'intro.welcome.greeting': 'Hi, I’m Tob',
   'intro.welcome.body':
-    'My name is Bot spelled backwards: Tob. I’m your local steward. Ask me to create Bots, start groups and plan tasks, or ask what each Bot has been up to. Every Bot here has its own personality and memory, and remembers what you talked about.',
+    'My name is Bot spelled backwards: Tob. I’m the first Bot here. Ask me to create Bots, start groups and plan tasks, or ask what each Bot has been up to. Every Bot here has its own personality and memory, and remembers what you talked about.',
   'intro.welcome.next': 'Take a minute to make this place yours, then let’s get started.',
   'intro.founder.title': 'From the founder',
   'intro.founder.body':
@@ -875,6 +890,25 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botSettings.section.connect': 'Connect',
   'botSettings.section.team': 'Team',
   'entry.botAccess': 'Access',
+  'entry.botManagement': 'Management',
+  'botManagement.manage-app': 'Manage the App',
+  'botManagement.manage-app.hint':
+    'In your DM with it, it can change settings, models and diagnostics, and create Bots for you.',
+  'botManagement.manage-bots': 'Manage other Bots',
+  'botManagement.manage-bots.hint':
+    'In your DM with it, it can change your other Bots’ profiles and Memory for you.',
+  'botManagement.manage-app.confirmTitle': 'Let this Bot manage the App?',
+  'botManagement.manage-app.abilities':
+    'In your DM with it, it can read and change App settings, models and diagnostics, and create Bots.',
+  'botManagement.manage-bots.confirmTitle': 'Let this Bot manage other Bots?',
+  'botManagement.manage-bots.abilities':
+    'In your DM with it, it can read and change your other Bots’ profiles and Memory.',
+  'botManagement.approval':
+    'Writes follow its Approval Template, and steps like deleting always ask you first.',
+  'botManagement.turnOn': 'Turn on',
+  'botManagement.ownerOnly': 'Only the App Owner can change management access.',
+  'botManagement.noAppManager':
+    'No Bot can manage the App now. You can still change things yourself in Settings.',
   'botAccess.who': 'Who can use it',
   'botAccess.change': 'Change',
   'botAccess.private': 'Only you (private)',

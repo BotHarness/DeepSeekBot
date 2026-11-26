@@ -81,18 +81,6 @@ type DirectToolDefinitionsContext = OrchestratorToolsContext;
 
 const CATALOG_RUN = { sessionId: '', bot: { slug: '' } } as unknown as OrchestratorAgentRun;
 
-export const TOB_CLI_ONLY_TOOLS = new Set([
-  'bot_create',
-  'group_create',
-  'group_invite_bot',
-  'group_invite_respond',
-  'group_join_request',
-  'group_join_decide',
-  'group_rename',
-  'group_remove_member',
-  'group_leave',
-]);
-
 export function orchestratorTools(
   adapter: OrchestratorToolsContext,
   run: OrchestratorAgentRun,
@@ -392,71 +380,6 @@ export function orchestratorTools(
   );
   registerTool(createBotContactsTool(currentRun));
   registerTool(createGroupCreateTool(currentRun));
-  registerTool(
-    defineTool({
-      name: 'bot_create',
-      description:
-        'Create a new PersonaBot when the Human asks for one. Fill fields from the conversation; only display_name is required. Requires Human tool approval unless a saved rule or full access allows it. The new Bot is an independent peer with no Model Plan, grants, accesses or secrets copied from you. Report only from this result; on success it returns bot_id, display_name, dm_channel_id, memory_dir and model (host-default means it answers on the Host default model until a Model Plan is set; it can reply now).',
-      parameters: {
-        display_name: {
-          type: 'string',
-          required: true,
-          description: 'Display name, 1 to 60 characters. Names need not be unique.',
-        },
-        description: { type: 'string', description: 'Bot Bio, at most 160 characters.' },
-        tags: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Bot Tags, at most 8 of at most 32 characters each.',
-        },
-        avatar_path: {
-          type: 'string',
-          description:
-            'Absolute path to a PNG, JPEG or WebP file (at most 128 KiB) in your Memory Repository or a Workspace Grant. Omit for the default Avatar.',
-        },
-        soul: {
-          type: 'string',
-          description: "The new Bot's SOUL.md: character, voice and standing instructions.",
-        },
-        core_memory: {
-          type: 'string',
-          description: "The new Bot's MEMORY.md (Core Memory). Omit for the usual template.",
-        },
-        memory_location: {
-          type: 'string',
-          description:
-            'Existing absolute folder; a new folder named after the Bot ID is created inside it as the Memory Repository. Omit for the default location.',
-        },
-      },
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
-      execute: async (args) => {
-        const active = adapter.runs.get(run.sessionId);
-        if (active?.role !== 'orchestrator' || active.run.channels.createBot === undefined)
-          throw new Error('bot_create: Orchestrator run is unavailable');
-        if (active.run.tobCli)
-          throw new Error('bot_create: Tob must use the scoped deepseekbot CLI');
-        const created = active.run.channels.createBot({
-          displayName: args.display_name,
-          ...(args.description === undefined ? {} : { description: args.description }),
-          ...(args.tags === undefined ? {} : { tags: args.tags }),
-          ...(args.avatar_path === undefined ? {} : { avatarPath: args.avatar_path }),
-          ...(args.soul === undefined ? {} : { soul: args.soul }),
-          ...(args.core_memory === undefined ? {} : { coreMemory: args.core_memory }),
-          ...(args.memory_location === undefined ? {} : { memoryLocation: args.memory_location }),
-        });
-        return JSON.stringify({
-          bot_id: created.botId,
-          display_name: created.displayName,
-          dm_channel_id: created.dmChannelId,
-          memory_dir: created.memoryDir,
-          model: created.model,
-        });
-      },
-    }),
-  );
   registerGroupChannelTools(currentRun, registerTool);
   registerSourceAttentionTools(currentRun, registerTool);
   registerScheduleTools(currentRun, registerTool);

@@ -56,7 +56,7 @@ import { Text } from '../../../src/ui/primitives/text';
 import { Button } from '../../../src/ui/primitives/button';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { useDesignTheme } from '../../../src/ui/design/theme';
-import { HomeHeader } from '../../../src/ui/shell/home-header';
+import { HomeHeader, useGlassHomeHeader } from '../../../src/ui/shell/home-header';
 import { ChatsHeaderActions } from '../../../src/ui/shell/chats-header-actions';
 import { useChatsCreate } from '../../../src/ui/shell/chats-create';
 import { hostDrawer } from '../../../src/ui/shell/host-drawer-state';
@@ -151,7 +151,9 @@ const HomeContent = memo(function HomeContent({
   const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const bottom = useFloatingTabInset();
+  const floatingBottom = useFloatingTabInset();
+  const glassHeader = useGlassHomeHeader();
+  const bottom = glassHeader ? 0 : floatingBottom;
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
   const directory = useCloudConversations();
@@ -700,6 +702,12 @@ const HomeContent = memo(function HomeContent({
               <Animated.FlatList<HomeItem>
                 {...(browsing ? pull : {})}
                 onScroll={hideChrome}
+                {...(glassHeader
+                  ? {
+                      contentInsetAdjustmentBehavior: 'automatic' as const,
+                      automaticallyAdjustsScrollIndicatorInsets: true,
+                    }
+                  : {})}
                 renderScrollComponent={renderKeyboardFormScroll}
                 scrollEventThrottle={1}
                 contentContainerStyle={{

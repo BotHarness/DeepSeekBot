@@ -16,7 +16,7 @@ export const TOB_DIAGNOSTIC_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'doctor',
     description:
-      'Health report for a problem the Human reports: versions, Host, plugin, last update and errors in the last 24 hours',
+      "Health report for a problem the Human reports: versions, Host, plugin, last update and errors in the last 24 hours. When the Human reports an error, something stuck or slow, or a feature that stopped working after an update, run doctor before answering, then diagnostic-logs --kind error for the codes it points at. Explain what you found in plain words with the error codes and times, say when the log shows nothing related, never name a cause the output does not support, and follow the report's guide",
     write: false,
   },
   {

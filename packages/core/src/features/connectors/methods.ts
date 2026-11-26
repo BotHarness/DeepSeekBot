@@ -2,6 +2,7 @@ import { asObject, invalidInput, type BridgeResult } from '../../bridge/method-u
 import {
   ConnectorError,
   type BotConnector,
+  type ConnectorAppSearch,
   type ConnectorService,
   type ConnectorsView,
 } from '../../connectors/service.js';
@@ -23,6 +24,8 @@ export interface ConnectorsBridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<{ account: ConnectorAccountRecord; url: string }>>;
   connectorRefresh(payload: unknown): Promise<BridgeResult<ConnectorsView>>;
+  connectorSearch(payload: unknown): Promise<BridgeResult<ConnectorAppSearch>>;
+  connectorLogos(payload: unknown): Promise<BridgeResult<{ logos: Record<string, string> }>>;
   connectorGrantSet(
     payload: unknown,
   ): BridgeResult<{ changed: boolean; connectors: BotConnector[] }>;
@@ -118,6 +121,24 @@ export function createConnectorsBridgeMethods(
       return guarded((service) => service.reconnect(accountId));
     },
     connectorRefresh: () => guarded(async (service) => named(await service.refresh())),
+    connectorSearch(payload) {
+      const source = asObject(payload);
+      const query = source['query'] ?? '';
+      const cursor = source['cursor'];
+      if (typeof query !== 'string' || (cursor !== undefined && typeof cursor !== 'string'))
+        return Promise.resolve(invalidInput('query and an optional cursor must be strings'));
+      return guarded((service) => service.searchApps(query, cursor));
+    },
+    connectorLogos(payload) {
+      const services = asObject(payload)['services'];
+      if (
+        !Array.isArray(services) ||
+        services.length > 60 ||
+        services.some((service) => typeof service !== 'string')
+      )
+        return Promise.resolve(invalidInput('services must be up to 60 strings'));
+      return guarded(async (service) => ({ logos: await service.logos(services as string[]) }));
+    },
     connectorGrantSet(payload) {
       if (!isHostOwner()) return forbidden;
       if (deps.connectors === undefined) return missing;

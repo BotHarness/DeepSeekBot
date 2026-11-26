@@ -24,8 +24,9 @@ export function createChannelNotices({
   revisionOf: ReturnType<typeof createChannelPlacements>['revisionOf'];
   options: SqliteChannelStoreOptions;
   sql: {
+    insertSystemSourceEvent: string;
     insertMemorySourceEvent: string;
-    insertMemoryPlacement: string;
+    insertPlacement: string;
     insertMirroredMemoryPlacement: string;
     insertHandledMemoryAdmission: string;
     insertBotCreateSourceEvent: string;
@@ -34,6 +35,36 @@ export function createChannelNotices({
   };
 }) {
   return {
+    appendSystemNotices(notices, commit) {
+      const placements = database.transaction(
+        (db) => {
+          if (!commit(db)) return undefined;
+          return notices.map(({ channelId, message }) => {
+            const revision = revisionOf(channelId) + 1;
+            const sourceEventId = randomUUID();
+            db.prepare(sql.insertSystemSourceEvent).run(
+              sourceEventId,
+              channelId,
+              message.id,
+              message.body,
+              message.at,
+              eventPayload(message),
+            );
+            db.prepare(sql.insertPlacement).run(channelId, revision, sourceEventId, message.id);
+            return { channelId, message, revision };
+          });
+        },
+        ['source-event', 'channel', 'management-grants'],
+      );
+      if (placements === undefined) return false;
+      for (const placement of placements)
+        try {
+          options.onCommitted?.(placement);
+        } catch (error) {
+          options.warn?.(`Channel post-commit notification failed: ${String(error)}`);
+        }
+      return true;
+    },
     appendMemoryCommits(input) {
       const cause = causeChannel(input.causeSourceEventId, input.botSlug, '');
       const dm = humanBotDm(input.botSlug);
@@ -75,12 +106,7 @@ export function createChannelNotices({
                 causeSourceEventId: input.causeSourceEventId,
               }),
             );
-            db.prepare(sql.insertMemoryPlacement).run(
-              channel.id,
-              revision,
-              sourceEventId,
-              message.id,
-            );
+            db.prepare(sql.insertPlacement).run(channel.id, revision, sourceEventId, message.id);
             if (humanDm !== undefined && humanDmRevision !== undefined)
               db.prepare(sql.insertMirroredMemoryPlacement).run(
                 humanDm.id,
@@ -164,5 +190,8 @@ export function createChannelNotices({
       }
       return message;
     },
-  } satisfies Pick<ChannelStore, 'appendMemoryCommits' | 'appendBotCreateAction'>;
+  } satisfies Pick<
+    ChannelStore,
+    'appendMemoryCommits' | 'appendBotCreateAction' | 'appendSystemNotices'
+  >;
 }

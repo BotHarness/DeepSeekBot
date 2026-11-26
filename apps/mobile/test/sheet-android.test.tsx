@@ -133,6 +133,15 @@ it('opens a resizable sheet partially expanded and every other sheet fully expan
   expect(resizable.querySelector('dialog')?.getAttribute('data-skip-partial')).toBe('false');
 });
 
+it('gives a resizable sheet a fixed content height so loaded rows never move its detent', async () => {
+  const view = await mount(
+    <Sheet visible resizable label="Model" onClose={() => {}}>
+      <p>body</p>
+    </Sheet>,
+  );
+  expect(contentStyle(view)).toEqual({ height: 844 - 24 - 16 - 48 * 2 });
+});
+
 it('calls the caller close for every native dismissal', async () => {
   const onClose = vi.fn();
   const view = await mount(
