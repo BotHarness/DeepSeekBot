@@ -4,7 +4,7 @@ import {
   Host,
   HorizontalFloatingToolbar,
   Icon,
-  RNHostView,
+  Image,
 } from '@expo/ui/jetpack-compose';
 import {
   background,
@@ -18,7 +18,7 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { PinnedAvatar } from '../../features/pinned-tab/pinned-avatar';
+import { useAvatarIcons } from '../../features/pinned-tab/avatar-icon';
 import { useDesignTheme } from '../design/theme';
 import { cornerBadge, floatingToolbar } from '../design/tokens';
 import { MaterialCountBadge } from '../primitives/count-badge.android';
@@ -54,6 +54,10 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
   const theme = useDesignTheme();
   const { item, height, inset } = floatingToolbar;
   const gap = toolbarGap(useWindowDimensions().width, items.length);
+  const avatar = useAvatarIcons(
+    items.find((entry) => entry.slot === 'pinned')?.conversation,
+    floatingToolbar.avatar,
+  );
   const badged = (entry: NavigationDestination, face: ReactNode) =>
     entry.count === 0 ? (
       face
@@ -74,15 +78,15 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
     );
   const face = (entry: NavigationDestination) =>
     entry.slot === 'pinned' ? (
-      <RNHostView modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}>
-        <View>
-          <PinnedAvatar
-            conversation={entry.conversation}
-            size={floatingToolbar.avatar}
-            selected={entry.focused}
-          />
-        </View>
-      </RNHostView>
+      avatar.icons === undefined ? (
+        <Box modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]} />
+      ) : (
+        <Image
+          source={entry.focused ? avatar.icons.selected : avatar.icons.default}
+          contentDescription={null}
+          modifiers={[size(floatingToolbar.avatar, floatingToolbar.avatar)]}
+        />
+      )
     ) : (
       <Icon
         source={glyphFor(entry.slot, entry.focused)}
@@ -155,6 +159,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           />
         ))}
       </View>
+      {avatar.capture}
     </View>
   );
 }
