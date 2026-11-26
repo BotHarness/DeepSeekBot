@@ -1,6 +1,7 @@
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import { resetSendStreak } from '../src/runtime/send-streak.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import { event, fixture, sharedTarget, cleanup } from './messaging-inbound-fixtures.js';
@@ -554,4 +555,55 @@ it('unified messaging preserves an unknown external outcome without concluding o
   expect(
     fx.core.attention.list({ botSlug: 'ada' }).items.find((item) => item.id === sourceId)?.state,
   ).toBe('open');
+});
+
+it('ends a turn that keeps replying to one source with no other work in between', async () => {
+  let results: Record<string, unknown>[] = [];
+  let conclusions = 0;
+  const fx = await fixture({
+    onRun: async (run) => {
+      const sourceId = run.triage!.current()[0]!;
+      const tool = createBotMessageTool(() => run);
+      const send = async (call: string, body: string) =>
+        JSON.parse(
+          String(
+            await tool.execute({ source_event_id: sourceId, body }, {
+              callId: ToolCallId(call),
+              signal: new AbortController().signal,
+              concludeTurn: () => {
+                conclusions += 1;
+              },
+            } as ToolRunContext),
+          ),
+        ) as Record<string, unknown>;
+      results = [
+        await send('one', 'Creating it now.'),
+        await send('one', 'Creating it now.'),
+        await send('two', 'On it.'),
+        await send('three', 'Working.'),
+        await send('four', 'Almost there.'),
+      ];
+      resetSendStreak(run);
+      results.push(await send('five', 'Done.'));
+    },
+  });
+  await fx.enable();
+  await fx.receive();
+  await fx.idle();
+  expect(results.map((result) => result['status'])).toEqual([
+    'provider-accepted',
+    'provider-accepted',
+    'provider-accepted',
+    'provider-accepted',
+    'refused',
+    'provider-accepted',
+  ]);
+  expect(results[4]).toMatchObject({ reason: 'send-streak' });
+  expect(conclusions).toBe(1);
+  expect(fx.replies.map((reply) => reply.text)).toEqual([
+    'Creating it now.',
+    'On it.',
+    'Working.',
+    'Done.',
+  ]);
 });
