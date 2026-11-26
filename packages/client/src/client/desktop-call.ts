@@ -272,31 +272,33 @@ export function createDesktopCall(
     },
     async computerSound(on) {
       const owned = sessionMedia;
+      const owner = session;
       if (owned?.computerSound === undefined || current.state.status !== 'live') return;
       if (on && current.sound === 'starting') return;
       if (on) set({ sound: 'starting' });
       try {
         const shared = await owned.computerSound(on);
-        if (sessionMedia !== owned) return;
+        if (session !== owner) return;
         const hostMuted = current.state.status === 'live' && current.state.muted;
         set({ sound: shared ? 'on' : 'off' });
         if (shared && hostMuted) {
           micHold = true;
-          await session?.client.mute(false);
+          await owner?.client.mute(false);
           micHold = false;
+          if (session !== owner) return;
           owned.mute(true);
           const state = current.state;
           const refused = state.status === 'live' && state.call.muted;
           if (refused || current.sound !== 'on') {
             if (refused) await owned.computerSound?.(false);
-            await session?.client.mute(true);
-            if (sessionMedia === owned) set({ sound: 'off', micMuted: false });
+            await owner?.client.mute(true);
+            if (session === owner) set({ sound: 'off', micMuted: false });
             return;
           }
           set({ micMuted: true });
         }
       } catch {
-        if (sessionMedia === owned) set({ sound: 'missing' });
+        if (session === owner) set({ sound: 'missing' });
       }
     },
     dismissVisual() {
