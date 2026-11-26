@@ -75,6 +75,8 @@ import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
 import { createCore } from './core.js';
+import { createFeatureContributions } from './feature-contributions.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { createExternalSessionReader } from './features/sessions/external-sessions.js';
 
 export type { BotHarnessCore } from './plugin-types.js';
@@ -262,11 +264,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return templateInUse;
     },
   });
+  const featureContributions = createFeatureContributions({
+    genui: {
+      browserPath: config.genuiPreviewBrowserPath,
+      onDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
+      attachmentContext: ctx,
+    },
+  });
   const agentAdapter = personabotsFeature.createHostAgentAdapter(ctx, config, {
     engineHost,
     engineToolGate,
     tobCliInvocation,
-    diagnosticEvents,
+    featureContributions,
     defaultModel,
     providerCredentials,
     turnRefusals,
@@ -602,6 +611,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ctx.effect(() => stopTeamSessionWatch, 'botharness: Session list Team access');
   const bridgeDeps = createHostBridgeDependencies(ctx, {
     core,
+    featureContributions,
     team,
     skills,
     release,
@@ -728,6 +738,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
     },
     team,
+    featureContributions,
   );
 
   skills.mountNative({

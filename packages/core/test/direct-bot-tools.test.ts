@@ -19,10 +19,8 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { directToolTrace } from '../src/bots/tool-trace.js';
 import { createBotRuntime, DirectBotToolError } from '../src/runtime/bot-runtime.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
-import {
-  createDshBotAgentAdapter,
-  TURN_ONLY_BOT_TOOLS,
-} from '../src/runtime/dsh-bot-agent-adapter.js';
+import { createDshBotAgentAdapter } from '../src/agent-adapter.js';
+import { TURN_ONLY_BOT_TOOLS } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';

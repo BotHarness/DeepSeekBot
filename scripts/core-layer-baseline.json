@@ -95,16 +95,16 @@
       "runtime -> features": 4
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator-prompt.ts": {
-      "runtime -> features": 7
+      "runtime -> features": 6
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-orchestrator.ts": {
-      "runtime -> features": 3
+      "runtime -> features": 1
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-shared.ts": {
       "runtime -> features": 2
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter-tools.ts": {
-      "runtime -> features": 8
+      "runtime -> features": 6
     },
     "packages/core/src/runtime/dsh-bot-agent-adapter.ts": {
       "runtime -> features": 3
@@ -113,9 +113,6 @@
       "runtime -> features": 1
     },
     "packages/core/src/runtime/genui-preview-tool.ts": {
-      "runtime -> features": 1
-    },
-    "packages/core/src/runtime/group-digest.ts": {
       "runtime -> features": 1
     },
     "packages/core/src/runtime/human-attention.ts": {

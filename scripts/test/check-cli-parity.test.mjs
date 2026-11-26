@@ -5,6 +5,7 @@ import {
   bridgeMethodsFromSharedReaders,
   botToolNamesFrom,
   checkCliParity,
+  featureRpcMethodsFrom,
   routePathsFrom,
 } from '../check-cli-parity.mjs';
 
@@ -133,4 +134,24 @@ it('counts only the named Host reader imported by a CLI command', () => {
       baseline: { bridge: {}, routes: {}, tools: {} },
     }),
   ).toEqual([]);
+});
+
+it('counts RPC methods only from registered descriptors', () => {
+  const files = {
+    'registry.ts': `
+      import { createReports as reports, prompts } from './features.js';
+      export function createFeatureContributions() { return [reports(), prompts] as const; }
+    `,
+    'features.ts': `
+      import { reporting as rpc } from './rpc.js';
+      export function createReports() { return { id: 'reports', rpc } satisfies FeatureContribution; }
+      export const prompts = { id: 'prompts' };
+      export const unregistered = { id: 'other', rpc: { hidden() {} } };
+    `,
+    'rpc.ts': `export const reporting = { reportGet(id: string) {}, reportSave(payload: unknown) {} };`,
+  };
+  expect(featureRpcMethodsFrom((path) => files[path], 'registry.ts')).toEqual([
+    'reportGet',
+    'reportSave',
+  ]);
 });

@@ -3,6 +3,7 @@ import type { PersonaBotRecord } from '../../bots/persona-bot.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { ScheduleFiringFacts } from '../../runtime/inbox-render.js';
 import type {
+  BotSchedule,
   BotScheduleChange,
   BotScheduleInput,
   BotScheduleStore,
@@ -63,7 +64,7 @@ export function bindScheduleCommands(
 ) {
   return {
     list: () => store.list(bot.slug),
-    create: (input: BotScheduleInput) => {
+    create: (input: BotScheduleInput): BotSchedule => {
       markSideEffect();
       return store.create(bot.slug, input, 'personabot');
     },
