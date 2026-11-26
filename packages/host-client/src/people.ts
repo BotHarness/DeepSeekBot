@@ -56,6 +56,51 @@ const isBoolean = (value: unknown): value is boolean => typeof value === 'boolea
 const hasText = (row: Record<string, unknown>, keys: string[]) =>
   keys.every((key) => text(row[key]));
 
+const isString = (value: unknown): value is string => typeof value === 'string';
+const filled = (value: unknown): boolean => isString(value) && value !== '';
+
+function isNativeApproval(request: Record<string, unknown>): boolean {
+  return (
+    filled(request['toolName']) &&
+    optional(request['callId'], filled) &&
+    optional(request['reason'], isString) &&
+    optional(request['preview'], isString)
+  );
+}
+
+function isQuestionOption(value: unknown): boolean {
+  const option = record(value);
+  return (
+    option !== undefined && isString(option['label']) && optional(option['description'], isString)
+  );
+}
+
+function isQuestionItem(value: unknown): boolean {
+  const item = record(value);
+  return (
+    item !== undefined &&
+    filled(item['id']) &&
+    isString(item['question']) &&
+    optional(item['detail'], isString) &&
+    optional(item['header'], isString) &&
+    optional(item['multiSelect'], isBoolean) &&
+    optional(
+      item['options'],
+      (options) => Array.isArray(options) && options.every(isQuestionOption),
+    )
+  );
+}
+
+function isNativeQuestion(request: Record<string, unknown>): boolean {
+  const questions = request['questions'];
+  return (
+    Array.isArray(questions) &&
+    questions.length > 0 &&
+    questions.every(isQuestionItem) &&
+    optional(request['continued'], isBoolean)
+  );
+}
+
 function isNativeSessionItem(row: Record<string, unknown>): boolean {
   const native = record(row['nativeSession']);
   return (
@@ -73,9 +118,7 @@ function isNativeSessionItem(row: Record<string, unknown>): boolean {
         request !== undefined &&
         request['requestId'] === row['requestId'] &&
         request['kind'] === native['input'] &&
-        (request['kind'] === 'approval'
-          ? text(request['toolName'])
-          : Array.isArray(request['questions']) && request['questions'].length > 0)
+        (request['kind'] === 'approval' ? isNativeApproval(request) : isNativeQuestion(request))
       );
     })
   );
