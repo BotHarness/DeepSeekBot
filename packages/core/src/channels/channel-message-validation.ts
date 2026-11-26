@@ -274,6 +274,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (decision['outcome'] !== 'allowed-once' &&
         decision['outcome'] !== 'allowed-always-tool' &&
         decision['outcome'] !== 'allowed-always-exact' &&
+        decision['outcome'] !== 'allowed-always-prefix' &&
         decision['outcome'] !== 'allowed-always-all' &&
         decision['outcome'] !== 'rejected') ||
       message['replyTo'] !== decision['requestMessageId']

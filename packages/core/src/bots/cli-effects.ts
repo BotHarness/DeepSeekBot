@@ -567,6 +567,7 @@ export const CLI_EFFECTS = {
   'todo-tools': { effects: read, brokerRead: true },
   'todo-update': { effects: write, brokerRead: false },
   todos: { effects: read, brokerRead: true },
+  'approval-rule-add': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-decide': { effects: externalIrreversibleManagement, brokerRead: false },
   'tool-approval-history': { effects: read, brokerRead: true },
   'tool-approval-rule-revoke': { effects: externalIrreversibleManagement, brokerRead: false },
