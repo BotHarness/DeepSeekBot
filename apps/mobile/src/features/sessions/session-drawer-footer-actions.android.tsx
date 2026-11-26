@@ -67,9 +67,7 @@ export function SessionDrawerFooterActions({
                   source={require('../../../assets/button/plus.xml')}
                   size={materialButton.icon}
                 />
-                <Text maxLines={1} overflow="ellipsis" style={{ typography: 'labelLarge' }}>
-                  {createLabel}
-                </Text>
+                <Text style={{ typography: 'labelLarge', textAlign: 'center' }}>{createLabel}</Text>
               </Row>
             </Button>
           ) : null}

@@ -90,7 +90,7 @@ async function render(props: { canSearch?: boolean; canCreate?: boolean } = {}) 
 const modifiers = (element: Element) =>
   JSON.parse(element.getAttribute('data-modifiers')!) as Modifier[];
 
-it('puts a tonal search icon button beside a filled New Session button as tall as it', async () => {
+it('puts a tonal search icon button beside a filled New Session button with a wrapping label', async () => {
   const { host, onSearch, onCreate } = await render();
   const search = host.querySelector('[data-testid="session-drawer-search"]')!;
   expect(search.getAttribute('data-kind')).toBe('tonal-icon');
@@ -102,7 +102,7 @@ it('puts a tonal search icon button beside a filled New Session button as tall a
   expect(create.getAttribute('data-kind')).toBe('filled');
   expect(create.textContent).toBe('New Session');
   expect(create.querySelector('i')!.getAttribute('data-source')).toBe('plus');
-  expect(create.querySelector('b')!.getAttribute('data-max-lines')).toBe('1');
+  expect(create.querySelector('b')!.getAttribute('data-max-lines')).toBeNull();
   expect(modifiers(create)).toEqual(
     expect.arrayContaining([{ weight: 1 }, { defaultMinSize: { minHeight: 48 } }]),
   );
