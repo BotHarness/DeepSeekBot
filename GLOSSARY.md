@@ -636,7 +636,7 @@ One way a Host Member proves identity to a Host, separate from the identity itse
 _Avoid_: session, account, device grant
 
 **Host Role**:
-A named set of Host Permissions assigned to Host Members, with union semantics across a member's roles; Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
+A named set of Host Permissions assigned to Host Members, each allowed, denied or left unset; a member holds the union of their roles' allowed permissions minus any permission one of their roles denies. Admin and Member are built in. Its Role Policy items guide Bot behavior. It is distinct from a Channel membership role and from an external Chat pairing Role.
 _Avoid_: group, Channel role, pairing Role
 
 **Host Permission**:

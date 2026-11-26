@@ -54,6 +54,10 @@ export function botProactiveOptOut(methods: TeamBridgeMethods, slug: string, opt
   return unwrapAsync(methods.botProactiveOptOut({ slug, optOut }));
 }
 
+export function memberPermissions(methods: TeamBridgeMethods, humanId?: string, username?: string) {
+  return unwrapAsync(methods.memberPermissions({ humanId, username }));
+}
+
 export function roleConflicts(methods: TeamBridgeMethods, humanId?: string, username?: string) {
   return unwrapAsync(methods.roleConflicts({ humanId, username }));
 }
@@ -392,6 +396,10 @@ export const teamServiceRpc = {
 
   botProactiveOptOut(slug: string, optOut: boolean) {
     return botProactiveOptOut(this.methods, slug, optOut);
+  },
+
+  memberPermissions(humanId?: string, username?: string) {
+    return memberPermissions(this.methods, humanId, username);
   },
 
   roleConflicts(humanId?: string, username?: string) {

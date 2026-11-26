@@ -15,4 +15,6 @@ export const dimension = stylex.defineConsts({
   questionCardWidth: '380px',
   introToolCardMinWidth: '180px',
   catalogCardMinWidth: '240px',
+  workbenchNavWidth: '220px',
+  workbenchListWidth: '300px',
 });

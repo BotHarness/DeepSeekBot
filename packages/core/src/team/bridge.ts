@@ -84,6 +84,17 @@ export function createTeamBridge(
         const p = z.object({ slug: z.string(), optOut: z.boolean() }).strict().parse(payload);
         return service.bots.optOut(human, p.slug, p.optOut);
       }),
+    memberPermissions: (payload: unknown) =>
+      call((service) => {
+        const p = z
+          .object({ humanId: z.string().optional(), username: z.string().optional() })
+          .strict()
+          .parse(payload);
+        const id =
+          p.humanId ?? (p.username ? service.memberByUsername(p.username)?.humanId : human.humanId);
+        if (!id) throw new TeamError('member-not-found');
+        return service.roles.effective(human, id);
+      }),
     roleConflicts: (payload: unknown) =>
       call((service) => {
         const p = z
@@ -192,15 +203,16 @@ export function createTeamBridge(
     roles: (_payload: unknown) => call((service) => service.roles.list(human)),
     roleCreate: (payload: unknown) =>
       call((service) => {
-        const { name, permissions, models, policy } = z
+        const { name, permissions, denied, models, policy } = z
           .object({
             name: z.string(),
             permissions: z.array(z.string()),
+            denied: z.array(z.string()).optional(),
             models: roleModelsSchema.optional(),
             policy: rolePolicySchema.optional(),
           })
           .parse(payload);
-        return service.roles.create(human, name, permissions, models, policy);
+        return service.roles.create(human, name, permissions, models, policy, denied);
       }),
     roleUpdate: (payload: unknown) =>
       call((service) => {
@@ -209,11 +221,13 @@ export function createTeamBridge(
             roleId: z.string(),
             name: z.string().optional(),
             permissions: z.array(z.string()).optional(),
+            denied: z.array(z.string()).optional(),
             models: roleModelsSchema.optional(),
             policy: rolePolicySchema.optional(),
           })
           .parse(payload);
         return service.roles.update(human, roleId, {
+          ...(patch.denied === undefined ? {} : { denied: patch.denied }),
           ...(patch.policy === undefined ? {} : { policy: patch.policy }),
           ...(patch.models === undefined ? {} : { models: patch.models }),
           ...(patch.name === undefined ? {} : { name: patch.name }),

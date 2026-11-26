@@ -228,6 +228,17 @@ describe('M7 CLI parity', () => {
     },
     { args: ['roles', 'conflicts', 'bob'], method: 'roleConflicts', payload: { username: 'bob' } },
     {
+      args: ['roles', 'effective', 'bob'],
+      method: 'memberPermissions',
+      payload: { username: 'bob' },
+    },
+    { args: ['roles', 'effective'], method: 'memberPermissions', payload: {} },
+    {
+      args: ['roles', 'update', 'quiet', '--deny', 'channels.create,usage.view'],
+      method: 'roleUpdate',
+      payload: { roleId: 'quiet', denied: ['channels.create', 'usage.view'] },
+    },
+    {
       args: ['speaker-policy', '--human-id', 'bob', '--topic', 'finance'],
       method: 'speakerPolicy',
       payload: { humanId: 'bob', topic: 'finance' },

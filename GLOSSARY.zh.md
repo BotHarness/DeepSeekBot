@@ -635,7 +635,7 @@ Host Member 向 Host 证明身份的一种方式，与身份本身分离；首�
 _避免使用_：session、账号、设备授权
 
 **Host Role**：
-分配给 Host Member 的一组具名 Host Permission，同一成员的多个角色取并集；内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
+分配给 Host Member 的一组具名 Host Permission，每项可设为允许、拒绝或未设；成员持有其各角色允许项的并集，再减去任一角色拒绝的权限。内置 Admin 与 Member。其 Role Policy 条目指导 Bot 行为。它不同于 Channel 成员角色，也不同于外部 Chat pairing 的 Role。
 _避免使用_：group、Channel 角色、pairing Role
 
 **Host Permission**：
