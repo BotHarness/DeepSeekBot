@@ -408,6 +408,12 @@ export function renderSidebarChannelActions({
             void actions.setChannelPinned(channelId, pinned);
             setChannelMenu(undefined);
           }}
+          groupDetailsCall={
+            state.channels.find((candidate) => candidate.id === channelMenu.channelId)?.type ===
+            'group'
+              ? actions.teamCall
+              : undefined
+          }
           onRename={(channelId) => {
             const channel = state.channels.find((candidate) => candidate.id === channelId);
             if (channel !== undefined) setChannelRenameTarget(channel);

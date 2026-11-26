@@ -100,6 +100,7 @@ vi.mock('../src/ui/chat/sheet', () => {
 
 import type { ProfileAssignment } from '../src/host/bot-profile';
 import type { RosterBot } from '@botharness/host-client/client';
+import { MethodRefused } from '@botharness/host-client/client-errors';
 import type { GroupActions, GroupInfo } from '../src/host/group-channel';
 import { GroupProfilePage, type GroupProfileProps } from '../src/ui/chat/group-info';
 import {
@@ -199,6 +200,7 @@ function sheet(overrides: Partial<GroupProfileProps> = {}, tab?: ProfileTab): Gr
     onDisbanded: vi.fn(),
     onClose: vi.fn(),
     tabMemory: tabMemory(tab),
+    editDetails: true,
     ...overrides,
   };
 }
@@ -456,6 +458,69 @@ describe('Group profile', () => {
       `${t.groupFailed} Invitation is no longer pending`,
     );
     expect(view.textContent).toContain(t.groupMembersSection);
+  });
+
+  it('shows the name and photo read-only to a viewer without editDetails', async () => {
+    const props = sheet({ editDetails: false, onDisbanded: undefined }, 'settings');
+    const view = await render(<GroupProfilePage {...props} />);
+    expect(view.querySelector('[data-testid="group-rename"]')).toBeNull();
+    expect(view.querySelector('[data-testid="group-name"]')?.textContent).toContain('Launch');
+    expect(view.querySelector('[data-testid="group-avatar-settings-change"]')).toBeNull();
+    expect(view.querySelector('[data-testid="group-avatar-change"]')).toBeNull();
+    expect(view.querySelector('[data-testid="profile-name-edit"]')).toBeNull();
+    expect(button(view, `${t.groupRename}, Launch`)).toBeNull();
+    expect(view.textContent).toContain(t.groupDetailsAdminsOnly);
+  });
+
+  it('shows a refused rename inside the sheet and asks for a fresh permission read', async () => {
+    const onDetailsRefused = vi.fn();
+    const props = sheet(
+      {
+        onDetailsRefused,
+        actions: actions({
+          rename: vi.fn(async () => {
+            throw new MethodRefused('permission-required', 'permission-required', {
+              permission: 'editDetails',
+            });
+          }),
+        }),
+      },
+      'settings',
+    );
+    const view = await render(<GroupProfilePage {...props} />);
+    await act(async () => button(view, `${t.groupRename}, Launch`)!.click());
+    const field = view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.groupName}"]`)!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(field, 'Alice Lobby');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => button(view, t.groupRenameSave)!.click());
+    const dialog = view.querySelector(`[role="dialog"][aria-label="${t.groupRename}"]`);
+    expect(dialog?.querySelector('[role="alert"]')?.textContent).toBe(t.groupDetailsRefused);
+    expect(onDetailsRefused).toHaveBeenCalledOnce();
+  });
+
+  it('shows a refused photo change instead of dropping it', async () => {
+    const onDetailsRefused = vi.fn();
+    const props = sheet({
+      onDetailsRefused,
+      pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+      actions: actions({
+        setAvatar: vi.fn(async () => {
+          throw new MethodRefused('permission-required', 'permission-required', {
+            permission: 'editDetails',
+          });
+        }),
+      }),
+    });
+    const view = await render(<GroupProfilePage {...props} />);
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!.click(),
+    );
+    const alerts = [...view.querySelectorAll('[role="alert"]')].map((node) => node.textContent);
+    expect(alerts).toContain(t.groupDetailsRefused);
+    expect(onDetailsRefused).toHaveBeenCalledOnce();
   });
 
   it('disbands only after the confirmation and then leaves the page', async () => {

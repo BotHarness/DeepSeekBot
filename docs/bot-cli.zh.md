@@ -538,6 +538,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"delete-role","id":"<role-id>","expectedRevision":2}' | deepseekbot sender-access <bot-id> --input-stdin --confirm
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
@@ -2561,6 +2562,14 @@ deepseekbot --as bob channels add-member <channel-id> alice
 ```
 
 候选查询最多返回 100 位活跃且未加入该 Channel 的人，包含 `humanId`、`displayName` 和可为空的 `username`，可按显示名或用户名搜索。两个命令都检查调用 Human 的 `addMembers` 权限，包括 Channel owner/admin 和 `channels.manageAll`；缺权返回 `permission-required`，带 `details.permission: 'addMembers'`。姓名邀请对所有可见性立即授予访问，撤销角色后仍保留；浏览后加入的角色成员在角色访问撤销时退出。升级分类见 [M14 运行时说明](architecture/team-mode.zh.md#m14-运行时邀请与成员访问依据)。
+
+### 移除后的 Channel 访问状态
+
+```sh
+deepseekbot --as alice channels access <channel-id>
+```
+
+为调用者返回 `{ channelId, state }`。`readable` 表示可以打开该 Channel；`removed` 表示此人曾是成员、群聊仍然存在但已失去访问，例如角色被撤销或被管理员移出；`unavailable` 包含已删除的 Channel、从未加入的 Channel 和未知 id，因此不会暴露此人原本不知道的 Channel。手机和 Web 客户端据此显示“你已无法访问”，而不是“群聊已不存在”。
 
 ### 自定义 HTTP 语音请求模板
 

@@ -665,6 +665,38 @@ describe('Tool approval file diff', () => {
     );
   });
 
+  it('puts the Host access warning after the command, in reading order, on one row inset', async () => {
+    const value = message();
+    value.approval = {
+      masked: false,
+      kind: 'tool-approval',
+      botSlug: 'ada',
+      state: 'pending',
+      requestedAt: '2026-11-16T01:00:00Z',
+      opaque: true,
+    };
+    const rows = (card: HTMLElement) =>
+      [...card.children].map((row) =>
+        ['bh-request-head', 'bh-request-summary', 'bh-tool-approval-host-access']
+          .concat(['bh-tool-approval-scope', 'bh-tool-approval-actions'])
+          .find((hook) => row.classList.contains(hook)),
+      );
+    const card = await render(value);
+    expect(card.querySelector('.bh-tool-approval-host-access')?.textContent).toBe(
+      zhTranslate('approval.opaqueWarning'),
+    );
+    expect(rows(card)).toEqual([
+      'bh-request-head',
+      'bh-request-summary',
+      'bh-tool-approval-host-access',
+      'bh-tool-approval-scope',
+      'bh-tool-approval-actions',
+    ]);
+    expect(await infoTip(card)).not.toContain(zhTranslate('approval.opaqueWarning'));
+    const decided = await render(value, {}, 'allowed-once');
+    expect(decided.querySelector('.bh-tool-approval-host-access')).not.toBeNull();
+  });
+
   it('keeps a Memory edit card to its summary and diff, with details behind the info icon', async () => {
     const value = message(
       'deepseekbot memory-save',

@@ -71,6 +71,13 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('delete-role'),
+      id: z.string().uuid(),
+      expectedRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('reassign-role'),
       id: z.string().uuid(),
       expectedRevision: z.number().int().positive(),
@@ -390,6 +397,27 @@ export function changeSenderAccess(
       next.id,
       botSlug,
     );
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
+  if (input.kind === 'delete-role') {
+    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
+    if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
+    if (
+      db
+        .prepare(
+          "SELECT 1 FROM messaging_pairings WHERE bot_slug = ? AND status IN ('pending', 'approved') AND json_extract(body, '$.roleId') = ? LIMIT 1",
+        )
+        .get(botSlug, role.id)
+    )
+      throw new MessagingError('role-in-use');
+    db.prepare('DELETE FROM messaging_external_roles WHERE id = ? AND bot_slug = ?').run(
+      role.id,
+      botSlug,
+    );
+    db.prepare(
+      'UPDATE messaging_sender_policies SET default_role_id = NULL WHERE bot_slug = ? AND default_role_id = ?',
+    ).run(botSlug, role.id);
     bumpSenderPolicy(db, botSlug);
     return;
   }
