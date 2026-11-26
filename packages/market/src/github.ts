@@ -54,6 +54,38 @@ export interface GitHubClient {
   readme(locator: RepositoryLocator): Promise<GitHubLookup<string | null>>;
   file(locator: RepositoryLocator, path: string): Promise<GitHubLookup<string | null>>;
   rootFiles(locator: RepositoryLocator): Promise<GitHubLookup<string[]>>;
+  searchTopicPage(topic: string, page: number): Promise<GitHubLookup<TopicSearchPage>>;
+  tree(locator: RepositoryLocator, sha: string): Promise<GitHubLookup<GitHubTree>>;
+  fileAt(
+    locator: RepositoryLocator,
+    path: string,
+    ref: string,
+  ): Promise<GitHubLookup<string | null>>;
+}
+
+export interface GitHubTreeBlob {
+  path: string;
+  size: number;
+}
+
+export interface GitHubTree {
+  blobs: GitHubTreeBlob[];
+  truncated: boolean;
+}
+
+function parseTree(value: unknown): GitHubTree | undefined {
+  const source = record(value);
+  const items = source?.['tree'];
+  if (!Array.isArray(items)) return undefined;
+  const blobs = items
+    .map(record)
+    .filter((item) => item?.['type'] === 'blob')
+    .flatMap((item) => {
+      const path = text(item?.['path']);
+      const size = item?.['size'];
+      return path === undefined ? [] : [{ path, size: typeof size === 'number' ? size : 0 }];
+    });
+  return { blobs, truncated: source?.['truncated'] === true };
 }
 
 const repositoryUrl =
@@ -265,6 +297,9 @@ export function createGitHubClient(options: {
   const repoPath = (locator: RepositoryLocator): string =>
     `/repos/${encodeURIComponent(locator.owner)}/${encodeURIComponent(locator.name)}`;
 
+  const contentsPath = (locator: RepositoryLocator, path: string): string =>
+    `${repoPath(locator)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
+
   const raw = async (path: string): Promise<GitHubLookup<string | null>> => {
     let response: Response;
     try {
@@ -306,7 +341,15 @@ export function createGitHubClient(options: {
       const listing = await get(`${repoPath(locator)}/contents/`, parseRootFiles);
       return !listing.ok && listing.reason === 'not-found' ? { ok: true, value: [] } : listing;
     },
-    file: (locator, path) =>
-      raw(`${repoPath(locator)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`),
+    file: (locator, path) => raw(contentsPath(locator, path)),
+    fileAt: (locator, path, ref) =>
+      raw(`${contentsPath(locator, path)}?ref=${encodeURIComponent(ref)}`),
+    searchTopicPage: (topic, page) =>
+      get(
+        `/search/repositories?q=${encodeURIComponent(`topic:${topic}`)}&sort=updated&order=desc&per_page=${SEARCH_PAGE_SIZE}&page=${page}`,
+        parseSearchPage,
+      ),
+    tree: (locator, sha) =>
+      get(`${repoPath(locator)}/git/trees/${encodeURIComponent(sha)}?recursive=1`, parseTree),
   };
 }
