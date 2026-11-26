@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { dmChannelId } from '../channels/channel.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../runtime/human-attention.js';
 import type { PushCandidate, PushKind, PushSource } from './delivery.js';
+import { toolInputPreview } from '../runtime/tool-input-preview.js';
 import { NATIVE_SESSION_ATTENTION_KIND } from '@botharness/host-protocol/wire';
 
 const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
@@ -43,7 +44,6 @@ const ACTION_LIMIT = 100;
 const REPLY_LIMIT = 200;
 const PAGE_LIMIT = 100;
 const PREVIEW_LIMIT = 140;
-const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
 export interface PushApprovalLookup {
   (
@@ -58,21 +58,6 @@ function clip(text: string): string | undefined {
   return flat.length <= PREVIEW_LIMIT ? flat : `${flat.slice(0, PREVIEW_LIMIT - 1).trimEnd()}…`;
 }
 
-function inputPreview(input: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(input);
-  } catch {
-    return input;
-  }
-  if (typeof parsed === 'string') return parsed;
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return input;
-  const fields = parsed as Record<string, unknown>;
-  const value =
-    fields[PREVIEW_FIELDS.find((field) => field in fields) ?? Object.keys(fields)[0] ?? ''];
-  return value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value);
-}
-
 function approvalOf(
   item: HumanAttentionItem,
   approval: PushApprovalLookup | undefined,
@@ -82,7 +67,7 @@ function approvalOf(
       ? undefined
       : approval?.(item.channelId, item.messageId);
   if (request === undefined) return { categoryId: 'tool-approval-once' };
-  const shown = inputPreview(request.input);
+  const shown = toolInputPreview(request.input);
   const preview = clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
   return {
     ...(preview === undefined ? {} : { preview }),

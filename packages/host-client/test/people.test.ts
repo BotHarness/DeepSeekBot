@@ -135,6 +135,7 @@ describe('Human attention', () => {
         input: 'approval',
         sessionTitle: 'Ship it',
         folderName: 'site',
+        cwd: '/work/site',
         request: { kind: 'approval', requestId: 'event-1', toolName: 'bash', reason: 'Deploy' },
       },
     };
@@ -149,6 +150,7 @@ describe('Human attention', () => {
       { ...native, nativeSession: { sessionId: 'native-1', input: 'other' } },
       { ...native, nativeSession: { input: 'approval' } },
       { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
+      { ...native, nativeSession: { ...native.nativeSession, cwd: 7 } },
       { ...native, unreadCount: 'bad' },
       { ...native, isUnread: 'yes' },
       { ...native, snoozedUntil: 7 },

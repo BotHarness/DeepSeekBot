@@ -403,7 +403,7 @@ function Post({
               client={client}
               sessionId={native.sessionId}
               input={native.request}
-              cwd={undefined}
+              cwd={native.cwd}
               items={NO_TRANSCRIPT}
               onSettled={nativeSettled}
               decided={decided}

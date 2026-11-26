@@ -11,6 +11,7 @@ import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { dshHostSessionInput } from './features/sessions/dsh-host-session-input.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { sessionToolInputPreview } from './runtime/session-tool-detail.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import type { TeamError } from './team/error.js';
 import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
@@ -580,6 +581,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       sessionLive.observe(id, { type: 'native-input' });
       sessionListChanges.changed(true, id);
     },
+    (sessionId, callId) =>
+      sessionToolInputPreview(dshSessions.get(sessionId)?.snapshotEvents() ?? [], callId),
   );
   ctx.effect(
     () =>

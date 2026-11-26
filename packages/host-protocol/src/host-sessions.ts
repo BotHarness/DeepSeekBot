@@ -116,6 +116,7 @@ export type HostSessionPendingInput =
       toolName: string;
       callId?: string;
       reason?: string;
+      preview?: string;
     }
   | {
       kind: 'question';

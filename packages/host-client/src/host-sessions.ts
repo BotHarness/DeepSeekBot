@@ -274,7 +274,7 @@ function questionItem(value: unknown): QuestionItem | undefined {
 function pendingInput(value: unknown): HostSessionPendingInput | undefined {
   const item = record(value);
   if (typeof item?.['requestId'] !== 'string') return undefined;
-  const { requestId, kind, toolName, callId, reason, continued } = item;
+  const { requestId, kind, toolName, callId, reason, preview, continued } = item;
   if (kind === 'approval' && typeof toolName === 'string')
     return {
       kind,
@@ -282,6 +282,7 @@ function pendingInput(value: unknown): HostSessionPendingInput | undefined {
       toolName,
       ...(typeof callId === 'string' ? { callId } : {}),
       ...(typeof reason === 'string' ? { reason } : {}),
+      ...(typeof preview === 'string' && preview !== '' ? { preview } : {}),
     };
   if (kind !== 'question' || !Array.isArray(item['questions'])) return undefined;
   const questions = some(item['questions'], questionItem);
