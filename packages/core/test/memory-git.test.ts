@@ -31,6 +31,8 @@ function expectMemoryConfig(root: string): void {
     ['user.email', 'bot@botharness.local'],
     ['commit.gpgsign', 'false'],
     ['core.autocrlf', 'false'],
+    ['gc.autoDetach', 'false'],
+    ['maintenance.autoDetach', 'false'],
   ] as const)
     expect(git(root, ['config', '--local', '--get', key])).toBe(value);
 }
@@ -64,6 +66,10 @@ describe('memory git repository', () => {
         );
         expect(git(root, ['config', '--local', '--get-all', 'core.autocrlf'])).toBe('false');
         expect(git(root, ['config', '--local', '--get-all', 'commit.gpgsign'])).toBe('false');
+        expect(git(root, ['config', '--local', '--get-all', 'gc.autoDetach'])).toBe('false');
+        expect(git(root, ['config', '--local', '--get-all', 'maintenance.autoDetach'])).toBe(
+          'false',
+        );
       } finally {
         if (previous === undefined) delete process.env.GIT_TEMPLATE_DIR;
         else process.env.GIT_TEMPLATE_DIR = previous;
