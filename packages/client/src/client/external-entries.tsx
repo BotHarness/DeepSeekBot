@@ -193,6 +193,9 @@ function IdentitiesForBot({
             behaviorPermissions={snapshot?.behaviorPermissions ?? []}
             blocks={snapshot?.senderBlocks ?? []}
             conversationBlocks={snapshot?.conversationBlocks ?? []}
+            appNames={Object.fromEntries(
+              (snapshot?.identities ?? []).map((identity) => [identity.id, identity.name]),
+            )}
             bindings={(snapshot?.identities ?? [])
               .filter(
                 (binding) => binding.enabled && !binding.revokedAt && binding.platform === 'feishu',

@@ -123,7 +123,10 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
                 return identities.length > 0 || grants.length > 0;
               },
               senderPermissions: (id) => ports.externalMessaging!.senderPermissions(bot.slug, id),
-              sourceBlocks: (input) => ports.externalMessaging!.sourceBlocks(bot.slug, input),
+              sourceBlocks: (input) => {
+                if (input.action === 'block' || input.action === 'unblock') turn.markSideEffect();
+                return ports.externalMessaging!.sourceBlocks(bot.slug, input);
+              },
               directory: (query) => ports.externalMessaging!.directory(bot.slug, query),
               reachable: async (bindingId, cursor) => {
                 const snapshot = await ports.externalMessaging!.snapshot(bot.slug);

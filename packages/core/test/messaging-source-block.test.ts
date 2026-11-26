@@ -175,11 +175,23 @@ it('the Host blocks and unblocks a conversation through sender access', async ()
     }),
   ).toMatchObject({ ok: true });
   expect(blocked(fx, applicant)).toBe(false);
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: {
+        kind: 'block-conversation',
+        bindingId: fx.identity.id,
+        conversation: { kind: 'dm', id: 'DQAREV' },
+      },
+    }),
+  ).toMatchObject({ ok: false });
+  expect(blocked(fx, applicant, 'dm')).toBe(false);
 });
 
 it('blocking asks the Human first, listing does not', () => {
   const block = { action: 'block', source_event_id: 'e', target_name: 'QA', app: 'Slack' };
   expect(toolEffects('bridge_source_block', block)).toMatchObject({ authority: 'management' });
+  expect(toolApprovalRequired('bridge_source_block', block, false)).toBe(true);
   const unblock = { action: 'unblock', block_id: 'b', target_name: 'QA' };
   expect(toolApprovalRequired('bridge_source_block', unblock, false)).toBe(true);
   for (const incomplete of [

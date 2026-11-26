@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { z } from 'zod';
 import type { ConversationRef } from '../conversations.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
@@ -224,6 +225,21 @@ function readStoredConversationBlock(
   return row ? (JSON.parse(row.body) as ConversationSourceBlock) : undefined;
 }
 
+function ownerConversation(
+  db: DatabaseSync,
+  botSlug: string,
+  fingerprint: string,
+  conversationId: string,
+): boolean {
+  return (
+    db
+      .prepare(
+        "SELECT actor_id FROM messaging_pairings WHERE bot_slug = ? AND status = 'approved' AND json_extract(body, '$.conversationId') = ?",
+      )
+      .all(botSlug, conversationId) as { actor_id: string }[]
+  ).some((row) => ownerActor(db, botSlug, fingerprint, row.actor_id));
+}
+
 export function readConversationSourceBlock(
   db: DatabaseSync,
   botSlug: string,
@@ -254,6 +270,11 @@ export function blockConversationSource(
   by: ConversationSourceBlock['blockedBy'] = 'authenticated-web',
 ): ConversationSourceBlock {
   const binding = usableBinding(db, botSlug, input.bindingId);
+  if (
+    input.conversation.kind === 'dm' &&
+    ownerConversation(db, botSlug, binding.fingerprint, input.conversation.id)
+  )
+    throw new MessagingError('sender-block-owner');
   const stored = readStoredConversationBlock(db, botSlug, binding.fingerprint, input.conversation);
   if (stored && !stored.unblockedAt) return stored;
   const block: ConversationSourceBlock = {
@@ -343,32 +364,32 @@ export type BotSourceBlockResult =
   | { block: BotSourceBlockView }
   | { unblocked: boolean };
 
-type BlockKey =
-  | { scope: 'sender'; bindingId: string; actorId: string }
-  | { scope: 'conversation'; bindingId: string; conversation: ConversationRef };
+const blockKey = z.discriminatedUnion('scope', [
+  z.object({ scope: z.literal('sender'), bindingId: z.string(), actorId: z.string() }).strict(),
+  z
+    .object({
+      scope: z.literal('conversation'),
+      bindingId: z.string(),
+      conversation: z.object({ kind: z.enum(['dm', 'group']), id: z.string() }).strict(),
+    })
+    .strict(),
+]);
+type BlockKey = z.infer<typeof blockKey>;
 
 function blockId(key: BlockKey): string {
   return Buffer.from(JSON.stringify(key)).toString('base64url');
 }
 
 function readBlockId(value: string): BlockKey {
+  let decoded: unknown;
   try {
-    const key = JSON.parse(Buffer.from(value, 'base64url').toString()) as Partial<BlockKey>;
-    if (
-      key.scope === 'sender' &&
-      typeof key.bindingId === 'string' &&
-      typeof key.actorId === 'string'
-    )
-      return key as BlockKey;
-    if (
-      key.scope === 'conversation' &&
-      typeof key.bindingId === 'string' &&
-      (key.conversation?.kind === 'dm' || key.conversation?.kind === 'group') &&
-      typeof key.conversation.id === 'string'
-    )
-      return key as BlockKey;
-  } catch {}
-  throw new MessagingError('sender-block-unknown');
+    decoded = JSON.parse(Buffer.from(value, 'base64url').toString());
+  } catch {
+    throw new MessagingError('sender-block-unknown');
+  }
+  const parsed = blockKey.safeParse(decoded);
+  if (!parsed.success) throw new MessagingError('sender-block-unknown');
+  return parsed.data;
 }
 
 function appName(db: DatabaseSync, bindingId: string): string {

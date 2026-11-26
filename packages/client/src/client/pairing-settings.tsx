@@ -100,6 +100,7 @@ export function PairingSettings({
   bindings = [],
   blocks = [],
   conversationBlocks = [],
+  appNames = {},
   policy,
   senderAccess,
   busy,
@@ -115,6 +116,7 @@ export function PairingSettings({
   bindings?: GroupBinding[];
   blocks?: SenderBlock[];
   conversationBlocks?: ConversationSourceBlock[];
+  appNames?: Record<string, string>;
   policy?: SenderPolicy;
   senderAccess?(input: SenderAccessInput): Promise<void>;
   receivers?: {
@@ -340,6 +342,7 @@ export function PairingSettings({
             accountName={(bindingId) =>
               requests.find((request) => request.bindingId === bindingId)?.accountName ??
               bindings.find((binding) => binding.id === bindingId)?.name ??
+              appNames[bindingId] ??
               bindingId
             }
             busy={busy}
