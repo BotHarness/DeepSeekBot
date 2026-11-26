@@ -1,5 +1,6 @@
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import { toolInputPreview } from './tool-input-preview.js';
 import { toolTargets } from './session-transcript.js';
 
 export type SessionToolDetail =
@@ -187,23 +188,55 @@ function normalize(
   return undefined;
 }
 
+export interface SessionToolCall {
+  name: string;
+  arguments: unknown;
+}
+
+export function sessionToolCall(
+  events: readonly DshSessionEvent[],
+  callId: string,
+): SessionToolCall | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!;
+    if (event.type !== 'tool/call') continue;
+    const data = object(event.data);
+    if (data['callId'] === callId && typeof data['name'] === 'string')
+      return { name: data['name'], arguments: data['arguments'] };
+  }
+  return undefined;
+}
+
+export const TOOL_PREVIEW_CHARS = 2000;
+
+export function sessionToolInputPreview(
+  events: readonly DshSessionEvent[],
+  callId: string,
+): string | undefined {
+  const call = sessionToolCall(events, callId);
+  if (call === undefined || PRIVATE_INPUT_TOOLS.has(call.name)) return undefined;
+  const raw =
+    typeof call.arguments === 'string' ? call.arguments : JSON.stringify(call.arguments ?? {});
+  const text = toolInputPreview(raw).trim();
+  return text === '' ? undefined : head(text, TOOL_PREVIEW_CHARS);
+}
+
 export function summarizeSessionToolDetail(input: {
   sessionId: string;
   callId: string;
   events: readonly DshSessionEvent[];
   present?: PresentToolResult;
 }): SessionToolDetail | undefined {
-  let call: Record<string, unknown> | undefined;
+  const call = sessionToolCall(input.events, input.callId);
   let result: Record<string, unknown> | undefined;
   for (const event of input.events) {
     const data = object(event.data);
-    if (event.type === 'tool/call' && data['callId'] === input.callId) call = data;
-    else if (event.type === 'tool/result' && object(data['message'])['toolCallId'] === input.callId)
+    if (event.type === 'tool/result' && object(data['message'])['toolCallId'] === input.callId)
       result = data;
   }
-  if (call === undefined || typeof call['name'] !== 'string') return undefined;
-  const name = call['name'];
-  const args = parsed(call['arguments']);
+  if (call === undefined) return undefined;
+  const name = call.name;
+  const args = parsed(call.arguments);
   const targets = toolTargets(name, args);
   const message = object(result?.['message']);
   const content = Array.isArray(message['content']) ? message['content'] : [];
@@ -224,6 +257,6 @@ export function summarizeSessionToolDetail(input: {
   }
   if (targets.command !== undefined)
     return { card: 'terminal', command: targets.command, output: tail(output) };
-  const shown = inputText(name, call['arguments']);
+  const shown = inputText(name, call.arguments);
   return { card: 'text', ...(shown === undefined ? {} : { input: shown }), output: head(output) };
 }

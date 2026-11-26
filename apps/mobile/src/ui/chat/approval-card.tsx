@@ -317,12 +317,18 @@ function ApprovalCardContent({
         details={
           <>
             <DetailRow label={t.tool} value={request.toolName} />
-            <DetailRow label={t.workingFolder} value={request.cwd} />
+            {request.cwd === '' ? null : <DetailRow label={t.workingFolder} value={request.cwd} />}
             {change !== undefined ? (
               <FileDiff change={change} />
             ) : (
               rows.map((row, index) => (
-                <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
+                <DetailRow
+                  key={`${row.label}-${index}`}
+                  label={
+                    Object.hasOwn(t.inputLabels, row.label) ? t.inputLabels[row.label]! : row.label
+                  }
+                  value={row.value}
+                />
               ))
             )}
             {effects === undefined ? null : <CardNote>{effects}</CardNote>}

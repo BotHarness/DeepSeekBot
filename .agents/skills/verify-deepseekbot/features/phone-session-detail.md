@@ -13,6 +13,7 @@
 - `packages/host-client/src/session-{detail,model,links}.ts`
 - `packages/host-client/src/host-sessions.ts`
 - `packages/core/src/features/sessions/dsh-host-session-input.ts`
+- `packages/core/src/features/activity/native-session-attention.ts`
 - `packages/core/src/runtime/session-transcript.ts`
 - `packages/host-protocol/src/dsh-model-switch.ts`
 - `packages/client/src/client/native-session-model-switch.tsx`
@@ -41,6 +42,8 @@ Use the assigned device in `docs/agents/device-qa.md` and a paired isolated Host
 
 
 For native Host actions, use the OpenCode Go model on a fresh named isolated Host and drive the CLI. Submit a harmless tool call that asks DSH for approval. Read the card from `session-transcript --session <id>` or `session-live --session <id>`, answer its `requestId` with `session-answer-approval`, then read the same Session until the tool result and model reply are committed. Use `session-answer-question --answer-stdin` on a pending question, `session-stop --session <id>` on an active Turn, and `session-archive --session <id> --confirm` on an idle Session. Compare default inventory and `session-list --include-archived`. M15 C6 exercises the Team member boundary for all four actions. For the phone checks, start a separate Session with a new pending approval and question rather than reusing the CLI Session, whose requests are already answered and which is archived. Open it on the phone: the approval card shows Allow once and Reject (no Always allow); tapping one removes the card and the Turn continues. A pending question card answers with one tap on an option, or Submit for multi-part questions. Archive last: **Archive** in the Session options asks for confirmation, returns to the Sessions list and the Session is gone from it.
+
+For the "needs you" rule and native attention (#4937), keep the same Host. On macOS trial isolation, a plain shell command runs without approval. To raise an approval, ask the model to run `echo` with `sandbox_permissions` requesting escalation; an `ask-user-question` prompt raises a question. While the request waits, `session-list` shows the row with `status: "needs-you"` and `attention: "approval"` or `"question"`. `activity --source all` lists one `native-session-input` item with an empty `botSlug`, and `activity` without `--source` lists none. After `printf '{"nativeSessionAttention":false}' | deepseekbot settings-set botharness-client --patch-stdin`, `activity --source all` drops the item and `activity-status --source all` reports `hasAction: false`, while the list row still needs you. Answering the request clears the item and returns the row to `idle`. M15 C6 checks that a Team member's `activity --source all|native` never shows the item. On the phone, the Activity tab lists each request with a terminal mark and the Session title, **Filter and sort → From → Sessions** keeps only them, and tapping one opens the Session detail. Settings → Sessions → **Session requests in Activity** writes the same setting; with it off, the Activity row and the tab count go away while the Sessions list still shows Needs you.
 
 ## Observable proof
 

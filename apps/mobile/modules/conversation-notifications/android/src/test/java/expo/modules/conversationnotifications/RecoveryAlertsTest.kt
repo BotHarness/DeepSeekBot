@@ -93,7 +93,7 @@ class RecoveryAlertsTest {
     val items = listOf("old" to "channel-reply", "approval" to "tool-approval", "private" to "private-input")
     alerts.reconcile(snapshot(items))
     assertEquals(1, platform.posted.size)
-    assertEquals("New replies 0 · Needs you 2", platform.posted[0].second.extras.getCharSequence("android.text").toString())
+    assertEquals("Needs you 2", platform.posted[0].second.extras.getCharSequence("android.text").toString())
     assertFalse(platform.payloads.toString().contains("PRIVATE_DO_NOT_AGGREGATE"))
     assertEquals("", platform.payloads.last().getString("botSlug"))
     alerts.reconcile(snapshot(items, batch = "b2"))
@@ -117,7 +117,7 @@ class RecoveryAlertsTest {
       assertEquals(android.app.Notification.GROUP_ALERT_SUMMARY, notice.groupAlertBehavior)
       assertEquals(0, notice.flags and android.app.Notification.FLAG_GROUP_SUMMARY)
     }
-    assertEquals("New replies 251 · Needs you 1", platform.posted[0].second.extras.getCharSequence("android.text").toString())
+    assertEquals("Needs you 1 · New replies 251", platform.posted[0].second.extras.getCharSequence("android.text").toString())
     alerts.reconcile(snapshot(items + ("fresh" to "channel-reply"), batch = "live"))
     assertEquals(3, platform.posted.size)
     assertEquals(2, alertingCandidates())
@@ -156,7 +156,7 @@ class RecoveryAlertsTest {
     alerts.reconcile(snapshot(items, session = "p2", batch = "retry"))
     assertEquals(1, platform.posted.size)
     assertEquals(0, alertingCandidates())
-    assertEquals("New replies 0 · Needs you 2", platform.posted[0].second.extras.getCharSequence("android.text").toString())
+    assertEquals("Needs you 2", platform.posted[0].second.extras.getCharSequence("android.text").toString())
   }
 
   @Test fun deniedPermissionCanBecomeOneForegroundSummaryAndCannotReplayInBackground() = runBlocking {
@@ -216,7 +216,7 @@ class RecoveryAlertsTest {
     alerts.reconcile(snapshot(listOf("old" to "tool-approval", "new" to "user-question")))
     assertEquals(2, alerts.readableDatabase.version)
     assertEquals(1, platform.posted.size)
-    assertEquals("New replies 0 · Needs you 1", platform.posted[0].second.extras.getCharSequence("android.text").toString())
+    assertEquals("Needs you 1", platform.posted[0].second.extras.getCharSequence("android.text").toString())
   }
 
   @Test fun foregroundRaceClaimsOnlyOneSurfaceAndUnknownPolicyDoesNotResetBaseline() = runBlocking {

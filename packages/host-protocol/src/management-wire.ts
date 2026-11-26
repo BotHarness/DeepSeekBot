@@ -2,6 +2,7 @@ import type {
   ChannelAssignmentSummary,
   HumanAssignmentContext,
   HumanAttentionItem,
+  HumanAttentionSource,
   ProfileActivity,
   ProfileModelUsageRow,
   ProfileTokenBuckets,
@@ -41,7 +42,8 @@ export interface WireHumanAttentionItem extends HumanAttentionItem {
     | 'bot-message-needs-repair'
     | 'channel-unread'
     | 'channel-reply'
-    | 'channel-mention';
+    | 'channel-mention'
+    | 'native-session-input';
   author?: Extract<WireAuthor, { kind: 'bot' }> & { displayName?: string };
   approval?: WireApprovalCard;
   responseSourceEventId?: string;
@@ -50,6 +52,7 @@ export interface WireHumanAttentionItem extends HumanAttentionItem {
 export interface WireHumanAttentionPage {
   queryVersion?: 1;
   notificationVersion?: 1;
+  source?: HumanAttentionSource;
   dismissed?: boolean;
   items: WireHumanAttentionItem[];
   nextCursor?: string;

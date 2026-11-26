@@ -24,7 +24,13 @@ export type ActivityFilter = {
   bot: string | undefined;
   channel?: string | undefined;
   unreadOnly?: boolean;
+  source?: ActivityItemSource | undefined;
 };
+export type ActivityItemSource = 'bot' | 'native';
+
+export function activityQuerySource(filter: ActivityFilter): 'all' | ActivityItemSource {
+  return filter.source ?? 'all';
+}
 export type ActivitySort = 'default' | 'newest' | 'oldest';
 export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 export const DEFAULT_ACTIVITY: ActivityFilter = ALL_ACTIVITY;
@@ -39,6 +45,30 @@ export function sectionLabel(section: ActivitySection): string {
   if (section === 'all') return t.filterAll;
   if (section === 'cleared' || section === 'snoozed') return t.activitySetAside[section];
   return t.inboxSections[section];
+}
+
+function fromBots(filter: ActivityFilter): Pick<ActivityFilter, 'source'> {
+  return filter.source === 'native' ? { source: undefined } : {};
+}
+
+export function withActivitySource(
+  filter: ActivityFilter,
+  source: ActivityItemSource | undefined,
+): ActivityFilter {
+  return source === 'native'
+    ? { ...filter, source, bot: undefined, channel: undefined }
+    : { ...filter, source };
+}
+
+export function withActivityBot(filter: ActivityFilter, bot: string | undefined): ActivityFilter {
+  return { ...filter, bot, ...(bot === undefined ? {} : fromBots(filter)) };
+}
+
+export function withActivityChannel(
+  filter: ActivityFilter,
+  channel: string | undefined,
+): ActivityFilter {
+  return { ...filter, channel, ...(channel === undefined ? {} : fromBots(filter)) };
 }
 
 type Props = {
@@ -108,6 +138,30 @@ export function activityChoiceGroups(
       })),
     },
     {
+      key: 'source',
+      label: t.activityFrom,
+      choices: [
+        {
+          key: 'source:all',
+          label: t.filterAll,
+          selected: filter.source === undefined,
+          choose: () => onFilter(withActivitySource(filter, undefined)),
+        },
+        {
+          key: 'source:bot',
+          label: t.bots,
+          selected: filter.source === 'bot',
+          choose: () => onFilter(withActivitySource(filter, 'bot')),
+        },
+        {
+          key: 'source:native',
+          label: t.hostSessions.title,
+          selected: filter.source === 'native',
+          choose: () => onFilter(withActivitySource(filter, 'native')),
+        },
+      ],
+    },
+    {
       key: 'bots',
       label: t.bots,
       choices: [
@@ -121,7 +175,7 @@ export function activityChoiceGroups(
           key: `bot:${bot.slug}`,
           label: bot.name,
           selected: filter.bot === bot.slug,
-          choose: () => onFilter({ ...filter, bot: bot.slug }),
+          choose: () => onFilter(withActivityBot(filter, bot.slug)),
         })),
       ],
     },
@@ -139,7 +193,7 @@ export function activityChoiceGroups(
           key: `channel:${channel.id}`,
           label: channel.name,
           selected: filter.channel === channel.id,
-          choose: () => onFilter({ ...filter, channel: channel.id }),
+          choose: () => onFilter(withActivityChannel(filter, channel.id)),
         })),
       ],
     },

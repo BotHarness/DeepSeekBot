@@ -5,7 +5,7 @@ import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useRef, useState, type ReactElement } from 'react';
 import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
-import { parseHumanAttentionPage } from './bridge.js';
+import { botAttentionItems, parseHumanAttentionPage } from './bridge.js';
 import type { ActivitySection } from './activity-feed.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanelRegistry } from './dock-panels.js';
@@ -40,7 +40,7 @@ function parseRemoteActivityItems(value: unknown): {
   let failed = false;
   const items = value.flatMap((item) => {
     try {
-      return parseHumanAttentionPage({ items: [item] }).items;
+      return botAttentionItems(parseHumanAttentionPage({ items: [item] }).items);
     } catch {
       failed = true;
       return [];

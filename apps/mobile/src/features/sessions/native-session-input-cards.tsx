@@ -73,13 +73,14 @@ export function NativeSessionInputCards({
   );
 }
 
-const NativeApproval = memo(function NativeApproval({
+export const NativeApproval = memo(function NativeApproval({
   client,
   sessionId,
   input,
   cwd,
   items,
   onSettled,
+  decided = false,
 }: {
   client: HostClient;
   sessionId: string;
@@ -87,39 +88,51 @@ const NativeApproval = memo(function NativeApproval({
   cwd: string | undefined;
   items: readonly SessionTranscriptItem[];
   onSettled: Settled;
+  decided?: boolean;
 }) {
   const request = useSameValue(nativeApprovalRequest(input, { cwd, items }));
   const { requestId } = input;
   const port = useMemo(
     () =>
-      nativeApprovalPort(client, sessionId, requestId, request, (result) =>
-        onSettled(requestId, result),
+      nativeApprovalPort(
+        client,
+        sessionId,
+        requestId,
+        request,
+        (result) => onSettled(requestId, result),
+        decided,
       ),
-    [client, sessionId, requestId, request, onSettled],
+    [client, sessionId, requestId, request, onSettled, decided],
   );
   return <ApprovalCard port={port} content={request} alwaysAllow={false} wide />;
 });
 
-const NativeQuestion = memo(function NativeQuestion({
+export const NativeQuestion = memo(function NativeQuestion({
   client,
   sessionId,
   input,
   asker,
   onSettled,
+  decided = false,
 }: {
   client: HostClient;
   sessionId: string;
   input: NativeQuestionInput;
   asker: string;
   onSettled: Settled;
+  decided?: boolean;
 }) {
   const question = useSameValue(input);
   const port = useMemo(
     () =>
-      nativeQuestionPort(client, sessionId, question, (result) =>
-        onSettled(question.requestId, result),
+      nativeQuestionPort(
+        client,
+        sessionId,
+        question,
+        (result) => onSettled(question.requestId, result),
+        decided,
       ),
-    [client, sessionId, question, onSettled],
+    [client, sessionId, question, onSettled, decided],
   );
   return <QuestionCard port={port} botName={asker} wide />;
 });

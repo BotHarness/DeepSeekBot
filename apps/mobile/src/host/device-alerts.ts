@@ -1,4 +1,7 @@
-import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
+import {
+  NATIVE_SESSION_ATTENTION_KIND,
+  type HumanAttentionItem,
+} from '@botharness/host-protocol/wire';
 import type { PushKind, PushPreferences } from '@botharness/host-client/push';
 
 const kinds: Record<string, PushKind> = {
@@ -14,6 +17,15 @@ const kinds: Record<string, PushKind> = {
   'channel-mention': 'reply',
 };
 
+function pushKind(item: HumanAttentionItem): PushKind | undefined {
+  if (item.kind !== NATIVE_SESSION_ATTENTION_KIND) return kinds[item.kind];
+  return item.nativeSession === undefined
+    ? undefined
+    : item.nativeSession.input === 'question'
+      ? 'question'
+      : 'approval';
+}
+
 export interface LocalApprovalAlert {
   title: string;
   body: string;
@@ -28,6 +40,8 @@ export interface LocalApprovalAlert {
     messageId: string;
     sender: string;
     text: string;
+    sessionId?: string;
+    input?: 'approval' | 'question';
   };
 }
 
@@ -74,6 +88,7 @@ export interface DeviceAlertInput {
   policyReady?: boolean;
   botName(slug: string): string | undefined;
   approvalText: string;
+  untitledSession?: string;
   preferences?: PushPreferences;
   quietChannelIds?: readonly string[];
   focusedChannelIds?: readonly string[] | undefined;
@@ -180,7 +195,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
     async update(input: DeviceAlertInput, batch = nextBatch()): Promise<void> {
       const ready = input.connected && input.items !== undefined && input.policyReady !== false;
       if (!ready && port.recoverySession === undefined) return;
-      const pending = (ready ? input.items! : []).filter((item) => kinds[item.kind] !== undefined);
+      const pending = (ready ? input.items! : []).filter((item) => pushKind(item) !== undefined);
       const extended = input.preferences !== undefined;
       const silent: string[] = [];
       const snapshot: AlertSnapshot = {
@@ -209,7 +224,8 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
             }
           : {}),
         alerts: pending.flatMap((item): LocalApprovalAlert[] => {
-          const kind = kinds[item.kind]!;
+          const kind = pushKind(item)!;
+          const native = item.nativeSession;
           if (!input.approvalsEnabled || (!extended && input.foreground)) return [];
           if (input.inAppOnly && !input.foreground) return [];
           if (input.preferences?.[kind] === false) return [];
@@ -224,6 +240,29 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
             return [];
           }
           if (!extended && (!item.channelId || !item.messageId)) return [];
+          if (native !== undefined) {
+            const title = native.sessionTitle ?? input.untitledSession ?? '';
+            const body = input.text?.[kind] ?? input.approvalText;
+            return [
+              {
+                title,
+                body,
+                data: {
+                  v: 1,
+                  hostId: input.hostId,
+                  itemId: item.id,
+                  kind: item.kind,
+                  botSlug: '',
+                  channelId: '',
+                  messageId: '',
+                  sender: title,
+                  text: body,
+                  sessionId: native.sessionId,
+                  input: native.input,
+                },
+              },
+            ];
+          }
           const sender = input.botName(item.botSlug) ?? item.botSlug;
           const preview = item.summary.replace(/\s+/gu, ' ').trim();
           const body =

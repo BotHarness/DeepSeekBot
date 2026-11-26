@@ -47,6 +47,8 @@ export function shownPendingInput(
 
 const NATIVE_REF = { channelId: '', messageId: '', botSlug: '' };
 
+const SHELL_TOOLS: ReadonlySet<string> = new Set(['bash', 'shell']);
+
 export function nativeApprovalRequest(
   input: NativeApprovalInput,
   context: { cwd?: string | undefined; items?: readonly SessionTranscriptItem[] },
@@ -56,12 +58,19 @@ export function nativeApprovalRequest(
       ? undefined
       : context.items?.find((item) => item.kind === 'tool' && item.id === input.callId);
   const detail = tool?.kind === 'tool' ? tool.detail : undefined;
+  const shown = input.preview ?? detail;
   return {
     ...NATIVE_REF,
     toolName: input.toolName,
     role: 'orchestrator',
     cwd: context.cwd ?? '',
-    input: detail ?? input.reason ?? '',
+    input:
+      shown === undefined
+        ? (input.reason ?? '')
+        : JSON.stringify({
+            [SHELL_TOOLS.has(input.toolName) ? 'command' : 'input']: shown,
+            ...(input.reason === undefined ? {} : { reason: input.reason }),
+          }),
     allowAlways: false,
     status: 'pending',
   };
@@ -96,8 +105,9 @@ export function nativeApprovalPort(
   requestId: string,
   request: ApprovalRequest,
   onSettled: (result: DecisionResult) => void,
+  decided = false,
 ) {
-  let status: ApprovalRequest['status'] = 'pending';
+  let status: ApprovalRequest['status'] = decided ? 'decided' : 'pending';
   return {
     load: () => Promise.resolve({ ...request, status }),
     async decide(choice: ApprovalChoice): Promise<DecisionResult> {
@@ -117,8 +127,9 @@ export function nativeQuestionPort(
   sessionId: string,
   input: NativeQuestionInput,
   onSettled: (result: DecisionResult) => void,
+  decided = false,
 ) {
-  let status: QuestionRequest['status'] = 'pending';
+  let status: QuestionRequest['status'] = decided ? 'decided' : 'pending';
   return {
     load: () => Promise.resolve({ ...nativeQuestionRequest(input), status }),
     async answer(answer: QuestionAnswer): Promise<DecisionResult> {

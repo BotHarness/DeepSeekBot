@@ -60,6 +60,12 @@ export const en = {
       stay: 'Stay where you were',
       footer: 'Only on this phone. In Drawer style, “Session list” opens the drawer.',
     },
+    requests: {
+      title: 'Session requests in Activity',
+      footer:
+        'Applies to this Host. When off, Session approvals and questions skip Activity and notifications; the list still shows Needs you.',
+      failed: 'Could not save. Try again.',
+    },
   },
   sessionModel: {
     choice: 'Model choice',
@@ -281,6 +287,11 @@ export const zh: typeof en = {
       last: '上次的会话',
       stay: '停在原处',
       footer: '仅保存在这台手机上。抽屉样式下，“会话列表”会打开抽屉。',
+    },
+    requests: {
+      title: '会话请求进入活动',
+      footer: '对这台 Host 生效。关闭后，会话的审批和提问不进活动、不发通知，列表仍显示“需要你”。',
+      failed: '保存失败，再试一次。',
     },
   },
   sessionModel: {

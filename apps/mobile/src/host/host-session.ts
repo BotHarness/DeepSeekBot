@@ -155,6 +155,7 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           botName: (slug: string) =>
             host.snapshot.roster?.bots.find((bot) => bot.slug === slug)?.displayName,
           approvalText: t.localApprovalText,
+          untitledSession: t.hostSessions.untitled,
           ...(preferences ? { preferences } : {}),
           quietChannelIds: quietChannels.get(host.saved.hostId),
           focusedChannelIds: attentionFocus.channels(host.saved.hostId),
@@ -355,6 +356,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   }
   warmHostConversations(saved.hostId);
   const inbox = createInbox(client, {
+    source: 'all',
     notifications: localAlerts,
     activityUpdateHost: () => t.activityUpdateHost,
   });
