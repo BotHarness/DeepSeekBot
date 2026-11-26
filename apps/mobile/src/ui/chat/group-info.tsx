@@ -692,7 +692,7 @@ function GroupIdentity({
           {error}
         </Text>
       )}
-      {error !== undefined && avatar.retry ? (
+      {editable && error !== undefined && avatar.retry ? (
         <Button
           label={t.retry}
           testID="group-avatar-retry"

@@ -263,3 +263,29 @@ it('reads access again when the settings reopen after an admin allows everyone',
 
   expect(nameInput().disabled).toBe(false);
 });
+
+it('keeps a cached denial when the access read fails on reopen', async () => {
+  const access = { role: 'member', editDetails: 'admins' };
+  let fail = false;
+  const base = teamCall(access);
+  const call = vi.fn<BridgeCall>(async (method, payload, signal) => {
+    if (fail && method === 'channelGet')
+      return { ok: false, error: { code: 'unavailable', message: 'offline' } };
+    return base(method, payload, signal);
+  });
+  const actions = {
+    renameChannel: vi.fn(),
+    setGroupAvatar: vi.fn(),
+    teamCall: call,
+  } as unknown as BridgeActions;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+  expect(host.querySelector('[data-group-name="read-only"]')).not.toBeNull();
+
+  await act(async () => root.render(createElement('div')));
+  fail = true;
+  await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
+  await settle();
+
+  expect(host.querySelector('[data-group-name="read-only"]')).not.toBeNull();
+});

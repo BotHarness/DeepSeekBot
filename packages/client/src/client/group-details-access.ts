@@ -36,7 +36,7 @@ function load(call: BridgeCall, channelId: string, viewer: GroupDetailsViewer): 
   const current = entry(call, channelId);
   current.loading ??= loadChannelAccess(call, channelId)
     .then((access) => canEditGroupDetails(viewer, access))
-    .catch(() => true)
+    .catch(() => current.value ?? true)
     .then((value) => {
       current.value = value;
       for (const listener of current.listeners) listener();
