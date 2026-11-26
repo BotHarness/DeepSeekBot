@@ -29,7 +29,6 @@ import * as sessionsCopy from '../features/sessions/strings';
 import * as skillsCopy from '../features/skills/strings';
 import * as takeoverCopy from '../features/takeover/strings';
 import * as teamCopy from '../features/team/strings';
-import * as tobCopy from '../features/tob/strings';
 import * as usageCopy from '../features/usage/strings';
 import * as voiceCopy from '../features/voice/strings';
 import * as workspacesCopy from '../features/workspaces/strings';
@@ -68,7 +67,6 @@ const en = {
   ...skillsCopy.en,
   ...takeoverCopy.en,
   ...teamCopy.en,
-  ...tobCopy.en,
   ...pinnedTabCopy.en,
   ...usageCopy.en,
   ...voiceCopy.en,
@@ -137,7 +135,6 @@ const zh: typeof en = {
   ...skillsCopy.zh,
   ...takeoverCopy.zh,
   ...teamCopy.zh,
-  ...tobCopy.zh,
   ...pinnedTabCopy.zh,
   ...usageCopy.zh,
   ...voiceCopy.zh,

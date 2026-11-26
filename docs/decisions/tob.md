@@ -18,20 +18,20 @@ Why: authority tied to a name or persona would turn editable persona files and i
 
 Enforced by: `tob.test.ts` (concurrent clients converge on one Tob and one DM, restart keeps the identity, interrupted provisioning never restores a revoked Grant).
 
-## 2. The Human reaches Tob through its DM; Tob Mode is a mobile entrance to it
+## 2. The Human reaches Tob through its DM; the phone pins it as a tab
 
 <a id="adr-0268"></a>
-_Formerly ADR-0268, which removed the Home panel of ADR-0223._
+_Formerly ADR-0268, which removed the Home panel of ADR-0223. Tob Mode and the Tob entry bar (#5106) were removed by #5191 (#5198)._
 
 There is no Home panel. On desktop the Tob DM opens in Messages, and the "Open Tob" command does that without changing the layout; in Simple layout the Human can hide the Side column to focus on the conversation ([ADR-0269](onboarding.md#adr-0269)). Cross-Bot attention stays in Activity Center, and the Human asks Tob in conversation to create a Bot.
 
-On mobile, **Tob Mode** is the ordinary chat screen for the Tob DM with a different entrance: the **Tob entry bar**, a Composer-shaped tap target above the tab island on Chats (#5106, replacing pull-to-Tob). A tap opens the Tob DM with the Composer focused and the keyboard up, through the iOS zoom navigation transition or an Android Material container transform (instant under Reduce Motion); Back returns to Chats. The bar targets the Tob of the filtered computer Environment, or the most recently used one under "All environments" or a cloud filter, and is hidden when there is no Tob. Pulling down on Chats only refreshes. The Tob row stays in the Chats list.
+On the phone, the **Pinned tab** in the tab bar opens one conversation as its own tab ([mobile UI](mobile-ui.md), #5195). It defaults to Tob's DM, then the most recent conversation, and the Human can bind it to any Bot DM or Channel and move it in Settings (#5196). There is no Tob Mode and no Tob entry bar: Chats is a plain list with no Composer-shaped bar, so the phone never shows a Composer outside a conversation. The Tob row stays in the Chats list, and tapping it opens the same DM inside Chats. Pulling down on Chats only refreshes.
 
 **Tob Delegation** uses the existing Bot-to-Bot DM: Tob picks a colleague, sends without asking the Human first, and reports back in its Human DM. Each send shows the existing action notice; approval ownership, the Bot-hop limit and Tob's CLI authority do not change. Since §11 delegation is an ordinary ability of every Bot, and a grant holder may be a Group member without the CLI in Group turns.
 
-Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with the Tob entry bar so the entrance is visible and lands ready to type.
+Why: a message sent from Home jumped to the Tob DM anyway, and Home's overview duplicated Activity Center. One conversation keeps one history and one approval path. ADR-0268 specified a 0.6 s timed hold; the shipped gesture (#3117) committed on distance, and #5106 replaced the pull with a Composer-shaped Tob entry bar. That bar put a fake Composer on Chats and only reached Tob; the Pinned tab reaches any conversation in one tap and keeps its own stack, scroll position and draft (#5191).
 
-Enforced by: `apps/mobile/test/tob-mode.test.tsx`, `tob-entry-bar.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
+Enforced by: `apps/mobile/test/pinned-tab-model.test.ts`, `tab-order-settings.test.tsx`, `tob-delegation-prompt.test.ts`, `tob-delegation-telemetry.test.ts`.
 
 ## 3. Each Shell execution gets its own short-lived CLI broker
 

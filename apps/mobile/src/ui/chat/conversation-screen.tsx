@@ -12,7 +12,6 @@ import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
 import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot, useTabRoot } from '../shell/stack-root';
-import { useEntranceSettled } from '../shell/entrance-settled';
 import { HideChromeWhile } from '../shell/tab-chrome';
 import { ChatIslandInset } from '../primitives/chat-keyboard';
 import { useHistoryChrome } from './history-chrome';
@@ -66,7 +65,6 @@ export function ConversationScreen({
   place,
   focus,
   focusRequest,
-  composeOnOpen = false,
   latestWindowOnly = false,
   presentation,
   active = true,
@@ -75,7 +73,6 @@ export function ConversationScreen({
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
-  composeOnOpen?: boolean;
   latestWindowOnly?: boolean;
   presentation?: ConversationPresentation;
   active?: boolean;
@@ -129,7 +126,6 @@ export function ConversationScreen({
             place={place}
             focus={focus}
             focusRequest={focusRequest}
-            composeOnOpen={composeOnOpen}
             latestWindowOnly={latestWindowOnly}
             focused={focused}
             presentation={presentation}
@@ -144,7 +140,6 @@ function ChatConversation({
   place,
   focus: routeFocus,
   focusRequest: routeFocusRequest,
-  composeOnOpen,
   latestWindowOnly,
   focused,
   presentation,
@@ -153,7 +148,6 @@ function ChatConversation({
   place: ChatPlace;
   focus: string | undefined;
   focusRequest: string | undefined;
-  composeOnOpen: boolean;
   latestWindowOnly: boolean;
   presentation: ConversationPresentation | undefined;
 }) {
@@ -410,7 +404,6 @@ function ChatConversation({
     prepareProfile,
     windowWidth,
     listSafeArea,
-    stackRoot,
     tabRoot,
     leave,
     pull,
@@ -437,21 +430,7 @@ function ChatConversation({
   return (
     <HistoryChromeContext value={history}>
       {screenTree}
-      {composeOnOpen ? <ComposeOnOpen ready={focused && composable} compose={compose} /> : null}
       {android && island ? <HideChromeWhile hidden={profileOpen || profileOpening} /> : null}
     </HistoryChromeContext>
   );
-}
-
-function ComposeOnOpen({ ready, compose }: { ready: boolean; compose(): void }) {
-  const settled = useEntranceSettled();
-  const done = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (done.current || !settled || !ready) return;
-      done.current = true;
-      compose();
-    }, [settled, ready, compose]),
-  );
-  return null;
 }

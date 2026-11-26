@@ -858,7 +858,6 @@ describe('Search in the Chats header', () => {
       const view = await home();
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
       expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
-      expect(view.querySelector('[data-testid="tob-mode-button"]')).toBeNull();
     } finally {
       roster.bots.pop();
     }
