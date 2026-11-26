@@ -6,21 +6,41 @@ export const channelVisibilitySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('private') }),
 ]);
 export type ChannelVisibility = z.infer<typeof channelVisibilitySchema>;
-export const channelPolicySchema = z.object({
-  addMembers: z.enum(['everyone', 'admins']),
-  post: z.enum(['everyone', 'admins']),
-  mentionAll: z.enum(['everyone', 'admins']),
-  addBots: z.enum(['everyone', 'admins']),
-  editDetails: z.enum(['everyone', 'admins']),
+export const CHANNEL_ACTIONS = [
+  'addMembers',
+  'post',
+  'mentionAll',
+  'addBots',
+  'editDetails',
+] as const;
+export type ChannelAction = (typeof CHANNEL_ACTIONS)[number];
+const action = z.enum(CHANNEL_ACTIONS);
+const effect = z.enum(['allow', 'deny', 'inherit']);
+export const channelPolicySchema = z.strictObject({
+  version: z.literal(1),
+  everyone: z.record(action, effect),
+  overrides: z
+    .array(
+      z.strictObject({
+        roleId: z.string().min(1),
+        actions: z.partialRecord(action, effect),
+      }),
+    )
+    .max(100)
+    .refine((rows) => new Set(rows.map((row) => row.roleId)).size === rows.length),
 });
 export const channelPolicyRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 export type ChannelPolicy = z.infer<typeof channelPolicySchema>;
 export const DEFAULT_CHANNEL_POLICY: ChannelPolicy = {
-  addMembers: 'everyone',
-  post: 'everyone',
-  mentionAll: 'everyone',
-  addBots: 'admins',
-  editDetails: 'admins',
+  version: 1,
+  everyone: {
+    addMembers: 'allow',
+    post: 'allow',
+    mentionAll: 'allow',
+    addBots: 'deny',
+    editDetails: 'deny',
+  },
+  overrides: [],
 };
 
 export function channelRoleEligibleSql(channel: string, humanId: string): string {

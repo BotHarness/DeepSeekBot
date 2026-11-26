@@ -1,3 +1,4 @@
+import { ChannelPermissionTable } from './channel-permission-table.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
@@ -15,14 +16,12 @@ import type { ChannelHumanMember } from './store.js';
 import {
   loadChannelAccess,
   loadChannelRoles,
-  POLICY_KEYS,
   setChannelAdmins,
   setChannelPolicy,
   setChannelVisibility,
   type ChannelAccess,
   type ChannelVisibility,
-  type PolicyKey,
-  type PolicyValue,
+  type ChannelPolicy,
   type RoleChoice,
 } from './team-channels-bridge.js';
 import { teamRefusal } from './team-bridge.js';
@@ -47,11 +46,13 @@ export function ChannelAccessSettings({
   channelId,
   humans,
   t,
+  permissionsOnly = false,
 }: {
   readonly call: BridgeCall;
   readonly channelId: string;
   readonly humans: readonly ChannelHumanMember[];
   readonly t: BotHarnessTranslate;
+  readonly permissionsOnly?: boolean;
 }): ReactElement | null {
   const team = useTeamMode(call);
   const [access, setAccess] = useState<ChannelAccess>();
@@ -92,7 +93,7 @@ export function ChannelAccessSettings({
       })
       .finally(() => setBusy(false));
   };
-  const visible = team?.enabled === true && access !== undefined && access.role !== 'member';
+  const visible = team?.enabled === true && access !== undefined;
   if (!visible) return <div ref={mount} hidden data-channel-access="hidden" />;
   const current = access;
   const chooseVisibility = (kind: ChannelVisibility['kind']): void => {
@@ -105,8 +106,7 @@ export function ChannelAccessSettings({
       return { ...current, visibility: { kind } };
     });
   };
-  const choosePolicy = (key: PolicyKey, value: PolicyValue): void => {
-    const policy = { ...current.policy, [key]: value };
+  const choosePolicy = (policy: ChannelPolicy): void => {
     run(async () => {
       try {
         await setChannelPolicy(call, channelId, policy, current.policyRevision);
@@ -122,8 +122,27 @@ export function ChannelAccessSettings({
     });
   };
   const errorNote = error === undefined ? undefined : <Note tone="danger">{error}</Note>;
+  const canManage =
+    current.role !== 'member' || team?.viewer.permissions.includes('channels.manageAll') === true;
+  const table = (
+    <ChannelPermissionTable
+      t={t}
+      policy={current.policy}
+      roles={roles}
+      disabled={busy || !canManage}
+      onChange={choosePolicy}
+    />
+  );
+  if (permissionsOnly || current.role === 'member')
+    return (
+      <div ref={mount} data-channel-access={current.role}>
+        {errorNote}
+        {permissionsOnly ? table : null}
+      </div>
+    );
   return (
     <div ref={mount} data-channel-access={current.role}>
+      {table}
       <SettingsRow
         title={t('channelAccess.visibility')}
         description={visibilitySummary(t, current.visibility, roles)}
@@ -150,25 +169,6 @@ export function ChannelAccessSettings({
           </div>
         ) : null}
       </SettingsRow>
-      {POLICY_KEYS.map((key) => (
-        <SettingsRow
-          key={key}
-          title={t(`channelAccess.policy.${key}`)}
-          data={{ 'data-channel-policy': key }}
-          control={
-            <Select
-              label={t(`channelAccess.policy.${key}`)}
-              value={current.policy[key]}
-              disabled={busy}
-              options={[
-                { value: 'everyone', label: t('channelAccess.everyone') },
-                { value: 'admins', label: t('channelAccess.adminsOnly') },
-              ]}
-              onChange={(value) => choosePolicy(key, value)}
-            />
-          }
-        />
-      ))}
       <SettingsRow
         title={t('channelAccess.admins')}
         description={

@@ -141,7 +141,7 @@ function memberTeamMode(): WireTeamMode {
   };
 }
 
-function teamCall(access: { role: string; editDetails: string }): BridgeCall {
+function teamCall(access: { role: string; canEditDetails: boolean }): BridgeCall {
   return vi.fn<BridgeCall>(async (method) => {
     if (method === 'teamMode') return { ok: true, value: memberTeamMode() };
     if (method === 'channelGet')
@@ -150,7 +150,7 @@ function teamCall(access: { role: string; editDetails: string }): BridgeCall {
         value: {
           channel: { id: 'g1', type: 'group', name: '设计组', members: [] },
           role: access.role,
-          policy: { editDetails: access.editDetails },
+          canEditDetails: access.canEditDetails,
           visibility: { kind: 'public' },
           admins: [],
         },
@@ -169,7 +169,7 @@ it('shows the name and avatar read-only to a member without editDetails', async 
   const actions = {
     renameChannel: vi.fn(),
     setGroupAvatar: vi.fn(),
-    teamCall: teamCall({ role: 'member', editDetails: 'admins' }),
+    teamCall: teamCall({ role: 'member', canEditDetails: false }),
   } as unknown as BridgeActions;
   await render(
     createElement(GroupManagementSettings, {
@@ -191,7 +191,7 @@ it('keeps the name and avatar editable for a Channel admin', async () => {
   const actions = {
     renameChannel: vi.fn(),
     setGroupAvatar: vi.fn(),
-    teamCall: teamCall({ role: 'admin', editDetails: 'admins' }),
+    teamCall: teamCall({ role: 'admin', canEditDetails: true }),
   } as unknown as BridgeActions;
   await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
   await settle();
@@ -202,9 +202,9 @@ it('keeps the name and avatar editable for a Channel admin', async () => {
 });
 
 it('explains a refused rename, restores the name and turns read-only', async () => {
-  const access = { role: 'member', editDetails: 'everyone' };
+  const access = { role: 'member', canEditDetails: true };
   const renameChannel = vi.fn(async () => {
-    access.editDetails = 'admins';
+    access.canEditDetails = false;
     return false;
   });
   const actions = {
@@ -230,7 +230,7 @@ it('keeps the typed name after a save that fails for another reason', async () =
   const actions = {
     renameChannel: vi.fn(async () => false),
     setGroupAvatar: vi.fn(),
-    teamCall: teamCall({ role: 'member', editDetails: 'everyone' }),
+    teamCall: teamCall({ role: 'member', canEditDetails: true }),
   } as unknown as BridgeActions;
   await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
   await settle();
@@ -246,7 +246,7 @@ it('keeps the typed name after a save that fails for another reason', async () =
 });
 
 it('reads access again when the settings reopen after an admin allows everyone', async () => {
-  const access = { role: 'member', editDetails: 'admins' };
+  const access = { role: 'member', canEditDetails: false };
   const actions = {
     renameChannel: vi.fn(),
     setGroupAvatar: vi.fn(),
@@ -257,7 +257,7 @@ it('reads access again when the settings reopen after an admin allows everyone',
   expect(host.querySelector('[data-group-name="read-only"]')).not.toBeNull();
 
   await act(async () => root.render(createElement('div')));
-  access.editDetails = 'everyone';
+  access.canEditDetails = true;
   await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
   await settle();
 
@@ -265,7 +265,7 @@ it('reads access again when the settings reopen after an admin allows everyone',
 });
 
 it('keeps a cached denial when the access read fails on reopen', async () => {
-  const access = { role: 'member', editDetails: 'admins' };
+  const access = { role: 'member', canEditDetails: false };
   let fail = false;
   const base = teamCall(access);
   const call = vi.fn<BridgeCall>(async (method, payload, signal) => {

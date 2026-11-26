@@ -523,6 +523,8 @@ describe('M2 private Bot boundaries', () => {
     if (!visible.ok) throw new Error('member-group-read-refused');
     expect(Object.keys(visible.value).sort()).toEqual([
       'admins',
+      'canEditDetails',
+      'canPost',
       'channel',
       'policy',
       'policyRevision',
@@ -547,6 +549,8 @@ describe('M2 private Bot boundaries', () => {
     if (!after.ok) throw new Error('member-group-read-refused');
     expect(Object.keys(after.value).sort()).toEqual([
       'admins',
+      'canEditDetails',
+      'canPost',
       'channel',
       'policy',
       'policyRevision',
@@ -770,7 +774,7 @@ describe('M2 private Bot boundaries', () => {
     expect(invite('alice-bot')).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
     f.team.channelAccess.policySet(owner, group.id, {
       ...f.team.channelAccess.view(owner, group.id).policy,
-      addBots: 'everyone',
+      everyone: { ...f.team.channelAccess.view(owner, group.id).policy.everyone, addBots: 'allow' },
     });
     expect(invite('alice-bot')).toMatchObject({ ok: false, error: { code: 'bot-not-found' } });
     expect(invite('bob-bot')).toMatchObject({ ok: true });

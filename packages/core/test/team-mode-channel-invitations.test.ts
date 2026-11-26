@@ -68,10 +68,13 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
       const target = await f.team.createMember(owner, 'm14-target', 'Search Target', ['admin']);
       const inactive = await f.team.createMember(owner, 'm14-inactive', 'Search Inactive');
       await f.team.deactivate(owner, inactive.member.humanId);
+      const policy = f.team.channelAccess.view(
+        authority === 'channel-owner' ? f.human : owner,
+        group.id,
+      ).policy;
       f.team.channelAccess.policySet(owner, group.id, {
-        ...f.team.channelAccess.view(authority === 'channel-owner' ? f.human : owner, group.id)
-          .policy,
-        addMembers: authority === 'everyone' ? 'everyone' : 'admins',
+        ...policy,
+        everyone: { ...policy.everyone, addMembers: authority === 'everyone' ? 'allow' : 'deny' },
       });
       const actor = authority === 'owner' ? owner : f.human;
       const reads = f.db.diagnostics().metrics.reads;
@@ -105,7 +108,10 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
     f.team.channelAccess.addMember(owner, group.id, 'bob');
     f.team.channelAccess.policySet(owner, group.id, {
       ...f.team.channelAccess.view(owner, group.id).policy,
-      addMembers: 'admins',
+      everyone: {
+        ...f.team.channelAccess.view(owner, group.id).policy.everyone,
+        addMembers: 'deny',
+      },
     });
     await f.team.changePassword(f.human, f.initialPassword, 'm14-password-2', false);
     const login = await f.team.signIn('bob', 'm14-password-2', 'm14-ip');
@@ -138,7 +144,10 @@ describe('M14 invitation access', { timeout: 60_000 }, () => {
     );
     f.team.channelAccess.policySet(owner, group.id, {
       ...f.team.channelAccess.view(owner, group.id).policy,
-      addMembers: 'everyone',
+      everyone: {
+        ...f.team.channelAccess.view(owner, group.id).policy.everyone,
+        addMembers: 'allow',
+      },
     });
     await f.team.accessSettled();
     const allowed = await f.team.signIn('bob', 'm14-password-2', 'm14-ip-allowed');

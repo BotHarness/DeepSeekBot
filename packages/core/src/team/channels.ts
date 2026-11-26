@@ -1,3 +1,4 @@
+import { resolveChannelAction } from './host-permissions.js';
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
@@ -13,12 +14,13 @@ import {
   channelRoleMembershipEntrySql,
   channelRoleMembershipExitSql,
   channelVisibilitySchema,
+  type ChannelAction,
   type ChannelPolicy,
   type ChannelVisibility,
 } from './channel-contract.js';
 
 const settingsSchema = z.object({
-  owner: z.string(),
+  owner: z.string().nullable(),
   visibility: z.string().transform((v) => channelVisibilitySchema.parse(JSON.parse(v))),
   policy: z.string().transform((v) => channelPolicySchema.parse(JSON.parse(v))),
 });
@@ -46,7 +48,7 @@ export class TeamChannels {
     const row = this.db.read((db) =>
       db
         .prepare(
-          `SELECT owner_human_id AS owner, visibility_json AS visibility, policy_json AS policy FROM channel_records WHERE channel_id = ? AND json_extract(record_json, '$.type') = 'group' AND json_extract(record_json, '$.deletedAt') IS NULL`,
+          `SELECT owner_human_id AS owner, visibility_json AS visibility, permission_table_json AS policy FROM channel_records WHERE channel_id = ? AND json_extract(record_json, '$.type') = 'group' AND json_extract(record_json, '$.deletedAt') IS NULL`,
         )
         .get(channelId),
     );
@@ -112,8 +114,10 @@ export class TeamChannels {
     );
   }
   role(human: HumanContext, channelId: string): 'owner' | 'admin' | 'member' {
-    const settings = this.settings(channelId);
-    if (settings.owner === human.humanId) return 'owner';
+    return this.roleForOwner(human, channelId, this.settings(channelId).owner);
+  }
+  private roleForOwner(human: HumanContext, channelId: string, owner: string | null) {
+    if (owner === human.humanId) return 'owner';
     return this.db.read((db) =>
       db
         .prepare('SELECT 1 FROM channel_admins WHERE channel_id = ? AND human_id = ?')
@@ -129,7 +133,7 @@ export class TeamChannels {
     if (!this.canRead(human, channelId, true)) throw new TeamError('channel-not-found');
     if (this.role(human, channelId) === 'member') throw new TeamError('permission-required');
   }
-  requirePolicy(human: HumanContext, channelId: string, key: keyof ChannelPolicy): void {
+  requirePolicy(human: HumanContext, channelId: string, key: ChannelAction): void {
     if (key === 'addMembers') {
       this.requireAddMembers(human, channelId);
       return;
@@ -140,12 +144,7 @@ export class TeamChannels {
       if (key === 'post') return;
       throw new TeamError('channel-not-found');
     }
-    if (
-      this.roles.permissions(human).includes('channels.manageAll') ||
-      this.settings(channelId).policy[key] === 'everyone' ||
-      this.role(human, channelId) !== 'member'
-    )
-      return;
+    if (this.allowsGroupAction(human, channelId, key, this.settings(channelId), true)) return;
     throw new TeamError(
       key === 'post'
         ? 'channel-post-restricted'
@@ -156,15 +155,30 @@ export class TeamChannels {
       { permission: key },
     );
   }
+  allowsAction(human: HumanContext, channelId: string, key: ChannelAction): boolean {
+    if (!this.active(human)) return false;
+    return this.allowsGroupAction(human, channelId, key, this.settings(channelId));
+  }
+  private allowsGroupAction(
+    human: HumanContext,
+    channelId: string,
+    key: ChannelAction,
+    settings: z.infer<typeof settingsSchema>,
+    joined?: boolean,
+  ): boolean {
+    const manages = this.roles.permissions(human).includes('channels.manageAll');
+    if (key === 'addMembers' && manages) return true;
+    if (!(joined ?? this.canRead(human, channelId, true))) return false;
+    return (
+      manages ||
+      resolveChannelAction(this.db, human.humanId, settings.policy, key) ||
+      this.roleForOwner(human, channelId, settings.owner) !== 'member'
+    );
+  }
   private requireAddMembers(human: HumanContext, channelId: string): void {
     const denied = () =>
       new TeamError('permission-required', undefined, { permission: 'addMembers' });
-    if (!this.active(human)) throw denied();
-    const settings = this.settings(channelId);
-    if (this.roles.permissions(human).includes('channels.manageAll')) return;
-    if (!this.canRead(human, channelId, true)) throw denied();
-    if (settings.policy.addMembers === 'everyone' || this.role(human, channelId) !== 'member')
-      return;
+    if (this.allowsAction(human, channelId, 'addMembers')) return;
     throw denied();
   }
   memberCandidates(human: HumanContext, channelId: string, query: string) {
@@ -212,8 +226,10 @@ export class TeamChannels {
         ),
       );
     return {
-      role: this.role(human, channelId),
+      role: this.roleForOwner(human, channelId, settings.owner),
       policy: settings.policy,
+      canPost: this.allowsGroupAction(human, channelId, 'post', settings),
+      canEditDetails: this.allowsGroupAction(human, channelId, 'editDetails', settings),
       policyRevision: policyRevision(settings.policy),
       visibility: settings.visibility,
       admins,
@@ -310,7 +326,7 @@ export class TeamChannels {
           expectedRevision !== policyRevision(this.settings(channelId).policy)
         )
           return false;
-        db.prepare('UPDATE channel_records SET policy_json = ? WHERE channel_id = ?').run(
+        db.prepare('UPDATE channel_records SET permission_table_json = ? WHERE channel_id = ?').run(
           JSON.stringify(policy),
           channelId,
         );

@@ -29,13 +29,7 @@ export function editsGroupDetailsWithoutChannelRead(viewer: GroupDetailsViewer):
 
 export function canEditGroupDetails(viewer: GroupDetailsViewer, channelAccess: unknown): boolean {
   if (editsGroupDetailsWithoutChannelRead(viewer)) return true;
-  const access = record(channelAccess);
-  const role = access?.['role'];
-  return (
-    role === 'owner' ||
-    role === 'admin' ||
-    record(access?.['policy'])?.['editDetails'] === 'everyone'
-  );
+  return record(channelAccess)?.['canEditDetails'] === true;
 }
 
 export async function readGroupDetailsEditable(
