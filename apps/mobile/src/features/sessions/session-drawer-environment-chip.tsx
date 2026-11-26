@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable } from 'react-native';
 import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { useHostLook } from '../../host/native-host-look';
-import { capsuleRadius } from '../../ui/design/large-text-fallback';
+import { accessibilityTextSize } from '../../ui/design/large-text-fallback';
 import { clampScaledIconSize } from '../../ui/design/scaled-icon-size';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
 import { space } from '../../ui/design/tokens';
@@ -23,16 +23,13 @@ export function SessionDrawerEnvironmentChip({
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const look = useHostLook(hostId);
-  const glyph = clampScaledIconSize(
-    theme.type.body.line,
-    theme.fontScale,
-    theme.type.body.line * 1.6,
-  );
+  const glyph = clampScaledIconSize(theme.type.body.line, theme.fontScale, theme.touch - space.x4);
   const chevron = clampScaledIconSize(
     theme.type.meta.line,
     theme.fontScale,
-    theme.type.meta.line * 1.6,
+    theme.type.meta.line * 1.3,
   );
+  const iconOnly = accessibilityTextSize(theme.fontScale);
   return (
     <Pressable
       testID="session-drawer-environment"
@@ -42,14 +39,14 @@ export function SessionDrawerEnvironmentChip({
       onPress={() => router.push('/environment')}
       android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        height: theme.touch,
         flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
         paddingLeft: space.x3,
-        paddingRight: space.x4,
-        borderRadius: capsuleRadius(theme.fontScale),
+        paddingRight: iconOnly ? space.x3 : space.x4,
+        borderRadius: theme.touch / 2,
         overflow: 'hidden',
         opacity: pressed && glass ? 0.7 : 1,
         backgroundColor: glass
@@ -69,9 +66,17 @@ export function SessionDrawerEnvironmentChip({
           color={hostColorInk(theme.scheme, theme.color, look.color)}
         />
       )}
-      <Text strong numberOfLines={theme.largeText ? 2 : 1} style={{ flexShrink: 1 }}>
-        {title}
-      </Text>
+      {iconOnly ? null : (
+        <Text
+          strong
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={(theme.touch - space.x2) / theme.type.body.line}
+          style={{ flexShrink: 1 }}
+        >
+          {title}
+        </Text>
+      )}
       <ChevronDownIcon color={theme.color.muted} size={chevron} />
     </Pressable>
   );

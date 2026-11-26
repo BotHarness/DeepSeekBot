@@ -271,7 +271,7 @@ export function SessionDrawerPanel({
                         if (query.canQuery) setSearching(true);
                       }}
                     />
-                    <View style={{ flex: 1 }} />
+                    {canCreate ? null : <View style={{ flex: 1 }} />}
                   </>
                 ) : (
                   <View style={{ flex: 1 }}>{searchBlock}</View>
