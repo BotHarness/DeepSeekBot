@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { modelBrand } from '@botharness/host-client/shared/model-brand';
-import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
+import { hostColorInk, type HostColorId } from '@botharness/host-client/ui/design/host-look';
 import { BotPortrait } from '../../ui/bot-avatar';
 import { ModelBrandIcon } from '../../ui/chat/model-brand-icon';
 import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
@@ -30,6 +30,7 @@ export function sessionRowStatus(
 export function SessionDrawerRow({
   row,
   client,
+  folderColor,
   showHost,
   selected,
   now = Date.now(),
@@ -37,6 +38,7 @@ export function SessionDrawerRow({
 }: {
   row: SessionQueryRow;
   client: HostClient | undefined;
+  folderColor?: HostColorId | undefined;
   showHost: boolean;
   selected: boolean;
   now?: number;
@@ -109,7 +111,7 @@ export function SessionDrawerRow({
         <SessionFolderAvatar
           testID={`session-monogram-${row.sessionId}`}
           folderName={row.folderName}
-          colorId={hostColor}
+          colorId={folderColor}
           size={badge}
           corner={radius.md}
         />

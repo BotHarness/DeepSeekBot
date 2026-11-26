@@ -1,6 +1,5 @@
 import { View } from 'react-native';
 import {
-  HOST_COLOR_IDS,
   hostColorInk,
   hostTileFill,
   type HostColorId,
@@ -8,23 +7,23 @@ import {
 import { useDesignTheme } from '../../ui/design/theme';
 import { cornerBadge } from '../../ui/design/tokens';
 import { Text } from '../../ui/primitives/text';
-import { folderColorIndex, folderMonogram } from './session-query-model';
+import { folderColor, folderMonogram } from './session-query-model';
 
 export function SessionFolderAvatar({
   folderName,
   size,
   corner,
-  colorId: hostColor,
+  colorId: assigned,
   testID,
 }: {
   folderName: string | undefined;
   size: number;
   corner: number;
-  colorId?: HostColorId;
+  colorId?: HostColorId | undefined;
   testID?: string;
 }) {
   const theme = useDesignTheme();
-  const colorId = hostColor ?? HOST_COLOR_IDS[folderColorIndex(folderName, HOST_COLOR_IDS.length)];
+  const colorId = assigned ?? folderColor(folderName);
   return (
     <View
       {...(testID === undefined ? {} : { testID })}
