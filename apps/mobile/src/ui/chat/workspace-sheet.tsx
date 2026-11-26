@@ -27,6 +27,7 @@ import {
 import { Text } from '../primitives/text';
 import { CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
 import { useStrings, t } from '../strings';
+import { templateTitle } from './approval-template-title';
 import {
   Sheet,
   type SheetPageProps,
@@ -93,12 +94,6 @@ export function locationSection(listing: HostFolderListing) {
     }))
     .filter((row) => row.folder.path !== listing.path);
   return data.length === 0 ? [] : [{ key: 'locations', title: t.browseLocations, data }];
-}
-
-export function templateTitle(template: Pick<ApprovalTemplate, 'name' | 'title'>): string {
-  if (template.name === 'cautious') return t.autoApprovalCautious;
-  if (template.name === 'get-work-done') return t.autoApprovalGetWorkDone;
-  return template.title;
 }
 
 function inheritedTemplateLabel(selection: ApprovalTemplates): string {

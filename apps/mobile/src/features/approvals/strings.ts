@@ -147,6 +147,13 @@ export const en = {
     'Allows reading and planning. Asks you before anything leaves the computer.',
   autoApprovalGetWorkDone: 'Get the work done',
   autoApprovalGetWorkDoneHint: 'Keeps working. Stops only for destructive or irreversible steps.',
+  autoApprovalPresetTrigger: (name: string) => `Auto approval · ${name}`,
+  autoApprovalPresetTitle: 'Auto approval preset for this Bot',
+  autoApprovalFollowGlobal: 'Follow global',
+  autoApprovalManage: 'Manage presets…',
+  autoApprovalPresetNote: 'Applies from the next request. You still decide this one.',
+  autoApprovalNext: 'Next request',
+  autoApprovalSwitched: (name: string) => `Auto approval: ${name}. Applies from the next request.`,
   settingFailed: 'Could not change the setting:',
 };
 
@@ -277,5 +284,12 @@ export const zh: typeof en = {
   autoApprovalCautiousHint: '允许读取和规划，离开这台电脑的操作都问你。',
   autoApprovalGetWorkDone: '把活干完',
   autoApprovalGetWorkDoneHint: '持续工作，只拦下破坏性或不可撤回的操作。',
+  autoApprovalPresetTrigger: (name: string) => `自动审批 · ${name}`,
+  autoApprovalPresetTitle: '这个 Bot 的自动审批预设',
+  autoApprovalFollowGlobal: '跟随全局',
+  autoApprovalManage: '管理预设…',
+  autoApprovalPresetNote: '切换后从下一次请求开始生效，这次仍需你确认。',
+  autoApprovalNext: '下次生效',
+  autoApprovalSwitched: (name: string) => `自动审批已改为「${name}」，下次请求生效`,
   settingFailed: '更改设置失败：',
 };

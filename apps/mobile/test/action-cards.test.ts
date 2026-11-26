@@ -7,6 +7,7 @@ vi.mock('react-native-keyboard-controller', async () => import('./keyboard-contr
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('expo-router', () => ({ router: { push: () => undefined } }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -24,11 +25,12 @@ import {
 } from '@botharness/host-client/requests';
 import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
+import { approvalPresetPort } from '../src/ui/chat/approval-preset-port';
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { played } from './expo-haptics-shim';
-import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import inboxWire from './fixtures/inbox-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -464,6 +466,140 @@ describe('Tool approval card in the DM', () => {
       root = undefined;
       client?.stop();
     }
+  });
+});
+
+describe('Auto approval preset picker on the phone approval card', () => {
+  const templates = {
+    templates: [
+      {
+        name: 'cautious',
+        title: 'Cautious',
+        description: 'Ask first.',
+        builtIn: true,
+        usedBy: [],
+        text: 'x',
+      },
+      {
+        name: 'get-work-done',
+        title: 'Get the work done',
+        description: 'Keep going.',
+        builtIn: true,
+        usedBy: [],
+        text: 'x',
+      },
+    ],
+    globalDefault: 'cautious',
+  };
+  const presetHost = (selected: string | null) => {
+    const fake = host();
+    let current = selected;
+    fake.methods.set('approvalTemplates', () => ({ ...templates, selected: current }));
+    fake.methods.set('botApprovalTemplateSet', (args) => {
+      current = args['template'] as string | null;
+      return { bot: fakeBotDetail(approval.botSlug, 'Ada') };
+    });
+    return fake;
+  };
+  const presetCard = (target: HostClient, extra: Record<string, unknown> = {}) =>
+    createElement(ApprovalCard, {
+      port: approvalPort(target),
+      subject: 'bash',
+      preset: approvalPresetPort(target, approval.botSlug, false),
+      ...extra,
+    });
+  const trigger = (view: HTMLElement) =>
+    view.querySelector<HTMLButtonElement>('[data-testid="approval-preset-trigger"]');
+  const option = (view: HTMLElement, key: string) =>
+    view.querySelector<HTMLButtonElement>(`[data-testid="approval-preset-option-${key}"]`)!;
+
+  it('shows the current preset under the three actions for a Human who may change it', async () => {
+    const view = await render(presetCard(connect(presetHost('get-work-done'))));
+    expect(trigger(view)?.getAttribute('aria-label')).toBe(
+      t.autoApprovalPresetTrigger(t.autoApprovalGetWorkDone),
+    );
+    const row = view.querySelector('[data-testid="approval-preset"]')!;
+    const deny = view.querySelector('[data-testid="approval-deny"]')!;
+    expect(deny.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await press(trigger(view)!);
+    expect(view.textContent).toContain(t.autoApprovalPresetTitle);
+    expect(view.textContent).toContain(t.autoApprovalPresetNote);
+    expect(option(view, '@global').getAttribute('aria-label')).toBe(
+      `${t.autoApprovalFollowGlobal}, ${t.autoApprovalCautious}`,
+    );
+    expect(option(view, 'get-work-done').getAttribute('aria-selected')).toBe('true');
+    expect(option(view, 'cautious').getAttribute('aria-selected')).toBe('false');
+    expect(option(view, '@off').getAttribute('aria-selected')).toBe('false');
+  });
+
+  it.each([
+    { key: 'cautious', value: 'cautious', name: () => t.autoApprovalCautious },
+    { key: '@off', value: null, name: () => t.autoApprovalOff },
+    { key: '@global', value: '@global', name: () => t.autoApprovalFollowGlobal },
+  ])('switches to $key for the next request and leaves the card pending', async (choice) => {
+    const fake = presetHost('get-work-done');
+    const decided: Array<Record<string, unknown>> = [];
+    fake.answers.set('toolApprovalDecide', (args) => {
+      decided.push(args);
+      return recorded('toolApprovalDecide.accepted');
+    });
+    const view = await render(presetCard(connect(fake)));
+    await press(trigger(view)!);
+    await press(option(view, choice.key));
+    expect(fake.calls.filter((call) => call.method === 'botApprovalTemplateSet')).toEqual([
+      {
+        method: 'botApprovalTemplateSet',
+        args: { slug: approval.botSlug, template: choice.value },
+      },
+    ]);
+    expect(decided).toEqual([]);
+    expect(trigger(view)?.getAttribute('aria-label')).toBe(
+      t.autoApprovalPresetTrigger(choice.name()),
+    );
+    expect(view.querySelector('[data-testid="approval-preset-next"]')?.textContent).toBe(
+      t.autoApprovalNext,
+    );
+    expect(view.textContent).toContain(t.needsYou);
+    for (const label of [t.allowOnce, t.alwaysAllow, t.reject])
+      expect(button(view, label).disabled).toBe(false);
+  });
+
+  it('keeps a long preset name to one line within half the row', async () => {
+    const view = await render(presetCard(connect(presetHost('cautious'))));
+    const label = trigger(view)!.querySelector('span')!;
+    expect(label.getAttribute('data-lines')).toBe('1');
+    const half = trigger(view)!.closest('[data-testid="approval-preset"] > div')!;
+    expect(JSON.parse(half.getAttribute('data-style')!)).toMatchObject({ width: '50%' });
+  });
+
+  it('renders nothing when the Host refuses this Human the Bot preset', async () => {
+    const view = await render(
+      presetCard(connect(host()), {
+        preset: {
+          load: async () => {
+            throw new Error('bot-not-found');
+          },
+          choose: vi.fn(),
+        },
+      }),
+    );
+    const row = view.querySelector('[data-testid="approval-preset"]')!;
+    expect(row.childElementCount).toBe(0);
+    expect(JSON.parse(row.getAttribute('data-style')!)).toMatchObject({ display: 'none' });
+    expect(trigger(view)).toBeNull();
+  });
+
+  it('hides the picker once the card is decided or expired', async () => {
+    const decided = await render(presetCard(connect(presetHost('cautious'))));
+    await press(button(decided, t.allowOnce));
+    expect(decided.querySelector('[data-testid="approval-preset"]')).toBeNull();
+    act(() => root?.unmount());
+    container?.remove();
+    client?.stop();
+    const fake = presetHost('cautious');
+    fake.answers.set('toolApprovalStatus', () => expired);
+    const view = await render(presetCard(connect(fake)));
+    expect(view.querySelector('[data-testid="approval-preset"]')).toBeNull();
   });
 });
 
