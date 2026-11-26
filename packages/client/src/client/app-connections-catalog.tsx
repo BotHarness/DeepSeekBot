@@ -4,11 +4,12 @@ import { useId, useRef, useState, type ReactElement } from 'react';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ConnectorLogo, type FetchLogos } from './features/connectors/logos.js';
-import { pastedMcpUrl } from './features/connectors/mcp-url.js';
+import { composioKeyProblem, pastedMcpUrl } from './features/connectors/mcp-url.js';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import { Button } from './ds/button.js';
+import { Callout } from './ds/callout.js';
 import { CatalogCard, CatalogGrid } from './ds/catalog-grid.js';
 import { FieldStack, SearchField, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -22,6 +23,7 @@ import type { BotHarnessTranslate } from './locale.js';
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
   more: { alignSelf: 'center' },
+  actions: { display: 'flex', gap: space.x2, justifyContent: 'flex-end' },
 });
 
 type Entry = ConnectorsView['catalog'][number];
@@ -103,12 +105,142 @@ function localApps(view: ConnectorsView, query: string, t: BotHarnessTranslate):
     .map((entry) => ({ ...entry, featured: true }));
 }
 
+export interface ComposioKeyActions {
+  set(apiKey: string): Promise<ConnectorsView>;
+  clear(): Promise<ConnectorsView>;
+}
+
+export const COMPOSIO_DASHBOARD = 'https://dashboard.composio.dev';
+
+function ComposioKey({
+  view,
+  t,
+  keys,
+  onView,
+}: {
+  view: ConnectorsView;
+  t: BotHarnessTranslate;
+  keys: ComposioKeyActions;
+  onView: (view: ConnectorsView) => void;
+}): ReactElement {
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [confirming, setConfirming] = useState(false);
+  const run = async (action: () => Promise<ConnectorsView>) => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      onView(await action());
+      setDraft('');
+      setConfirming(false);
+    } catch (failure) {
+      setError(t('connectors.error', { message: errorMessage(failure) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (view.configured)
+    return (
+      <div {...stylex.props(styles.stack)}>
+        <SettingsRow
+          title={t('connectors.composio.savedTitle')}
+          description={t('connectors.composio.savedBody')}
+          control={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || confirming}
+              onClick={() => setConfirming(true)}
+            >
+              {t('connectors.key.remove')}
+            </Button>
+          }
+        />
+        {confirming ? (
+          <Callout tone="warning" role="status" title={t('connectors.key.removeTitle')}>
+            <div {...stylex.props(styles.stack)}>
+              <span>{t('connectors.key.removeBody')}</span>
+              {error === undefined ? null : <Note tone="danger">{error}</Note>}
+              <div {...stylex.props(styles.actions)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => setConfirming(false)}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={busy}
+                  data-composio-key-clear=""
+                  onClick={() => void run(() => keys.clear())}
+                >
+                  {t('connectors.key.remove')}
+                </Button>
+              </div>
+            </div>
+          </Callout>
+        ) : null}
+      </div>
+    );
+  const problem = composioKeyProblem(draft);
+  return (
+    <Callout tone="muted" title={t('connectors.composio.title')} data={{ 'data-composio-key': '' }}>
+      <div {...stylex.props(styles.stack)}>
+        <span>{t('connectors.composio.body')}</span>
+        <span>
+          {t('connectors.composio.steps')}{' '}
+          <a href={COMPOSIO_DASHBOARD} target="_blank" rel="noopener noreferrer">
+            {t('connectors.composio.open')}
+          </a>
+        </span>
+        <TextField
+          label={t('connectors.composio.field')}
+          hint={t('connectors.composio.hint')}
+          placeholder="ak_…"
+          type="password"
+          autoComplete="off"
+          monospace
+          value={draft}
+          error={problem === undefined ? error : t(problem)}
+          onChange={setDraft}
+        />
+        <div {...stylex.props(styles.actions)}>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy || draft.trim() === '' || problem !== undefined}
+            data-composio-key-save=""
+            onClick={() => void run(() => keys.set(draft.trim()))}
+          >
+            {t('connectors.key.save')}
+          </Button>
+        </div>
+      </div>
+    </Callout>
+  );
+}
+
+function composioKeys(
+  actions: Pick<BridgeActions, 'connectorKeySet' | 'connectorKeyClear'>,
+): ComposioKeyActions | undefined {
+  const set = actions.connectorKeySet;
+  const clear = actions.connectorKeyClear;
+  return set === undefined || clear === undefined ? undefined : { set, clear };
+}
+
 export function AppCatalog({
   view,
   t,
   search,
   mcpSearch,
   logos,
+  keys,
+  onView,
   disabled,
   onPick,
 }: {
@@ -117,13 +249,13 @@ export function AppCatalog({
   search?: Search | undefined;
   mcpSearch?: McpSearch | undefined;
   logos?: FetchLogos | undefined;
+  keys?: ComposioKeyActions | undefined;
+  onView?: ((view: ConnectorsView) => void) | undefined;
   disabled?: boolean;
   onPick: (app: PickedApp) => void;
 }): ReactElement {
   const id = useId();
-  const [source, setSource] = useState<Source>(
-    view.configured || mcpSearch === undefined ? 'apps' : 'mcp',
-  );
+  const [source, setSource] = useState<Source>(mcpSearch === undefined ? 'apps' : 'mcp');
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Found | undefined>();
   const [more, setMore] = useState(false);
@@ -227,8 +359,8 @@ export function AppCatalog({
           label={t('connectors.catalog.source')}
           value={source}
           options={[
-            { value: 'apps', label: t('connectors.catalog.sourceApps') },
             { value: 'mcp', label: t('connectors.catalog.sourceMcp') },
+            { value: 'apps', label: t('connectors.catalog.sourceApps') },
           ]}
           onChange={switchSource}
         />
@@ -241,7 +373,11 @@ export function AppCatalog({
         onChange={change}
       />
       {source === 'mcp' ? <Note inset>{t('connectors.catalog.mcpAbout')}</Note> : null}
-      {locked ? <Note inset>{t('connectors.accounts.empty')}</Note> : null}
+      {source !== 'apps' ? null : keys !== undefined && onView !== undefined ? (
+        <ComposioKey view={view} t={t} keys={keys} onView={onView} />
+      ) : locked ? (
+        <Note inset>{t('connectors.accounts.empty')}</Note>
+      ) : null}
       {failed ? (
         <Note inset>
           {source === 'mcp' ? t('connectors.catalog.mcpOffline') : t('connectors.catalog.offline')}
@@ -250,6 +386,13 @@ export function AppCatalog({
       {shown.length === 0 ? (
         current === undefined && source === 'mcp' && !failed ? (
           <LoadingSkeleton kind="sidebar" label={t('connectors.catalog.searchMcp')} />
+        ) : source === 'mcp' && pasted === undefined ? (
+          <Note inset>
+            {t('connectors.catalog.mcpEmpty')}{' '}
+            <Button variant="ghost" size="sm" onClick={() => switchSource('apps')}>
+              {t('connectors.catalog.tryApps')}
+            </Button>
+          </Note>
         ) : (
           <Note inset>{t('connectors.catalog.empty')}</Note>
         )
@@ -303,6 +446,7 @@ export function ConnectAppDialog({
   service: initial,
   onClose,
   onLinked,
+  onView,
 }: {
   actions: Pick<
     BridgeActions,
@@ -311,12 +455,15 @@ export function ConnectAppDialog({
     | 'connectorLogos'
     | 'connectorMcpSearch'
     | 'connectorMcpAdd'
+    | 'connectorKeySet'
+    | 'connectorKeyClear'
   >;
   view: ConnectorsView;
   t: BotHarnessTranslate;
   service?: PickedApp | undefined;
   onClose: () => void;
   onLinked: ConnectLinked;
+  onView?: ((view: ConnectorsView) => void) | undefined;
 }): ReactElement {
   const [picked, setPicked] = useState(initial);
   const [label, setLabel] = useState('');
@@ -341,6 +488,8 @@ export function ConnectAppDialog({
           search={actions.connectorSearch}
           mcpSearch={actions.connectorMcpSearch}
           logos={actions.connectorLogos}
+          keys={composioKeys(actions)}
+          onView={onView}
           onPick={setPicked}
         />
       </FormDialog>
@@ -422,6 +571,8 @@ export function MarketAppConnections({
     | 'connectorLogos'
     | 'connectorMcpSearch'
     | 'connectorMcpAdd'
+    | 'connectorKeySet'
+    | 'connectorKeyClear'
   >;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -458,6 +609,8 @@ export function MarketAppConnections({
             search={actions.connectorSearch}
             mcpSearch={actions.connectorMcpSearch}
             logos={actions.connectorLogos}
+            keys={composioKeys(actions)}
+            onView={setView}
             onPick={setService}
           />
         )}
@@ -478,6 +631,7 @@ export function MarketAppConnections({
           t={t}
           service={service}
           onClose={() => setService(undefined)}
+          onView={setView}
           onLinked={(_accountId, url) => {
             setService(undefined);
             setSignIn(url);

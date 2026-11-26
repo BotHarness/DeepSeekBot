@@ -372,6 +372,7 @@ export function ConnectorsSettings({
             <TextField
               label={t('connectors.key.field')}
               hint={t('connectors.key.info')}
+              placeholder="ak_…"
               type="password"
               autoComplete="off"
               monospace
@@ -388,6 +389,7 @@ export function ConnectorsSettings({
           view={view}
           t={t}
           onClose={() => setConnecting(false)}
+          onView={setView}
           onLinked={(accountId, url) => {
             setConnecting(false);
             linked(accountId, url);

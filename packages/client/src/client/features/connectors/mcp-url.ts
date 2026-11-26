@@ -8,3 +8,12 @@ export function pastedMcpUrl(query: string): URL | undefined {
     return undefined;
   }
 }
+
+export function composioKeyProblem(
+  key: string,
+): 'connectors.composio.consumerKey' | 'connectors.composio.userKey' | undefined {
+  const text = key.trim().toLowerCase();
+  if (text.startsWith('ck_')) return 'connectors.composio.consumerKey';
+  if (text.startsWith('uak_')) return 'connectors.composio.userKey';
+  return undefined;
+}

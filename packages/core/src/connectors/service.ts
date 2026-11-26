@@ -325,6 +325,16 @@ export class ConnectorService {
     const key = apiKey.trim();
     if (key.length < 8 || key.length > 512 || /\s/.test(key))
       throw new ConnectorError('invalid', 'The Composio API key is malformed.');
+    if (/^ck_/i.test(key))
+      throw new ConnectorError(
+        'invalid',
+        'This is a Composio Connect MCP key (ck_). Use the project API key that starts with ak_ from Platform › your project › Settings › API Keys.',
+      );
+    if (/^uak_/i.test(key))
+      throw new ConnectorError(
+        'invalid',
+        'This is a personal Composio user API key (uak_). Use the project API key that starts with ak_.',
+      );
     await this.#upstream(() => this.#client.verify(key));
     const current = await this.#readConfig();
     const userId = current?.userId ?? 'botharness_' + randomUUID();

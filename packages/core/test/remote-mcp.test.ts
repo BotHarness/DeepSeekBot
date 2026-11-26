@@ -402,3 +402,16 @@ describe('remote MCP tool policy', () => {
     ).toThrow(/reserved/);
   });
 });
+
+describe('Composio key kinds', () => {
+  it('refuses the Connect MCP key and the personal user key with a clear reason', async () => {
+    const { client } = fakeMcp();
+    const { owner, service } = setup(client);
+    try {
+      await expect(service.setKey('ck_consumer_key_1234')).rejects.toThrow(/ak_/);
+      await expect(service.setKey('uak_user_key_1234')).rejects.toThrow(/ak_/);
+    } finally {
+      owner.close();
+    }
+  });
+});

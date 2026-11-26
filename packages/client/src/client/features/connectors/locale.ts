@@ -9,7 +9,7 @@ export const zh = {
   'connectors.key.replace': '更换',
   'connectors.key.remove': '移除',
   'connectors.key.info':
-    '在 Composio 项目设置中复制 API key。key 只保存在这台 Host 上，Bot 看不到。',
+    '在 Composio 控制台 Platform › 你的项目 › Settings › API Keys 复制 Project API key（ak_ 开头，不是 Connect 的 ck_ key）。key 只保存在这台 Host 上，Bot 看不到。',
   'connectors.key.dialogTitle': '添加 Composio API key',
   'connectors.key.field': 'API key',
   'connectors.key.save': '检查并保存',
@@ -81,6 +81,23 @@ export const zh = {
   'connectors.catalog.source': '应用来源',
   'connectors.catalog.sourceApps': 'Composio 应用',
   'connectors.catalog.sourceMcp': 'MCP 服务器',
+  'connectors.catalog.mcpEmpty': '没找到这个服务的 MCP 服务器。',
+  'connectors.catalog.tryApps': '在 Composio 应用里找',
+  'connectors.composio.title': '先添加 Composio Project API key',
+  'connectors.composio.body':
+    'Composio 应用通过你自己的 Composio 开发者项目连接，需要这个项目的 Project API key，以 ak_ 开头。Composio Connect（For You）给 Claude、Cursor 用的 MCP key 以 ck_ 开头，只能连它自己的 MCP 地址，这里用不了；个人 User API key（uak_ 开头）也不行。',
+  'connectors.composio.steps':
+    '在 Composio 控制台选择 Platform 和你的项目，打开 Settings › API Keys，复制或新建一个 key。新建限定权限的 key 时，给 Session management、Session tool execution、Connected accounts、Auth configs 写权限，Toolkits 读权限。',
+  'connectors.composio.open': '打开 Composio 控制台',
+  'connectors.composio.field': 'Project API key',
+  'connectors.composio.hint':
+    'key 只保存在这台 Host 上，Bot 看不到。也可以在设置 › 应用连接里修改。',
+  'connectors.composio.consumerKey':
+    '这是 Composio Connect 的 MCP key（ck_ 开头）。这里需要 ak_ 开头的 Project API key。',
+  'connectors.composio.userKey':
+    '这是个人 User API key（uak_ 开头）。这里需要 ak_ 开头的 Project API key。',
+  'connectors.composio.savedTitle': 'Composio API key 已保存',
+  'connectors.composio.savedBody': '可以搜索并连接 Composio 支持的应用。',
   'connectors.catalog.searchMcp': '搜索 MCP 服务器，或粘贴 https 地址',
   'connectors.catalog.mcpAbout':
     '用你在该服务的账号登录即可连接，不需要 Composio key。列表来自 MCP Registry，也可以直接粘贴服务器地址。',
@@ -100,7 +117,7 @@ export const en = {
   'connectors.key.replace': 'Replace',
   'connectors.key.remove': 'Remove',
   'connectors.key.info':
-    'Copy the API key from your Composio project settings. It stays on this Host and Bots never see it.',
+    'Copy the project API key (ak_, not the Connect ck_ key) from Platform › your project › Settings › API Keys in the Composio dashboard. It stays on this Host and Bots never see it.',
   'connectors.key.dialogTitle': 'Add a Composio API key',
   'connectors.key.field': 'API key',
   'connectors.key.save': 'Check and save',
@@ -177,6 +194,23 @@ export const en = {
   'connectors.catalog.source': 'App source',
   'connectors.catalog.sourceApps': 'Composio apps',
   'connectors.catalog.sourceMcp': 'MCP servers',
+  'connectors.catalog.mcpEmpty': 'No MCP server found for this service.',
+  'connectors.catalog.tryApps': 'Search Composio apps',
+  'connectors.composio.title': 'Add a Composio project API key first',
+  'connectors.composio.body':
+    'Composio apps connect through your own Composio developer project, using that project’s API key, which starts with ak_. The Composio Connect (For You) MCP key for Claude or Cursor starts with ck_ and works only with its own MCP address, so it cannot be used here; a personal user API key (uak_) cannot either.',
+  'connectors.composio.steps':
+    'In the Composio dashboard, choose Platform and your project, open Settings › API Keys, and copy or create a key. A scoped key needs write access to Session management, Session tool execution, Connected accounts and Auth configs, and read access to Toolkits.',
+  'connectors.composio.open': 'Open the Composio dashboard',
+  'connectors.composio.field': 'Project API key',
+  'connectors.composio.hint':
+    'The key stays on this Host and Bots never see it. You can also change it in Settings › App connections.',
+  'connectors.composio.consumerKey':
+    'This is a Composio Connect MCP key (ck_). Use the project API key that starts with ak_.',
+  'connectors.composio.userKey':
+    'This is a personal user API key (uak_). Use the project API key that starts with ak_.',
+  'connectors.composio.savedTitle': 'Composio API key saved',
+  'connectors.composio.savedBody': 'You can search and connect the apps Composio supports.',
   'connectors.catalog.searchMcp': 'Search MCP servers or paste an https address',
   'connectors.catalog.mcpAbout':
     'Connect by signing in with your account on that service; no Composio key needed. The list comes from the MCP Registry, and you can paste a server address too.',
