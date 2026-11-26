@@ -30,6 +30,9 @@ export function remoteMcpServerNames(
 export const LEGACY_READ_REFUSAL =
   'This App connection was signed in before Tobs recorded the access its service granted, and this Bot has Read only; ask the Owner to sign it in again in Settings › App connections before using it.';
 
+export const STALE_SIGN_IN_REFUSAL =
+  'This App connection changed since its tools were loaded; try again in a moment.';
+
 export function remoteMcpToolDenial(
   name: string,
   servers: ReadonlyMap<string, string | undefined>,

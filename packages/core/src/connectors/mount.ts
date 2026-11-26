@@ -11,6 +11,7 @@ import {
   CONNECTOR_MCP_SERVER,
   CONNECTOR_TOOL_PREFIX,
   LEGACY_READ_REFUSAL,
+  STALE_SIGN_IN_REFUSAL,
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
   remoteMcpServerName,
@@ -28,6 +29,7 @@ const CATALOG_LIMIT = 15;
 interface RemoteMount {
   accountId: string;
   signature: string;
+  revision: number | undefined;
   fiber: Fiber;
 }
 
@@ -254,6 +256,7 @@ export function mountConnectors(
     for (const connector of granted) {
       if (entry.disposed) return;
       const serverName = names.get(connector.accountId)!;
+      const revision = service.account(connector.accountId)?.revision;
       let connection: Awaited<ReturnType<ConnectorService['remote']['connection']>>;
       try {
         connection = await service.remote.connection(connector.accountId);
@@ -272,7 +275,10 @@ export function mountConnectors(
       if (connection.expiresAt !== undefined)
         renewAt = Math.min(renewAt ?? Infinity, connection.expiresAt - RENEW_EARLY_MS);
       const signature = remoteSignature(connection);
-      if (current?.signature === signature) continue;
+      if (current?.signature === signature) {
+        current.revision = revision;
+        continue;
+      }
       if (current !== undefined) {
         entry.remote.delete(serverName);
         await Promise.resolve(current.fiber.dispose()).catch(() => undefined);
@@ -281,6 +287,7 @@ export function mountConnectors(
       const mount: RemoteMount = {
         accountId: connector.accountId,
         signature,
+        revision,
         fiber: entry.agentCtx.plugin(mcpClient, {
           transport: 'streamable-http',
           serverName,
@@ -364,9 +371,14 @@ export function mountConnectors(
       [...entry.remote].flatMap(([serverName, mount]) => {
         const connector = active.get(mount.accountId);
         if (connector === undefined) return [];
-        const legacy =
-          connector.access === 'read' && service.account(mount.accountId)?.access === undefined;
-        return [[serverName, legacy ? LEGACY_READ_REFUSAL : undefined] as const];
+        const account = service.account(mount.accountId);
+        const refusal: string | undefined =
+          account?.revision !== mount.revision
+            ? STALE_SIGN_IN_REFUSAL
+            : connector.access === 'read' && account?.access === undefined
+              ? LEGACY_READ_REFUSAL
+              : undefined;
+        return [[serverName, refusal] as const];
       }),
     );
     return remoteMcpToolDenial(name, servers);
