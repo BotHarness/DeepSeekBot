@@ -55,10 +55,12 @@ const CORE_LAYER_ORDER = [
   [
     'composition',
     [
+      'agent-adapter.ts',
       'bridge',
       'cli',
       'http',
       'core.ts',
+      'feature-contributions.ts',
       'host-core-options.ts',
       'index.ts',
       'plugin-types.ts',

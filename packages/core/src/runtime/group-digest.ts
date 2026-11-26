@@ -3,7 +3,7 @@ import type { createMessagingEvents } from '../features/messaging/events.js';
 import type { createAssignmentEvents } from '../features/assignments/events.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { trustedSenderReference } from '../messaging/permissions/index.js';
-import { hasPendingScheduleFiring } from '../features/schedules/events.js';
+import type { InboxWakeSource, RuntimeHost } from '../kernel/runtime-host.js';
 import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboundMessaging } from '../messaging/outbound.js';
@@ -98,6 +98,7 @@ function groupMessageBody(row: DigestRow): string {
 const GROUP_SKILL_CONTENT_LIMIT = 2_000;
 
 interface GroupDigestPorts {
+  readonly lifetime: AbortSignal;
   readonly assignmentEvents: Pick<
     ReturnType<typeof createAssignmentEvents>,
     'hasPendingAssignmentReport' | 'scheduleReportHarvest'
@@ -122,6 +123,13 @@ interface GroupDigestPorts {
 }
 
 export function createGroupDigest(ports: GroupDigestPorts) {
+  const inboxWakeSources: InboxWakeSource[] = [];
+  function registerInboxWakeSource(source: InboxWakeSource): void {
+    inboxWakeSources.push(source);
+    const unsubscribe = source.subscribe(checkHarvestReadiness);
+    ports.lifetime.addEventListener('abort', unsubscribe, { once: true });
+  }
+
   function recoverPendingDigests(botSlug?: string): void {
     const rows = ports.database.read((database) =>
       database
@@ -258,7 +266,7 @@ export function createGroupDigest(ports: GroupDigestPorts) {
       return;
     }
     if (
-      hasPendingScheduleFiring(ports.database, botSlug) &&
+      inboxWakeSources.some((source) => source.hasPending(botSlug)) &&
       ports.dmChannel(botSlug) !== undefined
     ) {
       ports.scheduling.scheduleHarvest(botSlug);
@@ -404,6 +412,7 @@ export function createGroupDigest(ports: GroupDigestPorts) {
   }
 
   return {
+    runtimeHost: { registerInboxWakeSource } satisfies RuntimeHost,
     recoverPendingDigests,
     scheduleDigest,
     armDigest,

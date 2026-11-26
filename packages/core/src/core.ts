@@ -24,7 +24,11 @@ import { attachOperationalModule, mountOperationalDatabase } from './database/ow
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import type { RosterStore } from './roster/store.js';
-import type { BotRuntime } from './runtime/bot-runtime.js';
+import {
+  createBotRuntime as createRuntime,
+  type BotRuntime,
+  type BotRuntimeOptions,
+} from './runtime/bot-runtime.js';
 import { createInboxHistoryQuery } from './runtime/inbox-history.js';
 import { createBotSourcePolicyStore } from './runtime/source-policy.js';
 import { createAssignmentAccessStore } from './workspaces/assignment-access.js';
@@ -44,6 +48,7 @@ import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
+import { createFeatureContributions } from './feature-contributions.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -51,6 +56,17 @@ import * as appearanceFeature from './features/appearance/plugin.js';
 import * as usageFeature from './features/usage/plugin.js';
 import type {} from '@deepseek-ai/dsh-agent-loop';
 import type {} from '@deepseek-ai/dsh-tools';
+
+export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
+  if (options.runtimeFeatures !== undefined) return createRuntime(options);
+  const wakeSource = botSchedules.createWakeSource(
+    attachOperationalModule(options.database, 'bot-runtime'),
+  );
+  return createRuntime({
+    ...options,
+    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
+  });
+}
 
 export function createCore(options: CoreOptions = {}): BotHarnessCore {
   const startup = createCoreStartup(options.startupDiagnostic);
@@ -368,10 +384,9 @@ function initializeCore(
   } = personabotsFeature.createAgentContributions();
 
   startup.enter('bot-schedules', 'initialize');
-  const schedules = botSchedules.apply({
+  const { schedules, wakeSource } = botSchedules.apply({
     operationalDatabase,
     registry,
-    onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
     warn: options.warn,
   });
   startup.enter('message-perf', 'initialize');
@@ -400,6 +415,7 @@ function initializeCore(
     registry,
     profileRecovery,
     schedules,
+    runtimeFeatures: createFeatureContributions({ scheduleWakeSource: wakeSource }),
     assignmentLimits,
     botHopLimit,
     states,
