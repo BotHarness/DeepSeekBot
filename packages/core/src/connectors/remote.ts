@@ -635,11 +635,34 @@ export class RemoteMcpConnectors {
     const refresh = (async () => {
       try {
         const tokens = await this.#client.refresh(auth.oauth!, auth.client!, auth.refreshToken!);
+        if (
+          this.#store.account(accountId)?.access === 'read' &&
+          typeof tokens.scope === 'string' &&
+          grantsWrite(tokens.scope)
+        ) {
+          this.#log('mcp-read-only-ignored');
+          this.#expire(accountId);
+          return { ...auth, accessToken: undefined };
+        }
         const next = this.#stored(auth.oauth!, auth.client!, tokens, auth.refreshToken);
-        await this.#native().modifyRecord(authKey(accountId), async () => ({
-          kind: 'grant',
-          payload: next as unknown as Record<string, unknown>,
-        }));
+        let newer: StoredAuth | undefined;
+        await this.#native().modifyRecord(authKey(accountId), async (current) => {
+          const stored =
+            current?.kind === 'grant' ? storedAuthSchema.safeParse(current.payload) : undefined;
+          if (
+            stored?.success === true &&
+            stored.data.refreshToken === auth.refreshToken &&
+            stored.data.accessToken === auth.accessToken
+          )
+            return { kind: 'grant', payload: next as unknown as Record<string, unknown> };
+          newer =
+            stored?.success === true ? (stored.data as StoredAuth) : { accessToken: undefined };
+          return current;
+        });
+        if (newer !== undefined) {
+          this.#log('mcp-refresh-superseded');
+          return newer;
+        }
         this.#log('mcp-refreshed');
         return next;
       } catch (error) {

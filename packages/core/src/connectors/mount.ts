@@ -10,6 +10,7 @@ import { CONNECTOR_CATALOG, matchesCatalog } from './catalog.js';
 import {
   CONNECTOR_MCP_SERVER,
   CONNECTOR_TOOL_PREFIX,
+  LEGACY_READ_REFUSAL,
   REMOTE_MCP_TOOL_PREFIX,
   connectorToolDenial,
   remoteMcpServerName,
@@ -353,16 +354,20 @@ export function mountConnectors(
     if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
     const entry = agent === undefined ? undefined : mounted.get(agent);
     if (entry === undefined) return 'App connection tools run only inside a Bot conversation.';
-    const active = new Set(
+    const active = new Map(
       service
         .forBot(entry.botSlug)
         .filter((connector) => connector.status === 'active')
-        .map((connector) => connector.accountId),
+        .map((connector) => [connector.accountId, connector] as const),
     );
-    const servers = new Set(
-      [...entry.remote]
-        .filter(([, mount]) => active.has(mount.accountId))
-        .map(([serverName]) => serverName),
+    const servers = new Map(
+      [...entry.remote].flatMap(([serverName, mount]) => {
+        const connector = active.get(mount.accountId);
+        if (connector === undefined) return [];
+        const legacy =
+          connector.access === 'read' && service.account(mount.accountId)?.access === undefined;
+        return [[serverName, legacy ? LEGACY_READ_REFUSAL : undefined] as const];
+      }),
     );
     return remoteMcpToolDenial(name, servers);
   });

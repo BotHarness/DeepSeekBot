@@ -237,6 +237,7 @@ export function ConnectorsSettings({
                 account.status === 'failed' ||
                 (account.status === 'pending' && signIn === undefined);
               const mcp = account.provider === 'mcp';
+              const shared = mcp && account.access !== undefined;
               const scoped = account.access ?? 'write';
               const extra = [
                 ...(mcp
@@ -323,8 +324,8 @@ export function ConnectorsSettings({
                               label={t('connectors.accounts.access', {
                                 name: grant.botName ?? grant.botSlug,
                               })}
-                              value={mcp ? 'write' : grant.access}
-                              options={mcp ? useOptions : accessOptions}
+                              value={shared ? 'write' : grant.access}
+                              options={shared ? useOptions : accessOptions}
                               disabled={busy}
                               onChange={(choice) =>
                                 void setAccess(grant.botSlug, account.accountId, choice)

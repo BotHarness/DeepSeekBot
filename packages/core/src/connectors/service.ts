@@ -482,7 +482,7 @@ export class ConnectorService {
     return this.#store.accounts().flatMap((account) => {
       const granted = connectorAccess(grants, account.accountId);
       if (granted === undefined) return [];
-      const access = account.provider === 'mcp' ? (account.access ?? 'write') : granted;
+      const access = account.provider === 'mcp' ? (account.access ?? granted) : granted;
       return [
         {
           accountId: account.accountId,

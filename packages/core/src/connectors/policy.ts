@@ -27,12 +27,16 @@ export function remoteMcpServerNames(
   return names;
 }
 
+export const LEGACY_READ_REFUSAL =
+  'This App connection was signed in before Read-only sign-in existed, so its token can change data; ask the Owner to sign it in again as Read in Settings › App connections before using it.';
+
 export function remoteMcpToolDenial(
   name: string,
-  servers: ReadonlySet<string>,
+  servers: ReadonlyMap<string, string | undefined>,
 ): string | undefined {
   if (!name.startsWith(REMOTE_MCP_TOOL_PREFIX)) return undefined;
-  for (const serverName of servers) if (name.startsWith(`mcp__${serverName}__`)) return undefined;
+  for (const [serverName, refusal] of servers)
+    if (name.startsWith(`mcp__${serverName}__`)) return refusal;
   return 'No App connection with this tool is granted to this Bot any more; ask the Owner to grant one in the Bot settings.';
 }
 

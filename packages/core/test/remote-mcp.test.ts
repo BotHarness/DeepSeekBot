@@ -9,7 +9,11 @@ import { createConnectorStore } from '../src/connectors/store.js';
 import { ConnectorService } from '../src/connectors/service.js';
 import type { ComposioClient } from '../src/connectors/composio.js';
 import { remoteMcpUrl, type RemoteMcpClient } from '../src/connectors/remote-mcp.js';
-import { remoteMcpServerNames, remoteMcpToolDenial } from '../src/connectors/policy.js';
+import {
+  LEGACY_READ_REFUSAL,
+  remoteMcpServerNames,
+  remoteMcpToolDenial,
+} from '../src/connectors/policy.js';
 import { readOnlyScope } from '../src/connectors/remote.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
@@ -377,6 +381,73 @@ describe('remote MCP App connections', () => {
     }
   });
 
+  it('keeps a newer sign-in and a Read token when a refresh races or widens', async () => {
+    let release: (() => void) | undefined;
+    let scope: string | undefined;
+    const { client } = fakeMcp({
+      exchange: async (_oauth, _client, input) => ({
+        access_token: `access-${input.code}`,
+        token_type: 'Bearer',
+        refresh_token: `refresh-${input.code}`,
+        expires_in: 60,
+      }),
+      refresh: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return {
+          access_token: 'access-refreshed',
+          token_type: 'Bearer',
+          expires_in: 3600,
+          ...(scope === undefined ? {} : { scope }),
+        };
+      },
+    });
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({ service: 'mcp_posthog' });
+      const { accountId } = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'w' }),
+      );
+      const racing = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const narrowed = await service.reconnect(accountId, 'read');
+      await service.remote.finish(
+        new URLSearchParams({ state: stateOf(narrowed.url!), code: 'r' }),
+      );
+      release!();
+      expect((await racing)?.headers['Authorization']).toBe('Bearer access-r');
+
+      scope = 'openid insight:read insight:write';
+      const widening = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      release!();
+      expect(await widening).toBeUndefined();
+      expect(store.account(accountId)?.status).toBe('expired');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('keeps a Read grant on an account signed in before Read-only sign-in existed', async () => {
+    const { client } = fakeMcp();
+    const { owner, store, service } = setup(client);
+    try {
+      const legacy = store.createAccount({
+        provider: 'mcp',
+        service: 'mcp_posthog',
+        label: 'Old',
+        externalId: 'old',
+      });
+      service.grant('tob', legacy.accountId, 'read');
+      expect(service.forBot('tob')).toMatchObject([
+        { accountId: legacy.accountId, access: 'read' },
+      ]);
+    } finally {
+      owner.close();
+    }
+  });
+
   it('connects a server without sign-in at once and searches the registry', async () => {
     const { client } = fakeMcp();
     const { owner, store, service } = setup(client);
@@ -508,7 +579,14 @@ describe('remote MCP tool policy', () => {
   });
 
   it('lets a Bot call every tool of a granted MCP account and leaves read or write to the server', () => {
-    const servers = new Set(['app_posthog_be7f6b', 'app_linear_123456']);
+    const servers = new Map<string, string | undefined>([
+      ['app_posthog_be7f6b', undefined],
+      ['app_linear_123456', undefined],
+      ['app_notion_abcdef', LEGACY_READ_REFUSAL],
+    ]);
+    expect(remoteMcpToolDenial('mcp__app_notion_abcdef__search', servers)).toBe(
+      LEGACY_READ_REFUSAL,
+    );
     expect(remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers)).toBeUndefined();
     expect(remoteMcpToolDenial('mcp__app_linear_123456__create_issue', servers)).toBeUndefined();
     expect(remoteMcpToolDenial('mcp__app_gone_000000__x', servers)).toContain('any more');

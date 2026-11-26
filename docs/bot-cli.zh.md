@@ -1417,7 +1417,7 @@ deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label
 deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
 ```
 
-`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。`--access read` 以只读方式登录：Host 只向服务器申请读取类 scope（例如 `insight:read`，以及 `openid`、`profile`、`email`、`offline_access`），写入由服务器自己拒绝。默认的 `--access write` 申请服务器提供的全部 scope。服务器不区分读写 scope、或者不需要登录时，无法限制为只读，会以 `connector-read-only-unsupported` 拒绝；服务器仍然给了写入 scope 的登录也会被拒绝。用 `connector-reconnect --access` 重新登录即可修改。分配到这个账号的 Bot 能看到它全部的 `mcp__app_<service>__` 工具，能做什么由账号的登录权限决定；Host 不再按读写过滤 MCP 工具，所以 `connector-grant` 的 `--access` 对 MCP 账号只表示 Bot 能不能使用它。
+`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。`--access read` 以只读方式登录：Host 只向服务器申请读取类 scope（例如 `insight:read`，以及 `openid`、`profile`、`email`、`offline_access`），写入由服务器自己拒绝。默认的 `--access write` 申请服务器提供的全部 scope。服务器不区分读写 scope、或者不需要登录时，无法限制为只读，会以 `connector-read-only-unsupported` 拒绝；服务器仍然给了写入 scope 的登录也会被拒绝。用 `connector-reconnect --access` 重新登录即可修改。分配到这个账号的 Bot 能看到它全部的 `mcp__app_<service>__` 工具，能做什么由账号的登录权限决定；Host 不再按读写过滤 MCP 工具，所以 `connector-grant` 的 `--access` 对 MCP 账号只表示 Bot 能不能使用它。只读登录出现之前连接的账号仍按每个 Bot 的授权处理：`read` 授权会拒绝它的工具，直到 Owner 用 `--access read` 重新登录。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

@@ -115,7 +115,7 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
                     status={account.status}
                     identity={account.identity}
                     extra={
-                      account.provider === 'mcp'
+                      account.access !== undefined
                         ? t(
                             account.access === 'read'
                               ? 'connectors.bot.read'
@@ -133,11 +133,15 @@ function BotConnectorsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): 
                   value={
                     load.access[account.accountId] === undefined
                       ? 'none'
-                      : account.provider === 'mcp'
+                      : account.provider === 'mcp' && account.access !== undefined
                         ? 'write'
                         : load.access[account.accountId]!
                   }
-                  options={account.provider === 'mcp' ? useOptions : options}
+                  options={
+                    account.provider === 'mcp' && account.access !== undefined
+                      ? useOptions
+                      : options
+                  }
                   disabled={busy !== undefined}
                   onChange={(choice) => void change(account.accountId, choice)}
                 />
