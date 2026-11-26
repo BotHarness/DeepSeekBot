@@ -18,6 +18,7 @@ import {
 } from '@botharness/host-client/approval-readers';
 import { stopBot, stopSession } from '@botharness/host-client/bot-control';
 export { INBOX_OPTIONS } from './cli-option-spec.js';
+import { workspaceLookRequest } from './cli-workspace-look.js';
 import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -126,6 +127,15 @@ export const INBOX_COMMANDS = [
     command: 'session-archive',
     description: 'archive an idle native Session (--session, --confirm)',
   },
+  {
+    command: 'workspace-look',
+    description: 'read the colour and icon chosen for a Session folder (--cwd <path>)',
+  },
+  {
+    command: 'workspace-look-set',
+    description:
+      'set a Session folder look (--cwd <path>, --color <id>, one of --symbol <id> | --emoji <e> | --monogram) or --clear it',
+  },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -212,6 +222,10 @@ export interface InboxValues {
   message?: string;
   decision?: string;
   'answer-stdin'?: boolean;
+  color?: string;
+  emoji?: string;
+  symbol?: string;
+  monogram?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -699,6 +713,10 @@ function prepare(
         usage('session-answer-question requires --answer-stdin.');
       return { method: 'sessionAnswerQuestion', args: { sessionId, requestId } };
     }
+    case 'workspace-look':
+    case 'workspace-look-set':
+      positionals(command, rest, 0, '');
+      return workspaceLookRequest(command, values);
     case 'session-archive': {
       positionals(command, rest, 0, '');
       confirmed(command, values);

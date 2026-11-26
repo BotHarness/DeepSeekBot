@@ -12,6 +12,7 @@ export const space = {
 } as const;
 
 export const statusChip = { height: 36, dot: 8 } as const;
+export const presetChip = { height: 32 } as const;
 export const groupUnavailable = { icon: 48 } as const;
 
 export const materialSearch = { height: 56, lineHeight: 24 } as const;

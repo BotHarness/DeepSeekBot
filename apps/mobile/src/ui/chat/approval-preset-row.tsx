@@ -7,7 +7,12 @@ import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { useStrings } from '../strings';
-import { templateChoices, type ApprovalPresetPort, type PresetOption } from './approval-preset';
+import {
+  effectiveTemplateLabel,
+  templateChoices,
+  type ApprovalPresetPort,
+  type PresetOption,
+} from './approval-preset';
 import { ApprovalPresetPicker } from './approval-preset-picker';
 
 function presetMenu(presets: ApprovalTemplates, inheritTitle: string) {
@@ -110,6 +115,7 @@ export function ApprovalPresetRow({ port }: { port: ApprovalPresetPort }) {
               label={t.autoApprovalPresetTrigger(
                 presetMenu(presets, t.autoApprovalFollowGlobal).name,
               )}
+              value={effectiveTemplateLabel(presets)}
               header={t.autoApprovalPresetTitle}
               note={t.autoApprovalPresetNote}
               options={presetMenu(presets, t.autoApprovalFollowGlobal).options}

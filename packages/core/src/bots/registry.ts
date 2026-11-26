@@ -1,4 +1,5 @@
-import { cleanPresetSub, planSubProjection, type PresetSub } from '../models/preset-sub.js';
+import type { PresetSub } from '../models/preset-sub.js';
+import { resolveLinkedPlan, resolveOwnSlots, type BotModelSlot } from '../models/bot-model-link.js';
 import { isTob, TobError } from '../tob/service.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
@@ -29,6 +30,7 @@ import {
   retainedBotPrimaryColor,
 } from './primary-color.js';
 import { createRegistryCreationMethods } from '../features/personabots/registry-creation.js';
+import { createRegistryModelMethods } from './registry-model-links.js';
 import { isValidSlug } from './slug.js';
 import { memoryOwnership, recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
 import type { MemoryCloneResult } from '../memory/clone.js';
@@ -37,9 +39,9 @@ import { DEFAULT_STANDING_LIMITS, isStandingLimits, type StandingLimits } from '
 import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import {
-  defaultPresetPlan,
+  DEFAULT_MODEL_PRESET_ID,
   isPersonaBotModelPlan,
-  presetGroups,
+  readModelPreset,
   type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
@@ -141,7 +143,17 @@ export interface PersonaBotRegistry {
   ): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
-  applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
+  applyModelPreset(
+    slug: string,
+    preset: ModelPreset,
+    options?: { keepOverrides?: boolean },
+  ): UpdatePersonaBotResult;
+  resetModelSlots(
+    slug: string,
+    slots: readonly BotModelSlot[],
+    expectedRevision: number,
+  ): UpdatePersonaBotResult;
+  migrateModelLinks(options?: { dryRun?: boolean }): ModelLinkMigration[];
   migrateLegacyModel(
     slug: string,
     expectedModel: string,
@@ -181,18 +193,10 @@ export interface PersonaBotRegistry {
   ): UpdatePersonaBotResult;
 }
 
-function withModelPlanSub(plan: PersonaBotModelPlan, input: PresetSub): PersonaBotModelPlan {
-  const {
-    assignmentDefault: _default,
-    assignmentModels: _models,
-    assignmentGroups: _groups,
-    assignmentDefaultGroupId: _group,
-    assignmentGroupOptions: _options,
-    openAssignmentModels: _open,
-    ...kept
-  } = plan;
-  const sub = cleanPresetSub(input);
-  return { ...kept, ...planSubProjection(sub, kept), sub };
+export interface ModelLinkMigration {
+  slug: string;
+  presetId: string;
+  overrides: BotModelSlot[];
 }
 
 function isMissing(error: unknown): boolean {
@@ -332,8 +336,29 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
             }),
         ...(plan.sub === undefined ? {} : { sub: structuredClone(plan.sub) }),
         ...(plan.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...(plan.overrides === undefined ? {} : { overrides: [...plan.overrides] }),
       };
+    if (record.modelLink !== undefined) result.modelLink = structuredClone(record.modelLink);
     return result;
+  };
+  const resolveModelLink = (record: PersonaBotRecord, database: DatabaseSync): PersonaBotRecord => {
+    const link = record.modelLink;
+    if (link === undefined) return record;
+    const preset =
+      readModelPreset(database, link.presetId) ??
+      readModelPreset(database, DEFAULT_MODEL_PRESET_ID);
+    const plan =
+      preset === undefined
+        ? resolveOwnSlots(link, record.modelPlanRevision ?? 1)
+        : resolveLinkedPlan(preset, link, record.modelPlanRevision ?? 1);
+    if (plan === undefined) delete record.modelPlan;
+    else record.modelPlan = plan;
+    return record;
+  };
+  const storedBody = (record: PersonaBotRecord): string => {
+    const body = recordSnapshot(record);
+    if (body.modelLink !== undefined) delete body.modelPlan;
+    return JSON.stringify(body);
   };
   const decode = (text: string, slug: string): PersonaBotRecord => {
     const parsed: unknown = JSON.parse(text);
@@ -381,7 +406,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     if (!isValidSlug(slug)) return undefined;
     return port.read((database) => {
       const row = database.prepare('SELECT body FROM persona_bots WHERE slug = ?').get(slug);
-      return row === undefined ? undefined : decode(String(row['body']), slug);
+      return row === undefined
+        ? undefined
+        : resolveModelLink(decode(String(row['body']), slug), database);
     });
   };
   const write = (record: PersonaBotRecord, creating = false, ownershipPath?: string): void => {
@@ -393,11 +420,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         database
           .prepare(`INSERT INTO persona_bots (slug, body, owner_human_id) VALUES (?, ?, ?)
         ON CONFLICT (slug) DO UPDATE SET body = excluded.body, owner_human_id = excluded.owner_human_id`)
-          .run(
-            record.slug,
-            JSON.stringify(recordSnapshot(record)),
-            record.ownerHumanId ?? 'local-human',
-          );
+          .run(record.slug, storedBody(record), record.ownerHumanId ?? 'local-human');
         if (ownershipPath) {
           let proof: ReturnType<typeof memoryOwnership>;
           try {
@@ -431,7 +454,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
             : 'SELECT slug, body FROM persona_bots WHERE owner_human_id = ?',
         )
         .all(...(ownerHumanId === undefined ? [] : [ownerHumanId]))
-        .map((row) => decode(String(row['body']), String(row['slug'])))
+        .map((row) => resolveModelLink(decode(String(row['body']), String(row['slug'])), database))
         .sort((left, right) => left.slug.localeCompare(right.slug)),
     );
   if (
@@ -494,6 +517,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
 
   const memoryDirOf = (record: PersonaBotRecord): string =>
     record.memoryDir ?? defaultMemoryDir(record.slug, record.ownerHumanId ?? 'local-human');
+
+  const modelMethods = createRegistryModelMethods({ port, now, active, read, list, write });
+  if (options.database.mode === 'ready') modelMethods.migrateModelLinks();
 
   if (options.database.mode === 'ready') {
     for (const record of list()) {
@@ -688,9 +714,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     retainedRecordBody(slug) {
       const record = active(slug);
       if (record === undefined) return undefined;
-      return JSON.stringify(
-        recordSnapshot({ ...record, primaryColor: retainedBotPrimaryColor(record) }),
-      );
+      return storedBody({ ...record, primaryColor: retainedBotPrimaryColor(record) });
     },
     setPaused(slug, paused) {
       const record = active(slug);
@@ -807,180 +831,6 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       syncDescriptor(record);
       return { ok: true, record };
     },
-    inheritModel(slug, expectedRevision) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
-      if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
-      if (record.modelPlan === undefined && record.model === undefined) return { ok: true, record };
-      record.modelPlanRevision = revision + 1;
-      delete record.modelPlan;
-      delete record.model;
-      write(record);
-      return { ok: true, record };
-    },
-    applyModelPreset(slug, preset) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      const plan: PersonaBotModelPlan = {
-        ...defaultPresetPlan(preset),
-        revision: (record.modelPlan?.revision ?? record.modelPlanRevision ?? 0) + 1,
-        appliedAt: now().toISOString(),
-      };
-      record.modelPlan = plan;
-      delete record.model;
-      write(record);
-      return { ok: true, record };
-    },
-    migrateLegacyModel(slug, expectedModel, route) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      if (record.modelPlan !== undefined) return { ok: true, record };
-      if (record.model !== expectedModel) return { ok: false, reason: 'invalid-input' };
-      record.modelPlan = {
-        revision: 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        orchestrator: { ...route },
-        assignmentDefault: { ...route },
-        appliedAt: now().toISOString(),
-      };
-      delete record.model;
-      write(record);
-      return { ok: true, record };
-    },
-    customizeModelPlan(
-      slug,
-      orchestrator,
-      expectedRevision,
-      orchestratorGroupId,
-      orchestratorGroupEffort,
-    ) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      if (record.model !== undefined) return { ok: false, reason: 'invalid-input' };
-      const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
-      if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
-      const {
-        orchestratorGroupId: _previousGroup,
-        orchestratorGroupEffort: _previousEffort,
-        ...kept
-      } = record.modelPlan ?? {};
-      record.modelPlan = {
-        ...kept,
-        revision: revision + 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        orchestrator: { ...orchestrator },
-        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
-        ...(orchestratorGroupId === undefined ||
-        orchestratorGroupEffort === undefined ||
-        orchestratorGroupEffort.trim() === ''
-          ? {}
-          : { orchestratorGroupEffort: orchestratorGroupEffort.trim() }),
-        appliedAt: now().toISOString(),
-      };
-      if (record.modelPlan.sub?.default === null)
-        record.modelPlan = withModelPlanSub(record.modelPlan, record.modelPlan.sub);
-      write(record);
-      return { ok: true, record };
-    },
-    setAssignmentModels(
-      slug,
-      assignmentDefault,
-      assignmentModels,
-      expectedRevision,
-      openAssignmentModels,
-      groups,
-    ) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      if (record.modelPlan === undefined || record.modelPlan.revision !== expectedRevision)
-        return { ok: false, reason: 'invalid-input' };
-      const {
-        openAssignmentModels: currentOpen,
-        assignmentGroups: currentGroups,
-        assignmentDefaultGroupId: currentDefaultGroup,
-        assignmentGroupOptions: currentOptions,
-        sub: _sub,
-        ...plan
-      } = record.modelPlan;
-      const open = openAssignmentModels ?? currentOpen === true;
-      const ids = groups === undefined ? (currentGroups ?? []) : groups.ids;
-      const defaultGroup = groups === undefined ? currentDefaultGroup : groups.defaultId;
-      const options = (groups?.options ?? currentOptions)?.filter((option) =>
-        ids.includes(option.group),
-      );
-      record.modelPlan = {
-        ...plan,
-        ...(open ? { openAssignmentModels: true } : {}),
-        ...(ids.length === 0 ? {} : { assignmentGroups: [...ids] }),
-        ...(ids.length === 0 || defaultGroup === undefined
-          ? {}
-          : { assignmentDefaultGroupId: defaultGroup }),
-        ...(options === undefined || options.length === 0
-          ? {}
-          : { assignmentGroupOptions: options.map((option) => ({ ...option })) }),
-        revision: record.modelPlan.revision + 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        assignmentDefault: { ...assignmentDefault },
-        assignmentModels: assignmentModels.map((option) => ({
-          ...option,
-          allowedEfforts: [...option.allowedEfforts],
-        })),
-        appliedAt: now().toISOString(),
-      };
-      write(record);
-      return { ok: true, record };
-    },
-    setModelPlanSub(slug, sub, expectedRevision) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      const plan = record.modelPlan;
-      if (plan === undefined || plan.revision !== expectedRevision)
-        return { ok: false, reason: 'invalid-input' };
-      record.modelPlan = withModelPlanSub(
-        {
-          ...plan,
-          revision: plan.revision + 1,
-          sourcePresetId: '',
-          sourcePresetName: '',
-          appliedAt: now().toISOString(),
-        },
-        sub,
-      );
-      write(record);
-      return { ok: true, record };
-    },
-    setModelPlan(slug, routes, expectedRevision) {
-      const record = active(slug);
-      if (record === undefined) return { ok: false, reason: 'not-found' };
-      const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
-      if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
-      const plan = {
-        revision: revision + 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        orchestrator: { ...routes.orchestrator },
-        ...(routes.groups === undefined ? {} : presetGroups(routes.groups)),
-        appliedAt: now().toISOString(),
-      };
-      record.modelPlan =
-        routes.sub === undefined
-          ? {
-              ...plan,
-              assignmentDefault: { ...routes.assignmentDefault },
-              assignmentModels: routes.assignmentModels.map((option) => ({
-                ...option,
-                allowedEfforts: [...option.allowedEfforts],
-              })),
-              ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
-            }
-          : withModelPlanSub(plan, routes.sub);
-      delete record.model;
-      write(record);
-      return { ok: true, record };
-    },
+    ...modelMethods,
   };
 }

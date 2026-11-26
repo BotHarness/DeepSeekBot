@@ -322,14 +322,13 @@ it('merges every Computer’s Sessions under All with the three-column rows', as
   expect(view.querySelector('[data-testid="session-model-old"]')).toBeNull();
 });
 
-it('tints the leading tile and Host icon with the environment’s colour, not the folder’s', async () => {
+it('colours the leading tile by folder and the Host icon by environment', async () => {
   const { view } = await render({ second: true });
   const fill = (id: string) =>
     JSON.parse(
       view.querySelector(`[data-testid="session-monogram-${id}"]`)!.getAttribute('data-style')!,
     ).backgroundColor;
-  expect(fill('fresh')).toBe(fill('old'));
-  expect(fill('remote')).not.toBe(fill('fresh'));
+  expect(fill('fresh')).not.toBe(fill('old'));
   const ink = (id: string) =>
     view
       .querySelector(`[data-testid="session-host-mark-${id}"] [data-host-glyph]`)!

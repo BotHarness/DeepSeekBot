@@ -24,12 +24,23 @@ export interface PresetOption {
 
 export const TEMPLATE_OFF = '@off';
 
+function namedTemplateLabel(presets: ApprovalTemplates, name: string): string {
+  const template = presets.templates.find((item) => item.name === name);
+  return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
+}
+
 export function globalTemplateLabel(presets: ApprovalTemplates): string | undefined {
   const name = presets.globalDefault;
   if (name === undefined) return undefined;
   if (name === null) return t.autoApprovalOff;
-  const template = presets.templates.find((item) => item.name === name);
-  return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
+  return namedTemplateLabel(presets, name);
+}
+
+export function effectiveTemplateLabel(presets: ApprovalTemplates): string {
+  const name =
+    presets.selected === INHERIT_APPROVAL_TEMPLATE ? presets.globalDefault : presets.selected;
+  if (name === undefined) return t.autoApprovalFollowGlobal;
+  return name === null ? t.autoApprovalNone : namedTemplateLabel(presets, name);
 }
 
 export function templateChoices(

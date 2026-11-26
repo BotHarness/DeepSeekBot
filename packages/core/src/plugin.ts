@@ -1,3 +1,7 @@
+import {
+  WORKSPACE_FAVICON_PATH,
+  createWorkspaceFaviconHttp,
+} from './workspaces/workspace-looks.js';
 import type { NativeSessions } from './features/sessions/host-sessions.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -242,7 +246,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = tobFeature.createCliInvocation();
   const sessionLive = new SessionLiveStreams();
-  const { engineHost, localEngines } = models.mountEngines(
+  const { engineHost, localEngines, followPresetEngines } = models.mountEngines(
     ctx,
     config,
     dshHome,
@@ -347,6 +351,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       { nativeSessions: () => hostNativeSessions, externalSessions },
     ),
   );
+  followPresetEngines();
   const modelProviders = models.mountProviders(ctx, core, routeRests, defaultModel);
   publishDraft = (event) => {
     core.live.publishDraft(event);
@@ -755,6 +760,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memoryFeature.mountFetch(connectionCtx, connection.fetch, core);
     channelFilesFeature.mountAttachmentRoutes(connectionCtx, connection, core);
     avatars.mountRoutes(connectionCtx, () => connection.fetch, core.registry);
+    const workspaceFaviconHttp = createWorkspaceFaviconHttp(core.workspaceLooks);
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: WORKSPACE_FAVICON_PATH,
+          methods: ['GET'],
+          requestBody: 'buffered',
+          fetch: workspaceFaviconHttp,
+        }),
+      'botharness: Workspace favicon',
+    );
     const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,
       detail: (slug) => bridgeMethods.get({ slug }),

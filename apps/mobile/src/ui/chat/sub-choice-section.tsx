@@ -24,12 +24,16 @@ export function SubChoiceSection({
   busy,
   onOpen,
   onAdd,
+  own,
+  restore,
 }: {
   value: ModelSettingsState;
   engines?: readonly RoutingGroupEngineOptions[] | undefined;
   busy: boolean;
   onOpen(choice: SubChoice): void;
   onAdd(): void;
+  own?: boolean | undefined;
+  restore?: { label: string; onPress(): void } | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -49,7 +53,7 @@ export function SubChoiceSection({
   );
   return (
     <SettingsSection
-      title={t.subChoices.title}
+      title={own ? `${t.subChoices.title} · ${t.modelSlots.own}` : t.subChoices.title}
       footer={subInherited(value) ? t.subChoices.inherited : t.subChoices.hint}
       on={SHEET_GROUP}
     >
@@ -104,6 +108,15 @@ export function SubChoiceSection({
         control={{ kind: 'add' }}
         onPress={busy ? undefined : onAdd}
       />
+      {restore === undefined ? null : (
+        <SettingsRow
+          on={SHEET_GROUP}
+          testID="sub-choice-restore"
+          title={restore.label}
+          tone="accent"
+          onPress={busy ? undefined : restore.onPress}
+        />
+      )}
     </SettingsSection>
   );
 }

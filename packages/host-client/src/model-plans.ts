@@ -79,6 +79,13 @@ function parseSubscriptionModel(value: unknown): SubscriptionModel | undefined {
 
 export const DEFAULT_MODEL_PRESET_ID = 'default';
 
+export type ModelSlot = 'main' | 'sub';
+
+function parseSlots(value: unknown): ModelSlot[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((slot): slot is ModelSlot => slot === 'main' || slot === 'sub');
+}
+
 export function modelPresetName(
   preset: Pick<ModelPreset, 'id' | 'name'>,
   defaultName: string,
@@ -106,6 +113,8 @@ export interface ModelPlanState {
   revision?: number;
   plan?: ModelPlan;
   inheritedPresetId?: string;
+  presetId?: string;
+  overrides?: ModelSlot[];
   repair?: {
     code: 'legacy-ambiguous' | 'legacy-missing' | 'route-unavailable';
     message: string;
@@ -326,6 +335,10 @@ export async function loadModelPlanState(host: HostCall, slug: string): Promise<
     ...(isTurnTarget(value['currentTarget']) ? { currentTarget: value['currentTarget'] } : {}),
     ...(plan === undefined ? {} : { plan }),
     ...(text(value['inheritedPresetId']) ? { inheritedPresetId: value['inheritedPresetId'] } : {}),
+    ...(text(value['presetId']) ? { presetId: value['presetId'] } : {}),
+    ...(parseSlots(value['overrides']) === undefined
+      ? {}
+      : { overrides: parseSlots(value['overrides'])! }),
     ...(repair !== undefined && REPAIRS.some((known) => known === code)
       ? {
           repair: {
@@ -360,8 +373,56 @@ export async function applyModelPreset(
   host: HostCall,
   slug: string,
   presetId: string,
+  options: { keepOverrides?: boolean } = {},
 ): Promise<ModelPlan> {
-  return planAnswer(await host.call('modelPresetApply', { slug, presetId }), 'modelPresetApply');
+  return planAnswer(
+    await host.call('modelPresetApply', {
+      slug,
+      presetId,
+      ...(options.keepOverrides === true ? { keepOverrides: true } : {}),
+    }),
+    'modelPresetApply',
+  );
+}
+
+export async function resetModelSlots(
+  host: HostCall,
+  slug: string,
+  slots: readonly ModelSlot[],
+  expectedRevision: number,
+): Promise<{ revision: number; overrides: ModelSlot[] }> {
+  const value = record(
+    await host.call('modelPlanReset', { slug, slots: [...slots], expectedRevision }),
+  );
+  if (value === undefined || typeof value['revision'] !== 'number')
+    throw new HostAnswerInvalid('modelPlanReset returned no revision.');
+  return { revision: value['revision'], overrides: parseSlots(value['overrides']) ?? [] };
+}
+
+export type BotEngineChoice = SubscriptionModel;
+
+export async function engineSelection(
+  host: HostCall,
+  request: Record<string, unknown>,
+): Promise<unknown> {
+  return host.call('engineSelection', { request });
+}
+
+export async function setBotEngine(
+  host: HostCall,
+  slug: string,
+  role: 'orchestrator' | 'assignment',
+  choice: BotEngineChoice | null,
+): Promise<void> {
+  await engineSelection(host, {
+    action: 'use',
+    bot: slug,
+    role,
+    engine: choice === null ? null : choice.engine,
+    ...(choice?.accountId === undefined ? {} : { accountId: choice.accountId }),
+    ...(choice?.model === undefined ? {} : { model: choice.model }),
+    ...(choice?.effort === undefined ? {} : { effort: choice.effort }),
+  });
 }
 
 export interface ModelRoutes {

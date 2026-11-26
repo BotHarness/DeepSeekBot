@@ -20,7 +20,14 @@ import { Button } from '../primitives/button';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
 import { useStrings, t, locale } from '../strings';
-import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
+import {
+  ActionCard,
+  CardButtons,
+  CardEmbed,
+  CardNote,
+  CardPreview,
+  DetailRow,
+} from './action-card';
 import type { CardLineTone } from './card-line';
 import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
@@ -390,7 +397,11 @@ function ApprovalCardContent({
             onPress={() => void decide('rejected')}
           />
         </CardButtons>
-        {actionable && preset !== undefined ? <ApprovalPresetRow port={preset} /> : null}
+        {actionable && preset !== undefined ? (
+          <CardEmbed>
+            <ApprovalPresetRow port={preset} />
+          </CardEmbed>
+        ) : null}
       </ActionCard>
     </View>
   );

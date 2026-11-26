@@ -1,3 +1,4 @@
+import { HOST_COLOR_IDS, type HostColorId } from '@botharness/host-client/ui/design/host-look';
 import type {
   HostSessionRow,
   HostSessionSourceOption,
@@ -58,8 +59,48 @@ export function folderMonogram(name: string | undefined): string {
   return letters.toUpperCase();
 }
 
-export function folderColorIndex(name: string | undefined, count: number): number {
-  let hash = 0;
-  for (const char of name ?? '') hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
-  return hash % count;
+export const FOLDER_COLOR_IDS = HOST_COLOR_IDS.filter((id) => id !== 'graphite');
+const FOLDER_COLOR_STEP = 4;
+
+function fnv1a(text: string): number {
+  let hash = 0x811c9dc5;
+  for (const char of text) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
+export function folderColor(name: string | undefined): HostColorId {
+  return FOLDER_COLOR_IDS[fnv1a(name ?? '') % FOLDER_COLOR_IDS.length]!;
+}
+
+export function folderColorKey(hostId: string, folderName: string | undefined): string {
+  return `${hostId}\u0000${folderName ?? ''}`;
+}
+
+export function assignFolderColors(
+  entries: readonly { hostId: string; folderName?: string | undefined }[],
+): Map<string, HostColorId> {
+  const byHost = new Map<string, Set<string>>();
+  for (const { hostId, folderName } of entries) {
+    if (folderName === undefined || folderName === '') continue;
+    const names = byHost.get(hostId) ?? new Set<string>();
+    names.add(folderName);
+    byHost.set(hostId, names);
+  }
+  const count = FOLDER_COLOR_IDS.length;
+  const colors = new Map<string, HostColorId>();
+  for (const [hostId, names] of byHost) {
+    const used = new Set<number>();
+    for (const name of [...names].sort()) {
+      let index = fnv1a(name) % count;
+      if (used.size < count)
+        for (let probe = 0; probe < count && used.has(index); probe += 1)
+          index = (index + FOLDER_COLOR_STEP) % count;
+      used.add(index);
+      colors.set(folderColorKey(hostId, name), FOLDER_COLOR_IDS[index]!);
+    }
+  }
+  return colors;
 }

@@ -1,10 +1,26 @@
-import { Box, Column, DropdownMenu, Host, Text as ComposeText } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, padding, width } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  Box,
+  Column,
+  DropdownMenu,
+  Host,
+  Text as ComposeText,
+  useMaterialColors,
+} from '@expo/ui/jetpack-compose';
+import {
+  Shapes,
+  background,
+  clip,
+  fillMaxSize,
+  fillMaxWidth,
+  padding,
+  width,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
-import { materialMenu, space } from '../design/tokens';
+import { materialMenu, presetChip, radius, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
@@ -13,6 +29,7 @@ import type { ApprovalPresetPickerProps } from './approval-preset-picker';
 
 export function ApprovalPresetPicker({
   label,
+  value,
   header,
   note,
   options,
@@ -23,9 +40,13 @@ export function ApprovalPresetPicker({
   onManage,
 }: ApprovalPresetPickerProps) {
   const theme = useDesignTheme();
+  const roles = useMaterialRoles();
+  const colors = useMaterialColors();
   const [open, setOpen] = useState(false);
+  const iconSize = theme.type.meta.size * theme.fontScale;
+  const inset = space.x3;
   if (disabled && open) setOpen(false);
-  const blank = <View />;
+  const blank = <View style={{ width: materialMenu.iconSize, height: materialMenu.iconSize }} />;
   return (
     <View style={{ maxWidth: '100%' }}>
       <Host
@@ -93,9 +114,14 @@ export function ApprovalPresetPicker({
                 color={theme.color.muted}
                 style={{ typography: 'bodySmall' }}
                 modifiers={[
+                  fillMaxWidth(),
+                  clip(Shapes.RoundedCorner(materialMenu.containerRadius)),
+                  background(
+                    theme.scheme === 'dark' ? colors.surfaceContainerHigh : colors.surfaceContainer,
+                  ),
                   padding(
                     materialMenu.horizontalPadding,
-                    0,
+                    materialMenu.verticalPadding,
                     materialMenu.horizontalPadding,
                     materialMenu.verticalPadding,
                   ),
@@ -114,34 +140,36 @@ export function ApprovalPresetPicker({
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded: open && !disabled, disabled }}
-        hitSlop={space.x3}
+        hitSlop={Math.max(0, (theme.touch - presetChip.height) / 2)}
         android_ripple={{ color: theme.layer.sheet.pressed, borderless: false }}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
+          alignSelf: 'flex-end',
           gap: space.x1,
-          minHeight: theme.touch,
+          minHeight: presetChip.height,
+          paddingLeft: inset,
+          paddingRight: space.x2,
+          borderRadius: radius.round,
+          overflow: 'hidden',
+          backgroundColor: roles.secondaryContainer,
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         <Text
           variant="meta"
-          tone="muted"
           numberOfLines={1}
           style={{
             flexShrink: 1,
+            color: roles.onSecondaryContainer,
             ...(maxWidth === undefined
               ? {}
-              : {
-                  maxWidth: Math.max(
-                    0,
-                    maxWidth - theme.type.meta.size * theme.fontScale - space.x1,
-                  ),
-                }),
+              : { maxWidth: Math.max(0, maxWidth - iconSize - space.x1 - inset - space.x2) }),
           }}
         >
-          {label}
+          {value}
         </Text>
-        <ChevronDownIcon color={theme.color.muted} size={theme.type.meta.size * theme.fontScale} />
+        <ChevronDownIcon color={roles.onSecondaryContainer} size={iconSize} />
       </Pressable>
     </View>
   );

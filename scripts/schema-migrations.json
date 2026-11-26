@@ -776,6 +776,10 @@
     "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
   },
   {
+    "id": "workspace-looks",
+    "sha256": "1f0c624e90e6666c80ada16f81a37ca0c1b2ac9bf5f5784d64bcf5903709d239"
+  },
+  {
     "id": "role-denied-permissions",
     "sha256": "9e0587401ed5997f39383fb34181edd14e5f7d705a46b6e922b0e53da0af9075"
   }
