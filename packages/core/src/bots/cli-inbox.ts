@@ -446,19 +446,19 @@ function prepare(
             values.sort,
             values.search,
             values.kind,
-            values.source,
           ].some((value) => value !== undefined) ||
           values.unread ||
           values.snoozed ||
           values.dismissed
         )
-          usage('--notifications only accepts --limit and --cursor.');
+          usage('--notifications only accepts --limit, --cursor and --source.');
         return {
           method: 'humanAttention',
           args: {
             notifications: true,
             ...(limit === undefined ? {} : { limit }),
             ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+            ...(values.source === undefined ? {} : { source: values.source }),
           },
         };
       }
