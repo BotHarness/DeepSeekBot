@@ -432,9 +432,6 @@ describe('Host call owner', () => {
       speak: async () => undefined,
       text: async () => undefined,
       zoom: ({ messageId, cell }) => ({ released: true, messageId, cell }),
-      attend: async () => {
-        throw new Error('not used');
-      },
       revoke: async () => undefined,
       dispose: async () => undefined,
     }));

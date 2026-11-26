@@ -25,7 +25,6 @@ import {
   registerChannelFileTools,
 } from '../features/channel-files/tools.js';
 import { registerScheduleTools } from '../features/schedules/tools.js';
-import { registerMeetingTools } from '../meetings/tools.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { AttachmentId } from '@deepseek-ai/dsh-attachment';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
@@ -384,7 +383,6 @@ export function orchestratorTools(
   registerGroupChannelTools(currentRun, registerTool);
   registerSourceAttentionTools(currentRun, registerTool);
   registerScheduleTools(currentRun, registerTool);
-  registerMeetingTools(currentRun, registerTool);
   registerTool(createGroupLeaveTool(currentRun));
 }
 

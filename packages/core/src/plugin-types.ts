@@ -58,8 +58,6 @@ import type { BotStateTracker } from './state/bot-state.js';
 import type { UsageProjection } from './usage/usage.js';
 import type { MessagePerfTracker } from './usage/message-perf.js';
 import type { PromptSettings } from './prompts/prompt-settings.js';
-import type { Meetings } from './meetings/meetings.js';
-import type { MeetingStore } from './meetings/store.js';
 
 export interface BotHarnessCore {
   team: TeamService;
@@ -125,9 +123,6 @@ export interface BotHarnessCore {
   voiceMessages: VoiceMessages;
   voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
-  voiceCallsRef: { current?: VoiceCalls | undefined };
-  meetings: Meetings;
-  meetingStore: MeetingStore;
   cloudWork?: CloudWork;
   connectors?: import('./connectors/service.js').ConnectorService;
   toolRules: ToolApprovalRuleStore;

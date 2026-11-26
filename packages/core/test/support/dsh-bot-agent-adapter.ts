@@ -66,9 +66,6 @@ export const ORCHESTRATOR_TOOL_ORDER: string[] = [
   'bot_schedule_create',
   'bot_schedule_update',
   'bot_schedule_delete',
-  'meeting_leave',
-  'meeting_status',
-  'meeting_transcript',
   'group_leave',
 ];
 

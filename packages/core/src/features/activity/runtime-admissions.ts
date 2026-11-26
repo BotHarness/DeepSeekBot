@@ -646,7 +646,7 @@ export function createRuntimeAdmissions(ports: RuntimeAdmissionsPorts) {
           `
             UPDATE inbox_admissions
                SET side_effect_started_at = COALESCE(side_effect_started_at, ?)
-             WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'meeting', 'group-mention', 'group-ordinary', 'human-dm')
+             WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
                AND attempt_state = 'running'
                AND source_event_id IN (${placeholders})
           `,
@@ -678,7 +678,7 @@ export function createRuntimeAdmissions(ports: RuntimeAdmissionsPorts) {
                      WHEN side_effect_started_at IS NULL THEN 'retryable'
                      ELSE 'needs-repair'
                    END
-             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'meeting', 'group-mention', 'group-ordinary', 'human-dm')
+             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
                AND attempt_state IN ('pending', 'retryable', 'running')
                AND (? IS NULL OR bot_slug = ?)
                AND source_event_id IN (${placeholders})
@@ -704,7 +704,7 @@ export function createRuntimeAdmissions(ports: RuntimeAdmissionsPorts) {
             `
             UPDATE inbox_admissions
                SET attempt_state = 'handled', handled_at = ?, opened_at = COALESCE(opened_at, ?)
-             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'meeting', 'group-mention', 'group-ordinary', 'human-dm')
+             WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
                AND attempt_state = 'running'
                AND (? IS NULL OR bot_slug = ?)
                AND source_event_id IN (${placeholders})

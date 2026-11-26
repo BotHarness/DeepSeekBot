@@ -785,19 +785,6 @@ A Takeover Handoff is how a Bot asks the Human to operate its Computer or Bot Br
 
 `takeover-request` posts the card as the Bot through the same Host code as the Bot tool, in the Bot's DM unless `--channel` names a Channel the Bot can post in. `takeover-complete` and `takeover-cancel` act as the Human, like the card's buttons, and wake the Bot; `takeover-cancel --bot <bot-id>` withdraws the request as that Bot, like `takeover_cancel`, and wakes nobody. `takeovers <bot-id>` reads what `takeover_list` returns. Refusals keep their code: `unknown-bot`, `invalid-input`, `target-off` (Browser or Computer Access is off), `channel-unavailable`, `already-pending`, `not-found` and `not-pending`. Each request, refusal and outcome is recorded in the diagnostic log under the source `takeover` with ids, counts, lengths and timings only, never the title or sentence; read it with `deepseekbot diagnostic-logs` or `diagnostic-logs-export`.
 
-### Meetings on a live Host
-
-A Bot listens to a meeting through its Owner's window ([Calls §14](decisions/calls.md#meeting-attendance)): in the Bot's DM the Owner chooses _Bring to a meeting_ and shares the meeting tab or the system sound, and the window sends it with their microphone to the Host as a `meeting` call (`open` with `meeting: true`). The Bot needs an ASR Provider but no TTS, and the meeting counts as its one call (`call-active`, `calls-full`). Nothing joins the meeting and the Bot never speaks in it. What the Bot hears arrives in its Bot Inbox as `meeting-speech`, never in a Channel; when listening stops the Bot writes the recap to its DM. These commands run the `meeting_leave`, `meeting_status` and `meeting_transcript` Bot tools through the Host, like `bot-tool`:
-
-```bash
-deepseekbot call-simulate <id> --file /abs/meeting.wav --as-meeting
-deepseekbot meeting-leave <id>
-deepseekbot meeting-status <id>
-deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
-```
-
-`call-simulate --as-meeting` plays a WAV (or an audio-only `--script`) as meeting sound without a window, waits until every heard sentence is transcribed, hangs up and prints the usual report; the transcript is then readable with `meeting-transcript`, 500 lines at a time: when the result says `more`, call again with `--after` set to the last `seq`. `meeting-leave` stops listening and ends the call (`not-in-meeting` when there is none). Listening also stops after 4 hours.
-
 ### Browser and Computer: observation, packages, transfer and logs
 
 ```bash

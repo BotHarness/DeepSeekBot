@@ -864,7 +864,6 @@ export function createBotRuntimeFeatures(
     registry,
     requireTurnAccess,
     schedules,
-    meetings: options.meetings,
     sourcePolicy,
     team,
   });

@@ -28,7 +28,6 @@ import type { WorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { createActivityEvents } from '../activity/events.js';
 import type { createMessagingEvents } from '../messaging/events.js';
 import { bindScheduleCommands } from '../schedules/events.js';
-import { bindMeetingCommands } from '../../meetings/commands.js';
 import type { WorkspaceSessionReader } from './workspace-sessions.js';
 
 interface OrchestratorServicesPorts {
@@ -54,7 +53,6 @@ interface OrchestratorServicesPorts {
   registry: PersonaBotRegistry;
   requireTurnAccess: (botSlug: string, ids: Iterable<string>) => void;
   schedules: BotRuntimeOptions['schedules'];
-  meetings: BotRuntimeOptions['meetings'];
   sourcePolicy: BotSourcePolicyStore;
   team: TeamService | undefined;
 }
@@ -414,15 +412,6 @@ export function createOrchestratorServices(ports: OrchestratorServicesPorts) {
           });
         },
       },
-      ...(ports.meetings === undefined
-        ? {}
-        : {
-            meetings: bindMeetingCommands({
-              ...ports.meetings,
-              bot,
-              markSideEffect: () => turn.markSideEffect(),
-            }),
-          }),
       ...(ports.schedules === undefined
         ? {}
         : { schedules: bindScheduleCommands(ports.schedules, bot, () => turn.markSideEffect()) }),

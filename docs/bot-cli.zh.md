@@ -733,19 +733,6 @@ deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--
 
 `takeover-request` 以 Bot 身份、通过与 Bot 工具相同的 Host 代码发布卡片，默认在 Bot 的私聊里，`--channel` 可指定 Bot 能发言的 Channel。`takeover-complete` 和 `takeover-cancel` 以 Human 身份操作，与卡片按钮相同，并唤醒 Bot；`takeover-cancel --bot <bot-id>` 以该 Bot 身份撤回请求，与 `takeover_cancel` 相同，不唤醒任何人。`takeovers <bot-id>` 读取与 `takeover_list` 相同的内容。被拒时保留错误码：`unknown-bot`、`invalid-input`、`target-off`（浏览器或 Computer 权限未开启）、`channel-unavailable`、`already-pending`、`not-found` 和 `not-pending`。每次请求、拒绝和结果都以来源 `takeover` 记入诊断日志，只含 id、数量、长度和耗时，从不含标题或那句话；用 `deepseekbot diagnostic-logs` 或 `diagnostic-logs-export` 读取。
 
-### 在运行中的 Host 上参会
-
-Bot 通过主人的窗口听会（[通话 §14](decisions/calls.md#meeting-attendance)）：主人在 Bot 的私信里选「带去开会」，共享会议所在的标签页或系统声音，窗口把这些声音连同主人的麦克风作为一通 `meeting` 通话发给 Host（`open` 带 `meeting: true`）。Bot 需要绑定 ASR Provider，但不需要 TTS；参会占用它唯一的通话位（`call-active`、`calls-full`）。没有任何参会者加入会议，Bot 也不会在会上发声。Bot 听到的内容以 `meeting-speech` 进入它的 Bot Inbox，不会写进任何 Channel；停止听会后 Bot 把纪要发到私信。这些命令经 Host 运行 `meeting_leave`、`meeting_status`、`meeting_transcript` 三个 Bot 工具，和 `bot-tool` 一样：
-
-```bash
-deepseekbot call-simulate <id> --file /abs/meeting.wav --as-meeting
-deepseekbot meeting-leave <id>
-deepseekbot meeting-status <id>
-deepseekbot meeting-transcript <id> [--meeting <meeting-id>] [--after <seq>]
-```
-
-`call-simulate --as-meeting` 不用窗口，把 WAV（或只含音频的 `--script`）当作会议声音播放，等每句话都转写完后挂断并输出通常的报告，之后可用 `meeting-transcript` 读取转写，每次最多 500 行：结果里 `more` 为真时，用 `--after` 加上最后一行的 `seq` 继续读。`meeting-leave` 停止听会并结束通话（没有在听时返回 `not-in-meeting`）。听会满 4 小时也会自动停止。
-
 ### Local Computer 视频
 
 Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。

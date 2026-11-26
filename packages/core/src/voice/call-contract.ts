@@ -280,7 +280,6 @@ export interface VoiceCallView {
   readonly muted: boolean;
   readonly busy: boolean;
   readonly media: 'webrtc' | 'synthetic';
-  readonly meetingId?: string;
   readonly visual?: CallVisualSource | 'off';
   readonly startedAt: number;
   readonly durationMs: number;
@@ -310,18 +309,12 @@ export interface VoiceCallReadiness {
   readonly media: 'ready' | 'unsupported-platform' | 'helper-missing' | 'unavailable';
   readonly activeCallId: string | null;
   readonly callElsewhere: boolean;
-  readonly voiceOff?: readonly ('asr' | 'tts')[];
 }
 
 export type VoiceCallCommand =
   | { readonly kind: 'readiness'; readonly slug: string }
   | { readonly kind: 'status' }
-  | {
-      readonly kind: 'open';
-      readonly slug: string;
-      readonly media?: 'webrtc' | 'synthetic';
-      readonly meeting?: boolean;
-    }
+  | { readonly kind: 'open'; readonly slug: string; readonly media?: 'webrtc' | 'synthetic' }
   | {
       readonly kind: 'signal';
       readonly callId: string;

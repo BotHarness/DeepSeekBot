@@ -118,7 +118,6 @@ function assertPreserved(
       expect(upgraded, name).toBeDefined();
       if (name === '_botharness_schema' || name === 'schema_migrations' || upgraded === undefined)
         continue;
-      if (/_fts_(data|idx)$/.test(name)) continue;
       const expected = expectedRows(name, table, before.generation, Number(legacyGroupBackfill));
       if (name === 'sqlite_sequence' && !before.tables.has('channel_changes')) {
         expected.push({ name: 'channel_changes', seq: 1 });
@@ -134,16 +133,6 @@ function assertPreserved(
     }
   } finally {
     database.close();
-  }
-  if (before.tables.has('inbox_history_fts')) {
-    const writable = new DatabaseSync(path);
-    try {
-      writable.exec(
-        "INSERT INTO inbox_history_fts(inbox_history_fts, rank) VALUES ('integrity-check', 1)",
-      );
-    } finally {
-      writable.close();
-    }
   }
 }
 

@@ -114,14 +114,7 @@ it('migrates a Profile with an existing built-in Tob to both grants', () => {
   const home = createTempRoot('management-grant-migration-');
   const old = mountOperationalDatabase({
     dshHome: home,
-    schemaPlan: defineSchemaPlan(
-      BOT_HARNESS_SCHEMA_PLAN.migrations.slice(
-        0,
-        BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(
-          (migration) => migration.id === 'bot-management-grants',
-        ),
-      ),
-    ),
+    schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
   });
   attachOperationalModule(old, 'grant-fixture').transaction((db) => {
     db.prepare(

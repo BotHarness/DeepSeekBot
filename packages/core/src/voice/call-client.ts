@@ -16,8 +16,6 @@ export type CallMediaState = 'connected' | 'failed' | 'closed';
 export const CALL_MEDIA_CODES = [
   'microphone-denied',
   'microphone-missing',
-  'meeting-sound-missing',
-  'meeting-sound-ended',
   'background',
   'ice-failed',
   'unknown',
@@ -71,7 +69,7 @@ export type CallClientState =
 
 export interface CallClient {
   readonly state: () => CallClientState;
-  open(slug: string, options?: { readonly meeting?: boolean }): Promise<void>;
+  open(slug: string): Promise<void>;
   mute(muted: boolean): Promise<void>;
   visual(
     source: CallVisualSource | 'off',
@@ -251,7 +249,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
 
   return {
     state: () => state,
-    async open(slug, openOptions) {
+    async open(slug) {
       if (status() === 'opening' || status() === 'live') return;
       call = undefined;
       log.reset();
@@ -260,12 +258,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       set({ status: 'opening' });
       let result: VoiceCallResult;
       try {
-        result = await options.post({
-          kind: 'open',
-          slug,
-          media: 'webrtc',
-          ...(openOptions?.meeting === true ? { meeting: true } : {}),
-        });
+        result = await options.post({ kind: 'open', slug, media: 'webrtc' });
       } catch (error) {
         finish('refused', {
           code: 'unreachable',
@@ -295,14 +288,9 @@ export function createCallClient(options: CallClientOptions): CallClient {
         if (status() === 'ended' || call === undefined) return;
         const callId = call.callId;
         void options.post({ kind: 'hangup', callId }).catch(() => undefined);
-        finish(
-          media === 'closed' && (code === 'background' || code === 'meeting-sound-ended')
-            ? 'hangup'
-            : 'media-failed',
-          {
-            mediaCode: code ?? 'unknown',
-          },
-        );
+        finish(media === 'closed' && code === 'background' ? 'hangup' : 'media-failed', {
+          mediaCode: code ?? 'unknown',
+        });
       });
       let answer: string;
       try {

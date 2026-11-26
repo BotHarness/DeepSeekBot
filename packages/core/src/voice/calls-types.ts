@@ -102,10 +102,6 @@ export interface VoiceCallsDeps {
     cool?(id: string): void;
   };
   media(): VoiceCallMedia | undefined;
-  meetings?: {
-    begin(input: { slug: string; callId: string; media: 'webrtc' | 'synthetic' }): string;
-    callEnded(meetingId: string, reason: VoiceCallEndReason): void;
-  };
   send(input: {
     slug: string;
     channelId: string;
@@ -182,7 +178,6 @@ export interface Call {
   readonly caller: string;
   readonly client: string | undefined;
   readonly media: 'webrtc' | 'synthetic';
-  readonly meetingId?: string | undefined;
   readonly startedAt: number;
   readonly abort: AbortController;
   visual: CallVisualSource | 'off';
@@ -291,5 +286,3 @@ export interface Reply {
   archived: Spoken[];
   settleArchive?: (archive: Promise<{ clip?: AudioClip; interrupted: boolean }>) => void;
 }
-
-export const MEETING_CHANNEL_PREFIX = 'meeting:';

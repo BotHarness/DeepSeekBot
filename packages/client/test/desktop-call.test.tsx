@@ -7,27 +7,12 @@ vi.mock('../src/client/ds/tooltip.js', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,
 }));
 
-import type { CallClientMedia } from '../../core/src/voice/call-client.js';
-import { createVoiceCallHttp } from '../../core/src/voice/call-http.js';
 import { CALL_NOTICES } from '../../core/src/voice/call-view.js';
-import {
-  createVoiceCalls,
-  type VoiceCallMedia,
-  type VoiceCalls,
-} from '../../core/src/voice/calls.js';
-import {
-  CallCameraError,
-  type CallCamera,
-  type CallCaptureErrorCode,
-} from '../src/client/call-camera.js';
-import type { CallVisualSource } from '../../core/src/voice/keyframes.js';
 import {
   DESKTOP_CALL_VISUAL_OFF,
   createCallPost,
-  createDesktopCall,
   desktopCallNotice,
   desktopCallView,
-  type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
 import { CallMicrophoneError, createBrowserCallMedia } from '../src/client/call-media.js';
 import { DmCallControl } from '../src/client/dm-call.js';
@@ -41,181 +26,18 @@ import {
 } from '../src/client/call-presence.js';
 import { revealDesktopWindow } from '../src/client/desktop-window.js';
 import { en } from '../src/client/locale.js';
+import {
+  cleanup,
+  desktopWindow,
+  fakeCamera,
+  host,
+  translate,
+} from './support/desktop-call-world.js';
 
-const cleanup: (() => unknown)[] = [];
 afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
   vi.unstubAllGlobals();
 });
-
-function hostMedia(): VoiceCallMedia {
-  return {
-    availability: async () => 'ready',
-    async open({ onStatus }) {
-      return {
-        offer: { type: 'offer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n' },
-        async answer() {
-          queueMicrotask(() => onStatus('connected'));
-        },
-        async play() {},
-        async close() {},
-      };
-    },
-  };
-}
-
-function host(
-  options: { asr?: boolean; tts?: boolean; busy?: () => boolean; localOff?: boolean } = {},
-) {
-  const records: { state: string; source?: string }[] = [];
-  const meetings: string[] = [];
-  const calls: VoiceCalls = createVoiceCalls({
-    bot: (slug) =>
-      slug === 'mira'
-        ? {
-            slug,
-            ...(options.asr === false ? {} : { asr: { providerId: 'asr-000000000001' } }),
-            ...(options.tts === false ? {} : { voice: { providerId: 'tts-000000000001' } }),
-          }
-        : undefined,
-    providers: {
-      has: (id, kind) => id.startsWith(kind) && (kind !== 'tts' || options.tts !== false),
-      ...(options.localOff ? { localServiceOff: async () => true } : {}),
-      transcribe: async () => ({ text: 'hi', latencyMs: 1 }),
-      synthesize: async () => ({ audio: new Uint8Array(4), mime: 'audio/wav' }),
-    },
-    media: hostMedia,
-    meetings: {
-      begin: ({ slug, callId }) => {
-        meetings.push(`begin ${slug} ${callId.slice(0, 5)}`);
-        return 'meet-1';
-      },
-      callEnded: (id, reason) => meetings.push(`ended ${id} ${reason}`),
-    },
-    send: async () => undefined,
-    record: async ({ record }) => {
-      records.push(record);
-      return `record-${records.length}`;
-    },
-    busy: options.busy ?? (() => false),
-  });
-  cleanup.push(() => calls.dispose());
-  const route = createVoiceCallHttp(() => calls);
-  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) =>
-    route(new Request(new URL(String(input), 'http://host/'), init))) as typeof fetch;
-  return { calls, fetcher, records, meetings };
-}
-
-function windowMedia(refuse?: Error) {
-  const started: string[] = [];
-  const muted: boolean[] = [];
-  let stops = 0;
-  let level = 0;
-  const media: CallClientMedia & { level(): number } = {
-    level: () => level,
-    async start({ offer }) {
-      started.push(offer);
-      if (refuse !== undefined) throw refuse;
-      return 'v=0\r\na=answer\r\n';
-    },
-    mute: (value) => muted.push(value),
-    stop: () => {
-      stops += 1;
-    },
-    onState: () => () => undefined,
-  };
-  return {
-    media,
-    started,
-    muted,
-    stops: () => stops,
-    speak: (value: number) => {
-      level = value;
-    },
-  };
-}
-
-const RED_JPEG =
-  '/9j/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAkAEADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAQG/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AjgIWoAAAAAAAAAAAAAAAAAAAAAAf/9k=';
-
-function fakeCamera(options: { fail?: CallCaptureErrorCode } = {}) {
-  let handlers: DesktopCallCaptureHandlers | undefined;
-  let running: CallVisualSource | undefined;
-  let sampling = false;
-  return {
-    make(source: CallVisualSource, next: DesktopCallCaptureHandlers): CallCamera {
-      const stream = { id: `${source}-stream` } as unknown as MediaStream;
-      let mine = false;
-      return {
-        async start() {
-          if (options.fail !== undefined) throw new CallCameraError(options.fail);
-          handlers = next;
-          running = source;
-          mine = true;
-          return stream;
-        },
-        run() {
-          sampling = true;
-        },
-        stop() {
-          if (!mine) return;
-          mine = false;
-          if (running !== source) return;
-          running = undefined;
-          sampling = false;
-        },
-        stream: () => (mine ? stream : undefined),
-        label: () => (source === 'screen' ? 'build.log - Terminal' : 'FaceTime HD Camera'),
-      };
-    },
-    running: () => running !== undefined && sampling,
-    source: () => running,
-    async keyframe() {
-      await handlers?.onKeyframe({
-        source: running ?? 'camera',
-        jpeg: RED_JPEG,
-        score: 0.5,
-        skipped: 2,
-        bytes: 287,
-        prepareMs: 4,
-      });
-    },
-    end() {
-      running = undefined;
-      sampling = false;
-      handlers?.onEnded();
-    },
-  };
-}
-
-function desktopWindow(
-  fetcher: typeof fetch,
-  client: string,
-  camera: ReturnType<typeof fakeCamera> = fakeCamera(),
-  refuse?: Error,
-) {
-  const media = windowMedia(refuse);
-  const modes: boolean[] = [];
-  const call = createDesktopCall({
-    post: createCallPost(client, fetcher),
-    media: ({ meeting }) => {
-      modes.push(meeting);
-      return media.media;
-    },
-    capture: (source, handlers) => camera.make(source, handlers),
-  });
-  cleanup.push(() => call.hangup());
-  return { call, media, camera, modes };
-}
-
-function translate() {
-  return ((key: string, params?: Record<string, unknown>) => {
-    let text = (en as Record<string, string>)[key] ?? key;
-    for (const [name, value] of Object.entries(params ?? {}))
-      text = text.replace(`{${name}}`, String(value));
-    return text;
-  }) as never;
-}
 
 describe('desktop call', () => {
   it('calls through the Host-owner route and hangs up', async () => {
@@ -293,6 +115,7 @@ describe('desktop call', () => {
           events: [],
         },
         visual: DESKTOP_CALL_VISUAL_OFF,
+        sound: 'off',
       }),
     ).toEqual(['call.microphoneDenied']);
   });
@@ -319,6 +142,7 @@ describe('desktop call', () => {
       block: { kind: 'refused', notices: CALL_NOTICES },
       state: { status: 'idle' },
       visual: DESKTOP_CALL_VISUAL_OFF,
+      sound: 'off',
     })!;
     expect(keys).toHaveLength(CALL_NOTICES.length);
     for (const key of keys) expect((en as Record<string, string>)[key]).toEqual(expect.any(String));
@@ -360,54 +184,6 @@ describe('desktop call', () => {
       element.querySelector<HTMLButtonElement>('button[aria-label="Hang up"]')!.click(),
     );
     expect(element.querySelector('button[aria-label="Call Mira"]')).not.toBeNull();
-  });
-
-  it('brings a Bot without TTS to a meeting from the chat header and stops listening', async () => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-    const { fetcher, meetings, records } = host({ tts: false });
-    const mac = desktopWindow(fetcher, 'window-mac-0001');
-    const element = document.createElement('div');
-    const root = createRoot(element);
-    cleanup.push(() => act(() => root.unmount()));
-    await act(async () =>
-      root.render(<DmCallControl slug="mira" name="Mira" t={translate()} call={mac.call} />),
-    );
-    await act(async () =>
-      element.querySelector<HTMLButtonElement>('button[aria-label="Call Mira"]')!.click(),
-    );
-    expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.missing.tts']);
-    mac.call.dismiss();
-
-    const bring = element.querySelector<HTMLButtonElement>(
-      'button[aria-label="Bring Mira to a meeting"]',
-    )!;
-    await act(async () => bring.click());
-    await act(async () => {
-      for (let index = 0; index < 20 && mac.call.snapshot().state.status !== 'live'; index += 1)
-        await new Promise((resolve) => setTimeout(resolve, 5));
-    });
-    expect(mac.modes).toEqual([true]);
-    const bar = element.querySelector(
-      '[role="group"][aria-label="Mira is listening to the meeting"]',
-    )!;
-    expect(bar).not.toBeNull();
-    expect(bar.querySelector('[role="status"]')?.textContent).toBe('Listening to the meeting');
-    expect(bar.querySelector('button[aria-label="Turn camera on"]')).toBeNull();
-    await act(async () =>
-      bar
-        .querySelector<HTMLButtonElement>('button[aria-label="Keep my microphone from Mira"]')!
-        .click(),
-    );
-    expect(mac.media.muted).toEqual([true]);
-    expect(
-      element.querySelector('button[aria-label="Let Mira hear my microphone too"]'),
-    ).not.toBeNull();
-    await act(async () =>
-      element.querySelector<HTMLButtonElement>('button[aria-label="Stop listening"]')!.click(),
-    );
-    expect(meetings).toEqual(['begin mira call-', 'ended meet-1 hangup']);
-    expect(records).toEqual([]);
-    expect(element.querySelector('button[aria-label="Bring Mira to a meeting"]')).not.toBeNull();
   });
 
   it('offers hang-up from another Bot chat while a call runs', async () => {

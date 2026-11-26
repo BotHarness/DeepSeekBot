@@ -5,7 +5,13 @@ import {
   type CallMediaState,
 } from '../../../core/src/voice/call-client.js';
 
-import { MeetingSoundMissing, openMeetingSound, type MeetingSound } from './meeting-sound.js';
+import {
+  ComputerSoundMissing,
+  mixSound,
+  openComputerSound,
+  type ComputerSound,
+  type SoundMix,
+} from './computer-sound.js';
 import { openMicrophone } from './mic-device.js';
 import { levelDbfs, meterFraction } from './voice-level.js';
 
@@ -22,12 +28,6 @@ const MICROPHONE_MESSAGE = {
 export class CallMicrophoneError extends CallMediaFailure {
   constructor(override readonly code: 'microphone-denied' | 'microphone-missing') {
     super(code, MICROPHONE_MESSAGE[code]);
-  }
-}
-
-export class CallMeetingSoundError extends CallMediaFailure {
-  constructor() {
-    super('meeting-sound-missing', 'No meeting sound was shared.');
   }
 }
 
@@ -57,6 +57,8 @@ function gathered(peer: RTCPeerConnection): Promise<void> {
 
 export interface BrowserCallMedia extends CallClientMedia {
   level(): number;
+  computerSound(on: boolean): Promise<boolean>;
+  onComputerSound(listener: (on: boolean) => void): () => void;
 }
 
 interface MicMeter {
@@ -87,36 +89,81 @@ function meterMicrophone(stream: MediaStream): MicMeter | undefined {
 
 export function createBrowserCallMedia(
   devices: () => MediaDevices | undefined = () => globalThis.navigator?.mediaDevices,
-  options: { readonly meeting?: boolean; readonly sound?: Promise<MeetingSound> } = {},
+  options: { readonly computerSound?: () => Promise<ComputerSound> } = {},
 ): BrowserCallMedia {
   const listeners = new Set<(state: CallMediaState, code?: CallMediaCode) => void>();
+  const soundListeners = new Set<(on: boolean) => void>();
+  const openSound = options.computerSound ?? (() => openComputerSound(devices()));
   let peer: RTCPeerConnection | undefined;
+  let sender: RTCRtpSender | undefined;
+  let computer: { readonly sound: ComputerSound; readonly mix: SoundMix } | undefined;
+  let opening: Promise<boolean> | undefined;
+  let shareToken = 0;
   let stream: MediaStream | undefined;
   let speaker: HTMLAudioElement | undefined;
   let meter: MicMeter | undefined;
-  let sound: MeetingSound | undefined;
-  let shared: Promise<MeetingSound> | undefined;
-  let stopped = false;
   let generation = 0;
   let muted = false;
-  let soundEnded = false;
   const emit = (state: CallMediaState, code?: CallMediaCode) => {
     for (const listener of [...listeners]) listener(state, code);
   };
-  const watch = (pending: Promise<MeetingSound>) => {
-    pending
-      .then((owned) =>
-        owned.onEnded(() => {
-          soundEnded = true;
-          if (!stopped) emit('closed', 'meeting-sound-ended');
-        }),
-      )
-      .catch(() => undefined);
-    return pending;
+  const emitSound = (on: boolean) => {
+    for (const listener of [...soundListeners]) listener(on);
   };
-  if (options.sound !== undefined) shared = watch(options.sound);
+  const dropComputer = () => {
+    shareToken += 1;
+    const owned = computer;
+    computer = undefined;
+    if (owned === undefined) return false;
+    owned.mix.close();
+    owned.sound.release();
+    return true;
+  };
+  const unshare = async () => {
+    const mic = stream?.getAudioTracks()[0];
+    const owner = sender;
+    if (!dropComputer()) return false;
+    if (owner !== undefined && mic !== undefined)
+      await owner.replaceTrack(mic).catch(() => undefined);
+    emitSound(false);
+    return false;
+  };
+  const share = async () => {
+    const mic = stream?.getAudioTracks()[0];
+    const owner = sender;
+    if (mic === undefined || owner === undefined) throw new ComputerSoundMissing();
+    const token = shareToken;
+    const sound = await openSound();
+    if (token !== shareToken || sender !== owner) {
+      sound.release();
+      return false;
+    }
+    let mix: SoundMix | undefined;
+    try {
+      mix = mixSound(mic, sound.track);
+      await owner.replaceTrack(mix.track);
+    } catch {
+      mix?.close();
+      sound.release();
+      throw new ComputerSoundMissing();
+    }
+    if (token !== shareToken || sender !== owner) {
+      mix.close();
+      sound.release();
+      return false;
+    }
+    const owned = { sound, mix };
+    computer = owned;
+    sound.onEnded(() => {
+      if (computer === owned) void unshare();
+    });
+    emitSound(true);
+    return true;
+  };
   const release = () => {
     generation += 1;
+    if (dropComputer()) emitSound(false);
+    sender = undefined;
     const current = peer;
     peer = undefined;
     if (current !== undefined) {
@@ -126,8 +173,7 @@ export function createBrowserCallMedia(
     }
     meter?.close();
     meter = undefined;
-    sound = undefined;
-    if (shared === undefined) for (const track of stream?.getTracks() ?? []) track.stop();
+    for (const track of stream?.getTracks() ?? []) track.stop();
     stream = undefined;
     if (speaker !== undefined) {
       speaker.pause();
@@ -138,20 +184,13 @@ export function createBrowserCallMedia(
   return {
     async start({ offer }) {
       release();
-      stopped = false;
       const media = devices();
       if (media?.getUserMedia === undefined) throw new CallMicrophoneError('microphone-missing');
       const owned = generation;
       let acquired: MediaStream;
-      let opened: MeetingSound | undefined;
       try {
-        if (options.meeting === true) {
-          shared ??= watch(openMeetingSound(media));
-          opened = await shared;
-          acquired = opened.stream;
-        } else acquired = (await openMicrophone(media)).stream;
+        acquired = (await openMicrophone(media)).stream;
       } catch (error) {
-        if (error instanceof MeetingSoundMissing) throw new CallMeetingSoundError();
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new CallMicrophoneError(
           name === 'NotAllowedError' || name === 'SecurityError'
@@ -160,17 +199,13 @@ export function createBrowserCallMedia(
         );
       }
       if (owned !== generation) {
-        if (opened === undefined) for (const late of acquired.getTracks()) late.stop();
+        for (const late of acquired.getTracks()) late.stop();
         throw new Error('call-stopped');
       }
-      if (opened !== undefined && soundEnded)
-        throw new CallMediaFailure('meeting-sound-ended', 'The shared meeting sound ended.');
       stream = acquired;
-      sound = opened;
       const track = stream.getAudioTracks()[0];
       if (track === undefined) throw new CallMicrophoneError('microphone-missing');
-      if (sound === undefined) track.enabled = !muted;
-      else sound.mute(muted);
+      track.enabled = !muted;
       meter = meterMicrophone(stream);
       const current = new RTCPeerConnection({ iceServers: [] });
       peer = current;
@@ -190,10 +225,11 @@ export function createBrowserCallMedia(
       const transceiver = current
         .getTransceivers()
         .find((entry) => entry.receiver.track.kind === 'audio');
-      if (transceiver === undefined) current.addTrack(track, stream);
+      if (transceiver === undefined) sender = current.addTrack(track, stream);
       else {
         await transceiver.sender.replaceTrack(track);
         transceiver.direction = 'sendrecv';
+        sender = transceiver.sender;
       }
       await current.setLocalDescription(await current.createAnswer());
       await gathered(current);
@@ -202,17 +238,25 @@ export function createBrowserCallMedia(
     },
     mute(next) {
       muted = next;
-      if (sound !== undefined) sound.mute(next);
-      else for (const track of stream?.getAudioTracks() ?? []) track.enabled = !next;
+      for (const track of stream?.getAudioTracks() ?? []) track.enabled = !next;
     },
     stop() {
       release();
-      stopped = true;
-      void shared?.then((owned) => owned.release()).catch(() => undefined);
-      shared = undefined;
       muted = false;
     },
     level: () => (muted || meter === undefined ? 0 : meter.read()),
+    computerSound(on) {
+      if (!on) return unshare();
+      if (computer !== undefined) return Promise.resolve(true);
+      opening ??= share().finally(() => {
+        opening = undefined;
+      });
+      return opening;
+    },
+    onComputerSound(listener) {
+      soundListeners.add(listener);
+      return () => soundListeners.delete(listener);
+    },
     onState(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

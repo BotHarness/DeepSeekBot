@@ -252,7 +252,6 @@ export {
   TOOL_APPROVAL_RULE_MIGRATION,
   EXTERNAL_TOOL_RULE_CREATOR_MIGRATION,
 } from './migrations/tool-approval-rules.js';
-import { MEETING_ATTENDANCE_MIGRATION } from './migrations/meetings.js';
 export { WORKSPACE_GRANT_MIGRATION } from './migrations/workspace-grants.js';
 
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
@@ -445,5 +444,4 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SENDER_DEFAULT_ROLE_MIGRATION,
   CONNECTOR_ACCOUNTS_MIGRATION,
   BOT_MANAGEMENT_GRANTS_MIGRATION,
-  MEETING_ATTENDANCE_MIGRATION,
 ]);

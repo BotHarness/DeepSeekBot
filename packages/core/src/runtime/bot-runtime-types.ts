@@ -193,7 +193,6 @@ export interface BotRuntime {
 
   admitExternalSource?(botSlug: string, sourceEventId: string): void;
   admitScheduleFiring?(botSlug: string): void;
-  admitMeetingSpeech?(botSlug: string): void;
   resumePendingDigests?(botSlug: string): void;
 
   stopBot?(botSlug: string): Promise<void>;
@@ -245,10 +244,6 @@ export interface BotRuntimeOptions {
   database: OperationalDatabaseOwner;
   sourcePolicy?: BotSourcePolicyStore;
   schedules?: Pick<BotScheduleStore, 'list' | 'create' | 'update' | 'remove'>;
-  meetings?: {
-    readonly meetings: import('../meetings/meetings.js').Meetings;
-    readonly store: Pick<import('../meetings/store.js').MeetingStore, 'get' | 'list' | 'lines'>;
-  };
   registry: PersonaBotRegistry;
   channels: ChannelStore;
   agents: BotAgentAdapter;

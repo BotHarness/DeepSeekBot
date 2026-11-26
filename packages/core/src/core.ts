@@ -38,9 +38,6 @@ import * as models from './features/models/plugin.js';
 import * as messaging from './features/messaging/plugin.js';
 import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
-import { createMeetingStore } from './meetings/store.js';
-import { createMeetings } from './meetings/meetings.js';
-import { VOICE_CALL_HOST_OWNER } from './voice/call-contract.js';
 import * as voice from './features/voice/plugin.js';
 import type { BotHarnessCore, CoreOptions } from './plugin-types.js';
 import * as channelsFeature from './features/channels/plugin.js';
@@ -352,7 +349,7 @@ function initializeCore(
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
   const prompts = promptPresets.apply({ dshHome, registry, ownership });
-  const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom, voiceCallsRef } = voice.apply(
+  const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
     startup,
     operationalDatabase,
     registry,
@@ -360,32 +357,6 @@ function initializeCore(
     attachments,
     options,
   );
-  startup.enter('meetings', 'initialize');
-  const meetingStore = createMeetingStore({
-    database: attachOperationalModule(operationalDatabase, 'meetings'),
-  });
-  const interruptedMeetings =
-    operationalDatabase.mode === 'ready' ? meetingStore.failInterrupted() : [];
-  const meetings = createMeetings({
-    store: meetingStore,
-    async stopCall(callId) {
-      const calls = voiceCallsRef.current;
-      if (calls === undefined) return;
-      const result = await calls.handle(
-        { deviceId: VOICE_CALL_HOST_OWNER },
-        { kind: 'hangup', callId },
-      );
-      if (!result.ok && result.code !== 'call-not-found')
-        throw new Error(`Could not stop the meeting call: ${result.error}`);
-    },
-    admitted: (slug) => runtime?.admitMeetingSpeech?.(slug),
-    ...(options.voiceLog === undefined
-      ? {}
-      : {
-          log: (phase: string, fields: Record<string, string | number>) =>
-            options.voiceLog?.(phase, fields),
-        }),
-  });
   startup.enter('bot-runtime', 'initialize');
   runtime = personabotsFeature.createRuntime({
     options,
@@ -400,8 +371,6 @@ function initializeCore(
     registry,
     profileRecovery,
     schedules,
-    meetings,
-    meetingStore,
     assignmentLimits,
     botHopLimit,
     states,
@@ -449,16 +418,11 @@ function initializeCore(
   );
   startup.enter('bot-schedules', 'start');
   botSchedules.start(schedules, operationalDatabase);
-  for (const meeting of interruptedMeetings)
-    if (meeting.wake) runtime?.admitMeetingSpeech?.(meeting.botSlug);
   return {
     voiceProviders,
     voiceMessages,
     voiceSpeech,
     voiceZoom,
-    voiceCallsRef,
-    meetings,
-    meetingStore,
     prompts,
     deletions,
     profileRecovery,

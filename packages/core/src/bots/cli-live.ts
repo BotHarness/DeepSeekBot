@@ -23,7 +23,6 @@ import { TOB_CLI_COMMANDS } from './cli-tob.js';
 import { BOT_TOOL_COMMANDS } from './cli-bot-tool.js';
 import { CALL_TIMELINE_COMMANDS } from './cli-call-timeline.js';
 import { TAKEOVER_COMMANDS } from './cli-takeover.js';
-import { MEETING_COMMANDS } from './cli-meetings.js';
 import { CHANNEL_COMMANDS } from './cli-channels.js';
 import { BROWSER_COMPUTER_COMMANDS } from './cli-browser-computer.js';
 import { IM_COMMANDS } from './cli-im-authorization.js';
@@ -94,7 +93,6 @@ export const LIVE_COMMANDS = [
   ...BOT_TOOL_COMMANDS,
   ...TOB_CLI_COMMANDS,
   ...TAKEOVER_COMMANDS,
-  ...MEETING_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,

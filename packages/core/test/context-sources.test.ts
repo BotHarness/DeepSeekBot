@@ -25,7 +25,7 @@ const events = [
         [
           'Hello there',
           '',
-          '[Bot Inbox] External mentions, due Bot Schedules, meetings you attend, actionable Memory changes, Assignment reports, and Host lifecycle notices since your last turn.',
+          '[Bot Inbox] External mentions, due Bot Schedules, actionable Memory changes, Assignment reports, and Host lifecycle notices since your last turn.',
           '- Bot Schedule "Water" [Source Event 9; schedule s1; occurrence now; created by you] is due. Scheduled task: "Remind me".',
           '- assignment-1 (key fix-export, activity idle, repeats 0) reported [Source Event 10]: Done.',
           '- Memory change (event 11): notes.md changed.',

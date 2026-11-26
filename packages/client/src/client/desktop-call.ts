@@ -31,12 +31,14 @@ import {
   type CallCaptureErrorCode,
 } from './call-camera.js';
 import { createBrowserCallMedia, type BrowserCallMedia } from './call-media.js';
-import { openMeetingSound, type MeetingSound } from './meeting-sound.js';
 import { watchCallPresence } from './call-presence.js';
 import { createVoiceCallBridge } from './features/voice/call-bridge.js';
 export type { CallPost, VoiceCallResult };
 
 const CLIENT_KEY = 'botharness/call-client.v1';
+
+type DesktopCallMedia = CallClientMedia &
+  Partial<Pick<BrowserCallMedia, 'level' | 'computerSound' | 'onComputerSound'>>;
 
 export interface DesktopCallBlock {
   readonly kind: NonNullable<CallReadinessVerdict['blocked']>;
@@ -72,12 +74,14 @@ export interface DesktopCallPlace {
 export interface DesktopCallSnapshot {
   readonly slug: string | undefined;
   readonly place?: DesktopCallPlace | undefined;
-  readonly meeting?: boolean | undefined;
   readonly checking: boolean;
   readonly block: DesktopCallBlock | undefined;
   readonly state: CallClientState;
   readonly visual: DesktopCallVisual;
+  readonly sound: DesktopCallSound;
 }
+
+export type DesktopCallSound = 'off' | 'starting' | 'on' | 'missing';
 
 export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
   source: 'off',
@@ -92,14 +96,11 @@ export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
 export interface DesktopCall {
   subscribe(listener: () => void): () => void;
   snapshot(): DesktopCallSnapshot;
-  start(
-    slug: string,
-    place?: DesktopCallPlace,
-    options?: { readonly meeting?: boolean },
-  ): Promise<void>;
+  start(slug: string, place?: DesktopCallPlace): Promise<void>;
   mute(muted: boolean): Promise<void>;
   camera(on: boolean): Promise<void>;
   screen(on: boolean): Promise<void>;
+  computerSound(on: boolean): Promise<void>;
   dismissVisual(): void;
   hangup(options?: CallHangupOptions): Promise<void>;
   dismiss(): void;
@@ -141,31 +142,26 @@ function desktopCapture(camera: CallCamera): DesktopCapture {
 export function createDesktopCall(
   options: {
     post?: CallPost;
-    media?: (input: {
-      readonly meeting: boolean;
-      readonly sound?: Promise<MeetingSound>;
-    }) => CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>;
-    meetingSound?: () => Promise<MeetingSound>;
+    media?: () => DesktopCallMedia;
     capture?: (source: CallVisualSource, handlers: DesktopCallCaptureHandlers) => CallCamera;
     now?: () => number;
   } = {},
 ): DesktopCall {
   const post = options.post ?? createCallPost(windowClientId());
-  const media = options.media ?? ((input) => createBrowserCallMedia(undefined, input));
-  const meetingSound =
-    options.meetingSound ?? (() => openMeetingSound(globalThis.navigator?.mediaDevices));
+  const media = options.media ?? (() => createBrowserCallMedia());
   const makeCapture =
     options.capture ?? ((source, handlers) => createBrowserCallCamera({ source, ...handlers }));
   const listeners = new Set<() => void>();
   let session: CallSession<DesktopCapture, CallCaptureErrorCode> | undefined;
-  let sessionMedia: (CallClientMedia & Partial<Pick<BrowserCallMedia, 'level'>>) | undefined;
-  let pending: { cancelled: boolean; sound: Promise<MeetingSound> | undefined } | undefined;
+  let sessionMedia: DesktopCallMedia | undefined;
+  let soundWatch: (() => void) | undefined;
   let current: DesktopCallSnapshot = {
     slug: undefined,
     checking: false,
     block: undefined,
     state: { status: 'idle' },
     visual: DESKTOP_CALL_VISUAL_OFF,
+    sound: 'off',
   };
   const set = (next: Partial<DesktopCallSnapshot>) => {
     current = { ...current, ...next };
@@ -193,42 +189,36 @@ export function createDesktopCall(
       return () => listeners.delete(listener);
     },
     snapshot: () => current,
-    async start(slug, place, startOptions) {
+    async start(slug, place) {
       if (current.checking || active()) return;
-      const meeting = startOptions?.meeting === true;
-      const sound = meeting ? meetingSound() : undefined;
-      sound?.catch(() => undefined);
-      const attempt = { cancelled: false, sound };
-      pending = attempt;
       session?.dispose();
       session = undefined;
       sessionMedia = undefined;
+      soundWatch?.();
+      soundWatch = undefined;
       set({
         slug,
         place,
-        meeting,
         checking: true,
         block: undefined,
         state: { status: 'idle' },
         visual: DESKTOP_CALL_VISUAL_OFF,
+        sound: 'off',
       });
       let verdict: CallReadinessVerdict;
       try {
-        verdict = callReadinessVerdict(await readCallReadiness(post, slug), { meeting });
+        verdict = callReadinessVerdict(await readCallReadiness(post, slug));
       } catch {
         verdict = callReadinessVerdict({ code: 'unreachable', error: '' });
       }
-      if (pending === attempt) pending = undefined;
-      if (attempt.cancelled) return;
       if (!verdict.dial) {
-        void sound?.then((owned) => owned.release()).catch(() => undefined);
         set({
           checking: false,
           block: { kind: verdict.blocked ?? 'refused', notices: verdict.notices },
         });
         return;
       }
-      const ownedMedia = media({ meeting, ...(sound === undefined ? {} : { sound }) });
+      const ownedMedia = media();
       const owned: CallSession<DesktopCapture, CallCaptureErrorCode> = createCallSession<
         DesktopCapture,
         CallCaptureErrorCode
@@ -245,13 +235,17 @@ export function createDesktopCall(
           set({
             state: state.call,
             visual: visualOf(owned, state.visual as CallVisualState<CallCaptureErrorCode>),
+            ...(state.call.status === 'live' ? {} : { sound: 'off' as const }),
           });
         },
       });
       session = owned;
       sessionMedia = ownedMedia;
+      soundWatch = ownedMedia.onComputerSound?.((on) => {
+        if (sessionMedia === ownedMedia) set({ sound: on ? 'on' : 'off' });
+      });
       set({ checking: false });
-      await owned.client.open(slug, meeting ? { meeting: true } : undefined);
+      await owned.client.open(slug);
     },
     async mute(muted) {
       await session?.client.mute(muted);
@@ -264,18 +258,29 @@ export function createDesktopCall(
       if (on) await session?.share('screen');
       else await session?.unshare('screen');
     },
+    async computerSound(on) {
+      const owned = sessionMedia;
+      if (owned?.computerSound === undefined || current.state.status !== 'live') return;
+      if (on && current.sound === 'starting') return;
+      if (on) set({ sound: 'starting' });
+      try {
+        const shared = await owned.computerSound(on);
+        if (sessionMedia === owned) set({ sound: shared ? 'on' : 'off' });
+      } catch {
+        if (sessionMedia === owned) set({ sound: 'missing' });
+      }
+    },
     dismissVisual() {
       session?.dismissVisual();
     },
     async hangup(options) {
-      if (pending !== undefined) {
-        pending.cancelled = true;
-        void pending.sound?.then((owned) => owned.release()).catch(() => undefined);
-        pending = undefined;
-        set({ checking: false });
-      }
       await session?.hangup(options);
-      set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
+      set({
+        block: undefined,
+        state: { status: 'idle' },
+        visual: DESKTOP_CALL_VISUAL_OFF,
+        sound: 'off',
+      });
     },
     dismiss() {
       if (active()) return;
@@ -361,7 +366,6 @@ export type DesktopCallNoticeKey =
   | 'call.connectOnly'
   | 'call.microphoneDenied'
   | 'call.microphoneMissing'
-  | 'call.meetingSoundMissing'
   | 'call.ended.connectionLost'
   | 'call.ended.connectTimeout'
   | 'call.ended.mediaFailed'
@@ -384,7 +388,6 @@ const NOTICE: Record<CallNotice, DesktopCallNoticeKey> = {
   'connect-only': 'call.connectOnly',
   'microphone-denied': 'call.microphoneDenied',
   'microphone-missing': 'call.microphoneMissing',
-  'meeting-sound-missing': 'call.meetingSoundMissing',
   'ended.connection-lost': 'call.ended.connectionLost',
   'ended.connect-timeout': 'call.ended.connectTimeout',
   'ended.media-failed': 'call.ended.mediaFailed',
