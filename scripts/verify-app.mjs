@@ -37,6 +37,7 @@ Shot options:
   --click <name>            Click the element with this accessible name (repeatable, in order).
   --click-text <text>       Click the last visible button, link or tab in page order whose text contains this.
   --right-click <name>      Right-click the element with this accessible name to open its context menu.
+  --long-press <name>       Hold the primary button on the element with this accessible name for 800ms.
   --fill <name>=<text>      Type into the field with this accessible name (repeatable, in order).
   --hover <name>            Rest the pointer on the element with this accessible name (repeatable, in order).
   --press <key>             Press a key or chord in the focused element, for example Enter or Control+K
@@ -130,6 +131,9 @@ export function parseVerifyArgs(argv) {
         break;
       case '--right-click':
         options.actions.push({ kind: 'right-click', name: value() });
+        break;
+      case '--long-press':
+        options.actions.push({ kind: 'long-press', name: value() });
         break;
       case '--press':
         options.actions.push({ kind: 'press', name: value() });
@@ -570,7 +574,15 @@ async function shot(options, paths) {
         if (action.kind === 'click') await locator.click();
         else if (action.kind === 'hover') await locator.hover();
         else if (action.kind === 'right-click') await locator.click({ button: 'right' });
-        else await locator.fill(action.text);
+        else if (action.kind === 'long-press') {
+          const handle = await locator.waitHandle();
+          const box = await handle.boundingBox();
+          if (box === null) throw new Error(`${action.name} has no box to press`);
+          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          await page.mouse.down();
+          await new Promise((done) => setTimeout(done, 800));
+          await page.mouse.up();
+        } else await locator.fill(action.text);
       }
       steps.push(`${action.kind} ${JSON.stringify(action.name)}`);
       await new Promise((done) => setTimeout(done, 500));

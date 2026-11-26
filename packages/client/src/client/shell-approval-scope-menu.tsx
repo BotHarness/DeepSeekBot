@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type TouchEvent,
   type ReactElement,
   type ReactNode,
 } from 'react';
@@ -193,6 +194,7 @@ export interface ShellScopeTriggerProps {
   onPointerLeave: () => void;
   onPointerCancel: () => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
+  onTouchStart: (event: TouchEvent<HTMLButtonElement>) => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
   'aria-keyshortcuts': string;
 }
@@ -262,10 +264,12 @@ export function useShellScopeMenu({
         onPointerCancel: cancelPress,
         onContextMenu: (event) => {
           event.preventDefault();
+          event.stopPropagation();
           if (event.currentTarget.disabled) return;
           button.current = event.currentTarget;
           open({ x: event.clientX, y: event.clientY }, false);
         },
+        onTouchStart: (event) => event.stopPropagation(),
         onKeyDown: (event) => {
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
           event.preventDefault();

@@ -64,10 +64,14 @@ const actions = (): BridgeActions =>
     },
   }) as unknown as BridgeActions;
 
-const render = async (value = message()): Promise<HTMLElement> => {
+const render = async (value = message(), onBubbleMenu?: () => void): Promise<HTMLElement> => {
   await act(async () => {
     root.render(
-      createElement(ToolApprovalCard, { message: value, actions: actions(), t: zhTranslate }),
+      createElement(
+        'div',
+        { onContextMenu: onBubbleMenu },
+        createElement(ToolApprovalCard, { message: value, actions: actions(), t: zhTranslate }),
+      ),
     );
   });
   await act(async () => {
@@ -124,8 +128,9 @@ describe('Shell Always allow scope menu', () => {
     expect(card.textContent).not.toContain('git status *');
   });
 
-  it('opens on right-click and saves the two-word prefix', async () => {
-    const card = await render();
+  it('opens on right-click without the message menu and saves the two-word prefix', async () => {
+    const bubbleMenu = vi.fn();
+    const card = await render(message(), bubbleMenu);
     await act(async () => {
       always(card).dispatchEvent(
         new MouseEvent('contextmenu', {
@@ -143,6 +148,7 @@ describe('Shell Always allow scope menu', () => {
       '只允许这一条',
       '自定义…',
     ]);
+    expect(bubbleMenu).not.toHaveBeenCalled();
     await choose('以 git status * 开头');
     await settle();
     expect(decisions).toEqual([
