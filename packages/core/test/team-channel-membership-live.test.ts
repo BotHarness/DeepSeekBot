@@ -4,6 +4,16 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createTempRoot } from './helpers.js';
 
+function within<T>(promise: Promise<T>, ms = 5_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`no roster frame within ${ms} ms`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 it('delivers a public Channel on an already-connected member roster with a cached cursor', async () => {
   const core = createCore({ dshHome: createTempRoot('team-public-live-') });
   const human = humanContext('member');
@@ -14,17 +24,17 @@ it('delivers a public Channel on an already-connected member roster with a cache
       db.prepare("INSERT INTO humans VALUES ('member', 'Member', 'active', 'before')").run();
       db.prepare("INSERT INTO human_roles VALUES ('member', 'member')").run();
     });
-    expect((await stream.next()).value).toMatchObject({ type: 'baseline' });
+    expect((await within(stream.next())).value).toMatchObject({ type: 'baseline' });
 
     const group = core.channels.createGroup(owner, { name: 'Going public', members: [] });
     const hidden = core.channels.createGroup(owner, { name: 'Private', members: [] });
-    expect(await stream.next()).toMatchObject({ done: false, value: { type: 'changed' } });
+    expect(await within(stream.next())).toMatchObject({ done: false, value: { type: 'changed' } });
     expect(core.team.channelAccess.visibleIds(human)).toEqual(new Set());
     const cursor = core.channels.changeCursor!();
     const next = stream.next();
     core.team.channelAccess.visibilitySet(owner, group.id, { kind: 'public' });
 
-    await expect(next).resolves.toMatchObject({ done: false, value: { type: 'changed' } });
+    await expect(within(next)).resolves.toMatchObject({ done: false, value: { type: 'changed' } });
     expect(core.team.channelAccess.visibleIds(human)).toEqual(new Set([group.id]));
     expect(
       core.channels.readChangedChannels!({ sinceSeq: cursor.seq, epoch: cursor.epoch }),
