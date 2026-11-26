@@ -300,3 +300,68 @@ it('reloads the member being selected when a save lands during their load', asyn
   expect(host.querySelector('[data-team-effective="bob"]')).toBeNull();
   expect(host.querySelector('[data-team-effective="alice"]')).not.toBeNull();
 });
+
+it('reloads a member picked while a save is pending once the save lands', async () => {
+  let current = role();
+  let releaseSave: () => void = () => undefined;
+  let loads = 0;
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles') return { ok: true, value: [current] };
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    if (method === 'members')
+      return {
+        ok: true,
+        value: [
+          {
+            humanId: 'alice',
+            username: 'alice',
+            displayName: 'Alice',
+            status: 'active',
+            roleIds: ['member', 'leads'],
+          },
+        ],
+      };
+    if (method === 'roleUpdate') {
+      await new Promise<void>((resolve) => (releaseSave = resolve));
+      current = {
+        ...current,
+        permissions: args['permissions'],
+        denied: args['denied'],
+      } as TeamRole;
+      return { ok: true, value: { role: current } };
+    }
+    if (method === 'memberPermissions') {
+      loads++;
+      return {
+        ok: true,
+        value: {
+          humanId: 'alice',
+          owner: false,
+          active: true,
+          permissions: [
+            {
+              id: 'channels.create',
+              state: current.denied.includes('channels.create') ? 'denied' : 'granted',
+              sources: [],
+            },
+          ],
+        },
+      };
+    }
+    throw new Error(method);
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  await act(async () => {
+    segment('channels.create', '拒绝').click();
+  });
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-team-holder="alice"]')!.click(),
+  );
+  const effective = () =>
+    host.querySelector<HTMLElement>('[data-team-effective-permission="channels.create"]');
+  expect(effective()?.dataset['state']).toBe('granted');
+  await act(async () => releaseSave());
+  expect(loads).toBe(2);
+  expect(effective()?.dataset['state']).toBe('denied');
+});
