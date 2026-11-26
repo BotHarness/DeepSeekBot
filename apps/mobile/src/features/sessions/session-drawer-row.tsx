@@ -60,7 +60,7 @@ export function SessionDrawerRow({
       ? { working: t.running, 'needs-you': t.waiting, done: t.done }[status]
       : t.need[need];
   const hostName = shownHostName(look, row.hostName);
-  const mark = theme.type.meta.line;
+  const mark = Math.round(theme.type.meta.line * theme.fontScale);
   const folderInk =
     identity.folder === undefined
       ? theme.color.muted
