@@ -1,4 +1,4 @@
-import type { OrchestratorChannelAccess } from '../../channels/runtime-access-types.js';
+import type { OrchestratorChannelAccess } from '../../runtime/runtime-access-types.js';
 import { type DirectBotToolSpec } from './direct-tools.js';
 import type { TurnTarget, TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
 import { type TurnTargetSegment } from '../../runtime/turn-targets.js';

@@ -4,23 +4,23 @@ import type { AttachmentStore } from '../attachments/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { DatabaseSync } from 'node:sqlite';
-import { createChannelFileAccess } from '../features/channel-files/events.js';
-import { createVoiceAccess } from '../features/voice/events.js';
+import type { createChannelFileAccess } from '../features/channel-files/events.js';
+import type { createVoiceAccess, queryCallWindow } from '../features/voice/events.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { requireSourceEffects } from '../purge/fence.js';
-import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
+import { BotNetworkDeliveryError } from './bot-network.js';
 import type {
   BotCreateInput,
   BotCreateOutcome,
   BotRuntime,
   BotRuntimeOptions,
-} from '../runtime/bot-runtime.js';
-import { boundModelPage, CHANNEL_READ_OUTPUT_LIMIT } from '../runtime/channel-model-read.js';
-import { MAX_MIXED_GROUP_ATTEMPTS } from '../runtime/orchestrator-continuation.js';
-import { requireNonBlank } from '../runtime/require-non-blank.js';
-import { SESSION_DIRECT_MESSAGE_PREFIX } from '../runtime/session-direct-message.js';
-import { sessionMentionText } from '../runtime/session-mentions.js';
-import { readTurnModelSwitch, type TurnTargetSegment } from '../runtime/turn-targets.js';
+} from './bot-runtime.js';
+import { boundModelPage, CHANNEL_READ_OUTPUT_LIMIT } from './channel-model-read.js';
+import { MAX_MIXED_GROUP_ATTEMPTS } from './orchestrator-continuation.js';
+import { requireNonBlank } from './require-non-blank.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
+import { sessionMentionText } from './session-mentions.js';
+import { readTurnModelSwitch, type TurnTargetSegment } from './turn-targets.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import { botOwner } from '../team/bot-access.js';
 import { TeamError } from '../team/error.js';
@@ -28,9 +28,9 @@ import type { TeamService } from '../team/service.js';
 import { TobError } from '../tob/service.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import type { WorkspaceGrantStore } from '../workspaces/grants.js';
-import type { createCausalSending } from './causal-sending.js';
-import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from './channel.js';
-import { ChannelQuoteError } from './quotes.js';
+import type { createCausalSending } from '../channels/causal-sending.js';
+import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
+import { ChannelQuoteError } from '../channels/quotes.js';
 import type {
   BotReactionInput,
   BotReactionResult,
@@ -42,8 +42,8 @@ import {
   GroupReplySourceRevoked,
   SendReviewRequired,
   type GroupSendReview,
-} from './send-review.js';
-import { ChannelReplyTargetError, type ChannelStore } from './store.js';
+} from '../channels/send-review.js';
+import { ChannelReplyTargetError, type ChannelStore } from '../channels/store.js';
 
 interface ChannelAccessPorts {
   admitGroupInvitation: BotRuntime['admitGroupInvitation'];
@@ -53,6 +53,11 @@ interface ChannelAccessPorts {
   botContacts: NonNullable<BotRuntime['botContacts']>;
   callFrames: BotRuntimeOptions['callFrames'];
   causalSending: ReturnType<typeof createCausalSending>;
+  channelToolFeatures: {
+    createChannelFileAccess: typeof createChannelFileAccess;
+    createVoiceAccess: typeof createVoiceAccess;
+    queryCallWindow: typeof queryCallWindow;
+  };
   channels: ChannelStore;
   closed: () => boolean;
   createBot: (
@@ -483,7 +488,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         ports.team?.bots.requireChannel(botSlug, channel, true);
         return react(botSlug, channel, input);
       },
-      ...createVoiceAccess({
+      ...ports.channelToolFeatures.createVoiceAccess({
         botSlug,
         channels: ports.channels,
         resolve,
@@ -576,7 +581,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
       read,
       query,
       readModel,
-      ...createChannelFileAccess({
+      ...ports.channelToolFeatures.createChannelFileAccess({
         botSlug,
         sessionId,
         defaultChannelId,

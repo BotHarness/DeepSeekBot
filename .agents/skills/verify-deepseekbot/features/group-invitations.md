@@ -8,8 +8,8 @@
 - `apps/mobile/src/host/{channel-creation,channel-creation-transport}.ts`
 - `apps/mobile/src/ui/shell/{create-channel-screen,create-channel-members-screen}.tsx`
 - `packages/host-client/src/group-member-picker.ts`
-- `packages/core/src/channels/runtime-access.ts`
-- `packages/core/src/channels/runtime-admission.ts`
+- `packages/core/src/runtime/runtime-access.ts`
+- `packages/core/src/runtime/runtime-admission.ts`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
 
 ## Terms

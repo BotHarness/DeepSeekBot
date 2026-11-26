@@ -1,4 +1,4 @@
-import { createBotSourcePolicyStore } from '../runtime/source-policy.js';
+import { createSqliteSourcePolicyResolver } from './sqlite-source-policy.js';
 import type { ChannelStore } from './store.js';
 import { DEFAULT_BOT_HOP_LIMIT } from './channel.js';
 import type { SqliteChannelAccess, SqliteChannelStoreOptions } from './sqlite-store.types.js';
@@ -301,7 +301,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const humanAccess: SqliteChannelAccess = { current: undefined };
   const { database, rootDir } = options;
   const now = options.now ?? (() => new Date());
-  const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
+  const sourcePolicy = options.sourcePolicy ?? createSqliteSourcePolicyResolver(database, now);
   const isBotActive = options.isBotActive ?? (() => true);
   const botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
 
