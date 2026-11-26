@@ -119,12 +119,8 @@ try {
   const alice = member('alice', ['member']);
   const bob = member('bob', ['member']);
   assert(run(['--as', bob, 'team-directory']).some((row) => row.displayName === 'Alice'));
+  assert(run(['--as', alice, 'team-directory']).some((row) => row.displayName === 'Bob'));
   check('every member can be found from Message a person', null);
-  const dm = run(['--as', alice, 'dm', bob]).channel.id;
-  assert.equal(run(['--as', bob, 'dm', alice]).channel.id, dm);
-  assert.deepEqual(dmIds(alice), []);
-  assert.deepEqual(dmIds(bob), []);
-  check('opening a person from the picker lists no DM for either side', null);
 
   const require = createRequire(import.meta.url);
   const globalRoots = () =>
@@ -143,44 +139,94 @@ try {
     playwright = require.resolve('playwright', { paths: globalRoots() });
   }
   const { chromium } = require(playwright);
+  const bobId = run(['members', 'list']).find((row) => row.username === bob).humanId;
   browser = await chromium.launch();
-  const bobCookies = await signIn(bob);
+  const cookies = new Map([
+    [alice, await signIn(alice)],
+    [bob, await signIn(bob)],
+  ]);
   const contexts = [];
-  const pages = new Map();
-  for (const scheme of ['light', 'dark']) {
+  const open = async (username, scheme) => {
     const context = await browser.newContext({
       colorScheme: scheme,
       viewport: { width: 1280, height: 800 },
       deviceScaleFactor: 2,
     });
     contexts.push(context);
-    await context.addCookies(bobCookies);
+    await context.addCookies(cookies.get(username));
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(String(error)));
     await page.goto(new URL('/botharness-device/team/', url.origin).href);
     await page.locator('text=Channels >> visible=true').first().waitFor({ timeout: 30_000 });
-    await page.waitForTimeout(1500);
-    assert.equal(await page.locator('text=Alice >> visible=true').count(), 0);
-    const file = join(directory, `before-first-message-${scheme}.png`);
+    const later = page
+      .getByRole('dialog', { name: 'Choose your name and photo' })
+      .getByText('Later', { exact: true });
+    await later
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .then(() => later.click())
+      .catch(() => undefined);
+    await later.waitFor({ state: 'hidden', timeout: 5_000 });
+    return { page, errors };
+  };
+  const shoot = async ({ page, errors }, label, scheme) => {
+    const file = join(directory, `${label}-${scheme}.png`);
     await page.screenshot({ path: file });
-    report.screenshots.push({ label: 'before-first-message', scheme, file, pageErrors: errors });
-    pages.set(scheme, { page, errors });
+    report.screenshots.push({ label, scheme, file, pageErrors: errors });
+  };
+  const composer = (page) => page.locator('.bh-composer-input >> visible=true').first();
+  const schemes = ['light', 'dark'];
+  const senders = new Map();
+  const recipients = new Map();
+  for (const scheme of schemes) {
+    const sender = await open(alice, scheme);
+    await sender.page.getByRole('button', { name: 'New', exact: true }).first().click();
+    await sender.page.getByRole('menuitem', { name: 'Message a person' }).click();
+    const person = sender.page.locator(`[data-team-person="${bobId}"] button`);
+    await person.waitFor({ timeout: 30_000 });
+    await person.click();
+    await person.waitFor({ state: 'detached', timeout: 30_000 });
+    await composer(sender.page).waitFor({ timeout: 30_000 });
+    await shoot(sender, 'picker-opens-empty-dm', scheme);
+    senders.set(scheme, sender);
+    const recipient = await open(bob, scheme);
+    await recipient.page.waitForTimeout(1500);
+    assert.equal(await recipient.page.locator('text=Alice >> visible=true').count(), 0);
+    await shoot(recipient, 'recipient-before-first-message', scheme);
+    recipients.set(scheme, recipient);
   }
-  check('rendered member list has no DM before the first message', null);
+  check('picking a person in the Web Client opens an empty DM with a composer', null);
+  const dm = run(['--as', alice, 'dm', bob]).channel.id;
+  assert.equal(run(['--as', bob, 'dm', alice]).channel.id, dm);
+  assert.deepEqual(dmIds(alice), []);
+  assert.deepEqual(dmIds(bob), []);
+  check('opening a person from the picker lists no DM for either side', null);
 
   const marker = `hello-${suffix}`;
-  run(['--as', alice, 'channels', 'send', dm, '--body-stdin'], marker);
+  const first = senders.get('light').page;
+  await composer(first).click();
+  await first.keyboard.type(marker);
+  await first.keyboard.press('Enter');
+  await first.locator(`text=${marker} >> visible=true`).first().waitFor({ timeout: 30_000 });
   assert.deepEqual(dmIds(alice), [dm]);
   assert.deepEqual(dmIds(bob), [dm]);
-  check('the first message lists the DM for both people', null);
-  for (const [scheme, { page, errors }] of pages) {
-    await page.locator('text=Alice >> visible=true').first().waitFor({ timeout: 30_000 });
-    await page.locator('text=Alice >> visible=true').first().click();
-    await page.locator(`text=${marker} >> visible=true`).first().waitFor({ timeout: 30_000 });
-    const file = join(directory, `after-first-message-${scheme}.png`);
-    await page.screenshot({ path: file });
-    report.screenshots.push({ label: 'after-first-message', scheme, file, pageErrors: errors });
+  check('the first message from the picker DM lists it for both people', null);
+  for (const [scheme, sender] of senders) {
+    await sender.page
+      .locator(`text=${marker} >> visible=true`)
+      .first()
+      .waitFor({ timeout: 30_000 });
+    await shoot(sender, 'sender-after-first-message', scheme);
+  }
+  for (const [scheme, recipient] of recipients) {
+    const row = recipient.page.locator('text=Alice >> visible=true').first();
+    await row.waitFor({ timeout: 30_000 });
+    await row.click();
+    await recipient.page
+      .locator(`text=${marker} >> visible=true`)
+      .first()
+      .waitFor({ timeout: 30_000 });
+    await shoot(recipient, 'recipient-after-first-message', scheme);
   }
   check('the recipient sees the DM appear live and can open it', null);
   for (const context of contexts) await context.close();

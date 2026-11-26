@@ -9,6 +9,7 @@ import {
   loadTimelinePage,
   loadReadPosition,
   loadChannels,
+  loadChannel,
   openDmChannel,
   type BridgeCall,
 } from './bridge.js';
@@ -167,6 +168,10 @@ export function createConversationActions(
       if (currentSelection() !== requestedFrom) return;
       clientStore.setRoster(clientStore.getSnapshot().bots, channels);
       channel = channels.find((candidate) => candidate.id === channelId);
+    }
+    if (channel === undefined && messageId === undefined) {
+      channel = await loadChannel(scopedCall, channelId).catch(() => undefined);
+      if (currentSelection() !== requestedFrom) return;
     }
     if (channel === undefined) {
       if (messageId !== undefined) throw new Error('Source Channel is no longer available');

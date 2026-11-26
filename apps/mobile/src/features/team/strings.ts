@@ -1,4 +1,13 @@
 export const en = {
+  messagePerson: {
+    title: 'Message a person',
+    search: 'Search people',
+    loading: 'Loading people…',
+    loadFailed: "Couldn't load people.",
+    empty: 'No one else is on this Host yet.',
+    noMatch: 'No one matches.',
+    openFailed: "Couldn't open this chat. Try again.",
+  },
   invitePeople: 'Invite people',
   stepBar: {
     back: 'Back',
@@ -91,6 +100,15 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  messagePerson: {
+    title: '给某人发消息',
+    search: '搜索成员',
+    loading: '正在加载成员…',
+    loadFailed: '成员加载失败。',
+    empty: '此 Host 上还没有其他人。',
+    noMatch: '没有匹配的人。',
+    openFailed: '打开聊天失败，再试一次。',
+  },
   invitePeople: '邀请成员',
   stepBar: {
     back: '上一步',

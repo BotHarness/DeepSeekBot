@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { BOT, GROUP, DM, setup } from './bridge-helpers.js';
+import { conversationDraftKey } from '../src/client/conversation-draft.js';
 
 describe('bridge actions', () => {
   it('opens a newly observed source from the owner roster and refuses lost read permission before selection', async () => {
@@ -43,6 +44,58 @@ describe('bridge actions', () => {
     await expect(actions.openChannelAtMessage('deleted', 'reply')).rejects.toThrow(
       'Source Channel is no longer available',
     );
+  });
+
+  it('opens an unlisted Human DM from the Host record without listing it', async () => {
+    const pending = {
+      id: 'dm-humans-alice-bob',
+      type: 'dm' as const,
+      name: 'Bob',
+      members: [],
+      humanParticipants: ['alice', 'bob'],
+      createdAt: GROUP.createdAt,
+      updatedAt: GROUP.updatedAt,
+    };
+    const timelines: unknown[] = [];
+    const { clientStore, actions } = setup({
+      channelGet: ({ channelId }) => {
+        if (channelId !== pending.id) throw new Error('channel-not-found');
+        return { channel: pending };
+      },
+      channelTimeline: ({ channelId }) => {
+        timelines.push(channelId);
+        return {
+          revision: 0,
+          page: {
+            entries: [],
+            olderCursor: null,
+            newerCursor: null,
+            hasOlder: false,
+            hasNewer: false,
+          },
+        };
+      },
+    });
+    await actions.load();
+    await actions.openChannel(pending.id);
+    const snapshot = clientStore.getSnapshot();
+    expect(snapshot.selection).toEqual({ kind: 'channel', channelId: pending.id });
+    expect(snapshot.conversation).toMatchObject({
+      status: 'ready',
+      channel: { id: pending.id, name: 'Bob', humanParticipants: ['alice', 'bob'] },
+      messages: [],
+    });
+    expect(timelines).toEqual([pending.id]);
+    expect(snapshot.channels.map((channel) => channel.id)).not.toContain(pending.id);
+    expect(
+      conversationDraftKey({
+        ...snapshot,
+        composerIdentity: { hostId: 'host', profileId: 'profile', humanId: 'alice' },
+      }),
+    ).toBe(JSON.stringify(['host', 'profile', 'alice', pending.id]));
+    clientStore.select(undefined);
+    await actions.openChannel('missing');
+    expect(clientStore.getSnapshot().selection).toBeUndefined();
   });
 
   it('keeps Session rows visible and ignores an older refresh response', async () => {

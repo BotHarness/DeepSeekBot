@@ -42,7 +42,10 @@ export function conversationDraftKey(state: ConversationStateView): string | und
           (channel) => channel.type === 'dm' && channel.botSlug === selection.slug,
         )?.id
       : selection?.kind === 'channel'
-        ? state.channels.find((channel) => channel.id === selection.channelId)?.id
+        ? (state.channels.find((channel) => channel.id === selection.channelId)?.id ??
+          (state.conversation.channel?.id === selection.channelId
+            ? selection.channelId
+            : undefined))
         : undefined;
   return channelId === undefined
     ? undefined
