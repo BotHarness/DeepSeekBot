@@ -67,6 +67,9 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     listRowInsets: none,
     listRowSeparator: none,
     padding: none,
+    pickerStyle: none,
+    tag: (value: string) => ({ tag: value }),
+    tint: none,
   };
 });
 vi.mock('../src/ui/chat/session-model-filter-strip', () => ({
@@ -132,10 +135,35 @@ vi.mock('@expo/ui/swift-ui', () => {
       createElement('progress', { 'aria-label': modifiers?.find((m) => m.label)?.label }),
     RNHostView: ({ children }: { children: ReactNode }) => children,
     ScrollView: box('menu'),
+    Picker: ({
+      label,
+      selection,
+      onSelectionChange,
+      children,
+    }: {
+      label: string;
+      selection: string;
+      onSelectionChange(value: string): void;
+      children?: ReactNode;
+    }) =>
+      createElement(
+        'select',
+        {
+          'aria-label': label,
+          value: selection,
+          onChange: (event: { target: { value: string } }) => onSelectionChange(event.target.value),
+        },
+        children,
+      ),
     Section: ({ title, children }: { title?: string; children?: ReactNode }) =>
       createElement('fieldset', { 'data-heading': title }, children),
     Spacer: () => null,
-    Text: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
+    Text: ({ children, modifiers }: { children?: ReactNode; modifiers?: { tag?: string }[] }) => {
+      const value = modifiers?.find((m) => m.tag !== undefined)?.tag;
+      return value === undefined
+        ? createElement('span', null, children)
+        : createElement('option', { value }, children);
+    },
     Toolbar,
     ToolbarItem: ({ placement, children }: { placement: string; children: ReactNode }) =>
       createElement('div', { 'data-placement': placement }, children),
@@ -208,8 +236,13 @@ const props = {
   ],
   filter: undefined as string | undefined,
   filterLabel: 'Filter by provider',
+  effortLabel: 'Reasoning effort',
+  effort: undefined as
+    | { key: string; current: string; options: { id: string; name: string }[] }
+    | undefined,
   onRefresh: vi.fn(),
   onFilter: vi.fn(),
+  onEffort: vi.fn(),
   onChoose: vi.fn(),
 };
 
@@ -316,4 +349,34 @@ it('puts the provider strip under the Default row, badges subscriptions and togg
     container.querySelector<HTMLButtonElement>('[aria-label="Claude subscription"]')?.click(),
   );
   expect(props.onFilter).toHaveBeenLastCalledWith(undefined);
+});
+
+it('puts the reasoning effort menu right under the selected model with only its levels', () => {
+  const effort = {
+    key: 'flash',
+    current: 'high',
+    options: [
+      { id: 'low', name: 'Low' },
+      { id: 'high', name: 'High' },
+    ],
+  };
+  act(() =>
+    root.render(createElement(NativeSessionModelSheet, { ...props, current: 'flash', effort })),
+  );
+  const api = [...container.querySelectorAll('fieldset')].find(
+    (set) => set.getAttribute('data-heading') === 'API models',
+  )!;
+  const children = [...api.children];
+  const row = children.findIndex((child) => child.getAttribute('aria-label') === 'V4.1 Flash, API');
+  const select = children[row + 1] as HTMLSelectElement;
+  expect(select.tagName).toBe('SELECT');
+  expect(select.getAttribute('aria-label')).toBe('Reasoning effort');
+  expect([...select.options].map((option) => option.textContent)).toEqual(['Low', 'High']);
+  act(() => {
+    select.value = 'low';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(props.onEffort).toHaveBeenCalledWith('low');
+  act(() => root.render(createElement(NativeSessionModelSheet, props)));
+  expect(container.querySelector('select')).toBeNull();
 });

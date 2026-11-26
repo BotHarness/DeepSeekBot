@@ -5,6 +5,7 @@ import {
   SKELETON_SUB_ROWS,
   catalogDefaultChoice,
   filterSessionModelSections,
+  sessionModelEffort,
   sessionModelFilters,
   sessionModelSections,
   sessionModelSkeleton,
@@ -137,5 +138,91 @@ describe('Session model picker sections', () => {
         .filter((s) => s.rows.length > 0)
         .map((s) => s.id),
     ).toEqual(['default', 'api']);
+  });
+});
+
+describe('Session model reasoning effort', () => {
+  const effortCatalog = {
+    ...catalog,
+    models: [
+      {
+        provider: 'opencode-go',
+        providerName: 'OpenCode Go',
+        model: 'reasoner',
+        modelName: 'Reasoner',
+        efforts: [
+          { id: 'low', name: 'Low' },
+          { id: 'medium', name: 'Medium' },
+          { id: 'high', name: 'High' },
+        ],
+        defaultEffort: 'medium',
+      },
+      { provider: 'opencode-go', providerName: 'OpenCode Go', model: 'plain', modelName: 'Plain' },
+    ],
+    engines: [
+      {
+        engine: 'claude',
+        available: true,
+        accountId: 'work',
+        models: [
+          {
+            id: 'claude-opus-5-5',
+            name: 'Claude Opus 5.5',
+            efforts: [
+              { id: 'high', name: 'High' },
+              { id: 'max', name: 'Max' },
+            ],
+            defaultEffort: 'high',
+          },
+        ],
+      },
+    ],
+  } as unknown as SessionModelCatalog;
+  const name = (id: string, catalogName?: string) => `${catalogName ?? id}!`;
+
+  it('offers only the selected model levels and starts at its default', () => {
+    expect(
+      sessionModelEffort(
+        effortCatalog,
+        { kind: 'model', provider: 'opencode-go', model: 'reasoner' },
+        name,
+      ),
+    ).toEqual({
+      key: JSON.stringify(['model', 'opencode-go', 'reasoner']),
+      current: 'medium',
+      options: [
+        { id: 'low', name: 'Low!' },
+        { id: 'medium', name: 'Medium!' },
+        { id: 'high', name: 'High!' },
+      ],
+    });
+  });
+
+  it('keeps the saved level and covers subscription models', () => {
+    expect(
+      sessionModelEffort(
+        effortCatalog,
+        {
+          kind: 'engine',
+          engine: 'claude',
+          accountId: 'work',
+          model: 'claude-opus-5-5',
+          effort: 'max',
+        },
+        name,
+      )?.current,
+    ).toBe('max');
+  });
+
+  it('shows nothing for the default, groups or models without levels', () => {
+    expect(sessionModelEffort(effortCatalog, null, name)).toBeUndefined();
+    expect(sessionModelEffort(effortCatalog, { kind: 'group', id: 'fast' }, name)).toBeUndefined();
+    expect(
+      sessionModelEffort(
+        effortCatalog,
+        { kind: 'model', provider: 'opencode-go', model: 'plain' },
+        name,
+      ),
+    ).toBeUndefined();
   });
 });

@@ -223,3 +223,42 @@ export function sessionModelSkeleton(
     { id: 'api', title: strings.apiModels, rows: SKELETON_API_ROWS },
   ];
 }
+
+export interface SessionModelEffort {
+  key: string;
+  options: { id: string; name: string }[];
+  current: string;
+}
+
+export function sessionModelEffort(
+  catalog: SessionModelCatalog | undefined,
+  choice: SessionModelChoice | null,
+  name: (id: string, catalogName?: string) => string,
+): SessionModelEffort | undefined {
+  if (catalog === undefined || choice === null || choice.kind === 'group') return undefined;
+  const model =
+    choice.kind === 'model'
+      ? catalog.models.find(
+          (entry) => entry.provider === choice.provider && entry.model === choice.model,
+        )
+      : catalog.engines
+          .flatMap((engine) =>
+            engine.available &&
+            engine.engine === choice.engine &&
+            (choice.accountId === undefined || engine.accountId === choice.accountId)
+              ? engine.models
+              : [],
+          )
+          .find((entry) => entry.id === choice.model);
+  const efforts = model?.efforts ?? [];
+  if (efforts.length < 2) return undefined;
+  const current =
+    efforts.find((effort) => effort.id === choice.effort)?.id ??
+    efforts.find((effort) => effort.id === model?.defaultEffort)?.id ??
+    efforts[0]!.id;
+  return {
+    key: sessionModelKey(choice),
+    current,
+    options: efforts.map((effort) => ({ id: effort.id, name: name(effort.id, effort.name) })),
+  };
+}
