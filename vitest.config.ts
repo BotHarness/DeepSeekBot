@@ -60,7 +60,7 @@ const testDefaults = {
   ],
 };
 
-export const mobileTestProject = {
+export const mobileTestProject: UserWorkspaceConfig & { extends: false } = {
   extends: false,
   ...sourceOptions(),
   root: fileURLToPath(new URL('.', import.meta.url)),
@@ -73,7 +73,7 @@ export const mobileTestProject = {
     ...ciWorkerLimit,
     sequence: { groupOrder: 0 },
   },
-} satisfies UserWorkspaceConfig & { extends: false };
+};
 
 export default defineConfig({
   ...sourceOptions(),
