@@ -239,6 +239,7 @@ deepseekbot tool-approval-status <channel-id> --message-id <card-id>
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-once
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-tool
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-kind
+deepseekbot approval-rule-add <channel-id> --message-id <card-id> --prefix "git status *"
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome rejected
 deepseekbot user-question-status <channel-id> --message-id <card-id>
 deepseekbot user-question-answer <channel-id> --message-id <card-id> --answer-stdin
@@ -267,6 +268,8 @@ Trusted effect declarations describe tool calls on approval cards; they do not b
 `skills-memory --bot <bot-id>` lists the Project Skills in that PersonaBot's own Memory Repository, the same list as its profile's **Skills** card: root `.dsh/skills` before `.agents/skills`, model-only Skills included (`userInvocable: false`), Workspace Skills excluded. `skills-show <name> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` returns that Skill's full text. `skills-remove <name> --bot <bot-id> --confirm` deletes the Skill folder (or flat `.md` file) from the Memory Repository and commits `skills: remove <name>`, so git history can restore it (uncommitted edits are committed first as `skills: save <name> before removal`; a folder holding git-ignored files refuses with `skill-has-ignored-files`, because history could not restore them); the open `/` menu updates through the live catalog event. Without `--confirm` it refuses. There is no disable switch. A missing Skill refuses with `skill-not-found`.
 
 `tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
+
+For a pending Shell card, `tool-approval-status` also returns `shellSuggestions`. Use `approval-rule-add` with one to five repeatable `--prefix` flags in subcommand order to approve the call and save those prefixes together. Use `--outcome allowed-always-exact` to remember the full call. `tool-approval-rules <bot-id>` lists the saved rules with kind `prefix` and the pattern in `input`. To revoke one, run `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm`.
 
 `user-question-answer` accepts the same offered selections as the Web card. A durable timed
 question can be answered after restarting the Host; keep its original Channel and card IDs.

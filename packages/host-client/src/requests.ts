@@ -166,6 +166,7 @@ const APPROVAL_DECISIONS: Readonly<
   'allowed-once': 'allow_once',
   'allowed-always-tool': 'allow_always',
   'allowed-always-exact': 'allow_always',
+  'allowed-always-prefix': 'allow_always',
   'allowed-always-all': 'allow_always',
   rejected: 'reject',
 };

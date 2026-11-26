@@ -235,6 +235,7 @@ deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
+deepseekbot approval-rule-add <channel-id> --message-id <卡片-id> --prefix "git status *"
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-once
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-tool
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-always-kind
@@ -256,6 +257,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
+
+对于待处理的 Shell 审批卡，`tool-approval-status` 还返回 `shellSuggestions`。用 `approval-rule-add` 按子命令顺序传入一至五个 `--prefix`，可一次批准当前调用并保存前缀。使用 `--outcome allowed-always-exact` 可记住完整调用。`tool-approval-rules <bot-id>` 将前缀规则显示为 `prefix`，`input` 保存模式文本。使用 `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm` 撤销。
 
 `user-question-answer` 接受与网页卡片相同的已提供选项。持久化限时提问可在 Host 重启后回答，
 请保留原 Channel 与卡片 ID。冷恢复继续原生调用并保留 Memory，但不产生新的 Inbox Admission
