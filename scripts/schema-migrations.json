@@ -772,6 +772,10 @@
     "sha256": "a6ede706bb8c3bc5f73c78ef02c7c6f8a620a3ad7036629b3f4b58df3df775c6"
   },
   {
+    "id": "connector-sign-in-access",
+    "sha256": "1ad17f37ffba7355aa0347f3a01aae477d85ad17d51222daf64d165fa7cb094a"
+  },
+  {
     "id": "role-denied-permissions",
     "sha256": "9e0587401ed5997f39383fb34181edd14e5f7d705a46b6e922b0e53da0af9075"
   }

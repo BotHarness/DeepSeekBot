@@ -1427,7 +1427,7 @@ deepseekbot connector-mcp-add https://mcp.example.com/mcp --name Example --label
 deepseekbot connector-mcp-finish "http://127.0.0.1:7777/botharness/connectors/oauth/callback?code=…&state=…"
 ```
 
-`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。授权方式和 Composio 账号相同：每个分配给 Bot 的账号会以独立的 `mcp__app_<service>__` 工具出现，`read` 只允许服务器标为只读的工具，`write` 允许全部工具。
+`connector-connect` 使用搜索结果里的 `service`，`connector-mcp-add` 接受任意 https 地址。服务器需要登录时，两者都会输出登录链接。如果登录用的浏览器访问不到 Host，复制登录页最后打开的地址，交给 `connector-mcp-finish`。Host 会申请服务器提供的全部 scope，允许哪些由你在服务自己的授权页上选。授权完成后，Host 记录服务器实际给出的权限：给出的 scope 全是读取类（例如 `insight:read`；`openid`、`profile`、`email`、`offline_access` 和 `introspection` 不计）时显示为只读，否则显示为读写。要修改，用 `connector-reconnect` 重新登录。分配到这个账号的 Bot 能看到它全部的 `mcp__app_<service>__` 工具，能做什么由服务器执行；Host 不按读写过滤 MCP 工具，所以 `connector-grant` 的 `--access` 对 MCP 账号只表示 Bot 能不能使用它。Host 开始记录授权权限之前连接的账号仍按每个 Bot 的授权处理：`read` 授权会拒绝它的工具，直到 Owner 重新登录。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

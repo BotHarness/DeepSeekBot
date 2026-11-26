@@ -10,10 +10,11 @@ import { ConnectorService } from '../src/connectors/service.js';
 import type { ComposioClient } from '../src/connectors/composio.js';
 import { remoteMcpUrl, type RemoteMcpClient } from '../src/connectors/remote-mcp.js';
 import {
-  mcpPublicToolName,
+  LEGACY_READ_REFUSAL,
   remoteMcpServerNames,
   remoteMcpToolDenial,
 } from '../src/connectors/policy.js';
+import { grantedAccess } from '../src/connectors/remote.js';
 import { fetchImage, publicDestination } from '../src/connectors/images.js';
 import { secretMcpPlan } from '../src/credentials/secret-mcp.js';
 import { createTempRoot } from './helpers.js';
@@ -22,7 +23,7 @@ const POSTHOG = 'https://mcp.posthog.com/mcp';
 const OAUTH = {
   authorizationServer: 'https://oauth.posthog.com/',
   resource: POSTHOG,
-  scope: 'openid',
+  scope: 'openid profile insight:read insight:write annotation:read annotation:write introspection',
 };
 
 function vault() {
@@ -56,8 +57,8 @@ function fakeMcp(overrides: Partial<RemoteMcpClient> = {}) {
       calls.push(['register', oauth.authorizationServer, redirectUri]);
       return { client_id: 'client-1', redirect_uris: [redirectUri] };
     },
-    authorize: async (_oauth, client, redirectUri, state) => {
-      calls.push(['authorize', client.client_id, redirectUri]);
+    authorize: async (oauth, client, redirectUri, state) => {
+      calls.push(['authorize', client.client_id, redirectUri, oauth.scope]);
       return {
         url: `https://oauth.posthog.com/oauth/authorize/?state=${state}`,
         verifier: 'verifier-1',
@@ -82,10 +83,7 @@ function fakeMcp(overrides: Partial<RemoteMcpClient> = {}) {
       calls.push(['inspect', url, token]);
       return {
         name: 'PostHog',
-        tools: [
-          { name: 'insights-get-all', readOnly: true },
-          { name: 'feature-flag-update', readOnly: false },
-        ],
+        tools: [{ name: 'insights-get-all' }, { name: 'feature-flag-update' }],
       };
     },
     image: async () => undefined,
@@ -182,6 +180,44 @@ describe('remote MCP App connections', () => {
       await service.remote.remove(finished.accountId);
       expect(store.mcpServer('mcp_posthog')).toBeUndefined();
       expect(store.accounts()).toEqual([]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('asks for every scope and records the access the service granted', async () => {
+    let granted = 'openid profile insight:read annotation:read';
+    const { client, calls } = fakeMcp({
+      exchange: async () => ({ access_token: 'access-1', token_type: 'Bearer', scope: granted }),
+    });
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({ service: 'mcp_posthog', label: 'Reader' });
+      expect(calls).toContainEqual([
+        'authorize',
+        'client-1',
+        'http://127.0.0.1:7777/botharness/connectors/oauth/callback',
+        OAUTH.scope,
+      ]);
+      const finished = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'code-1' }),
+      );
+      expect(finished).toMatchObject({ status: 'active', access: 'read' });
+      service.grant('tob', finished.accountId, 'write');
+      expect(service.forBot('tob')).toMatchObject([
+        { accountId: finished.accountId, access: 'read' },
+      ]);
+
+      granted = OAUTH.scope;
+      const again = await service.reconnect(finished.accountId);
+      await service.remote.finish(
+        new URLSearchParams({ state: stateOf(again.url!), code: 'code-2' }),
+      );
+      expect(store.account(finished.accountId)).toMatchObject({
+        status: 'active',
+        access: 'write',
+      });
+      expect(service.forBot('tob')).toMatchObject([{ access: 'write' }]);
     } finally {
       owner.close();
     }
@@ -295,6 +331,99 @@ describe('remote MCP App connections', () => {
       fail = new OAuthError('invalid_grant', 'refused');
       expect(await service.remote.connection(other.accountId)).toBeUndefined();
       expect(store.account(other.accountId)?.status).toBe('expired');
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('keeps a newer sign-in when a refresh races, and records the access a refresh grants', async () => {
+    let release: (() => void) | undefined;
+    let scope: string | undefined;
+    let rejected = false;
+    let refreshes = 0;
+    const { client } = fakeMcp({
+      exchange: async (_oauth, _client, input) => ({
+        access_token: `access-${input.code}`,
+        token_type: 'Bearer',
+        refresh_token: `refresh-${input.code}`,
+        expires_in: 60,
+        scope: 'openid insight:read',
+      }),
+      refresh: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        refreshes += 1;
+        if (rejected) throw new OAuthError('invalid_grant', 'refused');
+        return {
+          access_token: 'access-refreshed',
+          token_type: 'Bearer',
+          expires_in: 60,
+          ...(scope === undefined ? {} : { scope }),
+        };
+      },
+    });
+    const { owner, store, service } = setup(client);
+    try {
+      const started = await service.connect({ service: 'mcp_posthog' });
+      const { accountId } = await service.remote.finish(
+        new URLSearchParams({ state: stateOf(started.url!), code: 'a' }),
+      );
+      const racing = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const again = await service.reconnect(accountId);
+      await service.remote.finish(new URLSearchParams({ state: stateOf(again.url!), code: 'b' }));
+      release!();
+      expect((await racing)?.headers['Authorization']).toBe('Bearer access-b');
+      expect(store.account(accountId)?.access).toBe('read');
+
+      rejected = true;
+      const stale = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const third = await service.reconnect(accountId);
+      await service.remote.finish(new URLSearchParams({ state: stateOf(third.url!), code: 'c' }));
+      release!();
+      expect((await stale)?.headers['Authorization']).toBe('Bearer access-c');
+      expect(store.account(accountId)?.status).toBe('active');
+      rejected = false;
+
+      scope = 'openid insight:read insight:write';
+      const widening = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      release!();
+      expect((await widening)?.headers['Authorization']).toBe('Bearer access-refreshed');
+      expect(store.account(accountId)).toMatchObject({ status: 'active', access: 'write' });
+
+      attachOperationalModule(owner, 'connectors').transaction((database) =>
+        database.prepare('UPDATE connector_accounts SET access = NULL').run(),
+      );
+      service.grant('tob', accountId, 'read');
+      const legacy = service.remote.connection(accountId);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      release!();
+      await legacy;
+      expect(refreshes).toBe(4);
+      expect(store.account(accountId)?.access).toBeUndefined();
+      expect(service.forBot('tob')).toMatchObject([{ access: 'read' }]);
+    } finally {
+      owner.close();
+    }
+  });
+
+  it('keeps a Read grant on an account signed in before Tobs recorded granted access', async () => {
+    const { client } = fakeMcp();
+    const { owner, store, service } = setup(client);
+    try {
+      const legacy = store.createAccount({
+        provider: 'mcp',
+        service: 'mcp_posthog',
+        label: 'Old',
+        externalId: 'old',
+      });
+      service.grant('tob', legacy.accountId, 'read');
+      expect(service.forBot('tob')).toMatchObject([
+        { accountId: legacy.accountId, access: 'read' },
+      ]);
     } finally {
       owner.close();
     }
@@ -421,32 +550,32 @@ describe('remote MCP tool policy', () => {
       { accountId: 'b', provider: 'mcp', service: 'mcp_posthog' },
     ]);
     expect(alone.get('b')).toBe(names.get('b'));
-    expect(mcpPublicToolName('app_posthog', 'insights-get-all')).toBe(
-      'mcp__app_posthog__insights-get-all',
-    );
-    const long = mcpPublicToolName(
-      'app_posthog',
-      'a.very.long.tool.name.that.keeps.going.on.and.on',
-    );
-    expect(long).toHaveLength(64);
-    expect(long.startsWith('mcp__app_posthog__a_very')).toBe(true);
   });
 
-  it('lets Read access call only tools the server marks read-only', () => {
-    const read = new Set(['mcp__app_posthog__insights-get-all']);
-    const servers = new Map([
-      ['app_posthog', { access: 'read' as const, readOnly: read }],
-      ['app_linear', { access: 'write' as const, readOnly: undefined }],
-      ['app_notion', { access: 'read' as const, readOnly: undefined }],
+  it('lets a Bot call every tool of a granted MCP account and leaves read or write to the server', () => {
+    const servers = new Map<string, string | undefined>([
+      ['app_posthog_be7f6b', undefined],
+      ['app_linear_123456', undefined],
+      ['app_notion_abcdef', LEGACY_READ_REFUSAL],
     ]);
-    expect(remoteMcpToolDenial('mcp__app_posthog__insights-get-all', servers)).toBeUndefined();
-    expect(remoteMcpToolDenial('mcp__app_posthog__feature-flag-update', servers)).toContain(
-      'Read access only',
+    expect(remoteMcpToolDenial('mcp__app_notion_abcdef__search', servers)).toBe(
+      LEGACY_READ_REFUSAL,
     );
-    expect(remoteMcpToolDenial('mcp__app_linear__create_issue', servers)).toBeUndefined();
-    expect(remoteMcpToolDenial('mcp__app_notion__search', servers)).toContain('loading');
-    expect(remoteMcpToolDenial('mcp__app_gone__x', servers)).toContain('any more');
+    expect(remoteMcpToolDenial('mcp__app_posthog_be7f6b__exec', servers)).toBeUndefined();
+    expect(remoteMcpToolDenial('mcp__app_linear_123456__create_issue', servers)).toBeUndefined();
+    expect(remoteMcpToolDenial('mcp__app_gone_000000__x', servers)).toContain('any more');
     expect(remoteMcpToolDenial('mcp__composio__X', servers)).toBeUndefined();
+  });
+
+  it('reads Read only when every granted scope is a read scope', () => {
+    expect(grantedAccess('openid profile insight:read annotation:read introspection')).toBe('read');
+    expect(grantedAccess(OAUTH.scope)).toBe('write');
+    expect(grantedAccess('read:user')).toBe('read');
+    expect(grantedAccess('https://www.googleapis.com/auth/gmail.readonly')).toBe('read');
+    expect(grantedAccess('projects:read_write offline_access')).toBe('write');
+    expect(grantedAccess('repo user')).toBe('write');
+    expect(grantedAccess('openid profile')).toBe('write');
+    expect(grantedAccess(undefined)).toBe('write');
   });
 
   it('fetches registry icons only from public addresses, and no more than the size limit', async () => {

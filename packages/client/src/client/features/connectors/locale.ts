@@ -22,6 +22,7 @@ export const zh = {
   'connectors.accounts.empty': '先添加 Composio API key，再连接 Gmail、日历、Notion 等应用。',
   'connectors.accounts.none': '还没有应用连接。',
   'connectors.accounts.bots': '{count} 个 Bot 可用',
+  'connectors.accounts.signInAgain': '只读 Bot 要重新连接后才能用',
   'connectors.accounts.remove': '断开',
   'connectors.accounts.removeTitle': '断开 {name}？',
   'connectors.accounts.removeBody': '账号会被断开，所有 Bot 都将失去它。',
@@ -104,6 +105,7 @@ export const zh = {
     '用你在该服务的账号登录即可连接，不需要 Composio key。列表来自 MCP Registry，也可以直接粘贴服务器地址。',
   'connectors.catalog.mcpOffline': '暂时连不上 MCP Registry，只显示常用服务器。',
   'connectors.connect.connected': '已连接，这个服务器不需要登录。',
+  'connectors.bot.use': '可用',
   'connectors.error': '操作失败：{message}',
 } as const;
 
@@ -132,6 +134,7 @@ export const en = {
     'Add your Composio API key first, then connect apps such as Gmail, Calendar and Notion.',
   'connectors.accounts.none': 'No App connections yet.',
   'connectors.accounts.bots': 'Bots: {count}',
+  'connectors.accounts.signInAgain': 'Reconnect for Read Bots to use it',
   'connectors.accounts.remove': 'Disconnect',
   'connectors.accounts.removeTitle': 'Disconnect {name}?',
   'connectors.accounts.removeBody': 'The account is disconnected and every Bot loses it.',
@@ -219,5 +222,6 @@ export const en = {
   'connectors.catalog.mcpOffline':
     'The MCP Registry is unreachable; showing featured servers only.',
   'connectors.connect.connected': 'Connected. This server needs no sign-in.',
+  'connectors.bot.use': 'Can use',
   'connectors.error': 'That did not work: {message}',
 } satisfies Record<keyof typeof zh, string>;
