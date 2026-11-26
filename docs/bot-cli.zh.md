@@ -1418,7 +1418,7 @@ deepseekbot connector-key-clear --confirm
 
 ### 应用连接（远程 MCP）
 
-很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host 上的 `/botharness/connectors/oauth/callback`，账号变为 `active`。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。
+很多服务提供用账号登录即可连接的远程 MCP 服务器，不需要 Composio key。常用服务器包括 PostHog、Notion、Linear、Sentry、Atlassian、Stripe、HubSpot、Vercel、Supabase、Figma 和 Canva，`connector-mcp-search` 还会搜索公开的 [MCP Registry](https://registry.modelcontextprotocol.io)。Host 通过 OAuth 发现找到服务器的登录方式，把自己注册为客户端，并用 PKCE 打开登录页；登录后页面回到 Host，账号变为 `active`。Host 有公网 https 地址（Tobs Connect、Tailscale HTTPS 地址，或你自己提供的 https 地址）时，登录会回到该地址上的 `/botharness-device/connectors/oauth/callback`，所以可以在手机或任何设备上打开登录链接；没有时回到这台电脑上的 `/botharness/connectors/oauth/callback`。登录链接 60 分钟内有效。token 只存放在 Host 的凭据存储里，Host 会在过期前自动续期；续期失败时账号显示为已过期，用 `connector-reconnect` 重新登录。不需要登录的服务器会立即可用。
 
 ```bash
 deepseekbot connector-mcp-search posthog
