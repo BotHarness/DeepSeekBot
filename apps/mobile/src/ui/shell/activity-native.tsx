@@ -1,3 +1,4 @@
+import type { HostColorId } from '@botharness/host-client/ui/design/host-look';
 import {
   NATIVE_SESSION_ATTENTION_KIND,
   type HumanAttentionItem,
@@ -29,15 +30,18 @@ export function NativeSessionMark({
   native,
   size,
   corner,
+  hostColor,
 }: {
   native: NativeSessionAttention;
   size: number;
   corner: number;
+  hostColor: HostColorId;
 }) {
   return (
     <SessionFolderAvatar
       testID="activity-native-session-mark"
       folderName={native.folderName}
+      colorId={hostColor}
       size={size}
       corner={corner}
     />
