@@ -8,4 +8,4 @@ section: Changed
 
 ## zh
 
-- 手机端新增 设置 → 标签栏：可拖动调整各标签的顺序，并为每个环境选择固定标签页打开的对话（[#5196](https://github.com/BotHarness/DeepSeekBot/issues/5196)）。Tob 模式和 Chats 列表上方的 Tob 入口栏已移除，固定标签页默认打开 Tob 的私聊（[#5198](https://github.com/BotHarness/DeepSeekBot/issues/5198)）。
+- 手机端新增 设置 → 标签栏：可拖动调整各标签的顺序，并为每个环境选择固定标签页打开的对话（[#5196](https://github.com/BotHarness/DeepSeekBot/issues/5196)）。Tob 模式和 Chats 列表上方的 Tob 入口栏已移除，固定标签页默认打开 Tob 的 DM（[#5198](https://github.com/BotHarness/DeepSeekBot/issues/5198)）。
