@@ -241,6 +241,8 @@ export const en = {
     turnOn: 'Turn on',
     noAppManager:
       'No Bot can manage the App now. You can still change things yourself in Settings.',
+    managementOwnerOnly:
+      'Only the App Owner, or a member the Owner authorized, can change management access for their own Bots.',
   },
   profileEmpty: {
     work: 'No Assignments yet.',
@@ -464,6 +466,7 @@ export const zh: typeof en = {
     managementApproval: '写操作跟随它的审批模板，删除这类操作总会先问你。',
     turnOn: '打开',
     noAppManager: '现在没有 Bot 能管理 App。你仍然可以自己在设置里修改。',
+    managementOwnerOnly: '只有 App 的 Owner，或经 Owner 授权的成员，可以修改自己 Bot 的管理权限。',
   },
   profileEmpty: {
     work: '还没有 Assignment。',

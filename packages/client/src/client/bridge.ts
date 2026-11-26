@@ -720,7 +720,7 @@ export interface WorkspaceOption {
   title: string;
 }
 
-export { parseHumanAttentionPage } from '@botharness/host-client/people';
+export { botAttentionItems, parseHumanAttentionPage } from '@botharness/host-client/people';
 
 export type { MessagingApp };
 export type {

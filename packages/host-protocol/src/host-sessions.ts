@@ -67,6 +67,16 @@ export interface HostSessionListResult {
   nextCursor?: string;
 }
 
+export type HostSessionStatus = 'running' | 'needs-you' | 'idle';
+export type HostSessionAttention = 'approval' | 'question' | 'failed';
+
+export function hostSessionStatus(state: {
+  running: boolean;
+  attention?: HostSessionAttention | undefined;
+}): HostSessionStatus {
+  return state.attention !== undefined ? 'needs-you' : state.running ? 'running' : 'idle';
+}
+
 export type HostSessionListCursor = { epoch: string; seq: number };
 
 export type HostSessionListChanges =
@@ -87,6 +97,8 @@ export interface HostSessionRow {
   cwd?: string;
   running: boolean;
   waiting?: true;
+  status?: HostSessionStatus;
+  attention?: HostSessionAttention;
   archived?: true;
   model?: { provider: string; model: string };
   sortedAt?: number;
@@ -104,6 +116,7 @@ export type HostSessionPendingInput =
       toolName: string;
       callId?: string;
       reason?: string;
+      preview?: string;
     }
   | {
       kind: 'question';

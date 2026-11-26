@@ -88,6 +88,11 @@ const actionKinds = {
 
 type ActivityCountClient = HostCall;
 
+function countedKind(item: { kind: string; nativeSession?: { input: string } }): string {
+  if (item.nativeSession === undefined) return item.kind;
+  return item.nativeSession.input === 'approval' ? actionKinds.approvals : actionKinds.questions;
+}
+
 export async function readActivityCount(
   client: ActivityCountClient,
   kinds: readonly ActivityCountKind[],
@@ -103,17 +108,19 @@ export async function readActivityCount(
         category,
         limit: 100,
         queryVersion: 1,
+        source: 'all',
         ...(category === 'replies' ? { unreadOnly: true } : {}),
         ...(cursor ? { cursor } : {}),
       });
       if (page.queryVersion !== 1) throw new Error('ACTIVITY_COUNT_HOST_VERSION');
       for (const item of page.items) {
+        const kind = countedKind(item);
         if (
           category === 'action' &&
-          !actions.some((kind) =>
-            kind === 'otherActions'
-              ? !Object.values(actionKinds).some((value) => value === item.kind)
-              : actionKinds[kind] === item.kind,
+          !actions.some((wanted) =>
+            wanted === 'otherActions'
+              ? !Object.values(actionKinds).some((value) => value === kind)
+              : actionKinds[wanted] === kind,
           )
         )
           continue;

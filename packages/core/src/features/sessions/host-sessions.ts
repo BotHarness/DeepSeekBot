@@ -54,6 +54,8 @@ export interface DshSessionListRow {
   running: boolean;
   archived?: boolean;
   waiting?: true;
+  pendingInput?: 'approval' | 'question';
+  failed?: true;
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;

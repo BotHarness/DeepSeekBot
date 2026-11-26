@@ -14,6 +14,7 @@ export function alertFromPush(
   const kind = text(data['kind']);
   if (data['v'] !== 1 || hostId === '' || itemId === '' || kind === '') return undefined;
   const sender = text(data['sender']);
+  const sessionId = text(data['sessionId']);
   const shownBody = body || text(data['message']) || text(data['text']);
   return {
     title: title || text(data['title']) || sender,
@@ -28,6 +29,7 @@ export function alertFromPush(
       messageId: text(data['messageId']),
       sender,
       text: text(data['text']) || shownBody,
+      ...(sessionId === '' ? {} : { sessionId }),
     },
   };
 }

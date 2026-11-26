@@ -184,3 +184,60 @@ it('a request from an earlier Binding of the same App shows its block', async ()
     host.remove();
   }
 });
+
+it('a blocked conversation is listed with its type and can be unblocked', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const senderAccess = vi.fn(async () => {});
+  try {
+    await act(async () =>
+      root.render(
+        createElement(PairingSettings, {
+          requests: [request],
+          blocks: [block],
+          conversationBlocks: [
+            {
+              botSlug: 'ada',
+              bindingId: 'lark-qa',
+              fingerprint: 'lark:qa',
+              conversation: { kind: 'group', id: 'oc_noisy' },
+              name: 'Noisy group',
+              revision: 2,
+              blockedAt: '2026-10-07T00:00:00.000Z',
+              blockedBy: 'bot',
+            },
+          ],
+          senderAccess,
+          busy: false,
+          refresh: async () => {},
+          review: async () => {},
+          t: zhTranslate,
+        }),
+      ),
+    );
+    const tab = Array.from(host.querySelectorAll<HTMLButtonElement>('[role=tab]')).find((item) =>
+      item.textContent?.startsWith(zhTranslate('pairing.blocked')),
+    )!;
+    expect(tab.textContent).toContain('(2)');
+    await act(async () => tab.click());
+    const rows = Array.from(host.querySelectorAll('[role=tabpanel] tbody tr'));
+    expect(rows[0]!.textContent).toContain('Noisy group');
+    expect(rows[0]!.textContent).toContain(zhTranslate('pairing.blockedGroup'));
+    expect(rows[1]!.textContent).toContain(zhTranslate('pairing.blockedPerson'));
+    await act(async () =>
+      Array.from(rows[0]!.querySelectorAll('button'))
+        .find((item) => item.textContent === zhTranslate('pairing.unblock'))!
+        .click(),
+    );
+    expect(senderAccess).toHaveBeenCalledExactlyOnceWith({
+      kind: 'unblock-conversation',
+      bindingId: 'lark-qa',
+      conversation: { kind: 'group', id: 'oc_noisy' },
+      expectedRevision: 2,
+    });
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});

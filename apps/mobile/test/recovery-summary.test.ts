@@ -5,7 +5,7 @@ import type { LocalApprovalAlert } from '../src/host/device-alerts';
 
 const summary: LocalApprovalAlert = {
   title: 'Studio',
-  body: 'New replies 2 · Needs you 1',
+  body: 'Needs you 1 · New replies 2',
   members: ['a', 'b', 'c'],
   data: {
     v: 1,
@@ -16,7 +16,7 @@ const summary: LocalApprovalAlert = {
     channelId: '',
     messageId: '',
     sender: 'Studio',
-    text: 'New replies 2 · Needs you 1',
+    text: 'Needs you 1 · New replies 2',
   },
 };
 
@@ -30,7 +30,7 @@ it('updates an existing summary in place, retains pending members and respects d
   const banners = createAlertBanners();
   banners.reconcile('studio', ['a', 'b', 'c'], [summary]);
   expect(banners.getSnapshot()).toEqual(summary);
-  const updated = { ...summary, members: ['b'], body: 'New replies 0 · Needs you 1' };
+  const updated = { ...summary, members: ['b'], body: 'Needs you 1' };
   banners.reconcile('studio', ['b'], [updated]);
   expect(banners.getSnapshot()).toEqual(updated);
   banners.dismiss();

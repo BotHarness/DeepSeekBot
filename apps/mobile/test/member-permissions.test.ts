@@ -47,8 +47,24 @@ async function permissionsOf(client: HostClient) {
 }
 
 it.each([
-  { enabled: true, owner: true, permissions: [], people: true, bots: true, channels: true },
-  { enabled: false, owner: true, permissions: [], people: false, bots: true, channels: true },
+  {
+    enabled: true,
+    owner: true,
+    permissions: [],
+    people: true,
+    bots: true,
+    channels: true,
+    folders: true,
+  },
+  {
+    enabled: false,
+    owner: true,
+    permissions: [],
+    people: false,
+    bots: true,
+    channels: true,
+    folders: true,
+  },
   {
     enabled: true,
     owner: false,
@@ -56,8 +72,17 @@ it.each([
     people: true,
     bots: false,
     channels: false,
+    folders: false,
   },
-  { enabled: true, owner: false, permissions: [], people: false, bots: false, channels: false },
+  {
+    enabled: true,
+    owner: false,
+    permissions: [],
+    people: false,
+    bots: false,
+    channels: false,
+    folders: false,
+  },
 ])(
   'offers people DMs to the Owner on a Team Host and to members with dm.humans ($owner, $permissions)',
   async ({ enabled, owner, permissions, ...expected }) => {
