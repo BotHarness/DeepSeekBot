@@ -362,6 +362,7 @@ export class TeamRoles {
     const role = this.role(roleId);
     const authority = this.authority(human);
     this.checkPermissions(authority, role.permissions, 'manage');
+    this.checkPermissions(authority, role.denied, 'manage');
     if (role.builtin) throw new TeamError('role-builtin');
     if (
       this.db.read((db) => {

@@ -186,3 +186,23 @@ it('keeps Owner-only permissions locked for a delegated role manager', async () 
   expect(segment('bots.createPrivate', '允许').disabled).toBe(true);
   expect(segment('channels.create', '拒绝').disabled).toBe(false);
 });
+
+it('retries loading the workbench after a failed load', async () => {
+  let failing = true;
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode') return { ok: true, value: fakeTeamMode() };
+    if (method === 'roles') {
+      if (failing) throw new Error('offline');
+      return { ok: true, value: [role()] };
+    }
+    if (method === 'permissionCatalog') return { ok: true, value: catalog };
+    return { ok: true, value: [] };
+  });
+  await act(async () => root.render(<TeamWorkbench call={call} t={zhTranslate} />));
+  const retry = host.querySelector<HTMLButtonElement>('[data-team-retry]');
+  expect(retry?.textContent).toBe('重试');
+  failing = false;
+  await act(async () => retry!.click());
+  expect(host.querySelector('[data-team-retry]')).toBeNull();
+  expect(host.querySelector('[data-team-role-detail="leads"]')).not.toBeNull();
+});

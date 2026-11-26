@@ -8,7 +8,7 @@ import { resolveGrants } from '../../authorization/grants.js';
 import { readMessagingIdentity } from '../identity.js';
 import { MessagingError } from '../provider.js';
 import { assertBehaviorCompatibility } from './behavior-compatibility.js';
-import { readSenderBlock } from './sender-blocks.js';
+import { ownerActor, readSenderBlock } from './sender-blocks.js';
 import {
   behaviorPermissions,
   resolveBehaviorPermissions,
@@ -268,7 +268,9 @@ export function effectivePairingPermissions(
     binding.revokedAt ||
     binding.botSlug !== botSlug ||
     !platformPeople(binding.platform) ||
-    (!options.includeBlocked && readSenderBlock(db, botSlug, binding.fingerprint, actorId))
+    (!options.includeBlocked &&
+      readSenderBlock(db, botSlug, binding.fingerprint, actorId) &&
+      !ownerActor(db, botSlug, binding.fingerprint, actorId))
   )
     return empty;
   const pairings = (

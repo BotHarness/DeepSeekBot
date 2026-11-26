@@ -15,6 +15,8 @@ import {
   type WorkspaceGrantView,
   type BridgeCall,
 } from './bridge.js';
+import { createHostFolder } from '@botharness/host-client/bot-settings';
+import { bridgeHost } from './bridge-transport.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 import type { ActionFolderAccess, BridgeActions, HostDirectoryListing } from './actions.js';
 import type { createActivityActions } from './actions-activity.js';
@@ -26,6 +28,7 @@ export interface WorkspaceActions {
     offset?: number,
   ): Promise<HostDirectoryListing>;
   pickWorkspaceFolder(): Promise<string | null>;
+  createHostFolder(parent: string, name: string): Promise<WorkspaceOption>;
   addWorkspaceFolder(slug: string): Promise<WorkspaceGrantView | undefined>;
   authorizeWorkspacePath(slug: string, path: string): Promise<WorkspaceGrantView>;
   resolveWorkspaceFolder(path: string): Promise<WorkspaceOption>;
@@ -72,6 +75,7 @@ export function createWorkspaceActions(
 ) {
   return {
     listHostFolders: (path, signal, offset) => loadHostFolders(call, path, signal, offset),
+    createHostFolder: (parent, name) => createHostFolder(bridgeHost(call), { parent, name }),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       const path = await folderAccess.pickDirectory();

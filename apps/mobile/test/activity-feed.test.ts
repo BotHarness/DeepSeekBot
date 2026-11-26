@@ -268,7 +268,7 @@ describe('Activity feed', () => {
   it('retries through the current Inbox while a cached return is still refreshing', async () => {
     const fake = host();
     const view = await feed(fake, ready([]), 'cached-host', 5000);
-    const observed = observeInbox(client!, { activity: true, section: 'all' });
+    const observed = observeInbox(client!, { activity: true, section: 'all', source: 'all' });
     fake.answers.set('humanAttention', () => ({
       ok: false,
       error: { code: 'unavailable', message: 'temporary failure', details: {} },

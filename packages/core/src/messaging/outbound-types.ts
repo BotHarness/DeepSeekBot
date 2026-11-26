@@ -1,3 +1,4 @@
+import type { BotSourceBlockInput, botSourceBlocks } from './permissions/index.js';
 import type { ReceptionRecovery } from './receiver-recovery.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import type { FailureAlerts, FailureAlertSnapshot } from './failure-alerts.js';
@@ -6,6 +7,7 @@ import type {
   ExternalPermissionGroup,
   BehaviorPermission,
   SenderBlock,
+  ConversationSourceBlock,
   SenderPermissions,
   SenderAccessInput,
   SenderPolicy,
@@ -145,6 +147,7 @@ export interface MessagingSnapshot {
   questions?: QuestionDelivery[];
   permissionGroups?: ExternalPermissionGroup[];
   senderBlocks?: SenderBlock[];
+  conversationBlocks?: ConversationSourceBlock[];
   behaviorPermissions?: BehaviorPermission[];
   senderPolicy?: SenderPolicy;
   roles?: ExternalUserRole[];
@@ -203,6 +206,10 @@ export interface OutboundMessaging {
   senderAccess(botSlug: string, input: SenderAccessInput): void;
   toolRuleCreatorAuthorized(botSlug: string, creator: ToolApprovalActor): boolean;
   senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;
+  sourceBlocks(
+    botSlug: string,
+    input: BotSourceBlockInput & { sourceEventId?: string },
+  ): ReturnType<typeof botSourceBlocks>;
   directory(botSlug: string, query: MessagingDirectoryQuery): MessagingDirectoryPage;
   reviewPairing(botSlug: string, input: PairingReviewInput): Promise<PairingRequest>;
   inbound: InboundMessaging;

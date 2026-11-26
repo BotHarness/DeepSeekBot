@@ -14,7 +14,13 @@ import { DEFAULT_ACTIVITY, type ActivityFilter, type ActivitySort } from './acti
 type FeedRow =
   | { kind: 'empty'; key: string }
   | { kind: 'more'; key: string; section: InboxSection }
-  | { kind: 'post'; key: string; item: HumanAttentionItem; ref: RequestRef; section: InboxSection }
+  | {
+      kind: 'post';
+      key: string;
+      item: HumanAttentionItem;
+      ref: RequestRef | undefined;
+      section: InboxSection;
+    }
   | {
       kind: 'row';
       key: string;
@@ -82,10 +88,13 @@ export function feedRows(
     if (search.trim() && items.length === 0 && !snapshot.cursors?.[section]) continue;
     for (const item of items) {
       const ref = section === 'action' && !aside ? decidable(item) : undefined;
+      const answerable =
+        ref !== undefined ||
+        (section === 'action' && !aside && item.nativeSession?.request !== undefined);
       rows.push(
-        ref === undefined
-          ? { kind: 'row', key: activityKey(item), item, settled: section === 'handled', section }
-          : { kind: 'post', key: activityKey(item), item, ref, section },
+        answerable
+          ? { kind: 'post', key: activityKey(item), item, ref, section }
+          : { kind: 'row', key: activityKey(item), item, settled: section === 'handled', section },
       );
     }
     if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });

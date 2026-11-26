@@ -79,7 +79,7 @@ Client 线路偏好检查或文件替换失败时，Host 线路可能已经更�
 
 手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
 
-`deepseekbot activity --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
+`deepseekbot activity --notifications [--limit 1..100] [--cursor <游标>] [--source all|bot|native]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件；只有 `--source` 例外：`all` 把 Owner 的原生会话请求加在第一页、与 Bot 条目并列，`native` 只返回这些原生请求（不含 Bot 待办、回复和 DM 回复）；两者都只在 Host 的“会话请求进入活动”开启时生效。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
@@ -235,6 +235,7 @@ deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
+deepseekbot approval-rule-add <channel-id> --message-id <卡片-id> --prefix "git status *"
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-once
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-tool
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-always-kind
@@ -256,6 +257,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
 
 `tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
+
+对于待处理的 Shell 审批卡，`tool-approval-status` 还返回 `shellSuggestions`。用 `approval-rule-add` 按子命令顺序传入一至五个 `--prefix`，可一次批准当前调用并保存前缀。使用 `--outcome allowed-always-exact` 可记住完整调用。`tool-approval-rules <bot-id>` 将前缀规则显示为 `prefix`，`input` 保存模式文本。使用 `tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm` 撤销。
 
 `user-question-answer` 接受与网页卡片相同的已提供选项。持久化限时提问可在 Host 重启后回答，
 请保留原 Channel 与卡片 ID。冷恢复继续原生调用并保留 Memory，但不产生新的 Inbox Admission
@@ -281,6 +284,7 @@ printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --p
 printf '{"sessionDetailLevel":"detailed","sessionCollapse":"nextInput","sessionFoldedReplies":"final"}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"settingsPins":["models","auto-approval","devices"]}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"nativeSessionAttention":false}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -541,6 +545,8 @@ printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot 
 printf '{"kind":"delete-role","id":"<role-id>","expectedRevision":2}' | deepseekbot sender-access <bot-id> --input-stdin --confirm
 printf '{"kind":"block-sender","bindingId":"<binding-id>","actorId":"<actor-id>"}' | deepseekbot sender-access <bot-id> --input-stdin
 printf '{"kind":"unblock-sender","bindingId":"<binding-id>","actorId":"<actor-id>","expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"block-conversation","bindingId":"<binding-id>","conversation":{"kind":"group","id":"<conversation-id>"},"name":"QA"}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"unblock-conversation","bindingId":"<binding-id>","conversation":{"kind":"group","id":"<conversation-id>"},"expectedRevision":1}' | deepseekbot sender-access <bot-id> --input-stdin
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
@@ -595,6 +601,7 @@ iPhone 上打开 Computer。
 
 ```bash
 deepseekbot activity --category action --limit 20
+deepseekbot activity --source all
 deepseekbot activity --category replies --search budget --unread --sort mentions-first
 deepseekbot activity-watch --category unread --watch-seconds 10
 deepseekbot activity-status
@@ -658,7 +665,7 @@ deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSO
 
 这些命令通过已认证的在线 Host 执行。`session-list` 默认按最近的 Human 消息时间降序列出根会话。用 `--sort created` 按创建时间降序排列，或用 `--sort last-activity` 按最近活动排序。`--search` 匹配会话标题和 Human 发送的消息，可与 `--source native` 或 `--source bot:<slug>` 组合。默认来源为 `all`。列表包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。传 `--limit` 时只返回一页和 `nextCursor`，把它作为 `--cursor` 传入即可读取下一页。`session-list-changes` 不带 `--since` 时返回当前变更游标（`reset: true`）。带上之前游标中的 `--since` 和 `--epoch` 时，返回变化的行、被删除会话的 ID 和新游标；如果 Host 已重启或变更记录已不包含该游标，则返回 `reset: true`，此时需重新读取完整列表。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
 
-Host Owner 可以从 `session-transcript` 和 `session-live` 的 `pendingInput` 读取原生审批和提问卡片。用相应命令回答，并传入卡片的 `requestId`。回答提问时，通过 stdin 提交 JSON，例如 `{"answers":[{"id":"format","selected":["Compact"]}]}`，每个问题对应一项。自由文本答案使用 `"selected":[]` 和 `custom` 字符串。使用空的 `selected` 并省略 `custom` 可跳过单个问题。已结束的请求返回 `session-input-not-pending`。
+Host Owner 可以从 `session-transcript` 和 `session-live` 的 `pendingInput` 读取原生审批和提问卡片。原生审批带有 `preview`，即待执行工具调用的主要参数（`bash` 时为命令），与 DSH 的 `reason` 并列；`activity --source all` 中的 `nativeSession.request` 是同一张卡片。用相应命令回答，并传入卡片的 `requestId`。回答提问时，通过 stdin 提交 JSON，例如 `{"answers":[{"id":"format","selected":["Compact"]}]}`，每个问题对应一项。自由文本答案使用 `"selected":[]` 和 `custom` 字符串。使用空的 `selected` 并省略 `custom` 可跳过单个问题。已结束的请求返回 `session-input-not-pending`。
 
 `session-stop --session` 请求 DSH 取消原生会话的当前回合。`session-archive` 归档空闲的原生会话。归档正在运行的会话前，请先停止并等待当前回合结束。列表和搜索默认隐藏已归档会话。使用 `--include-archived` 可查看这些会话，条目带有 `archived: true`。团队成员没有查看或处理原生会话请求的权限。
 
@@ -687,6 +694,8 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 `activity-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
 
 `activity-watch` 先订阅现有已认证 roster 实时流，再读取基线。观测 1–60 秒（默认 10 秒）后，仅输出一个 JSON，包含 `initial`、`current` 和 `invalidations` 数量。两次快照沿用 `activity` 的 Activity 查询与筛选；中间事件仅通知数据失效，不另存通知。流提前中断返回编码拒绝。`--timeout` 应长于观测窗口。
+
+`activity --source all|bot|native` 选择「活动」覆盖哪些会话。不传时只列 Bot 条目，与以前一致。`all` 把 Host Owner 原生会话的待处理请求（审批和提问，`kind` 为 `native-session-input`，`botSlug` 为空，`nativeSession` 带 `sessionId`、`sessionTitle`、`folderName`（会话文件夹名，已知时）、`cwd`（完整工作目录，已知时）、`input` 和 `request`（与 `session-transcript` 中相同的待处理审批或提问））加入第一页 `action`，与 Bot 条目并列；`native` 只返回这些原生请求，不含 Bot 条目。原生条目在请求被回答或取消后消失，不能清理或稍后提醒。`activity-status --source all` 把它们和 Bot 待办一起计入 `hasAction`；`activity-status --source native` 只按原生请求设置 `hasAction`。只有 Host Owner 能看到它们及其推送，且仅在 `nativeSessionAttention`（默认 `true`，用 `settings-set botharness-client` 设置）开启时出现；关闭后原生请求不进入「活动」也不推送，但 `sessions` 的每一行仍有 `status`（`running`、`needs-you` 或 `idle`）和 `attention`（`approval`、`question` 或 `failed`）。旧 Host 对 `--source` 返回 `host-query-unsupported`。
 
 `activity --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
 
@@ -1495,7 +1504,7 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 `update-status` 和 `update-cancel` 对应更新提醒、**Bot 设置 → 关于** 和 **Bot 设置 → 插件** 共用的更新进度面板（[ADR-0311](decisions/release.md#adr-0311)）。每一次 `release-install` 和 `plugin-install`，无论来自哪个界面还是 Tob，都是 Host 记录的一次**更新运行**。`update-status` 返回 `{ run }`：正在进行的更新，否则是最近一次（还没有时为 `null`），包含 `id`、`kind`（`release` 或 `plugin`）、`name`、`version`、`phase`（`checking`、`installing`、`cancelling`、`applying`、`installed`、`failed` 或 `cancelled`）、`attempt`（正在访问的 registry）、`commands`（原生 Plugin Manager 启动的每次 pnpm 运行：`command`、`output` 末尾、`truncated` 和 `exitCode`）、`cancellable`，结束后还有 `installed.applied` 或 `failure`（`reason`、`diagnostic`、`logPath`）。`update-cancel` 终止正在进行的更新：pnpm 启动前直接以 `cancelled` 结束；pnpm 运行中则请 Plugin Manager 停止，并等到 profile 文件恢复原样。没有可终止的更新时以 `update-not-running` 非零退出；新版本已开始应用时为 `update-too-late`；DSH 不支持终止安装时为 `update-unsupported`。被终止的安装以 `release-cancelled` 或 `plugin-cancelled` 退出。
 
-`--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求、角色和被屏蔽的发送者（`blocked`）；用 `sender-access` 的 `block-sender` 屏蔽、`unblock-sender` 取消屏蔽，屏蔽后此人在该 IM 应用所有会话里的消息都不会进入收件箱，也不会唤醒 Bot；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。管理类批准加上 `--delegable`，此人还能在 IM 里把这些权限授予别人，例如用 `/授予 @某人 批准`，或在批准配对申请时分配带这些权限的角色。
+`--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求、角色、被屏蔽的发送者（`blocked`）和被屏蔽的会话（`blockedConversations`）；用 `sender-access` 的 `block-sender` 屏蔽、`unblock-sender` 取消屏蔽，屏蔽后此人在该 IM 应用所有会话里的消息都不会进入收件箱，也不会唤醒 Bot；`block-conversation` 和 `unblock-conversation` 对一个群、频道或私聊做同样的事。主人的 IM 账号（已批准的管理配对或审批路由）不能被屏蔽（`sender-block-owner`），在被屏蔽的会话里发的消息也照常送达 Bot。Bot 用 `bridge_source_block` 工具做同样的事，每次屏蔽或取消屏蔽都先请人类批准；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。管理类批准加上 `--delegable`，此人还能在 IM 里把这些权限授予别人，例如用 `/授予 @某人 批准`，或在批准配对申请时分配带这些权限的角色。
 
 **上传的 Bot**（[ADR-0267](decisions/marketplace.md#adr-0267)）和 GitHub 仓库在同一个目录里。`marketplace-list --include-uploads` 会把它们加进来；每个条目带 `source`（`github` 或 `upload`），上传的条目还带 `author`（`name`、区分同名作者且永不改变的作者 `id`，以及头像图片地址 `avatar` 或 `null`）。上传的 Bot 的 `marketplace-detail` 还返回 `files`（`path`、`size`、`kind`：`text`、`script` 或 `image`）和 `fileSummary`：`count`、`size` 和 `types`，即每种类型（`markdown`、`text`、`data`、`script`、`image`）的文件数和字节数，按大小从大到小。`marketplace-file <listing-id> <path>` 以 `file`（`path`、`size`、`type`、`text`）读取一个文本文件：Markdown 像 README 一样经过整理和清洗，相对链接指向这个 Bot 的文件；脚本和其他文本原样返回，从不当作 Markdown 整理。图片被拒绝，错误码 `file-not-text`；不在列表里的路径返回 `file-not-found`。上传要求这个 Host 已登录 Tobs Connect（设置 → 设备）；`marketplace-account` 返回 `signedIn` 和 `author`，即已登录账户的**账户资料**（`name`、`id`、`avatar`、`termsAcceptedAt`），在 `marketplace-author --name <名称>` 创建资料之前为 `null`；之后再调用会改名，它的条目也随之更新。第一次上传还需要用 `--accept-terms` 接受一次条款（之前返回 `author-required`）。`marketplace-author-avatar --file <图片>` 用不超过 1 MB 的 PNG、JPEG 或 WebP 设置资料头像（`avatar-type-refused`、`avatar-too-large`），头像公开提供，并显示在作者的条目上；`--clear` 移除头像。`marketplace-upload-plan` 列出上传会包含的文件和跳过的文件（二进制和压缩包为 `file-type-refused`，超过 5 MB 为 `file-too-large`）。`marketplace-upload` 用给定的名称、简介和标签发布 Bot 已就绪的分享草稿（不含 Git 历史），必须带 `--confirm`：文件会公开。Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片，即使开了完全访问。拒绝带错误码：`sign-in-required`、`author-required`、`too-many-files`（超过 2,000 个）、`too-large`（超过 50 MB）、`bot-limit`（每个账号 20 个）、`nothing-to-upload`、`share-draft-required`（还没有草稿）、`share-draft-not-ready`（还有文件没有结论）。`marketplace-install` 对两种条目都分两步。先运行 `marketplace-install <listing-id>`：暂存文件（上传的 Bot 的文件，或按目录索引到的提交克隆的 GitHub 仓库，没有索引提交时返回 `listing-not-installable`），由 Tob 用 Tob 的模型检查，输出 `reviewId`、`review` 和 `installed: false`，不会创建任何东西。`review.status` 为 `reviewed` 时带 `findings`（`kind`：`prompt-injection`、`exfiltration` 或 `script`，`path`，可选的 `note`）、`files`、`read`，有文本太长没读完时 `partial` 为 true；Tob 没能检查时为 `unavailable`，带 `reason`（`no-model`、`model-unavailable`、`llm-unavailable`、`timeout`、`model-error`、`unparseable`）。脚本文件无论如何都会列出。`--lang` 决定说明的语言。然后运行 `marketplace-install <listing-id> --review <review-id> --confirm`，把刚才暂存的这些文件（或这个提交）安装成全新的 Bot，用条目的名称、简介和标签，只有一次初始提交，返回新的 `bot`、它的 `channelId`、`listing` 和 `installed: true`。检查结果保留 30 分钟（过期为 `review-expired`，换了条目为 `review-mismatch`）；用同一个 `--operation-key` 重试会返回那个 Bot，不会装两次。Bot 建好之后，Host 发送一次**安装回执**，用一个只给市场用的随机 Host 标识（Host 数据目录里的 `marketplace-host.json`，从不使用遥测安装 ID）；每个 Host 对每个条目只计一次，安装失败不发送；`marketplace-list` 和 `marketplace-detail` 的每个条目都带 `installs`。
 

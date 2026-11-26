@@ -44,8 +44,8 @@ export function canManageGrants(database: OperationalDatabaseModulePort, humanId
   return database.read(
     (db) =>
       db
-        .prepare(`SELECT ${hostPermissionHolderSql('?1', MANAGE_GRANTS_PERMISSION)} AS ok`)
-        .get(humanId)?.['ok'] === 1,
+        .prepare(`SELECT ${hostPermissionHolderSql('$humanId', MANAGE_GRANTS_PERMISSION)} AS ok`)
+        .get({ $humanId: humanId })?.['ok'] === 1,
   );
 }
 
