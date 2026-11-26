@@ -42,7 +42,7 @@ export function SessionFolderAvatar({
         strong
         variant="meta"
         numberOfLines={1}
-        maxFontSizeMultiplier={cornerBadge.maxTextScale}
+        maxFontSizeMultiplier={Math.max(cornerBadge.maxTextScale, size / theme.touch)}
         style={{ color: hostColorInk(theme.scheme, theme.color, colorId) }}
       >
         {folderMonogram(folderName)}

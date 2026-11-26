@@ -505,6 +505,11 @@ describe('Team CLI', () => {
       method: 'channelHumanNameSet',
       input: { channelId: 'group-1', nickname: 'Bobby' },
     },
+    {
+      args: ['channels', 'access', 'group-1'],
+      method: 'channelAccessState',
+      input: { channelId: 'group-1' },
+    },
   ])('dispatches $method for the member named by --as', async ({ args, method, input }) => {
     const f = await host();
     await run(f.url, ['--as', 'bob', ...args]);

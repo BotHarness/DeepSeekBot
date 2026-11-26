@@ -30,6 +30,8 @@ import {
   resolvePinnedChannelIds,
 } from './roster-order.js';
 import type { ClientStore } from './store.js';
+import { readChannelAccess } from '@botharness/host-client/channel-management';
+import { bridgeHost } from './bridge-transport.js';
 import { reportFailure } from './diagnostic-log.js';
 import type { GitActions } from './actions-git.js';
 import type { ActivityActions } from './actions-activity.js';
@@ -68,6 +70,16 @@ export function createRosterActions(
   refreshActivityListStatus: ActivityActions['refreshActivityListStatus'],
 ) {
   let rosterRefreshGeneration = 0;
+  const explainClosedChannel = async (
+    scopedCall: BridgeCall,
+    channel: { id: string; name: string },
+  ): Promise<void> => {
+    const access = await readChannelAccess(bridgeHost(scopedCall), channel.id).catch(
+      () => undefined,
+    );
+    if (access === 'removed') clientStore.noteChannelAccessRemoved(channel);
+  };
+
   const refreshRoster = async (signal?: AbortSignal, scopedCall = call): Promise<void> => {
     scopedCall.assertCurrent?.();
     const generation = ++rosterRefreshGeneration;
@@ -96,8 +108,10 @@ export function createRosterActions(
         scopedCall.assertCurrent?.();
         const updated = channels.find((item) => item.id === current.id);
         if (updated !== undefined) clientStore.setConversation({ channel: updated });
-        else if (before.channels.some((item) => item.id === current.id))
+        else if (before.channels.some((item) => item.id === current.id)) {
           clientStore.select(undefined);
+          if (current.type === 'group') void explainClosedChannel(scopedCall, current);
+        }
       }
     } else if (channelResult.status === 'rejected') {
       reportFailure('channel-refresh-failed', 'channel refresh failed', channelResult.reason);

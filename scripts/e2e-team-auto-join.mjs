@@ -266,10 +266,11 @@ try {
       await page.waitForTimeout(1500);
       run(['members', 'roles', bob, '--set', 'member']);
       await page
-        .locator('text=Books >> visible=true')
+        .locator('text="Books" >> visible=true')
         .first()
         .waitFor({ state: 'hidden', timeout: 30_000 });
-      return page.locator('text=Books >> visible=true').count();
+      await page.getByText('You no longer have access to Books').waitFor({ timeout: 30_000 });
+      return page.locator('text="Books" >> visible=true').count();
     });
     assert.equal(revoked, 0);
   }

@@ -14,12 +14,13 @@ import type { LocalStore } from '@botharness/host-client/local-store';
 import type {
   HostSessionFilter,
   HostSessionRow,
+  HostSessionSort,
   HostSessionSourceOption,
 } from '@botharness/host-protocol/host-sessions';
 import { hostStore, hostStoreAvailable } from '../../host/host-store';
 import { sessionReadHost } from '../../host/session-detail';
 import { watchSessionChanges, type SessionListHost } from './session-list-query';
-import { mergeSessionSources, type SessionQueryRow } from './session-query-model';
+import { mergeSessionSources, sessionRowTime, type SessionQueryRow } from './session-query-model';
 
 export const SESSION_SYNC_PAGE = 200;
 
@@ -113,37 +114,93 @@ export async function readStoredSessionLists(
   return reads.length === 0 ? null : { reads, failed: 0 };
 }
 
-function clock(row: HostSessionRow): number {
+export function localSessionClock(row: HostSessionRow, sort: HostSessionSort): number {
+  if (sort === 'created') return row.createdAt ?? row.updatedAt;
+  if (sort === 'last-activity') return row.updatedAt;
   return row.lastPromptAt ?? -1;
+}
+
+function withIdentity(
+  row: HostSessionRow,
+  bots: ReadonlyMap<string, Extract<HostSessionSourceOption, { kind: 'bot' }>>,
+): HostSessionRow | undefined {
+  if (row.source.kind !== 'bot') return row;
+  const bot = bots.get(row.source.botSlug);
+  if (bot === undefined) return undefined;
+  return { ...row, source: { ...bot } };
 }
 
 export function localSessionRows(
   lists: LocalSessionLists | null | undefined,
   hosts: readonly Pick<SessionListHost, 'hostId' | 'hostName'>[],
   source: HostSessionFilter,
+  sort: HostSessionSort = 'last-human-turn',
 ): SessionQueryRow[] | undefined {
   if (lists === undefined || lists === null) return undefined;
   const names = new Map(hosts.map((host) => [host.hostId, host.hostName]));
   return lists.reads
-    .flatMap(({ hostId, list }) =>
-      list.sessions
-        .filter(
-          (row) =>
-            row.archived !== true &&
-            (source === 'all' ||
-              (source === 'native'
-                ? row.source.kind === 'native'
-                : row.source.kind === 'bot' && `bot:${row.source.botSlug}` === source)),
+    .flatMap(({ hostId, list }) => {
+      const bots = new Map(
+        list.sources.flatMap((option) => (option.kind === 'bot' ? [[option.botSlug, option]] : [])),
+      );
+      const known = list.sources.length > 0;
+      return list.sessions.flatMap((stored): SessionQueryRow[] => {
+        if (stored.archived === true) return [];
+        const row = known ? withIdentity(stored, bots) : stored;
+        if (row === undefined) return [];
+        if (
+          source !== 'all' &&
+          (source === 'native'
+            ? row.source.kind !== 'native'
+            : row.source.kind !== 'bot' || `bot:${row.source.botSlug}` !== source)
         )
-        .map((row) => ({ ...row, hostId, hostName: names.get(hostId) ?? hostId })),
-    )
+          return [];
+        return [
+          {
+            ...row,
+            sortedAt: localSessionClock(row, sort),
+            hostId,
+            hostName: names.get(hostId) ?? hostId,
+          },
+        ];
+      });
+    })
     .sort(
       (a, b) =>
-        clock(b) - clock(a) ||
+        localSessionClock(b, sort) - localSessionClock(a, sort) ||
         b.updatedAt - a.updatedAt ||
         a.hostId.localeCompare(b.hostId) ||
         a.sessionId.localeCompare(b.sessionId),
     );
+}
+
+export function localTitleMatches(
+  rows: readonly SessionQueryRow[] | undefined,
+  search: string,
+): SessionQueryRow[] | undefined {
+  const query = search.trim().replace(/\s+/gu, ' ').toLowerCase();
+  if (rows === undefined || query === '') return rows === undefined ? undefined : [...rows];
+  return rows.filter(
+    (row) =>
+      row.title !== undefined && row.title.replace(/\s+/gu, ' ').toLowerCase().includes(query),
+  );
+}
+
+export function mergeSearchRows(
+  local: readonly SessionQueryRow[] | undefined,
+  host: readonly SessionQueryRow[] | undefined,
+): SessionQueryRow[] | undefined {
+  if (local === undefined && host === undefined) return undefined;
+  const rows = new Map<string, SessionQueryRow>();
+  for (const row of [...(local ?? []), ...(host ?? [])])
+    rows.set(`${row.hostId}:${row.sessionId}`, row);
+  return [...rows.values()].sort(
+    (a, b) =>
+      sessionRowTime(b) - sessionRowTime(a) ||
+      b.updatedAt - a.updatedAt ||
+      a.hostId.localeCompare(b.hostId) ||
+      a.sessionId.localeCompare(b.sessionId),
+  );
 }
 
 export function localSessionSources(

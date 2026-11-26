@@ -8,7 +8,8 @@ import { RowStatusGlyph } from '../../ui/chat/row-status-glyph';
 import { useHostLook } from '../../host/native-host-look';
 import { HostGlyph } from '../../ui/shell/host-tile';
 import { pressTint, useDesignTheme } from '../../ui/design/theme';
-import { radius, space } from '../../ui/design/tokens';
+import { radius, rowGlyph, space } from '../../ui/design/tokens';
+import { clampScaledIconSize } from '../../ui/design/scaled-icon-size';
 import { Text } from '../../ui/primitives/text';
 import { useStrings } from '../../ui/strings';
 import { SessionFolderAvatar } from './session-folder-avatar';
@@ -55,15 +56,17 @@ export function SessionDrawerRow({
   const when = strings.ago(minutes);
   const brand = row.model === undefined ? undefined : modelBrand(row.model);
   const hostColor = look.color ?? 'blue';
-  const badge = theme.touch;
+  const badge = Math.round(clampScaledIconSize(theme.touch, theme.fontScale, theme.touch * 1.5));
   const avatar = Math.round(badge / 2);
+  const metaIcon = Math.round(theme.type.meta.line * theme.fontScale);
+  const statusIcon = Math.round(rowGlyph.size * theme.fontScale);
   const statusLine = (
     <View
       testID={`session-status-${row.sessionId}`}
       accessibilityLabel={statusText}
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
     >
-      <RowStatusGlyph status={status} />
+      <RowStatusGlyph status={status} size={statusIcon} />
       <Text variant="meta" tone="subtle" numberOfLines={1}>
         {when}
       </Text>
@@ -72,7 +75,7 @@ export function SessionDrawerRow({
   const modelIcon =
     row.model === undefined ? null : (
       <View testID={`session-model-${row.sessionId}`}>
-        <ModelBrandIcon brand={brand} size={theme.type.meta.line} color={theme.color.muted} />
+        <ModelBrandIcon brand={brand} size={metaIcon} color={theme.color.muted} />
       </View>
     );
   return (
@@ -169,7 +172,7 @@ export function SessionDrawerRow({
             <View testID={`session-host-mark-${row.sessionId}`}>
               <HostGlyph
                 icon={look.icon}
-                size={theme.type.meta.line}
+                size={metaIcon}
                 color={hostColorInk(theme.scheme, theme.color, hostColor)}
               />
             </View>

@@ -59,6 +59,7 @@ export interface DshSessionListRow {
   model?: { provider: string; model: string };
   lastPromptAt: number | null;
   updatedAt: number;
+  createdAt?: number;
 }
 
 export interface NativeSessions {

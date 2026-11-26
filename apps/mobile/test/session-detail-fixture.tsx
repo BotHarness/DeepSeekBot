@@ -253,7 +253,7 @@ vi.mock('../src/ui/chat/composer', () => ({
       {above}
       <span>{value}</span>
       <button onClick={() => onChange('Follow up')}>Draft</button>
-      {sessionControls?.render(390)}
+      {sessionControls?.model}
       <button onClick={onSend}>Send</button>
       {sessionControls?.onStop === undefined ? null : (
         <button onClick={sessionControls.onStop}>Stop</button>

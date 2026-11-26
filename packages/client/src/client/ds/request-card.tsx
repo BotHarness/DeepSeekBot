@@ -82,7 +82,6 @@ export const requestCardStyles = stylex.create({
     overflowWrap: 'anywhere',
   },
   error: { color: status.dangerInk },
-  warning: { color: status.warningInk },
   added: { color: status.successInk },
   removed: { color: status.dangerInk },
 });
