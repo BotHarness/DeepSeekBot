@@ -200,7 +200,7 @@ it('refuses outside the delegation, for oneself, for unknown names and for non-r
   await fx.receive(command('self', reviewer, '/grant @target approve', reviewer));
   expect(fx.replies.at(-1)!.text).toContain('cannot change your own permissions');
   await fx.receive(command('member', applicant, '/grant @target approve', reviewer));
-  expect(fx.replies.at(-1)!.text).toContain('Only people allowed to review pairing');
+  expect(fx.replies.at(-1)!.text).toContain('can change permissions');
 
   expect(pendingFor(fx, applicant).revision).toBe(before.revision);
   expect(effective(fx).capabilities).not.toContain('approve');

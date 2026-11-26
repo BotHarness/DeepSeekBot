@@ -71,6 +71,8 @@ export function capabilityNamed(name: string): ManagedCapability | undefined {
 const NOTICE = {
   unauthorized:
     'Only people allowed to review pairing for this Bot can change Roles. / 只有此 Bot 的配对审核人可以修改角色。',
+  unauthorizedPermission:
+    'Only people allowed to review pairing for this Bot can change permissions. / 只有此 Bot 的配对审核人可以修改权限。',
   oneMention:
     'Mention exactly one person, for example "/role @name Colleague". / 请只提及一个人，例如「/角色 @某人 Colleague」。',
   notPaired: (name: string) =>
@@ -216,7 +218,7 @@ export function createRoleText(options: {
     };
     const reviewer = scope(binding.botSlug, binding.id, event.actor.id);
     if (!reviewer.reviewer) {
-      reply(NOTICE.unauthorized);
+      reply(permission ? NOTICE.unauthorizedPermission : NOTICE.unauthorized);
       log('command', 'unauthorized');
       return true;
     }
@@ -270,7 +272,7 @@ export function createRoleText(options: {
         log('permission', code);
         reply(
           code === 'pairing-unauthorized'
-            ? NOTICE.unauthorized
+            ? NOTICE.unauthorizedPermission
             : code === 'pairing-delegation-denied'
               ? NOTICE.deniedCapability(capability)
               : NOTICE.permissionFailed,
