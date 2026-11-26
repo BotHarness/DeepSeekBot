@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { CloudManagementInput, CloudManagementResult } from '../../cloud/management.js';
 import type { CloudWork, CloudWorkInput } from '../../cloud/work.js';
 import type { CloudBridgeMethods } from './methods.js';

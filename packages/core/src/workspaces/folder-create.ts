@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync, realpathSync, rmdirSync, statSync, type Stats } from 'node:fs';
 import { isAbsolute, join, parse, relative } from 'node:path';
 import { z } from 'zod';
-import { invalidInput, type BridgeResult } from '../bridge/method-utils.js';
+import { invalidInput, type BridgeResult } from '../kernel/method-utils.js';
 import type { HumanContext } from '../humans/context.js';
 import type { TeamService } from '../team/service.js';
 import { canonicalPath } from './space-paths.js';

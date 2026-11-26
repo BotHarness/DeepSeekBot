@@ -1,4 +1,4 @@
-import { asObject, invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { asObject, invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import {
   isClientTelemetryEventName,
   telemetryEventProperties,

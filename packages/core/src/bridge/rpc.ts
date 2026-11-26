@@ -1,4 +1,4 @@
-import { toRemoteError } from './rpc-result.js';
+import { toRemoteError } from '../kernel/rpc-result.js';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
 import { TeamError, type TeamService } from '../team/service.js';
 import { type HumanContext } from '../humans/context.js';

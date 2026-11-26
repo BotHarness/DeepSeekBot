@@ -12,7 +12,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { ApprovalTemplateDeletion } from '../../workspaces/approval-template-deletion.js';
 import type { ApprovalTemplateDeletionPreview } from '../../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../../team/approval-contract.js';

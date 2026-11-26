@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { SkillCatalogEntry } from '../../skills/catalog.js';
 import type { BotSkill } from '../../skills/bot-skills.js';
 import type { SkillDetail, SkillsBridgeMethods } from './methods.js';

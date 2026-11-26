@@ -1,5 +1,5 @@
-import { invalidInput } from '../bridge/method-utils.js';
-export { invalidInput } from '../bridge/method-utils.js';
+import { invalidInput } from '../kernel/method-utils.js';
+export { invalidInput } from '../kernel/method-utils.js';
 import type {
   ModelProviderRemoval,
   ModelProviderSave,

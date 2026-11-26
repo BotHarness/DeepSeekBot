@@ -5,7 +5,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { TeamError } from '../../team/error.js';
 import { ownsBot } from '../../team/bot-access.js';
 import { BotNetworkDeliveryError } from '../../runtime/bot-network.js';

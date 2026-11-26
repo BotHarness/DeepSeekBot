@@ -6,7 +6,7 @@ import {
   type GroupMemberPickerResult,
   type GroupMembersAddResult,
 } from '@botharness/host-protocol/group-members';
-import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
+import { invalidInput, type BridgeResult } from '../../kernel/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { isValidSlug } from '../../bots/slug.js';

@@ -1,6 +1,6 @@
 import type { ExternalSource } from '../../messaging/inbound.js';
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PairingRequest, PairingReviewInput } from '../../messaging/pairing.js';
 import type {
   SenderAccessInput,

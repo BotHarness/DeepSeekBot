@@ -6,7 +6,7 @@ import {
   unavailable,
   unknownBot,
   type BridgeResult,
-} from '../../bridge/method-utils.js';
+} from '../../kernel/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { type HumanContext } from '../../humans/context.js';

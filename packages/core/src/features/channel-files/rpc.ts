@@ -2,9 +2,9 @@ import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { BridgeLive } from '../../bridge/rpc.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { TeamService } from '../../team/service.js';
-import { toRemoteError } from '../../bridge/rpc-result.js';
+import { toRemoteError } from '../../kernel/rpc-result.js';
 import type { ChannelFilesPage } from '../../channels/timeline.js';
-import { unwrap } from '../../bridge/rpc-result.js';
+import { unwrap } from '../../kernel/rpc-result.js';
 import type { MemoryFileTarget } from '../../memory/file-actions.js';
 import type { ChannelFilesAdapterMethods } from './methods.js';
 

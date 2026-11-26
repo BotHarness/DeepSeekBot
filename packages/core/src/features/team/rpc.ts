@@ -1,5 +1,5 @@
 import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
-import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
+import { unwrap, unwrapAsync } from '../../kernel/rpc-result.js';
 import type { PrivateKind } from '../../team/private-contract.js';
 import type { SpaceAudience } from '../../workspaces/spaces.js';
 import type { ChannelVisibility, ChannelPolicy } from '../../team/channel-contract.js';
