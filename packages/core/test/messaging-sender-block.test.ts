@@ -212,6 +212,7 @@ it('a block follows its App to a rebound Binding', async () => {
   await fx.settle();
   const [block] = await blocks(fx);
   expect(block).toMatchObject({ bindingId: rebound.id, actorId: applicant });
+  expect(block!.bindingIds).toEqual(expect.arrayContaining([person.bindingId, rebound.id]));
   expect(
     await methods.senderAccess({
       slug: 'ada',
@@ -224,4 +225,13 @@ it('a block follows its App to a rebound Binding', async () => {
     }),
   ).toMatchObject({ ok: true });
   expect(await blocks(fx)).toEqual([]);
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: { kind: 'block-sender', bindingId: person.bindingId, actorId: applicant },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(await blocks(fx)).toEqual([
+    expect.objectContaining({ bindingId: rebound.id, actorId: applicant }),
+  ]);
 });

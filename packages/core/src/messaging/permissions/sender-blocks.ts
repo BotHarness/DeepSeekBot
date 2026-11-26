@@ -14,6 +14,38 @@ export interface SenderBlock {
   blockedBy: 'authenticated-web' | 'paired-reviewer';
   reviewerActorId?: string;
   unblockedAt?: string;
+  bindingIds?: string[];
+}
+
+export function senderBlockBindingIds(
+  db: DatabaseSync,
+  botSlug: string,
+  fingerprint: string,
+): string[] {
+  return (
+    db
+      .prepare('SELECT id FROM messaging_bindings WHERE bot_slug = ? AND fingerprint = ?')
+      .all(botSlug, fingerprint) as { id: string }[]
+  ).map((row) => row.id);
+}
+
+function usableBinding(db: DatabaseSync, botSlug: string, bindingId: string) {
+  const binding = readMessagingIdentity(db, bindingId);
+  if (binding.botSlug !== botSlug) throw new MessagingError('sender-block-scope');
+  const current =
+    binding.revokedAt || !binding.enabled
+      ? (
+          db
+            .prepare(
+              'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND fingerprint = ? AND revoked_at IS NULL',
+            )
+            .all(botSlug, binding.fingerprint) as { id: string }[]
+        )
+          .map((row) => readMessagingIdentity(db, row.id))
+          .find((candidate) => candidate.enabled)
+      : binding;
+  if (!current || !platformPeople(current.platform)) throw new MessagingError('sender-block-scope');
+  return current;
 }
 
 function readStoredBlock(
@@ -67,14 +99,7 @@ export function blockSender(
   input: { bindingId: string; actorId: string; actorName?: string | undefined },
   reviewerActorId?: string,
 ): SenderBlock {
-  const binding = readMessagingIdentity(db, input.bindingId);
-  if (
-    binding.botSlug !== botSlug ||
-    !platformPeople(binding.platform) ||
-    !binding.enabled ||
-    binding.revokedAt
-  )
-    throw new MessagingError('sender-block-scope');
+  const binding = usableBinding(db, botSlug, input.bindingId);
   const stored = readStoredBlock(db, botSlug, binding.fingerprint, input.actorId);
   if (stored && !stored.unblockedAt) return stored;
   const block: SenderBlock = {

@@ -27,6 +27,7 @@ export {
 export { behaviorPermissions } from './behavior.js';
 export {
   listSenderBlocks,
+  senderBlockBindingIds,
   readSenderBlock,
   senderBlocked,
   type SenderBlock,

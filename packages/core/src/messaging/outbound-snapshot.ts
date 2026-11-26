@@ -5,6 +5,7 @@ import type { ApprovalMessaging } from './approval-messaging.js';
 import {
   externalPermissionGroups,
   listSenderBlocks,
+  senderBlockBindingIds,
   behaviorPermissions,
   externalUserRoles,
   platformPeople,
@@ -547,7 +548,12 @@ export function createOutboundSnapshot(context: {
         roles: database.read((db) => externalUserRoles(db, botSlug)),
         permissionGroups: database.read((db) => externalPermissionGroups(db, botSlug)),
         senderBlocks: database
-          .read((db) => listSenderBlocks(db, botSlug))
+          .read((db) =>
+            listSenderBlocks(db, botSlug).map((block) => ({
+              ...block,
+              bindingIds: senderBlockBindingIds(db, botSlug, block.fingerprint),
+            })),
+          )
           .map((block) => {
             const owner =
               identities.find(

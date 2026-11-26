@@ -436,7 +436,8 @@ export function PairingSettings({
                   defaultRoleId={policy?.defaultRoleId}
                   block={blocks.find(
                     (block) =>
-                      block.bindingId === selected.bindingId && block.actorId === selected.actorId,
+                      (block.bindingIds ?? [block.bindingId]).includes(selected.bindingId) &&
+                      block.actorId === selected.actorId,
                   )}
                   busy={busy}
                   review={review}

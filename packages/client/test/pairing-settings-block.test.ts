@@ -154,3 +154,33 @@ it('a sender can be blocked from their details and unblocked from the blocked li
     host.remove();
   }
 });
+
+it('a request from an earlier Binding of the same App shows its block', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(PairingSettings, {
+          requests: [request],
+          blocks: [{ ...block, bindingId: 'lark-new', bindingIds: ['lark-qa', 'lark-new'] }],
+          senderAccess: async () => {},
+          busy: false,
+          refresh: async () => {},
+          review: async () => {},
+          t: zhTranslate,
+        }),
+      ),
+    );
+    const detail = host.querySelector('.bh-pairing-detail')!;
+    expect(
+      Array.from(detail.querySelectorAll('button')).some(
+        (button) => button.textContent === zhTranslate('pairing.unblock'),
+      ),
+    ).toBe(true);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
