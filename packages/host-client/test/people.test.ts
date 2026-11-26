@@ -148,6 +148,9 @@ describe('Human attention', () => {
       { ...native, nativeSession: { sessionId: 'native-1', input: 'other' } },
       { ...native, nativeSession: { input: 'approval' } },
       { ...native, nativeSession: { ...native.nativeSession, folderName: 7 } },
+      { ...native, unreadCount: 'bad' },
+      { ...native, isUnread: 'yes' },
+      { ...native, snoozedUntil: 7 },
       ...[{ reason: 7 }, { callId: 7 }, { preview: 7 }, { toolName: '' }].map((bad) => ({
         ...native,
         nativeSession: {

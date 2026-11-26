@@ -124,19 +124,9 @@ function isNativeSessionItem(row: Record<string, unknown>): boolean {
   );
 }
 
-function isAttentionItem(value: unknown, notifications: boolean): value is WireHumanAttentionItem {
-  const row = record(value);
-  if (row?.['kind'] === NATIVE_SESSION_ATTENTION_KIND) return isNativeSessionItem(row);
-  if (row?.['nativeSession'] !== undefined) return false;
-  if (
-    !row ||
-    !hasText(row, ['id', 'createdAt', 'botSlug', 'summary']) ||
-    !categories.has(row['category']) ||
-    !kinds.has(row['kind'])
-  )
-    return false;
-  if (
-    ![
+function hasValidOptionalFields(row: Record<string, unknown>): boolean {
+  return (
+    [
       'channelId',
       'channelName',
       'messageId',
@@ -146,18 +136,32 @@ function isAttentionItem(value: unknown, notifications: boolean): value is WireH
       'responseMessageId',
       'responseSourceEventId',
       'snoozedUntil',
-    ].every((key) => optional(row[key], text)) ||
-    !optional(row['unreadCount'], count) ||
-    !optional(row['isUnread'], isBoolean) ||
-    !optional(row['approval'], isApprovalCard) ||
-    !optional(row['author'], (value) => {
+    ].every((key) => optional(row[key], text)) &&
+    optional(row['unreadCount'], count) &&
+    optional(row['isUnread'], isBoolean) &&
+    optional(row['approval'], isApprovalCard) &&
+    optional(row['author'], (value) => {
       const author = record(value);
       return (
         author?.['kind'] === 'bot' && text(author['slug']) && optional(author['displayName'], text)
       );
     })
+  );
+}
+
+function isAttentionItem(value: unknown, notifications: boolean): value is WireHumanAttentionItem {
+  const row = record(value);
+  if (row?.['kind'] === NATIVE_SESSION_ATTENTION_KIND)
+    return isNativeSessionItem(row) && hasValidOptionalFields(row);
+  if (row?.['nativeSession'] !== undefined) return false;
+  if (
+    !row ||
+    !hasText(row, ['id', 'createdAt', 'botSlug', 'summary']) ||
+    !categories.has(row['category']) ||
+    !kinds.has(row['kind'])
   )
     return false;
+  if (!hasValidOptionalFields(row)) return false;
   const category = row['category'];
   const kind = row['kind'];
   const assignment =
