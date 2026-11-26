@@ -231,12 +231,15 @@ function ownerConversation(
   fingerprint: string,
   conversationId: string,
 ): boolean {
+  const bindings = senderBlockBindingIds(db, botSlug, fingerprint);
+  if (!bindings.length) return false;
+  const marks = bindings.map(() => '?').join(', ');
   return (
     db
       .prepare(
-        "SELECT actor_id FROM messaging_pairings WHERE bot_slug = ? AND status = 'approved' AND json_extract(body, '$.conversationId') = ?",
+        `SELECT actor_id FROM messaging_pairings WHERE bot_slug = ? AND status = 'approved' AND binding_id IN (${marks}) AND json_extract(body, '$.conversationId') = ?`,
       )
-      .all(botSlug, conversationId) as { actor_id: string }[]
+      .all(botSlug, ...bindings, conversationId) as { actor_id: string }[]
   ).some((row) => ownerActor(db, botSlug, fingerprint, row.actor_id));
 }
 
