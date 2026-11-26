@@ -1,4 +1,3 @@
-import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../kernel/rpc-result.js';
 import type { PersonaBotDetail } from '../../bridge/methods.js';
 import type { ComputerBridgeMethods } from './methods.js';
@@ -15,4 +14,4 @@ export const computerServiceRpc = {
   computerAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
     return computerAccessSet(this.methods, slug, enabled);
   },
-} satisfies ThisType<BridgeRpcReceiver>;
+} satisfies ThisType<{ methods: ComputerBridgeMethods }>;

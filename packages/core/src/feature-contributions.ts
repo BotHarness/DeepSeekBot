@@ -1,5 +1,8 @@
 import type { HumanContext } from './humans/context.js';
 import type { FeatureContribution } from './kernel/feature-contribution.js';
+import { createBrowserContribution } from './features/browser/contribution.js';
+import { createComputerContribution } from './features/computer/contribution.js';
+import type { PersonaBotDetailProjection } from './features/personabots/bot-details.js';
 import {
   createGenuiContribution,
   type GenuiContributionOptions,
@@ -14,6 +17,8 @@ export function createFeatureContributions(options?: {
   return [
     createSchedulesContribution(options?.scheduleWakeSource),
     createGenuiContribution(options?.genui),
+    createBrowserContribution(),
+    createComputerContribution(),
   ] as const;
 }
 
@@ -45,10 +50,14 @@ export type ContributedBridgeDeps = Intersection<Parameters<RegisteredBridgeFact
   featureContributions?: RegisteredFeatures;
 };
 
-export function contributedBridgeMethods(human: HumanContext, deps: ContributedBridgeDeps) {
+export function contributedBridgeMethods(
+  human: HumanContext,
+  deps: ContributedBridgeDeps,
+  detailOf: PersonaBotDetailProjection,
+) {
   return mergeFeatureMethods(
     (deps.featureContributions ?? featureContributions).flatMap((feature) =>
-      'bridgeMethods' in feature ? [feature.bridgeMethods({ human, deps })] : [],
+      'bridgeMethods' in feature ? [feature.bridgeMethods({ human, deps, detailOf })] : [],
     ),
   );
 }

@@ -68,8 +68,6 @@ import { connectorsRpc } from '../features/connectors/rpc.js';
 import { zipImportRpc, marketplaceServiceRpc } from '../features/marketplace/rpc.js';
 import { marketplaceSkillRpc } from '../features/marketplace/skill-rpc.js';
 import { dataResetRpc, profileStorageRpc } from '../features/profile-storage/rpc.js';
-import { computerServiceRpc } from '../features/computer/rpc.js';
-import { browserServiceRpc } from '../features/browser/rpc.js';
 import { voiceProviderRpc, voiceSettingsRpc } from '../features/voice/rpc.js';
 import { avatarRpc } from '../features/avatars/rpc.js';
 import { skillRpc } from '../features/skills/rpc.js';
@@ -201,8 +199,6 @@ const legacyRpcMethods = {
   ...sessionBotRpc,
   ...dataResetRpc,
   ...personaBotDeletionRpc,
-  ...computerServiceRpc,
-  ...browserServiceRpc,
   ...approvalTemplateReadRpc,
   ...promptPresetRpc,
   ...connectorsRpc,
@@ -600,9 +596,6 @@ const legacyRemoteMethods = [
   'channelMuteSet',
   'rosterBatch',
   'developerModeSet',
-  'computerAccessSet',
-  'browserAccessSet',
-  'browserProfileSet',
   'approvalTemplates',
   'promptParts',
   'promptPresets',
