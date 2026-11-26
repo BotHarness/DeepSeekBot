@@ -40,12 +40,16 @@ export function SkillLogo(): ReactElement {
   return <BrandLogo src={undefined} size={40} fallbackIcon="book-open" />;
 }
 
+export function installsLabel(count: number, t: BotHarnessTranslate): string {
+  return count === 1 ? t('market.skills.installsOne') : t('market.skills.installs', { count });
+}
+
 function SkillMeta({ skill, t }: { skill: MarketplaceSkill; t: BotHarnessTranslate }) {
   return (
     <span {...stylex.props(styles.meta)}>
       {skill.scripts.length > 0 ? <Tag tone="neutral">{t('market.skills.hasScripts')}</Tag> : null}
       {skill.scan === 'warning' ? <Tag tone="warning">{t('market.skills.warning')}</Tag> : null}
-      <span>{t('market.skills.installs', { count: skill.installs })}</span>
+      <span>{installsLabel(skill.installs, t)}</span>
     </span>
   );
 }

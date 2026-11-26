@@ -23,7 +23,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { markdownBody } from './market-files.js';
 import type { MarketSkillActions } from './market-skills.js';
-import { SkillLogo } from './market-skills.js';
+import { installsLabel, SkillLogo } from './market-skills.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarkdownDocument, MarkdownImageLabel } from './memory-markdown-view.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -122,8 +122,12 @@ function SkillDetailBody({
         {skill.scripts.length > 0 ? (
           <Tag tone="neutral">{t('market.skills.hasScripts')}</Tag>
         ) : null}
-        <Tag tone="outline">{t('market.skills.installs', { count: skill.installs })}</Tag>
-        <Tag tone="outline">{t('market.skills.files', { count: skill.fileCount })}</Tag>
+        <Tag tone="outline">{installsLabel(skill.installs, t)}</Tag>
+        <Tag tone="outline">
+          {skill.fileCount === 1
+            ? t('market.skills.filesOne')
+            : t('market.skills.files', { count: skill.fileCount })}
+        </Tag>
       </div>
       {skill.findings.length === 0 ? null : (
         <Callout tone="warning" title={t('market.skills.warningTitle')} role="note">
