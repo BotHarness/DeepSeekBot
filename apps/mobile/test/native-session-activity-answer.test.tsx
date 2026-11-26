@@ -80,7 +80,14 @@ it('answers native approvals and questions inline in Activity, and shows a stale
     id: 'native-session:event-1',
     nativeSession: {
       ...native.nativeSession,
-      request: { kind: 'approval', requestId: 'event-1', toolName: 'bash', reason: 'Deploy it' },
+      cwd: '/work/landing-site',
+      request: {
+        kind: 'approval',
+        requestId: 'event-1',
+        toolName: 'bash',
+        reason: 'Deploy it',
+        preview: 'pnpm deploy',
+      },
     },
   };
   const question = {
@@ -178,6 +185,14 @@ it('answers native approvals and questions inline in Activity, and shows a stale
     expect(
       approval.querySelector('[data-testid="activity-native-session-mark"]')?.textContent,
     ).toBe('LS');
+    await press(approval, t.details);
+    expect(approval.textContent).toContain(t.workingFolder);
+    expect(approval.textContent).toContain('/work/landing-site');
+    expect(approval.textContent).toContain(t.inputLabels['command']);
+    expect(approval.textContent).toContain(t.inputLabels['reason']);
+    const older = post(stale.id)!;
+    await press(older, t.details);
+    expect(older.textContent).not.toContain(t.workingFolder);
     await press(approval, t.allowOnce);
     expect(approvals).toHaveBeenCalledWith(
       expect.objectContaining({
