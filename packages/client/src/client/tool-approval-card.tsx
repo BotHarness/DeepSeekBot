@@ -29,6 +29,31 @@ import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.j
 import { ApprovalPresetPicker } from './approval-preset-picker.js';
 import type { TemplateActions } from './approval-template-entry.js';
 
+function sourceBlockSentence(
+  toolName: string,
+  input: string,
+  t: BotHarnessTranslate,
+): string | undefined {
+  if (toolName !== 'bridge_source_block') return undefined;
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(input) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const name = typeof args['target_name'] === 'string' ? args['target_name'] : undefined;
+  if (name === undefined) return undefined;
+  if (args['action'] === 'unblock') return t('approval.sourceBlock.unblock', { name });
+  if (args['action'] !== 'block') return undefined;
+  const app = typeof args['app'] === 'string' ? args['app'] : '';
+  return t(
+    args['scope'] === 'sender'
+      ? 'approval.sourceBlock.sender'
+      : 'approval.sourceBlock.conversation',
+    { name, app },
+  );
+}
+
 function isReadTimeout(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
   const failure = cause ?? error;
@@ -348,6 +373,7 @@ export function ToolApprovalCard({
     (botCreate === undefined
       ? undefined
       : t('approval.botCreate.summary', { name: botCreate.displayName })) ??
+    sourceBlockSentence(request.toolName, request.input, t) ??
     summary.description ??
     (summary.command !== undefined
       ? t('approval.summaryCommand')
