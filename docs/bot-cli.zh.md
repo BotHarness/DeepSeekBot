@@ -538,6 +538,7 @@ deepseekbot messaging-post-limit <bot-id> --binding <binding-id> --limit <1-1000
 deepseekbot messaging-group-interactions <bot-id> --binding <binding-id> --enabled|--disabled|--inherit
 deepseekbot messaging-revoke <bot-id> --grant <grant-id> --confirm
 printf '{"kind":"policy","restricted":true,"expectedRevision":0}' | deepseekbot sender-access <bot-id> --input-stdin
+printf '{"kind":"delete-role","id":"<role-id>","expectedRevision":2}' | deepseekbot sender-access <bot-id> --input-stdin --confirm
 deepseekbot channel-bridges <channel-id>
 printf '{"kind":"add","grantId":"<grant-id>","expectedGrantRevision":2,"name":"QA","enabled":true,"collection":"mentions"}' \
   | deepseekbot channel-bridge <channel-id> --input-stdin
