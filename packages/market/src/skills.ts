@@ -17,6 +17,7 @@ import {
   type SkillScanVerdict,
 } from './skill-scan.js';
 import { uploadFileKind } from './upload-files.js';
+import { recordSkillInstall } from './receipts.js';
 
 export const SKILL_LIST_PATH = '/v1/skills';
 export const SKILL_ROUTE = /^\/v1\/skills\/([0-9a-f]{24})$/u;
@@ -466,23 +467,8 @@ export function createMarketSkills(deps: {
       id: string,
       targetHash: string,
     ): Promise<{ counted: boolean; installs: number } | undefined> {
-      const row = await find(id);
-      if (row === undefined || row.visibility !== 'listed') return undefined;
-      const claimed = await db
-        .prepare(
-          `INSERT INTO skill_install_receipts (skill_id, target_hash, created_at) VALUES (?, ?, ?)
-           ON CONFLICT (skill_id, target_hash) DO NOTHING RETURNING skill_id`,
-        )
-        .bind(id, targetHash, stamp())
-        .first<{ skill_id: string }>();
-      if (claimed === null) return { counted: false, installs: row.installs };
-      const updated = await db
-        .prepare(
-          `UPDATE marketplace_skills SET installs = installs + 1 WHERE id = ? RETURNING installs`,
-        )
-        .bind(id)
-        .first<{ installs: number }>();
-      return { counted: true, installs: updated?.installs ?? row.installs + 1 };
+      const result = await recordSkillInstall(deps, id, targetHash);
+      return result.ok ? { counted: result.counted, installs: result.installs } : undefined;
     },
 
     async setBlocked(

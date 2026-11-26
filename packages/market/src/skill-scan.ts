@@ -1,3 +1,4 @@
+import { parseSkillDocument, type SkillDocument } from '../../core/src/skills/skill-document.js';
 import { uploadFileKind } from './upload-files.js';
 
 export const SKILL_TOPIC = 'tobs-skill';
@@ -97,17 +98,6 @@ export function scanSkillFiles(files: readonly { path: string; text: string | nu
   return { verdict, findings, scripts: scripts.sort() };
 }
 
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  if (
-    trimmed.length >= 2 &&
-    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'")))
-  )
-    return trimmed.slice(1, -1);
-  return trimmed;
-}
-
 export function frontmatterBlock(text: string): { lines: string[]; end: number } | undefined {
   const lines = text.replace(/^﻿/u, '').split(/\r?\n/u);
   if (lines[0]?.trim() !== '---') return undefined;
@@ -127,32 +117,16 @@ export function renameSkill(text: string, name: string): string {
 }
 
 export function parseSkillFrontmatter(text: string): SkillFrontmatter | undefined {
-  const block = frontmatterBlock(text);
-  if (block === undefined) return undefined;
-  const values = new Map<string, string>();
-  const { lines } = block;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? '';
-    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/u.exec(line);
-    if (match === null) continue;
-    const key = match[1]!;
-    const raw = match[2] ?? '';
-    if (/^[>|][+-]?$/u.test(raw.trim())) {
-      const folded: string[] = [];
-      while (index + 1 < lines.length && /^(?:\s+\S|\s*$)/u.test(lines[index + 1] ?? '')) {
-        index += 1;
-        folded.push((lines[index] ?? '').trim());
-      }
-      values.set(key, folded.join(raw.trim().startsWith('>') ? ' ' : '\n').trim());
-    } else {
-      values.set(key, unquote(raw));
-    }
+  let document: SkillDocument | undefined;
+  try {
+    document = parseSkillDocument(text.replace(/^\uFEFF/u, ''));
+  } catch {
+    return undefined;
   }
-  const name = values.get('name') ?? '';
-  const description = values.get('description') ?? '';
-  if (!SKILL_NAME.test(name) || name.length > MAX_SKILL_NAME) return undefined;
+  if (document === undefined || document.name.length > MAX_SKILL_NAME) return undefined;
+  const description = document.description.trim();
   if (description.length === 0 || description.length > MAX_SKILL_DESCRIPTION) return undefined;
-  return { name, description };
+  return { name: document.name, description };
 }
 
 export function withSkillMetadata(text: string, entries: Record<string, string>): string {

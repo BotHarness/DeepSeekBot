@@ -211,7 +211,7 @@ export function createMarketplaceSkillMethods(
       if (staged.verdict === 'blocked')
         return failure('skill-blocked', 'This Skill failed the safety scan.');
       if (global === true && !isHostOwner())
-        return failure('permission-required', 'Only the Host owner may add global Skills');
+        return failure('permission-required', 'Only the Host owner may add Host Skills');
       const targets = slugs.map((slug) => ({ slug, target: botTarget(slug) }));
       const missing = targets.find((entry) => entry.target === undefined);
       if (missing !== undefined)
@@ -235,7 +235,7 @@ export function createMarketplaceSkillMethods(
       if (global === true) {
         const taken = skillExists(host.hostSkillsDir, staged.name);
         if (taken && onConflict === undefined)
-          return failure('skill-exists', `A global Skill named ${staged.name} already exists`);
+          return failure('skill-exists', `A Host Skill named ${staged.name} already exists`);
         plan.push({
           target: 'global',
           skillsDir: host.hostSkillsDir,

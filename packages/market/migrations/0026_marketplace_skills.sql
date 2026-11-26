@@ -28,6 +28,6 @@ CREATE INDEX marketplace_skills_listed
 CREATE TABLE skill_install_receipts (
   skill_id TEXT NOT NULL,
   target_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
   PRIMARY KEY (skill_id, target_hash)
 );
