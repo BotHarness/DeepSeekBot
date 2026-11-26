@@ -323,9 +323,9 @@ export function dshHostSessionInput(
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
   };
 
-  const folder = (id: string): string | undefined => {
+  const workingFolder = (id: string): string | undefined => {
     const cwd = ctx.agents.get(SessionId(id))?.session.header?.cwd;
-    return typeof cwd === 'string' && cwd !== '' ? folderName(cwd) : undefined;
+    return typeof cwd === 'string' && cwd !== '' ? cwd : undefined;
   };
 
   return {
@@ -334,7 +334,8 @@ export function dshHostSessionInput(
         if (!isUnowned(sessionId)) return [];
         const card = withPreview(sessionId, held, toolCall);
         const sessionTitle = title(sessionId);
-        const sessionFolder = folder(sessionId);
+        const cwd = workingFolder(sessionId);
+        const sessionFolder = cwd === undefined ? undefined : folderName(cwd);
         return [
           {
             sessionId,
@@ -347,6 +348,7 @@ export function dshHostSessionInput(
             createdAt: createdAt ?? new Date(0).toISOString(),
             ...(sessionTitle === undefined ? {} : { sessionTitle }),
             ...(sessionFolder === undefined ? {} : { folderName: sessionFolder }),
+            ...(cwd === undefined ? {} : { cwd }),
             request: card,
           },
         ];

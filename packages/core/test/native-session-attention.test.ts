@@ -27,6 +27,7 @@ const entry = (over: Partial<NativeSessionAttentionEntry> = {}): NativeSessionAt
   createdAt: '2026-11-25T10:00:01.000Z',
   sessionTitle: 'Ship the landing page',
   folderName: 'site',
+  cwd: '/work/site',
   request: { kind: 'approval', requestId: 'event-1', toolName: 'bash', reason: 'Deploy the site' },
   ...over,
 });
@@ -97,6 +98,7 @@ describe('native Session attention in Activity', () => {
         input: 'approval',
         sessionTitle: 'Ship the landing page',
         folderName: 'site',
+        cwd: '/work/site',
         request: {
           kind: 'approval',
           requestId: 'event-1',

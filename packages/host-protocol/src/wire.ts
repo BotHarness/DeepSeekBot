@@ -558,6 +558,7 @@ export interface NativeSessionAttention {
   sessionId: string;
   sessionTitle?: string;
   folderName?: string;
+  cwd?: string;
   input: 'approval' | 'question';
   request?: HostSessionPendingInput;
 }

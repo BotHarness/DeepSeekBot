@@ -16,6 +16,7 @@ export interface NativeSessionAttentionEntry {
   createdAt: string;
   sessionTitle?: string;
   folderName?: string;
+  cwd?: string;
   request?: HostSessionPendingInput;
 }
 
@@ -48,6 +49,7 @@ function item(entry: NativeSessionAttentionEntry): HumanAttentionItem {
       input: entry.input,
       ...(entry.sessionTitle === undefined ? {} : { sessionTitle: entry.sessionTitle }),
       ...(entry.folderName === undefined ? {} : { folderName: entry.folderName }),
+      ...(entry.cwd === undefined ? {} : { cwd: entry.cwd }),
       ...(entry.request === undefined ? {} : { request: entry.request }),
     },
   };
