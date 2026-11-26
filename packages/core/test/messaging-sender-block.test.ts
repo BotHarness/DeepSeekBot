@@ -2,7 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { parseBlockCommand } from '../src/messaging/interactions/role-text.js';
-import { fixture, cleanup } from './messaging-default-traffic-fixtures.js';
+import { fixture, cleanup, fingerprint } from './messaging-default-traffic-fixtures.js';
 import {
   channelMessage,
   ids,
@@ -186,4 +186,42 @@ it('the owner blocks and unblocks through the Host bridge, and a block removes c
     }),
   ).toMatchObject({ ok: false });
   expect(await blocks(fx)).toHaveLength(1);
+});
+
+it('a block follows its App to a rebound Binding', async () => {
+  const fx = await setup();
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const person = pendingFor(fx, applicant);
+  await methods.senderAccess({
+    slug: 'ada',
+    input: { kind: 'block-sender', bindingId: person.bindingId, actorId: applicant },
+  });
+  const identity = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: identity.id,
+    expectedRevision: identity.revision,
+  });
+  await fx.settle();
+  const rebound = await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/slack',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  const [block] = await blocks(fx);
+  expect(block).toMatchObject({ bindingId: rebound.id, actorId: applicant });
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: {
+        kind: 'unblock-sender',
+        bindingId: block!.bindingId,
+        actorId: applicant,
+        expectedRevision: block!.revision,
+      },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(await blocks(fx)).toEqual([]);
 });
