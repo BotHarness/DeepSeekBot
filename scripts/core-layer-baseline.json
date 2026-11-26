@@ -12,33 +12,6 @@
     "packages/core/src/bots/registry.ts": {
       "bots -> features": 1
     },
-    "packages/core/src/channels/card-context-live.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/causal-sending.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/runtime-access.ts": {
-      "channels -> features": 2,
-      "channels -> runtime": 7
-    },
-    "packages/core/src/channels/runtime-admission.ts": {
-      "channels -> features": 1,
-      "channels -> runtime": 3
-    },
-    "packages/core/src/channels/runtime-reads.ts": {
-      "channels -> features": 1,
-      "channels -> runtime": 2
-    },
-    "packages/core/src/channels/sqlite-store.append.ts": {
-      "channels -> runtime": 2
-    },
-    "packages/core/src/channels/sqlite-store.group-membership.ts": {
-      "channels -> runtime": 1
-    },
-    "packages/core/src/channels/sqlite-store.ts": {
-      "channels -> runtime": 1
-    },
     "packages/core/src/credentials/secret-mcp.ts": {
       "credentials -> runtime": 1
     },
@@ -552,21 +525,6 @@
     },
     "packages/core/src/channels/mark-all-read.ts": {
       "channels -> humans": 1
-    },
-    "packages/core/src/channels/runtime-access.ts": {
-      "channels -> humans": 1,
-      "channels -> purge": 1,
-      "channels -> team": 2,
-      "channels -> tob": 1,
-      "channels -> workspaces": 1
-    },
-    "packages/core/src/channels/runtime-admission.ts": {
-      "channels -> purge": 1,
-      "channels -> team": 1
-    },
-    "packages/core/src/channels/runtime-membership.ts": {
-      "channels -> bots": 1,
-      "channels -> team": 1
     },
     "packages/core/src/channels/send-review.ts": {
       "channels -> purge": 1

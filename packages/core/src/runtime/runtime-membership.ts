@@ -2,8 +2,8 @@ import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team/bot-access.js';
 import { type PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { type ChannelRecord } from './channel.js';
-import type { ChannelStore } from './store.js';
+import { type ChannelRecord } from '../channels/channel.js';
+import type { ChannelStore } from '../channels/store.js';
 import { type OperationalDatabaseModulePort } from '../database/owner.js';
 
 interface RuntimeMembershipPorts {

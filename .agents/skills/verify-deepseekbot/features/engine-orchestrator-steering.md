@@ -2,14 +2,14 @@
 
 ## Sources
 
-- `packages/core/src/channels/runtime-membership.ts`
-- `packages/core/src/channels/runtime-quotes.ts`
+- `packages/core/src/runtime/runtime-membership.ts`
+- `packages/core/src/runtime/runtime-quotes.ts`
 - `packages/core/src/engines/assignment-steering.ts`
 - `packages/core/src/engines/engine-gateway.ts`
 - `packages/core/src/engines/engine-host.ts`
 - `packages/core/src/engines/engine-turn-scope.ts`
 - `packages/core/src/runtime/bot-runtime.ts`
-- `packages/core/src/channels/runtime-admission.ts`
+- `packages/core/src/runtime/runtime-admission.ts`
 - `packages/core/test/engine-orchestrator-steering.test.ts`
 
 ## Terms

@@ -1,8 +1,8 @@
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelFileAccess } from '../features/channel-files/events.js';
 import type { VoiceChannelAccess } from '../features/voice/events.js';
-import type { BotContactPage, BotContactQuery } from '../runtime/bot-contact-discovery.js';
-import type { BotCreateInput, BotCreateOutcome } from '../runtime/bot-runtime.js';
+import type { BotContactPage, BotContactQuery } from './bot-contact-discovery.js';
+import type { BotCreateInput, BotCreateOutcome } from './bot-runtime.js';
 import type {
   ChannelMessage,
   ChannelReaction,
@@ -10,10 +10,10 @@ import type {
   GroupInvitation,
   GroupJoinRequest,
   GroupWakePolicyView,
-} from './channel.js';
-import type { ChannelCallWindow } from './call-window.js';
-import type { ChannelQuote } from './quotes.js';
-import type { ChannelMessageQueryOptions } from './store.js';
+} from '../channels/channel.js';
+import type { ChannelCallWindow } from '../channels/call-window.js';
+import type { ChannelQuote } from '../channels/quotes.js';
+import type { ChannelMessageQueryOptions } from '../channels/store.js';
 
 export interface ChannelMessageView {
   actorNames?: { humans: Record<string, string>; bots: Record<string, string> };
@@ -120,20 +120,22 @@ export interface OrchestratorChannelAccess extends ChannelFileAccess, VoiceChann
   inspectDrafts?(input: {
     channelId: string;
     draftId?: string;
-  }): import('./send-review.js').DraftInspection | import('./send-review.js').SendReviewOutcome;
+  }):
+    | import('../channels/send-review.js').DraftInspection
+    | import('../channels/send-review.js').SendReviewOutcome;
   dropDraft?(input: {
     channelId: string;
     draftId: string;
     observationId?: string;
     yieldToMessageIds?: string[];
-  }): import('./send-review.js').SendReviewOutcome;
+  }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
-    genui?: import('./genui.js').GenuiContent;
-    sessionLinks?: import('./channel.js').ChannelSessionLink[];
+    genui?: import('../channels/genui.js').GenuiContent;
+    sessionLinks?: import('../channels/channel.js').ChannelSessionLink[];
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
-    freshnessOverride?: import('./send-review.js').FreshnessOverride;
+    freshnessOverride?: import('../channels/send-review.js').FreshnessOverride;
     recover?: boolean;
     body: string;
     channelId?: string;
@@ -146,7 +148,7 @@ export interface OrchestratorChannelAccess extends ChannelFileAccess, VoiceChann
   }): Promise<ChannelMessage>;
   linkSessions?(input: {
     messageId: string;
-    links: Array<import('./channel.js').ChannelSessionLink & { createdAt?: string }>;
+    links: Array<import('../channels/channel.js').ChannelSessionLink & { createdAt?: string }>;
   }): ChannelMessage;
 }
 

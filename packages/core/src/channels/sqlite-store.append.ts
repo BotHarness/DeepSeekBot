@@ -7,18 +7,15 @@ import { GenuiError } from './genui.js';
 import { assertGenuiMessage } from './genui-message.js';
 import { assertQuoteTargets, quoteIds, sameQuoteIntent } from './quotes.js';
 import { assertGrantRequestReply, grantRequester } from './grant-request.js';
-import {
-  assertAssignmentHumanReply,
-  AssignmentReplyTargetError,
-} from '../runtime/assignment-human-context.js';
+import { assertAssignmentHumanReply, AssignmentReplyTargetError } from './assignment-reply.js';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import {
   defaultGroupWakePolicy,
   type BotSourceClass,
-  type BotSourcePolicyStore,
-} from '../runtime/source-policy.js';
+  type ChannelSourcePolicy,
+} from './source-policy.js';
 import { attachmentIntent } from '../attachments/ref.js';
 import { isBotDmChannel, type ChannelMessage } from './channel.js';
 import {
@@ -140,7 +137,7 @@ export function createChannelAppender({
   hasChannelAccessSchema: ReturnType<typeof createChannelRecords>['hasChannelAccessSchema'];
   database: OperationalDatabaseModulePort;
   botHopLimit: () => number;
-  sourcePolicy: BotSourcePolicyStore;
+  sourcePolicy: ChannelSourcePolicy;
   insertSourceAdmission: ReturnType<typeof createChannelAdmissions>['insertSourceAdmission'];
   now: () => Date;
   project: ReturnType<typeof createChannelPlacements>['project'];

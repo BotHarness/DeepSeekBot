@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { defaultGroupWakePolicy, type BotSourcePolicyStore } from '../runtime/source-policy.js';
+import { defaultGroupWakePolicy, type ChannelSourcePolicy } from './source-policy.js';
 import type {
   ChannelMessage,
   ChannelRecord,
@@ -28,7 +28,7 @@ export function createGroupMembership({
   now: () => Date;
   publishRecordChanged: ReturnType<typeof createChannelRecords>['publishRecordChanged'];
   readRecord: ReturnType<typeof createChannelRecords>['readRecord'];
-  sourcePolicy: BotSourcePolicyStore;
+  sourcePolicy: ChannelSourcePolicy;
   options: SqliteChannelStoreOptions;
   isBotActive: (slug: string) => boolean;
   admissionStatuses: ReturnType<typeof createChannelAdmissions>['admissionStatuses'];

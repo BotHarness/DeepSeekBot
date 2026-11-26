@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 import type { HumanContext } from '../humans/context.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { TeamService } from '../team/service.js';
-import { queryCallWindow } from '../features/voice/events.js';
-import { boundModelPage, readModelContent } from '../runtime/channel-model-read.js';
-import { requireNonBlank } from '../runtime/require-non-blank.js';
-import { hasChannelCallWindow } from './call-window.js';
-import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from './channel.js';
-import { MAX_MESSAGE_PAGE, type ChannelStore } from './store.js';
-import { encodeChannelMessageCursor, prepareChannelMessageQuery } from './store-query.js';
-import type { GroupSendReview } from './send-review.js';
+import type { queryCallWindow } from '../features/voice/events.js';
+import { boundModelPage, readModelContent } from './channel-model-read.js';
+import { requireNonBlank } from './require-non-blank.js';
+import { hasChannelCallWindow } from '../channels/call-window.js';
+import { isBotDmChannel, type ChannelMessage, type ChannelRecord } from '../channels/channel.js';
+import { MAX_MESSAGE_PAGE, type ChannelStore } from '../channels/store.js';
+import { encodeChannelMessageCursor, prepareChannelMessageQuery } from '../channels/store-query.js';
+import type { GroupSendReview } from '../channels/send-review.js';
 import type {
   ChannelListEntry,
   ChannelMessageView,
@@ -19,6 +19,7 @@ import type {
 } from './runtime-access-types.js';
 
 interface ChannelReadPorts {
+  channelToolFeatures: { queryCallWindow: typeof queryCallWindow };
   channels: ChannelStore;
   registry: PersonaBotRegistry;
   team: TeamService | undefined;
@@ -84,7 +85,7 @@ export function createChannelReads(
       throw new Error('channel_read: invalid scope');
     }
     const call = hasChannelCallWindow(input)
-      ? queryCallWindow({ channels: ports.channels, resolve, input })
+      ? ports.channelToolFeatures.queryCallWindow({ channels: ports.channels, resolve, input })
       : undefined;
     if (call !== undefined || input.scope !== 'joined') {
       const channel = call?.channel ?? resolve(input.channelId);

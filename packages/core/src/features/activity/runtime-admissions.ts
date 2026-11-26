@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type {
   ChannelMessageView,
   OrchestratorChannelAccess,
-} from '../../channels/runtime-access-types.js';
+} from '../../runtime/runtime-access-types.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import type { HumanContext } from '../../humans/context.js';

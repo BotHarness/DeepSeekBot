@@ -13,7 +13,7 @@ import {
   type ChannelRecord,
   type SessionFailureProgress,
 } from '../../channels/channel.js';
-import type { createChannelAdmission } from '../../channels/runtime-admission.js';
+import type { createChannelAdmission } from '../../runtime/runtime-admission.js';
 import type { ChannelStore } from '../../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
 import { EngineLimitError } from '../../engines/engine-session.js';
