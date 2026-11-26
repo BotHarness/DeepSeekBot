@@ -270,7 +270,7 @@ it('keeps a cached denial when the access read fails on reopen', async () => {
   const base = teamCall(access);
   const call = vi.fn<BridgeCall>(async (method, payload, signal) => {
     if (fail && method === 'channelGet')
-      return { ok: false, error: { code: 'unavailable', message: 'offline' } };
+      return { ok: false, error: { code: 'unavailable', message: 'offline', details: {} } };
     return base(method, payload, signal);
   });
   const actions = {
