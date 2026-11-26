@@ -397,13 +397,22 @@ export function ToolApprovalCard({
         : request.approvalReview.fallback === undefined
           ? request.approvalReview.reason
           : t('autoApproval.reviewUnavailable');
+  const secretRisk =
+    canAlwaysAllow && (secretCli || request.toolName === 'secret_mcp_connect') ? scope : undefined;
   const hostAccess =
     message.approval?.masked === false && message.approval.opaque
       ? t('approval.opaqueWarning')
       : undefined;
   const info = (
     memoryEdit === undefined
-      ? [origin, t('approval.cwd', { path: request.cwd }), effects, review, scope, hostAccess]
+      ? [
+          origin,
+          t('approval.cwd', { path: request.cwd }),
+          effects,
+          review,
+          secretRisk === undefined ? scope : undefined,
+          hostAccess,
+        ]
       : [
           `${memoryBot ?? memoryEdit.target} · ${memoryEdit.label}${request.toolName === 'deepseekbot memory-save' ? ` @ ${memoryEdit.base}` : ''}`,
           effects,
@@ -551,6 +560,9 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
+      {secretRisk === undefined ? null : (
+        <div {...hooked('bh-tool-approval-scope', styles.caption)}>{secretRisk}</div>
+      )}
       {settled !== undefined ? (
         <RequestOutcome
           outcome={settled}
