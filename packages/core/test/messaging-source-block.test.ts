@@ -189,13 +189,24 @@ it('the Host blocks and unblocks a conversation through sender access', async ()
 });
 
 it('blocking asks the Human first, listing does not', () => {
-  const block = { action: 'block', source_event_id: 'e', target_name: 'QA', app: 'Slack' };
+  const block = {
+    action: 'block',
+    scope: 'sender',
+    source_event_id: 'e',
+    target_name: 'QA',
+    app: 'Slack',
+  };
   expect(toolEffects('bridge_source_block', block)).toMatchObject({ authority: 'management' });
   expect(toolApprovalRequired('bridge_source_block', block, false)).toBe(true);
+  expect(
+    toolApprovalRequired('bridge_source_block', { ...block, scope: 'conversation' }, false),
+  ).toBe(true);
   const unblock = { action: 'unblock', block_id: 'b', target_name: 'QA' };
   expect(toolApprovalRequired('bridge_source_block', unblock, false)).toBe(true);
   for (const incomplete of [
     { action: 'block', source_event_id: 'e' },
+    { ...block, scope: undefined },
+    { ...block, scope: 'everyone' },
     { action: 'block', source_event_id: 'e', target_name: 'QA' },
     { action: 'unblock', block_id: 'b' },
   ])

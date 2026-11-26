@@ -150,7 +150,14 @@ function sourceBlockChange(operation: object): boolean {
     typeof (operation as Record<string, unknown>)[key] === 'string' &&
     (operation as Record<string, unknown>)[key] !== '';
   const action = 'action' in operation ? operation.action : undefined;
-  if (action === 'block') return named('source_event_id') && named('target_name') && named('app');
+  const scope = 'scope' in operation ? operation.scope : undefined;
+  if (action === 'block')
+    return (
+      (scope === 'sender' || scope === 'conversation') &&
+      named('source_event_id') &&
+      named('target_name') &&
+      named('app')
+    );
   if (action === 'unblock') return named('block_id') && named('target_name');
   return false;
 }
