@@ -795,15 +795,41 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('adds Shell prefix rules through the existing approval decision RPC', async () => {
+    const live = await host((method, args) => {
+      if (method === 'toolApprovalDecide') return { ok: true, value: { accepted: true } };
+      return echo(method, args);
+    });
+    const argv = ['approval-rule-add', 'dm-ada', '--message-id', 'card'];
+    expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    const result = await invoke(
+      [...argv, '--prefix', 'git status *', '--prefix', 'git log *'],
+      live.url,
+    );
+    expect(result.json).toEqual({ accepted: true });
+    expect(live.calls).toEqual([
+      {
+        method: 'toolApprovalDecide',
+        args: {
+          channelId: 'dm-ada',
+          messageId: 'card',
+          outcome: 'allowed-always-prefix',
+          rule: { kind: 'prefix', patterns: ['git status *', 'git log *'] },
+        },
+      },
+    ]);
+    expect(cliEffects(argv)).toMatchObject({ authority: 'management' });
+  });
+
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
     const rule = {
       id: 'r1',
       botSlug: 'ada',
       role: 'orchestrator',
       scopeKey: 'host',
-      kind: 'exact',
+      kind: 'prefix',
       toolName: 'bash',
-      input: 'pwd',
+      input: 'git status *',
       createdAt: '2026-11-20T00:00:00Z',
       autoApprovedCount: 0,
     };

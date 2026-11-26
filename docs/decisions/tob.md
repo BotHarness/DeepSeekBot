@@ -163,7 +163,23 @@ _Added for #5191 (grilling session of 2026-11-26) and implemented in #5193; supe
 - **Prompt and cache.** A Bot with the grant gets one short line: for problems with the App, run `deepseekbot capabilities` and `doctor` first and use the CLI itself. The delegation half of the old `STEWARD_PROMPT` is dropped. Turning a grant on or off never edits a running Session's system prompt and never changes its tool list (Bots with and without the grant have the same tools). The Host appends a `[Host timeline]` marker to the Bot's Human DM instead, in the form of the model switch marker, stating that the Bot can or can no longer manage the App. The line moves into the system prompt at the Session's next compaction or in a new Session, when the prefix is rebuilt anyway.
 - **Tob is an ordinary Bot.** Each new Profile still creates the built-in Tob with both grants on, as the first Bot the Human talks to and the one that helps configure the rest of the App after onboarding. It can be renamed, archived, deleted and shared to the Marketplace. Deleting or archiving the last Bot with "Manage the App" warns that no Bot will be able to manage the App until the Human turns the grant on for another.
 - **Pinned tab.** It defaults to the built-in Tob's DM and falls back to the most recent conversation in Chats when Tob is gone. It is otherwise unrelated to the grant.
-- **Team mode.** Only the Owner's Bots can hold a management grant for now. When the Owner changes, the former Owner's management grants are revoked and the new Owner's Tob gets both. A scoped grant for members' Bots is a separate issue. Importing a Bot never brings a grant.
+- **Team mode.** The Owner's Bots can hold a management grant, and so can the Bots of a member the Owner authorized (see below). When the Owner changes, the former Owner's management grants are revoked and the new Owner's Tob gets both. Importing a Bot never brings a grant.
+
+### Members' Bots
+
+<a id="member-management-grant"></a>
+_Added for #5461 (Human, 2026-11-26)._
+
+Whether a Team member's Bot can hold a management grant depends on whether the Owner authorized that member.
+
+- **Permission.** `bots.manageGrants` ("Turn on management for own Bots") is an Owner-granted Host permission, like `privateContent.view` and `modelSources.manage`: only the Owner can put it in a role, and the built-in Admin role never carries it.
+- **Switching.** An active member whose role holds it turns "Manage the App" and "Manage other Bots" on or off for their own Bots, in Bot settings or with `deepseekbot bot-grant`, with the same confirmation, the same Human-only rule and the same self-escalation guard. They cannot switch another Human's Bots.
+- **When it counts.** A member Bot's grant counts only while Team mode is on, its owner is active and one of the owner's roles holds the permission. Withdrawing the permission, suspending or deactivating the member, or turning Team mode off stops it at once; the stored grant stays dormant, as for a former Owner's Bots. `managementGrants` and the last-App-manager warning count only the caller's own Bots.
+- **Authority.** The scoped CLI runs as the member, only in that member's own accepted Human DM turn, and every command goes through the member's bridge permissions. Member Bots get the commands that already run through a per-Human bridge: `create` and Share Drafts under "Manage the App", and the member's other Bots' PersonaBot Profile and Memory edits under "Manage other Bots". Settings and models, maintenance, `doctor` and diagnostic logs, voice, Channels/Groups, Memory leases and the Host CLI passthrough (which signs in with the Owner's Host token) stay with the Owner's Bots and refuse with `owner-bot-required`. Archiving, reactivating and deleting Bots also refuse for member Bots; the member still does those for their own Bots in the App.
+
+Why: the member already owns those Bots and can do the same things by hand; the Owner decides who may hand that to a Bot, so a member cannot raise their own Bot's authority above their own.
+
+Enforced by: `member-management-grants.test.ts`.
 
 Why: ADR-0365 made Steward a singleton role: exactly one Bot per Environment, moved by an atomic transfer. Reviewing it before #5206 merged (grilling session of 2026-11-26, #5191), the Human found that the singleton bought very little:
 

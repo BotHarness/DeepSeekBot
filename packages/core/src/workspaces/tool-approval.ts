@@ -1,13 +1,19 @@
 import type { ApprovalAuthority } from '../team/approval-contract.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
-import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
 export type { ToolApprovalActor } from './tool-approval-actor.js';
 import { randomUUID } from 'node:crypto';
+import type { ShellPrefixApproval } from '@botharness/host-protocol/wire';
+import { shellApprovalInput, shellApprovalSuggestions } from './shell-approval-prefix.js';
+import {
+  commitShellPrefixDecision,
+  toolApprovalPolicy,
+  type ToolApprovalPolicyOptions,
+} from '../features/approvals/tool-approval-policy.js';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
-import type { ApprovalOutcome, ApprovalService } from '@deepseek-ai/dsh-user-approval';
+import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -18,7 +24,10 @@ import {
   type ToolApprovalRule,
 } from './tool-approval-rules.js';
 import type { AssignmentApprovalWaitLease } from '../runtime/assignment-approval-capacity.js';
-import { reviewToolApproval } from '../features/approvals/tool-approval-review.js';
+import {
+  approvalOverrideKey,
+  reviewToolApproval,
+} from '../features/approvals/tool-approval-review.js';
 import type {
   AutoRejectionOverrideResult,
   BotCreatePreview,
@@ -30,8 +39,11 @@ import type {
   ToolAutoApproval,
   TrackedCall,
 } from '../features/approvals/tool-approval-types.js';
-import { requiresHumanDecision } from './approval-templates.js';
-import { decideToolApproval, toolEffects } from './tool-effects.js';
+import { toolEffects } from './tool-effects.js';
+export {
+  registerChannelToolApproval,
+  requestRequiredToolApproval,
+} from '../features/approvals/tool-approval-routing.js';
 
 export type {
   AutoRejectionOverrideResult,
@@ -49,28 +61,6 @@ const STOPPED_REQUEST_MEMORY = 500;
 
 function callKey(sessionId: string, callId: string): string {
   return sessionId + ':' + callId;
-}
-
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort()
-      .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
-  );
-}
-
-function canonicalInput(input: string): string {
-  try {
-    return JSON.stringify(canonical(JSON.parse(input)));
-  } catch {
-    return input;
-  }
-}
-
-function overrideKey(call: { sessionId: string; toolName: string; input: string }): string {
-  return JSON.stringify([call.sessionId, call.toolName, canonicalInput(call.input)]);
 }
 
 function bounded(set: Set<string>, limit: number): void {
@@ -238,14 +228,16 @@ export class ChannelToolApproval {
           );
     if (untrack === undefined) return 'unavailable';
     try {
-      return (
-        (await this.ask({
-          agent,
-          toolName: request.toolName,
-          callId: request.callId,
-          signal: request.signal,
-        })) ?? 'unavailable'
-      );
+      const outcome = await this.ask({
+        agent,
+        toolName: request.toolName,
+        callId: request.callId,
+        signal: request.signal,
+      });
+      const tracked = this.#tracked.get(callKey(agent.session.id, request.callId));
+      if (tracked?.automaticPrefix && !this.validAfterDecision(agent, request.callId))
+        return 'unavailable';
+      return outcome ?? 'unavailable';
     } finally {
       untrack();
     }
@@ -293,10 +285,10 @@ export class ChannelToolApproval {
         standingRule: this.#explicitRuleRequired(tracked) ? 'explicit' : 'ordinary',
       }).path === 'standing-rule'
     ) {
-      tracked.automatic = true;
-      this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
+      this.#allowByStandingRule(tracked, [standing]);
       return 'allowed-once';
     }
+    const prefix = this.#matchingPrefix(tracked);
     const origin =
       directOrigin ??
       tracked.origin ??
@@ -319,7 +311,7 @@ export class ChannelToolApproval {
     const channelId = channel.id;
     if (
       this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer' &&
-      this.#overrides.delete(overrideKey(tracked))
+      this.#overrides.delete(approvalOverrideKey(tracked))
     ) {
       tracked.humanReviewed = true;
       return 'allowed-once';
@@ -346,12 +338,20 @@ export class ChannelToolApproval {
         });
       } catch {}
     }
+    if (prefix && template === undefined && tracked.approvalReview === undefined) {
+      this.#allowByStandingRule(tracked, prefix);
+      return 'allowed-once';
+    }
     if (template !== undefined) {
       const reviewed = await reviewToolApproval(
         tracked,
         template,
         channelId,
-        { signal: request.signal, includeSessionHistory: origin?.kind !== 'direct' },
+        {
+          signal: request.signal,
+          includeSessionHistory: origin?.kind !== 'direct',
+          prefixRule: prefix !== undefined,
+        },
         {
           autoApproval: this.#autoApproval,
           attention: this.#attention,
@@ -359,7 +359,14 @@ export class ChannelToolApproval {
           findTrackedCall: (sessionId, callId) => this.#tracked.get(callKey(sessionId, callId)),
         },
       );
-      if (reviewed !== undefined) return reviewed;
+      if (reviewed !== undefined) {
+        if (!prefix) return reviewed;
+        const current = this.#matchingPrefix(tracked);
+        if (current) {
+          this.#allowByStandingRule(tracked, current);
+          return reviewed;
+        }
+      }
       if (request.signal?.aborted) return 'cancelled';
     }
     const message: ChannelMessage = {
@@ -453,7 +460,10 @@ export class ChannelToolApproval {
         name === tracked.toolName &&
         inputOf({ ...tracked.execution, arguments: args }) === tracked.input &&
         tracked.authorized?.() !== false &&
-        (!tracked.automatic || this.#matchingRule(tracked) !== undefined)
+        (!tracked.automatic ||
+          (tracked.automaticPrefix
+            ? this.#matchingPrefix(tracked)
+            : this.#matchingRule(tracked)) !== undefined)
       );
     };
   }
@@ -599,7 +609,7 @@ export class ChannelToolApproval {
     human: HumanContext,
     botSlug: string,
     messageId: string,
-    outcome: ToolApprovalDecision['outcome'],
+    action: Exclude<ToolApprovalDecision['outcome'], 'allowed-always-prefix'> | ShellPrefixApproval,
     external?: {
       actor: ToolApprovalActor;
       authorized(): boolean;
@@ -617,6 +627,38 @@ export class ChannelToolApproval {
     )
       return false;
     this.approvals?.requireRequest(human, pending.channelId, messageId);
+    if (typeof action !== 'string') {
+      const tracked = this.#tracked.get(callKey(pending.sessionId, pending.callId));
+      if (
+        external ||
+        !tracked ||
+        !this.#rules ||
+        pending.notice.allowAlways !== true ||
+        this.#explicitRuleRequired(tracked)
+      )
+        return false;
+      pending.deciding = true;
+      try {
+        const committed = await commitShellPrefixDecision({
+          human,
+          pending,
+          tracked,
+          action,
+          rules: this.#rules,
+          channels: this.#channels,
+          approvals: this.approvals,
+          stillPending: () =>
+            this.#pending.get(messageId) === pending &&
+            this.#tracked.get(callKey(tracked.sessionId, tracked.callId)) === tracked &&
+            this.validAfterDecision(tracked.agent, tracked.callId),
+        });
+        if (committed) this.#settle(messageId, 'allowed-once');
+        return committed;
+      } finally {
+        pending.deciding = false;
+      }
+    }
+    const outcome = action;
     const eachUse = pending.notice.externalDecision === 'each-use';
     const remember =
       eachUse &&
@@ -839,17 +881,9 @@ export class ChannelToolApproval {
       return { ok: false, code: 'unavailable' };
     }
     bounded(this.#overridden, 1024);
-    this.#overrides.add(overrideKey(record));
+    this.#overrides.add(approvalOverrideKey(record));
     bounded(this.#overrides, 256);
     return { ok: true, message: appended };
-  }
-
-  #changesPolicy(tracked: TrackedCall): boolean {
-    const inUse = this.#autoApproval?.templateInUse;
-    return requiresHumanDecision(
-      tracked.toolName + ' ' + tracked.input,
-      inUse === undefined ? undefined : (name) => inUse(name),
-    );
   }
 
   #currentScope(tracked: TrackedCall, owner: SessionOwnershipRecord): string | undefined {
@@ -862,25 +896,8 @@ export class ChannelToolApproval {
       : scope;
   }
 
-  #decisionPolicy(
-    tracked: TrackedCall,
-    options: {
-      fullAccess?: boolean;
-      standingRule?: 'none' | 'ordinary' | 'explicit';
-      reviewer?: boolean;
-    } = {},
-  ) {
-    return decideToolApproval(tracked.effects, {
-      stage: 'request',
-      legacyProtected: this.#changesPolicy(tracked),
-      explicitApproval: tracked.requireExplicitApproval === true,
-      eachUse: tracked.externalDecision === 'each-use',
-      device: tracked.device !== undefined,
-      fullAccess: options.fullAccess === true,
-      standingRule: options.standingRule ?? 'none',
-      reviewer: options.reviewer === true,
-      rememberable: tracked.rememberable === true,
-    });
+  #decisionPolicy(tracked: TrackedCall, options: ToolApprovalPolicyOptions = {}) {
+    return toolApprovalPolicy(tracked, options, this.#autoApproval?.templateInUse);
   }
 
   #explicitRuleRequired(tracked: TrackedCall): boolean {
@@ -891,12 +908,32 @@ export class ChannelToolApproval {
     return this.#rules?.match({ ...tracked, explicitOnly: this.#explicitRuleRequired(tracked) });
   }
 
+  #matchingPrefix(tracked: TrackedCall): ToolApprovalRule[] | undefined {
+    if (tracked.externalDecision === 'each-use' || this.#explicitRuleRequired(tracked)) return;
+    return this.#rules?.matchPrefix(tracked);
+  }
+
+  #allowByStandingRule(tracked: TrackedCall, rules: ToolApprovalRule[]): void {
+    tracked.automatic = true;
+    tracked.automaticPrefix = rules.some((rule) => rule.kind === 'prefix');
+    for (const rule of rules) this.#rules?.recordAutoApproval(rule.botSlug, rule.id);
+  }
+
   takeReviewRejection(_sessionId: string, _callId: string): string | undefined {
     return undefined;
   }
 
   rule(botSlug: string, ruleId: string): ToolApprovalRule | undefined {
     return this.#rules?.list(botSlug).find((rule) => rule.id === ruleId);
+  }
+
+  shellSuggestions(botSlug: string, messageId: string) {
+    const notice = this.pending(botSlug, messageId);
+    if (notice?.allowAlways !== true) return undefined;
+    const tracked = this.#tracked.get(callKey(notice.sessionId, notice.callId));
+    if (!tracked || this.#explicitRuleRequired(tracked)) return undefined;
+    const shell = shellApprovalInput(tracked.toolName, tracked.input);
+    return shell && shellApprovalSuggestions(shell.command);
   }
 
   ruleScope(
@@ -959,33 +996,4 @@ export class ChannelToolApproval {
     pending.signal?.removeEventListener('abort', pending.abort);
     pending.resolve(outcome);
   }
-}
-
-export async function requestRequiredToolApproval({
-  approval,
-  channelApproval,
-  ownership,
-  request,
-  forceChannel,
-}: {
-  approval: Pick<ApprovalService, 'request'>;
-  channelApproval: Pick<ChannelToolApproval, 'ask'>;
-  ownership: Pick<SessionOwnership, 'resolve'>;
-  request: Parameters<ApprovalService['request']>[0];
-  forceChannel: boolean;
-}): Promise<ApprovalOutcome> {
-  const owner = ownership.resolve(request.agent.session.id);
-  if (forceChannel && owner !== undefined && owner.parentSessionId === undefined)
-    return (await channelApproval.ask(request)) ?? 'unavailable';
-  return approval.request(request);
-}
-
-export function registerChannelToolApproval(
-  ctx: Context,
-  approval: Pick<ChannelToolApproval, 'ask'>,
-): void {
-  ctx.on('approval/request', async (request, next) => (await approval.ask(request)) ?? next(), {
-    global: true,
-    prepend: true,
-  });
 }

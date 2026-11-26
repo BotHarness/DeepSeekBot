@@ -665,6 +665,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const tobOperations = tobFeature.mountOperations(ctx, core, {
     bridgeMethods,
+    bridgeFor: invocationBridgeMethods,
     diagnosticEvents,
     hostDiagnosticEnvironment,
     readWebServices: (webCtx) =>
