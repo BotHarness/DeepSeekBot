@@ -8,6 +8,14 @@ import type { SessionModelState } from '@botharness/host-protocol/session-model'
 import type { SettingsRowProps } from '../src/ui/primitives/settings-row-model';
 import type { SheetFrameProps } from '../src/ui/chat/sheet-frame';
 
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: ({ name }: { name: string | { ios?: string; android?: string } }) => (
+    <i
+      data-symbol-ios={typeof name === 'string' ? name : name.ios}
+      data-symbol-android={typeof name === 'string' ? undefined : name.android}
+    />
+  ),
+}));
 vi.mock('../src/host/native-model-catalog', () => ({
   nativeModelCatalogStore: { read: () => undefined, write: () => {} },
 }));
@@ -396,4 +404,18 @@ it('names the Default preset model on a new native Session and filters by provid
   expect(button('session-model-option-default')).toBeDefined();
   await act(async () => button('session-model-filter-api:claude').click());
   expect(container.querySelectorAll('[data-testid^="session-model-option-model"]')).toHaveLength(2);
+});
+
+it('marks a subscription provider chip with a plug badge', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? catalog : defaultState,
+  );
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const badge = button('session-model-filter-sub:claude').querySelector('[data-symbol-ios]');
+  expect(badge?.getAttribute('data-symbol-ios')).toBe('powerplug.portrait.fill');
+  expect(badge?.getAttribute('data-symbol-android')).toBe('power');
+  expect(
+    container.querySelector('[data-testid^="session-model-filter-api:"] [data-symbol-ios]'),
+  ).toBeNull();
 });

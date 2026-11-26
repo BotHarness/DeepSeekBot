@@ -12,6 +12,7 @@ import { readBlock } from '../conversations.js';
 import { groupReceptionPolicy } from './group-reception.js';
 import { channelBridgeRoutes } from '../channel-bridge.js';
 import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior.js';
+import { blockSender, senderBlocked, unblockSender } from './sender-blocks.js';
 import { messagingDefaults } from '../defaults.js';
 import { threadReceptionPolicy } from './thread-reception.js';
 import { matchingIngests, type ConversationIngest } from '../conversation-ingest.js';
@@ -91,6 +92,22 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
       kind: z.literal('default-role'),
       roleId: z.string().uuid().nullable(),
       expectedRevision: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('block-sender'),
+      bindingId: z.string().min(1).max(200),
+      actorId: z.string().trim().min(1).max(200),
+      actorName: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('unblock-sender'),
+      bindingId: z.string().min(1).max(200),
+      actorId: z.string().trim().min(1).max(200),
+      expectedRevision: z.number().int().positive().optional(),
     })
     .strict(),
   z
@@ -438,6 +455,35 @@ function assertReviewerMembership(
   )
     throw new MessagingError('pairing-delegation-denied');
 }
+function assertReviewerBlock(
+  db: DatabaseSync,
+  botSlug: string,
+  input: Extract<SenderAccessInput, { kind: 'block-sender' | 'unblock-sender' }>,
+  reviewer: SenderAccessReviewer,
+): void {
+  const permissions = effectivePairingPermissions(
+    db,
+    botSlug,
+    reviewer.bindingId,
+    reviewer.actorId,
+  );
+  if (
+    !permissions.capabilities.includes('review-pairing') ||
+    input.bindingId !== reviewer.bindingId ||
+    input.actorId === reviewer.actorId
+  )
+    throw new MessagingError('pairing-unauthorized');
+  const delegable = permissions.delegableCapabilities ?? [];
+  const target = effectivePairingPermissions(db, botSlug, input.bindingId, input.actorId, {
+    includeBlocked: true,
+  });
+  if (
+    [...target.capabilities, ...(target.delegableCapabilities ?? [])].some(
+      (cap) => cap !== 'answer' && !delegable.includes(cap),
+    )
+  )
+    throw new MessagingError('pairing-delegation-denied');
+}
 export function changeSenderAccess(
   db: DatabaseSync,
   botSlug: string,
@@ -462,6 +508,13 @@ export function changeSenderAccess(
   ) {
     if (reviewer) assertReviewerExceptions(db, botSlug, input, reviewer);
     changePermissionGroups(db, botSlug, input);
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
+  if (input.kind === 'block-sender' || input.kind === 'unblock-sender') {
+    if (reviewer) assertReviewerBlock(db, botSlug, input, reviewer);
+    if (input.kind === 'block-sender') blockSender(db, botSlug, input, reviewer?.actorId);
+    else unblockSender(db, botSlug, input);
     bumpSenderPolicy(db, botSlug);
     return;
   }
@@ -791,6 +844,7 @@ export function senderAdmission(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): SenderAdmission {
+  if (senderBlocked(db, botSlug, event)) return 'refused';
   if (senderAdmissionAllowed(db, botSlug, event)) return 'wake';
   return senderContextAllowed(db, botSlug, event) ? 'context' : 'refused';
 }
@@ -814,6 +868,7 @@ export function sourceAdmission(
       : cloudMessageAllowed(db, botSlug, event, true)
         ? 'context'
         : 'refused';
+  if (event?.fingerprint && senderBlocked(db, botSlug, event)) return 'refused';
   if (!readSenderPolicy(db, botSlug).restricted) return 'wake';
   return event ? senderAdmission(db, botSlug, event) : 'refused';
 }
