@@ -26,6 +26,8 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalMemoryEdit, approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { InfoTip } from './ds/info-tip.js';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
+import { ApprovalPresetPicker } from './approval-preset-picker.js';
+import type { TemplateActions } from './approval-template-entry.js';
 
 function isReadTimeout(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
@@ -58,7 +60,8 @@ export function ToolApprovalCard({
     | 'toolApprovalState'
     | 'toolApprovalExecutionState'
     | 'decideToolApproval'
-  >;
+  > &
+    TemplateActions;
   hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
@@ -299,7 +302,13 @@ export function ToolApprovalCard({
     if (surface === 'activity') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     const target = event.target as HTMLElement;
-    if (target.closest('input, textarea, select, [contenteditable="true"]') !== null) return;
+    if (!event.currentTarget.contains(target)) return;
+    if (
+      target.closest(
+        'input, textarea, select, [contenteditable="true"], [data-approval-preset]',
+      ) !== null
+    )
+      return;
     if (!actionable) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     if (disabled) return;
@@ -460,9 +469,10 @@ export function ToolApprovalCard({
     ) : null;
   const onCardClick = (event: MouseEvent<HTMLDivElement>): void => {
     const target = event.target as HTMLElement;
+    if (!event.currentTarget.contains(target)) return;
     if (
       target.closest(
-        'button, a, input, textarea, select, label, [role="group"], .bh-tool-approval-details-body',
+        'button, a, input, textarea, select, label, [role="group"], [data-approval-preset], .bh-tool-approval-details-body',
       ) !== null
     )
       return;
@@ -624,6 +634,9 @@ export function ToolApprovalCard({
         <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
+      ) : null}
+      {actionable && botSlug !== undefined ? (
+        <ApprovalPresetPicker botSlug={botSlug} actions={actions} manage={!hostScoped} t={t} />
       ) : null}
       {status === 'unavailable' ? (
         <ActionGroup>

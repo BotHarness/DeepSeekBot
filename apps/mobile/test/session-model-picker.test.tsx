@@ -50,6 +50,14 @@ vi.mock('../src/ui/primitives/preference-row', async () => {
     },
   };
 });
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: ({ name }: { name: string | { ios?: string; android?: string } }) => (
+    <i
+      data-symbol-ios={typeof name === 'string' ? name : name.ios}
+      data-symbol-android={typeof name === 'string' ? undefined : name.android}
+    />
+  ),
+}));
 vi.mock('../src/host/native-model-catalog', () => ({
   nativeModelCatalogStore: { read: () => undefined, write: () => {} },
 }));
@@ -488,4 +496,18 @@ it('chooses the reasoning effort for the selected model and keeps the sheet open
     sessionId: 'current',
     choice: bare,
   });
+});
+
+it('marks a subscription provider chip with a plug badge', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? catalog : defaultState,
+  );
+  await act(async () => root.render(<ComposerModel host={{ call }} />));
+  await act(async () => button('composer-session-model').click());
+  const badge = button('session-model-filter-sub:claude').querySelector('[data-symbol-ios]');
+  expect(badge?.getAttribute('data-symbol-ios')).toBe('powerplug.portrait.fill');
+  expect(badge?.getAttribute('data-symbol-android')).toBe('power');
+  expect(
+    container.querySelector('[data-testid^="session-model-filter-api:"] [data-symbol-ios]'),
+  ).toBeNull();
 });

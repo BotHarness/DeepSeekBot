@@ -13,6 +13,7 @@ import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { templateDescription, templateTitle } from './approval-template-entry.js';
+import { onApprovalTemplateCreate } from './approval-template-create-request.js';
 import {
   BridgeCallError,
   createApprovalTemplate,
@@ -252,11 +253,12 @@ export function ApprovalTemplateLibrarySettings({
   const deletionGeneration = useRef(0);
   const reloadGeneration = useRef(0);
   const [applyTo, setApplyTo] = useState('');
+  const [requestedBot, setRequestedBot] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const { bots } = useClientFields(TEMPLATE_LIBRARY_FIELDS, store);
   const currentBotSlug = useStoreSlice(store, currentTemplateBot);
-  const currentBot = bots.find((bot) => bot.slug === currentBotSlug);
+  const currentBot = bots.find((bot) => bot.slug === (requestedBot ?? currentBotSlug));
 
   const reload = async () => {
     const generation = ++reloadGeneration.current;
@@ -285,8 +287,15 @@ export function ApprovalTemplateLibrarySettings({
     void reload().catch((cause: unknown) => {
       if (live) setLoadError(errorMessage(cause));
     });
+    const stopCreate = onApprovalTemplateCreate((botSlug) => {
+      setRequestedBot(botSlug);
+      setApplyTo('');
+      setError(undefined);
+      setEditor({ mode: 'source' });
+    });
     return () => {
       live = false;
+      stopCreate();
       reloadGeneration.current++;
       deletionGeneration.current++;
     };
@@ -318,11 +327,12 @@ export function ApprovalTemplateLibrarySettings({
   const close = (): void => {
     setEditor(undefined);
     setApplyTo('');
+    setRequestedBot(undefined);
     cancelDeletion();
     setError(undefined);
   };
   const createDraft = (draft: Extract<Editor, { mode: 'create' }>): void => {
-    setApplyTo('');
+    setApplyTo(requestedBot ?? '');
     setError(undefined);
     setEditor(draft);
   };

@@ -3,7 +3,6 @@ import {
   accessibilityLabel,
   buttonBorderShape,
   buttonStyle,
-  controlSize,
   dynamicTypeSize,
   font,
   foregroundStyle,
@@ -12,6 +11,7 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useDesignTheme } from '../../ui/design/theme';
+import { space } from '../../ui/design/tokens';
 import { useLiquidGlass } from '../../ui/primitives/drawer-material';
 
 export function SessionDrawerNewButton({ label, onPress }: { label: string; onPress(): void }) {
@@ -29,7 +29,6 @@ export function SessionDrawerNewButton({ label, onPress }: { label: string; onPr
         modifiers={[
           buttonStyle(glass ? 'glassProminent' : 'borderedProminent'),
           buttonBorderShape('roundedRectangle', theme.touch / 2),
-          controlSize('large'),
           tint(theme.color.accent),
           dynamicTypeSize({ max: 'xxxLarge' }),
           accessibilityLabel(label),
@@ -42,7 +41,8 @@ export function SessionDrawerNewButton({ label, onPress }: { label: string; onPr
             font({ textStyle: 'body', weight: 'semibold' }),
             lineLimit(1),
             foregroundStyle(theme.color.onAccent),
-            frame({ maxWidth: Infinity, maxHeight: Infinity }),
+            frame({ height: theme.touch - space.x5 }),
+            frame({ maxWidth: Infinity }),
           ]}
         />
       </Button>

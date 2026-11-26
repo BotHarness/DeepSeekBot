@@ -4,7 +4,7 @@ import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { edge, radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
-import { RefreshIcon } from '../shell/icons';
+import { SystemSymbol, type SystemSymbolProps } from '../primitives/system-symbol';
 import { ModelBrandIcon } from './model-brand-icon';
 import { ModelPickerFilters } from './model-picker-filters';
 import { SHEET_GROUP, SheetHeading } from './sheet';
@@ -12,14 +12,21 @@ import type { SessionModelFilter, SessionModelSkeletonSection } from './session-
 
 export const FILTER_SKELETON_CHIPS = 5;
 
+export const SUBSCRIPTION_BADGE_SYMBOL = {
+  ios: 'powerplug.portrait.fill',
+  android: 'power',
+} as const satisfies SystemSymbolProps['name'];
+
 export function ModelFilterGlyph({
   brand,
   sub,
   size,
+  badgeSymbol = SUBSCRIPTION_BADGE_SYMBOL,
 }: {
   brand: ModelBrand | undefined;
   sub: boolean;
   size: number;
+  badgeSymbol?: SystemSymbolProps['name'];
 }) {
   const theme = useDesignTheme();
   const badge = Math.round(size * 0.55);
@@ -43,7 +50,7 @@ export function ModelFilterGlyph({
             borderColor: theme.layer[SHEET_GROUP].fill,
           }}
         >
-          <RefreshIcon color={theme.color.onAccent} size={badge * 0.7} />
+          <SystemSymbol name={badgeSymbol} color={theme.color.onAccent} size={badge * 0.62} />
         </View>
       ) : null}
     </View>

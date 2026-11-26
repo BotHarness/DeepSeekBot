@@ -9,6 +9,7 @@ import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { ModelSheet } from './model-sheet';
 import { WorkspaceSheet } from './workspace-sheet';
+import { announcingTemplates } from './approval-preset-port';
 import { SheetNote } from './sheet';
 
 export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
@@ -18,7 +19,10 @@ export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
   const { client } = useHostSession();
   const bot = useHostSnapshot(client).roster?.bots.find((entry) => entry.slug === slug);
   const settings = useMemo(
-    () => (client === undefined ? undefined : botSettings(client, slug)),
+    () =>
+      client === undefined
+        ? undefined
+        : announcingTemplates(botSettings(client, slug), client, slug),
     [client, slug],
   );
   const context = useComposerContext(settings);
