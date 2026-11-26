@@ -3,8 +3,6 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, SectionList, View } from 'react-native';
 import type { HostCall } from '@botharness/host-client/host-answer';
 import { sessionModel } from '@botharness/host-client/session-model';
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
-import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import type {
   SessionModelChoice,
   SessionModelState,
@@ -25,16 +23,22 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
 import { NativeSessionModelSheet } from './session-model-native';
-import { sessionDefaultModel, sessionModelKey, sessionModelLabel } from './session-model-label';
+import { sessionModelKey, sessionModelLabel } from './session-model-label';
 import {
-  SHEET_GROUP,
-  Sheet,
-  SheetCallout,
-  SheetFailed,
-  SheetHeading,
-  SheetSkeleton,
-  SheetNote,
-} from './sheet';
+  ModelFilterStrip,
+  SessionModelSkeletonRows,
+  filterAccessibleName,
+} from './session-model-filter-strip';
+import {
+  catalogDefaultChoice,
+  filterSessionModelSections,
+  sessionModelFilters,
+  sessionModelSections,
+  sessionModelSkeleton,
+  type SessionModelRow,
+  type SessionModelSection,
+} from './session-model-sections';
+import { SHEET_GROUP, Sheet, SheetCallout, SheetFailed, SheetHeading, SheetNote } from './sheet';
 
 export interface ComposerSessionModel {
   slug: string | null;
@@ -203,15 +207,6 @@ export function SessionModelLogo({ control, disabled }: { control: Control; disa
   );
 }
 
-type Option = {
-  choice: SessionModelChoice | null;
-  name: string;
-  brand?: ModelBrand | undefined;
-  detail?: string | undefined;
-  tag?: string;
-  disabled?: boolean;
-};
-
 export function SessionModelPicker({ control }: { control: Control }) {
   const t = useStrings();
   const copy = t.sessionModel;
@@ -232,97 +227,50 @@ export function SessionModelPicker({ control }: { control: Control }) {
     refresh,
     choose,
   } = control;
-  const defaultModel = useMemo(
-    () => sessionDefaultModel(state?.default ?? null, catalog),
-    [catalog, state?.default],
+  const [filter, setFilter] = useState<string>();
+  if (!visible && filter !== undefined) setFilter(undefined);
+  const strings = useMemo(
+    () => ({
+      defaultName: fresh && native ? copy.newDefault : native ? copy.nativeDefault : copy.default,
+      subscriptions: copy.subscriptions,
+      apiModels: copy.apiModels,
+      groups: copy.groups,
+      api: copy.api,
+      sub: copy.sub,
+      other: copy.otherProvider,
+    }),
+    [copy, fresh, native],
   );
-  const sections = useMemo(() => {
-    if (!visible || catalog === undefined) return [];
-    return [
-      {
-        title: '',
-        data: [
-          {
-            choice: null,
-            name: fresh && native ? copy.newDefault : native ? copy.nativeDefault : copy.default,
-            ...defaultModel,
-          },
-        ],
-      },
-      {
-        title: copy.groups,
-        data: (native ? [] : (catalog.groups ?? [])).map((group): Option => ({
-          choice: { kind: 'group', id: group.id },
-          name: group.name,
-          disabled: group.restingUntil !== undefined,
-        })),
-      },
-      {
-        title: copy.apiModels,
-        data: catalog.models.map((model): Option => {
-          const label = turnTargetLabel(
-            { kind: 'dsh', provider: model.provider, model: model.model },
-            catalog,
-          );
-          return {
-            choice: { kind: 'model', provider: model.provider, model: model.model },
-            name: label.short,
-            brand: label.brand,
-            detail: model.providerName,
-            tag: copy.api,
-            disabled: model.credential !== undefined || model.restingUntil !== undefined,
-          };
-        }),
-      },
-      {
-        title: t.routingGroup.engines,
-        data: (native ? [] : catalog.engines).flatMap((engine): Option[] =>
-          engine.available
-            ? engine.models.map((model) => {
-                const account = engine.accountId === undefined ? {} : { account: engine.accountId };
-                const label = turnTargetLabel(
-                  { kind: 'engine', engine: engine.engine, model: model.id, ...account },
-                  catalog,
-                );
-                return {
-                  choice: {
-                    kind: 'engine',
-                    engine: engine.engine,
-                    model: model.id,
-                    ...(engine.accountId === undefined ? {} : { accountId: engine.accountId }),
-                    ...(model.defaultEffort ? { effort: model.defaultEffort } : {}),
-                  },
-                  name: label.short,
-                  brand: label.brand,
-                  detail: engine.accountName,
-                  tag: copy.sub,
-                };
-              })
-            : [],
-        ),
-      },
-    ];
-  }, [catalog, copy, defaultModel, fresh, native, t.routingGroup.engines, visible]);
+  const defaultChoice = native && fresh ? catalogDefaultChoice(catalog) : (state?.default ?? null);
+  const all = useMemo(
+    () =>
+      !visible || catalog === undefined
+        ? []
+        : sessionModelSections({ catalog, defaultChoice, native, strings }),
+    [catalog, defaultChoice, native, strings, visible],
+  );
+  const filters = useMemo(() => sessionModelFilters(all, copy.otherProvider), [all, copy]);
+  const active = filters.some((entry) => entry.key === filter) ? filter : undefined;
+  const sections = useMemo(() => filterSessionModelSections(all, active), [all, active]);
+  const skeleton = sessionModelSkeleton(native, strings);
   const current = sessionModelKey(state?.override ?? null);
   const summary = useSessionModelSummary(control);
+  const accessible = (row: SessionModelRow) =>
+    copy.accessible([row.name, row.tag, row.detail].filter((part) => part !== undefined));
+  const note =
+    ready && summary.pending && summary.name !== undefined
+      ? `${summary.name} · ${copy.nextTurnNote}`
+      : refused
+        ? copy.saveFailed
+        : undefined;
   if (NativeSessionModelSheet !== undefined) {
-    const choices = new Map(
-      sections
-        .flatMap((section) => section.data)
-        .map((item) => [sessionModelKey(item.choice), item]),
-    );
+    const choices = new Map(all.flatMap((section) => section.rows).map((row) => [row.key, row]));
     return (
       <NativeSessionModelSheet
         visible={visible}
         title={copy.choice}
         closeLabel={t.close}
-        note={
-          ready && summary.pending && summary.name !== undefined
-            ? `${summary.name} · ${copy.nextTurnNote}`
-            : refused
-              ? copy.saveFailed
-              : undefined
-        }
+        note={note}
         failure={failed ? copy.loadFailed : undefined}
         retryLabel={t.retry}
         loading={!failed && !ready}
@@ -333,25 +281,32 @@ export function SessionModelPicker({ control }: { control: Control }) {
         current={current}
         saving={saving}
         savingLabel={copy.saving}
+        skeleton={skeleton}
+        filters={filters.map((entry) => ({
+          ...entry,
+          accessible: filterAccessibleName(entry, copy.subscription),
+        }))}
+        filter={active}
+        filterLabel={copy.filters}
+        onFilter={setFilter}
         sections={sections.map((section) => ({
+          id: section.id,
           title: section.title,
-          data: section.data.map((item) => ({
-            key: sessionModelKey(item.choice),
-            name: item.name,
-            brand: item.brand,
-            detail: item.detail,
-            tag: item.tag,
-            disabled: item.disabled,
-            accessible: copy.accessible(
-              [item.name, item.tag, item.detail].filter((part) => part !== undefined),
-            ),
+          data: section.rows.map((row) => ({
+            key: row.key,
+            name: row.name,
+            brand: row.brand,
+            detail: row.detail,
+            tag: row.tag,
+            disabled: row.disabled,
+            accessible: accessible(row),
           })),
         }))}
         onClose={close}
         onRetry={retry}
         onChoose={(key) => {
-          const item = choices.get(key);
-          if (item !== undefined) void choose(item.choice);
+          const row = choices.get(key);
+          if (row !== undefined) void choose(row.choice);
         }}
       />
     );
@@ -378,28 +333,38 @@ export function SessionModelPicker({ control }: { control: Control }) {
       {failed ? (
         <SheetFailed message={copy.loadFailed} on={SHEET_GROUP} onRetry={retry} />
       ) : !ready ? (
-        <SheetSkeleton />
+        <SessionModelSkeletonRows skeleton={skeleton} label={copy.refreshing} />
       ) : (
         <>
           {refused ? <SheetCallout tone="danger">{copy.saveFailed}</SheetCallout> : null}
           {summary.pending && summary.name !== undefined ? (
             <SheetNote>{`${summary.name} · ${copy.nextTurnNote}`}</SheetNote>
           ) : null}
-          <SectionList<Option>
+          <SectionList<SessionModelRow, SessionModelSection & { data: SessionModelRow[] }>
             nestedScrollEnabled
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: space.x5 }}
-            sections={sections}
-            keyExtractor={(item) => sessionModelKey(item.choice)}
+            sections={sections.map((section) => ({ ...section, data: section.rows }))}
+            keyExtractor={(row) => row.key}
             stickySectionHeadersEnabled={false}
             renderSectionHeader={({ section }) =>
               section.title && section.data.length > 0 ? (
                 <SheetHeading>{section.title}</SheetHeading>
               ) : null
             }
+            renderSectionFooter={({ section }) =>
+              section.id === 'default' && filters.length > 0 ? (
+                <ModelFilterStrip
+                  filters={filters}
+                  active={active}
+                  label={copy.filters}
+                  sub={copy.subscription}
+                  onFilter={setFilter}
+                />
+              ) : null
+            }
             renderItem={({ item, index, section }) => {
-              const key = sessionModelKey(item.choice);
-              const selected = current === key;
+              const selected = current === item.key;
               return (
                 <SettingsGroupItem
                   first={index === 0}
@@ -410,13 +375,15 @@ export function SessionModelPicker({ control }: { control: Control }) {
                     on={SHEET_GROUP}
                     testID={`session-model-option-${item.choice === null ? 'default' : `${item.choice.kind}-${index}`}`}
                     title={item.name}
-                    detail={saving === key ? copy.saving : item.detail}
+                    detail={saving === item.key ? copy.saving : item.detail}
                     selected={selected}
-                    accessibilityLabel={copy.accessible(
-                      [item.name, item.tag, item.detail].filter((part) => part !== undefined),
-                    )}
+                    accessibilityLabel={accessible(item)}
                     control={
-                      saving === key ? { kind: 'busy' } : selected ? { kind: 'check' } : undefined
+                      saving === item.key
+                        ? { kind: 'busy' }
+                        : selected
+                          ? { kind: 'check' }
+                          : undefined
                     }
                     leading={
                       <ModelBrandIcon
