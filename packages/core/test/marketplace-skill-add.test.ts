@@ -240,6 +240,22 @@ it('refuses replace when the clashing Bot Skill lives in another folder', async 
     }),
   ).toMatchObject({ ok: false, error: { code: 'skill-exists' } });
   expect(existsSync(join(memoryDir, '.agents/skills/tidy-notes'))).toBe(false);
+
+  mkdirSync(join(memoryDir, '.dsh/skills/tidy-notes'), { recursive: true });
+  writeFileSync(join(memoryDir, '.dsh/skills/tidy-notes/SKILL.md'), SKILL_MD);
+  mkdirSync(join(memoryDir, '.agents/skills/tidy-notes'), { recursive: true });
+  writeFileSync(join(memoryDir, '.agents/skills/tidy-notes/SKILL.md'), SKILL_MD);
+  expect(
+    await bridge.marketplaceSkillAdd({
+      id,
+      reviewId: review.reviewId,
+      bots: ['first'],
+      onConflict: 'replace',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'skill-exists' } });
+  expect(readFileSync(join(memoryDir, '.agents/skills/tidy-notes/SKILL.md'), 'utf8')).toBe(
+    SKILL_MD,
+  );
   expect(
     value(
       await bridge.marketplaceSkillAdd({

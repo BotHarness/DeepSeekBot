@@ -229,12 +229,18 @@ export function createMarketplaceSkillMethods(
         const taken = await botHasSkill(memoryDir, skillsDir, staged.name);
         if (taken && onConflict === undefined)
           return failure('skill-exists', `${slug} already has a Skill named ${staged.name}`);
-        if (taken && onConflict === 'replace' && !skillExists(skillsDir, staged.name))
+        const listed = await listBotSkills(memoryDir).catch(() => []);
+        const active = listed.find((skill) => skill.name === staged.name);
+        if (
+          taken &&
+          onConflict === 'replace' &&
+          active?.path !== `.agents/skills/${staged.name}/SKILL.md`
+        )
           return failure(
             'skill-exists',
-            `${slug} has a Skill named ${staged.name} outside .agents/skills/${staged.name}; choose rename instead`,
+            `${slug} uses a Skill named ${staged.name} from outside .agents/skills/${staged.name}; choose rename instead`,
           );
-        const names = new Set((await listBotSkills(memoryDir).catch(() => [])).map((s) => s.name));
+        const names = new Set(listed.map((skill) => skill.name));
         const name =
           taken && onConflict === 'rename'
             ? freeSkillName(
